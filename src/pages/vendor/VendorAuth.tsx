@@ -139,12 +139,25 @@ export default function VendorAuth() {
 
       if (vendorError) throw vendorError;
 
-      toast({
-        title: 'Registration successful!',
-        description: 'Your vendor account is pending approval. You can still set up your menu.',
-      });
+      // Send custom verification email via edge function
+      try {
+        const verificationUrl = `${window.location.origin}/verify-email`;
+        await supabase.functions.invoke('send-verification-email', {
+          body: {
+            email: signupEmail,
+            verificationUrl,
+            userName: fullName,
+            platform: 'vendor',
+          },
+        });
+      } catch (emailError) {
+        console.error('Failed to send custom verification email:', emailError);
+      }
 
-      navigate('/vendor/dashboard');
+      // Navigate to verification pending page
+      navigate('/verification-pending', {
+        state: { email: signupEmail, platform: 'vendor' },
+      });
     } catch (error: any) {
       toast({
         title: 'Registration failed',
