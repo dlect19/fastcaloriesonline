@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Store, Mail, Lock, User, Phone, MapPin, Leaf, Eye, EyeOff } from 'lucide-react';
+import { Store, Mail, Lock, User, Phone, MapPin, Leaf, Eye, EyeOff, Link2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,11 +9,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
+type AuthTab = 'login' | 'signup' | 'link';
+
 export default function VendorAuth() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('login');
+  const [activeTab, setActiveTab] = useState<AuthTab>('login');
 
   // Login state
   const [loginEmail, setLoginEmail] = useState('');
@@ -33,6 +35,17 @@ export default function VendorAuth() {
   const [address, setAddress] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('Lagos');
+
+  // Link account state
+  const [linkEmail, setLinkEmail] = useState('');
+  const [linkPassword, setLinkPassword] = useState('');
+  const [showLinkPassword, setShowLinkPassword] = useState(false);
+  const [linkBusinessName, setLinkBusinessName] = useState('');
+  const [linkBusinessCategory, setLinkBusinessCategory] = useState<'restaurant' | 'pharmacy' | 'market'>('restaurant');
+  const [linkAddress, setLinkAddress] = useState('');
+  const [linkCity, setLinkCity] = useState('');
+  const [linkState, setLinkState] = useState('Lagos');
+  const [linkPhone, setLinkPhone] = useState('');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,7 +68,20 @@ export default function VendorAuth() {
 
       if (!roles || roles.length === 0) {
         await supabase.auth.signOut();
-        throw new Error('This account is not registered as a vendor');
+        throw new Error('This account is not registered as a vendor. Use "Link Account" if you want to add vendor access to your existing customer account.');
+      }
+
+      // Check if vendor profile exists
+      const { data: vendor } = await supabase
+        .from('vendors')
+        .select('id')
+        .eq('user_id', data.user.id)
+        .single();
+
+      if (!vendor) {
+        // Has vendor role but no profile - rare edge case
+        await supabase.auth.signOut();
+        throw new Error('Vendor profile not found. Please contact support.');
       }
 
       toast({
@@ -112,13 +138,32 @@ export default function VendorAuth() {
         },
       });
 
-      if (authError) throw authError;
+      if (authError) {
+        // Check if user already exists
+        if (authError.message.includes('User already registered')) {
+          toast({
+            title: 'Account already exists',
+            description: 'An account with this email already exists. Use "Link Account" to add vendor access to your existing account.',
+            variant: 'destructive',
+          });
+          // Pre-fill the link form with the email
+          setLinkEmail(signupEmail);
+          setLinkBusinessName(businessName);
+          setLinkBusinessCategory(businessCategory);
+          setLinkAddress(address);
+          setLinkCity(city);
+          setLinkState(state);
+          setLinkPhone(phone);
+          setActiveTab('link');
+          return;
+        }
+        throw authError;
+      }
+      
       if (!authData.user) throw new Error('Failed to create user');
 
-      // Add vendor role
-      const { error: roleError } = await supabase
-        .from('user_roles')
-        .insert({ user_id: authData.user.id, role: 'vendor' });
+      // Add vendor role using the new function
+      const { error: roleError } = await supabase.rpc('add_vendor_role');
 
       if (roleError) throw roleError;
 
@@ -169,6 +214,74 @@ export default function VendorAuth() {
     }
   };
 
+  const handleLinkAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      // Sign in with existing account
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: linkEmail,
+        password: linkPassword,
+      });
+
+      if (error) throw error;
+
+      // Check if already a vendor
+      const { data: existingVendor } = await supabase
+        .from('vendors')
+        .select('id')
+        .eq('user_id', data.user.id)
+        .single();
+
+      if (existingVendor) {
+        toast({
+          title: 'Already a vendor',
+          description: 'This account is already registered as a vendor.',
+        });
+        navigate('/vendor/dashboard');
+        return;
+      }
+
+      // Add vendor role using the new function
+      const { error: roleError } = await supabase.rpc('add_vendor_role');
+
+      if (roleError) throw roleError;
+
+      // Create vendor profile
+      const { error: vendorError } = await supabase
+        .from('vendors')
+        .insert({
+          user_id: data.user.id,
+          name: linkBusinessName,
+          category: linkBusinessCategory,
+          address: linkAddress,
+          city: linkCity,
+          state: linkState,
+          phone: linkPhone || null,
+          email: linkEmail,
+          is_active: false, // Needs admin approval
+        });
+
+      if (vendorError) throw vendorError;
+
+      toast({
+        title: 'Vendor account created!',
+        description: 'Your vendor profile has been set up successfully. Redirecting to dashboard...',
+      });
+
+      navigate('/vendor/dashboard');
+    } catch (error: any) {
+      toast({
+        title: 'Failed to link account',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background flex">
       {/* Left Panel - Branding */}
@@ -201,7 +314,7 @@ export default function VendorAuth() {
       </div>
 
       {/* Right Panel - Auth Form */}
-      <div className="flex-1 flex items-center justify-center p-6">
+      <div className="flex-1 flex items-center justify-center p-6 overflow-y-auto">
         <div className="w-full max-w-md">
           {/* Mobile Logo */}
           <div className="flex items-center gap-2 mb-8 lg:hidden">
@@ -213,19 +326,25 @@ export default function VendorAuth() {
 
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-foreground">
-              {activeTab === 'login' ? 'Vendor Login' : 'Register Your Business'}
+              {activeTab === 'login' && 'Vendor Login'}
+              {activeTab === 'signup' && 'Register Your Business'}
+              {activeTab === 'link' && 'Link Existing Account'}
             </h2>
             <p className="text-muted-foreground mt-1">
-              {activeTab === 'login'
-                ? 'Access your vendor dashboard'
-                : 'Join our network of vendors'}
+              {activeTab === 'login' && 'Access your vendor dashboard'}
+              {activeTab === 'signup' && 'Join our network of vendors'}
+              {activeTab === 'link' && 'Add vendor access to your customer account'}
             </p>
           </div>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-2 mb-6">
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as AuthTab)}>
+            <TabsList className="grid w-full grid-cols-3 mb-6">
               <TabsTrigger value="login">Login</TabsTrigger>
               <TabsTrigger value="signup">Sign Up</TabsTrigger>
+              <TabsTrigger value="link" className="flex items-center gap-1">
+                <Link2 className="w-3 h-3" />
+                Link
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="login">
@@ -460,6 +579,156 @@ export default function VendorAuth() {
 
                 <Button type="submit" className="w-full h-12" disabled={loading}>
                   {loading ? 'Creating account...' : 'Create Vendor Account'}
+                </Button>
+              </form>
+            </TabsContent>
+
+            <TabsContent value="link">
+              <div className="mb-4 p-4 bg-primary/10 border border-primary/20 rounded-xl">
+                <div className="flex items-start gap-3">
+                  <Link2 className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Already have a customer account?</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Sign in with your existing Fast Calories account to add vendor access. You'll be able to use both the customer app and vendor portal with the same login.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <form onSubmit={handleLinkAccount} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="link-email">Email</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      id="link-email"
+                      type="email"
+                      placeholder="your@email.com"
+                      value={linkEmail}
+                      onChange={(e) => setLinkEmail(e.target.value)}
+                      className="pl-10"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="link-password">Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      id="link-password"
+                      type={showLinkPassword ? 'text' : 'password'}
+                      placeholder="••••••••"
+                      value={linkPassword}
+                      onChange={(e) => setLinkPassword(e.target.value)}
+                      className="pl-10 pr-10"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowLinkPassword(!showLinkPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      tabIndex={-1}
+                    >
+                      {showLinkPassword ? (
+                        <EyeOff className="w-5 h-5" />
+                      ) : (
+                        <Eye className="w-5 h-5" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="border-t pt-4">
+                  <p className="text-sm font-medium text-foreground mb-3">Business Information</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="link-business-name">Business Name</Label>
+                    <div className="relative">
+                      <Store className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                      <Input
+                        id="link-business-name"
+                        placeholder="My Restaurant"
+                        value={linkBusinessName}
+                        onChange={(e) => setLinkBusinessName(e.target.value)}
+                        className="pl-10"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Category</Label>
+                    <Select value={linkBusinessCategory} onValueChange={(v) => setLinkBusinessCategory(v as any)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="restaurant">Restaurant</SelectItem>
+                        <SelectItem value="pharmacy">Pharmacy</SelectItem>
+                        <SelectItem value="market">Market</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="link-address">Business Address</Label>
+                  <div className="relative">
+                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      id="link-address"
+                      placeholder="123 Main Street"
+                      value={linkAddress}
+                      onChange={(e) => setLinkAddress(e.target.value)}
+                      className="pl-10"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="link-city">City</Label>
+                    <Input
+                      id="link-city"
+                      placeholder="Lagos"
+                      value={linkCity}
+                      onChange={(e) => setLinkCity(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="link-state">State</Label>
+                    <Input
+                      id="link-state"
+                      placeholder="Lagos"
+                      value={linkState}
+                      onChange={(e) => setLinkState(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="link-phone">Phone (Optional)</Label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      id="link-phone"
+                      placeholder="08012345678"
+                      value={linkPhone}
+                      onChange={(e) => setLinkPhone(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
+
+                <Button type="submit" className="w-full h-12" disabled={loading}>
+                  {loading ? 'Linking account...' : 'Link Account & Create Vendor Profile'}
                 </Button>
               </form>
             </TabsContent>
