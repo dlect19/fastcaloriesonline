@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import { Star, Clock, Bike } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -14,6 +15,7 @@ interface VendorCardProps {
 }
 
 export function VendorCard({
+  id,
   name,
   category,
   imageUrl,
@@ -21,11 +23,16 @@ export function VendorCard({
   deliveryTime,
   deliveryFee,
   isOpen = true,
-  onClick,
 }: VendorCardProps) {
+  const navigate = useNavigate();
+
+  const handleClick = () => {
+    navigate(`/vendor/${id}`);
+  };
+
   return (
     <button
-      onClick={onClick}
+      onClick={handleClick}
       className="w-full text-left bg-card rounded-2xl overflow-hidden shadow-soft border border-border hover:shadow-card transition-all group"
     >
       {/* Image */}

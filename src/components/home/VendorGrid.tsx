@@ -1,60 +1,72 @@
+import { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { VendorCard } from './VendorCard';
+import { Skeleton } from '@/components/ui/skeleton';
+import type { Tables } from '@/integrations/supabase/types';
 
-// Mock data for demo
+type Vendor = Tables<'vendors'>;
+
+// Fallback mock data for demo when no vendors exist
 const mockVendors = [
   {
-    id: '1',
+    id: 'mock-1',
     name: 'Green Bowl Kitchen',
-    category: 'Healthy • Salads • Bowls',
+    category: 'restaurant' as const,
+    description: 'Healthy • Salads • Bowls',
     rating: 4.8,
-    deliveryTime: 25,
-    deliveryFee: 500,
-    isOpen: true,
+    estimated_delivery_minutes: 25,
+    delivery_fee: 500,
+    is_active: true,
   },
   {
-    id: '2',
-    name: 'Mama Nkechi\'s Place',
-    category: 'Nigerian • Local • Rice',
+    id: 'mock-2',
+    name: "Mama Nkechi's Place",
+    category: 'restaurant' as const,
+    description: 'Nigerian • Local • Rice',
     rating: 4.6,
-    deliveryTime: 35,
-    deliveryFee: 400,
-    isOpen: true,
+    estimated_delivery_minutes: 35,
+    delivery_fee: 400,
+    is_active: true,
   },
   {
-    id: '3',
+    id: 'mock-3',
     name: 'Fit Meals Lagos',
-    category: 'Protein • Low Carb • Keto',
+    category: 'restaurant' as const,
+    description: 'Protein • Low Carb • Keto',
     rating: 4.9,
-    deliveryTime: 30,
-    deliveryFee: 600,
-    isOpen: true,
+    estimated_delivery_minutes: 30,
+    delivery_fee: 600,
+    is_active: true,
   },
   {
-    id: '4',
+    id: 'mock-4',
     name: 'HealthPlus Pharmacy',
-    category: 'Pharmacy • Vitamins • First Aid',
+    category: 'pharmacy' as const,
+    description: 'Pharmacy • Vitamins • First Aid',
     rating: 4.7,
-    deliveryTime: 20,
-    deliveryFee: 300,
-    isOpen: true,
+    estimated_delivery_minutes: 20,
+    delivery_fee: 300,
+    is_active: true,
   },
   {
-    id: '5',
+    id: 'mock-5',
     name: 'Fresh Market Express',
-    category: 'Groceries • Fruits • Vegetables',
+    category: 'market' as const,
+    description: 'Groceries • Fruits • Vegetables',
     rating: 4.5,
-    deliveryTime: 40,
-    deliveryFee: 350,
-    isOpen: false,
+    estimated_delivery_minutes: 40,
+    delivery_fee: 350,
+    is_active: false,
   },
   {
-    id: '6',
+    id: 'mock-6',
     name: 'Protein Hub',
-    category: 'Grills • Protein • Healthy',
+    category: 'restaurant' as const,
+    description: 'Grills • Protein • Healthy',
     rating: 4.4,
-    deliveryTime: 28,
-    deliveryFee: 450,
-    isOpen: true,
+    estimated_delivery_minutes: 28,
+    delivery_fee: 450,
+    is_active: true,
   },
 ];
 
@@ -64,14 +76,71 @@ interface VendorGridProps {
 }
 
 export function VendorGrid({ title = 'Nearby Vendors', category = 'all' }: VendorGridProps) {
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [useMock, setUseMock] = useState(false);
+
+  useEffect(() => {
+    fetchVendors();
+  }, []);
+
+  const fetchVendors = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('vendors')
+        .select('*')
+        .eq('is_active', true)
+        .order('rating', { ascending: false });
+
+      if (error) throw error;
+      
+      if (data && data.length > 0) {
+        setVendors(data);
+        setUseMock(false);
+      } else {
+        setUseMock(true);
+      }
+    } catch (error) {
+      console.error('Error fetching vendors:', error);
+      setUseMock(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const displayVendors = useMock ? mockVendors : vendors;
+
   const filteredVendors = category === 'all' 
-    ? mockVendors 
-    : mockVendors.filter(v => {
-        if (category === 'restaurant') return !v.category.includes('Pharmacy') && !v.category.includes('Groceries');
-        if (category === 'pharmacy') return v.category.includes('Pharmacy');
-        if (category === 'market') return v.category.includes('Groceries');
+    ? displayVendors 
+    : displayVendors.filter(v => {
+        if (category === 'restaurant') return v.category === 'restaurant';
+        if (category === 'pharmacy') return v.category === 'pharmacy';
+        if (category === 'market') return v.category === 'market';
         return true;
       });
+
+  if (loading) {
+    return (
+      <section>
+        <div className="flex items-center justify-between mb-4">
+          <Skeleton className="h-6 w-32" />
+          <Skeleton className="h-4 w-16" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="bg-card rounded-2xl overflow-hidden border border-border">
+              <Skeleton className="h-32 w-full" />
+              <div className="p-4 space-y-2">
+                <Skeleton className="h-5 w-3/4" />
+                <Skeleton className="h-4 w-1/2" />
+                <Skeleton className="h-4 w-2/3" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section>
@@ -82,15 +151,27 @@ export function VendorGrid({ title = 'Nearby Vendors', category = 'all' }: Vendo
         </button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredVendors.map((vendor) => (
-          <VendorCard
-            key={vendor.id}
-            {...vendor}
-            onClick={() => console.log('Navigate to vendor:', vendor.id)}
-          />
-        ))}
-      </div>
+      {filteredVendors.length === 0 ? (
+        <div className="text-center py-8">
+          <p className="text-muted-foreground">No vendors found in this category</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredVendors.map((vendor) => (
+            <VendorCard
+              key={vendor.id}
+              id={vendor.id}
+              name={vendor.name}
+              category={vendor.description || `${vendor.category}`}
+              rating={vendor.rating || 0}
+              deliveryTime={vendor.estimated_delivery_minutes || 30}
+              deliveryFee={vendor.delivery_fee || 0}
+              isOpen={vendor.is_active ?? true}
+              imageUrl={useMock ? undefined : (vendor as Vendor).banner_url || undefined}
+            />
+          ))}
+        </div>
+      )}
     </section>
   );
 }
