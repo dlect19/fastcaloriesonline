@@ -13,6 +13,8 @@ import VendorDetail from "./pages/VendorDetail";
 import Explore from "./pages/Explore";
 import Orders from "./pages/Orders";
 import Favorites from "./pages/Favorites";
+import VerifyEmail from "./pages/VerifyEmail";
+import VerificationPending from "./pages/VerificationPending";
 import VendorAuth from "./pages/vendor/VendorAuth";
 import VendorDashboard from "./pages/vendor/VendorDashboard";
 import VendorMenu from "./pages/vendor/VendorMenu";
@@ -42,6 +44,8 @@ const App = () => (
               <Route path="/explore" element={<Explore />} />
               <Route path="/orders" element={<Orders />} />
               <Route path="/favorites" element={<Favorites />} />
+              <Route path="/verify-email" element={<VerifyEmail />} />
+              <Route path="/verification-pending" element={<VerificationPending />} />
               {/* Vendor Portal Routes */}
               <Route path="/vendor/auth" element={<VendorAuth />} />
               <Route path="/vendor/dashboard" element={<VendorDashboard />} />

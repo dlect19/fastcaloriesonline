@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Leaf, Mail, Lock, User, ArrowRight, Loader2, Eye, EyeOff } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
 
 const emailSchema = z.string().email('Please enter a valid email address');
@@ -112,9 +113,24 @@ export default function Auth() {
             });
           }
         } else {
-          toast({
-            title: 'Account created!',
-            description: 'Welcome to Fast Calories. Let\'s get you started!',
+          // Send custom verification email via edge function
+          try {
+            const verificationUrl = `${window.location.origin}/verify-email`;
+            await supabase.functions.invoke('send-verification-email', {
+              body: {
+                email,
+                verificationUrl,
+                userName: fullName,
+                platform: 'customer',
+              },
+            });
+          } catch (emailError) {
+            console.error('Failed to send custom verification email:', emailError);
+          }
+          
+          // Navigate to verification pending page
+          navigate('/verification-pending', {
+            state: { email, platform: 'customer' },
           });
         }
       }
