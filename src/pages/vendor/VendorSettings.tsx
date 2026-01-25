@@ -1,0 +1,301 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Store, Mail, Phone, MapPin, Save } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
+import { VendorSidebar } from '@/components/vendor/VendorSidebar';
+import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import type { Tables } from '@/integrations/supabase/types';
+
+type Vendor = Tables<'vendors'>;
+
+export default function VendorSettings() {
+  const { user, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [vendor, setVendor] = useState<Vendor | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    phone: '',
+    email: '',
+    address: '',
+    city: '',
+    state: '',
+    min_order_amount: '',
+    delivery_fee: '',
+    estimated_delivery_minutes: '',
+  });
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate('/vendor/auth');
+      return;
+    }
+    if (user) {
+      fetchData();
+    }
+  }, [user, authLoading, navigate]);
+
+  const fetchData = async () => {
+    try {
+      const { data: vendorData } = await supabase
+        .from('vendors')
+        .select('*')
+        .eq('user_id', user?.id)
+        .maybeSingle();
+
+      setVendor(vendorData);
+
+      if (vendorData) {
+        setFormData({
+          name: vendorData.name,
+          description: vendorData.description || '',
+          phone: vendorData.phone || '',
+          email: vendorData.email || '',
+          address: vendorData.address,
+          city: vendorData.city,
+          state: vendorData.state,
+          min_order_amount: vendorData.min_order_amount?.toString() || '0',
+          delivery_fee: vendorData.delivery_fee?.toString() || '0',
+          estimated_delivery_minutes: vendorData.estimated_delivery_minutes?.toString() || '30',
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!vendor) return;
+    setSaving(true);
+
+    try {
+      const { error } = await supabase
+        .from('vendors')
+        .update({
+          name: formData.name,
+          description: formData.description || null,
+          phone: formData.phone || null,
+          email: formData.email || null,
+          address: formData.address,
+          city: formData.city,
+          state: formData.state,
+          min_order_amount: parseFloat(formData.min_order_amount) || 0,
+          delivery_fee: parseFloat(formData.delivery_fee) || 0,
+          estimated_delivery_minutes: parseInt(formData.estimated_delivery_minutes) || 30,
+        })
+        .eq('id', vendor.id);
+
+      if (error) throw error;
+
+      toast({ title: 'Settings saved successfully' });
+      fetchData();
+    } catch (error: any) {
+      toast({
+        title: 'Error saving settings',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (authLoading || loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <VendorSidebar />
+        <main className="lg:ml-64 pt-14 lg:pt-0">
+          <div className="p-6 space-y-6">
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-96 rounded-2xl" />
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      <VendorSidebar vendorName={vendor?.name} />
+
+      <main className="lg:ml-64 pt-14 lg:pt-0">
+        <div className="p-6 space-y-6">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">Settings</h1>
+              <p className="text-muted-foreground">Manage your business profile</p>
+            </div>
+            <Button onClick={handleSave} disabled={saving} className="gap-2 w-fit">
+              <Save className="w-4 h-4" />
+              {saving ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </div>
+
+          {/* Business Info */}
+          <Card className="border-0 shadow-soft">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Store className="w-5 h-5" />
+                Business Information
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Business Name</Label>
+                  <Input
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Phone Number</Label>
+                  <Input
+                    id="phone"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    placeholder="08012345678"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  rows={3}
+                  placeholder="Tell customers about your business..."
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Location */}
+          <Card className="border-0 shadow-soft">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <MapPin className="w-5 h-5" />
+                Location
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="address">Street Address</Label>
+                <Input
+                  id="address"
+                  value={formData.address}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="city">City</Label>
+                  <Input
+                    id="city"
+                    value={formData.city}
+                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="state">State</Label>
+                  <Input
+                    id="state"
+                    value={formData.state}
+                    onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Delivery Settings */}
+          <Card className="border-0 shadow-soft">
+            <CardHeader>
+              <CardTitle className="text-lg">Delivery Settings</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="min_order">Minimum Order (₦)</Label>
+                  <Input
+                    id="min_order"
+                    type="number"
+                    value={formData.min_order_amount}
+                    onChange={(e) => setFormData({ ...formData, min_order_amount: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="delivery_fee">Delivery Fee (₦)</Label>
+                  <Input
+                    id="delivery_fee"
+                    type="number"
+                    value={formData.delivery_fee}
+                    onChange={(e) => setFormData({ ...formData, delivery_fee: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="delivery_time">Est. Delivery (mins)</Label>
+                  <Input
+                    id="delivery_time"
+                    type="number"
+                    value={formData.estimated_delivery_minutes}
+                    onChange={(e) => setFormData({ ...formData, estimated_delivery_minutes: e.target.value })}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Status */}
+          <Card className="border-0 shadow-soft">
+            <CardHeader>
+              <CardTitle className="text-lg">Account Status</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between p-4 rounded-xl bg-muted/50">
+                <div>
+                  <p className="font-medium text-foreground">Store Visibility</p>
+                  <p className="text-sm text-muted-foreground">
+                    {vendor?.is_active
+                      ? 'Your store is visible to customers'
+                      : 'Your store is pending approval or hidden'}
+                  </p>
+                </div>
+                <Switch checked={vendor?.is_active ?? false} disabled />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+    </div>
+  );
+}

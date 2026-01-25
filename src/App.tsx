@@ -13,6 +13,14 @@ import VendorDetail from "./pages/VendorDetail";
 import Explore from "./pages/Explore";
 import Orders from "./pages/Orders";
 import Favorites from "./pages/Favorites";
+import VendorAuth from "./pages/vendor/VendorAuth";
+import VendorDashboard from "./pages/vendor/VendorDashboard";
+import VendorMenu from "./pages/vendor/VendorMenu";
+import VendorOrders from "./pages/vendor/VendorOrders";
+import VendorReviews from "./pages/vendor/VendorReviews";
+import VendorEarnings from "./pages/vendor/VendorEarnings";
+import VendorHours from "./pages/vendor/VendorHours";
+import VendorSettings from "./pages/vendor/VendorSettings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,6 +42,15 @@ const App = () => (
               <Route path="/explore" element={<Explore />} />
               <Route path="/orders" element={<Orders />} />
               <Route path="/favorites" element={<Favorites />} />
+              {/* Vendor Portal Routes */}
+              <Route path="/vendor/auth" element={<VendorAuth />} />
+              <Route path="/vendor/dashboard" element={<VendorDashboard />} />
+              <Route path="/vendor/menu" element={<VendorMenu />} />
+              <Route path="/vendor/orders" element={<VendorOrders />} />
+              <Route path="/vendor/reviews" element={<VendorReviews />} />
+              <Route path="/vendor/earnings" element={<VendorEarnings />} />
+              <Route path="/vendor/hours" element={<VendorHours />} />
+              <Route path="/vendor/settings" element={<VendorSettings />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
