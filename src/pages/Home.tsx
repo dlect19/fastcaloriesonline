@@ -6,6 +6,7 @@ import { PromoBanner } from '@/components/home/PromoBanner';
 import { CalorieWidget } from '@/components/home/CalorieWidget';
 import { VendorGrid } from '@/components/home/VendorGrid';
 import { BottomNav } from '@/components/home/BottomNav';
+import { CartButton } from '@/components/cart/CartButton';
 import { Button } from '@/components/ui/button';
 import { LogOut, Leaf, Flame, Clock, Bike, Star, ChevronRight, Sparkles, Heart, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -232,6 +233,7 @@ export default function Home() {
         <VendorGrid category={selectedCategory} />
       </main>
 
+      <CartButton />
       <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
     </div>
   );
