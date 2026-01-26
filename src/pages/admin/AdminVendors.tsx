@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Check, X, Loader2 } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Check, X, Loader2, FlaskConical, ShieldCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function AdminVendors() {
@@ -93,7 +94,28 @@ export default function AdminVendors() {
     }
   };
 
-  if (loading) {
+  const toggleTestStore = async (vendorId: string, isTestStore: boolean) => {
+    try {
+      await supabase.from('vendors').update({ is_test_store: !isTestStore }).eq('id', vendorId);
+      toast({ title: `Vendor marked as ${!isTestStore ? 'test store' : 'live store'}` });
+      fetchVendors();
+    } catch (error) {
+      toast({ title: 'Failed to update vendor', variant: 'destructive' });
+    }
+  };
+
+  const approveForLive = async (vendorId: string) => {
+    try {
+      await supabase.from('vendors').update({ 
+        approved_for_live: true, 
+        is_test_store: false 
+      }).eq('id', vendorId);
+      toast({ title: 'Vendor approved for live' });
+      fetchVendors();
+    } catch (error) {
+      toast({ title: 'Failed to approve vendor', variant: 'destructive' });
+    }
+  };
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -126,11 +148,42 @@ export default function AdminVendors() {
                 <div className="space-y-4">
                   {vendors.map((vendor) => (
                     <div key={vendor.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div>
-                        <h3 className="font-medium">{vendor.name}</h3>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-medium">{vendor.name}</h3>
+                          {vendor.is_test_store && (
+                            <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                              <FlaskConical className="w-3 h-3 mr-1" />
+                              Test
+                            </Badge>
+                          )}
+                          {vendor.approved_for_live && (
+                            <Badge variant="outline" className="border-green-500 text-green-600">
+                              <ShieldCheck className="w-3 h-3 mr-1" />
+                              Live Approved
+                            </Badge>
+                          )}
+                        </div>
                         <p className="text-sm text-muted-foreground">{vendor.category} • {vendor.city}</p>
                       </div>
                       <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">Test Store</span>
+                          <Switch
+                            checked={vendor.is_test_store || false}
+                            onCheckedChange={() => toggleTestStore(vendor.id, vendor.is_test_store || false)}
+                          />
+                        </div>
+                        {!vendor.approved_for_live && !vendor.is_test_store && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => approveForLive(vendor.id)}
+                          >
+                            <ShieldCheck className="w-4 h-4 mr-1" />
+                            Approve for Live
+                          </Button>
+                        )}
                         <Badge variant={vendor.is_active ? 'default' : 'secondary'}>
                           {vendor.is_active ? 'Active' : 'Inactive'}
                         </Badge>

@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Check, X, Loader2, ShieldCheck, Mail, AlertCircle } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Check, X, Loader2, ShieldCheck, Mail, AlertCircle, FlaskConical } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function AdminRiders() {
@@ -98,6 +99,16 @@ export default function AdminRiders() {
       fetchRiders();
     } catch (error) {
       toast({ title: 'Failed to reject rider', variant: 'destructive' });
+    }
+  };
+
+  const toggleTestRider = async (riderId: string, isTestRider: boolean) => {
+    try {
+      await supabase.from('rider_profiles').update({ is_test_rider: !isTestRider }).eq('id', riderId);
+      toast({ title: `Rider marked as ${!isTestRider ? 'test rider' : 'live rider'}` });
+      fetchRiders();
+    } catch (error) {
+      toast({ title: 'Failed to update rider', variant: 'destructive' });
     }
   };
 
@@ -239,7 +250,15 @@ export default function AdminRiders() {
                     {riders.map((rider) => (
                       <div key={rider.id} className="flex items-center justify-between p-4 border rounded-lg">
                         <div className="space-y-1">
-                          <h3 className="font-medium">{rider.profile?.full_name || 'Unknown'}</h3>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-medium">{rider.profile?.full_name || 'Unknown'}</h3>
+                            {rider.is_test_rider && (
+                              <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                                <FlaskConical className="w-3 h-3 mr-1" />
+                                Test
+                              </Badge>
+                            )}
+                          </div>
                           <p className="text-sm text-muted-foreground">
                             {rider.vehicle_type} • {rider.vehicle_plate}
                           </p>
@@ -249,12 +268,19 @@ export default function AdminRiders() {
                             <span className="text-muted-foreground">NIN: {maskNIN(rider.nin_number)}</span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground">Test Rider</span>
+                            <Switch
+                              checked={rider.is_test_rider || false}
+                              onCheckedChange={() => toggleTestRider(rider.id, rider.is_test_rider || false)}
+                            />
+                          </div>
                           <Badge variant={rider.is_online ? 'default' : 'secondary'}>
                             {rider.is_online ? 'Online' : 'Offline'}
                           </Badge>
                           {rider.nin_verified && (
-                            <Badge variant="outline" className="text-calorie-low border-calorie-low">
+                            <Badge variant="outline" className="text-green-600 border-green-500">
                               <ShieldCheck className="w-3 h-3 mr-1" />
                               NIN Verified
                             </Badge>

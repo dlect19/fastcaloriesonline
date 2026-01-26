@@ -4,18 +4,46 @@ import { crypto } from "https://deno.land/std@0.190.0/crypto/mod.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const PAYSTACK_SECRET_KEY = Deno.env.get("PAYSTACK_SECRET_KEY")!;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-paystack-signature",
 };
 
+// deno-lint-ignore no-explicit-any
+type SupabaseClient = any;
+
+// Get the correct Paystack secret key based on environment
+async function getPaystackSecretKey(supabase: SupabaseClient): Promise<string> {
+  const { data: envSetting } = await supabase
+    .from("platform_settings")
+    .select("value")
+    .eq("key", "platform_environment")
+    .single();
+
+  const environment = (envSetting?.value as string) || "development";
+  
+  return environment === "production"
+    ? Deno.env.get("PAYSTACK_LIVE_SECRET_KEY") || Deno.env.get("PAYSTACK_SECRET_KEY")!
+    : Deno.env.get("PAYSTACK_TEST_SECRET_KEY") || Deno.env.get("PAYSTACK_SECRET_KEY")!;
+}
+
+// Get current platform environment
+async function getPlatformEnvironment(supabase: SupabaseClient): Promise<string> {
+  const { data: envSetting } = await supabase
+    .from("platform_settings")
+    .select("value")
+    .eq("key", "platform_environment")
+    .single();
+
+  return (envSetting?.value as string) || "development";
+}
+
 // Verify Paystack webhook signature using Web Crypto API
-async function verifySignature(payload: string, signature: string): Promise<boolean> {
+async function verifySignature(payload: string, signature: string, secretKey: string): Promise<boolean> {
   try {
     const encoder = new TextEncoder();
-    const keyData = encoder.encode(PAYSTACK_SECRET_KEY);
+    const keyData = encoder.encode(secretKey);
     const payloadData = encoder.encode(payload);
     
     const key = await crypto.subtle.importKey(
@@ -39,9 +67,6 @@ async function verifySignature(payload: string, signature: string): Promise<bool
   }
 }
 
-// deno-lint-ignore no-explicit-any
-type SupabaseClient = any;
-
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -51,8 +76,16 @@ const handler = async (req: Request): Promise<Response> => {
     const payload = await req.text();
     const signature = req.headers.get("x-paystack-signature");
 
+    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false }
+    });
+
+    // Get the correct secret key for signature verification
+    const paystackSecretKey = await getPaystackSecretKey(supabaseAdmin);
+    const platformEnvironment = await getPlatformEnvironment(supabaseAdmin);
+
     // Verify webhook signature
-    if (!signature || !(await verifySignature(payload, signature))) {
+    if (!signature || !(await verifySignature(payload, signature, paystackSecretKey))) {
       console.error("Invalid webhook signature");
       return new Response(
         JSON.stringify({ error: "Invalid signature" }),
@@ -61,24 +94,20 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     const event = JSON.parse(payload);
-    console.log("Paystack webhook event:", event.event);
-
-    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-      auth: { autoRefreshToken: false, persistSession: false }
-    });
+    console.log(`Paystack webhook event: ${event.event} (environment: ${platformEnvironment})`);
 
     switch (event.event) {
       case "charge.success":
-        await handleChargeSuccess(supabaseAdmin, event.data);
+        await handleChargeSuccess(supabaseAdmin, event.data, platformEnvironment);
         break;
       case "transfer.success":
-        await handleTransferSuccess(supabaseAdmin, event.data);
+        await handleTransferSuccess(supabaseAdmin, event.data, platformEnvironment);
         break;
       case "transfer.failed":
-        await handleTransferFailed(supabaseAdmin, event.data);
+        await handleTransferFailed(supabaseAdmin, event.data, platformEnvironment);
         break;
       case "transfer.reversed":
-        await handleTransferReversed(supabaseAdmin, event.data);
+        await handleTransferReversed(supabaseAdmin, event.data, platformEnvironment);
         break;
       default:
         console.log("Unhandled event type:", event.event);
@@ -99,12 +128,13 @@ const handler = async (req: Request): Promise<Response> => {
 };
 
 // deno-lint-ignore no-explicit-any
-async function handleChargeSuccess(supabase: SupabaseClient, data: any) {
+async function handleChargeSuccess(supabase: SupabaseClient, data: any, environment: string) {
   const reference = data.reference as string;
   const amount = (data.amount as number) / 100; // Paystack sends amount in kobo
   const metadata = data.metadata;
+  const isTestMode = environment === "development";
 
-  console.log("Processing charge.success for reference:", reference, "amount:", amount);
+  console.log(`Processing charge.success for reference: ${reference}, amount: ${amount}, testMode: ${isTestMode}`);
 
   if (!metadata?.order_id) {
     console.log("No order_id in metadata, skipping");
@@ -116,12 +146,18 @@ async function handleChargeSuccess(supabase: SupabaseClient, data: any) {
   // Get order details
   const { data: orderData, error: orderError } = await supabase
     .from("orders")
-    .select("id, subtotal, delivery_fee, rider_id, vendor_id")
+    .select("id, subtotal, delivery_fee, rider_id, vendor_id, environment")
     .eq("id", orderId)
     .single();
 
   if (orderError || !orderData) {
     console.error("Order not found:", orderId);
+    return;
+  }
+
+  // Verify order environment matches current platform environment
+  if (orderData.environment && orderData.environment !== environment) {
+    console.error(`Environment mismatch: order=${orderData.environment}, platform=${environment}`);
     return;
   }
 
@@ -142,7 +178,8 @@ async function handleChargeSuccess(supabase: SupabaseClient, data: any) {
     .from("orders")
     .update({
       payment_status: "paid",
-      payment_reference: reference
+      payment_reference: reference,
+      environment: environment, // Ensure environment is set
     })
     .eq("id", orderId);
 
@@ -186,113 +223,164 @@ async function handleChargeSuccess(supabase: SupabaseClient, data: any) {
     platformCommission,
     vendorShare,
     riderShare,
-    platformDeliveryShare
+    platformDeliveryShare,
+    isTestMode,
   });
 
-  const currentPlatformBalance = Number(platformWallet.balance) || 0;
-  const currentPlatformEarned = Number(platformWallet.total_earned) || 0;
-  const currentVendorPending = Number(vendorWallet.pending_balance) || 0;
-  const currentVendorEarned = Number(vendorWallet.total_earned) || 0;
+  if (isTestMode) {
+    // In test mode, update test balances only
+    const currentTestBalance = Number(platformWallet.test_balance) || 0;
+    const currentVendorTestPending = Number(vendorWallet.test_pending_balance) || 0;
 
-  // Update platform wallet
-  await supabase
-    .from("platform_wallet")
-    .update({
-      balance: currentPlatformBalance + platformCommission + platformDeliveryShare,
-      total_earned: currentPlatformEarned + platformCommission + platformDeliveryShare
-    })
-    .eq("id", platformWallet.id);
+    await supabase
+      .from("platform_wallet")
+      .update({
+        test_balance: currentTestBalance + platformCommission + platformDeliveryShare,
+      })
+      .eq("id", platformWallet.id);
 
-  // Credit vendor wallet (pending until 24hr hold passes)
-  await supabase
-    .from("wallets")
-    .update({
-      pending_balance: currentVendorPending + vendorShare,
-      total_earned: currentVendorEarned + vendorShare
-    })
-    .eq("id", vendorWallet.id);
-
-  // Log platform transaction
-  await supabase.from("wallet_transactions").insert({
-    platform_wallet_id: platformWallet.id,
-    wallet_type: "platform",
-    transaction_type: "credit",
-    category: "platform_commission",
-    amount: platformCommission + platformDeliveryShare,
-    balance_after: currentPlatformBalance + platformCommission + platformDeliveryShare,
-    paystack_reference: reference,
-    order_id: orderId,
-    status: "completed",
-    metadata: {
-      commission_amount: platformCommission,
-      delivery_share: platformDeliveryShare,
-      commission_rate: commissionRate
-    }
-  });
-
-  // Log vendor transaction
-  await supabase.from("wallet_transactions").insert({
-    wallet_id: vendorWallet.id,
-    wallet_type: "vendor",
-    transaction_type: "credit",
-    category: "vendor_share",
-    amount: vendorShare,
-    balance_after: currentVendorPending + vendorShare,
-    paystack_reference: reference,
-    order_id: orderId,
-    status: "pending", // Pending until 24hr hold
-    metadata: {
-      original_subtotal: subtotal,
-      commission_deducted: platformCommission,
-      eligible_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-    }
-  });
-
-  // If there's a rider assigned, credit their wallet immediately
-  if (orderData.rider_id && riderShare > 0) {
-    const { data: riderWallet } = await supabase
+    await supabase
       .from("wallets")
-      .select("*")
-      .eq("user_id", orderData.rider_id)
-      .single();
+      .update({
+        test_pending_balance: currentVendorTestPending + vendorShare,
+      })
+      .eq("id", vendorWallet.id);
 
-    if (riderWallet) {
-      const currentRiderBalance = Number(riderWallet.balance) || 0;
-      const currentRiderEligible = Number(riderWallet.eligible_balance) || 0;
-      const currentRiderEarned = Number(riderWallet.total_earned) || 0;
+    // Log test transaction
+    await supabase.from("wallet_transactions").insert({
+      platform_wallet_id: platformWallet.id,
+      wallet_type: "platform",
+      transaction_type: "credit",
+      category: "platform_commission",
+      amount: platformCommission + platformDeliveryShare,
+      balance_after: currentTestBalance + platformCommission + platformDeliveryShare,
+      paystack_reference: reference,
+      order_id: orderId,
+      status: "completed",
+      environment: "development",
+      metadata: {
+        commission_amount: platformCommission,
+        delivery_share: platformDeliveryShare,
+        commission_rate: commissionRate,
+        is_test: true,
+      }
+    });
 
-      await supabase
+    console.log("Test charge processed successfully");
+  } else {
+    // Production mode - update real balances
+    const currentPlatformBalance = Number(platformWallet.balance) || 0;
+    const currentPlatformEarned = Number(platformWallet.total_earned) || 0;
+    const currentVendorPending = Number(vendorWallet.pending_balance) || 0;
+    const currentVendorEarned = Number(vendorWallet.total_earned) || 0;
+
+    await supabase
+      .from("platform_wallet")
+      .update({
+        balance: currentPlatformBalance + platformCommission + platformDeliveryShare,
+        total_earned: currentPlatformEarned + platformCommission + platformDeliveryShare
+      })
+      .eq("id", platformWallet.id);
+
+    await supabase
+      .from("wallets")
+      .update({
+        pending_balance: currentVendorPending + vendorShare,
+        total_earned: currentVendorEarned + vendorShare
+      })
+      .eq("id", vendorWallet.id);
+
+    // Log platform transaction
+    await supabase.from("wallet_transactions").insert({
+      platform_wallet_id: platformWallet.id,
+      wallet_type: "platform",
+      transaction_type: "credit",
+      category: "platform_commission",
+      amount: platformCommission + platformDeliveryShare,
+      balance_after: currentPlatformBalance + platformCommission + platformDeliveryShare,
+      paystack_reference: reference,
+      order_id: orderId,
+      status: "completed",
+      environment: "production",
+      metadata: {
+        commission_amount: platformCommission,
+        delivery_share: platformDeliveryShare,
+        commission_rate: commissionRate
+      }
+    });
+
+    // Log vendor transaction
+    await supabase.from("wallet_transactions").insert({
+      wallet_id: vendorWallet.id,
+      wallet_type: "vendor",
+      transaction_type: "credit",
+      category: "vendor_share",
+      amount: vendorShare,
+      balance_after: currentVendorPending + vendorShare,
+      paystack_reference: reference,
+      order_id: orderId,
+      status: "pending",
+      environment: "production",
+      metadata: {
+        original_subtotal: subtotal,
+        commission_deducted: platformCommission,
+        eligible_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+      }
+    });
+
+    // If there's a rider assigned, credit their wallet immediately
+    if (orderData.rider_id && riderShare > 0) {
+      const { data: riderWallet } = await supabase
         .from("wallets")
-        .update({
-          balance: currentRiderBalance + riderShare,
-          eligible_balance: currentRiderEligible + riderShare,
-          total_earned: currentRiderEarned + riderShare
-        })
-        .eq("id", riderWallet.id);
+        .select("*")
+        .eq("user_id", orderData.rider_id)
+        .single();
 
-      await supabase.from("wallet_transactions").insert({
-        wallet_id: riderWallet.id,
-        wallet_type: "rider",
-        transaction_type: "credit",
-        category: "rider_share",
-        amount: riderShare,
-        balance_after: currentRiderBalance + riderShare,
-        paystack_reference: reference,
-        order_id: orderId,
-        status: "completed"
-      });
+      if (riderWallet) {
+        const currentRiderBalance = Number(riderWallet.balance) || 0;
+        const currentRiderEligible = Number(riderWallet.eligible_balance) || 0;
+        const currentRiderEarned = Number(riderWallet.total_earned) || 0;
+
+        await supabase
+          .from("wallets")
+          .update({
+            balance: currentRiderBalance + riderShare,
+            eligible_balance: currentRiderEligible + riderShare,
+            total_earned: currentRiderEarned + riderShare
+          })
+          .eq("id", riderWallet.id);
+
+        await supabase.from("wallet_transactions").insert({
+          wallet_id: riderWallet.id,
+          wallet_type: "rider",
+          transaction_type: "credit",
+          category: "rider_share",
+          amount: riderShare,
+          balance_after: currentRiderBalance + riderShare,
+          paystack_reference: reference,
+          order_id: orderId,
+          status: "completed",
+          environment: "production",
+        });
+      }
     }
-  }
 
-  console.log("Charge processed successfully");
+    console.log("Production charge processed successfully");
+  }
 }
 
 // deno-lint-ignore no-explicit-any
-async function handleTransferSuccess(supabase: SupabaseClient, data: any) {
+async function handleTransferSuccess(supabase: SupabaseClient, data: any, environment: string) {
   const reference = data.reference as string;
   const transferCode = data.transfer_code as string;
   
-  console.log("Processing transfer.success for reference:", reference);
+  console.log(`Processing transfer.success for reference: ${reference}, environment: ${environment}`);
+
+  // In development mode, this should never be called with real transfers
+  if (environment === "development") {
+    console.log("Ignoring transfer success in development mode");
+    return;
+  }
 
   // Find the payout request
   const { data: payoutRequest, error } = await supabase
@@ -346,6 +434,7 @@ async function handleTransferSuccess(supabase: SupabaseClient, data: any) {
       balance_after: Number(wallet.balance),
       paystack_reference: reference,
       status: "completed",
+      environment: "production",
       metadata: {
         bank_name: payoutRequest.bank_name,
         account_number: payoutRequest.bank_account_number,
@@ -358,11 +447,16 @@ async function handleTransferSuccess(supabase: SupabaseClient, data: any) {
 }
 
 // deno-lint-ignore no-explicit-any
-async function handleTransferFailed(supabase: SupabaseClient, data: any) {
+async function handleTransferFailed(supabase: SupabaseClient, data: any, environment: string) {
   const reference = data.reference as string;
   const reason = (data.reason as string) || "Unknown failure reason";
   
-  console.log("Processing transfer.failed for reference:", reference);
+  console.log(`Processing transfer.failed for reference: ${reference}, environment: ${environment}`);
+
+  if (environment === "development") {
+    console.log("Ignoring transfer failure in development mode");
+    return;
+  }
 
   // Find the payout request
   const { data: payoutRequest, error } = await supabase
@@ -415,9 +509,9 @@ async function handleTransferFailed(supabase: SupabaseClient, data: any) {
 }
 
 // deno-lint-ignore no-explicit-any
-async function handleTransferReversed(supabase: SupabaseClient, data: any) {
+async function handleTransferReversed(supabase: SupabaseClient, data: any, environment: string) {
   // Similar to failed, but for reversed transfers
-  await handleTransferFailed(supabase, data);
+  await handleTransferFailed(supabase, data, environment);
 }
 
 serve(handler);
