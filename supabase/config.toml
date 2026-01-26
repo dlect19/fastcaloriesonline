@@ -14,3 +14,15 @@ verify_jwt = false
 
 [functions.create-staff-account]
 verify_jwt = false
+
+[functions.paystack-webhook]
+verify_jwt = false
+
+[functions.paystack-verify-bank]
+verify_jwt = false
+
+[functions.paystack-create-recipient]
+verify_jwt = false
+
+[functions.process-payout]
+verify_jwt = false

@@ -1,0 +1,286 @@
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const PAYSTACK_SECRET_KEY = Deno.env.get("PAYSTACK_SECRET_KEY")!;
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+interface PayoutRequest {
+  payout_request_id?: string; // For admin-triggered payouts
+  amount?: number; // For manual amount specification
+}
+
+const handler = async (req: Request): Promise<Response> => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    // Verify authorization
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Unauthorized" }),
+        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claimsData, error: claimsError } = await supabase.auth.getUser(token);
+    
+    if (claimsError || !claimsData.user) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Invalid token" }),
+        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    const userId = claimsData.user.id;
+    const { payout_request_id, amount }: PayoutRequest = await req.json();
+
+    let payoutRequest;
+
+    if (payout_request_id) {
+      // Process existing payout request
+      const { data, error } = await supabase
+        .from("payout_requests")
+        .select("*, paystack_recipients(*)")
+        .eq("id", payout_request_id)
+        .single();
+
+      if (error || !data) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Payout request not found" }),
+          { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+
+      // Verify ownership or admin
+      const { data: isAdmin } = await supabase.rpc("has_role", {
+        _user_id: userId,
+        _role: "admin"
+      });
+
+      if (data.user_id !== userId && !isAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Not authorized" }),
+          { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+
+      payoutRequest = data;
+    } else if (amount) {
+      // Create new payout request
+      const { data: wallet, error: walletError } = await supabase
+        .from("wallets")
+        .select("*, paystack_recipients(*)")
+        .eq("user_id", userId)
+        .single();
+
+      if (walletError || !wallet) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Wallet not found" }),
+          { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+
+      // Get minimum withdrawal amount
+      const { data: minSetting } = await supabase
+        .from("platform_settings")
+        .select("value")
+        .eq("key", "min_withdrawal_amount")
+        .single();
+
+      const minAmount = parseFloat(minSetting?.value || "1000");
+
+      if (amount < minAmount) {
+        return new Response(
+          JSON.stringify({ success: false, error: `Minimum withdrawal is ₦${minAmount}` }),
+          { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+
+      if ((wallet.eligible_balance || 0) < amount) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Insufficient eligible balance" }),
+          { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+
+      if (!wallet.paystack_recipient_code) {
+        return new Response(
+          JSON.stringify({ success: false, error: "No bank account configured" }),
+          { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+
+      // Get default recipient
+      const defaultRecipient = wallet.paystack_recipients?.find((r: Record<string, unknown>) => r.is_default) || wallet.paystack_recipients?.[0];
+
+      // Determine user type
+      const { data: vendorCheck } = await supabase
+        .from("vendors")
+        .select("id")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      const userType = vendorCheck ? "vendor" : "rider";
+
+      // Create payout request
+      const reference = `PAY-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+
+      const { data: newRequest, error: insertError } = await supabase
+        .from("payout_requests")
+        .insert({
+          wallet_id: wallet.id,
+          user_id: userId,
+          user_type: userType,
+          amount: amount,
+          status: "processing",
+          paystack_reference: reference,
+          recipient_id: defaultRecipient?.id,
+          bank_name: wallet.bank_name,
+          bank_account_number: wallet.bank_account_number,
+          bank_account_name: wallet.bank_account_name,
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error("Error creating payout request:", insertError);
+        return new Response(
+          JSON.stringify({ success: false, error: "Failed to create payout request" }),
+          { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+
+      // Deduct from eligible balance and add to pending payouts
+      await supabase
+        .from("wallets")
+        .update({
+          balance: (wallet.balance || 0) - amount,
+          eligible_balance: (wallet.eligible_balance || 0) - amount,
+          pending_payouts: (wallet.pending_payouts || 0) + amount,
+        })
+        .eq("id", wallet.id);
+
+      payoutRequest = {
+        ...newRequest,
+        recipient_code: wallet.paystack_recipient_code,
+      };
+    } else {
+      return new Response(
+        JSON.stringify({ success: false, error: "Missing payout_request_id or amount" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Get recipient code
+    const recipientCode = payoutRequest.recipient_code || payoutRequest.paystack_recipients?.recipient_code;
+    
+    if (!recipientCode) {
+      // Try to get from wallet
+      const { data: wallet } = await supabase
+        .from("wallets")
+        .select("paystack_recipient_code")
+        .eq("id", payoutRequest.wallet_id)
+        .single();
+
+      if (!wallet?.paystack_recipient_code) {
+        return new Response(
+          JSON.stringify({ success: false, error: "No recipient code found" }),
+          { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+    }
+
+    const finalRecipientCode = recipientCode || payoutRequest.paystack_recipients?.recipient_code;
+
+    console.log("Initiating Paystack transfer:", {
+      amount: payoutRequest.amount,
+      recipient: finalRecipientCode,
+      reference: payoutRequest.paystack_reference,
+    });
+
+    // Initiate Paystack transfer
+    const paystackResponse = await fetch("https://api.paystack.co/transfer", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        source: "balance",
+        amount: payoutRequest.amount * 100, // Paystack expects kobo
+        recipient: finalRecipientCode,
+        reason: `Fast Calories Payout - ${payoutRequest.user_type}`,
+        reference: payoutRequest.paystack_reference,
+      }),
+    });
+
+    const paystackData = await paystackResponse.json();
+
+    if (!paystackResponse.ok || !paystackData.status) {
+      console.error("Paystack transfer failed:", paystackData);
+      
+      // Update payout request as failed
+      await supabase
+        .from("payout_requests")
+        .update({
+          status: "failed",
+          failure_reason: paystackData.message || "Transfer failed",
+        })
+        .eq("id", payoutRequest.id);
+
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: paystackData.message || "Transfer failed" 
+        }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Update payout request with transfer code
+    await supabase
+      .from("payout_requests")
+      .update({
+        paystack_transfer_code: paystackData.data.transfer_code,
+        status: "processing",
+      })
+      .eq("id", payoutRequest.id);
+
+    console.log("Transfer initiated successfully:", paystackData.data.transfer_code);
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        data: {
+          transfer_code: paystackData.data.transfer_code,
+          reference: payoutRequest.paystack_reference,
+          status: "processing",
+          message: "Transfer initiated. You will be notified once completed.",
+        }
+      }),
+      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+    );
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error("Error processing payout:", errorMessage);
+    return new Response(
+      JSON.stringify({ success: false, error: errorMessage }),
+      { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+    );
+  }
+};
+
+serve(handler);
