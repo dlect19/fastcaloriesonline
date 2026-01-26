@@ -3,7 +3,6 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const PAYSTACK_SECRET_KEY = Deno.env.get("PAYSTACK_SECRET_KEY")!;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -15,6 +14,24 @@ interface CreateRecipientRequest {
   bank_code: string;
   account_name: string;
   bank_name: string;
+}
+
+async function getPaystackSecretKey(): Promise<string> {
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  
+  const { data: envSetting } = await supabase
+    .from("platform_settings")
+    .select("value")
+    .eq("key", "platform_environment")
+    .single();
+
+  const environment = envSetting?.value || "development";
+  
+  console.log("Platform environment for recipient creation:", environment);
+  
+  return environment === "production"
+    ? Deno.env.get("PAYSTACK_LIVE_SECRET_KEY")!
+    : Deno.env.get("PAYSTACK_TEST_SECRET_KEY")!;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -58,13 +75,16 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
+    // Get the correct Paystack key based on environment
+    const paystackSecretKey = await getPaystackSecretKey();
+
     console.log("Creating Paystack recipient for user:", userId);
 
     // Create recipient on Paystack
     const paystackResponse = await fetch("https://api.paystack.co/transferrecipient", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
+        Authorization: `Bearer ${paystackSecretKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({

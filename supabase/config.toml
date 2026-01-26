@@ -59,3 +59,6 @@ verify_jwt = false
 
 [functions.get-platform-config]
 verify_jwt = false
+
+[functions.paystack-list-banks]
+verify_jwt = false
