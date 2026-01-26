@@ -5,9 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Leaf, Mail, Lock, User, ArrowRight, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight, Loader2, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
+import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 
 const emailSchema = z.string().email('Please enter a valid email address');
 const passwordSchema = z.string().min(6, 'Password must be at least 6 characters');
@@ -157,11 +158,8 @@ export default function Auth() {
     <div className="min-h-screen bg-gradient-to-b from-secondary to-background flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-center pt-12 pb-8">
-        <div className="flex items-center gap-2">
-          <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center shadow-button">
-            <Leaf className="w-7 h-7 text-primary-foreground" />
-          </div>
-          <span className="text-2xl font-bold text-foreground">Fast Calories</span>
+        <div className="flex items-center gap-3">
+          <img src={fastCaloriesLogo} alt="Fast Calories" className="h-14 w-auto" />
         </div>
       </div>
 

@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Mail, ArrowLeft, RefreshCw, Loader2, Leaf } from 'lucide-react';
+import { Mail, ArrowLeft, RefreshCw, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 
 export default function VerificationPending() {
   const navigate = useNavigate();
@@ -57,10 +58,7 @@ export default function VerificationPending() {
       <div className="w-full max-w-md text-center">
         {/* Logo */}
         <div className="flex items-center justify-center gap-2 mb-8">
-          <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center shadow-button">
-            <Leaf className="w-7 h-7 text-primary-foreground" />
-          </div>
-          <span className="text-2xl font-bold text-foreground">Fast Calories</span>
+          <img src={fastCaloriesLogo} alt="Fast Calories" className="h-14 w-auto" />
         </div>
 
         {/* Status Card */}

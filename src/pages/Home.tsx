@@ -8,8 +8,9 @@ import { VendorGrid } from '@/components/home/VendorGrid';
 import { BottomNav } from '@/components/home/BottomNav';
 import { CartButton } from '@/components/cart/CartButton';
 import { Button } from '@/components/ui/button';
-import { LogOut, Leaf, Flame, Clock, Bike, Star, ChevronRight, Sparkles, Heart, ShieldCheck } from 'lucide-react';
+import { LogOut, Flame, Star, ChevronRight, Sparkles, Heart, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 
 export default function Home() {
   const { user, signOut, loading } = useAuth();
@@ -26,9 +27,7 @@ export default function Home() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center animate-pulse-soft">
-            <Leaf className="w-9 h-9 text-primary-foreground" />
-          </div>
+          <img src={fastCaloriesLogo} alt="Fast Calories" className="h-16 w-auto animate-pulse-soft" />
           <p className="text-muted-foreground">Loading...</p>
         </div>
       </div>
@@ -50,10 +49,7 @@ export default function Home() {
           {/* Header */}
           <header className="relative z-10 flex items-center justify-between px-6 py-4">
             <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-button">
-                <Leaf className="w-6 h-6 text-primary-foreground" />
-              </div>
-              <span className="text-xl font-bold text-foreground">Fast Calories</span>
+              <img src={fastCaloriesLogo} alt="Fast Calories" className="h-10 w-auto" />
             </div>
             <Button
               onClick={() => navigate('/auth')}
