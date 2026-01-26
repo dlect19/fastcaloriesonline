@@ -108,13 +108,51 @@ export default function VendorMenu() {
     parseFloat(formData.fats_grams) || 0
   );
 
+  // Default gram suggestions per food class
+  const defaultGrams: Record<CalorieClass, { carbs: number; protein: number; fats: number }> = {
+    carbs: { carbs: 50, protein: 5, fats: 2 },
+    protein: { carbs: 5, protein: 30, fats: 8 },
+    fats: { carbs: 2, protein: 2, fats: 20 },
+    fiber: { carbs: 15, protein: 3, fats: 1 },
+  };
+
   const toggleCalorieClass = (cls: CalorieClass) => {
-    setFormData(prev => ({
-      ...prev,
-      calorie_classes: prev.calorie_classes.includes(cls)
+    setFormData(prev => {
+      const isRemoving = prev.calorie_classes.includes(cls);
+      const newClasses = isRemoving
         ? prev.calorie_classes.filter(c => c !== cls)
-        : [...prev.calorie_classes, cls]
-    }));
+        : [...prev.calorie_classes, cls];
+
+      // If adding a class and macros are empty, auto-fill with defaults
+      if (!isRemoving) {
+        const defaults = defaultGrams[cls];
+        const currentCarbs = parseFloat(prev.carbs_grams) || 0;
+        const currentProtein = parseFloat(prev.protein_grams) || 0;
+        const currentFats = parseFloat(prev.fats_grams) || 0;
+
+        return {
+          ...prev,
+          calorie_classes: newClasses,
+          carbs_grams: (currentCarbs + defaults.carbs).toString(),
+          protein_grams: (currentProtein + defaults.protein).toString(),
+          fats_grams: (currentFats + defaults.fats).toString(),
+        };
+      }
+
+      // If removing a class, subtract its defaults
+      const defaults = defaultGrams[cls];
+      const currentCarbs = parseFloat(prev.carbs_grams) || 0;
+      const currentProtein = parseFloat(prev.protein_grams) || 0;
+      const currentFats = parseFloat(prev.fats_grams) || 0;
+
+      return {
+        ...prev,
+        calorie_classes: newClasses,
+        carbs_grams: Math.max(0, currentCarbs - defaults.carbs).toString(),
+        protein_grams: Math.max(0, currentProtein - defaults.protein).toString(),
+        fats_grams: Math.max(0, currentFats - defaults.fats).toString(),
+      };
+    });
   };
 
   useEffect(() => {
