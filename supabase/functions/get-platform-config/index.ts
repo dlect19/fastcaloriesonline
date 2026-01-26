@@ -23,6 +23,18 @@ const handler = async (req: Request): Promise<Response> => {
       auth: { autoRefreshToken: false, persistSession: false }
     });
 
+    // Parse request body for admin test mode
+    let requestedTestMode = false;
+    let isAdminRequest = false;
+    
+    try {
+      const body = await req.json();
+      requestedTestMode = body?.adminTestMode === true;
+      isAdminRequest = body?.isAdmin === true;
+    } catch {
+      // No body or invalid JSON, use defaults
+    }
+
     // Get current platform environment
     const { data: envSetting, error } = await supabaseAdmin
       .from("platform_settings")
@@ -43,15 +55,27 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    const environment = envSetting?.value || "development";
-    const isTestMode = environment === "development";
+    const platformEnvironment = envSetting?.value || "development";
+    
+    // Determine effective environment:
+    // - If platform is development, always development
+    // - If platform is production but admin requested test mode, use development for that admin
+    // - Otherwise production
+    let effectiveEnvironment = platformEnvironment;
+    if (platformEnvironment === "production" && isAdminRequest && requestedTestMode) {
+      effectiveEnvironment = "development";
+      console.log("Admin test session: using development environment");
+    }
+
+    const isTestMode = effectiveEnvironment === "development";
     const paystackPublicKey = isTestMode ? PAYSTACK_TEST_PUBLIC_KEY : PAYSTACK_LIVE_PUBLIC_KEY;
 
-    console.log(`Platform config: environment=${environment}, isTestMode=${isTestMode}`);
+    console.log(`Platform config: platform=${platformEnvironment}, effective=${effectiveEnvironment}, isTestMode=${isTestMode}`);
 
     return new Response(
       JSON.stringify({
-        environment,
+        environment: platformEnvironment,
+        effectiveEnvironment,
         paystackPublicKey,
         isTestMode,
       }),
