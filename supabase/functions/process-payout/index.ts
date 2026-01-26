@@ -3,12 +3,31 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const PAYSTACK_SECRET_KEY = Deno.env.get("PAYSTACK_SECRET_KEY")!;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// deno-lint-ignore no-explicit-any
+type SupabaseClient = any;
+
+// Get the correct Paystack secret key based on environment
+async function getPaystackConfig(supabase: SupabaseClient): Promise<{ key: string; environment: string }> {
+  const { data: envSetting } = await supabase
+    .from("platform_settings")
+    .select("value")
+    .eq("key", "platform_environment")
+    .single();
+
+  const environment = (envSetting?.value as string) || "development";
+  
+  const key = environment === "production"
+    ? Deno.env.get("PAYSTACK_LIVE_SECRET_KEY") || Deno.env.get("PAYSTACK_SECRET_KEY")!
+    : Deno.env.get("PAYSTACK_TEST_SECRET_KEY") || Deno.env.get("PAYSTACK_SECRET_KEY")!;
+
+  return { key, environment };
+}
 
 interface PayoutRequest {
   payout_request_id?: string; // For admin-triggered payouts
@@ -41,6 +60,22 @@ const handler = async (req: Request): Promise<Response> => {
       return new Response(
         JSON.stringify({ success: false, error: "Invalid token" }),
         { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Get platform environment
+    const { key: paystackSecretKey, environment } = await getPaystackConfig(supabase);
+
+    // CRITICAL: Block all payouts in development mode
+    if (environment === "development") {
+      console.log("Payout blocked: Platform is in development mode");
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: "Payouts are disabled in development mode. Switch to production to enable real bank transfers.",
+          environment: "development",
+        }),
+        { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -205,17 +240,18 @@ const handler = async (req: Request): Promise<Response> => {
 
     const finalRecipientCode = recipientCode || payoutRequest.paystack_recipients?.recipient_code;
 
-    console.log("Initiating Paystack transfer:", {
+    console.log("Initiating Paystack transfer (PRODUCTION):", {
       amount: payoutRequest.amount,
       recipient: finalRecipientCode,
       reference: payoutRequest.paystack_reference,
+      environment: "production",
     });
 
     // Initiate Paystack transfer
     const paystackResponse = await fetch("https://api.paystack.co/transfer", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
+        Authorization: `Bearer ${paystackSecretKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -269,6 +305,7 @@ const handler = async (req: Request): Promise<Response> => {
           reference: payoutRequest.paystack_reference,
           status: "processing",
           message: "Transfer initiated. You will be notified once completed.",
+          environment: "production",
         }
       }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }

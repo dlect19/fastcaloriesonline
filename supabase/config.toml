@@ -56,3 +56,6 @@ verify_jwt = false
 
 [functions.verify-email-otp]
 verify_jwt = false
+
+[functions.get-platform-config]
+verify_jwt = false

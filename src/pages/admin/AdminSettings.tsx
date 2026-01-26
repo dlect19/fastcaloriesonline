@@ -9,6 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { MapPin, Bike, DollarSign, Settings2, Save, Loader2 } from 'lucide-react';
+import { EnvironmentSwitch } from '@/components/admin/EnvironmentSwitch';
 
 interface DeliverySetting {
   key: string;
@@ -147,6 +148,9 @@ export default function AdminSettings() {
           </div>
         ) : (
           <div className="space-y-6 max-w-3xl">
+            {/* Environment Switch Section */}
+            <EnvironmentSwitch />
+
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">

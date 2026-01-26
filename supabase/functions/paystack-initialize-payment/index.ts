@@ -6,6 +6,27 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// deno-lint-ignore no-explicit-any
+type SupabaseClient = any;
+
+// Helper function to get the correct Paystack secret key based on environment
+async function getPaystackSecretKey(supabaseClient: SupabaseClient): Promise<{ key: string; environment: string }> {
+  const { data: envSetting } = await supabaseClient
+    .from('platform_settings')
+    .select('value')
+    .eq('key', 'platform_environment')
+    .single();
+
+  const environment = (envSetting?.value as string) || 'development';
+  
+  const key = environment === 'production'
+    ? Deno.env.get('PAYSTACK_LIVE_SECRET_KEY') || Deno.env.get('PAYSTACK_SECRET_KEY')!
+    : Deno.env.get('PAYSTACK_TEST_SECRET_KEY') || Deno.env.get('PAYSTACK_SECRET_KEY')!;
+
+  console.log(`Using ${environment} Paystack keys`);
+  return { key, environment };
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -15,7 +36,6 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const paystackSecretKey = Deno.env.get('PAYSTACK_SECRET_KEY')!;
 
     // Get the authorization header
     const authHeader = req.headers.get('authorization');
@@ -50,7 +70,10 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Initializing payment for order: ${orderId}`);
+    // Get environment-specific Paystack key
+    const { key: paystackSecretKey, environment } = await getPaystackSecretKey(supabaseClient);
+
+    console.log(`Initializing payment for order: ${orderId} in ${environment} mode`);
 
     // Fetch order details
     const { data: order, error: orderError } = await supabaseClient
@@ -91,6 +114,7 @@ serve(async (req) => {
           order_id: orderId,
           order_number: order.order_number,
           user_id: user.id,
+          environment: environment, // Track which environment this payment is for
         },
       }),
     });
@@ -107,12 +131,13 @@ serve(async (req) => {
 
     console.log(`Payment initialized successfully. Reference: ${paystackData.data.reference}`);
 
-    // Update order with payment reference
+    // Update order with payment reference and environment
     await supabaseClient
       .from('orders')
       .update({ 
         payment_reference: paystackData.data.reference,
-        payment_method: 'paystack'
+        payment_method: 'paystack',
+        environment: environment, // Store which environment this order was created in
       })
       .eq('id', orderId);
 
@@ -122,6 +147,7 @@ serve(async (req) => {
         authorization_url: paystackData.data.authorization_url,
         access_code: paystackData.data.access_code,
         reference: paystackData.data.reference,
+        environment: environment,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
