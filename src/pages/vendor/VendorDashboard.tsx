@@ -48,14 +48,16 @@ export default function VendorDashboard() {
 
   const fetchVendorData = async () => {
     try {
-      // Fetch vendor profile
-      const { data: vendorData, error: vendorError } = await supabase
+      // Fetch vendor profile (use limit(1) to handle multiple vendor profiles)
+      const { data: vendorResults, error: vendorError } = await supabase
         .from('vendors')
         .select('*')
         .eq('user_id', user?.id)
-        .maybeSingle();
+        .order('created_at', { ascending: false })
+        .limit(1);
 
       if (vendorError) throw vendorError;
+      const vendorData = vendorResults?.[0] || null;
       setVendor(vendorData);
 
       if (vendorData) {
