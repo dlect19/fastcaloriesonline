@@ -22,6 +22,7 @@ import VendorMenu from "./pages/vendor/VendorMenu";
 import VendorOrders from "./pages/vendor/VendorOrders";
 import VendorReviews from "./pages/vendor/VendorReviews";
 import VendorEarnings from "./pages/vendor/VendorEarnings";
+import VendorWithdraw from "./pages/vendor/VendorWithdraw";
 import VendorHours from "./pages/vendor/VendorHours";
 import VendorSettings from "./pages/vendor/VendorSettings";
 import VendorPromos from "./pages/vendor/VendorPromos";
@@ -31,6 +32,7 @@ import RiderAuth from "./pages/rider/RiderAuth";
 import RiderDashboard from "./pages/rider/RiderDashboard";
 import RiderOrders from "./pages/rider/RiderOrders";
 import RiderEarnings from "./pages/rider/RiderEarnings";
+import RiderWithdraw from "./pages/rider/RiderWithdraw";
 import RiderSettings from "./pages/rider/RiderSettings";
 import AdminAuth from "./pages/admin/AdminAuth";
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -71,6 +73,7 @@ const App = () => (
               <Route path="/vendor/orders" element={<VendorOrders />} />
               <Route path="/vendor/reviews" element={<VendorReviews />} />
               <Route path="/vendor/earnings" element={<VendorEarnings />} />
+              <Route path="/vendor/withdraw" element={<VendorWithdraw />} />
               <Route path="/vendor/hours" element={<VendorHours />} />
               <Route path="/vendor/settings" element={<VendorSettings />} />
               <Route path="/vendor/promos" element={<VendorPromos />} />
@@ -80,6 +83,7 @@ const App = () => (
               <Route path="/rider/dashboard" element={<RiderDashboard />} />
               <Route path="/rider/orders" element={<RiderOrders />} />
               <Route path="/rider/earnings" element={<RiderEarnings />} />
+              <Route path="/rider/withdraw" element={<RiderWithdraw />} />
               <Route path="/rider/settings" element={<RiderSettings />} />
               <Route path="/rider/join/:code" element={<VendorRiderJoin />} />
               {/* Admin Portal Routes */}

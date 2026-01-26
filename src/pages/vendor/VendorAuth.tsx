@@ -288,8 +288,8 @@ export default function VendorAuth() {
       {/* Left Panel - Branding */}
       <div className="hidden lg:flex lg:w-1/2 gradient-primary flex-col justify-center items-center p-12">
         <div className="max-w-md text-center">
-          <div className="w-20 h-20 rounded-2xl bg-primary-foreground/10 flex items-center justify-center mx-auto mb-6">
-            <Store className="w-10 h-10 text-primary-foreground" />
+          <div className="w-24 h-24 rounded-2xl bg-primary-foreground flex items-center justify-center mx-auto mb-6 p-2">
+            <img src={fastCaloriesLogo} alt="Fast Calories" className="w-full h-full object-contain" />
           </div>
           <h1 className="text-3xl font-bold text-primary-foreground mb-4">
             Fast Calories Vendor Portal
