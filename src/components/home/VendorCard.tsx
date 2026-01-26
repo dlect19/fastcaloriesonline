@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Star, Clock, Bike } from 'lucide-react';
+import { Star, Clock, Bike, MapPin } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface VendorCardProps {
@@ -11,6 +11,7 @@ interface VendorCardProps {
   deliveryTime: number;
   deliveryFee: number;
   isOpen?: boolean;
+  distance?: string;
   onClick?: () => void;
 }
 
@@ -23,6 +24,7 @@ export function VendorCard({
   deliveryTime,
   deliveryFee,
   isOpen = true,
+  distance,
 }: VendorCardProps) {
   const navigate = useNavigate();
 
@@ -66,6 +68,14 @@ export function VendorCard({
           <Star className="w-3.5 h-3.5 fill-warning text-warning" />
           <span className="text-xs font-semibold text-foreground">{rating.toFixed(1)}</span>
         </div>
+
+        {/* Distance badge */}
+        {distance && (
+          <div className="absolute bottom-3 left-3 flex items-center gap-1 bg-card/95 backdrop-blur-sm px-2 py-1 rounded-full">
+            <MapPin className="w-3 h-3 text-primary" />
+            <span className="text-xs font-medium text-foreground">{distance}</span>
+          </div>
+        )}
       </div>
 
       {/* Content */}

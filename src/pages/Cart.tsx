@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCart } from '@/hooks/useCart';
 import { useTakeawayPacks } from '@/hooks/useTakeawayPacks';
 import { usePromoCode } from '@/hooks/usePromoCode';
+import { useDeliveryFee } from '@/hooks/useDeliveryFee';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { BottomNav } from '@/components/home/BottomNav';
@@ -12,11 +13,16 @@ import { OrderSummary } from '@/components/cart/OrderSummary';
 import { AddressSelector } from '@/components/cart/AddressSelector';
 import { TakeawayPackDisplay } from '@/components/cart/TakeawayPackDisplay';
 import { PromoCodeInput } from '@/components/cart/PromoCodeInput';
-import { ArrowLeft, ShoppingBag, Leaf, Loader2 } from 'lucide-react';
+import { ArrowLeft, ShoppingBag, Leaf, Loader2, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Address = Tables<'addresses'>;
+
+interface VendorLocation {
+  latitude: number | null;
+  longitude: number | null;
+}
 
 export default function Cart() {
   const { user, loading: authLoading } = useAuth();
@@ -32,6 +38,31 @@ export default function Cart() {
   const [placingOrder, setPlacingOrder] = useState(false);
   const [promoDiscount, setPromoDiscount] = useState(0);
   const [appliedPromoCode, setAppliedPromoCode] = useState<string | null>(null);
+  const [vendorLocation, setVendorLocation] = useState<VendorLocation>({ latitude: null, longitude: null });
+
+  // Fetch vendor location for delivery fee calculation
+  useEffect(() => {
+    if (vendorId) {
+      supabase
+        .from('vendors')
+        .select('latitude, longitude')
+        .eq('id', vendorId)
+        .single()
+        .then(({ data }) => {
+          if (data) {
+            setVendorLocation({ latitude: data.latitude, longitude: data.longitude });
+          }
+        });
+    }
+  }, [vendorId]);
+
+  // Calculate dynamic delivery fee
+  const { fee: deliveryFee, isOutOfRange, distanceKm, hasCoordinates } = useDeliveryFee({
+    vendorLat: vendorLocation.latitude,
+    vendorLon: vendorLocation.longitude,
+    customerLat: selectedAddress?.latitude ?? null,
+    customerLon: selectedAddress?.longitude ?? null,
+  });
 
   // Calculate applicable takeaway packs
   const applicablePacks = useMemo(() => {
@@ -42,7 +73,6 @@ export default function Cart() {
     return applicablePacks.reduce((sum, pack) => sum + pack.price, 0);
   }, [applicablePacks]);
 
-  const deliveryFee = 500;
   const serviceFee = 100;
   const total = subtotal + deliveryFee + serviceFee + packagingFee - promoDiscount;
 

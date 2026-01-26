@@ -41,3 +41,12 @@ verify_jwt = false
 
 [functions.paystack-verify-payment]
 verify_jwt = false
+
+[functions.geocode-address]
+verify_jwt = false
+
+[functions.find-nearby-riders]
+verify_jwt = false
+
+[functions.assign-rider]
+verify_jwt = false

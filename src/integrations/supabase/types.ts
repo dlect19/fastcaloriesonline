@@ -1433,7 +1433,9 @@ export type Database = {
           id: string
           is_active: boolean | null
           is_verified: boolean | null
+          latitude: number | null
           logo_url: string | null
+          longitude: number | null
           min_order_amount: number | null
           name: string
           own_rider_priority: boolean | null
@@ -1460,7 +1462,9 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           is_verified?: boolean | null
+          latitude?: number | null
           logo_url?: string | null
+          longitude?: number | null
           min_order_amount?: number | null
           name: string
           own_rider_priority?: boolean | null
@@ -1487,7 +1491,9 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           is_verified?: boolean | null
+          latitude?: number | null
           logo_url?: string | null
+          longitude?: number | null
           min_order_amount?: number | null
           name?: string
           own_rider_priority?: boolean | null
