@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { Eye, EyeOff, Loader2, Shield } from 'lucide-react';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
+import { ForgotPasswordModal } from '@/components/auth/ForgotPasswordModal';
 
 export default function AdminAuth() {
   const navigate = useNavigate();
@@ -16,6 +17,7 @@ export default function AdminAuth() {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
 
   useEffect(() => {
     checkUser();
@@ -119,6 +121,13 @@ export default function AdminAuth() {
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+              <button
+                type="button"
+                onClick={() => setShowForgotPassword(true)}
+                className="text-sm text-primary hover:underline"
+              >
+                Forgot password?
+              </button>
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Shield className="w-4 h-4 mr-2" />}
@@ -127,6 +136,12 @@ export default function AdminAuth() {
           </form>
         </CardContent>
       </Card>
+
+      <ForgotPasswordModal 
+        open={showForgotPassword} 
+        onOpenChange={setShowForgotPassword}
+        platform="admin"
+      />
     </div>
   );
 }

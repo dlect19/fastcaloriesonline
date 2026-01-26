@@ -9,6 +9,7 @@ import { Mail, Lock, User, ArrowRight, Loader2, Eye, EyeOff } from 'lucide-react
 import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
+import { ForgotPasswordModal } from '@/components/auth/ForgotPasswordModal';
 
 const emailSchema = z.string().email('Please enter a valid email address');
 const passwordSchema = z.string().min(6, 'Password must be at least 6 characters');
@@ -24,6 +25,7 @@ export default function Auth() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string; name?: string; confirmPassword?: string }>({});
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
 
   const { signIn, signUp, user } = useAuth();
   const navigate = useNavigate();
@@ -253,9 +255,18 @@ export default function Auth() {
                 </button>
               </div>
               {errors.password && (
-                <p className="text-sm text-destructive">{errors.password}</p>
-              )}
-            </div>
+                  <p className="text-sm text-destructive">{errors.password}</p>
+                )}
+                {isLogin && (
+                  <button
+                    type="button"
+                    onClick={() => setShowForgotPassword(true)}
+                    className="text-sm text-primary hover:underline"
+                  >
+                    Forgot password?
+                  </button>
+                )}
+              </div>
 
             {!isLogin && (
               <div className="space-y-2">
@@ -331,6 +342,12 @@ export default function Auth() {
           By continuing, you agree to our Terms of Service and Privacy Policy
         </p>
       </div>
+
+      <ForgotPasswordModal 
+        open={showForgotPassword} 
+        onOpenChange={setShowForgotPassword}
+        platform="customer"
+      />
     </div>
   );
 }

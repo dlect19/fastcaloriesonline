@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
+import { ForgotPasswordModal } from '@/components/auth/ForgotPasswordModal';
 
 export default function RiderAuth() {
   const navigate = useNavigate();
@@ -16,6 +17,7 @@ export default function RiderAuth() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
 
   // Login state
   const [loginEmail, setLoginEmail] = useState('');
@@ -250,6 +252,13 @@ export default function RiderAuth() {
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowForgotPassword(true)}
+                    className="text-sm text-primary hover:underline"
+                  >
+                    Forgot password?
+                  </button>
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
@@ -358,6 +367,12 @@ export default function RiderAuth() {
           </Tabs>
         </CardContent>
       </Card>
+
+      <ForgotPasswordModal 
+        open={showForgotPassword} 
+        onOpenChange={setShowForgotPassword}
+        platform="rider"
+      />
     </div>
   );
 }
