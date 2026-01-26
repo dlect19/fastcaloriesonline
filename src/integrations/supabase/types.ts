@@ -498,6 +498,188 @@ export type Database = {
           },
         ]
       }
+      payout_requests: {
+        Row: {
+          amount: number
+          bank_account_name: string | null
+          bank_account_number: string | null
+          bank_name: string | null
+          created_at: string | null
+          failure_reason: string | null
+          id: string
+          paystack_reference: string | null
+          paystack_transfer_code: string | null
+          processed_at: string | null
+          recipient_id: string | null
+          retry_count: number | null
+          status: string | null
+          updated_at: string | null
+          user_id: string
+          user_type: string
+          wallet_id: string
+        }
+        Insert: {
+          amount: number
+          bank_account_name?: string | null
+          bank_account_number?: string | null
+          bank_name?: string | null
+          created_at?: string | null
+          failure_reason?: string | null
+          id?: string
+          paystack_reference?: string | null
+          paystack_transfer_code?: string | null
+          processed_at?: string | null
+          recipient_id?: string | null
+          retry_count?: number | null
+          status?: string | null
+          updated_at?: string | null
+          user_id: string
+          user_type: string
+          wallet_id: string
+        }
+        Update: {
+          amount?: number
+          bank_account_name?: string | null
+          bank_account_number?: string | null
+          bank_name?: string | null
+          created_at?: string | null
+          failure_reason?: string | null
+          id?: string
+          paystack_reference?: string | null
+          paystack_transfer_code?: string | null
+          processed_at?: string | null
+          recipient_id?: string | null
+          retry_count?: number | null
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string
+          user_type?: string
+          wallet_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payout_requests_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "paystack_recipients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payout_requests_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      paystack_recipients: {
+        Row: {
+          account_name: string
+          account_number: string
+          bank_code: string
+          created_at: string | null
+          id: string
+          is_default: boolean | null
+          is_verified: boolean | null
+          recipient_code: string
+          updated_at: string | null
+          user_id: string
+          wallet_id: string | null
+        }
+        Insert: {
+          account_name: string
+          account_number: string
+          bank_code: string
+          created_at?: string | null
+          id?: string
+          is_default?: boolean | null
+          is_verified?: boolean | null
+          recipient_code: string
+          updated_at?: string | null
+          user_id: string
+          wallet_id?: string | null
+        }
+        Update: {
+          account_name?: string
+          account_number?: string
+          bank_code?: string
+          created_at?: string | null
+          id?: string
+          is_default?: boolean | null
+          is_verified?: boolean | null
+          recipient_code?: string
+          updated_at?: string | null
+          user_id?: string
+          wallet_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "paystack_recipients_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      platform_settings: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          key: string
+          updated_at: string | null
+          value: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          key: string
+          updated_at?: string | null
+          value: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          key?: string
+          updated_at?: string | null
+          value?: string
+        }
+        Relationships: []
+      }
+      platform_wallet: {
+        Row: {
+          balance: number | null
+          created_at: string | null
+          currency: string | null
+          id: string
+          total_earned: number | null
+          total_paid_out: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          balance?: number | null
+          created_at?: string | null
+          currency?: string | null
+          id?: string
+          total_earned?: number | null
+          total_paid_out?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          balance?: number | null
+          created_at?: string | null
+          currency?: string | null
+          id?: string
+          total_earned?: number | null
+          total_paid_out?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       prescriptions: {
         Row: {
           created_at: string
@@ -1289,6 +1471,85 @@ export type Database = {
         }
         Relationships: []
       }
+      wallet_transactions: {
+        Row: {
+          amount: number
+          balance_after: number | null
+          category: string
+          created_at: string | null
+          id: string
+          metadata: Json | null
+          notes: string | null
+          order_id: string | null
+          paystack_reference: string | null
+          platform_wallet_id: string | null
+          reference: string | null
+          related_wallet_id: string | null
+          status: string | null
+          transaction_type: string
+          wallet_id: string | null
+          wallet_type: string
+        }
+        Insert: {
+          amount: number
+          balance_after?: number | null
+          category: string
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          notes?: string | null
+          order_id?: string | null
+          paystack_reference?: string | null
+          platform_wallet_id?: string | null
+          reference?: string | null
+          related_wallet_id?: string | null
+          status?: string | null
+          transaction_type: string
+          wallet_id?: string | null
+          wallet_type: string
+        }
+        Update: {
+          amount?: number
+          balance_after?: number | null
+          category?: string
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          notes?: string | null
+          order_id?: string | null
+          paystack_reference?: string | null
+          platform_wallet_id?: string | null
+          reference?: string | null
+          related_wallet_id?: string | null
+          status?: string | null
+          transaction_type?: string
+          wallet_id?: string | null
+          wallet_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wallet_transactions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wallet_transactions_platform_wallet_id_fkey"
+            columns: ["platform_wallet_id"]
+            isOneToOne: false
+            referencedRelation: "platform_wallet"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wallet_transactions_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wallets: {
         Row: {
           auto_withdraw: boolean | null
@@ -1299,12 +1560,16 @@ export type Database = {
           bank_account_number: string | null
           bank_name: string | null
           created_at: string
+          eligible_balance: number | null
           id: string
+          paystack_recipient_code: string | null
           pending_balance: number | null
+          pending_payouts: number | null
           total_earned: number | null
           total_withdrawn: number | null
           updated_at: string
           user_id: string
+          wallet_type: string | null
         }
         Insert: {
           auto_withdraw?: boolean | null
@@ -1315,12 +1580,16 @@ export type Database = {
           bank_account_number?: string | null
           bank_name?: string | null
           created_at?: string
+          eligible_balance?: number | null
           id?: string
+          paystack_recipient_code?: string | null
           pending_balance?: number | null
+          pending_payouts?: number | null
           total_earned?: number | null
           total_withdrawn?: number | null
           updated_at?: string
           user_id: string
+          wallet_type?: string | null
         }
         Update: {
           auto_withdraw?: boolean | null
@@ -1331,12 +1600,16 @@ export type Database = {
           bank_account_number?: string | null
           bank_name?: string | null
           created_at?: string
+          eligible_balance?: number | null
           id?: string
+          paystack_recipient_code?: string | null
           pending_balance?: number | null
+          pending_payouts?: number | null
           total_earned?: number | null
           total_withdrawn?: number | null
           updated_at?: string
           user_id?: string
+          wallet_type?: string | null
         }
         Relationships: []
       }
