@@ -1,121 +1,235 @@
 
-# Plan: Fix Admin Dashboard Visibility and Missing Settings
+
+# Plan: Fix Admin Data Visibility and Create Accounting Dashboard
 
 ## Overview
-This plan addresses four issues: users not visible, riders not visible, missing commission settings, and missing promo code options. The root cause for visibility issues is RLS policies on the `profiles` table that don't allow admin access.
+
+This plan addresses two main issues:
+1. **Users and Riders Not Visible**: The frontend queries are failing due to invalid foreign key relationship hints
+2. **Dashboard Needs Accounting Layout**: Restructure to separate commission, revenue, and payout data
 
 ---
 
-## Task 1: Fix RLS Policy for Admin Access to Profiles
+## Problem Analysis
 
-**Problem**: The `profiles` table only allows users to view their own profile.
+### Root Cause of Data Visibility Issue
 
-**Solution**: Add a new RLS SELECT policy allowing admins to view all profiles.
+The network logs show these errors:
+- `Could not find a relationship between 'profiles' and 'user_roles'`
+- `Could not find a relationship between 'rider_profiles' and 'profiles'`
 
-**Database Migration**:
-```sql
--- Allow admins to view all profiles
-CREATE POLICY "Admins can view all profiles"
-ON public.profiles
-FOR SELECT
-TO authenticated
-USING (has_role(auth.uid(), 'admin'::app_role));
+**Why?** The queries use Supabase's foreign key syntax (`table!fk_name(columns)`) but there are NO foreign keys defined between these tables. The RLS policy we added works - the issue is the query structure itself.
+
+### Current Dashboard Limitations
+
+- Shows only basic counts (orders, vendors, riders, users)
+- "Total Revenue" combines everything with no breakdown
+- No commission tracking
+- No payout/withdrawal data
+- No separation of vendor vs platform earnings
+
+---
+
+## Task 1: Fix AdminUsers Query
+
+**File**: `src/pages/admin/AdminUsers.tsx`
+
+**Current Query (Broken)**:
+```typescript
+.from('profiles')
+.select('*, user_roles(role)')  // FK doesn't exist
+```
+
+**Solution**: Fetch profiles first, then fetch roles separately and merge:
+```typescript
+// First get profiles
+const { data: profilesData } = await supabase
+  .from('profiles')
+  .select('*')
+  .order('created_at', { ascending: false });
+
+// Then get all user roles
+const { data: rolesData } = await supabase
+  .from('user_roles')
+  .select('user_id, role');
+
+// Merge roles into profiles
+const usersWithRoles = profilesData?.map(profile => ({
+  ...profile,
+  roles: rolesData?.filter(r => r.user_id === profile.user_id).map(r => r.role) || []
+})) || [];
 ```
 
 ---
 
-## Task 2: Fix RLS Policy for Admin Access to User Roles
+## Task 2: Fix AdminRiders Query
 
-**Problem**: Admins need to see user roles to display them in the users list.
+**File**: `src/pages/admin/AdminRiders.tsx`
 
-**Solution**: The `user_roles` table already has an admin policy for ALL operations, so this should work. No changes needed here.
+**Current Query (Broken)**:
+```typescript
+.from('rider_profiles')
+.select('*, profiles!rider_profiles_user_id_fkey(full_name, phone)')
+```
 
----
+**Solution**: Fetch rider_profiles first, then fetch related profiles:
+```typescript
+// Get rider profiles
+const { data: riderData } = await supabase
+  .from('rider_profiles')
+  .select('*')
+  .order('created_at', { ascending: false });
 
-## Task 3: Add Commission Settings to Admin Settings Page
+// Get profile info for each rider
+const userIds = riderData?.map(r => r.user_id) || [];
+const { data: profilesData } = await supabase
+  .from('profiles')
+  .select('user_id, full_name, phone')
+  .in('user_id', userIds);
 
-**File**: `src/pages/admin/AdminSettings.tsx`
-
-**Changes**:
-1. Add a new "Commission Settings" card section
-2. Display and allow editing of:
-   - `default_vendor_commission_rate` - Platform commission from vendors (%)
-   - `default_rider_share_percentage` - Rider's share of delivery fee (%)
-   - `min_withdrawal_amount` - Minimum withdrawal amount
-   - `vendor_earnings_hold_hours` - Vendor earnings hold period
-   - `rider_earnings_hold_hours` - Rider earnings hold period
-
-**New UI Section**:
-- Add a "Financial Settings" card below the delivery settings
-- Include input fields for commission rates with percentage indicators
-- Include input fields for hold hours and minimum withdrawal
-
----
-
-## Task 4: Enhance Promo Codes Page with Scope and Per-User Limit
-
-**File**: `src/pages/admin/AdminPromos.tsx`
-
-**Changes**:
-1. Add "Scope" selector in create dialog:
-   - Options: "Platform-wide" or "Vendor-specific"
-2. Add "Per User Limit" input field:
-   - Limits how many times each customer can use the code
-3. Display scope badge on promo list items
-4. Show per-user limit info in the promo card
+// Merge profile info into riders
+const ridersWithProfiles = riderData?.map(rider => ({
+  ...rider,
+  profile: profilesData?.find(p => p.user_id === rider.user_id)
+})) || [];
+```
 
 ---
 
-## Technical Details
+## Task 3: Redesign Admin Dashboard for Accounting
 
-### Files to Modify
+**File**: `src/pages/admin/AdminDashboard.tsx`
+
+### New Dashboard Sections
+
+#### Section 1: Platform Overview (Top Row)
+| Card | Data |
+|------|------|
+| Total Orders | Count of all orders |
+| Active Vendors | Count of verified vendors |
+| Active Riders | Count of verified riders |
+| Total Users | Count of all profiles |
+
+#### Section 2: Revenue Breakdown (Financial Row)
+| Card | Data | Calculation |
+|------|------|-------------|
+| Gross Revenue | Total order amounts | `SUM(orders.total)` |
+| Platform Commission | Commission earned | `SUM(orders.subtotal * vendor.commission_rate)` |
+| Delivery Revenue | Platform share of delivery | `SUM(delivery_fee * (100 - rider_share_pct) / 100)` |
+| Service Fees | All service fees | `SUM(orders.service_fee)` |
+
+#### Section 3: Payouts Section
+| Card | Data |
+|------|------|
+| Total Payouts | Sum of completed payouts |
+| Pending Payouts | Sum of pending withdrawal requests |
+| Vendor Balances | Total eligible vendor wallet balances |
+| Rider Balances | Total eligible rider wallet balances |
+
+#### Section 4: Quick Stats
+| Card | Data |
+|------|------|
+| Platform Wallet Balance | From `platform_wallet.balance` |
+| Total Earned (All-time) | From `platform_wallet.total_earned` |
+| Net Position | Balance - Pending Payouts |
+
+### Data Fetching Strategy
+
+```typescript
+const fetchFinancialStats = async () => {
+  // Fetch platform wallet
+  const { data: platformWallet } = await supabase
+    .from('platform_wallet')
+    .select('*')
+    .single();
+
+  // Fetch order financial summary
+  const { data: orders } = await supabase
+    .from('orders')
+    .select('total, subtotal, delivery_fee, service_fee, discount, vendor_id');
+
+  // Fetch vendor commission rates
+  const { data: vendors } = await supabase
+    .from('vendors')
+    .select('id, commission_rate');
+
+  // Fetch payout summary
+  const { data: payouts } = await supabase
+    .from('payout_requests')
+    .select('amount, status');
+
+  // Fetch wallet balances
+  const { data: wallets } = await supabase
+    .from('wallets')
+    .select('wallet_type, eligible_balance, pending_balance');
+    
+  // Calculate metrics...
+};
+```
+
+### UI Layout
+
+```text
++--------------------------------------------------+
+|  Platform Overview                                |
+|  +--------+ +--------+ +--------+ +--------+     |
+|  | Orders | |Vendors | | Riders | | Users  |     |
+|  +--------+ +--------+ +--------+ +--------+     |
++--------------------------------------------------+
+
++--------------------------------------------------+
+|  Revenue Breakdown                                |
+|  +----------+ +------------+ +----------+ +------+
+|  | Gross    | | Commission | | Delivery | |Fees  |
+|  | Revenue  | | Earned     | | Revenue  | |      |
+|  +----------+ +------------+ +----------+ +------+
++--------------------------------------------------+
+
++--------------------------------------------------+
+|  Payouts & Balances                              |
+|  +--------+ +--------+ +--------+ +--------+     |
+|  | Total  | |Pending | | Vendor | | Rider  |     |
+|  |Payouts | |Payouts | |Balances| |Balances|     |
+|  +--------+ +--------+ +--------+ +--------+     |
++--------------------------------------------------+
+
++--------------------------------------------------+
+|  Platform Financial Position                      |
+|  +----------------+ +----------------+ +--------+ |
+|  | Platform Wallet| | Total Earned   | | Net    | |
+|  +----------------+ +----------------+ +--------+ |
++--------------------------------------------------+
+```
+
+---
+
+## Files to Modify
 
 | File | Changes |
 |------|---------|
-| Database Migration | Add RLS policy for admin profile access |
-| `src/pages/admin/AdminSettings.tsx` | Add commission and financial settings section |
-| `src/pages/admin/AdminPromos.tsx` | Add scope selector and per-user limit field |
-
-### Commission Settings Config to Add
-
-```typescript
-const financialSettingsConfig = [
-  { key: 'default_vendor_commission_rate', label: 'Vendor Commission Rate', unit: '%', description: 'Platform commission on vendor orders' },
-  { key: 'default_rider_share_percentage', label: 'Rider Share', unit: '%', description: 'Rider share of delivery fee' },
-  { key: 'min_withdrawal_amount', label: 'Min Withdrawal', unit: '₦', description: 'Minimum amount for withdrawals' },
-  { key: 'vendor_earnings_hold_hours', label: 'Vendor Hold Period', unit: 'hrs', description: 'Hours to hold vendor earnings' },
-  { key: 'rider_earnings_hold_hours', label: 'Rider Hold Period', unit: 'hrs', description: 'Hours to hold rider earnings' },
-];
-```
-
-### Promo Form Enhancements
-
-```typescript
-// New state for promo form
-const [scope, setScope] = useState('platform');
-const [perUserLimit, setPerUserLimit] = useState('');
-
-// Add to insert payload
-{
-  scope: scope,
-  per_user_limit: perUserLimit ? parseInt(perUserLimit) : null,
-}
-```
+| `src/pages/admin/AdminUsers.tsx` | Fix query to use separate fetches and merge data |
+| `src/pages/admin/AdminRiders.tsx` | Fix query to use separate fetches and merge data |
+| `src/pages/admin/AdminDashboard.tsx` | Complete redesign with accounting sections |
 
 ---
 
 ## Expected Outcome
 
 After implementation:
-1. Admin can see all registered users in the Users page
-2. Admin can see all riders with their profile details
-3. Admin can configure vendor commission rates and rider shares
-4. Admin can create platform-wide or vendor-specific promo codes with per-user limits
+1. Admin Users page will display all 3 registered users with their roles
+2. Admin Riders page will display the 1 registered rider with profile details
+3. Dashboard will show:
+   - Clear separation of revenue types (gross, commission, delivery, service fees)
+   - Payout tracking (completed vs pending)
+   - Wallet balances by type (vendor vs rider)
+   - Platform financial position
 
 ---
 
-## Security Considerations
+## Technical Notes
 
-- The new RLS policy only grants SELECT (read) access to admins, not write
-- Commission settings are protected by existing admin-only RLS on `platform_settings`
-- Promo codes are already protected by admin RLS policies
+- No database migrations needed - the data and RLS policies are already correct
+- The fix is purely frontend query restructuring
+- Commission calculation uses `vendors.commission_rate` (default 15%)
+- Rider share uses `platform_settings.default_rider_share_percentage` (default 80%)
+
