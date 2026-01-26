@@ -5,9 +5,21 @@ import { RiderLayout } from '@/components/rider/RiderLayout';
 import { RiderFloatingWidget } from '@/components/rider/RiderFloatingWidget';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Package, DollarSign, Star, TrendingUp, Loader2, MapPin, Settings } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Package, DollarSign, Star, TrendingUp, Loader2, MapPin, Settings, Navigation, Bell, ArrowRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
+// Haversine formula for distance calculation
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+  const R = 6371; // Earth's radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+};
 export default function RiderDashboard() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -21,6 +33,7 @@ export default function RiderDashboard() {
     rating: 0,
   });
   const [riderProfile, setRiderProfile] = useState<any>(null);
+  const [availableOrderCount, setAvailableOrderCount] = useState(0);
 
   useEffect(() => {
     checkAuth();
@@ -28,6 +41,26 @@ export default function RiderDashboard() {
     const savedFloatMode = localStorage.getItem('rider_float_mode');
     setFloatModeEnabled(savedFloatMode === 'true');
   }, []);
+
+  // Subscribe to realtime order updates
+  useEffect(() => {
+    if (!riderProfile) return;
+
+    const channel = supabase
+      .channel('dashboard-available-orders')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders' },
+        () => {
+          fetchAvailableOrdersCount(riderProfile);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [riderProfile]);
 
   const checkAuth = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -72,6 +105,9 @@ export default function RiderDashboard() {
           totalDeliveries: profile.total_deliveries || 0,
           rating: profile.rating || 0,
         }));
+
+        // Fetch available orders count
+        await fetchAvailableOrdersCount(profile);
       }
 
       // Get today's deliveries
@@ -95,6 +131,43 @@ export default function RiderDashboard() {
       console.error('Error fetching rider data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAvailableOrdersCount = async (profile: any) => {
+    try {
+      // Get orders that are ready for pickup and have no rider assigned
+      const { data: orders, error } = await supabase
+        .from('orders')
+        .select('id, vendors(latitude, longitude)')
+        .eq('status', 'ready_for_pickup')
+        .is('rider_id', null);
+
+      if (error) throw error;
+
+      // Filter orders within rider's work radius
+      const riderLat = profile.preferred_latitude || profile.current_latitude;
+      const riderLng = profile.preferred_longitude || profile.current_longitude;
+      const workRadius = profile.work_radius_km || 10;
+
+      if (!riderLat || !riderLng) {
+        setAvailableOrderCount(0);
+        return;
+      }
+
+      const nearbyOrders = (orders || []).filter(order => {
+        const vendorLat = (order.vendors as any)?.latitude;
+        const vendorLng = (order.vendors as any)?.longitude;
+        
+        if (!vendorLat || !vendorLng) return false;
+        
+        const distance = calculateDistance(riderLat, riderLng, vendorLat, vendorLng);
+        return distance <= workRadius;
+      });
+
+      setAvailableOrderCount(nearbyOrders.length);
+    } catch (error) {
+      console.error('Error fetching available orders:', error);
     }
   };
 
@@ -241,13 +314,59 @@ export default function RiderDashboard() {
         </CardContent>
       </Card>
 
-      {riderProfile?.is_verified && isOnline && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg md:text-xl">Available Deliveries</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground text-sm md:text-base">New delivery requests will appear here.</p>
+      {/* Available Orders Alert */}
+      {riderProfile?.is_verified && isOnline && availableOrderCount > 0 && (
+        <Card className="mb-6 md:mb-8 border-primary bg-primary/5">
+          <CardContent className="p-4 md:p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
+                  <Bell className="w-6 h-6 text-primary animate-pulse" />
+                </div>
+                <div>
+                  <p className="font-bold text-lg md:text-xl">
+                    {availableOrderCount} Order{availableOrderCount > 1 ? 's' : ''} Available!
+                  </p>
+                  <p className="text-muted-foreground text-sm">
+                    Nearby delivery requests waiting for you
+                  </p>
+                </div>
+              </div>
+              <Button onClick={() => navigate('/rider/available')} className="gap-2">
+                View Orders
+                <ArrowRight className="w-4 h-4" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {riderProfile?.is_verified && isOnline && availableOrderCount === 0 && (
+        <Card className="mb-6 md:mb-8">
+          <CardContent className="p-6 md:p-8 text-center">
+            <Package className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+            <p className="font-medium mb-2">No available orders nearby</p>
+            <p className="text-muted-foreground text-sm mb-4">
+              Stay online - new orders will appear when customers place them.
+            </p>
+            <Button variant="outline" onClick={() => navigate('/rider/available')}>
+              Check Available Orders
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {riderProfile?.is_verified && !isOnline && (
+        <Card className="mb-6 md:mb-8">
+          <CardContent className="p-6 md:p-8 text-center">
+            <Package className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+            <p className="font-medium mb-2">You're offline</p>
+            <p className="text-muted-foreground text-sm mb-4">
+              Go online to see and accept delivery requests.
+            </p>
+            <Button onClick={() => toggleOnline(true)}>
+              Go Online
+            </Button>
           </CardContent>
         </Card>
       )}
