@@ -75,13 +75,13 @@ Deno.serve(async (req) => {
       const searchRadius = parseFloat(riderSettings?.value || '5');
 
       // Fetch online riders with work preferences
-      // Only include riders who have NIN verified and email verified
+      // Include verified riders who are online and have email verified
       const { data: riders } = await supabase
         .from('rider_profiles')
         .select('id, user_id, current_latitude, current_longitude, affiliated_vendor_id, preferred_latitude, preferred_longitude, work_radius_km, nin_number, nin_verified, is_email_verified')
         .eq('is_online', true)
         .eq('is_verified', true)
-        .not('nin_number', 'is', null);
+        .eq('is_email_verified', true);
 
       if (!riders || riders.length === 0) {
         return new Response(
