@@ -117,6 +117,18 @@ export default function AdminVendors() {
     }
   };
 
+  const revokeApproval = async (vendorId: string) => {
+    try {
+      await supabase.from('vendors').update({ 
+        approved_for_live: false 
+      }).eq('id', vendorId);
+      toast({ title: 'Live approval revoked' });
+      fetchVendors();
+    } catch (error) {
+      toast({ title: 'Failed to revoke approval', variant: 'destructive' });
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -184,6 +196,17 @@ export default function AdminVendors() {
                           >
                             <ShieldCheck className="w-4 h-4 mr-1" />
                             Approve for Live
+                          </Button>
+                        )}
+                        {vendor.approved_for_live && !vendor.is_test_store && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => revokeApproval(vendor.id)}
+                            className="text-destructive border-destructive hover:bg-destructive/10"
+                          >
+                            <X className="w-4 h-4 mr-1" />
+                            Revoke Approval
                           </Button>
                         )}
                         <Badge variant={vendor.is_active ? 'default' : 'secondary'}>
