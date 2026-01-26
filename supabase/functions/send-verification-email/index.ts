@@ -124,7 +124,7 @@ const handler = async (req: Request): Promise<Response> => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "Fast Calories <noreply@resend.dev>", // Replace with your verified domain
+        from: "Fast Calories <noreply@fastcalories.online>",
         to: [email],
         subject: "Verify your email - Fast Calories",
         html: generateEmailHtml(userName || "", verificationUrl, platform || "customer"),
