@@ -47,31 +47,33 @@ export default function AdminStaffJoin() {
       // Look up the invite by code
       const { data: staffInvite, error: inviteError } = await supabase
         .from('admin_staff')
-        .select('id, role, invite_email, invite_code, invite_accepted_at, is_active')
-        .eq('invite_code', code)
+        .select('id, role, invite_email, invite_code, invite_accepted_at, is_active, user_id')
+        .filter('invite_code', 'eq', code)
         .maybeSingle();
 
       if (inviteError) throw inviteError;
       
-      if (!staffInvite) {
+      const inviteData = staffInvite as any;
+      
+      if (!inviteData) {
         setError('Invalid or expired invite link');
         setLoading(false);
         return;
       }
 
-      if (staffInvite.invite_accepted_at) {
+      if (inviteData.invite_accepted_at) {
         setError('This invite has already been used');
         setLoading(false);
         return;
       }
 
       setInvite({
-        id: staffInvite.id,
-        role: staffInvite.role,
-        invite_email: staffInvite.invite_email || ''
+        id: inviteData.id,
+        role: inviteData.role,
+        invite_email: inviteData.invite_email || ''
       });
       
-      setEmail(staffInvite.invite_email || '');
+      setEmail(inviteData.invite_email || '');
     } catch (err) {
       console.error('Error fetching invite:', err);
       setError('Failed to load invite details');
@@ -222,7 +224,7 @@ export default function AdminStaffJoin() {
             // User is already logged in
             <div className="space-y-4">
               <div className="p-4 rounded-lg bg-secondary text-center">
-                <CheckCircle className="w-8 h-8 text-green-500 mx-auto mb-2" />
+                <CheckCircle className="w-8 h-8 text-primary mx-auto mb-2" />
                 <p className="font-medium">Logged in as</p>
                 <p className="text-muted-foreground">{user.email}</p>
               </div>

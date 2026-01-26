@@ -7,12 +7,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Switch } from '@/components/ui/switch';
-import { UserPlus, Shield, Users, Loader2, Mail, Trash2 } from 'lucide-react';
+import { UserPlus, Shield, Users, Loader2, Trash2, Link, Copy, Check } from 'lucide-react';
 import { format } from 'date-fns';
 import type { VendorStaffRole } from '@/hooks/useVendorPermissions';
+
+const generateInviteCode = () => {
+  return 'vs_' + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 6);
+};
 
 interface StaffMember {
   id: string;
@@ -20,6 +24,7 @@ interface StaffMember {
   role: VendorStaffRole;
   is_active: boolean;
   invite_email: string | null;
+  invite_code: string | null;
   invite_accepted_at: string | null;
   created_at: string;
   profile?: {
@@ -54,6 +59,8 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<VendorStaffRole>('viewer');
   const [inviting, setInviting] = useState(false);
+  const [generatedLink, setGeneratedLink] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     fetchStaff();
@@ -63,15 +70,14 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
     try {
       const { data, error } = await supabase
         .from('vendor_staff')
-        .select('*')
+        .select('id, vendor_id, user_id, role, is_active, invite_email, invite_accepted_at, created_at')
         .eq('vendor_id', vendorId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      // Fetch profile info for each staff member
       const staffWithProfiles = await Promise.all(
-        (data || []).map(async (member) => {
+        (data || []).map(async (member: any) => {
           const { data: profile } = await supabase
             .from('profiles')
             .select('full_name, phone')
@@ -99,44 +105,54 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
 
     setInviting(true);
     try {
-      // Check if user exists
-      const { data: existingProfile } = await supabase
-        .from('profiles')
-        .select('user_id')
-        .eq('user_id', inviteEmail)
-        .maybeSingle();
-
-      // For now, create a pending invite record
-      // In production, you'd send an email invite
       const { data: { user } } = await supabase.auth.getUser();
+      const inviteCode = generateInviteCode();
+      const placeholderUserId = crypto.randomUUID();
       
       const { error } = await supabase
         .from('vendor_staff')
         .insert({
           vendor_id: vendorId,
-          user_id: existingProfile?.user_id || crypto.randomUUID(), // Placeholder
+          user_id: placeholderUserId,
           role: inviteRole,
           invite_email: inviteEmail,
           invited_by: user?.id,
-          is_active: false // Will be active when they accept
-        });
+          is_active: false
+        } as any);
 
       if (error) throw error;
 
-      toast({ title: 'Staff invitation sent!' });
-      setInviteOpen(false);
-      setInviteEmail('');
-      setInviteRole('viewer');
+      const inviteLink = `${window.location.origin}/vendor/staff/join/${inviteCode}`;
+      setGeneratedLink(inviteLink);
+      
+      toast({ title: 'Staff invite created!' });
       fetchStaff();
     } catch (error: any) {
       console.error('Error inviting staff:', error);
       toast({ 
-        title: 'Error sending invite', 
+        title: 'Error creating invite', 
         description: error.message,
         variant: 'destructive' 
       });
     } finally {
       setInviting(false);
+    }
+  };
+
+  const handleCloseInviteDialog = () => {
+    setInviteOpen(false);
+    setInviteEmail('');
+    setInviteRole('viewer');
+    setGeneratedLink(null);
+    setCopied(false);
+  };
+
+  const copyToClipboard = async () => {
+    if (generatedLink) {
+      await navigator.clipboard.writeText(generatedLink);
+      setCopied(true);
+      toast({ title: 'Link copied!' });
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -209,7 +225,6 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2">
@@ -219,9 +234,9 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
           <p className="text-muted-foreground">Manage your team and their permissions</p>
         </div>
         
-        <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+        <Dialog open={inviteOpen} onOpenChange={(open) => !open && handleCloseInviteDialog()}>
           <DialogTrigger asChild>
-            <Button>
+            <Button onClick={() => setInviteOpen(true)}>
               <UserPlus className="w-4 h-4 mr-2" />
               Invite Staff
             </Button>
@@ -230,40 +245,60 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
             <DialogHeader>
               <DialogTitle>Invite New Staff Member</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4 pt-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email Address</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="staff@example.com"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                />
+            
+            {generatedLink ? (
+              <div className="space-y-4 pt-4">
+                <div className="p-4 rounded-lg bg-secondary">
+                  <p className="text-sm text-muted-foreground mb-2">Share this link with your staff member:</p>
+                  <div className="flex gap-2">
+                    <Input value={generatedLink} readOnly className="flex-1 text-xs" />
+                    <Button size="icon" variant="outline" onClick={copyToClipboard}>
+                      {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    </Button>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  The staff member will use this link to create their account and join your team.
+                </p>
+                <DialogFooter>
+                  <Button variant="outline" onClick={handleCloseInviteDialog}>Done</Button>
+                </DialogFooter>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="role">Role</Label>
-                <Select value={inviteRole} onValueChange={(v) => setInviteRole(v as VendorStaffRole)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="manager">Manager - Full access except withdrawals</SelectItem>
-                    <SelectItem value="cashier">Cashier - Process orders only</SelectItem>
-                    <SelectItem value="viewer">Viewer - Read-only access</SelectItem>
-                  </SelectContent>
-                </Select>
+            ) : (
+              <div className="space-y-4 pt-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Staff Email Address</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="staff@example.com"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="role">Role</Label>
+                  <Select value={inviteRole} onValueChange={(v) => setInviteRole(v as VendorStaffRole)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="manager">Manager - Full access except withdrawals</SelectItem>
+                      <SelectItem value="cashier">Cashier - Process orders only</SelectItem>
+                      <SelectItem value="viewer">Viewer - Read-only access</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button onClick={handleInviteStaff} disabled={inviting} className="w-full">
+                  {inviting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Link className="w-4 h-4 mr-2" />}
+                  Generate Invite Link
+                </Button>
               </div>
-              <Button onClick={handleInviteStaff} disabled={inviting} className="w-full">
-                {inviting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Mail className="w-4 h-4 mr-2" />}
-                Send Invitation
-              </Button>
-            </div>
+            )}
           </DialogContent>
         </Dialog>
       </div>
 
-      {/* Role Legend */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
@@ -293,7 +328,6 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
         </CardContent>
       </Card>
 
-      {/* Staff List */}
       <Card>
         <CardHeader>
           <CardTitle>Team Members ({staff.length})</CardTitle>
@@ -322,10 +356,12 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
                     <TableCell>
                       <div>
                         <p className="font-medium">
-                          {member.profile?.full_name || member.invite_email || 'Unknown'}
+                          {member.profile?.full_name || member.invite_email || 'Pending'}
                         </p>
-                        {member.invite_email && !member.invite_accepted_at && (
-                          <p className="text-xs text-muted-foreground">Pending invite</p>
+                        {!member.invite_accepted_at && member.invite_email && (
+                          <p className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Link className="w-3 h-3" /> Pending invite
+                          </p>
                         )}
                       </div>
                     </TableCell>
@@ -359,7 +395,9 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
                       )}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {format(new Date(member.created_at), 'PP')}
+                      {member.invite_accepted_at 
+                        ? format(new Date(member.invite_accepted_at), 'PP')
+                        : 'Not yet'}
                     </TableCell>
                     <TableCell className="text-right">
                       {member.role !== 'owner' && (

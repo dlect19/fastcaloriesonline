@@ -7,18 +7,25 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Switch } from '@/components/ui/switch';
-import { UserPlus, Shield, Users, Loader2, Trash2 } from 'lucide-react';
+import { UserPlus, Shield, Users, Loader2, Trash2, Link, Copy, Check } from 'lucide-react';
 import { format } from 'date-fns';
 import type { AdminStaffRole } from '@/hooks/useAdminPermissions';
+
+const generateInviteCode = () => {
+  return 'as_' + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 6);
+};
 
 interface AdminStaffMember {
   id: string;
   user_id: string;
   role: AdminStaffRole;
   is_active: boolean;
+  invite_email: string | null;
+  invite_code: string | null;
+  invite_accepted_at: string | null;
   created_at: string;
   profile?: {
     full_name: string | null;
@@ -34,7 +41,7 @@ const ROLE_LABELS: Record<AdminStaffRole, string> = {
 };
 
 const ROLE_COLORS: Record<AdminStaffRole, string> = {
-  super_admin: 'bg-red-500 text-white',
+  super_admin: 'bg-destructive text-destructive-foreground',
   admin: 'bg-primary text-primary-foreground',
   support: 'bg-blue-500 text-white',
   analyst: 'bg-muted text-muted-foreground'
@@ -45,9 +52,11 @@ export function AdminStaffManagement() {
   const [staff, setStaff] = useState<AdminStaffMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
-  const [newUserId, setNewUserId] = useState('');
+  const [inviteEmail, setInviteEmail] = useState('');
   const [newRole, setNewRole] = useState<AdminStaffRole>('support');
   const [adding, setAdding] = useState(false);
+  const [generatedLink, setGeneratedLink] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     fetchStaff();
@@ -57,14 +66,13 @@ export function AdminStaffManagement() {
     try {
       const { data, error } = await supabase
         .from('admin_staff')
-        .select('*')
+        .select('id, user_id, role, is_active, invite_email, invite_accepted_at, created_at')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      // Fetch profile info for each staff member
       const staffWithProfiles = await Promise.all(
-        (data || []).map(async (member) => {
+        (data || []).map(async (member: any) => {
           const { data: profile } = await supabase
             .from('profiles')
             .select('full_name, phone')
@@ -85,43 +93,61 @@ export function AdminStaffManagement() {
   };
 
   const handleAddStaff = async () => {
-    if (!newUserId.trim()) {
-      toast({ title: 'Please enter a user ID', variant: 'destructive' });
+    if (!inviteEmail.trim()) {
+      toast({ title: 'Please enter an email', variant: 'destructive' });
       return;
     }
 
     setAdding(true);
     try {
-      // First, add admin role to user_roles
-      await supabase
-        .from('user_roles')
-        .upsert({ user_id: newUserId, role: 'admin' }, { onConflict: 'user_id,role' });
+      const { data: { user } } = await supabase.auth.getUser();
+      const inviteCode = generateInviteCode();
+      const placeholderUserId = crypto.randomUUID();
 
-      // Then add to admin_staff
       const { error } = await supabase
         .from('admin_staff')
         .insert({
-          user_id: newUserId,
+          user_id: placeholderUserId,
           role: newRole,
-          is_active: true
-        });
+          invite_email: inviteEmail,
+          invite_code: inviteCode,
+          invited_by: user?.id,
+          is_active: false
+        } as any);
 
       if (error) throw error;
 
-      toast({ title: 'Admin staff added!' });
-      setAddOpen(false);
-      setNewUserId('');
-      setNewRole('support');
+      const inviteLink = `${window.location.origin}/admin/staff/join/${inviteCode}`;
+      setGeneratedLink(inviteLink);
+      
+      toast({ title: 'Admin invite created!' });
       fetchStaff();
     } catch (error: any) {
       console.error('Error adding admin staff:', error);
       toast({ 
-        title: 'Error adding staff', 
+        title: 'Error creating invite', 
         description: error.message,
         variant: 'destructive' 
       });
     } finally {
       setAdding(false);
+    }
+  };
+
+  const handleCloseDialog = () => {
+    setAddOpen(false);
+    setInviteEmail('');
+    setNewRole('support');
+    setGeneratedLink(null);
+    setCopied(false);
+  };
+
+  const copyToClipboard = async () => {
+    if (generatedLink) {
+      await navigator.clipboard.writeText(generatedLink);
+      setCopied(true);
+      toast({ title: 'Link copied!' });
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -194,7 +220,6 @@ export function AdminStaffManagement() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2">
@@ -204,9 +229,9 @@ export function AdminStaffManagement() {
           <p className="text-muted-foreground">Manage platform administrators and their permissions</p>
         </div>
         
-        <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <Dialog open={addOpen} onOpenChange={(open) => !open && handleCloseDialog()}>
           <DialogTrigger asChild>
-            <Button>
+            <Button onClick={() => setAddOpen(true)}>
               <UserPlus className="w-4 h-4 mr-2" />
               Add Admin
             </Button>
@@ -215,43 +240,61 @@ export function AdminStaffManagement() {
             <DialogHeader>
               <DialogTitle>Add New Admin Staff</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4 pt-4">
-              <div className="space-y-2">
-                <Label htmlFor="userId">User ID</Label>
-                <Input
-                  id="userId"
-                  placeholder="Enter user's UUID"
-                  value={newUserId}
-                  onChange={(e) => setNewUserId(e.target.value)}
-                />
+            
+            {generatedLink ? (
+              <div className="space-y-4 pt-4">
+                <div className="p-4 rounded-lg bg-secondary">
+                  <p className="text-sm text-muted-foreground mb-2">Share this link with the new admin:</p>
+                  <div className="flex gap-2">
+                    <Input value={generatedLink} readOnly className="flex-1 text-xs" />
+                    <Button size="icon" variant="outline" onClick={copyToClipboard}>
+                      {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    </Button>
+                  </div>
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  Find the user's ID from the Users page
+                  The admin will use this link to create their account and join the admin team.
                 </p>
+                <DialogFooter>
+                  <Button variant="outline" onClick={handleCloseDialog}>Done</Button>
+                </DialogFooter>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="role">Role</Label>
-                <Select value={newRole} onValueChange={(v) => setNewRole(v as AdminStaffRole)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="super_admin">Super Admin - Full platform access</SelectItem>
-                    <SelectItem value="admin">Admin - Manage vendors, riders, orders</SelectItem>
-                    <SelectItem value="support">Support - Handle customer issues</SelectItem>
-                    <SelectItem value="analyst">Analyst - View reports only</SelectItem>
-                  </SelectContent>
-                </Select>
+            ) : (
+              <div className="space-y-4 pt-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Admin Email Address</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="admin@example.com"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="role">Role</Label>
+                  <Select value={newRole} onValueChange={(v) => setNewRole(v as AdminStaffRole)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="super_admin">Super Admin - Full platform access</SelectItem>
+                      <SelectItem value="admin">Admin - Manage vendors, riders, orders</SelectItem>
+                      <SelectItem value="support">Support - Handle customer issues</SelectItem>
+                      <SelectItem value="analyst">Analyst - View reports only</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button onClick={handleAddStaff} disabled={adding} className="w-full">
+                  {adding ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Link className="w-4 h-4 mr-2" />}
+                  Generate Invite Link
+                </Button>
               </div>
-              <Button onClick={handleAddStaff} disabled={adding} className="w-full">
-                {adding && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-                Add Admin Staff
-              </Button>
-            </div>
+            )}
           </DialogContent>
         </Dialog>
       </div>
 
-      {/* Role Legend */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
@@ -281,7 +324,6 @@ export function AdminStaffManagement() {
         </CardContent>
       </Card>
 
-      {/* Staff List */}
       <Card>
         <CardHeader>
           <CardTitle>Admin Team ({staff.length})</CardTitle>
@@ -300,7 +342,7 @@ export function AdminStaffManagement() {
                   <TableHead>Member</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Added</TableHead>
+                  <TableHead>Joined</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -310,11 +352,13 @@ export function AdminStaffManagement() {
                     <TableCell>
                       <div>
                         <p className="font-medium">
-                          {member.profile?.full_name || 'Unknown'}
+                          {member.profile?.full_name || member.invite_email || 'Pending'}
                         </p>
-                        <p className="text-xs text-muted-foreground font-mono">
-                          {member.user_id.slice(0, 8)}...
-                        </p>
+                        {!member.invite_accepted_at && member.invite_email && (
+                          <p className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Link className="w-3 h-3" /> Pending invite
+                          </p>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -340,7 +384,9 @@ export function AdminStaffManagement() {
                       />
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {format(new Date(member.created_at), 'PP')}
+                      {member.invite_accepted_at 
+                        ? format(new Date(member.invite_accepted_at), 'PP')
+                        : 'Not yet'}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button

@@ -90,6 +90,10 @@ export type Database = {
         Row: {
           created_at: string | null
           id: string
+          invite_accepted_at: string | null
+          invite_code: string | null
+          invite_email: string | null
+          invited_by: string | null
           is_active: boolean | null
           permissions: string[] | null
           role: Database["public"]["Enums"]["admin_staff_role"]
@@ -99,6 +103,10 @@ export type Database = {
         Insert: {
           created_at?: string | null
           id?: string
+          invite_accepted_at?: string | null
+          invite_code?: string | null
+          invite_email?: string | null
+          invited_by?: string | null
           is_active?: boolean | null
           permissions?: string[] | null
           role?: Database["public"]["Enums"]["admin_staff_role"]
@@ -108,6 +116,10 @@ export type Database = {
         Update: {
           created_at?: string | null
           id?: string
+          invite_accepted_at?: string | null
+          invite_code?: string | null
+          invite_email?: string | null
+          invited_by?: string | null
           is_active?: boolean | null
           permissions?: string[] | null
           role?: Database["public"]["Enums"]["admin_staff_role"]
@@ -1110,6 +1122,7 @@ export type Database = {
           created_at: string | null
           id: string
           invite_accepted_at: string | null
+          invite_code: string | null
           invite_email: string | null
           invited_by: string | null
           is_active: boolean | null
@@ -1123,6 +1136,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           invite_accepted_at?: string | null
+          invite_code?: string | null
           invite_email?: string | null
           invited_by?: string | null
           is_active?: boolean | null
@@ -1136,6 +1150,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           invite_accepted_at?: string | null
+          invite_code?: string | null
           invite_email?: string | null
           invited_by?: string | null
           is_active?: boolean | null
