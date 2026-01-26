@@ -17,6 +17,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { VendorSidebar } from '@/components/vendor/VendorSidebar';
+import { ComboManagement } from '@/components/vendor/ComboManagement';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -785,6 +786,13 @@ export default function VendorMenu() {
               className="pl-10"
             />
           </div>
+
+          {/* Combo Management Section */}
+          {vendor && (
+            <div className="bg-card rounded-xl border border-border p-4">
+              <ComboManagement vendor={vendor} products={products} onRefresh={fetchData} />
+            </div>
+          )}
 
           {/* Products List */}
           {filteredProducts.length === 0 ? (
