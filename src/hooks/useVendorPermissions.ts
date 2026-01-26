@@ -49,20 +49,7 @@ export function useVendorPermissions(vendorId: string | null): UseVendorPermissi
 
     const fetchRole = async () => {
       try {
-        // First check if user is the vendor owner (from vendors table)
-        const { data: vendor } = await supabase
-          .from('vendors')
-          .select('user_id')
-          .eq('id', vendorId)
-          .single();
-
-        if (vendor?.user_id === user.id) {
-          setRole('owner');
-          setLoading(false);
-          return;
-        }
-
-        // Then check vendor_staff table
+    // First check vendor_staff table for explicit role assignment
         const { data: staffRecord } = await supabase
           .from('vendor_staff')
           .select('role')
@@ -73,6 +60,19 @@ export function useVendorPermissions(vendorId: string | null): UseVendorPermissi
 
         if (staffRecord) {
           setRole(staffRecord.role as VendorStaffRole);
+      setLoading(false);
+      return;
+    }
+
+    // If no staff record, check if user is the vendor owner (from vendors table)
+    const { data: vendor } = await supabase
+      .from('vendors')
+      .select('user_id')
+      .eq('id', vendorId)
+      .single();
+
+    if (vendor?.user_id === user.id) {
+      setRole('owner');
         } else {
           setRole(null);
         }
