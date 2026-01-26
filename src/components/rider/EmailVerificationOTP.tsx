@@ -148,9 +148,12 @@ export function EmailVerificationOTP({
           </div>
 
           <div className="text-center space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Didn't receive the code?
-            </p>
+            <div className="text-sm text-muted-foreground space-y-1">
+              <p>Didn't receive the code?</p>
+              <p className="text-xs text-destructive/80">
+                Note: Verification codes expire after 10 minutes
+              </p>
+            </div>
             
             <Button
               variant="outline"
@@ -163,11 +166,11 @@ export function EmailVerificationOTP({
               ) : (
                 <RefreshCw className="w-4 h-4 mr-2" />
               )}
-              {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend Code'}
+              {cooldown > 0 ? `Resend in ${cooldown}s` : 'Request New Code'}
             </Button>
 
             <Button variant="ghost" onClick={onBack} className="w-full">
-              Back to Sign Up
+              Back
             </Button>
           </div>
         </CardContent>

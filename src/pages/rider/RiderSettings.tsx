@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { RiderLayout } from '@/components/rider/RiderLayout';
 import { RiderFloatingWidget } from '@/components/rider/RiderFloatingWidget';
@@ -10,16 +10,28 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
-import { Loader2, Save, MapPin, Volume2, Smartphone, ShieldCheck, Mail, CheckCircle } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Loader2, Save, MapPin, Volume2, Smartphone, ShieldCheck, Mail, CheckCircle, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useNotificationSound } from '@/hooks/useNotificationSound';
 
+const VEHICLE_TYPES = [
+  { value: 'bicycle', label: 'Bicycle' },
+  { value: 'motorcycle', label: 'Motorcycle' },
+  { value: 'tricycle', label: 'Tricycle (Keke)' },
+  { value: 'car', label: 'Car' },
+  { value: 'van', label: 'Van' },
+];
+
 export default function RiderSettings() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const { soundEnabled, setSoundEnabled, playNotification } = useNotificationSound();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const isSetupMode = searchParams.get('setup') === 'true';
   const [isOnline, setIsOnline] = useState(false);
   const [floatModeEnabled, setFloatModeEnabled] = useState(false);
   const [profile, setProfile] = useState<any>(null);
@@ -82,6 +94,18 @@ export default function RiderSettings() {
   };
 
   const handleSave = async () => {
+    // Validate required fields
+    if (!vehicleType) {
+      toast({ title: 'Please select a vehicle type', variant: 'destructive' });
+      return;
+    }
+
+    // Require plate number for non-bicycle vehicles
+    if (vehicleType !== 'bicycle' && !vehiclePlate) {
+      toast({ title: 'Please enter your vehicle plate number', variant: 'destructive' });
+      return;
+    }
+
     setSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -92,11 +116,14 @@ export default function RiderSettings() {
         .update({ full_name: fullName, phone })
         .eq('user_id', user.id);
 
+      // Clear plate number for bicycles
+      const plateToSave = vehicleType === 'bicycle' ? '' : vehiclePlate;
+
       await supabase
         .from('rider_profiles')
         .update({ 
           vehicle_type: vehicleType, 
-          vehicle_plate: vehiclePlate,
+          vehicle_plate: plateToSave,
           preferred_city: preferredCity,
           preferred_state: preferredState,
           work_radius_km: workRadius,
@@ -104,6 +131,11 @@ export default function RiderSettings() {
         .eq('user_id', user.id);
 
       toast({ title: 'Settings saved successfully' });
+
+      // If in setup mode and all required fields are filled, redirect to dashboard
+      if (isSetupMode && vehicleType) {
+        navigate('/rider/dashboard');
+      }
     } catch (error) {
       console.error('Error saving settings:', error);
       toast({ title: 'Failed to save settings', variant: 'destructive' });
@@ -221,9 +253,22 @@ export default function RiderSettings() {
   return (
     <RiderLayout isOnline={isOnline} onToggleOnline={toggleOnline}>
       <div className="mb-6 md:mb-8">
-        <h1 className="text-2xl md:text-3xl font-bold text-foreground">Settings</h1>
-        <p className="text-muted-foreground text-sm md:text-base">Manage your profile and preferences</p>
+        <h1 className="text-2xl md:text-3xl font-bold text-foreground">
+          {isSetupMode ? 'Complete Your Profile' : 'Settings'}
+        </h1>
+        <p className="text-muted-foreground text-sm md:text-base">
+          {isSetupMode ? 'Please complete your profile to start receiving orders' : 'Manage your profile and preferences'}
+        </p>
       </div>
+
+      {isSetupMode && (
+        <Alert className="mb-6 border-primary bg-primary/10">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            You must complete your vehicle information before you can receive delivery orders.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="max-w-2xl space-y-4 md:space-y-6">
         {/* Personal Information */}
@@ -253,27 +298,41 @@ export default function RiderSettings() {
         </Card>
 
         {/* Vehicle Information */}
-        <Card>
+        <Card className={isSetupMode && !vehicleType ? 'border-destructive' : ''}>
           <CardHeader className="p-4 md:p-6">
             <CardTitle className="text-lg md:text-xl">Vehicle Information</CardTitle>
+            {isSetupMode && !vehicleType && (
+              <CardDescription className="text-destructive">
+                Please select your vehicle type to continue
+              </CardDescription>
+            )}
           </CardHeader>
           <CardContent className="space-y-4 p-4 md:p-6 pt-0">
             <div className="space-y-2">
-              <Label htmlFor="vehicleType">Vehicle Type</Label>
-              <Input
-                id="vehicleType"
-                value={vehicleType}
-                onChange={(e) => setVehicleType(e.target.value)}
-                placeholder="e.g., Motorcycle, Bicycle"
-              />
+              <Label htmlFor="vehicleType">Vehicle Type *</Label>
+              <Select value={vehicleType} onValueChange={setVehicleType}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select your vehicle type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {VEHICLE_TYPES.map((type) => (
+                    <SelectItem key={type.value} value={type.value}>
+                      {type.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="vehiclePlate">Plate Number</Label>
+              <Label htmlFor="vehiclePlate">
+                Plate Number {vehicleType !== 'bicycle' && '*'}
+              </Label>
               <Input
                 id="vehiclePlate"
                 value={vehiclePlate}
                 onChange={(e) => setVehiclePlate(e.target.value)}
-                placeholder="e.g., ABC-123-XY"
+                placeholder={vehicleType === 'bicycle' ? 'N/A for bicycles' : 'e.g., ABC-123-XY'}
+                disabled={vehicleType === 'bicycle'}
               />
             </div>
           </CardContent>
