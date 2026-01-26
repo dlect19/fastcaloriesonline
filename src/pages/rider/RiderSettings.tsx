@@ -74,22 +74,44 @@ export default function RiderSettings() {
       .eq('user_id', user.id)
       .maybeSingle();
 
-    const { data: riderData } = await supabase
+    // Fetch the most recent rider profile row. If none exists (common on first login),
+    // create a default one so subsequent updates (city/state/radius) actually persist.
+    const { data: riderData, error: riderFetchError } = await supabase
       .from('rider_profiles')
       .select('*')
       .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
       .maybeSingle();
 
+    if (riderFetchError) {
+      console.error('Error fetching rider profile:', riderFetchError);
+    }
+
+    let effectiveRiderData = riderData;
+    if (!effectiveRiderData) {
+      const { data: createdRows, error: createError } = await supabase
+        .from('rider_profiles')
+        .insert({ user_id: user.id })
+        .select('*');
+
+      if (createError) {
+        console.error('Error creating rider profile:', createError);
+      } else {
+        effectiveRiderData = createdRows?.[0] ?? null;
+      }
+    }
+
     setProfile(profileData);
-    setRiderProfile(riderData);
+    setRiderProfile(effectiveRiderData);
     setFullName(profileData?.full_name || '');
     setPhone(profileData?.phone || '');
-    setVehicleType(riderData?.vehicle_type || '');
-    setVehiclePlate(riderData?.vehicle_plate || '');
-    setPreferredCity(riderData?.preferred_city || '');
-    setPreferredState(riderData?.preferred_state || '');
-    setWorkRadius(riderData?.work_radius_km || 10);
-    setIsOnline(riderData?.is_online || false);
+    setVehicleType(effectiveRiderData?.vehicle_type || '');
+    setVehiclePlate(effectiveRiderData?.vehicle_plate || '');
+    setPreferredCity(effectiveRiderData?.preferred_city || '');
+    setPreferredState(effectiveRiderData?.preferred_state || '');
+    setWorkRadius(Number(effectiveRiderData?.work_radius_km ?? 10));
+    setIsOnline(Boolean(effectiveRiderData?.is_online));
     setLoading(false);
   };
 
