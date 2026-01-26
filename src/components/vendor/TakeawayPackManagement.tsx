@@ -6,10 +6,11 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Pencil, Trash2, Package, Loader2, ImagePlus } from 'lucide-react';
+import { Plus, Pencil, Trash2, Package, Loader2, ImagePlus, Info } from 'lucide-react';
 
 interface TakeawayPack {
   id: string;
@@ -32,6 +33,7 @@ interface TakeawayPackManagementProps {
 export function TakeawayPackManagement({ vendorId, userId }: TakeawayPackManagementProps) {
   const { toast } = useToast();
   const [packs, setPacks] = useState<TakeawayPack[]>([]);
+  const [servingUnits, setServingUnits] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -47,21 +49,38 @@ export function TakeawayPackManagement({ vendorId, userId }: TakeawayPackManagem
   const [thresholdValue, setThresholdValue] = useState('1');
 
   useEffect(() => {
-    fetchPacks();
+    fetchData();
   }, [vendorId]);
 
-  const fetchPacks = async () => {
+  const fetchData = async () => {
     try {
-      const { data, error } = await supabase
-        .from('takeaway_packs')
-        .select('*')
-        .eq('vendor_id', vendorId)
-        .order('sort_order');
+      // Fetch packs and products in parallel
+      const [packsResult, productsResult] = await Promise.all([
+        supabase
+          .from('takeaway_packs')
+          .select('*')
+          .eq('vendor_id', vendorId)
+          .order('sort_order'),
+        supabase
+          .from('products')
+          .select('serving_unit')
+          .eq('vendor_id', vendorId)
+      ]);
 
-      if (error) throw error;
-      setPacks((data as TakeawayPack[]) || []);
+      if (packsResult.error) throw packsResult.error;
+      setPacks((packsResult.data as TakeawayPack[]) || []);
+
+      // Extract unique serving units
+      if (productsResult.data) {
+        const units = [...new Set(
+          productsResult.data
+            .map(p => p.serving_unit)
+            .filter((u): u is string => !!u)
+        )];
+        setServingUnits(units);
+      }
     } catch (error) {
-      console.error('Error fetching packs:', error);
+      console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
     }
@@ -164,7 +183,7 @@ export function TakeawayPackManagement({ vendorId, userId }: TakeawayPackManagem
 
       setDialogOpen(false);
       resetForm();
-      fetchPacks();
+      fetchData();
     } catch (error) {
       console.error('Error saving pack:', error);
       toast({
@@ -190,7 +209,7 @@ export function TakeawayPackManagement({ vendorId, userId }: TakeawayPackManagem
         title: 'Pack deleted',
         description: 'Takeaway pack has been removed',
       });
-      fetchPacks();
+      fetchData();
     } catch (error) {
       console.error('Error deleting pack:', error);
       toast({
@@ -209,7 +228,7 @@ export function TakeawayPackManagement({ vendorId, userId }: TakeawayPackManagem
         .eq('id', pack.id);
 
       if (error) throw error;
-      fetchPacks();
+      fetchData();
     } catch (error) {
       console.error('Error toggling pack:', error);
     }
@@ -222,6 +241,11 @@ export function TakeawayPackManagement({ vendorId, userId }: TakeawayPackManagem
       </div>
     );
   }
+
+  // Format serving units for display
+  const servingUnitExamples = servingUnits.length > 0 
+    ? servingUnits.slice(0, 3).join(', ')
+    : 'per plate, per portion';
 
   return (
     <div className="space-y-4">
@@ -348,9 +372,17 @@ export function TakeawayPackManagement({ vendorId, userId }: TakeawayPackManagem
                 />
                 <p className="text-xs text-muted-foreground">
                   {thresholdType === 'per_item'
-                    ? `Pack added when any item has ${thresholdValue}+ servings (e.g., ${thresholdValue} plates of rice)`
+                    ? `Pack added when any item has ${thresholdValue}+ quantity (e.g., ${thresholdValue} ${servingUnits[0] || 'per plate'})`
                     : `Pack added when customer orders ${thresholdValue}+ total items`}
                 </p>
+                {thresholdType === 'per_item' && servingUnits.length > 0 && (
+                  <div className="flex items-center gap-1.5 mt-2">
+                    <Info className="w-3 h-3 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">
+                      Your products use: {servingUnitExamples}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <Button onClick={handleSave} disabled={saving} className="w-full">
