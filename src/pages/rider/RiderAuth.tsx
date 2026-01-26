@@ -216,6 +216,11 @@ export default function RiderAuth() {
               }).eq('user_id', signInData.user.id);
             }
 
+            // Update wallet type to rider for existing user upgrading to rider
+            await supabase.from('wallets')
+              .update({ wallet_type: 'rider' })
+              .eq('user_id', signInData.user.id);
+
             // Show email verification
             setPendingUserId(signInData.user.id);
             setShowEmailVerification(true);
@@ -245,6 +250,11 @@ export default function RiderAuth() {
           nin_number: ninNumber,
           nin_submitted_at: new Date().toISOString(),
         });
+
+        // Create rider wallet with correct type
+        await supabase.from('wallets')
+          .update({ wallet_type: 'rider' })
+          .eq('user_id', data.user.id);
 
         // Update profile with phone
         await supabase.from('profiles').update({ phone }).eq('user_id', data.user.id);
