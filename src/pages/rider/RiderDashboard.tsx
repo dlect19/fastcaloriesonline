@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { RiderSidebar } from '@/components/rider/RiderSidebar';
+import { RiderLayout } from '@/components/rider/RiderLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Package, DollarSign, Star, TrendingUp, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -114,78 +114,74 @@ export default function RiderDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex">
-      <RiderSidebar isOnline={isOnline} onToggleOnline={toggleOnline} />
-      
-      <main className="flex-1 p-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-          <p className="text-muted-foreground">Welcome back, rider!</p>
-        </div>
+    <RiderLayout isOnline={isOnline} onToggleOnline={toggleOnline}>
+      <div className="mb-6 md:mb-8">
+        <h1 className="text-2xl md:text-3xl font-bold text-foreground">Dashboard</h1>
+        <p className="text-muted-foreground text-sm md:text-base">Welcome back, rider!</p>
+      </div>
 
-        {!riderProfile?.is_verified && (
-          <Card className="mb-6 border-calorie-medium">
-            <CardContent className="p-4">
-              <p className="text-calorie-medium font-medium">
-                ⚠️ Your account is pending verification. You can view the dashboard but cannot accept deliveries yet.
-              </p>
-            </CardContent>
-          </Card>
-        )}
+      {!riderProfile?.is_verified && (
+        <Card className="mb-4 md:mb-6 border-calorie-medium">
+          <CardContent className="p-3 md:p-4">
+            <p className="text-calorie-medium font-medium text-sm md:text-base">
+              ⚠️ Your account is pending verification. You can view the dashboard but cannot accept deliveries yet.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Today's Deliveries</CardTitle>
-              <Package className="w-4 h-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.todayDeliveries}</div>
-            </CardContent>
-          </Card>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6 mb-6 md:mb-8">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Today's Deliveries</CardTitle>
+            <Package className="w-4 h-4 text-muted-foreground hidden md:block" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl md:text-2xl font-bold">{stats.todayDeliveries}</div>
+          </CardContent>
+        </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Today's Earnings</CardTitle>
-              <DollarSign className="w-4 h-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">₦{stats.todayEarnings.toLocaleString()}</div>
-            </CardContent>
-          </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Today's Earnings</CardTitle>
+            <DollarSign className="w-4 h-4 text-muted-foreground hidden md:block" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl md:text-2xl font-bold">₦{stats.todayEarnings.toLocaleString()}</div>
+          </CardContent>
+        </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total Deliveries</CardTitle>
-              <TrendingUp className="w-4 h-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalDeliveries}</div>
-            </CardContent>
-          </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Total Deliveries</CardTitle>
+            <TrendingUp className="w-4 h-4 text-muted-foreground hidden md:block" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl md:text-2xl font-bold">{stats.totalDeliveries}</div>
+          </CardContent>
+        </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Rating</CardTitle>
-              <Star className="w-4 h-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.rating.toFixed(1)} ⭐</div>
-            </CardContent>
-          </Card>
-        </div>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Rating</CardTitle>
+            <Star className="w-4 h-4 text-muted-foreground hidden md:block" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl md:text-2xl font-bold">{stats.rating.toFixed(1)} ⭐</div>
+          </CardContent>
+        </Card>
+      </div>
 
-        {riderProfile?.is_verified && isOnline && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Available Deliveries</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">New delivery requests will appear here.</p>
-            </CardContent>
-          </Card>
-        )}
-      </main>
-    </div>
+      {riderProfile?.is_verified && isOnline && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg md:text-xl">Available Deliveries</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground text-sm md:text-base">New delivery requests will appear here.</p>
+          </CardContent>
+        </Card>
+      )}
+    </RiderLayout>
   );
 }

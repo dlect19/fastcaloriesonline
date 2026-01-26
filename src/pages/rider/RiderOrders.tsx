@@ -1,23 +1,26 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { RiderSidebar } from '@/components/rider/RiderSidebar';
+import { RiderLayout } from '@/components/rider/RiderLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Package, MapPin, Phone, Clock, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useNotificationSound } from '@/hooks/useNotificationSound';
 import { format } from 'date-fns';
 
 export default function RiderOrders() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { playNotification } = useNotificationSound();
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [activeOrders, setActiveOrders] = useState<any[]>([]);
   const [completedOrders, setCompletedOrders] = useState<any[]>([]);
+  const previousOrderCount = useRef<number>(0);
 
   useEffect(() => {
     checkAuth();
@@ -37,7 +40,18 @@ export default function RiderOrders() {
           table: 'orders',
           filter: `rider_id=eq.${userId}`,
         },
-        () => {
+        (payload) => {
+          // Check if this is a new order assignment
+          if (payload.eventType === 'UPDATE' && payload.new.rider_id === userId) {
+            const wasJustAssigned = payload.old.rider_id !== userId;
+            if (wasJustAssigned) {
+              playNotification();
+              toast({
+                title: '🚚 New Delivery!',
+                description: `Order #${payload.new.order_number} has been assigned to you.`,
+              });
+            }
+          }
           fetchOrders();
         }
       )
@@ -46,7 +60,7 @@ export default function RiderOrders() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [userId]);
+  }, [userId, playNotification, toast]);
 
   const checkAuth = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -78,6 +92,16 @@ export default function RiderOrders() {
         .eq('rider_id', user.id)
         .not('status', 'in', '("delivered","cancelled")')
         .order('created_at', { ascending: false });
+
+      // Check if there are new orders
+      if (active && active.length > previousOrderCount.current && previousOrderCount.current > 0) {
+        playNotification();
+        toast({
+          title: '🚚 New Delivery!',
+          description: 'You have a new order assigned.',
+        });
+      }
+      previousOrderCount.current = active?.length || 0;
 
       // Completed orders
       const { data: completed } = await supabase
@@ -157,124 +181,123 @@ export default function RiderOrders() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex">
-      <RiderSidebar isOnline={isOnline} onToggleOnline={toggleOnline} />
-      
-      <main className="flex-1 p-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground">Deliveries</h1>
-          <p className="text-muted-foreground">Manage your delivery orders</p>
-        </div>
+    <RiderLayout isOnline={isOnline} onToggleOnline={toggleOnline}>
+      <div className="mb-6 md:mb-8">
+        <h1 className="text-2xl md:text-3xl font-bold text-foreground">Deliveries</h1>
+        <p className="text-muted-foreground text-sm md:text-base">Manage your delivery orders</p>
+      </div>
 
-        <Tabs defaultValue="active">
-          <TabsList>
-            <TabsTrigger value="active">Active ({activeOrders.length})</TabsTrigger>
-            <TabsTrigger value="completed">Completed</TabsTrigger>
-          </TabsList>
+      <Tabs defaultValue="active">
+        <TabsList className="w-full md:w-auto">
+          <TabsTrigger value="active" className="flex-1 md:flex-none">Active ({activeOrders.length})</TabsTrigger>
+          <TabsTrigger value="completed" className="flex-1 md:flex-none">Completed</TabsTrigger>
+        </TabsList>
 
-          <TabsContent value="active" className="space-y-4">
-            {activeOrders.length === 0 ? (
-              <Card>
-                <CardContent className="p-8 text-center">
-                  <Package className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">No active deliveries</p>
-                </CardContent>
-              </Card>
-            ) : (
-              activeOrders.map((order) => (
-                <Card key={order.id}>
-                  <CardHeader className="flex flex-row items-center justify-between">
-                    <div>
-                      <CardTitle className="text-lg">Order #{order.order_number}</CardTitle>
-                      <p className="text-sm text-muted-foreground">
-                        {format(new Date(order.created_at), 'PPp')}
-                      </p>
-                    </div>
-                    {getStatusBadge(order.status)}
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <p className="text-sm font-medium">Pickup From</p>
-                        <div className="flex items-start gap-2 text-sm text-muted-foreground">
-                          <MapPin className="w-4 h-4 mt-0.5" />
-                          <div>
-                            <p className="font-medium text-foreground">{order.vendors?.name}</p>
-                            <p>{order.vendors?.address}</p>
-                          </div>
-                        </div>
-                        {order.vendors?.phone && (
-                          <div className="flex items-center gap-2 text-sm">
-                            <Phone className="w-4 h-4" />
-                            <a href={`tel:${order.vendors.phone}`} className="text-primary">
-                              {order.vendors.phone}
-                            </a>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="space-y-2">
-                        <p className="text-sm font-medium">Deliver To</p>
-                        <div className="flex items-start gap-2 text-sm text-muted-foreground">
-                          <MapPin className="w-4 h-4 mt-0.5" />
-                          <p>{order.delivery_address_text}</p>
+        <TabsContent value="active" className="space-y-4 mt-4">
+          {activeOrders.length === 0 ? (
+            <Card>
+              <CardContent className="p-6 md:p-8 text-center">
+                <Package className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">No active deliveries</p>
+              </CardContent>
+            </Card>
+          ) : (
+            activeOrders.map((order) => (
+              <Card key={order.id}>
+                <CardHeader className="flex flex-col md:flex-row md:items-center justify-between gap-2 p-4 md:p-6">
+                  <div>
+                    <CardTitle className="text-base md:text-lg">Order #{order.order_number}</CardTitle>
+                    <p className="text-xs md:text-sm text-muted-foreground">
+                      {format(new Date(order.created_at), 'PPp')}
+                    </p>
+                  </div>
+                  {getStatusBadge(order.status)}
+                </CardHeader>
+                <CardContent className="space-y-4 p-4 md:p-6 pt-0">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">Pickup From</p>
+                      <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                        <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                        <div className="min-w-0">
+                          <p className="font-medium text-foreground truncate">{order.vendors?.name}</p>
+                          <p className="break-words">{order.vendors?.address}</p>
                         </div>
                       </div>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-4 border-t">
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-sm text-muted-foreground">
-                          Earning: ₦{(Number(order.total) * 0.1).toLocaleString()}
-                        </span>
-                      </div>
-
-                      {getNextStatus(order.status) && (
-                        <Button onClick={() => updateOrderStatus(order.id, getNextStatus(order.status))}>
-                          Mark as {getNextStatus(order.status).replace(/_/g, ' ')}
-                        </Button>
+                      {order.vendors?.phone && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <Phone className="w-4 h-4" />
+                          <a href={`tel:${order.vendors.phone}`} className="text-primary">
+                            {order.vendors.phone}
+                          </a>
+                        </div>
                       )}
                     </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </TabsContent>
 
-          <TabsContent value="completed" className="space-y-4">
-            {completedOrders.length === 0 ? (
-              <Card>
-                <CardContent className="p-8 text-center">
-                  <p className="text-muted-foreground">No completed deliveries yet</p>
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">Deliver To</p>
+                      <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                        <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                        <p className="break-words">{order.delivery_address_text}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-4 border-t">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">
+                        Earning: ₦{(Number(order.total) * 0.1).toLocaleString()}
+                      </span>
+                    </div>
+
+                    {getNextStatus(order.status) && (
+                      <Button 
+                        onClick={() => updateOrderStatus(order.id, getNextStatus(order.status))}
+                        className="w-full md:w-auto"
+                      >
+                        Mark as {getNextStatus(order.status).replace(/_/g, ' ')}
+                      </Button>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
-            ) : (
-              completedOrders.map((order) => (
-                <Card key={order.id}>
-                  <CardHeader className="flex flex-row items-center justify-between">
-                    <div>
-                      <CardTitle className="text-lg">Order #{order.order_number}</CardTitle>
-                      <p className="text-sm text-muted-foreground">
-                        {format(new Date(order.created_at), 'PPp')}
-                      </p>
-                    </div>
-                    {getStatusBadge(order.status)}
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm text-muted-foreground">
-                        {order.vendors?.name} → {order.delivery_address_text?.split(',')[0]}
-                      </p>
-                      <p className="font-medium">₦{(Number(order.total) * 0.1).toLocaleString()}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </TabsContent>
-        </Tabs>
-      </main>
-    </div>
+            ))
+          )}
+        </TabsContent>
+
+        <TabsContent value="completed" className="space-y-4 mt-4">
+          {completedOrders.length === 0 ? (
+            <Card>
+              <CardContent className="p-6 md:p-8 text-center">
+                <p className="text-muted-foreground">No completed deliveries yet</p>
+              </CardContent>
+            </Card>
+          ) : (
+            completedOrders.map((order) => (
+              <Card key={order.id}>
+                <CardHeader className="flex flex-col md:flex-row md:items-center justify-between gap-2 p-4 md:p-6">
+                  <div>
+                    <CardTitle className="text-base md:text-lg">Order #{order.order_number}</CardTitle>
+                    <p className="text-xs md:text-sm text-muted-foreground">
+                      {format(new Date(order.created_at), 'PPp')}
+                    </p>
+                  </div>
+                  {getStatusBadge(order.status)}
+                </CardHeader>
+                <CardContent className="p-4 md:p-6 pt-0">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+                    <p className="text-sm text-muted-foreground truncate">
+                      {order.vendors?.name} → {order.delivery_address_text?.split(',')[0]}
+                    </p>
+                    <p className="font-medium">₦{(Number(order.total) * 0.1).toLocaleString()}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </TabsContent>
+      </Tabs>
+    </RiderLayout>
   );
 }
