@@ -9,7 +9,8 @@ import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 
 const menuItems = [
   { icon: Home, label: 'Dashboard', path: '/rider/dashboard' },
-  { icon: Package, label: 'Deliveries', path: '/rider/orders' },
+  { icon: Package, label: 'My Deliveries', path: '/rider/orders' },
+  { icon: Package, label: 'Available Orders', path: '/rider/available' },
   { icon: DollarSign, label: 'Earnings', path: '/rider/earnings' },
   { icon: ArrowUpRight, label: 'Withdraw', path: '/rider/withdraw' },
   { icon: Settings, label: 'Settings', path: '/rider/settings' },

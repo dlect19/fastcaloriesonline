@@ -3,14 +3,20 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { RiderLayout } from '@/components/rider/RiderLayout';
 import { RiderFloatingWidget } from '@/components/rider/RiderFloatingWidget';
+import { ConfirmationCodeDialog } from '@/components/rider/ConfirmationCodeDialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Package, MapPin, Phone, Clock, Loader2, ExternalLink } from 'lucide-react';
+import { Package, MapPin, Phone, Clock, Loader2, ExternalLink, ShieldCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useNotificationSound } from '@/hooks/useNotificationSound';
 import { format } from 'date-fns';
+
+// Generate a random 6-digit confirmation code
+const generateConfirmationCode = (): string => {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+};
 
 export default function RiderOrders() {
   const navigate = useNavigate();
@@ -22,6 +28,9 @@ export default function RiderOrders() {
   const [userId, setUserId] = useState<string | null>(null);
   const [activeOrders, setActiveOrders] = useState<any[]>([]);
   const [completedOrders, setCompletedOrders] = useState<any[]>([]);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [pendingDeliveryOrder, setPendingDeliveryOrder] = useState<any>(null);
+  const [confirmingDelivery, setConfirmingDelivery] = useState(false);
   const previousOrderCount = useRef<number>(0);
 
   useEffect(() => {
@@ -125,19 +134,76 @@ export default function RiderOrders() {
     }
   };
 
-  const updateOrderStatus = async (orderId: string, newStatus: string) => {
+  const updateOrderStatus = async (orderId: string, newStatus: string, order?: any) => {
+    // If trying to deliver, open confirmation dialog instead
+    if (newStatus === 'delivered') {
+      setPendingDeliveryOrder(order || activeOrders.find(o => o.id === orderId));
+      setConfirmDialogOpen(true);
+      return;
+    }
+
     try {
       const updateData: any = { status: newStatus };
-      if (newStatus === 'delivered') {
-        updateData.delivered_at = new Date().toISOString();
+      
+      // Generate confirmation code when rider picks up the order
+      if (newStatus === 'picked_up') {
+        updateData.confirmation_code = generateConfirmationCode();
       }
 
       await supabase.from('orders').update(updateData).eq('id', orderId);
-      toast({ title: 'Status updated successfully' });
+      toast({ 
+        title: newStatus === 'picked_up' 
+          ? '📦 Order picked up! Confirmation code sent to customer.' 
+          : 'Status updated successfully' 
+      });
       fetchOrders();
     } catch (error) {
       console.error('Error updating order:', error);
       toast({ title: 'Failed to update status', variant: 'destructive' });
+    }
+  };
+
+  const handleConfirmDelivery = async (enteredCode: string) => {
+    if (!pendingDeliveryOrder) return;
+    
+    setConfirmingDelivery(true);
+    
+    try {
+      // Verify the confirmation code
+      const { data: order } = await supabase
+        .from('orders')
+        .select('confirmation_code')
+        .eq('id', pendingDeliveryOrder.id)
+        .single();
+
+      if (!order?.confirmation_code || order.confirmation_code !== enteredCode) {
+        toast({
+          title: 'Invalid code',
+          description: 'The confirmation code does not match. Please ask the customer for the correct code.',
+          variant: 'destructive'
+        });
+        setConfirmingDelivery(false);
+        return;
+      }
+
+      // Code is correct, mark as delivered
+      await supabase
+        .from('orders')
+        .update({ 
+          status: 'delivered', 
+          delivered_at: new Date().toISOString() 
+        })
+        .eq('id', pendingDeliveryOrder.id);
+
+      toast({ title: '✅ Order delivered successfully!' });
+      setConfirmDialogOpen(false);
+      setPendingDeliveryOrder(null);
+      fetchOrders();
+    } catch (error) {
+      console.error('Error confirming delivery:', error);
+      toast({ title: 'Failed to confirm delivery', variant: 'destructive' });
+    } finally {
+      setConfirmingDelivery(false);
     }
   };
 
@@ -292,10 +358,17 @@ export default function RiderOrders() {
 
                     {getNextStatus(order.status) && (
                       <Button 
-                        onClick={() => updateOrderStatus(order.id, getNextStatus(order.status))}
+                        onClick={() => updateOrderStatus(order.id, getNextStatus(order.status), order)}
                         className="w-full md:w-auto"
                       >
-                        Mark as {getNextStatus(order.status).replace(/_/g, ' ')}
+                        {getNextStatus(order.status) === 'delivered' ? (
+                          <>
+                            <ShieldCheck className="w-4 h-4 mr-2" />
+                            Verify & Deliver
+                          </>
+                        ) : (
+                          `Mark as ${getNextStatus(order.status).replace(/_/g, ' ')}`
+                        )}
                       </Button>
                     )}
                   </div>
@@ -342,6 +415,15 @@ export default function RiderOrders() {
       {floatModeEnabled && (
         <RiderFloatingWidget isOnline={isOnline} onToggleOnline={toggleOnline} />
       )}
+
+      {/* Confirmation Code Dialog */}
+      <ConfirmationCodeDialog
+        open={confirmDialogOpen}
+        onOpenChange={setConfirmDialogOpen}
+        onConfirm={handleConfirmDelivery}
+        isLoading={confirmingDelivery}
+        orderNumber={pendingDeliveryOrder?.order_number}
+      />
     </RiderLayout>
   );
 }

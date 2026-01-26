@@ -5,7 +5,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BottomNav } from '@/components/home/BottomNav';
-import { ArrowLeft, Package, Check, Truck, MapPin, Phone, Loader2, Store, Clock, Bike } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { ArrowLeft, Package, Check, Truck, MapPin, Phone, Loader2, Store, Clock, Bike, ShieldCheck } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
@@ -227,7 +228,27 @@ export default function OrderDetail() {
           </CardContent>
         </Card>
 
-        {/* Order Items */}
+        {/* Confirmation Code - Show when order is picked up or on the way */}
+        {order.confirmation_code && ['picked_up', 'on_the_way'].includes(order.status) && (
+          <Alert className="border-primary bg-primary/5">
+            <ShieldCheck className="h-5 w-5 text-primary" />
+            <AlertTitle className="text-primary">Delivery Confirmation Code</AlertTitle>
+            <AlertDescription className="space-y-2">
+              <p className="text-muted-foreground">
+                Give this code to the rider when they arrive to confirm delivery:
+              </p>
+              <div className="flex items-center justify-center gap-2 py-3">
+                <span className="text-3xl font-bold tracking-[0.5em] text-foreground">
+                  {order.confirmation_code}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground text-center">
+                Do not share this code until you receive your order
+              </p>
+            </AlertDescription>
+          </Alert>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Order Items</CardTitle>

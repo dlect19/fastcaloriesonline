@@ -5,9 +5,9 @@ import { Switch } from '@/components/ui/switch';
 
 const navItems = [
   { id: 'dashboard', icon: Home, label: 'Home', path: '/rider/dashboard' },
-  { id: 'orders', icon: Package, label: 'Deliveries', path: '/rider/orders' },
+  { id: 'orders', icon: Package, label: 'My Orders', path: '/rider/orders' },
+  { id: 'available', icon: Package, label: 'Available', path: '/rider/available' },
   { id: 'earnings', icon: DollarSign, label: 'Earnings', path: '/rider/earnings' },
-  { id: 'withdraw', icon: ArrowUpRight, label: 'Withdraw', path: '/rider/withdraw' },
   { id: 'settings', icon: Settings, label: 'Settings', path: '/rider/settings' },
 ];
 
