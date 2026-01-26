@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TrendingUp, Wallet, ArrowUpRight, ArrowDownRight, Calendar, Clock, AlertCircle } from 'lucide-react';
+import { TrendingUp, Wallet, ArrowUpRight, ArrowDownRight, Calendar, Clock, AlertCircle, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { VendorSidebar } from '@/components/vendor/VendorSidebar';
+import { AccessDenied } from '@/components/vendor/AccessDenied';
 import { useAuth } from '@/hooks/useAuth';
+import { useVendorPermissions } from '@/hooks/useVendorPermissions';
 import { supabase } from '@/integrations/supabase/client';
 
 interface Vendor {
@@ -47,6 +49,8 @@ export default function VendorEarnings() {
   const [wallet, setWallet] = useState<VendorWallet | null>(null);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendor?.id || null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -147,7 +151,7 @@ export default function VendorEarnings() {
     }
   };
 
-  if (authLoading || loading) {
+  if (authLoading || loading || permLoading) {
     return (
       <div className="min-h-screen bg-background">
         <VendorSidebar />
@@ -165,11 +169,22 @@ export default function VendorEarnings() {
     );
   }
 
+  if (!hasPermission('view_earnings')) {
+    return (
+      <div className="min-h-screen bg-background">
+        <VendorSidebar vendorName={vendor?.name} permissions={permissions} />
+        <main className="lg:ml-64 pt-14 lg:pt-0">
+          <AccessDenied message="You don't have permission to view earnings." />
+        </main>
+      </div>
+    );
+  }
+
   const commissionRate = vendor?.commission_rate || 15;
 
   return (
     <div className="min-h-screen bg-background">
-      <VendorSidebar vendorName={vendor?.name} />
+      <VendorSidebar vendorName={vendor?.name} permissions={permissions} />
 
       <main className="lg:ml-64 pt-14 lg:pt-0">
         <div className="p-6 space-y-6">
@@ -179,18 +194,20 @@ export default function VendorEarnings() {
               <h1 className="text-2xl font-bold text-foreground">Earnings</h1>
               <p className="text-muted-foreground">Track your revenue and payouts</p>
             </div>
-            <Button 
-              variant="default" 
-              className="gap-2 w-fit"
-              onClick={() => navigate('/vendor/withdraw')}
-            >
-              <ArrowUpRight className="w-4 h-4" />
-              Withdraw Funds
-            </Button>
+            {hasPermission('request_withdrawal') && (
+              <Button 
+                variant="default" 
+                className="gap-2 w-fit"
+                onClick={() => navigate('/vendor/withdraw')}
+              >
+                <ArrowUpRight className="w-4 h-4" />
+                Withdraw Funds
+              </Button>
+            )}
           </div>
 
           {/* Bank Account Alert */}
-          {!wallet?.bank_name && (
+          {!wallet?.bank_name && hasPermission('request_withdrawal') && (
             <div className="bg-warning/10 border border-warning/30 rounded-xl p-4 flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
               <div>

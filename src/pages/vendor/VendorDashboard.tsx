@@ -16,7 +16,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { VendorSidebar } from '@/components/vendor/VendorSidebar';
+import { AccessDenied } from '@/components/vendor/AccessDenied';
 import { useAuth } from '@/hooks/useAuth';
+import { useVendorPermissions } from '@/hooks/useVendorPermissions';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables } from '@/integrations/supabase/types';
 
@@ -35,6 +37,8 @@ export default function VendorDashboard() {
     pendingOrders: 0,
     avgRating: 0,
   });
+
+  const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendor?.id || null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -110,7 +114,7 @@ export default function VendorDashboard() {
     return colors[status] || 'bg-muted text-muted-foreground';
   };
 
-  if (authLoading || loading) {
+  if (authLoading || loading || permLoading) {
     return (
       <div className="min-h-screen bg-background">
         <VendorSidebar />
@@ -141,9 +145,20 @@ export default function VendorDashboard() {
     );
   }
 
+  if (!hasPermission('view_dashboard')) {
+    return (
+      <div className="min-h-screen bg-background">
+        <VendorSidebar vendorName={vendor.name} permissions={permissions} />
+        <main className="lg:ml-64 pt-14 lg:pt-0">
+          <AccessDenied />
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
-      <VendorSidebar vendorName={vendor.name} />
+      <VendorSidebar vendorName={vendor.name} permissions={permissions} />
 
       <main className="lg:ml-64 pt-14 lg:pt-0">
         <div className="p-6 space-y-6">
@@ -183,7 +198,7 @@ export default function VendorDashboard() {
                   <div>
                     <p className="text-sm text-muted-foreground">Today's Revenue</p>
                     <p className="text-3xl font-bold text-foreground">
-                      {formatCurrency(stats.todayRevenue)}
+                      {hasPermission('view_earnings') ? formatCurrency(stats.todayRevenue) : '***'}
                     </p>
                   </div>
                   <div className="w-12 h-12 rounded-xl bg-success/10 flex items-center justify-center">
@@ -228,10 +243,12 @@ export default function VendorDashboard() {
           <Card className="border-0 shadow-soft">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-lg">Recent Orders</CardTitle>
-              <Button variant="ghost" size="sm" onClick={() => navigate('/vendor/orders')}>
-                View all
-                <ChevronRight className="w-4 h-4 ml-1" />
-              </Button>
+              {hasPermission('process_orders') && (
+                <Button variant="ghost" size="sm" onClick={() => navigate('/vendor/orders')}>
+                  View all
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              )}
             </CardHeader>
             <CardContent>
               {orders.length === 0 ? (
@@ -258,7 +275,7 @@ export default function VendorDashboard() {
                       <div className="text-right flex items-center gap-3">
                         <div>
                           <p className="font-semibold text-foreground">
-                            {formatCurrency(Number(order.total))}
+                            {hasPermission('view_earnings') ? formatCurrency(Number(order.total)) : '***'}
                           </p>
                           <Badge className={`${getStatusColor(order.status)} border-0 text-xs`}>
                             {order.status.replace('_', ' ')}
@@ -273,47 +290,52 @@ export default function VendorDashboard() {
             </CardContent>
           </Card>
 
-          {/* Quick Actions */}
+          {/* Quick Actions - Only show actions user has permission for */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Button
-              variant="outline"
-              className="h-auto p-6 flex flex-col items-start gap-2"
-              onClick={() => navigate('/vendor/menu')}
-            >
-              <UtensilsCrossed className="w-6 h-6 text-primary" />
-              <div className="text-left">
-                <p className="font-semibold">Manage Menu</p>
-                <p className="text-sm text-muted-foreground">Add or edit products</p>
-              </div>
-            </Button>
+            {hasPermission('manage_menu') && (
+              <Button
+                variant="outline"
+                className="h-auto p-6 flex flex-col items-start gap-2"
+                onClick={() => navigate('/vendor/menu')}
+              >
+                <UtensilsCrossed className="w-6 h-6 text-primary" />
+                <div className="text-left">
+                  <p className="font-semibold">Manage Menu</p>
+                  <p className="text-sm text-muted-foreground">Add or edit products</p>
+                </div>
+              </Button>
+            )}
 
-            <Button
-              variant="outline"
-              className="h-auto p-6 flex flex-col items-start gap-2"
-              onClick={() => navigate('/vendor/hours')}
-            >
-              <Clock className="w-6 h-6 text-primary" />
-              <div className="text-left">
-                <p className="font-semibold">Working Hours</p>
-                <p className="text-sm text-muted-foreground">Set your availability</p>
-              </div>
-            </Button>
+            {hasPermission('edit_settings') && (
+              <Button
+                variant="outline"
+                className="h-auto p-6 flex flex-col items-start gap-2"
+                onClick={() => navigate('/vendor/hours')}
+              >
+                <Clock className="w-6 h-6 text-primary" />
+                <div className="text-left">
+                  <p className="font-semibold">Working Hours</p>
+                  <p className="text-sm text-muted-foreground">Set your availability</p>
+                </div>
+              </Button>
+            )}
 
-            <Button
-              variant="outline"
-              className="h-auto p-6 flex flex-col items-start gap-2"
-              onClick={() => navigate('/vendor/earnings')}
-            >
-              <Wallet className="w-6 h-6 text-primary" />
-              <div className="text-left">
-                <p className="font-semibold">View Earnings</p>
-                <p className="text-sm text-muted-foreground">Track your revenue</p>
-              </div>
-            </Button>
+            {hasPermission('view_earnings') && (
+              <Button
+                variant="outline"
+                className="h-auto p-6 flex flex-col items-start gap-2"
+                onClick={() => navigate('/vendor/earnings')}
+              >
+                <Wallet className="w-6 h-6 text-primary" />
+                <div className="text-left">
+                  <p className="font-semibold">View Earnings</p>
+                  <p className="text-sm text-muted-foreground">Track your revenue</p>
+                </div>
+              </Button>
+            )}
           </div>
         </div>
       </main>
     </div>
   );
 }
-

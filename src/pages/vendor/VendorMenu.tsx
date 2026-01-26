@@ -17,9 +17,11 @@ import {
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { VendorSidebar } from '@/components/vendor/VendorSidebar';
+import { AccessDenied } from '@/components/vendor/AccessDenied';
 import { ComboManagement } from '@/components/vendor/ComboManagement';
 import { TakeawayPackManagement } from '@/components/vendor/TakeawayPackManagement';
 import { useAuth } from '@/hooks/useAuth';
+import { useVendorPermissions } from '@/hooks/useVendorPermissions';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables, Database } from '@/integrations/supabase/types';
@@ -85,6 +87,8 @@ export default function VendorMenu() {
   const [searchQuery, setSearchQuery] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+
+  const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendor?.id || null);
 
   // Nutrient tag options
   type NutrientTag = 'water-rich' | 'vitamin-rich' | 'mineral-rich';
@@ -446,7 +450,7 @@ export default function VendorMenu() {
 
   const labels = getCategoryLabels(vendor?.category);
 
-  if (authLoading || loading) {
+  if (authLoading || loading || permLoading) {
     return (
       <div className="min-h-screen bg-background">
         <VendorSidebar />
@@ -464,9 +468,20 @@ export default function VendorMenu() {
     );
   }
 
+  if (!hasPermission('manage_menu')) {
+    return (
+      <div className="min-h-screen bg-background">
+        <VendorSidebar vendorName={vendor?.name} permissions={permissions} />
+        <main className="lg:ml-64 pt-14 lg:pt-0">
+          <AccessDenied message="You don't have permission to manage the menu." />
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
-      <VendorSidebar vendorName={vendor?.name} />
+      <VendorSidebar vendorName={vendor?.name} permissions={permissions} />
 
       <main className="lg:ml-64 pt-14 lg:pt-0">
         <div className="p-6 space-y-6">
