@@ -48,6 +48,11 @@
     --calorie-low: 142 76% 36%;
     --calorie-medium: 38 92% 50%;
     --calorie-high: 0 85% 60%;
+    
+    /* Nutrient tag colors */
+    --nutrient-water: 199 89% 48%;
+    --nutrient-vitamin: 25 95% 53%;
+    --nutrient-mineral: 280 70% 55%;
 
     /* Gradient */
     --gradient-primary: linear-gradient(135deg, hsl(142 76% 36%) 0%, hsl(142 70% 45%) 100%);

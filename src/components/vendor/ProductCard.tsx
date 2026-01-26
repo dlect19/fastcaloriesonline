@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Flame, Plus, Minus, Info, Loader2 } from 'lucide-react';
+import { Flame, Plus, Minus, Info, Loader2, Droplet, Apple, Gem } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import type { Tables } from '@/integrations/supabase/types';
@@ -190,11 +190,31 @@ export function ProductCard({ product, vendor }: ProductCardProps) {
               </div>
 
               {/* Calorie Level Badge */}
-              <div className="flex items-center justify-center mt-3">
+              <div className="flex flex-wrap items-center justify-center gap-2 mt-3">
                 <Badge variant="outline" className={cn('gap-1', calorieLevel.color)}>
                   <Flame className="w-3.5 h-3.5" />
                   {calorieLevel.label} Calorie
                 </Badge>
+                
+                {/* Nutrient Tags */}
+                {(product as any).nutrient_tags?.includes('water-rich') && (
+                  <Badge variant="outline" className="gap-1 bg-nutrient-water/10 text-nutrient-water border-nutrient-water/20">
+                    <Droplet className="w-3.5 h-3.5" />
+                    Water-rich
+                  </Badge>
+                )}
+                {(product as any).nutrient_tags?.includes('vitamin-rich') && (
+                  <Badge variant="outline" className="gap-1 bg-nutrient-vitamin/10 text-nutrient-vitamin border-nutrient-vitamin/20">
+                    <Apple className="w-3.5 h-3.5" />
+                    Vitamin-rich
+                  </Badge>
+                )}
+                {(product as any).nutrient_tags?.includes('mineral-rich') && (
+                  <Badge variant="outline" className="gap-1 bg-nutrient-mineral/10 text-nutrient-mineral border-nutrient-mineral/20">
+                    <Gem className="w-3.5 h-3.5" />
+                    Mineral-rich
+                  </Badge>
+                )}
               </div>
             </div>
 

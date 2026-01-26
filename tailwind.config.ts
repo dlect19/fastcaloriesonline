@@ -66,6 +66,11 @@ export default {
           medium: "hsl(var(--calorie-medium))",
           high: "hsl(var(--calorie-high))",
         },
+        nutrient: {
+          water: "hsl(var(--nutrient-water))",
+          vitamin: "hsl(var(--nutrient-vitamin))",
+          mineral: "hsl(var(--nutrient-mineral))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

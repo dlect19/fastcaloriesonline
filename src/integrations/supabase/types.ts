@@ -424,6 +424,7 @@ export type Database = {
           image_url: string | null
           is_available: boolean | null
           name: string
+          nutrient_tags: string[] | null
           price: number
           protein_grams: number | null
           requires_prescription: boolean | null
@@ -445,6 +446,7 @@ export type Database = {
           image_url?: string | null
           is_available?: boolean | null
           name: string
+          nutrient_tags?: string[] | null
           price: number
           protein_grams?: number | null
           requires_prescription?: boolean | null
@@ -466,6 +468,7 @@ export type Database = {
           image_url?: string | null
           is_available?: boolean | null
           name?: string
+          nutrient_tags?: string[] | null
           price?: number
           protein_grams?: number | null
           requires_prescription?: boolean | null
