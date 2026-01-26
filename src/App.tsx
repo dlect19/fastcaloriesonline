@@ -16,6 +16,7 @@ import OrderDetail from "./pages/OrderDetail";
 import Favorites from "./pages/Favorites";
 import VerifyEmail from "./pages/VerifyEmail";
 import VerificationPending from "./pages/VerificationPending";
+import PaymentCallback from "./pages/PaymentCallback";
 import VendorAuth from "./pages/vendor/VendorAuth";
 import VendorDashboard from "./pages/vendor/VendorDashboard";
 import VendorMenu from "./pages/vendor/VendorMenu";
@@ -72,6 +73,7 @@ const App = () => (
               <Route path="/favorites" element={<Favorites />} />
               <Route path="/verify-email" element={<VerifyEmail />} />
               <Route path="/verification-pending" element={<VerificationPending />} />
+              <Route path="/payment-callback" element={<PaymentCallback />} />
               {/* Vendor Portal Routes */}
               <Route path="/vendor/auth" element={<VendorAuth />} />
               <Route path="/vendor/dashboard" element={<VendorDashboard />} />

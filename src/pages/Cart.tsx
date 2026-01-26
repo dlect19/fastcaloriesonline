@@ -173,16 +173,31 @@ export default function Cart() {
         await incrementUsage(appliedPromo.id);
       }
 
-      // Clear cart
+      // Initialize Paystack payment
+      const callbackUrl = `${window.location.origin}/payment-callback`;
+      const { data: paymentData, error: paymentError } = await supabase.functions.invoke(
+        'paystack-initialize-payment',
+        {
+          body: { orderId: order.id, callbackUrl },
+        }
+      );
+
+      if (paymentError || !paymentData?.authorization_url) {
+        console.error('Payment initialization error:', paymentError || paymentData);
+        toast({
+          title: 'Payment Error',
+          description: 'Could not initialize payment. Please try again.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Clear cart before redirecting
       clearCart();
 
-      toast({
-        title: 'Order placed!',
-        description: `Your order ${order.order_number} has been placed successfully`,
-      });
+      // Redirect to Paystack checkout
+      window.location.href = paymentData.authorization_url;
 
-      // Navigate to order confirmation or orders page
-      navigate('/orders');
     } catch (error) {
       console.error('Error placing order:', error);
       toast({
