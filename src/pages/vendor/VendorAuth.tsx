@@ -71,14 +71,14 @@ export default function VendorAuth() {
         throw new Error('This account is not registered as a vendor. Use "Link Account" if you want to add vendor access to your existing customer account.');
       }
 
-      // Check if vendor profile exists
-      const { data: vendor } = await supabase
+      // Check if vendor profile exists (use limit(1) to handle multiple profiles)
+      const { data: vendors } = await supabase
         .from('vendors')
         .select('id')
         .eq('user_id', data.user.id)
-        .single();
+        .limit(1);
 
-      if (!vendor) {
+      if (!vendors || vendors.length === 0) {
         // Has vendor role but no profile - rare edge case
         await supabase.auth.signOut();
         throw new Error('Vendor profile not found. Please contact support.');
@@ -227,14 +227,14 @@ export default function VendorAuth() {
 
       if (error) throw error;
 
-      // Check if already a vendor
-      const { data: existingVendor } = await supabase
+      // Check if already a vendor (use limit(1) to handle multiple profiles)
+      const { data: existingVendors } = await supabase
         .from('vendors')
         .select('id')
         .eq('user_id', data.user.id)
-        .single();
+        .limit(1);
 
-      if (existingVendor) {
+      if (existingVendors && existingVendors.length > 0) {
         toast({
           title: 'Already a vendor',
           description: 'This account is already registered as a vendor.',
