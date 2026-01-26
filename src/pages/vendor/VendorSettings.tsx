@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Store, Mail, Phone, MapPin, Save, Camera, ImageIcon, Loader2 } from 'lucide-react';
+import { Store, Mail, Phone, MapPin, Save, Camera, ImageIcon, Loader2, Megaphone } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { VendorSidebar } from '@/components/vendor/VendorSidebar';
+import { MarketingBanner } from '@/components/vendor/MarketingBanner';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -470,6 +471,33 @@ export default function VendorSettings() {
                   />
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Marketing Materials */}
+          <Card className="border-0 shadow-soft">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Megaphone className="w-5 h-5" />
+                Marketing Materials
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Generate printable marketing banners with QR codes for in-store customer discovery.
+              </p>
+              {vendor && (
+                <MarketingBanner
+                  vendor={{
+                    id: vendor.id,
+                    name: vendor.name,
+                    address: vendor.address,
+                    city: vendor.city,
+                    state: vendor.state,
+                    logo_url: vendor.logo_url,
+                  }}
+                />
+              )}
             </CardContent>
           </Card>
 
