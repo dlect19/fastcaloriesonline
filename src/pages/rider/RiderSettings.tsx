@@ -133,15 +133,22 @@ export default function RiderSettings() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      await supabase
+      const { error: profileError } = await supabase
         .from('profiles')
         .update({ full_name: fullName, phone })
         .eq('user_id', user.id);
 
+      if (profileError) {
+        console.error('Error updating profile:', profileError);
+        toast({ title: 'Failed to save profile', variant: 'destructive' });
+        setSaving(false);
+        return;
+      }
+
       // Clear plate number for bicycles
       const plateToSave = vehicleType === 'bicycle' ? '' : vehiclePlate;
 
-      await supabase
+      const { error: riderError } = await supabase
         .from('rider_profiles')
         .update({ 
           vehicle_type: vehicleType, 
@@ -151,6 +158,13 @@ export default function RiderSettings() {
           work_radius_km: workRadius,
         })
         .eq('user_id', user.id);
+
+      if (riderError) {
+        console.error('Error updating rider profile:', riderError);
+        toast({ title: 'Failed to save rider settings', description: riderError.message, variant: 'destructive' });
+        setSaving(false);
+        return;
+      }
 
       toast({ title: 'Settings saved successfully' });
 
