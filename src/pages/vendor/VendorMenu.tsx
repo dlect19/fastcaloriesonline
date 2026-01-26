@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { VendorSidebar } from '@/components/vendor/VendorSidebar';
 import { ComboManagement } from '@/components/vendor/ComboManagement';
+import { TakeawayPackManagement } from '@/components/vendor/TakeawayPackManagement';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -791,6 +792,13 @@ export default function VendorMenu() {
           {vendor && (
             <div className="bg-card rounded-xl border border-border p-4">
               <ComboManagement vendor={vendor} products={products} onRefresh={fetchData} />
+            </div>
+          )}
+
+          {/* Takeaway Pack Management Section - Only for restaurants */}
+          {vendor && vendor.category === 'restaurant' && user && (
+            <div className="bg-card rounded-xl border border-border p-4">
+              <TakeawayPackManagement vendorId={vendor.id} userId={user.id} />
             </div>
           )}
 
