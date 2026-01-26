@@ -9,6 +9,7 @@ interface OrderSummaryProps {
   total: number;
   totalCalories: number;
   packagingFee?: number;
+  discount?: number;
 }
 
 export function OrderSummary({ 
@@ -18,6 +19,7 @@ export function OrderSummary({
   total, 
   totalCalories,
   packagingFee = 0,
+  discount = 0,
 }: OrderSummaryProps) {
   const getCalorieLevel = (calories: number) => {
     if (calories <= 500) return { label: 'Low', color: 'text-calorie-low bg-calorie-low/10' };
@@ -72,6 +74,12 @@ export function OrderSummary({
             <span>Service Fee</span>
             <span>₦{serviceFee.toLocaleString()}</span>
           </div>
+          {discount > 0 && (
+            <div className="flex justify-between text-calorie-low">
+              <span>Promo Discount</span>
+              <span>-₦{discount.toLocaleString()}</span>
+            </div>
+          )}
         </div>
 
         <Separator />

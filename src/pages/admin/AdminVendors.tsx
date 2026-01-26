@@ -1,0 +1,194 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
+import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Check, X, Loader2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+
+export default function AdminVendors() {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(true);
+  const [vendors, setVendors] = useState<any[]>([]);
+  const [pendingVendors, setPendingVendors] = useState<any[]>([]);
+
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  const checkAuth = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      navigate('/admin/auth');
+      return;
+    }
+
+    const { data: roles } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id);
+
+    if (!roles?.some(r => r.role === 'admin')) {
+      navigate('/admin/auth');
+      return;
+    }
+
+    await fetchVendors();
+  };
+
+  const fetchVendors = async () => {
+    try {
+      const { data: all } = await supabase
+        .from('vendors')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      const verified = all?.filter(v => v.is_verified) || [];
+      const pending = all?.filter(v => !v.is_verified) || [];
+
+      setVendors(verified);
+      setPendingVendors(pending);
+    } catch (error) {
+      console.error('Error fetching vendors:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const approveVendor = async (vendorId: string) => {
+    try {
+      await supabase
+        .from('vendors')
+        .update({ is_verified: true, is_active: true })
+        .eq('id', vendorId);
+
+      toast({ title: 'Vendor approved successfully' });
+      fetchVendors();
+    } catch (error) {
+      toast({ title: 'Failed to approve vendor', variant: 'destructive' });
+    }
+  };
+
+  const rejectVendor = async (vendorId: string) => {
+    try {
+      await supabase.from('vendors').delete().eq('id', vendorId);
+      toast({ title: 'Vendor rejected' });
+      fetchVendors();
+    } catch (error) {
+      toast({ title: 'Failed to reject vendor', variant: 'destructive' });
+    }
+  };
+
+  const toggleActive = async (vendorId: string, isActive: boolean) => {
+    try {
+      await supabase.from('vendors').update({ is_active: !isActive }).eq('id', vendorId);
+      toast({ title: `Vendor ${isActive ? 'deactivated' : 'activated'}` });
+      fetchVendors();
+    } catch (error) {
+      toast({ title: 'Failed to update vendor', variant: 'destructive' });
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background flex">
+      <AdminSidebar />
+      
+      <main className="flex-1 p-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-foreground">Vendors</h1>
+          <p className="text-muted-foreground">Manage platform vendors</p>
+        </div>
+
+        <Tabs defaultValue="approved">
+          <TabsList>
+            <TabsTrigger value="approved">Approved ({vendors.length})</TabsTrigger>
+            <TabsTrigger value="pending">Pending ({pendingVendors.length})</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="approved">
+            <Card>
+              <CardHeader>
+                <CardTitle>Approved Vendors</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {vendors.map((vendor) => (
+                    <div key={vendor.id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div>
+                        <h3 className="font-medium">{vendor.name}</h3>
+                        <p className="text-sm text-muted-foreground">{vendor.category} • {vendor.city}</p>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <Badge variant={vendor.is_active ? 'default' : 'secondary'}>
+                          {vendor.is_active ? 'Active' : 'Inactive'}
+                        </Badge>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => toggleActive(vendor.id, vendor.is_active)}
+                        >
+                          {vendor.is_active ? 'Deactivate' : 'Activate'}
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="pending">
+            <Card>
+              <CardHeader>
+                <CardTitle>Pending Approval</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {pendingVendors.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">No pending vendors</p>
+                ) : (
+                  <div className="space-y-4">
+                    {pendingVendors.map((vendor) => (
+                      <div key={vendor.id} className="flex items-center justify-between p-4 border rounded-lg">
+                        <div>
+                          <h3 className="font-medium">{vendor.name}</h3>
+                          <p className="text-sm text-muted-foreground">
+                            {vendor.category} • {vendor.address}, {vendor.city}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {vendor.email} • {vendor.phone}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" onClick={() => approveVendor(vendor.id)}>
+                            <Check className="w-4 h-4 mr-1" />
+                            Approve
+                          </Button>
+                          <Button size="sm" variant="destructive" onClick={() => rejectVendor(vendor.id)}>
+                            <X className="w-4 h-4 mr-1" />
+                            Reject
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </main>
+    </div>
+  );
+}

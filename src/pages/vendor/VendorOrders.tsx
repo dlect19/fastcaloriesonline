@@ -61,6 +61,38 @@ export default function VendorOrders() {
     }
   }, [user, authLoading, navigate]);
 
+  // Subscribe to real-time order updates
+  useEffect(() => {
+    if (!vendor) return;
+
+    const channel = supabase
+      .channel('vendor-orders')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'orders',
+          filter: `vendor_id=eq.${vendor.id}`,
+        },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            // Play notification sound or show toast for new orders
+            toast({
+              title: '🔔 New Order!',
+              description: 'You have a new order to process',
+            });
+          }
+          fetchData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [vendor]);
+
   const fetchData = async () => {
     try {
       const { data: vendorData } = await supabase
