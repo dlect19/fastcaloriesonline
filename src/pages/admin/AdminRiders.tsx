@@ -42,13 +42,31 @@ export default function AdminRiders() {
 
   const fetchRiders = async () => {
     try {
-      const { data: all } = await supabase
+      // Fetch rider profiles first
+      const { data: riderData } = await supabase
         .from('rider_profiles')
-        .select('*, profiles!rider_profiles_user_id_fkey(full_name, phone)')
+        .select('*')
         .order('created_at', { ascending: false });
 
-      const verified = all?.filter(r => r.is_verified) || [];
-      const pending = all?.filter(r => !r.is_verified) || [];
+      // Get all user_ids from riders
+      const userIds = riderData?.map(r => r.user_id) || [];
+
+      // Fetch profile info for each rider
+      const { data: profilesData } = userIds.length > 0 
+        ? await supabase
+            .from('profiles')
+            .select('user_id, full_name, phone')
+            .in('user_id', userIds)
+        : { data: [] };
+
+      // Merge profile info into riders
+      const ridersWithProfiles = riderData?.map(rider => ({
+        ...rider,
+        profile: profilesData?.find(p => p.user_id === rider.user_id) || null
+      })) || [];
+
+      const verified = ridersWithProfiles.filter(r => r.is_verified);
+      const pending = ridersWithProfiles.filter(r => !r.is_verified);
 
       setRiders(verified);
       setPendingRiders(pending);
@@ -129,8 +147,8 @@ export default function AdminRiders() {
                       <div key={rider.id} className="border rounded-lg p-4 space-y-4">
                         <div className="flex items-start justify-between">
                           <div>
-                            <h3 className="font-medium text-lg">{rider.profiles?.full_name || 'Unknown'}</h3>
-                            <p className="text-sm text-muted-foreground">{rider.profiles?.phone}</p>
+                            <h3 className="font-medium text-lg">{rider.profile?.full_name || 'Unknown'}</h3>
+                            <p className="text-sm text-muted-foreground">{rider.profile?.phone}</p>
                           </div>
                           <div className="flex items-center gap-2">
                             <Button size="sm" onClick={() => approveRider(rider.id)}>
@@ -221,7 +239,7 @@ export default function AdminRiders() {
                     {riders.map((rider) => (
                       <div key={rider.id} className="flex items-center justify-between p-4 border rounded-lg">
                         <div className="space-y-1">
-                          <h3 className="font-medium">{rider.profiles?.full_name || 'Unknown'}</h3>
+                          <h3 className="font-medium">{rider.profile?.full_name || 'Unknown'}</h3>
                           <p className="text-sm text-muted-foreground">
                             {rider.vehicle_type} • {rider.vehicle_plate}
                           </p>
