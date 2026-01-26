@@ -59,6 +59,12 @@ export default function RiderDashboard() {
         .maybeSingle();
 
       if (profile) {
+        // Check if this is first login / incomplete profile - force to settings
+        if (!profile.vehicle_type) {
+          navigate('/rider/settings?setup=true');
+          return;
+        }
+
         setRiderProfile(profile);
         setIsOnline(profile.is_online || false);
         setStats(prev => ({
