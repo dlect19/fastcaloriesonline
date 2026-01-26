@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { MapPin, Bike, DollarSign, Settings2, Save, Loader2 } from 'lucide-react';
 import { EnvironmentSwitch } from '@/components/admin/EnvironmentSwitch';
+import { AdminTestModeToggle } from '@/components/admin/AdminTestModeToggle';
 
 interface DeliverySetting {
   key: string;
@@ -150,6 +151,9 @@ export default function AdminSettings() {
           <div className="space-y-6 max-w-3xl">
             {/* Environment Switch Section */}
             <EnvironmentSwitch />
+            
+            {/* Admin Test Mode (only shows when platform is in production) */}
+            <AdminTestModeToggle />
 
             <Card>
               <CardHeader>
