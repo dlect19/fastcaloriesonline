@@ -1,235 +1,251 @@
 
 
-# Plan: Fix Admin Data Visibility and Create Accounting Dashboard
+# Plan: Consumer Nutrition Analytics Dashboard
 
 ## Overview
 
-This plan addresses two main issues:
-1. **Users and Riders Not Visible**: The frontend queries are failing due to invalid foreign key relationship hints
-2. **Dashboard Needs Accounting Layout**: Restructure to separate commission, revenue, and payout data
+Create a new "Nutrition Analytics" page in the admin portal that provides comprehensive reporting on consumer calorie consumption and food class distribution. The dashboard will display data in daily, monthly, and yearly views with visual charts for demographic analysis.
 
 ---
 
-## Problem Analysis
+## Data Sources
 
-### Root Cause of Data Visibility Issue
+The feature will leverage existing tables:
 
-The network logs show these errors:
-- `Could not find a relationship between 'profiles' and 'user_roles'`
-- `Could not find a relationship between 'rider_profiles' and 'profiles'`
-
-**Why?** The queries use Supabase's foreign key syntax (`table!fk_name(columns)`) but there are NO foreign keys defined between these tables. The RLS policy we added works - the issue is the query structure itself.
-
-### Current Dashboard Limitations
-
-- Shows only basic counts (orders, vendors, riders, users)
-- "Total Revenue" combines everything with no breakdown
-- No commission tracking
-- No payout/withdrawal data
-- No separation of vendor vs platform earnings
+| Table | Data Used |
+|-------|-----------|
+| `calorie_logs` | User calorie consumption, macros, meal types, dates |
+| `order_items` | Calories per item, product references |
+| `products` | Calorie classes (carbs, protein, fats, fiber), nutrient data |
+| `profiles` | User info for per-consumer breakdown |
 
 ---
 
-## Task 1: Fix AdminUsers Query
+## Implementation Tasks
 
-**File**: `src/pages/admin/AdminUsers.tsx`
+### Task 1: Add Nutrition Analytics to Admin Sidebar
 
-**Current Query (Broken)**:
+**File**: `src/components/admin/AdminSidebar.tsx`
+
+Add new menu item:
 ```typescript
-.from('profiles')
-.select('*, user_roles(role)')  // FK doesn't exist
-```
-
-**Solution**: Fetch profiles first, then fetch roles separately and merge:
-```typescript
-// First get profiles
-const { data: profilesData } = await supabase
-  .from('profiles')
-  .select('*')
-  .order('created_at', { ascending: false });
-
-// Then get all user roles
-const { data: rolesData } = await supabase
-  .from('user_roles')
-  .select('user_id, role');
-
-// Merge roles into profiles
-const usersWithRoles = profilesData?.map(profile => ({
-  ...profile,
-  roles: rolesData?.filter(r => r.user_id === profile.user_id).map(r => r.role) || []
-})) || [];
+{ icon: Activity, label: 'Nutrition', path: '/admin/nutrition' },
 ```
 
 ---
 
-## Task 2: Fix AdminRiders Query
+### Task 2: Create Admin Nutrition Analytics Page
 
-**File**: `src/pages/admin/AdminRiders.tsx`
+**New File**: `src/pages/admin/AdminNutrition.tsx`
 
-**Current Query (Broken)**:
+#### Section 1: Platform Nutrition Overview (Top Cards)
+- **Total Calories Consumed**: Sum of all calorie_logs
+- **Total Users Tracking**: Count of unique users with calorie_logs
+- **Average Daily Intake**: Average calories per user per day
+- **Most Popular Food Class**: Most consumed class (carbs/protein/fats/fiber)
+
+#### Section 2: Time Period Selector
+- Tabs or dropdown for: **Today**, **This Week**, **This Month**, **This Year**
+- Date range picker for custom ranges
+
+#### Section 3: Food Class Distribution (Pie Chart)
+- Visual breakdown showing percentage of:
+  - Carbohydrates consumption
+  - Protein consumption
+  - Fats consumption
+  - Fiber consumption
+- Use `recharts` PieChart component
+
+#### Section 4: Calorie Trends (Line/Bar Chart)
+- **Daily View**: Calories consumed per hour of day
+- **Weekly View**: Calories consumed per day of week
+- **Monthly View**: Calories consumed per day of month
+- **Yearly View**: Calories consumed per month
+
+#### Section 5: Per-Consumer Breakdown (Table)
+- Columns: User Name, Total Calories, Avg Daily, Top Food Class, Last Activity
+- Sortable and searchable
+- Click to expand: Show detailed breakdown per user
+
+---
+
+### Task 3: Add Route to App.tsx
+
+**File**: `src/App.tsx`
+
+Add route:
 ```typescript
-.from('rider_profiles')
-.select('*, profiles!rider_profiles_user_id_fkey(full_name, phone)')
-```
-
-**Solution**: Fetch rider_profiles first, then fetch related profiles:
-```typescript
-// Get rider profiles
-const { data: riderData } = await supabase
-  .from('rider_profiles')
-  .select('*')
-  .order('created_at', { ascending: false });
-
-// Get profile info for each rider
-const userIds = riderData?.map(r => r.user_id) || [];
-const { data: profilesData } = await supabase
-  .from('profiles')
-  .select('user_id, full_name, phone')
-  .in('user_id', userIds);
-
-// Merge profile info into riders
-const ridersWithProfiles = riderData?.map(rider => ({
-  ...rider,
-  profile: profilesData?.find(p => p.user_id === rider.user_id)
-})) || [];
+<Route path="/admin/nutrition" element={<AdminNutrition />} />
 ```
 
 ---
 
-## Task 3: Redesign Admin Dashboard for Accounting
-
-**File**: `src/pages/admin/AdminDashboard.tsx`
-
-### New Dashboard Sections
-
-#### Section 1: Platform Overview (Top Row)
-| Card | Data |
-|------|------|
-| Total Orders | Count of all orders |
-| Active Vendors | Count of verified vendors |
-| Active Riders | Count of verified riders |
-| Total Users | Count of all profiles |
-
-#### Section 2: Revenue Breakdown (Financial Row)
-| Card | Data | Calculation |
-|------|------|-------------|
-| Gross Revenue | Total order amounts | `SUM(orders.total)` |
-| Platform Commission | Commission earned | `SUM(orders.subtotal * vendor.commission_rate)` |
-| Delivery Revenue | Platform share of delivery | `SUM(delivery_fee * (100 - rider_share_pct) / 100)` |
-| Service Fees | All service fees | `SUM(orders.service_fee)` |
-
-#### Section 3: Payouts Section
-| Card | Data |
-|------|------|
-| Total Payouts | Sum of completed payouts |
-| Pending Payouts | Sum of pending withdrawal requests |
-| Vendor Balances | Total eligible vendor wallet balances |
-| Rider Balances | Total eligible rider wallet balances |
-
-#### Section 4: Quick Stats
-| Card | Data |
-|------|------|
-| Platform Wallet Balance | From `platform_wallet.balance` |
-| Total Earned (All-time) | From `platform_wallet.total_earned` |
-| Net Position | Balance - Pending Payouts |
+## Technical Details
 
 ### Data Fetching Strategy
 
 ```typescript
-const fetchFinancialStats = async () => {
-  // Fetch platform wallet
-  const { data: platformWallet } = await supabase
-    .from('platform_wallet')
+// Fetch calorie logs with date filtering
+const fetchNutritionData = async (startDate: Date, endDate: Date) => {
+  // Get all calorie logs in range
+  const { data: logs } = await supabase
+    .from('calorie_logs')
     .select('*')
-    .single();
+    .gte('log_date', startDate.toISOString().split('T')[0])
+    .lte('log_date', endDate.toISOString().split('T')[0]);
 
-  // Fetch order financial summary
-  const { data: orders } = await supabase
-    .from('orders')
-    .select('total, subtotal, delivery_fee, service_fee, discount, vendor_id');
+  // Get order items with product info for food classes
+  const { data: orderItems } = await supabase
+    .from('order_items')
+    .select('*, products(calorie_classes, calories)')
+    .gte('created_at', startDate.toISOString())
+    .lte('created_at', endDate.toISOString());
 
-  // Fetch vendor commission rates
-  const { data: vendors } = await supabase
-    .from('vendors')
-    .select('id, commission_rate');
+  // Get user profiles for names
+  const userIds = [...new Set(logs?.map(l => l.user_id) || [])];
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('user_id, full_name')
+    .in('user_id', userIds);
 
-  // Fetch payout summary
-  const { data: payouts } = await supabase
-    .from('payout_requests')
-    .select('amount, status');
-
-  // Fetch wallet balances
-  const { data: wallets } = await supabase
-    .from('wallets')
-    .select('wallet_type, eligible_balance, pending_balance');
-    
-  // Calculate metrics...
+  return { logs, orderItems, profiles };
 };
 ```
 
-### UI Layout
+### Chart Components Using Recharts
 
-```text
-+--------------------------------------------------+
-|  Platform Overview                                |
-|  +--------+ +--------+ +--------+ +--------+     |
-|  | Orders | |Vendors | | Riders | | Users  |     |
-|  +--------+ +--------+ +--------+ +--------+     |
-+--------------------------------------------------+
+```typescript
+// Pie Chart for Food Class Distribution
+<PieChart>
+  <Pie data={foodClassData} dataKey="value" nameKey="name" />
+  <Tooltip />
+  <Legend />
+</PieChart>
 
-+--------------------------------------------------+
-|  Revenue Breakdown                                |
-|  +----------+ +------------+ +----------+ +------+
-|  | Gross    | | Commission | | Delivery | |Fees  |
-|  | Revenue  | | Earned     | | Revenue  | |      |
-|  +----------+ +------------+ +----------+ +------+
-+--------------------------------------------------+
+// Line Chart for Trends
+<LineChart data={trendData}>
+  <XAxis dataKey="date" />
+  <YAxis />
+  <Line type="monotone" dataKey="calories" stroke="#22c55e" />
+  <Tooltip />
+</LineChart>
+```
 
-+--------------------------------------------------+
-|  Payouts & Balances                              |
-|  +--------+ +--------+ +--------+ +--------+     |
-|  | Total  | |Pending | | Vendor | | Rider  |     |
-|  |Payouts | |Payouts | |Balances| |Balances|     |
-|  +--------+ +--------+ +--------+ +--------+     |
-+--------------------------------------------------+
+### Per-User Statistics Calculation
 
-+--------------------------------------------------+
-|  Platform Financial Position                      |
-|  +----------------+ +----------------+ +--------+ |
-|  | Platform Wallet| | Total Earned   | | Net    | |
-|  +----------------+ +----------------+ +--------+ |
-+--------------------------------------------------+
+```typescript
+interface UserNutritionStats {
+  userId: string;
+  fullName: string;
+  totalCalories: number;
+  avgDailyCalories: number;
+  topFoodClass: 'carbs' | 'protein' | 'fats' | 'fiber';
+  carbsTotal: number;
+  proteinTotal: number;
+  fatsTotal: number;
+  fiberTotal: number;
+  lastActivity: string;
+}
+
+const calculateUserStats = (logs: CalorieLog[], userId: string): UserNutritionStats => {
+  const userLogs = logs.filter(l => l.user_id === userId);
+  const uniqueDays = new Set(userLogs.map(l => l.log_date)).size;
+  
+  const totals = userLogs.reduce((acc, log) => ({
+    calories: acc.calories + (log.calories || 0),
+    carbs: acc.carbs + (log.carbs_grams || 0),
+    protein: acc.protein + (log.protein_grams || 0),
+    fats: acc.fats + (log.fats_grams || 0),
+  }), { calories: 0, carbs: 0, protein: 0, fats: 0 });
+
+  // Determine top food class by grams consumed
+  const classes = [
+    { name: 'carbs', value: totals.carbs },
+    { name: 'protein', value: totals.protein },
+    { name: 'fats', value: totals.fats },
+  ];
+  const topClass = classes.sort((a, b) => b.value - a.value)[0];
+
+  return {
+    userId,
+    totalCalories: totals.calories,
+    avgDailyCalories: uniqueDays > 0 ? Math.round(totals.calories / uniqueDays) : 0,
+    topFoodClass: topClass.name as 'carbs' | 'protein' | 'fats',
+    carbsTotal: totals.carbs,
+    proteinTotal: totals.protein,
+    fatsTotal: totals.fats,
+    lastActivity: userLogs[0]?.created_at || '',
+  };
+};
 ```
 
 ---
 
-## Files to Modify
+## UI Layout
 
-| File | Changes |
-|------|---------|
-| `src/pages/admin/AdminUsers.tsx` | Fix query to use separate fetches and merge data |
-| `src/pages/admin/AdminRiders.tsx` | Fix query to use separate fetches and merge data |
-| `src/pages/admin/AdminDashboard.tsx` | Complete redesign with accounting sections |
+```
++------------------------------------------------------------------+
+|  Nutrition Analytics                                              |
++------------------------------------------------------------------+
+
++------------------------------------------------------------------+
+|  Platform Overview                                                |
+|  +------------+ +------------+ +------------+ +------------+     |
+|  | Total      | | Users      | | Avg Daily  | | Top Food   |     |
+|  | Calories   | | Tracking   | | Intake     | | Class      |     |
+|  +------------+ +------------+ +------------+ +------------+     |
++------------------------------------------------------------------+
+
++------------------------------------------------------------------+
+|  [ Today ] [ Week ] [ Month ] [ Year ] [ Custom ]                |
++------------------------------------------------------------------+
+
++----------------------------------+-------------------------------+
+|  Food Class Distribution         |  Calorie Trends               |
+|  [======= Pie Chart =======]     |  [====== Line Chart ======]   |
+|  - Carbs: 45%                    |  Shows consumption over time  |
+|  - Protein: 30%                  |                               |
+|  - Fats: 20%                     |                               |
+|  - Fiber: 5%                     |                               |
++----------------------------------+-------------------------------+
+
++------------------------------------------------------------------+
+|  Per-Consumer Breakdown                                           |
+|  +-------+-------------+----------+--------+----------+--------+ |
+|  | User  | Total Cals  | Avg/Day  | Carbs  | Protein  | Fats   | |
+|  +-------+-------------+----------+--------+----------+--------+ |
+|  | John  | 45,230      | 2,150    | 2,100g | 1,200g   | 890g   | |
+|  | Jane  | 38,500      | 1,830    | 1,800g | 1,100g   | 750g   | |
+|  +-------+-------------+----------+--------+----------+--------+ |
++------------------------------------------------------------------+
+```
+
+---
+
+## Files Summary
+
+| File | Action | Description |
+|------|--------|-------------|
+| `src/components/admin/AdminSidebar.tsx` | Modify | Add "Nutrition" menu item |
+| `src/pages/admin/AdminNutrition.tsx` | Create | New analytics page with charts |
+| `src/App.tsx` | Modify | Add route for `/admin/nutrition` |
 
 ---
 
 ## Expected Outcome
 
-After implementation:
-1. Admin Users page will display all 3 registered users with their roles
-2. Admin Riders page will display the 1 registered rider with profile details
-3. Dashboard will show:
-   - Clear separation of revenue types (gross, commission, delivery, service fees)
-   - Payout tracking (completed vs pending)
-   - Wallet balances by type (vendor vs rider)
-   - Platform financial position
+After implementation, admins will be able to:
+1. View total platform calorie consumption statistics
+2. See food class distribution as a pie chart
+3. Track calorie trends over time (day/week/month/year)
+4. View per-user nutrition breakdown
+5. Filter data by custom date ranges
+6. Identify popular food classes and consumption patterns
 
 ---
 
-## Technical Notes
+## Dependencies
 
-- No database migrations needed - the data and RLS policies are already correct
-- The fix is purely frontend query restructuring
-- Commission calculation uses `vendors.commission_rate` (default 15%)
-- Rider share uses `platform_settings.default_rider_share_percentage` (default 80%)
+- `recharts` (already installed) - For PieChart and LineChart visualization
+- No database migrations needed - Uses existing calorie_logs and products tables
 
