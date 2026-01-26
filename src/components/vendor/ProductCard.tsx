@@ -116,9 +116,9 @@ export function ProductCard({ product, vendor }: ProductCardProps) {
                 <span className="font-bold text-foreground">
                   ₦{product.price.toLocaleString()}
                 </span>
-                {(product as any).serving_unit && (
+                {product.serving_unit && (
                   <span className="text-xs text-muted-foreground">
-                    {(product as any).serving_unit}
+                    {product.serving_unit}
                   </span>
                 )}
               </div>
@@ -204,19 +204,19 @@ export function ProductCard({ product, vendor }: ProductCardProps) {
                 </Badge>
                 
                 {/* Nutrient Tags */}
-                {(product as any).nutrient_tags?.includes('water-rich') && (
+                {product.nutrient_tags?.includes('water-rich') && (
                   <Badge variant="outline" className="gap-1 bg-nutrient-water/10 text-nutrient-water border-nutrient-water/20">
                     <Droplet className="w-3.5 h-3.5" />
                     Water-rich
                   </Badge>
                 )}
-                {(product as any).nutrient_tags?.includes('vitamin-rich') && (
+                {product.nutrient_tags?.includes('vitamin-rich') && (
                   <Badge variant="outline" className="gap-1 bg-nutrient-vitamin/10 text-nutrient-vitamin border-nutrient-vitamin/20">
                     <Apple className="w-3.5 h-3.5" />
                     Vitamin-rich
                   </Badge>
                 )}
-                {(product as any).nutrient_tags?.includes('mineral-rich') && (
+                {product.nutrient_tags?.includes('mineral-rich') && (
                   <Badge variant="outline" className="gap-1 bg-nutrient-mineral/10 text-nutrient-mineral border-nutrient-mineral/20">
                     <Gem className="w-3.5 h-3.5" />
                     Mineral-rich
@@ -231,9 +231,9 @@ export function ProductCard({ product, vendor }: ProductCardProps) {
                 <span className="text-lg font-bold text-foreground">
                   ₦{(product.price * quantity).toLocaleString()}
                 </span>
-                {(product as any).serving_unit && (
+                {product.serving_unit && (
                   <span className="text-sm text-muted-foreground">
-                    {(product as any).serving_unit}
+                    {product.serving_unit}
                   </span>
                 )}
               </div>
