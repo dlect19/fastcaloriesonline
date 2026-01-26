@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { VendorSidebar } from '@/components/vendor/VendorSidebar';
 import { AccessDenied } from '@/components/vendor/AccessDenied';
+import { BankAccountForm } from '@/components/BankAccountForm';
 import { useAuth } from '@/hooks/useAuth';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
 import { supabase } from '@/integrations/supabase/client';
@@ -44,14 +45,6 @@ interface WithdrawalRequest {
   processed_at: string | null;
   notes: string | null;
 }
-
-const NIGERIAN_BANKS = [
-  'Access Bank', 'Citibank', 'Ecobank', 'Fidelity Bank', 'First Bank',
-  'First City Monument Bank', 'Guaranty Trust Bank', 'Heritage Bank', 
-  'Keystone Bank', 'Polaris Bank', 'Providus Bank', 'Stanbic IBTC Bank',
-  'Standard Chartered Bank', 'Sterling Bank', 'Titan Trust Bank',
-  'Union Bank', 'United Bank for Africa', 'Unity Bank', 'Wema Bank', 'Zenith Bank'
-];
 
 export default function VendorWithdraw() {
   const { user, loading: authLoading } = useAuth();
@@ -461,47 +454,28 @@ export default function VendorWithdraw() {
                     Bank Details
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="max-w-md">
                   <DialogHeader>
                     <DialogTitle>Bank Account Details</DialogTitle>
-                    <DialogDescription>Add or update your bank account for withdrawals</DialogDescription>
+                    <DialogDescription>Add or update your verified bank account for withdrawals</DialogDescription>
                   </DialogHeader>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>Bank Name</Label>
-                      <Select value={bankName} onValueChange={setBankName}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select bank" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {NIGERIAN_BANKS.map((bank) => (
-                            <SelectItem key={bank} value={bank}>{bank}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Account Number</Label>
-                      <Input
-                        value={accountNumber}
-                        onChange={(e) => setAccountNumber(e.target.value)}
-                        placeholder="0123456789"
-                        maxLength={10}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Account Name</Label>
-                      <Input
-                        value={accountName}
-                        onChange={(e) => setAccountName(e.target.value)}
-                        placeholder="John Doe"
-                      />
-                    </div>
-                    <Button onClick={handleUpdateBankDetails} className="w-full" disabled={submitting}>
-                      {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                      Save Bank Details
-                    </Button>
-                  </div>
+                  <BankAccountForm
+                    existingBank={bankName}
+                    existingAccountNumber={accountNumber}
+                    onSuccess={(data) => {
+                      setBankName(data.bankName);
+                      setAccountNumber(data.accountNumber);
+                      setAccountName(data.accountName);
+                      setWallet(wallet ? {
+                        ...wallet,
+                        bank_name: data.bankName,
+                        bank_account_number: data.accountNumber,
+                        bank_account_name: data.accountName,
+                      } : null);
+                      setBankDialogOpen(false);
+                    }}
+                    onCancel={() => setBankDialogOpen(false)}
+                  />
                 </DialogContent>
               </Dialog>
             </div>
