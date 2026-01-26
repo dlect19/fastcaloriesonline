@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { RiderLayout } from '@/components/rider/RiderLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Package, DollarSign, Star, TrendingUp, Loader2 } from 'lucide-react';
+import { RiderFloatingWidget } from '@/components/rider/RiderFloatingWidget';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Package, DollarSign, Star, TrendingUp, Loader2, MapPin, Settings } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function RiderDashboard() {
@@ -11,6 +13,7 @@ export default function RiderDashboard() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(false);
+  const [floatModeEnabled, setFloatModeEnabled] = useState(false);
   const [stats, setStats] = useState({
     todayDeliveries: 0,
     todayEarnings: 0,
@@ -21,6 +24,9 @@ export default function RiderDashboard() {
 
   useEffect(() => {
     checkAuth();
+    // Load float mode preference
+    const savedFloatMode = localStorage.getItem('rider_float_mode');
+    setFloatModeEnabled(savedFloatMode === 'true');
   }, []);
 
   const checkAuth = async () => {
@@ -89,6 +95,18 @@ export default function RiderDashboard() {
   const toggleOnline = async (online: boolean) => {
     if (!riderProfile) return;
 
+    // Check if NIN is submitted and verified before going online
+    if (online && (!riderProfile.nin_number || !riderProfile.is_verified)) {
+      toast({
+        title: 'Cannot go online',
+        description: !riderProfile.nin_number 
+          ? 'Please complete your NIN verification first.' 
+          : 'Your account is pending admin verification.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     try {
       await supabase
         .from('rider_profiles')
@@ -113,6 +131,10 @@ export default function RiderDashboard() {
     );
   }
 
+  const workLocationText = riderProfile?.preferred_city && riderProfile?.preferred_state
+    ? `${riderProfile.preferred_city}, ${riderProfile.preferred_state}`
+    : 'Not set';
+
   return (
     <RiderLayout isOnline={isOnline} onToggleOnline={toggleOnline}>
       <div className="mb-6 md:mb-8">
@@ -124,7 +146,19 @@ export default function RiderDashboard() {
         <Card className="mb-4 md:mb-6 border-calorie-medium">
           <CardContent className="p-3 md:p-4">
             <p className="text-calorie-medium font-medium text-sm md:text-base">
-              ⚠️ Your account is pending verification. You can view the dashboard but cannot accept deliveries yet.
+              ⚠️ Your account is pending verification. 
+              {!riderProfile?.nin_number && ' Please submit your NIN to complete registration.'}
+              {riderProfile?.nin_number && !riderProfile?.nin_verified && ' Your NIN is under review.'}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {!riderProfile?.is_email_verified && (
+        <Card className="mb-4 md:mb-6 border-calorie-medium">
+          <CardContent className="p-3 md:p-4">
+            <p className="text-calorie-medium font-medium text-sm md:text-base">
+              ⚠️ Please verify your email to receive delivery requests.
             </p>
           </CardContent>
         </Card>
@@ -172,6 +206,35 @@ export default function RiderDashboard() {
         </Card>
       </div>
 
+      {/* Work Location Card */}
+      <Card className="mb-6 md:mb-8">
+        <CardHeader className="flex flex-row items-center justify-between p-4 md:p-6">
+          <div>
+            <CardTitle className="text-lg md:text-xl flex items-center gap-2">
+              <MapPin className="w-5 h-5" />
+              Work Location
+            </CardTitle>
+            <CardDescription>Your preferred delivery area</CardDescription>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => navigate('/rider/settings')}>
+            <Settings className="w-4 h-4 mr-2" />
+            Update
+          </Button>
+        </CardHeader>
+        <CardContent className="p-4 md:p-6 pt-0">
+          <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-6">
+            <div>
+              <p className="text-sm text-muted-foreground">Location</p>
+              <p className="font-medium">{workLocationText}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Radius</p>
+              <p className="font-medium">{riderProfile?.work_radius_km || 10} km</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {riderProfile?.is_verified && isOnline && (
         <Card>
           <CardHeader>
@@ -181,6 +244,11 @@ export default function RiderDashboard() {
             <p className="text-muted-foreground text-sm md:text-base">New delivery requests will appear here.</p>
           </CardContent>
         </Card>
+      )}
+
+      {/* Floating Widget */}
+      {floatModeEnabled && (
+        <RiderFloatingWidget isOnline={isOnline} onToggleOnline={toggleOnline} />
       )}
     </RiderLayout>
   );

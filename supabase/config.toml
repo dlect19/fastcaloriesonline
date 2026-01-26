@@ -50,3 +50,9 @@ verify_jwt = false
 
 [functions.assign-rider]
 verify_jwt = false
+
+[functions.send-email-verification-otp]
+verify_jwt = false
+
+[functions.verify-email-otp]
+verify_jwt = false

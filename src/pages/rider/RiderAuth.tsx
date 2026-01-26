@@ -7,9 +7,10 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2, ShieldCheck, AlertCircle } from 'lucide-react';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 import { ForgotPasswordModal } from '@/components/auth/ForgotPasswordModal';
+import { EmailVerificationOTP } from '@/components/rider/EmailVerificationOTP';
 
 export default function RiderAuth() {
   const navigate = useNavigate();
@@ -18,6 +19,8 @@ export default function RiderAuth() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [showEmailVerification, setShowEmailVerification] = useState(false);
+  const [pendingUserId, setPendingUserId] = useState<string | null>(null);
 
   // Login state
   const [loginEmail, setLoginEmail] = useState('');
@@ -31,6 +34,7 @@ export default function RiderAuth() {
   const [phone, setPhone] = useState('');
   const [vehicleType, setVehicleType] = useState('');
   const [vehiclePlate, setVehiclePlate] = useState('');
+  const [ninNumber, setNinNumber] = useState('');
 
   useEffect(() => {
     checkUser();
@@ -48,6 +52,11 @@ export default function RiderAuth() {
         navigate('/rider/dashboard');
       }
     }
+  };
+
+  const validateNIN = (nin: string) => {
+    // Nigerian NIN is 11 digits
+    return /^\d{11}$/.test(nin);
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -107,6 +116,15 @@ export default function RiderAuth() {
       toast({
         title: 'Password too short',
         description: 'Password must be at least 6 characters',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!validateNIN(ninNumber)) {
+      toast({
+        title: 'Invalid NIN',
+        description: 'Please enter a valid 11-digit National Identification Number',
         variant: 'destructive',
       });
       return;
@@ -187,11 +205,20 @@ export default function RiderAuth() {
                 user_id: signInData.user.id,
                 vehicle_type: vehicleType,
                 vehicle_plate: vehiclePlate,
+                nin_number: ninNumber,
+                nin_submitted_at: new Date().toISOString(),
               });
+            } else {
+              // Update existing profile with NIN
+              await supabase.from('rider_profiles').update({
+                nin_number: ninNumber,
+                nin_submitted_at: new Date().toISOString(),
+              }).eq('user_id', signInData.user.id);
             }
 
-            toast({ title: 'Rider account linked successfully!' });
-            navigate('/rider/dashboard');
+            // Show email verification
+            setPendingUserId(signInData.user.id);
+            setShowEmailVerification(true);
             return;
           }
         }
@@ -210,22 +237,22 @@ export default function RiderAuth() {
           console.error('Error adding rider role:', roleError);
         }
 
-        // Create rider profile
+        // Create rider profile with NIN
         await supabase.from('rider_profiles').insert({
           user_id: data.user.id,
           vehicle_type: vehicleType,
           vehicle_plate: vehiclePlate,
+          nin_number: ninNumber,
+          nin_submitted_at: new Date().toISOString(),
         });
 
         // Update profile with phone
         await supabase.from('profiles').update({ phone }).eq('user_id', data.user.id);
-      }
 
-      toast({
-        title: 'Registration successful!',
-        description: 'Your rider account is pending verification.',
-      });
-      navigate('/rider/dashboard');
+        // Show email verification
+        setPendingUserId(data.user.id);
+        setShowEmailVerification(true);
+      }
     } catch (error: any) {
       toast({
         title: 'Registration failed',
@@ -236,6 +263,26 @@ export default function RiderAuth() {
       setLoading(false);
     }
   };
+
+  const handleEmailVerified = () => {
+    toast({
+      title: 'Registration successful!',
+      description: 'Your account is pending admin verification.',
+    });
+    navigate('/rider/dashboard');
+  };
+
+  if (showEmailVerification && pendingUserId) {
+    return (
+      <EmailVerificationOTP 
+        email={signupEmail}
+        userId={pendingUserId}
+        platform="rider"
+        onVerified={handleEmailVerified}
+        onBack={() => setShowEmailVerification(false)}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -352,6 +399,30 @@ export default function RiderAuth() {
                     />
                   </div>
                 </div>
+
+                {/* NIN Field */}
+                <div className="space-y-2">
+                  <Label htmlFor="nin-number" className="flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-primary" />
+                    National Identification Number (NIN)
+                  </Label>
+                  <Input
+                    id="nin-number"
+                    value={ninNumber}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\D/g, '').slice(0, 11);
+                      setNinNumber(value);
+                    }}
+                    placeholder="Enter 11-digit NIN"
+                    maxLength={11}
+                    required
+                  />
+                  <div className="flex items-start gap-2 text-xs text-muted-foreground">
+                    <AlertCircle className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                    <span>Your NIN is required for security verification. It will be verified by our admin team before you can start receiving deliveries.</span>
+                  </div>
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="signup-password">Password</Label>
                   <div className="relative">

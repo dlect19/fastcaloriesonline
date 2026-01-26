@@ -63,11 +63,13 @@ Deno.serve(async (req) => {
     console.log(`Finding riders near vendor ${vendorId} at ${vendorLat}, ${vendorLon}`);
 
     // Fetch online riders with location and work preferences
+    // Only include riders who have NIN and are fully verified
     const { data: riders, error: ridersError } = await supabase
       .from('rider_profiles')
-      .select('id, user_id, current_latitude, current_longitude, is_online, vehicle_type, affiliated_vendor_id, preferred_latitude, preferred_longitude, preferred_city, preferred_state, work_radius_km')
+      .select('id, user_id, current_latitude, current_longitude, is_online, vehicle_type, affiliated_vendor_id, preferred_latitude, preferred_longitude, preferred_city, preferred_state, work_radius_km, nin_number, nin_verified, is_email_verified')
       .eq('is_online', true)
-      .eq('is_verified', true);
+      .eq('is_verified', true)
+      .not('nin_number', 'is', null);
 
     if (ridersError) {
       console.error('Error fetching riders:', ridersError);

@@ -1,0 +1,2 @@
+-- Add INSERT policy for email verification OTPs (service role will insert, but users can't)
+-- This table will be managed by edge functions with service role key

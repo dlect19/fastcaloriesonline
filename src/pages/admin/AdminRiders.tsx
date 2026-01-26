@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Check, X, Loader2 } from 'lucide-react';
+import { Check, X, Loader2, ShieldCheck, Mail, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function AdminRiders() {
@@ -61,7 +61,10 @@ export default function AdminRiders() {
 
   const approveRider = async (riderId: string) => {
     try {
-      await supabase.from('rider_profiles').update({ is_verified: true }).eq('id', riderId);
+      await supabase.from('rider_profiles').update({ 
+        is_verified: true,
+        nin_verified: true 
+      }).eq('id', riderId);
       toast({ title: 'Rider approved successfully' });
       fetchRiders();
     } catch (error) {
@@ -80,6 +83,11 @@ export default function AdminRiders() {
     }
   };
 
+  const maskNIN = (nin: string | null) => {
+    if (!nin) return 'Not provided';
+    return `${nin.slice(0, 3)}****${nin.slice(-4)}`;
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -95,39 +103,102 @@ export default function AdminRiders() {
       <main className="flex-1 p-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground">Riders</h1>
-          <p className="text-muted-foreground">Manage delivery riders</p>
+          <p className="text-muted-foreground">Manage delivery riders and verify NIN</p>
         </div>
 
-        <Tabs defaultValue="approved">
+        <Tabs defaultValue="pending">
           <TabsList>
-            <TabsTrigger value="approved">Verified ({riders.length})</TabsTrigger>
             <TabsTrigger value="pending">Pending ({pendingRiders.length})</TabsTrigger>
+            <TabsTrigger value="approved">Verified ({riders.length})</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="approved">
+          <TabsContent value="pending">
             <Card>
               <CardHeader>
-                <CardTitle>Verified Riders</CardTitle>
+                <CardTitle>Pending Verification</CardTitle>
+                <CardDescription>
+                  Review rider applications and verify NIN before approval
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                {riders.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-8">No verified riders</p>
+                {pendingRiders.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">No pending riders</p>
                 ) : (
                   <div className="space-y-4">
-                    {riders.map((rider) => (
-                      <div key={rider.id} className="flex items-center justify-between p-4 border rounded-lg">
-                        <div>
-                          <h3 className="font-medium">{rider.profiles?.full_name || 'Unknown'}</h3>
-                          <p className="text-sm text-muted-foreground">
-                            {rider.vehicle_type} • {rider.vehicle_plate}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {rider.total_deliveries} deliveries • ⭐ {rider.rating?.toFixed(1) || '0.0'}
-                          </p>
+                    {pendingRiders.map((rider) => (
+                      <div key={rider.id} className="border rounded-lg p-4 space-y-4">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h3 className="font-medium text-lg">{rider.profiles?.full_name || 'Unknown'}</h3>
+                            <p className="text-sm text-muted-foreground">{rider.profiles?.phone}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button size="sm" onClick={() => approveRider(rider.id)}>
+                              <Check className="w-4 h-4 mr-1" />
+                              Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => rejectRider(rider.id, rider.user_id)}
+                            >
+                              <X className="w-4 h-4 mr-1" />
+                              Reject
+                            </Button>
+                          </div>
                         </div>
-                        <Badge variant={rider.is_online ? 'default' : 'secondary'}>
-                          {rider.is_online ? 'Online' : 'Offline'}
-                        </Badge>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                          {/* Vehicle Info */}
+                          <div className="space-y-1">
+                            <p className="text-muted-foreground">Vehicle</p>
+                            <p className="font-medium">{rider.vehicle_type || 'N/A'} • {rider.vehicle_plate || 'N/A'}</p>
+                          </div>
+
+                          {/* NIN Info */}
+                          <div className="space-y-1">
+                            <p className="text-muted-foreground flex items-center gap-1">
+                              <ShieldCheck className="w-4 h-4" />
+                              NIN Number
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium font-mono">{maskNIN(rider.nin_number)}</p>
+                              {rider.nin_number ? (
+                                <Badge variant="outline" className="text-xs">
+                                  {rider.nin_verified ? 'Verified' : 'Pending'}
+                                </Badge>
+                              ) : (
+                                <Badge variant="destructive" className="text-xs">
+                                  Missing
+                                </Badge>
+                              )}
+                            </div>
+                            {rider.nin_submitted_at && (
+                              <p className="text-xs text-muted-foreground">
+                                Submitted: {new Date(rider.nin_submitted_at).toLocaleDateString()}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Email Verification */}
+                          <div className="space-y-1">
+                            <p className="text-muted-foreground flex items-center gap-1">
+                              <Mail className="w-4 h-4" />
+                              Email Verified
+                            </p>
+                            <Badge variant={rider.is_email_verified ? 'default' : 'secondary'}>
+                              {rider.is_email_verified ? 'Yes' : 'No'}
+                            </Badge>
+                          </div>
+                        </div>
+
+                        {/* Warning if NIN not provided */}
+                        {!rider.nin_number && (
+                          <div className="flex items-center gap-2 p-3 bg-destructive/10 rounded-lg text-sm">
+                            <AlertCircle className="w-4 h-4 text-destructive" />
+                            <span className="text-destructive">NIN not provided - cannot receive deliveries until verified</span>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -136,38 +207,40 @@ export default function AdminRiders() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="pending">
+          <TabsContent value="approved">
             <Card>
               <CardHeader>
-                <CardTitle>Pending Verification</CardTitle>
+                <CardTitle>Verified Riders</CardTitle>
+                <CardDescription>Active riders who have been verified and can receive orders</CardDescription>
               </CardHeader>
               <CardContent>
-                {pendingRiders.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-8">No pending riders</p>
+                {riders.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">No verified riders</p>
                 ) : (
                   <div className="space-y-4">
-                    {pendingRiders.map((rider) => (
+                    {riders.map((rider) => (
                       <div key={rider.id} className="flex items-center justify-between p-4 border rounded-lg">
-                        <div>
+                        <div className="space-y-1">
                           <h3 className="font-medium">{rider.profiles?.full_name || 'Unknown'}</h3>
                           <p className="text-sm text-muted-foreground">
                             {rider.vehicle_type} • {rider.vehicle_plate}
                           </p>
-                          <p className="text-sm text-muted-foreground">{rider.profiles?.phone}</p>
+                          <div className="flex items-center gap-4 text-sm">
+                            <span>{rider.total_deliveries || 0} deliveries</span>
+                            <span>⭐ {rider.rating?.toFixed(1) || '0.0'}</span>
+                            <span className="text-muted-foreground">NIN: {maskNIN(rider.nin_number)}</span>
+                          </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Button size="sm" onClick={() => approveRider(rider.id)}>
-                            <Check className="w-4 h-4 mr-1" />
-                            Verify
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => rejectRider(rider.id, rider.user_id)}
-                          >
-                            <X className="w-4 h-4 mr-1" />
-                            Reject
-                          </Button>
+                          <Badge variant={rider.is_online ? 'default' : 'secondary'}>
+                            {rider.is_online ? 'Online' : 'Offline'}
+                          </Badge>
+                          {rider.nin_verified && (
+                            <Badge variant="outline" className="text-calorie-low border-calorie-low">
+                              <ShieldCheck className="w-3 h-3 mr-1" />
+                              NIN Verified
+                            </Badge>
+                          )}
                         </div>
                       </div>
                     ))}

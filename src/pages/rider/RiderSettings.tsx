@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { RiderLayout } from '@/components/rider/RiderLayout';
+import { RiderFloatingWidget } from '@/components/rider/RiderFloatingWidget';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
-import { Loader2, Save, MapPin, Volume2 } from 'lucide-react';
+import { Loader2, Save, MapPin, Volume2, Smartphone, ShieldCheck, Mail } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useNotificationSound } from '@/hooks/useNotificationSound';
 
@@ -19,6 +20,7 @@ export default function RiderSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isOnline, setIsOnline] = useState(false);
+  const [floatModeEnabled, setFloatModeEnabled] = useState(false);
   const [profile, setProfile] = useState<any>(null);
   const [riderProfile, setRiderProfile] = useState<any>(null);
 
@@ -35,6 +37,8 @@ export default function RiderSettings() {
 
   useEffect(() => {
     checkAuth();
+    const savedFloatMode = localStorage.getItem('rider_float_mode');
+    setFloatModeEnabled(savedFloatMode === 'true');
   }, []);
 
   const checkAuth = async () => {
@@ -163,6 +167,15 @@ export default function RiderSettings() {
 
   const handleTestSound = () => {
     playNotification();
+  };
+
+  const handleFloatModeToggle = (enabled: boolean) => {
+    setFloatModeEnabled(enabled);
+    localStorage.setItem('rider_float_mode', enabled.toString());
+    toast({ 
+      title: enabled ? 'Float mode enabled' : 'Float mode disabled',
+      description: enabled ? 'A floating widget will appear for quick access' : '',
+    });
   };
 
   if (loading) {
@@ -301,21 +314,34 @@ export default function RiderSettings() {
           </CardContent>
         </Card>
 
-        {/* Notification Settings */}
+        {/* App Settings */}
         <Card>
           <CardHeader className="p-4 md:p-6">
             <CardTitle className="text-lg md:text-xl flex items-center gap-2">
-              <Volume2 className="w-5 h-5" />
-              Notifications
+              <Smartphone className="w-5 h-5" />
+              App Settings
             </CardTitle>
             <CardDescription>
-              Configure how you receive order notifications
+              Configure app behavior and notifications
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 p-4 md:p-6 pt-0">
+            {/* Float Mode Toggle */}
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium text-sm md:text-base">Notification Sound</p>
+                <p className="font-medium text-sm md:text-base">Float Mode</p>
+                <p className="text-xs md:text-sm text-muted-foreground">Show floating widget for quick access</p>
+              </div>
+              <Switch checked={floatModeEnabled} onCheckedChange={handleFloatModeToggle} />
+            </div>
+
+            {/* Notification Sound */}
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium text-sm md:text-base flex items-center gap-2">
+                  <Volume2 className="w-4 h-4" />
+                  Notification Sound
+                </p>
                 <p className="text-xs md:text-sm text-muted-foreground">Play sound for new orders</p>
               </div>
               <Switch checked={soundEnabled} onCheckedChange={setSoundEnabled} />
@@ -331,18 +357,56 @@ export default function RiderSettings() {
         {/* Verification Status */}
         <Card>
           <CardHeader className="p-4 md:p-6">
-            <CardTitle className="text-lg md:text-xl">Verification Status</CardTitle>
+            <CardTitle className="text-lg md:text-xl flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5" />
+              Verification Status
+            </CardTitle>
           </CardHeader>
-          <CardContent className="p-4 md:p-6 pt-0">
-            <div className="flex items-center gap-2">
-              <div className={`w-3 h-3 rounded-full ${riderProfile?.is_verified ? 'bg-calorie-low' : 'bg-calorie-medium'}`} />
-              <span className="text-sm md:text-base">{riderProfile?.is_verified ? 'Verified' : 'Pending Verification'}</span>
+          <CardContent className="space-y-4 p-4 md:p-6 pt-0">
+            {/* Email Verification */}
+            <div className="flex items-center gap-3">
+              <div className={`w-3 h-3 rounded-full ${riderProfile?.is_email_verified ? 'bg-calorie-low' : 'bg-calorie-medium'}`} />
+              <div className="flex-1">
+                <p className="text-sm md:text-base flex items-center gap-2">
+                  <Mail className="w-4 h-4" />
+                  Email Verification
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {riderProfile?.is_email_verified ? 'Verified' : 'Pending - Check your email for verification code'}
+                </p>
+              </div>
             </div>
-            {!riderProfile?.is_verified && (
-              <p className="text-xs md:text-sm text-muted-foreground mt-2">
-                Your account is under review. You'll be notified once verified.
-              </p>
-            )}
+
+            {/* NIN Verification */}
+            <div className="flex items-center gap-3">
+              <div className={`w-3 h-3 rounded-full ${riderProfile?.nin_verified ? 'bg-calorie-low' : riderProfile?.nin_number ? 'bg-calorie-medium' : 'bg-destructive'}`} />
+              <div className="flex-1">
+                <p className="text-sm md:text-base flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4" />
+                  NIN Verification
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {riderProfile?.nin_verified 
+                    ? 'Verified' 
+                    : riderProfile?.nin_number 
+                      ? `Submitted: ${riderProfile.nin_number.slice(0, 3)}****${riderProfile.nin_number.slice(-4)} - Under review`
+                      : 'Not submitted - Required to receive orders'}
+                </p>
+              </div>
+            </div>
+
+            {/* Account Verification */}
+            <div className="flex items-center gap-3">
+              <div className={`w-3 h-3 rounded-full ${riderProfile?.is_verified ? 'bg-calorie-low' : 'bg-calorie-medium'}`} />
+              <div className="flex-1">
+                <p className="text-sm md:text-base">Account Status</p>
+                <p className="text-xs text-muted-foreground">
+                  {riderProfile?.is_verified 
+                    ? 'Approved - You can receive deliveries' 
+                    : 'Pending admin approval'}
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
@@ -351,6 +415,11 @@ export default function RiderSettings() {
           Save Changes
         </Button>
       </div>
+
+      {/* Floating Widget */}
+      {floatModeEnabled && (
+        <RiderFloatingWidget isOnline={isOnline} onToggleOnline={toggleOnline} />
+      )}
     </RiderLayout>
   );
 }
