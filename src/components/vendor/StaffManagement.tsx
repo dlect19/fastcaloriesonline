@@ -10,13 +10,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Switch } from '@/components/ui/switch';
-import { UserPlus, Shield, Users, Loader2, Trash2, Link, Copy, Check, Mail } from 'lucide-react';
+import { UserPlus, Shield, Users, Loader2, Trash2, Eye, EyeOff, KeyRound, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import type { VendorStaffRole } from '@/hooks/useVendorPermissions';
 
-const generateInviteCode = () => {
-  return 'vs_' + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 6);
-};
 
 interface StaffMember {
   id: string;
@@ -57,10 +54,11 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
   const [loading, setLoading] = useState(true);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
+  const [invitePassword, setInvitePassword] = useState('');
+  const [inviteFullName, setInviteFullName] = useState('');
   const [inviteRole, setInviteRole] = useState<VendorStaffRole>('viewer');
   const [inviting, setInviting] = useState(false);
-  const [generatedLink, setGeneratedLink] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     fetchStaff();
@@ -97,17 +95,32 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
     }
   };
 
-  const handleInviteStaff = async () => {
+  const generatePassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
+    let password = '';
+    for (let i = 0; i < 12; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setInvitePassword(password);
+  };
+
+  const handleCreateStaff = async () => {
     if (!inviteEmail.trim()) {
       toast({ title: 'Please enter an email', variant: 'destructive' });
+      return;
+    }
+    if (!inviteFullName.trim()) {
+      toast({ title: 'Please enter the staff name', variant: 'destructive' });
+      return;
+    }
+    if (!invitePassword || invitePassword.length < 6) {
+      toast({ title: 'Password must be at least 6 characters', variant: 'destructive' });
       return;
     }
 
     setInviting(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      const inviteCode = generateInviteCode();
-      const placeholderUserId = crypto.randomUUID();
       
       // Get vendor name for the email
       const { data: vendor } = await supabase
@@ -122,59 +135,35 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
         .select('full_name')
         .eq('user_id', user?.id)
         .single();
-      
-      const { error } = await supabase
-        .from('vendor_staff')
-        .insert({
-          vendor_id: vendorId,
-          user_id: placeholderUserId,
+
+      const { data, error } = await supabase.functions.invoke('create-staff-account', {
+        body: {
+          email: inviteEmail,
+          password: invitePassword,
+          fullName: inviteFullName,
           role: inviteRole,
-          invite_email: inviteEmail,
-          invite_code: inviteCode,
-          invited_by: user?.id,
-          is_active: false
-        } as any);
+          platform: 'vendor',
+          vendorId: vendorId,
+          vendorName: vendor?.name,
+          inviterName: inviterProfile?.full_name,
+          inviterId: user?.id
+        }
+      });
 
       if (error) throw error;
+      if (!data.success) throw new Error(data.error);
 
-      const inviteLink = `${window.location.origin}/vendor/staff/join/${inviteCode}`;
-      setGeneratedLink(inviteLink);
+      toast({ 
+        title: 'Staff account created!', 
+        description: `Credentials sent to ${inviteEmail}`,
+      });
       
-      // Send invite email
-      try {
-        const { error: emailError } = await supabase.functions.invoke('send-staff-invite-email', {
-          body: {
-            email: inviteEmail,
-            inviteUrl: inviteLink,
-            inviterName: inviterProfile?.full_name || 'A team member',
-            role: inviteRole,
-            platform: 'vendor',
-            vendorName: vendor?.name
-          }
-        });
-        
-        if (emailError) {
-          console.error('Error sending invite email:', emailError);
-          toast({ 
-            title: 'Invite created!', 
-            description: 'Email could not be sent. Please share the link manually.',
-          });
-        } else {
-          toast({ 
-            title: 'Invite sent!', 
-            description: `Email sent to ${inviteEmail}`,
-          });
-        }
-      } catch (emailErr) {
-        console.error('Error sending invite email:', emailErr);
-        toast({ title: 'Invite created! Share the link manually.' });
-      }
-      
+      handleCloseInviteDialog();
       fetchStaff();
     } catch (error: any) {
-      console.error('Error inviting staff:', error);
+      console.error('Error creating staff:', error);
       toast({ 
-        title: 'Error creating invite', 
+        title: 'Error creating staff account', 
         description: error.message,
         variant: 'destructive'
       });
@@ -186,18 +175,9 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
   const handleCloseInviteDialog = () => {
     setInviteOpen(false);
     setInviteEmail('');
+    setInvitePassword('');
+    setInviteFullName('');
     setInviteRole('viewer');
-    setGeneratedLink(null);
-    setCopied(false);
-  };
-
-  const copyToClipboard = async () => {
-    if (generatedLink) {
-      await navigator.clipboard.writeText(generatedLink);
-      setCopied(true);
-      toast({ title: 'Link copied!' });
-      setTimeout(() => setCopied(false), 2000);
-    }
   };
 
   const handleToggleActive = async (staffId: string, isActive: boolean) => {
@@ -258,66 +238,6 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
       toast({ title: 'Error removing staff', variant: 'destructive' });
     }
   };
-
-  const handleResendInvite = async (member: StaffMember) => {
-    if (!member.invite_email) return;
-    
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      // Get vendor name for the email
-      const { data: vendor } = await supabase
-        .from('vendors')
-        .select('name')
-        .eq('id', vendorId)
-        .single();
-      
-      // Get inviter's profile name
-      const { data: inviterProfile } = await supabase
-        .from('profiles')
-        .select('full_name')
-        .eq('user_id', user?.id)
-        .single();
-
-      // Get invite code from database
-      const { data: staffRecord } = await supabase
-        .from('vendor_staff')
-        .select('invite_code')
-        .eq('id', member.id)
-        .single();
-
-      if (!staffRecord?.invite_code) {
-        toast({ title: 'No invite code found', variant: 'destructive' });
-        return;
-      }
-
-      const inviteLink = `${window.location.origin}/vendor/staff/join/${staffRecord.invite_code}`;
-      
-      const { error: emailError } = await supabase.functions.invoke('send-staff-invite-email', {
-        body: {
-          email: member.invite_email,
-          inviteUrl: inviteLink,
-          inviterName: inviterProfile?.full_name || 'A team member',
-          role: member.role,
-          platform: 'vendor',
-          vendorName: vendor?.name
-        }
-      });
-      
-      if (emailError) {
-        throw emailError;
-      }
-      
-      toast({ 
-        title: 'Invite resent!', 
-        description: `Email sent to ${member.invite_email}`,
-      });
-    } catch (error) {
-      console.error('Error resending invite:', error);
-      toast({ title: 'Error resending invite', variant: 'destructive' });
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -346,58 +266,75 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Invite New Staff Member</DialogTitle>
+              <DialogTitle>Add New Staff Member</DialogTitle>
             </DialogHeader>
             
-            {generatedLink ? (
-              <div className="space-y-4 pt-4">
-                <div className="p-4 rounded-lg bg-secondary">
-                  <p className="text-sm text-muted-foreground mb-2">Share this link with your staff member:</p>
-                  <div className="flex gap-2">
-                    <Input value={generatedLink} readOnly className="flex-1 text-xs" />
-                    <Button size="icon" variant="outline" onClick={copyToClipboard}>
-                      {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+            <div className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label htmlFor="fullName">Full Name</Label>
+                <Input
+                  id="fullName"
+                  type="text"
+                  placeholder="John Doe"
+                  value={inviteFullName}
+                  onChange={(e) => setInviteFullName(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email Address</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="staff@example.com"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Min. 6 characters"
+                      value={invitePassword}
+                      onChange={(e) => setInvitePassword(e.target.value)}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-0 top-0 h-full"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </Button>
                   </div>
+                  <Button type="button" variant="outline" onClick={generatePassword} title="Generate password">
+                    <KeyRound className="w-4 h-4" />
+                  </Button>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  The staff member will use this link to create their account and join your team.
-                </p>
-                <DialogFooter>
-                  <Button variant="outline" onClick={handleCloseInviteDialog}>Done</Button>
-                </DialogFooter>
+                <p className="text-xs text-muted-foreground">Password will be sent to the staff via email</p>
               </div>
-            ) : (
-              <div className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Staff Email Address</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="staff@example.com"
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="role">Role</Label>
-                  <Select value={inviteRole} onValueChange={(v) => setInviteRole(v as VendorStaffRole)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="manager">Manager - Full access except withdrawals</SelectItem>
-                      <SelectItem value="cashier">Cashier - Process orders only</SelectItem>
-                      <SelectItem value="viewer">Viewer - Read-only access</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button onClick={handleInviteStaff} disabled={inviting} className="w-full">
-                  {inviting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Link className="w-4 h-4 mr-2" />}
-                  Generate Invite Link
-                </Button>
+              <div className="space-y-2">
+                <Label htmlFor="role">Role</Label>
+                <Select value={inviteRole} onValueChange={(v) => setInviteRole(v as VendorStaffRole)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="manager">Manager - Full access except withdrawals</SelectItem>
+                    <SelectItem value="cashier">Cashier - Process orders only</SelectItem>
+                    <SelectItem value="viewer">Viewer - Read-only access</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            )}
+              <Button onClick={handleCreateStaff} disabled={inviting} className="w-full">
+                {inviting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <UserPlus className="w-4 h-4 mr-2" />}
+                Create Account & Send Credentials
+              </Button>
+            </div>
           </DialogContent>
         </Dialog>
       </div>
@@ -463,7 +400,7 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
                         </p>
                         {!member.invite_accepted_at && member.invite_email && (
                           <p className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Link className="w-3 h-3" /> Pending invite
+                            <Clock className="w-3 h-3" /> Pending login
                           </p>
                         )}
                       </div>
@@ -502,17 +439,7 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
                         ? format(new Date(member.invite_accepted_at), 'PP')
                         : 'Not yet'}
                     </TableCell>
-                    <TableCell className="text-right space-x-1">
-                      {member.role !== 'owner' && !member.invite_accepted_at && member.invite_email && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleResendInvite(member)}
-                          title="Resend invite email"
-                        >
-                          <Mail className="w-4 h-4 text-primary" />
-                        </Button>
-                      )}
+                    <TableCell className="text-right">
                       {member.role !== 'owner' && (
                         <Button
                           variant="ghost"
