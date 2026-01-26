@@ -36,8 +36,33 @@ export default function Orders() {
     }
     if (user) {
       fetchOrders();
+      subscribeToOrders();
     }
   }, [user, authLoading, navigate]);
+
+  const subscribeToOrders = () => {
+    if (!user) return;
+    
+    const channel = supabase
+      .channel('user-orders')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'orders',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          fetchOrders();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  };
 
   const fetchOrders = async () => {
     try {
@@ -118,7 +143,7 @@ export default function Orders() {
                 <div
                   key={order.id}
                   className="bg-card rounded-2xl p-4 border border-border hover:shadow-card transition-shadow cursor-pointer"
-                  onClick={() => navigate(`/vendor/${order.vendor_id}`)}
+                  onClick={() => navigate(`/orders/${order.id}`)}
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div>

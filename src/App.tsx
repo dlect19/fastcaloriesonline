@@ -12,6 +12,7 @@ import Cart from "./pages/Cart";
 import VendorDetail from "./pages/VendorDetail";
 import Explore from "./pages/Explore";
 import Orders from "./pages/Orders";
+import OrderDetail from "./pages/OrderDetail";
 import Favorites from "./pages/Favorites";
 import VerifyEmail from "./pages/VerifyEmail";
 import VerificationPending from "./pages/VerificationPending";
@@ -23,6 +24,19 @@ import VendorReviews from "./pages/vendor/VendorReviews";
 import VendorEarnings from "./pages/vendor/VendorEarnings";
 import VendorHours from "./pages/vendor/VendorHours";
 import VendorSettings from "./pages/vendor/VendorSettings";
+import RiderAuth from "./pages/rider/RiderAuth";
+import RiderDashboard from "./pages/rider/RiderDashboard";
+import RiderOrders from "./pages/rider/RiderOrders";
+import RiderEarnings from "./pages/rider/RiderEarnings";
+import RiderSettings from "./pages/rider/RiderSettings";
+import AdminAuth from "./pages/admin/AdminAuth";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminOrders from "./pages/admin/AdminOrders";
+import AdminVendors from "./pages/admin/AdminVendors";
+import AdminRiders from "./pages/admin/AdminRiders";
+import AdminPromos from "./pages/admin/AdminPromos";
+import AdminUsers from "./pages/admin/AdminUsers";
+import AdminSettings from "./pages/admin/AdminSettings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -43,6 +57,7 @@ const App = () => (
               <Route path="/vendor/:id" element={<VendorDetail />} />
               <Route path="/explore" element={<Explore />} />
               <Route path="/orders" element={<Orders />} />
+              <Route path="/orders/:id" element={<OrderDetail />} />
               <Route path="/favorites" element={<Favorites />} />
               <Route path="/verify-email" element={<VerifyEmail />} />
               <Route path="/verification-pending" element={<VerificationPending />} />
@@ -55,6 +70,21 @@ const App = () => (
               <Route path="/vendor/earnings" element={<VendorEarnings />} />
               <Route path="/vendor/hours" element={<VendorHours />} />
               <Route path="/vendor/settings" element={<VendorSettings />} />
+              {/* Rider Portal Routes */}
+              <Route path="/rider/auth" element={<RiderAuth />} />
+              <Route path="/rider/dashboard" element={<RiderDashboard />} />
+              <Route path="/rider/orders" element={<RiderOrders />} />
+              <Route path="/rider/earnings" element={<RiderEarnings />} />
+              <Route path="/rider/settings" element={<RiderSettings />} />
+              {/* Admin Portal Routes */}
+              <Route path="/admin/auth" element={<AdminAuth />} />
+              <Route path="/admin/dashboard" element={<AdminDashboard />} />
+              <Route path="/admin/orders" element={<AdminOrders />} />
+              <Route path="/admin/vendors" element={<AdminVendors />} />
+              <Route path="/admin/riders" element={<AdminRiders />} />
+              <Route path="/admin/promos" element={<AdminPromos />} />
+              <Route path="/admin/users" element={<AdminUsers />} />
+              <Route path="/admin/settings" element={<AdminSettings />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

@@ -1,0 +1,279 @@
+import { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { BottomNav } from '@/components/home/BottomNav';
+import { ArrowLeft, Package, Check, Truck, MapPin, Phone, Loader2, Store, Clock, Bike } from 'lucide-react';
+import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
+
+const ORDER_STATUSES = [
+  { key: 'pending', label: 'Order Placed', icon: Package },
+  { key: 'confirmed', label: 'Confirmed', icon: Check },
+  { key: 'preparing', label: 'Preparing', icon: Store },
+  { key: 'ready_for_pickup', label: 'Ready', icon: Clock },
+  { key: 'picked_up', label: 'Picked Up', icon: Bike },
+  { key: 'on_the_way', label: 'On the Way', icon: Truck },
+  { key: 'delivered', label: 'Delivered', icon: MapPin },
+];
+
+export default function OrderDetail() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
+  const [order, setOrder] = useState<any>(null);
+  const [orderItems, setOrderItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate('/auth');
+      return;
+    }
+    if (id) {
+      fetchOrder();
+      subscribeToOrder();
+    }
+  }, [id, user, authLoading]);
+
+  const fetchOrder = async () => {
+    try {
+      const { data: orderData } = await supabase
+        .from('orders')
+        .select('*, vendors(name, phone, address)')
+        .eq('id', id)
+        .single();
+
+      setOrder(orderData);
+
+      const { data: items } = await supabase
+        .from('order_items')
+        .select('*')
+        .eq('order_id', id);
+
+      setOrderItems(items || []);
+    } catch (error) {
+      console.error('Error fetching order:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const subscribeToOrder = () => {
+    const channel = supabase
+      .channel(`order-${id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'orders',
+          filter: `id=eq.${id}`,
+        },
+        (payload) => {
+          setOrder((prev: any) => ({ ...prev, ...payload.new }));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  };
+
+  const getCurrentStepIndex = () => {
+    if (!order) return 0;
+    if (order.status === 'cancelled') return -1;
+    const index = ORDER_STATUSES.findIndex(s => s.key === order.status);
+    return index >= 0 ? index : 0;
+  };
+
+  if (authLoading || loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!order) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-muted-foreground">Order not found</p>
+      </div>
+    );
+  }
+
+  const currentStep = getCurrentStepIndex();
+
+  return (
+    <div className="min-h-screen bg-background pb-24">
+      {/* Header */}
+      <header className="sticky top-0 z-20 bg-background/95 backdrop-blur-md border-b border-border">
+        <div className="container flex items-center gap-4 py-4">
+          <Button variant="ghost" size="icon" onClick={() => navigate('/orders')}>
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <div className="flex-1">
+            <h1 className="text-xl font-bold text-foreground">Order #{order.order_number}</h1>
+            <p className="text-sm text-muted-foreground">
+              {format(new Date(order.created_at), 'PPp')}
+            </p>
+          </div>
+        </div>
+      </header>
+
+      <main className="container py-6 space-y-6">
+        {/* Status Tracker */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Order Status</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {order.status === 'cancelled' ? (
+              <div className="text-center py-4">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-destructive/10 flex items-center justify-center">
+                  <Package className="w-8 h-8 text-destructive" />
+                </div>
+                <p className="font-medium text-destructive">Order Cancelled</p>
+                {order.cancellation_reason && (
+                  <p className="text-sm text-muted-foreground mt-2">{order.cancellation_reason}</p>
+                )}
+              </div>
+            ) : (
+              <div className="relative">
+                {ORDER_STATUSES.map((status, index) => {
+                  const isCompleted = index <= currentStep;
+                  const isCurrent = index === currentStep;
+                  const Icon = status.icon;
+
+                  return (
+                    <div key={status.key} className="flex items-start gap-4 mb-6 last:mb-0">
+                      <div className="relative">
+                        <div
+                          className={cn(
+                            "w-10 h-10 rounded-full flex items-center justify-center transition-colors",
+                            isCompleted ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground",
+                            isCurrent && "ring-4 ring-primary/20"
+                          )}
+                        >
+                          <Icon className="w-5 h-5" />
+                        </div>
+                        {index < ORDER_STATUSES.length - 1 && (
+                          <div
+                            className={cn(
+                              "absolute left-1/2 top-10 -translate-x-1/2 w-0.5 h-6",
+                              index < currentStep ? "bg-primary" : "bg-border"
+                            )}
+                          />
+                        )}
+                      </div>
+                      <div className="flex-1 pt-2">
+                        <p className={cn(
+                          "font-medium",
+                          isCompleted ? "text-foreground" : "text-muted-foreground"
+                        )}>
+                          {status.label}
+                        </p>
+                        {isCurrent && order.estimated_delivery_at && (
+                          <p className="text-sm text-primary">
+                            Est. arrival: {format(new Date(order.estimated_delivery_at), 'p')}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Vendor Info */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Restaurant</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center gap-3">
+              <Store className="w-5 h-5 text-muted-foreground" />
+              <span className="font-medium">{order.vendors?.name}</span>
+            </div>
+            <div className="flex items-start gap-3">
+              <MapPin className="w-5 h-5 text-muted-foreground mt-0.5" />
+              <span className="text-muted-foreground">{order.vendors?.address}</span>
+            </div>
+            {order.vendors?.phone && (
+              <a href={`tel:${order.vendors.phone}`} className="flex items-center gap-3 text-primary">
+                <Phone className="w-5 h-5" />
+                <span>{order.vendors.phone}</span>
+              </a>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Delivery Address */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Delivery Address</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-start gap-3">
+              <MapPin className="w-5 h-5 text-muted-foreground mt-0.5" />
+              <span>{order.delivery_address_text}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Order Items */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Order Items</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {orderItems.map((item) => (
+              <div key={item.id} className="flex justify-between">
+                <div>
+                  <p className="font-medium">{item.quantity}x {item.product_name}</p>
+                  {item.calories > 0 && (
+                    <p className="text-sm text-muted-foreground">{item.calories} kcal</p>
+                  )}
+                </div>
+                <p className="font-medium">₦{Number(item.total_price).toLocaleString()}</p>
+              </div>
+            ))}
+
+            <div className="border-t pt-4 space-y-2">
+              <div className="flex justify-between text-muted-foreground">
+                <span>Subtotal</span>
+                <span>₦{Number(order.subtotal).toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-muted-foreground">
+                <span>Delivery Fee</span>
+                <span>₦{Number(order.delivery_fee || 0).toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-muted-foreground">
+                <span>Service Fee</span>
+                <span>₦{Number(order.service_fee || 0).toLocaleString()}</span>
+              </div>
+              {order.discount > 0 && (
+                <div className="flex justify-between text-calorie-low">
+                  <span>Discount</span>
+                  <span>-₦{Number(order.discount).toLocaleString()}</span>
+                </div>
+              )}
+              <div className="flex justify-between font-bold text-lg pt-2 border-t">
+                <span>Total</span>
+                <span className="text-primary">₦{Number(order.total).toLocaleString()}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </main>
+
+      <BottomNav />
+    </div>
+  );
+}
