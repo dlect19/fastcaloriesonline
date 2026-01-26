@@ -127,7 +127,7 @@ export default function Cart() {
 
       if (orderError) throw orderError;
 
-      // Create order items
+      // Create order items from cart
       const orderItems = items.map(item => ({
         order_id: order.id,
         product_id: item.productId,
@@ -138,9 +138,23 @@ export default function Cart() {
         calories: item.calories * item.quantity,
       }));
 
+      // Add takeaway packs as order items
+      const packItems = applicablePacks.map(pack => ({
+        order_id: order.id,
+        product_id: null, // No product reference for packs
+        product_name: `📦 ${pack.name}`,
+        quantity: 1,
+        unit_price: pack.price,
+        total_price: pack.price,
+        calories: 0,
+        special_instructions: 'Takeaway packaging',
+      }));
+
+      const allOrderItems = [...orderItems, ...packItems];
+
       const { error: itemsError } = await supabase
         .from('order_items')
-        .insert(orderItems);
+        .insert(allOrderItems);
 
       if (itemsError) throw itemsError;
 
