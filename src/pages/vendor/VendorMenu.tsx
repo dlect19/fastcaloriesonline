@@ -93,27 +93,29 @@ export default function VendorMenu() {
     protein_grams: '',
     carbs_grams: '',
     fats_grams: '',
+    fiber_grams: '',
     is_available: true,
     calorie_classes: [] as CalorieClass[],
   });
 
-  // Auto-calculate calories from macros
-  const calculateCalories = (carbs: number, protein: number, fats: number) => {
-    return Math.round((carbs * 4) + (protein * 4) + (fats * 9));
+  // Auto-calculate calories from macros (fiber ~2 kcal/g)
+  const calculateCalories = (carbs: number, protein: number, fats: number, fiber: number) => {
+    return Math.round((carbs * 4) + (protein * 4) + (fats * 9) + (fiber * 2));
   };
 
   const calculatedCalories = calculateCalories(
     parseFloat(formData.carbs_grams) || 0,
     parseFloat(formData.protein_grams) || 0,
-    parseFloat(formData.fats_grams) || 0
+    parseFloat(formData.fats_grams) || 0,
+    parseFloat(formData.fiber_grams) || 0
   );
 
-  // Default gram suggestions per food class
-  const defaultGrams: Record<CalorieClass, { carbs: number; protein: number; fats: number }> = {
-    carbs: { carbs: 50, protein: 5, fats: 2 },
-    protein: { carbs: 5, protein: 30, fats: 8 },
-    fats: { carbs: 2, protein: 2, fats: 20 },
-    fiber: { carbs: 15, protein: 3, fats: 1 },
+  // Default gram suggestions per food class - EACH CLASS ONLY AFFECTS ITS OWN MACRO
+  const defaultGrams: Record<CalorieClass, { carbs: number; protein: number; fats: number; fiber: number }> = {
+    carbs: { carbs: 50, protein: 0, fats: 0, fiber: 0 },
+    protein: { carbs: 0, protein: 30, fats: 0, fiber: 0 },
+    fats: { carbs: 0, protein: 0, fats: 20, fiber: 0 },
+    fiber: { carbs: 0, protein: 0, fats: 0, fiber: 10 },
   };
 
   const toggleCalorieClass = (cls: CalorieClass) => {
@@ -123,34 +125,32 @@ export default function VendorMenu() {
         ? prev.calorie_classes.filter(c => c !== cls)
         : [...prev.calorie_classes, cls];
 
-      // If adding a class and macros are empty, auto-fill with defaults
-      if (!isRemoving) {
-        const defaults = defaultGrams[cls];
-        const currentCarbs = parseFloat(prev.carbs_grams) || 0;
-        const currentProtein = parseFloat(prev.protein_grams) || 0;
-        const currentFats = parseFloat(prev.fats_grams) || 0;
-
-        return {
-          ...prev,
-          calorie_classes: newClasses,
-          carbs_grams: (currentCarbs + defaults.carbs).toString(),
-          protein_grams: (currentProtein + defaults.protein).toString(),
-          fats_grams: (currentFats + defaults.fats).toString(),
-        };
-      }
-
-      // If removing a class, subtract its defaults
       const defaults = defaultGrams[cls];
       const currentCarbs = parseFloat(prev.carbs_grams) || 0;
       const currentProtein = parseFloat(prev.protein_grams) || 0;
       const currentFats = parseFloat(prev.fats_grams) || 0;
+      const currentFiber = parseFloat(prev.fiber_grams) || 0;
 
+      if (!isRemoving) {
+        // Adding a class - only add to the specific macro for that class
+        return {
+          ...prev,
+          calorie_classes: newClasses,
+          carbs_grams: defaults.carbs > 0 ? (currentCarbs + defaults.carbs).toString() : prev.carbs_grams,
+          protein_grams: defaults.protein > 0 ? (currentProtein + defaults.protein).toString() : prev.protein_grams,
+          fats_grams: defaults.fats > 0 ? (currentFats + defaults.fats).toString() : prev.fats_grams,
+          fiber_grams: defaults.fiber > 0 ? (currentFiber + defaults.fiber).toString() : prev.fiber_grams,
+        };
+      }
+
+      // Removing a class - only subtract from the specific macro for that class
       return {
         ...prev,
         calorie_classes: newClasses,
-        carbs_grams: Math.max(0, currentCarbs - defaults.carbs).toString(),
-        protein_grams: Math.max(0, currentProtein - defaults.protein).toString(),
-        fats_grams: Math.max(0, currentFats - defaults.fats).toString(),
+        carbs_grams: defaults.carbs > 0 ? Math.max(0, currentCarbs - defaults.carbs).toString() : prev.carbs_grams,
+        protein_grams: defaults.protein > 0 ? Math.max(0, currentProtein - defaults.protein).toString() : prev.protein_grams,
+        fats_grams: defaults.fats > 0 ? Math.max(0, currentFats - defaults.fats).toString() : prev.fats_grams,
+        fiber_grams: defaults.fiber > 0 ? Math.max(0, currentFiber - defaults.fiber).toString() : prev.fiber_grams,
       };
     });
   };
@@ -212,6 +212,7 @@ export default function VendorMenu() {
         protein_grams: formData.protein_grams ? parseFloat(formData.protein_grams) : null,
         carbs_grams: formData.carbs_grams ? parseFloat(formData.carbs_grams) : null,
         fats_grams: formData.fats_grams ? parseFloat(formData.fats_grams) : null,
+        fiber_grams: formData.fiber_grams ? parseFloat(formData.fiber_grams) : null,
         is_available: formData.is_available,
         calorie_classes: formData.calorie_classes.length > 0 ? formData.calorie_classes : null,
       };
@@ -255,6 +256,7 @@ export default function VendorMenu() {
       protein_grams: product.protein_grams?.toString() || '',
       carbs_grams: product.carbs_grams?.toString() || '',
       fats_grams: product.fats_grams?.toString() || '',
+      fiber_grams: product.fiber_grams?.toString() || '',
       is_available: product.is_available ?? true,
       calorie_classes: (product.calorie_classes as CalorieClass[]) || [],
     });
@@ -310,6 +312,7 @@ export default function VendorMenu() {
       protein_grams: '',
       carbs_grams: '',
       fats_grams: '',
+      fiber_grams: '',
       is_available: true,
       calorie_classes: [],
     });
@@ -486,6 +489,23 @@ export default function VendorMenu() {
                         </div>
                       </div>
                       <div className="space-y-2">
+                        <Label htmlFor="fiber">Fiber (g)</Label>
+                        <div className="relative">
+                          <Input
+                            id="fiber"
+                            type="number"
+                            step="0.1"
+                            value={formData.fiber_grams}
+                            onChange={(e) => setFormData({ ...formData, fiber_grams: e.target.value })}
+                          />
+                          {formData.fiber_grams && (
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                              = {Math.round(parseFloat(formData.fiber_grams) * 2)} kcal
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="space-y-2 col-span-2">
                         <Label htmlFor="calories">
                           Total Calories
                           {calculatedCalories > 0 && !formData.calories && (
@@ -510,10 +530,11 @@ export default function VendorMenu() {
                             {calculatedCalories} kcal
                           </span>
                         </div>
-                        <div className="flex gap-3 mt-2 text-xs text-muted-foreground">
+                        <div className="flex flex-wrap gap-3 mt-2 text-xs text-muted-foreground">
                           {formData.carbs_grams && <span>C: {formData.carbs_grams}g × 4</span>}
                           {formData.protein_grams && <span>P: {formData.protein_grams}g × 4</span>}
                           {formData.fats_grams && <span>F: {formData.fats_grams}g × 9</span>}
+                          {formData.fiber_grams && <span>Fiber: {formData.fiber_grams}g × 2</span>}
                         </div>
                       </div>
                     )}

@@ -183,6 +183,10 @@ export function ProductCard({ product, vendor }: ProductCardProps) {
                   <span className="text-sm text-muted-foreground">Fats</span>
                   <span className="font-semibold text-foreground">{product.fats_grams || '—'}g</span>
                 </div>
+                <div className="flex items-center justify-between p-2 bg-background rounded-lg">
+                  <span className="text-sm text-muted-foreground">Fiber</span>
+                  <span className="font-semibold text-foreground">{product.fiber_grams || '—'}g</span>
+                </div>
               </div>
 
               {/* Calorie Level Badge */}
