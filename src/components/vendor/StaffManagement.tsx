@@ -324,6 +324,7 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="owner">Owner - Full access including withdrawals & staff</SelectItem>
                     <SelectItem value="manager">Manager - Full access except withdrawals</SelectItem>
                     <SelectItem value="cashier">Cashier - Process orders only</SelectItem>
                     <SelectItem value="viewer">Viewer - Read-only access</SelectItem>
@@ -417,6 +418,7 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
+                            <SelectItem value="owner">Owner</SelectItem>
                             <SelectItem value="manager">Manager</SelectItem>
                             <SelectItem value="cashier">Cashier</SelectItem>
                             <SelectItem value="viewer">Viewer</SelectItem>
