@@ -221,7 +221,7 @@ export default function Home() {
         <ActionHints />
 
         {/* Calorie Widget */}
-        <CalorieWidget consumed={1250} target={2000} />
+        <CalorieWidget />
 
         {/* Promo Banner */}
         <PromoBanner />
