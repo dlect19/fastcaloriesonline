@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Store, Mail, Lock, User, Phone, MapPin, Leaf, Eye, EyeOff, Link2 } from 'lucide-react';
+import { Store, Mail, Lock, User, Phone, MapPin, Eye, EyeOff, Link2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 
 type AuthTab = 'login' | 'signup' | 'link';
 
@@ -318,10 +319,7 @@ export default function VendorAuth() {
         <div className="w-full max-w-md">
           {/* Mobile Logo */}
           <div className="flex items-center gap-2 mb-8 lg:hidden">
-            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-              <Leaf className="w-6 h-6 text-primary-foreground" />
-            </div>
-            <span className="text-xl font-bold">Fast Calories</span>
+            <img src={fastCaloriesLogo} alt="Fast Calories" className="h-10 w-auto" />
           </div>
 
           <div className="mb-8">

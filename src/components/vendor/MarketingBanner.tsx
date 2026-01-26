@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Download, Printer, QrCode, Loader2 } from 'lucide-react';
+import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 
 interface MarketingBannerProps {
   vendor: {
@@ -51,14 +52,14 @@ export function MarketingBanner({ vendor }: MarketingBannerProps) {
     try {
       const [storeQRDataUrl, websiteQRDataUrl] = await Promise.all([
         QRCode.toDataURL(storeUrl, {
-          width: 200,
+          width: 300,
           margin: 2,
-          color: { dark: '#000000', light: '#ffffff' },
+          color: { dark: '#16a34a', light: '#ffffff' },
         }),
         QRCode.toDataURL(websiteUrl, {
-          width: 200,
+          width: 300,
           margin: 2,
-          color: { dark: '#000000', light: '#ffffff' },
+          color: { dark: '#dc2626', light: '#ffffff' },
         }),
       ]);
       setStoreQR(storeQRDataUrl);
@@ -146,7 +147,8 @@ export function MarketingBanner({ vendor }: MarketingBannerProps) {
   };
 
   const dims = PAPER_DIMENSIONS[paperSize];
-  const scale = paperSize === 'A3' ? 0.6 : 0.8;
+  const scale = paperSize === 'A3' ? 0.55 : 0.75;
+  const isA3 = paperSize === 'A3';
 
   return (
     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -204,175 +206,326 @@ export function MarketingBanner({ vendor }: MarketingBannerProps) {
                   minWidth: `${dims.width * scale}mm`,
                   minHeight: `${dims.height * scale}mm`,
                 }}
-                className="bg-white shadow-lg flex flex-col"
+                className="bg-white shadow-lg flex flex-col overflow-hidden"
               >
-                {/* Header with Logo and Store Info */}
+                {/* Top decorative wave */}
                 <div 
-                  className="flex items-center gap-4 p-6 border-b-4 border-primary"
-                  style={{ padding: paperSize === 'A3' ? '32px' : '24px' }}
+                  className="relative"
+                  style={{ 
+                    background: 'linear-gradient(135deg, #16a34a 0%, #22c55e 50%, #16a34a 100%)',
+                    height: isA3 ? '80px' : '50px',
+                  }}
                 >
-                  {vendor.logo_url ? (
-                    <img
-                      src={vendor.logo_url}
-                      alt={vendor.name}
-                      className="rounded-xl object-cover"
-                      style={{ 
-                        width: paperSize === 'A3' ? '80px' : '60px',
-                        height: paperSize === 'A3' ? '80px' : '60px',
-                      }}
-                      crossOrigin="anonymous"
+                  <svg 
+                    viewBox="0 0 1440 120" 
+                    className="absolute bottom-0 left-0 w-full"
+                    style={{ transform: 'translateY(50%)' }}
+                    preserveAspectRatio="none"
+                  >
+                    <path 
+                      fill="#ffffff" 
+                      d="M0,64L48,58.7C96,53,192,43,288,48C384,53,480,75,576,80C672,85,768,75,864,64C960,53,1056,43,1152,48C1248,53,1344,75,1392,85.3L1440,96L1440,120L1392,120C1344,120,1248,120,1152,120C1056,120,960,120,864,120C768,120,672,120,576,120C480,120,384,120,288,120C192,120,96,120,48,120L0,120Z"
                     />
+                  </svg>
+                </div>
+
+                {/* Vendor Header Section */}
+                <div 
+                  className="flex flex-col items-center text-center px-6"
+                  style={{ 
+                    paddingTop: isA3 ? '48px' : '32px',
+                    paddingBottom: isA3 ? '24px' : '16px',
+                  }}
+                >
+                  {/* Vendor Logo */}
+                  {vendor.logo_url ? (
+                    <div 
+                      className="rounded-2xl overflow-hidden border-4 border-gray-100 shadow-lg mb-4"
+                      style={{ 
+                        width: isA3 ? '100px' : '70px',
+                        height: isA3 ? '100px' : '70px',
+                      }}
+                    >
+                      <img
+                        src={vendor.logo_url}
+                        alt={vendor.name}
+                        className="w-full h-full object-cover"
+                        crossOrigin="anonymous"
+                      />
+                    </div>
                   ) : (
                     <div 
-                      className="rounded-xl bg-primary/10 flex items-center justify-center"
+                      className="rounded-2xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center shadow-lg mb-4"
                       style={{ 
-                        width: paperSize === 'A3' ? '80px' : '60px',
-                        height: paperSize === 'A3' ? '80px' : '60px',
+                        width: isA3 ? '100px' : '70px',
+                        height: isA3 ? '100px' : '70px',
                       }}
                     >
                       <span 
-                        className="font-bold text-primary"
-                        style={{ fontSize: paperSize === 'A3' ? '28px' : '20px' }}
+                        className="font-bold text-white"
+                        style={{ fontSize: isA3 ? '36px' : '26px' }}
                       >
                         {vendor.name.charAt(0)}
                       </span>
                     </div>
                   )}
-                  <div className="flex-1">
-                    <h1 
-                      className="font-bold text-gray-900 leading-tight"
-                      style={{ fontSize: paperSize === 'A3' ? '28px' : '20px' }}
-                    >
-                      {vendor.name}
-                    </h1>
-                    <p 
-                      className="text-gray-600"
-                      style={{ fontSize: paperSize === 'A3' ? '14px' : '11px' }}
-                    >
-                      {vendor.address}, {vendor.city}, {vendor.state}
-                    </p>
-                  </div>
+                  
+                  <h1 
+                    className="font-bold text-gray-900 leading-tight"
+                    style={{ fontSize: isA3 ? '32px' : '22px' }}
+                  >
+                    {vendor.name}
+                  </h1>
+                  <p 
+                    className="text-gray-500 mt-1"
+                    style={{ fontSize: isA3 ? '14px' : '10px' }}
+                  >
+                    📍 {vendor.address}, {vendor.city}, {vendor.state}
+                  </p>
                 </div>
 
-                {/* Main Content */}
-                <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+                {/* Main CTA Section */}
+                <div 
+                  className="flex-1 flex flex-col items-center justify-center px-6 text-center"
+                  style={{ 
+                    background: 'linear-gradient(180deg, #ffffff 0%, #f0fdf4 100%)',
+                    paddingTop: isA3 ? '24px' : '16px',
+                    paddingBottom: isA3 ? '24px' : '16px',
+                  }}
+                >
+                  {/* Attention grabber */}
                   <div 
-                    className="bg-gradient-to-r from-primary to-primary/80 text-white font-bold rounded-xl px-6 py-4 mb-6"
+                    className="inline-flex items-center gap-2 rounded-full bg-red-50 border-2 border-red-200 mb-4"
                     style={{ 
-                      fontSize: paperSize === 'A3' ? '24px' : '16px',
-                      padding: paperSize === 'A3' ? '20px 32px' : '16px 24px',
+                      padding: isA3 ? '10px 24px' : '6px 16px',
                     }}
                   >
-                    Order from us online!
+                    <span style={{ fontSize: isA3 ? '22px' : '14px' }}>🔥</span>
+                    <span 
+                      className="font-bold text-red-600"
+                      style={{ fontSize: isA3 ? '16px' : '11px' }}
+                    >
+                      ORDER ONLINE NOW!
+                    </span>
                   </div>
 
-                  <p 
-                    className="text-gray-700 mb-8"
-                    style={{ fontSize: paperSize === 'A3' ? '16px' : '12px' }}
+                  {/* Main headline */}
+                  <h2 
+                    className="font-extrabold text-gray-900 leading-tight mb-2"
+                    style={{ fontSize: isA3 ? '36px' : '24px' }}
                   >
-                    Scan the QR codes below to get started
+                    Skip the Queue!
+                  </h2>
+                  <p 
+                    className="text-gray-600 max-w-md"
+                    style={{ 
+                      fontSize: isA3 ? '16px' : '11px',
+                      marginBottom: isA3 ? '28px' : '18px',
+                    }}
+                  >
+                    Scan the QR code below to order directly from your phone
                   </p>
 
-                  {/* QR Codes */}
+                  {/* QR Codes Section */}
                   <div 
-                    className="flex justify-center gap-12"
-                    style={{ gap: paperSize === 'A3' ? '48px' : '32px' }}
+                    className="flex justify-center items-stretch gap-6"
+                    style={{ gap: isA3 ? '40px' : '24px' }}
                   >
                     {/* Store QR */}
-                    <div className="text-center">
+                    <div className="text-center flex flex-col items-center">
                       <div 
-                        className="bg-white border-2 border-gray-200 rounded-xl p-3 mb-3"
-                        style={{ padding: paperSize === 'A3' ? '16px' : '12px' }}
+                        className="bg-white rounded-2xl border-4 border-green-500 shadow-lg p-3 mb-3"
+                        style={{ 
+                          padding: isA3 ? '16px' : '10px',
+                          borderRadius: isA3 ? '20px' : '14px',
+                        }}
                       >
                         {generating ? (
                           <div 
-                            className="flex items-center justify-center bg-gray-100"
+                            className="flex items-center justify-center bg-gray-50 rounded-xl"
                             style={{ 
-                              width: paperSize === 'A3' ? '140px' : '100px',
-                              height: paperSize === 'A3' ? '140px' : '100px',
+                              width: isA3 ? '160px' : '100px',
+                              height: isA3 ? '160px' : '100px',
                             }}
                           >
-                            <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                            <Loader2 className="w-8 h-8 animate-spin text-green-500" />
                           </div>
                         ) : (
                           <img
                             src={storeQR}
                             alt="Store QR Code"
+                            className="rounded-lg"
                             style={{ 
-                              width: paperSize === 'A3' ? '140px' : '100px',
-                              height: paperSize === 'A3' ? '140px' : '100px',
+                              width: isA3 ? '160px' : '100px',
+                              height: isA3 ? '160px' : '100px',
                             }}
                           />
                         )}
                       </div>
-                      <p 
-                        className="font-semibold text-gray-900"
-                        style={{ fontSize: paperSize === 'A3' ? '14px' : '10px' }}
+                      <div 
+                        className="bg-green-600 text-white font-bold rounded-lg"
+                        style={{ 
+                          padding: isA3 ? '8px 16px' : '5px 10px',
+                          fontSize: isA3 ? '14px' : '9px',
+                        }}
                       >
-                        Find Our Store
-                      </p>
+                        ORDER HERE
+                      </div>
                       <p 
-                        className="text-gray-500"
-                        style={{ fontSize: paperSize === 'A3' ? '11px' : '8px' }}
+                        className="text-gray-500 mt-2"
+                        style={{ fontSize: isA3 ? '11px' : '7px' }}
                       >
-                        on Fast Calories
+                        Scan to see our menu
                       </p>
                     </div>
 
-                    {/* Website QR */}
-                    <div className="text-center">
+                    {/* Divider */}
+                    <div className="flex flex-col items-center justify-center">
                       <div 
-                        className="bg-white border-2 border-gray-200 rounded-xl p-3 mb-3"
-                        style={{ padding: paperSize === 'A3' ? '16px' : '12px' }}
+                        className="w-px bg-gray-200"
+                        style={{ height: isA3 ? '120px' : '80px' }}
+                      />
+                      <span 
+                        className="text-gray-400 font-medium my-2"
+                        style={{ fontSize: isA3 ? '12px' : '8px' }}
+                      >
+                        OR
+                      </span>
+                      <div 
+                        className="w-px bg-gray-200"
+                        style={{ height: isA3 ? '120px' : '80px' }}
+                      />
+                    </div>
+
+                    {/* Website QR */}
+                    <div className="text-center flex flex-col items-center">
+                      <div 
+                        className="bg-white rounded-2xl border-4 border-red-500 shadow-lg p-3 mb-3"
+                        style={{ 
+                          padding: isA3 ? '16px' : '10px',
+                          borderRadius: isA3 ? '20px' : '14px',
+                        }}
                       >
                         {generating ? (
                           <div 
-                            className="flex items-center justify-center bg-gray-100"
+                            className="flex items-center justify-center bg-gray-50 rounded-xl"
                             style={{ 
-                              width: paperSize === 'A3' ? '140px' : '100px',
-                              height: paperSize === 'A3' ? '140px' : '100px',
+                              width: isA3 ? '160px' : '100px',
+                              height: isA3 ? '160px' : '100px',
                             }}
                           >
-                            <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                            <Loader2 className="w-8 h-8 animate-spin text-red-500" />
                           </div>
                         ) : (
                           <img
                             src={websiteQR}
                             alt="Website QR Code"
+                            className="rounded-lg"
                             style={{ 
-                              width: paperSize === 'A3' ? '140px' : '100px',
-                              height: paperSize === 'A3' ? '140px' : '100px',
+                              width: isA3 ? '160px' : '100px',
+                              height: isA3 ? '160px' : '100px',
                             }}
                           />
                         )}
                       </div>
-                      <p 
-                        className="font-semibold text-gray-900"
-                        style={{ fontSize: paperSize === 'A3' ? '14px' : '10px' }}
+                      <div 
+                        className="bg-red-600 text-white font-bold rounded-lg"
+                        style={{ 
+                          padding: isA3 ? '8px 16px' : '5px 10px',
+                          fontSize: isA3 ? '14px' : '9px',
+                        }}
                       >
-                        Visit Our Website
-                      </p>
+                        EXPLORE MORE
+                      </div>
                       <p 
-                        className="text-gray-500"
-                        style={{ fontSize: paperSize === 'A3' ? '11px' : '8px' }}
+                        className="text-gray-500 mt-2"
+                        style={{ fontSize: isA3 ? '11px' : '7px' }}
                       >
-                        fastcalories.online
+                        Visit fastcalories.online
                       </p>
                     </div>
                   </div>
                 </div>
 
-                {/* Footer */}
+                {/* Benefits strip */}
                 <div 
-                  className="bg-gray-100 py-4 text-center"
-                  style={{ padding: paperSize === 'A3' ? '20px' : '16px' }}
+                  className="flex justify-center items-center gap-4 bg-gray-50 border-t border-gray-100"
+                  style={{ 
+                    padding: isA3 ? '16px' : '10px',
+                    gap: isA3 ? '24px' : '14px',
+                  }}
                 >
-                  <p 
-                    className="text-gray-600"
-                    style={{ fontSize: paperSize === 'A3' ? '12px' : '9px' }}
-                  >
-                    Powered by <span className="font-semibold text-primary">Fast Calories</span> • Healthy Eating Made Easy
-                  </p>
+                  <div className="flex items-center gap-1">
+                    <span style={{ fontSize: isA3 ? '16px' : '11px' }}>⚡</span>
+                    <span 
+                      className="font-medium text-gray-700"
+                      style={{ fontSize: isA3 ? '12px' : '8px' }}
+                    >
+                      Fast Delivery
+                    </span>
+                  </div>
+                  <div 
+                    className="w-1 h-1 rounded-full bg-gray-300"
+                    style={{ 
+                      width: isA3 ? '4px' : '3px',
+                      height: isA3 ? '4px' : '3px',
+                    }}
+                  />
+                  <div className="flex items-center gap-1">
+                    <span style={{ fontSize: isA3 ? '16px' : '11px' }}>🔥</span>
+                    <span 
+                      className="font-medium text-gray-700"
+                      style={{ fontSize: isA3 ? '12px' : '8px' }}
+                    >
+                      Calorie Tracking
+                    </span>
+                  </div>
+                  <div 
+                    className="w-1 h-1 rounded-full bg-gray-300"
+                    style={{ 
+                      width: isA3 ? '4px' : '3px',
+                      height: isA3 ? '4px' : '3px',
+                    }}
+                  />
+                  <div className="flex items-center gap-1">
+                    <span style={{ fontSize: isA3 ? '16px' : '11px' }}>💳</span>
+                    <span 
+                      className="font-medium text-gray-700"
+                      style={{ fontSize: isA3 ? '12px' : '8px' }}
+                    >
+                      Easy Payment
+                    </span>
+                  </div>
+                </div>
+
+                {/* Footer with platform branding */}
+                <div 
+                  className="flex items-center justify-center gap-3"
+                  style={{ 
+                    background: 'linear-gradient(135deg, #16a34a 0%, #22c55e 100%)',
+                    padding: isA3 ? '20px' : '12px',
+                  }}
+                >
+                  <img 
+                    src={fastCaloriesLogo} 
+                    alt="Fast Calories" 
+                    style={{ height: isA3 ? '40px' : '28px' }}
+                    crossOrigin="anonymous"
+                  />
+                  <div className="text-white">
+                    <p 
+                      className="font-bold leading-tight"
+                      style={{ fontSize: isA3 ? '14px' : '9px' }}
+                    >
+                      Powered by Fast Calories
+                    </p>
+                    <p 
+                      className="opacity-90"
+                      style={{ fontSize: isA3 ? '11px' : '7px' }}
+                    >
+                      Eat Smart • Live Healthy
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>

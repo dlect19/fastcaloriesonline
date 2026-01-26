@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { CheckCircle, XCircle, Loader2, Leaf } from 'lucide-react';
+import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
+import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 
 type VerificationStatus = 'verifying' | 'success' | 'error';
 
@@ -72,10 +73,7 @@ export default function VerifyEmail() {
       <div className="w-full max-w-md text-center">
         {/* Logo */}
         <div className="flex items-center justify-center gap-2 mb-8">
-          <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center shadow-button">
-            <Leaf className="w-7 h-7 text-primary-foreground" />
-          </div>
-          <span className="text-2xl font-bold text-foreground">Fast Calories</span>
+          <img src={fastCaloriesLogo} alt="Fast Calories" className="h-14 w-auto" />
         </div>
 
         {/* Status Card */}
