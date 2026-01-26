@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Switch } from '@/components/ui/switch';
-import { UserPlus, Shield, Users, Loader2, Trash2, Link, Copy, Check } from 'lucide-react';
+import { UserPlus, Shield, Users, Loader2, Trash2, Link, Copy, Check, Mail } from 'lucide-react';
 import { format } from 'date-fns';
 import type { AdminStaffRole } from '@/hooks/useAdminPermissions';
 
@@ -104,6 +104,13 @@ export function AdminStaffManagement() {
       const inviteCode = generateInviteCode();
       const placeholderUserId = crypto.randomUUID();
 
+      // Get inviter's profile name
+      const { data: inviterProfile } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('user_id', user?.id)
+        .single();
+
       const { error } = await supabase
         .from('admin_staff')
         .insert({
@@ -120,7 +127,35 @@ export function AdminStaffManagement() {
       const inviteLink = `${window.location.origin}/admin/staff/join/${inviteCode}`;
       setGeneratedLink(inviteLink);
       
-      toast({ title: 'Admin invite created!' });
+      // Send invite email
+      try {
+        const { error: emailError } = await supabase.functions.invoke('send-staff-invite-email', {
+          body: {
+            email: inviteEmail,
+            inviteUrl: inviteLink,
+            inviterName: inviterProfile?.full_name || 'A team member',
+            role: newRole,
+            platform: 'admin'
+          }
+        });
+        
+        if (emailError) {
+          console.error('Error sending invite email:', emailError);
+          toast({ 
+            title: 'Invite created!', 
+            description: 'Email could not be sent. Please share the link manually.',
+          });
+        } else {
+          toast({ 
+            title: 'Invite sent!', 
+            description: `Email sent to ${inviteEmail}`,
+          });
+        }
+      } catch (emailErr) {
+        console.error('Error sending invite email:', emailErr);
+        toast({ title: 'Invite created! Share the link manually.' });
+      }
+      
       fetchStaff();
     } catch (error: any) {
       console.error('Error adding admin staff:', error);
