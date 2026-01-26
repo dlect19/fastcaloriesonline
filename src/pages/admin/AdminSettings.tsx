@@ -32,6 +32,14 @@ export default function AdminSettings() {
     { key: 'max_delivery_distance_km', label: 'Max Delivery Distance', unit: 'km', icon: MapPin, description: 'Maximum allowed delivery distance' },
   ];
 
+  const financialSettingsConfig = [
+    { key: 'default_vendor_commission_rate', label: 'Vendor Commission Rate', unit: '%', icon: DollarSign, description: 'Platform commission on vendor orders' },
+    { key: 'default_rider_share_percentage', label: 'Rider Share', unit: '%', icon: Bike, description: 'Rider share of delivery fee' },
+    { key: 'min_withdrawal_amount', label: 'Min Withdrawal', unit: '₦', icon: DollarSign, description: 'Minimum amount for withdrawals' },
+    { key: 'vendor_earnings_hold_hours', label: 'Vendor Hold Period', unit: 'hrs', icon: Settings2, description: 'Hours to hold vendor earnings before eligible' },
+    { key: 'rider_earnings_hold_hours', label: 'Rider Hold Period', unit: 'hrs', icon: Settings2, description: 'Hours to hold rider earnings before eligible' },
+  ];
+
   useEffect(() => {
     checkAuth();
     fetchSettings();
@@ -87,13 +95,18 @@ export default function AdminSettings() {
     setSaving(true);
     try {
       // Update each setting
-      for (const config of deliverySettingsConfig) {
+      const allConfigs = [...deliverySettingsConfig, ...financialSettingsConfig];
+      for (const config of allConfigs) {
         const value = settings[config.key];
         if (value !== undefined) {
           const { error } = await supabase
             .from('platform_settings')
-            .update({ value, updated_at: new Date().toISOString() })
-            .eq('key', config.key);
+            .upsert({ 
+              key: config.key, 
+              value, 
+              description: config.description,
+              updated_at: new Date().toISOString() 
+            }, { onConflict: 'key' });
 
           if (error) throw error;
         }
@@ -231,6 +244,82 @@ export default function AdminSettings() {
                   <p className="text-sm text-muted-foreground mt-2">
                     Example: A 7km delivery = ₦{settings['base_delivery_fee'] || '500'} + (4 × ₦{settings['per_km_fee'] || '100'}) = 
                     <span className="text-primary font-semibold"> ₦{(parseInt(settings['base_delivery_fee'] || '500') + (4 * parseInt(settings['per_km_fee'] || '100'))).toLocaleString()}</span>
+                  </p>
+                </div>
+
+                <div className="flex justify-end">
+                  <Button onClick={handleSave} disabled={saving}>
+                    {saving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4 mr-2" />
+                        Save Settings
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Financial Settings Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <DollarSign className="w-5 h-5 text-primary" />
+                  Commission & Financial Settings
+                </CardTitle>
+                <CardDescription>
+                  Configure platform commissions and payout settings
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {financialSettingsConfig.map((config) => {
+                    const Icon = config.icon;
+                    return (
+                      <div key={config.key} className="space-y-2">
+                        <Label htmlFor={config.key} className="flex items-center gap-2">
+                          <Icon className="w-4 h-4 text-muted-foreground" />
+                          {config.label}
+                        </Label>
+                        <div className="relative">
+                          <Input
+                            id={config.key}
+                            type="number"
+                            min="0"
+                            step={config.unit === '%' ? '0.5' : config.unit === 'hrs' ? '1' : '100'}
+                            value={settings[config.key] || ''}
+                            onChange={(e) => handleSettingChange(config.key, e.target.value)}
+                            className={config.unit === '₦' ? 'pl-8' : 'pr-12'}
+                          />
+                          <span className={`absolute ${config.unit === '₦' ? 'left-3' : 'right-3'} top-1/2 -translate-y-1/2 text-sm text-muted-foreground`}>
+                            {config.unit}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{config.description}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Financial Formula Preview */}
+                <div className="p-4 bg-secondary rounded-lg">
+                  <h4 className="text-sm font-medium text-foreground mb-2">Commission Structure</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Platform takes <span className="text-primary font-medium">{settings['default_vendor_commission_rate'] || '15'}%</span> from vendor orders
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Riders receive <span className="text-primary font-medium">{settings['default_rider_share_percentage'] || '80'}%</span> of delivery fees
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Vendor earnings become available after <span className="text-primary font-medium">{settings['vendor_earnings_hold_hours'] || '24'} hours</span>
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Rider earnings become available <span className="text-primary font-medium">immediately</span> (hold: {settings['rider_earnings_hold_hours'] || '0'} hours)
                   </p>
                 </div>
 

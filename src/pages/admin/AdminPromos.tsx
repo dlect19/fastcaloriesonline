@@ -29,6 +29,8 @@ export default function AdminPromos() {
   const [maxDiscount, setMaxDiscount] = useState('');
   const [usageLimit, setUsageLimit] = useState('');
   const [validUntil, setValidUntil] = useState('');
+  const [scope, setScope] = useState('platform');
+  const [perUserLimit, setPerUserLimit] = useState('');
 
   useEffect(() => {
     checkAuth();
@@ -86,6 +88,8 @@ export default function AdminPromos() {
         usage_limit: usageLimit ? parseInt(usageLimit) : null,
         valid_until: validUntil || null,
         is_active: true,
+        scope: scope,
+        per_user_limit: perUserLimit ? parseInt(perUserLimit) : null,
       });
 
       toast({ title: 'Promo code created successfully' });
@@ -127,6 +131,8 @@ export default function AdminPromos() {
     setMaxDiscount('');
     setUsageLimit('');
     setValidUntil('');
+    setScope('platform');
+    setPerUserLimit('');
   };
 
   if (loading) {
@@ -212,7 +218,30 @@ export default function AdminPromos() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Usage Limit</Label>
+                    <Label>Scope</Label>
+                    <Select value={scope} onValueChange={setScope}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="platform">Platform-wide</SelectItem>
+                        <SelectItem value="vendor">Vendor-specific</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Per User Limit</Label>
+                    <Input
+                      type="number"
+                      value={perUserLimit}
+                      onChange={(e) => setPerUserLimit(e.target.value)}
+                      placeholder="e.g. 1"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Total Usage Limit</Label>
                     <Input
                       type="number"
                       value={usageLimit}
@@ -250,10 +279,13 @@ export default function AdminPromos() {
                 {promos.map((promo) => (
                   <div key={promo.id} className="flex items-center justify-between p-4 border rounded-lg">
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="font-mono font-bold text-lg">{promo.code}</h3>
                         <Badge variant={promo.is_active ? 'default' : 'secondary'}>
                           {promo.is_active ? 'Active' : 'Inactive'}
+                        </Badge>
+                        <Badge variant="outline">
+                          {promo.scope === 'vendor' ? 'Vendor' : 'Platform'}
                         </Badge>
                       </div>
                       <p className="text-sm text-muted-foreground">
@@ -265,6 +297,7 @@ export default function AdminPromos() {
                       </p>
                       <p className="text-xs text-muted-foreground">
                         Used {promo.used_count || 0}{promo.usage_limit ? `/${promo.usage_limit}` : ''} times
+                        {promo.per_user_limit && ` • ${promo.per_user_limit}/user`}
                         {promo.valid_until && ` • Expires ${format(new Date(promo.valid_until), 'PP')}`}
                       </p>
                     </div>
