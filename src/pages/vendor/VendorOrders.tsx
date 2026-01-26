@@ -192,10 +192,15 @@ export default function VendorOrders() {
     }
   };
 
+  // Vendors can only update status up to ready_for_pickup
+  // Riders handle picked_up, on_the_way, and delivered statuses
   const getNextStatus = (currentStatus: OrderStatus): OrderStatus | null => {
-    const currentIndex = statusFlow.indexOf(currentStatus);
-    if (currentIndex === -1 || currentIndex >= statusFlow.length - 1) return null;
-    return statusFlow[currentIndex + 1];
+    const vendorStatusFlow: OrderStatus[] = [
+      'pending', 'confirmed', 'preparing', 'ready_for_pickup'
+    ];
+    const currentIndex = vendorStatusFlow.indexOf(currentStatus);
+    if (currentIndex === -1 || currentIndex >= vendorStatusFlow.length - 1) return null;
+    return vendorStatusFlow[currentIndex + 1];
   };
 
   const activeOrders = orders.filter((o) =>
