@@ -327,16 +327,18 @@ export function TakeawayPackManagement({ vendorId, userId }: TakeawayPackManagem
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="per_item">Any item quantity ≥ threshold</SelectItem>
-                    <SelectItem value="total_items">Total cart items ≥ threshold</SelectItem>
+                  <SelectContent className="bg-popover z-50">
+                    <SelectItem value="per_item">Any single item quantity ≥ threshold</SelectItem>
+                    <SelectItem value="total_items">Total order items ≥ threshold</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               {/* Threshold Value */}
               <div className="space-y-2">
-                <Label htmlFor="threshold">Threshold Value</Label>
+                <Label htmlFor="threshold">
+                  {thresholdType === 'per_item' ? 'Item Quantity Threshold' : 'Total Items Threshold'}
+                </Label>
                 <Input
                   id="threshold"
                   type="number"
@@ -346,8 +348,8 @@ export function TakeawayPackManagement({ vendorId, userId }: TakeawayPackManagem
                 />
                 <p className="text-xs text-muted-foreground">
                   {thresholdType === 'per_item'
-                    ? `Pack added when any single item has ${thresholdValue}+ quantity`
-                    : `Pack added when cart has ${thresholdValue}+ total items`}
+                    ? `Pack added when any item has ${thresholdValue}+ servings (e.g., ${thresholdValue} plates of rice)`
+                    : `Pack added when customer orders ${thresholdValue}+ total items`}
                 </p>
               </div>
 
