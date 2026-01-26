@@ -8,6 +8,7 @@ interface OrderSummaryProps {
   serviceFee: number;
   total: number;
   totalCalories: number;
+  packagingFee?: number;
 }
 
 export function OrderSummary({ 
@@ -15,7 +16,8 @@ export function OrderSummary({
   deliveryFee, 
   serviceFee, 
   total, 
-  totalCalories 
+  totalCalories,
+  packagingFee = 0,
 }: OrderSummaryProps) {
   const getCalorieLevel = (calories: number) => {
     if (calories <= 500) return { label: 'Low', color: 'text-calorie-low bg-calorie-low/10' };
@@ -56,6 +58,12 @@ export function OrderSummary({
             <span>Subtotal</span>
             <span>₦{subtotal.toLocaleString()}</span>
           </div>
+          {packagingFee > 0 && (
+            <div className="flex justify-between text-muted-foreground">
+              <span>Takeaway Pack</span>
+              <span>₦{packagingFee.toLocaleString()}</span>
+            </div>
+          )}
           <div className="flex justify-between text-muted-foreground">
             <span>Delivery Fee</span>
             <span>₦{deliveryFee.toLocaleString()}</span>

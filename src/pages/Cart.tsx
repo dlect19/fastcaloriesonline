@@ -1,13 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useCart } from '@/hooks/useCart';
+import { useTakeawayPacks } from '@/hooks/useTakeawayPacks';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { BottomNav } from '@/components/home/BottomNav';
 import { CartItemCard } from '@/components/cart/CartItemCard';
 import { OrderSummary } from '@/components/cart/OrderSummary';
 import { AddressSelector } from '@/components/cart/AddressSelector';
+import { TakeawayPackDisplay } from '@/components/cart/TakeawayPackDisplay';
 import { ArrowLeft, ShoppingBag, Leaf, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Tables } from '@/integrations/supabase/types';
@@ -17,6 +19,7 @@ type Address = Tables<'addresses'>;
 export default function Cart() {
   const { user, loading: authLoading } = useAuth();
   const { items, vendorId, vendorName, subtotal, totalCalories, clearCart } = useCart();
+  const { getApplicablePacks } = useTakeawayPacks(vendorId);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -25,9 +28,18 @@ export default function Cart() {
   const [loadingAddresses, setLoadingAddresses] = useState(true);
   const [placingOrder, setPlacingOrder] = useState(false);
 
+  // Calculate applicable takeaway packs
+  const applicablePacks = useMemo(() => {
+    return getApplicablePacks(items.map(item => ({ productId: item.productId, quantity: item.quantity })));
+  }, [items, getApplicablePacks]);
+
+  const packagingFee = useMemo(() => {
+    return applicablePacks.reduce((sum, pack) => sum + pack.price, 0);
+  }, [applicablePacks]);
+
   const deliveryFee = 500;
   const serviceFee = 100;
-  const total = subtotal + deliveryFee + serviceFee;
+  const total = subtotal + deliveryFee + serviceFee + packagingFee;
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -213,6 +225,11 @@ export default function Cart() {
               ))}
             </section>
 
+            {/* Takeaway Packs */}
+            {applicablePacks.length > 0 && (
+              <TakeawayPackDisplay packs={applicablePacks} />
+            )}
+
             {/* Address Selector */}
             <AddressSelector
               addresses={addresses}
@@ -230,6 +247,7 @@ export default function Cart() {
               serviceFee={serviceFee}
               total={total}
               totalCalories={totalCalories}
+              packagingFee={packagingFee}
             />
           </>
         )}
