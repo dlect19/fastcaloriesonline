@@ -258,7 +258,7 @@ export default function Cart() {
             />
 
             {/* Promo Code */}
-            <PromoCodeInput subtotal={subtotal} onDiscountApplied={handlePromoApplied} />
+            <PromoCodeInput subtotal={subtotal} vendorId={vendorId || undefined} onDiscountApplied={handlePromoApplied} />
 
             {/* Order Summary */}
             <OrderSummary

@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
 interface PromoValidation {
   valid: boolean;
@@ -9,26 +10,53 @@ interface PromoValidation {
 }
 
 export function usePromoCode() {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [appliedPromo, setAppliedPromo] = useState<any>(null);
   const [discount, setDiscount] = useState(0);
 
-  const validatePromoCode = useCallback(async (code: string, subtotal: number): Promise<PromoValidation> => {
+  const validatePromoCode = useCallback(async (
+    code: string, 
+    subtotal: number,
+    vendorId?: string
+  ): Promise<PromoValidation> => {
     if (!code.trim()) {
       return { valid: false, discount: 0, message: 'Please enter a promo code' };
     }
 
     setLoading(true);
     try {
-      const { data: promo, error } = await supabase
+      // Build query - check for matching code that is active
+      let query = supabase
         .from('promo_codes')
         .select('*')
         .eq('code', code.toUpperCase())
-        .eq('is_active', true)
-        .maybeSingle();
+        .eq('is_active', true);
 
-      if (error || !promo) {
+      const { data: promos, error } = await query;
+
+      if (error) {
+        console.error('Promo query error:', error);
+        return { valid: false, discount: 0, message: 'Error validating promo code' };
+      }
+
+      if (!promos || promos.length === 0) {
         return { valid: false, discount: 0, message: 'Invalid promo code' };
+      }
+
+      // Find the best matching promo
+      // Priority: vendor-specific promo for this vendor > platform promo
+      let promo = promos.find(p => p.vendor_id === vendorId && p.scope === 'vendor');
+      if (!promo) {
+        promo = promos.find(p => p.scope === 'platform' || !p.vendor_id);
+      }
+      if (!promo) {
+        promo = promos[0]; // Fallback
+      }
+
+      // Check if vendor-specific promo matches the current vendor
+      if (promo.vendor_id && promo.vendor_id !== vendorId) {
+        return { valid: false, discount: 0, message: 'This promo code is not valid for this vendor' };
       }
 
       // Check validity dates
@@ -40,9 +68,27 @@ export function usePromoCode() {
         return { valid: false, discount: 0, message: 'This promo code has expired' };
       }
 
-      // Check usage limit
-      if (promo.usage_limit && promo.used_count >= promo.usage_limit) {
+      // Check total usage limit
+      if (promo.usage_limit && (promo.used_count || 0) >= promo.usage_limit) {
         return { valid: false, discount: 0, message: 'This promo code has reached its usage limit' };
+      }
+
+      // Check per-user usage limit
+      if (promo.per_user_limit && user) {
+        const { data: userUsage } = await supabase
+          .from('promo_usage')
+          .select('used_count')
+          .eq('promo_id', promo.id)
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (userUsage && userUsage.used_count >= promo.per_user_limit) {
+          return { 
+            valid: false, 
+            discount: 0, 
+            message: `You've already used this promo ${promo.per_user_limit} time(s)` 
+          };
+        }
       }
 
       // Check minimum order amount
@@ -80,10 +126,10 @@ export function usePromoCode() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
-  const applyPromo = useCallback(async (code: string, subtotal: number) => {
-    const result = await validatePromoCode(code, subtotal);
+  const applyPromo = useCallback(async (code: string, subtotal: number, vendorId?: string) => {
+    const result = await validatePromoCode(code, subtotal, vendorId);
     if (result.valid) {
       setAppliedPromo(result.promoData);
       setDiscount(result.discount);
@@ -97,7 +143,10 @@ export function usePromoCode() {
   }, []);
 
   const incrementUsage = useCallback(async (promoId: string) => {
+    if (!user) return;
+
     try {
+      // Increment total usage
       const { data: promo } = await supabase
         .from('promo_codes')
         .select('used_count')
@@ -110,10 +159,36 @@ export function usePromoCode() {
           .update({ used_count: (promo.used_count || 0) + 1 })
           .eq('id', promoId);
       }
+
+      // Track per-user usage
+      const { data: existingUsage } = await supabase
+        .from('promo_usage')
+        .select('id, used_count')
+        .eq('promo_id', promoId)
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (existingUsage) {
+        await supabase
+          .from('promo_usage')
+          .update({ 
+            used_count: existingUsage.used_count + 1,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingUsage.id);
+      } else {
+        await supabase
+          .from('promo_usage')
+          .insert({
+            promo_id: promoId,
+            user_id: user.id,
+            used_count: 1,
+          });
+      }
     } catch (error) {
       console.error('Error incrementing promo usage:', error);
     }
-  }, []);
+  }, [user]);
 
   return {
     loading,

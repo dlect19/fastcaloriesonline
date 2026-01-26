@@ -628,10 +628,13 @@ export type Database = {
           is_active: boolean | null
           max_discount: number | null
           min_order_amount: number | null
+          per_user_limit: number | null
+          scope: string | null
           usage_limit: number | null
           used_count: number | null
           valid_from: string | null
           valid_until: string | null
+          vendor_id: string | null
         }
         Insert: {
           code: string
@@ -643,10 +646,13 @@ export type Database = {
           is_active?: boolean | null
           max_discount?: number | null
           min_order_amount?: number | null
+          per_user_limit?: number | null
+          scope?: string | null
           usage_limit?: number | null
           used_count?: number | null
           valid_from?: string | null
           valid_until?: string | null
+          vendor_id?: string | null
         }
         Update: {
           code?: string
@@ -658,12 +664,58 @@ export type Database = {
           is_active?: boolean | null
           max_discount?: number | null
           min_order_amount?: number | null
+          per_user_limit?: number | null
+          scope?: string | null
           usage_limit?: number | null
           used_count?: number | null
           valid_from?: string | null
           valid_until?: string | null
+          vendor_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "promo_codes_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      promo_usage: {
+        Row: {
+          created_at: string | null
+          id: string
+          promo_id: string
+          updated_at: string | null
+          used_count: number | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          promo_id: string
+          updated_at?: string | null
+          used_count?: number | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          promo_id?: string
+          updated_at?: string | null
+          used_count?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "promo_usage_promo_id_fkey"
+            columns: ["promo_id"]
+            isOneToOne: false
+            referencedRelation: "promo_codes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       reviews: {
         Row: {
@@ -718,6 +770,7 @@ export type Database = {
       }
       rider_profiles: {
         Row: {
+          affiliated_vendor_id: string | null
           created_at: string
           current_latitude: number | null
           current_longitude: number | null
@@ -733,6 +786,7 @@ export type Database = {
           vehicle_type: string | null
         }
         Insert: {
+          affiliated_vendor_id?: string | null
           created_at?: string
           current_latitude?: number | null
           current_longitude?: number | null
@@ -748,6 +802,7 @@ export type Database = {
           vehicle_type?: string | null
         }
         Update: {
+          affiliated_vendor_id?: string | null
           created_at?: string
           current_latitude?: number | null
           current_longitude?: number | null
@@ -762,7 +817,15 @@ export type Database = {
           vehicle_plate?: string | null
           vehicle_type?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "rider_profiles_affiliated_vendor_id_fkey"
+            columns: ["affiliated_vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       takeaway_packs: {
         Row: {
@@ -889,6 +952,96 @@ export type Database = {
         }
         Relationships: []
       }
+      vendor_rider_invites: {
+        Row: {
+          created_at: string | null
+          expires_at: string | null
+          id: string
+          invite_code: string
+          is_used: boolean | null
+          used_by: string | null
+          vendor_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          invite_code: string
+          is_used?: boolean | null
+          used_by?: string | null
+          vendor_id: string
+        }
+        Update: {
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          invite_code?: string
+          is_used?: boolean | null
+          used_by?: string | null
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_rider_invites_used_by_fkey"
+            columns: ["used_by"]
+            isOneToOne: false
+            referencedRelation: "rider_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_rider_invites_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vendor_riders: {
+        Row: {
+          created_at: string | null
+          id: string
+          invite_code: string
+          is_active: boolean | null
+          rider_profile_id: string
+          updated_at: string | null
+          vendor_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          invite_code: string
+          is_active?: boolean | null
+          rider_profile_id: string
+          updated_at?: string | null
+          vendor_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          invite_code?: string
+          is_active?: boolean | null
+          rider_profile_id?: string
+          updated_at?: string | null
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_riders_rider_profile_id_fkey"
+            columns: ["rider_profile_id"]
+            isOneToOne: false
+            referencedRelation: "rider_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_riders_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendor_working_hours: {
         Row: {
           close_time: string
@@ -933,6 +1086,7 @@ export type Database = {
           commission_rate: number | null
           created_at: string
           delivery_fee: number | null
+          delivery_mode: string | null
           description: string | null
           email: string | null
           estimated_delivery_minutes: number | null
@@ -942,6 +1096,7 @@ export type Database = {
           logo_url: string | null
           min_order_amount: number | null
           name: string
+          own_rider_priority: boolean | null
           phone: string | null
           qr_code_url: string | null
           rating: number | null
@@ -958,6 +1113,7 @@ export type Database = {
           commission_rate?: number | null
           created_at?: string
           delivery_fee?: number | null
+          delivery_mode?: string | null
           description?: string | null
           email?: string | null
           estimated_delivery_minutes?: number | null
@@ -967,6 +1123,7 @@ export type Database = {
           logo_url?: string | null
           min_order_amount?: number | null
           name: string
+          own_rider_priority?: boolean | null
           phone?: string | null
           qr_code_url?: string | null
           rating?: number | null
@@ -983,6 +1140,7 @@ export type Database = {
           commission_rate?: number | null
           created_at?: string
           delivery_fee?: number | null
+          delivery_mode?: string | null
           description?: string | null
           email?: string | null
           estimated_delivery_minutes?: number | null
@@ -992,6 +1150,7 @@ export type Database = {
           logo_url?: string | null
           min_order_amount?: number | null
           name?: string
+          own_rider_priority?: boolean | null
           phone?: string | null
           qr_code_url?: string | null
           rating?: number | null

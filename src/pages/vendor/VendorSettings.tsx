@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Store, Mail, Phone, MapPin, Save, Camera, ImageIcon, Loader2, Megaphone } from 'lucide-react';
+import { Store, Mail, Phone, MapPin, Save, Camera, ImageIcon, Loader2, Megaphone, Bike, Users, Building2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { VendorSidebar } from '@/components/vendor/VendorSidebar';
 import { MarketingBanner } from '@/components/vendor/MarketingBanner';
 import { useAuth } from '@/hooks/useAuth';
@@ -43,6 +44,8 @@ export default function VendorSettings() {
     estimated_delivery_minutes: '',
     logo_url: '',
     banner_url: '',
+    delivery_mode: 'platform',
+    own_rider_priority: true,
   });
 
   useEffect(() => {
@@ -82,6 +85,8 @@ export default function VendorSettings() {
           estimated_delivery_minutes: vendorData.estimated_delivery_minutes?.toString() || '30',
           logo_url: vendorData.logo_url || '',
           banner_url: vendorData.banner_url || '',
+          delivery_mode: vendorData.delivery_mode || 'platform',
+          own_rider_priority: vendorData.own_rider_priority ?? true,
         });
       }
     } catch (error) {
@@ -215,6 +220,8 @@ export default function VendorSettings() {
           estimated_delivery_minutes: parseInt(formData.estimated_delivery_minutes) || 30,
           logo_url: formData.logo_url || null,
           banner_url: formData.banner_url || null,
+          delivery_mode: formData.delivery_mode,
+          own_rider_priority: formData.own_rider_priority,
         })
         .eq('id', vendor.id);
 
@@ -439,9 +446,12 @@ export default function VendorSettings() {
           {/* Delivery Settings */}
           <Card className="border-0 shadow-soft">
             <CardHeader>
-              <CardTitle className="text-lg">Delivery Settings</CardTitle>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Bike className="w-5 h-5" />
+                Delivery Settings
+              </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="min_order">Minimum Order (₦)</Label>
@@ -471,6 +481,83 @@ export default function VendorSettings() {
                   />
                 </div>
               </div>
+
+              {/* Delivery Mode Selection */}
+              <div className="space-y-4 pt-4 border-t border-border">
+                <div>
+                  <Label className="text-base font-medium">Delivery Mode</Label>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Choose how orders are delivered to your customers
+                  </p>
+                </div>
+                <RadioGroup
+                  value={formData.delivery_mode}
+                  onValueChange={(val) => setFormData({ ...formData, delivery_mode: val })}
+                  className="grid gap-4"
+                >
+                  <div className="flex items-start space-x-3 p-4 rounded-xl border border-border hover:border-primary/50 transition-colors">
+                    <RadioGroupItem value="own" id="own" className="mt-1" />
+                    <div className="flex-1">
+                      <Label htmlFor="own" className="flex items-center gap-2 cursor-pointer font-medium">
+                        <Users className="w-4 h-4 text-primary" />
+                        My Own Riders Only
+                      </Label>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Only your in-house delivery staff will handle orders
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start space-x-3 p-4 rounded-xl border border-border hover:border-primary/50 transition-colors">
+                    <RadioGroupItem value="platform" id="platform" className="mt-1" />
+                    <div className="flex-1">
+                      <Label htmlFor="platform" className="flex items-center gap-2 cursor-pointer font-medium">
+                        <Building2 className="w-4 h-4 text-primary" />
+                        Fast Calories Riders Only
+                      </Label>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Platform riders will handle all your deliveries
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start space-x-3 p-4 rounded-xl border border-border hover:border-primary/50 transition-colors">
+                    <RadioGroupItem value="both" id="both" className="mt-1" />
+                    <div className="flex-1">
+                      <Label htmlFor="both" className="flex items-center gap-2 cursor-pointer font-medium">
+                        <Bike className="w-4 h-4 text-primary" />
+                        Both (With Priority)
+                      </Label>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Use both your riders and platform riders with priority settings
+                      </p>
+                    </div>
+                  </div>
+                </RadioGroup>
+              </div>
+
+              {/* Priority Settings (only when 'both' is selected) */}
+              {formData.delivery_mode === 'both' && (
+                <div className="p-4 bg-muted/50 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="font-medium">Prioritize My Riders</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Try your riders first before platform riders
+                      </p>
+                    </div>
+                    <Switch
+                      checked={formData.own_rider_priority}
+                      onCheckedChange={(checked) =>
+                        setFormData({ ...formData, own_rider_priority: checked })
+                      }
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {formData.own_rider_priority
+                      ? '✓ Your riders will be assigned first. If none are available, platform riders will be used.'
+                      : '✓ Platform riders will be assigned first. Your riders will be used as backup.'}
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 

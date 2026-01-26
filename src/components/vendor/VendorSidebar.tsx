@@ -11,6 +11,8 @@ import {
   Store,
   ChevronLeft,
   Menu,
+  Ticket,
+  Users,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -21,6 +23,8 @@ const navItems = [
   { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', path: '/vendor/dashboard' },
   { id: 'menu', icon: UtensilsCrossed, label: 'Menu', path: '/vendor/menu' },
   { id: 'orders', icon: ShoppingBag, label: 'Orders', path: '/vendor/orders' },
+  { id: 'promos', icon: Ticket, label: 'Promos', path: '/vendor/promos' },
+  { id: 'riders', icon: Users, label: 'My Riders', path: '/vendor/riders' },
   { id: 'reviews', icon: Star, label: 'Reviews', path: '/vendor/reviews' },
   { id: 'earnings', icon: Wallet, label: 'Earnings', path: '/vendor/earnings' },
   { id: 'hours', icon: Clock, label: 'Working Hours', path: '/vendor/hours' },
