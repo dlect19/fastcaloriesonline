@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit2, Trash2, Search, Flame, Wheat, Drumstick, Droplets, Leaf } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, Flame, Wheat, Drumstick, Droplets, Leaf, Droplet, Apple, Gem } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -84,6 +84,9 @@ export default function VendorMenu() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
+  // Nutrient tag options
+  type NutrientTag = 'water-rich' | 'vitamin-rich' | 'mineral-rich';
+
   // Form state
   const [formData, setFormData] = useState({
     name: '',
@@ -96,6 +99,7 @@ export default function VendorMenu() {
     fiber_grams: '',
     is_available: true,
     calorie_classes: [] as CalorieClass[],
+    nutrient_tags: [] as NutrientTag[],
   });
 
   // Auto-calculate calories from macros (fiber ~2 kcal/g)
@@ -215,6 +219,7 @@ export default function VendorMenu() {
         fiber_grams: formData.fiber_grams ? parseFloat(formData.fiber_grams) : null,
         is_available: formData.is_available,
         calorie_classes: formData.calorie_classes.length > 0 ? formData.calorie_classes : null,
+        nutrient_tags: formData.nutrient_tags.length > 0 ? formData.nutrient_tags : null,
       };
 
       if (editingProduct) {
@@ -259,6 +264,7 @@ export default function VendorMenu() {
       fiber_grams: product.fiber_grams?.toString() || '',
       is_available: product.is_available ?? true,
       calorie_classes: (product.calorie_classes as CalorieClass[]) || [],
+      nutrient_tags: ((product as any).nutrient_tags as NutrientTag[]) || [],
     });
     setDialogOpen(true);
   };
@@ -315,7 +321,17 @@ export default function VendorMenu() {
       fiber_grams: '',
       is_available: true,
       calorie_classes: [],
+      nutrient_tags: [],
     });
+  };
+
+  const toggleNutrientTag = (tag: NutrientTag) => {
+    setFormData(prev => ({
+      ...prev,
+      nutrient_tags: prev.nutrient_tags.includes(tag)
+        ? prev.nutrient_tags.filter(t => t !== tag)
+        : [...prev.nutrient_tags, tag]
+    }));
   };
 
   const filteredProducts = products.filter((p) =>
@@ -427,6 +443,36 @@ export default function VendorMenu() {
                               onCheckedChange={() => toggleCalorieClass(id)}
                             />
                             <Icon className="w-4 h-4" />
+                            <span className="text-sm">{label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Nutrient Tags - Only show for restaurants and markets */}
+                  {(vendor?.category === 'restaurant' || vendor?.category === 'market') && (
+                    <div className="border-t pt-4">
+                      <p className="text-sm font-medium mb-3">Nutrient Tags</p>
+                      <div className="flex flex-wrap gap-3">
+                        {([
+                          { id: 'water-rich' as NutrientTag, label: 'Water-rich', icon: Droplet, color: 'text-nutrient-water' },
+                          { id: 'vitamin-rich' as NutrientTag, label: 'Vitamin-rich', icon: Apple, color: 'text-nutrient-vitamin' },
+                          { id: 'mineral-rich' as NutrientTag, label: 'Mineral-rich', icon: Gem, color: 'text-nutrient-mineral' },
+                        ]).map(({ id, label, icon: Icon, color }) => (
+                          <label
+                            key={id}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
+                              formData.nutrient_tags.includes(id)
+                                ? 'bg-primary/10 border-primary text-primary'
+                                : 'bg-muted/50 border-border hover:border-primary/50'
+                            }`}
+                          >
+                            <Checkbox
+                              checked={formData.nutrient_tags.includes(id)}
+                              onCheckedChange={() => toggleNutrientTag(id)}
+                            />
+                            <Icon className={`w-4 h-4 ${formData.nutrient_tags.includes(id) ? '' : color}`} />
                             <span className="text-sm">{label}</span>
                           </label>
                         ))}
