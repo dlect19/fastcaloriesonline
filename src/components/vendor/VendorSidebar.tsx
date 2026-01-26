@@ -26,6 +26,7 @@ const navItems = [
   { id: 'orders', icon: ShoppingBag, label: 'Orders', path: '/vendor/orders' },
   { id: 'promos', icon: Ticket, label: 'Promos', path: '/vendor/promos' },
   { id: 'riders', icon: Users, label: 'My Riders', path: '/vendor/riders' },
+  { id: 'staff', icon: Users, label: 'Staff', path: '/vendor/staff' },
   { id: 'reviews', icon: Star, label: 'Reviews', path: '/vendor/reviews' },
   { id: 'earnings', icon: Wallet, label: 'Earnings', path: '/vendor/earnings' },
   { id: 'withdraw', icon: ArrowUpRight, label: 'Withdraw', path: '/vendor/withdraw' },
