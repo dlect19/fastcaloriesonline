@@ -99,11 +99,34 @@ export default function VendorOrders() {
 
   const fetchData = async () => {
     try {
-      const { data: vendorData } = await supabase
+      // First check if user is a vendor owner
+      let vendorData = null;
+      const { data: ownedVendor } = await supabase
         .from('vendors')
         .select('*')
         .eq('user_id', user?.id)
         .maybeSingle();
+
+      if (ownedVendor) {
+        vendorData = ownedVendor;
+      } else {
+        // Check if user is staff of any vendor
+        const { data: staffRecord } = await supabase
+          .from('vendor_staff')
+          .select('vendor_id')
+          .eq('user_id', user?.id)
+          .eq('is_active', true)
+          .maybeSingle();
+
+        if (staffRecord) {
+          const { data: staffVendor } = await supabase
+            .from('vendors')
+            .select('*')
+            .eq('id', staffRecord.vendor_id)
+            .single();
+          vendorData = staffVendor;
+        }
+      }
 
       setVendor(vendorData);
 
