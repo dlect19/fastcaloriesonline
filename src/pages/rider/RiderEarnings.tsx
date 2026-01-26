@@ -44,18 +44,39 @@ export default function RiderEarnings() {
   const fetchEarnings = async (userId: string) => {
     try {
       // Get wallet
-      const { data: walletData } = await supabase
+      let { data: walletData } = await supabase
         .from('wallets')
         .select('*')
         .eq('user_id', userId)
         .maybeSingle();
 
+      // Auto-create wallet if it doesn't exist for rider
+      if (!walletData) {
+        const { data: newWallet, error: createError } = await supabase
+          .from('wallets')
+          .insert({
+            user_id: userId,
+            wallet_type: 'rider',
+            balance: 0,
+            eligible_balance: 0,
+            pending_balance: 0,
+            total_earned: 0,
+            total_withdrawn: 0,
+          })
+          .select()
+          .single();
+        
+        if (!createError && newWallet) {
+          walletData = newWallet;
+        }
+      }
+
       setWallet(walletData);
 
       if (walletData) {
-        // Get transactions
+        // Get wallet transactions (not the old transactions table)
         const { data: txns } = await supabase
-          .from('transactions')
+          .from('wallet_transactions')
           .select('*')
           .eq('wallet_id', walletData.id)
           .order('created_at', { ascending: false })
@@ -191,13 +212,15 @@ export default function RiderEarnings() {
               {transactions.map((txn) => (
                 <div key={txn.id} className="flex items-center justify-between py-3 border-b last:border-0">
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium text-sm md:text-base truncate">{txn.description || txn.type}</p>
+                    <p className="font-medium text-sm md:text-base truncate capitalize">
+                      {txn.category?.replace(/_/g, ' ') || txn.transaction_type}
+                    </p>
                     <p className="text-xs md:text-sm text-muted-foreground">
                       {new Date(txn.created_at).toLocaleDateString()}
                     </p>
                   </div>
-                  <p className={`font-bold text-sm md:text-base ml-2 ${txn.type === 'credit' ? 'text-calorie-low' : 'text-destructive'}`}>
-                    {txn.type === 'credit' ? '+' : '-'}₦{txn.amount.toLocaleString()}
+                  <p className={`font-bold text-sm md:text-base ml-2 ${txn.transaction_type === 'credit' ? 'text-calorie-low' : 'text-destructive'}`}>
+                    {txn.transaction_type === 'credit' ? '+' : '-'}₦{Number(txn.amount).toLocaleString()}
                   </p>
                 </div>
               ))}
