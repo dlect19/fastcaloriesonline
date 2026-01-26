@@ -19,6 +19,8 @@ import { VendorSidebar } from '@/components/vendor/VendorSidebar';
 import { AccessDenied } from '@/components/vendor/AccessDenied';
 import { useAuth } from '@/hooks/useAuth';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
+import { useToast } from '@/hooks/use-toast';
+import { useVendorNotificationSound } from '@/hooks/useVendorNotificationSound';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables } from '@/integrations/supabase/types';
 
@@ -28,6 +30,8 @@ type Order = Tables<'orders'>;
 export default function VendorDashboard() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const { playNotification } = useVendorNotificationSound();
   const [vendor, setVendor] = useState<Vendor | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,6 +53,37 @@ export default function VendorDashboard() {
       fetchVendorData();
     }
   }, [user, authLoading, navigate]);
+
+  // Subscribe to real-time order updates for notifications
+  useEffect(() => {
+    if (!vendor) return;
+
+    const channel = supabase
+      .channel('vendor-dashboard-orders')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'orders',
+          filter: `vendor_id=eq.${vendor.id}`,
+        },
+        () => {
+          // Play notification sound for new orders
+          playNotification();
+          toast({
+            title: '🔔 New Order!',
+            description: 'You have a new order to process',
+          });
+          fetchVendorData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [vendor, playNotification, toast]);
 
   const fetchVendorData = async () => {
     try {

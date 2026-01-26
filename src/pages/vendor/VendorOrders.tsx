@@ -16,6 +16,7 @@ import { AccessDenied } from '@/components/vendor/AccessDenied';
 import { useAuth } from '@/hooks/useAuth';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
 import { useToast } from '@/hooks/use-toast';
+import { useVendorNotificationSound } from '@/hooks/useVendorNotificationSound';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables, Database } from '@/integrations/supabase/types';
 
@@ -48,6 +49,7 @@ export default function VendorOrders() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { playNotification } = useVendorNotificationSound();
   const [vendor, setVendor] = useState<Vendor | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,7 +83,8 @@ export default function VendorOrders() {
         },
         (payload) => {
           if (payload.eventType === 'INSERT') {
-            // Play notification sound or show toast for new orders
+            // Play notification sound for new orders
+            playNotification();
             toast({
               title: '🔔 New Order!',
               description: 'You have a new order to process',

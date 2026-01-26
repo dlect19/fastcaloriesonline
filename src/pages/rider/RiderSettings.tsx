@@ -3,13 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { RiderLayout } from '@/components/rider/RiderLayout';
 import { RiderFloatingWidget } from '@/components/rider/RiderFloatingWidget';
+import { EmailVerificationOTP } from '@/components/rider/EmailVerificationOTP';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
-import { Loader2, Save, MapPin, Volume2, Smartphone, ShieldCheck, Mail } from 'lucide-react';
+import { Loader2, Save, MapPin, Volume2, Smartphone, ShieldCheck, Mail, CheckCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useNotificationSound } from '@/hooks/useNotificationSound';
 
@@ -23,6 +24,9 @@ export default function RiderSettings() {
   const [floatModeEnabled, setFloatModeEnabled] = useState(false);
   const [profile, setProfile] = useState<any>(null);
   const [riderProfile, setRiderProfile] = useState<any>(null);
+  const [userEmail, setUserEmail] = useState('');
+  const [userId, setUserId] = useState('');
+  const [showEmailVerification, setShowEmailVerification] = useState(false);
 
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
@@ -47,6 +51,10 @@ export default function RiderSettings() {
       navigate('/rider/auth');
       return;
     }
+
+    setUserId(user.id);
+    setUserEmail(user.email || '');
+
 
     const { data: profileData } = await supabase
       .from('profiles')
@@ -178,11 +186,35 @@ export default function RiderSettings() {
     });
   };
 
+  const handleEmailVerified = async () => {
+    // Update rider profile to mark email as verified
+    await supabase
+      .from('rider_profiles')
+      .update({ is_email_verified: true })
+      .eq('user_id', userId);
+    
+    setRiderProfile((prev: any) => ({ ...prev, is_email_verified: true }));
+    setShowEmailVerification(false);
+    toast({ title: 'Email verified successfully!' });
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
+    );
+  }
+
+  if (showEmailVerification && userId && userEmail) {
+    return (
+      <EmailVerificationOTP 
+        email={userEmail}
+        userId={userId}
+        platform="rider"
+        onVerified={handleEmailVerified}
+        onBack={() => setShowEmailVerification(false)}
+      />
     );
   }
 
@@ -372,9 +404,17 @@ export default function RiderSettings() {
                   Email Verification
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {riderProfile?.is_email_verified ? 'Verified' : 'Pending - Check your email for verification code'}
+                  {riderProfile?.is_email_verified ? 'Verified' : 'Pending - Click to verify your email'}
                 </p>
               </div>
+              {!riderProfile?.is_email_verified && (
+                <Button size="sm" variant="outline" onClick={() => setShowEmailVerification(true)}>
+                  Verify Now
+                </Button>
+              )}
+              {riderProfile?.is_email_verified && (
+                <CheckCircle className="w-5 h-5 text-calorie-low" />
+              )}
             </div>
 
             {/* NIN Verification */}
