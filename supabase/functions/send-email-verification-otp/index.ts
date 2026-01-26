@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
     const platformName = platform === 'rider' ? 'Rider' : platform === 'vendor' ? 'Vendor' : 'User';
     
     const { error: emailError } = await resend.emails.send({
-      from: 'Fast Calories <noreply@fastcalories.ng>',
+      from: 'Fast Calories <noreply@fastcalories.online>',
       to: [email],
       subject: `Your Fast Calories ${platformName} Verification Code`,
       html: `
