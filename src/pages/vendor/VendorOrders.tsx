@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { VendorSidebar } from '@/components/vendor/VendorSidebar';
 import { AccessDenied } from '@/components/vendor/AccessDenied';
+import { OrderRiderInfo } from '@/components/vendor/OrderRiderInfo';
 import { useAuth } from '@/hooks/useAuth';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
 import { useToast } from '@/hooks/use-toast';
@@ -82,14 +83,33 @@ export default function VendorOrders() {
           filter: `vendor_id=eq.${vendor.id}`,
         },
         (payload) => {
+          const newOrder = payload.new as Order;
+          const oldOrder = payload.old as Partial<Order>;
+          
           if (payload.eventType === 'INSERT') {
-            // Play notification sound for new orders
             playNotification();
             toast({
               title: '🔔 New Order!',
               description: 'You have a new order to process',
             });
           }
+          
+          // Notify when rider is assigned
+          if (payload.eventType === 'UPDATE' && newOrder.rider_id && !oldOrder.rider_id) {
+            toast({
+              title: '🚴 Rider Assigned!',
+              description: `A rider has been assigned to order #${newOrder.order_number}`,
+            });
+          }
+          
+          // Notify when order is picked up
+          if (payload.eventType === 'UPDATE' && newOrder.status === 'picked_up' && oldOrder.status !== 'picked_up') {
+            toast({
+              title: '📦 Order Picked Up!',
+              description: `Order #${newOrder.order_number} has been picked up by the rider`,
+            });
+          }
+          
           fetchData();
         }
       )
@@ -280,7 +300,7 @@ export default function VendorOrders() {
             )}
           </div>
 
-          {order.status !== 'delivered' && order.status !== 'cancelled' && (
+          {order.status !== 'delivered' && order.status !== 'cancelled' && nextStatus && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="sm" className="gap-1">
@@ -306,6 +326,11 @@ export default function VendorOrders() {
             </DropdownMenu>
           )}
         </div>
+
+        {/* Rider Info */}
+        {order.rider_id && ['ready_for_pickup', 'picked_up', 'on_the_way', 'delivered'].includes(order.status) && (
+          <OrderRiderInfo riderId={order.rider_id} orderStatus={order.status} />
+        )}
       </div>
     );
   };

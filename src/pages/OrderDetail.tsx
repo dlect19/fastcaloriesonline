@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BottomNav } from '@/components/home/BottomNav';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ArrowLeft, Package, Check, Truck, MapPin, Phone, Loader2, Store, Clock, Bike, ShieldCheck } from 'lucide-react';
+import { RiderReviewForm } from '@/components/order/RiderReviewForm';
+import { ArrowLeft, Package, Check, Truck, MapPin, Phone, Loader2, Store, Clock, Bike, ShieldCheck, Star } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
@@ -27,6 +28,7 @@ export default function OrderDetail() {
   const [order, setOrder] = useState<any>(null);
   const [orderItems, setOrderItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasReviewed, setHasReviewed] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -55,6 +57,17 @@ export default function OrderDetail() {
         .eq('order_id', id);
 
       setOrderItems(items || []);
+
+      // Check if user has already reviewed this order
+      if (orderData?.status === 'delivered') {
+        const { data: review } = await supabase
+          .from('reviews')
+          .select('id')
+          .eq('order_id', id)
+          .maybeSingle();
+        
+        setHasReviewed(!!review);
+      }
     } catch (error) {
       console.error('Error fetching order:', error);
     } finally {
@@ -247,6 +260,26 @@ export default function OrderDetail() {
               </p>
             </AlertDescription>
           </Alert>
+        )}
+
+        {/* Review Form - Show after delivery */}
+        {order.status === 'delivered' && !hasReviewed && (
+          <RiderReviewForm
+            orderId={order.id}
+            riderId={order.rider_id}
+            vendorId={order.vendor_id}
+            onReviewSubmitted={() => setHasReviewed(true)}
+          />
+        )}
+
+        {/* Already reviewed message */}
+        {order.status === 'delivered' && hasReviewed && (
+          <Card className="border-calorie-low/30 bg-calorie-low/5">
+            <CardContent className="py-4 flex items-center gap-3">
+              <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />
+              <span className="text-muted-foreground">You've reviewed this order</span>
+            </CardContent>
+          </Card>
         )}
 
         <Card>
