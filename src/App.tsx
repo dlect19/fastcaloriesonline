@@ -28,6 +28,7 @@ import VendorSettings from "./pages/vendor/VendorSettings";
 import VendorPromos from "./pages/vendor/VendorPromos";
 import VendorRiders from "./pages/vendor/VendorRiders";
 import VendorStaff from "./pages/vendor/VendorStaff";
+import VendorStaffJoin from "./pages/vendor/VendorStaffJoin";
 import VendorRiderJoin from "./pages/rider/VendorRiderJoin";
 import RiderAuth from "./pages/rider/RiderAuth";
 import RiderDashboard from "./pages/rider/RiderDashboard";
@@ -43,6 +44,7 @@ import AdminRiders from "./pages/admin/AdminRiders";
 import AdminPromos from "./pages/admin/AdminPromos";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminStaff from "./pages/admin/AdminStaff";
+import AdminStaffJoin from "./pages/admin/AdminStaffJoin";
 import AdminSettings from "./pages/admin/AdminSettings";
 import NotFound from "./pages/NotFound";
 
@@ -81,6 +83,7 @@ const App = () => (
               <Route path="/vendor/promos" element={<VendorPromos />} />
               <Route path="/vendor/riders" element={<VendorRiders />} />
               <Route path="/vendor/staff" element={<VendorStaff />} />
+              <Route path="/vendor/staff/join/:code" element={<VendorStaffJoin />} />
               {/* Rider Portal Routes */}
               <Route path="/rider/auth" element={<RiderAuth />} />
               <Route path="/rider/dashboard" element={<RiderDashboard />} />
@@ -98,6 +101,7 @@ const App = () => (
               <Route path="/admin/promos" element={<AdminPromos />} />
               <Route path="/admin/users" element={<AdminUsers />} />
               <Route path="/admin/staff" element={<AdminStaff />} />
+              <Route path="/admin/staff/join/:code" element={<AdminStaffJoin />} />
               <Route path="/admin/settings" element={<AdminSettings />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />

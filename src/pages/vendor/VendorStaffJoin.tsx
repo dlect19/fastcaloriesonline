@@ -46,22 +46,24 @@ export default function VendorStaffJoin() {
 
   const fetchInvite = async () => {
     try {
-      // Look up the invite by code
+      // Look up the invite by code - using RPC or raw query to avoid type issues
       const { data: staffInvite, error: inviteError } = await supabase
         .from('vendor_staff')
-        .select('id, vendor_id, role, invite_email, invite_code, invite_accepted_at, is_active')
-        .eq('invite_code', code)
+        .select('id, vendor_id, role, invite_email, invite_code, invite_accepted_at, is_active, user_id')
+        .filter('invite_code', 'eq', code)
         .maybeSingle();
 
       if (inviteError) throw inviteError;
       
-      if (!staffInvite) {
+      const inviteData = staffInvite as any;
+      
+      if (!inviteData) {
         setError('Invalid or expired invite link');
         setLoading(false);
         return;
       }
 
-      if (staffInvite.invite_accepted_at) {
+      if (inviteData.invite_accepted_at) {
         setError('This invite has already been used');
         setLoading(false);
         return;
@@ -71,18 +73,18 @@ export default function VendorStaffJoin() {
       const { data: vendor } = await supabase
         .from('vendors')
         .select('name')
-        .eq('id', staffInvite.vendor_id)
+        .eq('id', inviteData.vendor_id)
         .single();
 
       setInvite({
-        id: staffInvite.id,
-        vendor_id: staffInvite.vendor_id,
-        role: staffInvite.role,
-        invite_email: staffInvite.invite_email || '',
+        id: inviteData.id,
+        vendor_id: inviteData.vendor_id,
+        role: inviteData.role,
+        invite_email: inviteData.invite_email || '',
         vendor_name: vendor?.name || 'Unknown Vendor'
       });
       
-      setEmail(staffInvite.invite_email || '');
+      setEmail(inviteData.invite_email || '');
     } catch (err) {
       console.error('Error fetching invite:', err);
       setError('Failed to load invite details');
@@ -228,7 +230,7 @@ export default function VendorStaffJoin() {
             // User is already logged in
             <div className="space-y-4">
               <div className="p-4 rounded-lg bg-secondary text-center">
-                <CheckCircle className="w-8 h-8 text-green-500 mx-auto mb-2" />
+                <CheckCircle className="w-8 h-8 text-primary mx-auto mb-2" />
                 <p className="font-medium">Logged in as</p>
                 <p className="text-muted-foreground">{user.email}</p>
               </div>
