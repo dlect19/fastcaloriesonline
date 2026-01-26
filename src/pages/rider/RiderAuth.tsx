@@ -115,47 +115,7 @@ export default function RiderAuth() {
     setLoading(true);
 
     try {
-      // Check if user already exists
-      const { data: existingUser } = await supabase.auth.signInWithPassword({
-        email: signupEmail,
-        password: signupPassword,
-      });
-
-      if (existingUser.user) {
-        // User exists, add rider role
-        const { data: existingRoles } = await supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', existingUser.user.id);
-
-        if (existingRoles?.some(r => r.role === 'rider')) {
-          toast({ title: 'Welcome back!' });
-          navigate('/rider/dashboard');
-          return;
-        }
-
-        // Add rider role
-        await supabase.from('user_roles').insert({
-          user_id: existingUser.user.id,
-          role: 'rider',
-        });
-
-        // Create rider profile
-        await supabase.from('rider_profiles').insert({
-          user_id: existingUser.user.id,
-          vehicle_type: vehicleType,
-          vehicle_plate: vehiclePlate,
-        });
-
-        toast({ title: 'Rider account linked successfully!' });
-        navigate('/rider/dashboard');
-        return;
-      }
-    } catch {
-      // User doesn't exist, continue with signup
-    }
-
-    try {
+      // First, try to sign up as a new user
       const redirectUrl = `${window.location.origin}/rider/dashboard`;
       
       const { data, error } = await supabase.auth.signUp({
@@ -169,14 +129,86 @@ export default function RiderAuth() {
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        // If user already exists, try to sign in and add rider role
+        if (error.message.includes('already registered') || error.message.includes('already exists')) {
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+            email: signupEmail,
+            password: signupPassword,
+          });
 
+          if (signInError) {
+            toast({
+              title: 'Account exists',
+              description: 'An account with this email already exists. Please login with your password.',
+              variant: 'destructive',
+            });
+            return;
+          }
+
+          if (signInData.user) {
+            // Check if already has rider role
+            const { data: existingRoles } = await supabase
+              .from('user_roles')
+              .select('role')
+              .eq('user_id', signInData.user.id);
+
+            if (existingRoles?.some(r => r.role === 'rider')) {
+              toast({ title: 'Welcome back!' });
+              navigate('/rider/dashboard');
+              return;
+            }
+
+            // Add rider role
+            const { error: roleError } = await supabase.from('user_roles').insert({
+              user_id: signInData.user.id,
+              role: 'rider',
+            });
+
+            if (roleError) {
+              console.error('Error adding rider role:', roleError);
+              toast({
+                title: 'Error adding rider access',
+                description: 'Please contact support.',
+                variant: 'destructive',
+              });
+              return;
+            }
+
+            // Create rider profile if not exists
+            const { data: existingProfile } = await supabase
+              .from('rider_profiles')
+              .select('id')
+              .eq('user_id', signInData.user.id)
+              .maybeSingle();
+
+            if (!existingProfile) {
+              await supabase.from('rider_profiles').insert({
+                user_id: signInData.user.id,
+                vehicle_type: vehicleType,
+                vehicle_plate: vehiclePlate,
+              });
+            }
+
+            toast({ title: 'Rider account linked successfully!' });
+            navigate('/rider/dashboard');
+            return;
+          }
+        }
+        throw error;
+      }
+
+      // New user created successfully
       if (data.user) {
         // Add rider role
-        await supabase.from('user_roles').insert({
+        const { error: roleError } = await supabase.from('user_roles').insert({
           user_id: data.user.id,
           role: 'rider',
         });
+
+        if (roleError) {
+          console.error('Error adding rider role:', roleError);
+        }
 
         // Create rider profile
         await supabase.from('rider_profiles').insert({
