@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.send-staff-invite-email]
 verify_jwt = false
+
+[functions.create-staff-account]
+verify_jwt = false
