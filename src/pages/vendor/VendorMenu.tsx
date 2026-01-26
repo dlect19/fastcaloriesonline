@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit2, Trash2, Search, Flame } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, Flame, Wheat, Drumstick, Droplets, Leaf } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -19,10 +20,11 @@ import { VendorSidebar } from '@/components/vendor/VendorSidebar';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import type { Tables } from '@/integrations/supabase/types';
+import type { Tables, Database } from '@/integrations/supabase/types';
 
 type Product = Tables<'products'>;
 type Vendor = Tables<'vendors'>;
+type CalorieClass = Database['public']['Enums']['calorie_class'];
 
 const getCategoryLabels = (category: string | undefined) => {
   switch (category) {
@@ -92,7 +94,28 @@ export default function VendorMenu() {
     carbs_grams: '',
     fats_grams: '',
     is_available: true,
+    calorie_classes: [] as CalorieClass[],
   });
+
+  // Auto-calculate calories from macros
+  const calculateCalories = (carbs: number, protein: number, fats: number) => {
+    return Math.round((carbs * 4) + (protein * 4) + (fats * 9));
+  };
+
+  const calculatedCalories = calculateCalories(
+    parseFloat(formData.carbs_grams) || 0,
+    parseFloat(formData.protein_grams) || 0,
+    parseFloat(formData.fats_grams) || 0
+  );
+
+  const toggleCalorieClass = (cls: CalorieClass) => {
+    setFormData(prev => ({
+      ...prev,
+      calorie_classes: prev.calorie_classes.includes(cls)
+        ? prev.calorie_classes.filter(c => c !== cls)
+        : [...prev.calorie_classes, cls]
+    }));
+  };
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -137,16 +160,22 @@ export default function VendorMenu() {
     if (!vendor) return;
 
     try {
+      // Use auto-calculated calories if no manual override, or if manual is empty
+      const finalCalories = formData.calories 
+        ? parseInt(formData.calories) 
+        : (calculatedCalories > 0 ? calculatedCalories : null);
+
       const productData = {
         vendor_id: vendor.id,
         name: formData.name,
         description: formData.description || null,
         price: parseFloat(formData.price),
-        calories: formData.calories ? parseInt(formData.calories) : null,
+        calories: finalCalories,
         protein_grams: formData.protein_grams ? parseFloat(formData.protein_grams) : null,
         carbs_grams: formData.carbs_grams ? parseFloat(formData.carbs_grams) : null,
         fats_grams: formData.fats_grams ? parseFloat(formData.fats_grams) : null,
         is_available: formData.is_available,
+        calorie_classes: formData.calorie_classes.length > 0 ? formData.calorie_classes : null,
       };
 
       if (editingProduct) {
@@ -189,6 +218,7 @@ export default function VendorMenu() {
       carbs_grams: product.carbs_grams?.toString() || '',
       fats_grams: product.fats_grams?.toString() || '',
       is_available: product.is_available ?? true,
+      calorie_classes: (product.calorie_classes as CalorieClass[]) || [],
     });
     setDialogOpen(true);
   };
@@ -243,6 +273,7 @@ export default function VendorMenu() {
       carbs_grams: '',
       fats_grams: '',
       is_available: true,
+      calorie_classes: [],
     });
   };
 
@@ -331,50 +362,123 @@ export default function VendorMenu() {
                     />
                   </div>
 
+                  {/* Food Classes - Only show for restaurants */}
+                  {vendor?.category === 'restaurant' && (
+                    <div className="border-t pt-4">
+                      <p className="text-sm font-medium mb-3">Food Classes</p>
+                      <div className="flex flex-wrap gap-3">
+                        {([
+                          { id: 'carbs' as CalorieClass, label: 'Carbohydrate', icon: Wheat },
+                          { id: 'protein' as CalorieClass, label: 'Protein', icon: Drumstick },
+                          { id: 'fats' as CalorieClass, label: 'Fat', icon: Droplets },
+                          { id: 'fiber' as CalorieClass, label: 'Fiber', icon: Leaf },
+                        ]).map(({ id, label, icon: Icon }) => (
+                          <label
+                            key={id}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
+                              formData.calorie_classes.includes(id)
+                                ? 'bg-primary/10 border-primary text-primary'
+                                : 'bg-muted/50 border-border hover:border-primary/50'
+                            }`}
+                          >
+                            <Checkbox
+                              checked={formData.calorie_classes.includes(id)}
+                              onCheckedChange={() => toggleCalorieClass(id)}
+                            />
+                            <Icon className="w-4 h-4" />
+                            <span className="text-sm">{label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="border-t pt-4">
                     <p className="text-sm font-medium mb-3">Nutrition Information</p>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-2">
-                        <Label htmlFor="calories">Calories</Label>
+                        <Label htmlFor="carbs">Carbs (g)</Label>
+                        <div className="relative">
+                          <Input
+                            id="carbs"
+                            type="number"
+                            step="0.1"
+                            value={formData.carbs_grams}
+                            onChange={(e) => setFormData({ ...formData, carbs_grams: e.target.value })}
+                          />
+                          {formData.carbs_grams && (
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                              = {Math.round(parseFloat(formData.carbs_grams) * 4)} kcal
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="protein">Protein (g)</Label>
+                        <div className="relative">
+                          <Input
+                            id="protein"
+                            type="number"
+                            step="0.1"
+                            value={formData.protein_grams}
+                            onChange={(e) => setFormData({ ...formData, protein_grams: e.target.value })}
+                          />
+                          {formData.protein_grams && (
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                              = {Math.round(parseFloat(formData.protein_grams) * 4)} kcal
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="fats">Fats (g)</Label>
+                        <div className="relative">
+                          <Input
+                            id="fats"
+                            type="number"
+                            step="0.1"
+                            value={formData.fats_grams}
+                            onChange={(e) => setFormData({ ...formData, fats_grams: e.target.value })}
+                          />
+                          {formData.fats_grams && (
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                              = {Math.round(parseFloat(formData.fats_grams) * 9)} kcal
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="calories">
+                          Total Calories
+                          {calculatedCalories > 0 && !formData.calories && (
+                            <span className="ml-2 text-xs text-primary font-normal">(auto)</span>
+                          )}
+                        </Label>
                         <Input
                           id="calories"
                           type="number"
                           value={formData.calories}
                           onChange={(e) => setFormData({ ...formData, calories: e.target.value })}
-                          placeholder="kcal"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="protein">Protein (g)</Label>
-                        <Input
-                          id="protein"
-                          type="number"
-                          step="0.1"
-                          value={formData.protein_grams}
-                          onChange={(e) => setFormData({ ...formData, protein_grams: e.target.value })}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="carbs">Carbs (g)</Label>
-                        <Input
-                          id="carbs"
-                          type="number"
-                          step="0.1"
-                          value={formData.carbs_grams}
-                          onChange={(e) => setFormData({ ...formData, carbs_grams: e.target.value })}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="fats">Fats (g)</Label>
-                        <Input
-                          id="fats"
-                          type="number"
-                          step="0.1"
-                          value={formData.fats_grams}
-                          onChange={(e) => setFormData({ ...formData, fats_grams: e.target.value })}
+                          placeholder={calculatedCalories > 0 ? `${calculatedCalories} (calculated)` : 'kcal'}
                         />
                       </div>
                     </div>
+                    {calculatedCalories > 0 && (
+                      <div className="mt-3 p-3 bg-primary/5 rounded-lg border border-primary/20">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Calculated from macros:</span>
+                          <span className="font-semibold text-primary flex items-center gap-1">
+                            <Flame className="w-4 h-4" />
+                            {calculatedCalories} kcal
+                          </span>
+                        </div>
+                        <div className="flex gap-3 mt-2 text-xs text-muted-foreground">
+                          {formData.carbs_grams && <span>C: {formData.carbs_grams}g × 4</span>}
+                          {formData.protein_grams && <span>P: {formData.protein_grams}g × 4</span>}
+                          {formData.fats_grams && <span>F: {formData.fats_grams}g × 9</span>}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center justify-between border-t pt-4">
@@ -437,16 +541,29 @@ export default function VendorMenu() {
                   )}
 
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-semibold text-foreground truncate">{product.name}</h3>
                       {!product.is_available && (
                         <Badge variant="secondary" className="text-xs">Unavailable</Badge>
+                      )}
+                      {/* Food class badges */}
+                      {product.calorie_classes && (product.calorie_classes as string[]).length > 0 && (
+                        <div className="flex gap-1">
+                          {(product.calorie_classes as string[]).map((cls) => (
+                            <Badge key={cls} variant="outline" className="text-xs py-0 px-1.5">
+                              {cls === 'carbs' && <Wheat className="w-3 h-3" />}
+                              {cls === 'protein' && <Drumstick className="w-3 h-3" />}
+                              {cls === 'fats' && <Droplets className="w-3 h-3" />}
+                              {cls === 'fiber' && <Leaf className="w-3 h-3" />}
+                            </Badge>
+                          ))}
+                        </div>
                       )}
                     </div>
                     <p className="text-sm text-muted-foreground line-clamp-1">
                       {product.description || 'No description'}
                     </p>
-                    <div className="flex items-center gap-3 mt-1">
+                    <div className="flex items-center gap-3 mt-1 flex-wrap">
                       <span className="font-bold text-primary">
                         ₦{product.price.toLocaleString()}
                       </span>
@@ -454,6 +571,16 @@ export default function VendorMenu() {
                         <span className="text-xs text-muted-foreground flex items-center gap-1">
                           <Flame className="w-3 h-3" />
                           {product.calories} cal
+                        </span>
+                      )}
+                      {/* Macro breakdown */}
+                      {(product.carbs_grams || product.protein_grams || product.fats_grams) && (
+                        <span className="text-xs text-muted-foreground">
+                          {product.carbs_grams && `C: ${product.carbs_grams}g`}
+                          {product.carbs_grams && product.protein_grams && ' | '}
+                          {product.protein_grams && `P: ${product.protein_grams}g`}
+                          {(product.carbs_grams || product.protein_grams) && product.fats_grams && ' | '}
+                          {product.fats_grams && `F: ${product.fats_grams}g`}
                         </span>
                       )}
                     </div>
