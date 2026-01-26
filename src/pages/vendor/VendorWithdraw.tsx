@@ -12,7 +12,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { VendorSidebar } from '@/components/vendor/VendorSidebar';
+import { AccessDenied } from '@/components/vendor/AccessDenied';
 import { useAuth } from '@/hooks/useAuth';
+import { useVendorPermissions } from '@/hooks/useVendorPermissions';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { Tables } from '@/integrations/supabase/types';
@@ -80,6 +82,8 @@ export default function VendorWithdraw() {
   const [autoWithdraw, setAutoWithdraw] = useState(false);
   const [autoWithdrawThreshold, setAutoWithdrawThreshold] = useState('5000');
   const [autoWithdrawDay, setAutoWithdrawDay] = useState('1');
+
+  const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendor?.id || null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -332,7 +336,7 @@ export default function VendorWithdraw() {
     }
   };
 
-  if (authLoading || loading) {
+  if (authLoading || loading || permLoading) {
     return (
       <div className="min-h-screen bg-background">
         <VendorSidebar />
@@ -350,9 +354,20 @@ export default function VendorWithdraw() {
     );
   }
 
+  if (!hasPermission('request_withdrawal')) {
+    return (
+      <div className="min-h-screen bg-background">
+        <VendorSidebar vendorName={vendor?.name} permissions={permissions} />
+        <main className="lg:ml-64 pt-14 lg:pt-0">
+          <AccessDenied message="You don't have permission to request withdrawals." />
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
-      <VendorSidebar vendorName={vendor?.name} />
+      <VendorSidebar vendorName={vendor?.name} permissions={permissions} />
 
       <main className="lg:ml-64 pt-14 lg:pt-0">
         <div className="p-6 space-y-6">

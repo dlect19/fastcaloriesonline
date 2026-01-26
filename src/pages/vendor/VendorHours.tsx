@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clock, Save } from 'lucide-react';
+import { Clock, Save, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Skeleton } from '@/components/ui/skeleton';
 import { VendorSidebar } from '@/components/vendor/VendorSidebar';
+import { AccessDenied } from '@/components/vendor/AccessDenied';
 import { useAuth } from '@/hooks/useAuth';
+import { useVendorPermissions } from '@/hooks/useVendorPermissions';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables } from '@/integrations/supabase/types';
@@ -47,6 +49,8 @@ export default function VendorHours() {
       is_closed: day.id === 0, // Sunday closed by default
     }))
   );
+
+  const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendor?.id || null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -148,7 +152,7 @@ export default function VendorHours() {
     );
   };
 
-  if (authLoading || loading) {
+  if (authLoading || loading || permLoading) {
     return (
       <div className="min-h-screen bg-background">
         <VendorSidebar />
@@ -162,9 +166,20 @@ export default function VendorHours() {
     );
   }
 
+  if (!hasPermission('edit_settings')) {
+    return (
+      <div className="min-h-screen bg-background">
+        <VendorSidebar vendorName={vendor?.name} permissions={permissions} />
+        <main className="lg:ml-64 pt-14 lg:pt-0">
+          <AccessDenied message="You don't have permission to edit working hours." />
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
-      <VendorSidebar vendorName={vendor?.name} />
+      <VendorSidebar vendorName={vendor?.name} permissions={permissions} />
 
       <main className="lg:ml-64 pt-14 lg:pt-0">
         <div className="p-6 space-y-6">

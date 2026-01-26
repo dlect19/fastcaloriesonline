@@ -19,26 +19,35 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useState } from 'react';
+import { VendorPermission } from '@/hooks/useVendorPermissions';
 
-const navItems = [
-  { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', path: '/vendor/dashboard' },
-  { id: 'menu', icon: UtensilsCrossed, label: 'Menu', path: '/vendor/menu' },
-  { id: 'orders', icon: ShoppingBag, label: 'Orders', path: '/vendor/orders' },
-  { id: 'promos', icon: Ticket, label: 'Promos', path: '/vendor/promos' },
-  { id: 'riders', icon: Users, label: 'My Riders', path: '/vendor/riders' },
-  { id: 'staff', icon: Users, label: 'Staff', path: '/vendor/staff' },
-  { id: 'reviews', icon: Star, label: 'Reviews', path: '/vendor/reviews' },
-  { id: 'earnings', icon: Wallet, label: 'Earnings', path: '/vendor/earnings' },
-  { id: 'withdraw', icon: ArrowUpRight, label: 'Withdraw', path: '/vendor/withdraw' },
-  { id: 'hours', icon: Clock, label: 'Working Hours', path: '/vendor/hours' },
-  { id: 'settings', icon: Settings, label: 'Settings', path: '/vendor/settings' },
+// Map nav items to required permissions
+const navItems: { 
+  id: string; 
+  icon: typeof LayoutDashboard; 
+  label: string; 
+  path: string;
+  permission?: VendorPermission;
+}[] = [
+  { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', path: '/vendor/dashboard', permission: 'view_dashboard' },
+  { id: 'menu', icon: UtensilsCrossed, label: 'Menu', path: '/vendor/menu', permission: 'manage_menu' },
+  { id: 'orders', icon: ShoppingBag, label: 'Orders', path: '/vendor/orders', permission: 'process_orders' },
+  { id: 'promos', icon: Ticket, label: 'Promos', path: '/vendor/promos', permission: 'manage_promos' },
+  { id: 'riders', icon: Users, label: 'My Riders', path: '/vendor/riders', permission: 'manage_riders' },
+  { id: 'staff', icon: Users, label: 'Staff', path: '/vendor/staff', permission: 'manage_staff' },
+  { id: 'reviews', icon: Star, label: 'Reviews', path: '/vendor/reviews', permission: 'view_dashboard' },
+  { id: 'earnings', icon: Wallet, label: 'Earnings', path: '/vendor/earnings', permission: 'view_earnings' },
+  { id: 'withdraw', icon: ArrowUpRight, label: 'Withdraw', path: '/vendor/withdraw', permission: 'request_withdrawal' },
+  { id: 'hours', icon: Clock, label: 'Working Hours', path: '/vendor/hours', permission: 'edit_settings' },
+  { id: 'settings', icon: Settings, label: 'Settings', path: '/vendor/settings', permission: 'edit_settings' },
 ];
 
 interface VendorSidebarProps {
   vendorName?: string;
+  permissions?: VendorPermission[];
 }
 
-export function VendorSidebar({ vendorName = 'My Restaurant' }: VendorSidebarProps) {
+export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [] }: VendorSidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
@@ -47,6 +56,12 @@ export function VendorSidebar({ vendorName = 'My Restaurant' }: VendorSidebarPro
     await supabase.auth.signOut();
     navigate('/vendor/auth');
   };
+
+  // Filter nav items based on user permissions
+  // If no permissions are passed (owner/loading), show all items
+  const visibleItems = permissions.length > 0 
+    ? navItems.filter(item => !item.permission || permissions.includes(item.permission))
+    : navItems;
 
   return (
     <>
@@ -97,7 +112,7 @@ export function VendorSidebar({ vendorName = 'My Restaurant' }: VendorSidebarPro
 
         {/* Navigation */}
         <nav className="p-3 space-y-1">
-          {navItems.map((item) => {
+          {visibleItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
 

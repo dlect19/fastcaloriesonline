@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clock, CheckCircle, XCircle, Package, ChevronDown } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, Package, ChevronDown, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -12,7 +12,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { VendorSidebar } from '@/components/vendor/VendorSidebar';
+import { AccessDenied } from '@/components/vendor/AccessDenied';
 import { useAuth } from '@/hooks/useAuth';
+import { useVendorPermissions } from '@/hooks/useVendorPermissions';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables, Database } from '@/integrations/supabase/types';
@@ -50,6 +52,8 @@ export default function VendorOrders() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('active');
+
+  const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendor?.id || null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -159,7 +163,7 @@ export default function VendorOrders() {
     });
   };
 
-  if (authLoading || loading) {
+  if (authLoading || loading || permLoading) {
     return (
       <div className="min-h-screen bg-background">
         <VendorSidebar />
@@ -172,6 +176,17 @@ export default function VendorOrders() {
               ))}
             </div>
           </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (!hasPermission('process_orders')) {
+    return (
+      <div className="min-h-screen bg-background">
+        <VendorSidebar vendorName={vendor?.name} permissions={permissions} />
+        <main className="lg:ml-64 pt-14 lg:pt-0">
+          <AccessDenied message="You don't have permission to manage orders." />
         </main>
       </div>
     );
@@ -243,7 +258,7 @@ export default function VendorOrders() {
 
   return (
     <div className="min-h-screen bg-background">
-      <VendorSidebar vendorName={vendor?.name} />
+      <VendorSidebar vendorName={vendor?.name} permissions={permissions} />
 
       <main className="lg:ml-64 pt-14 lg:pt-0">
         <div className="p-6 space-y-6">
