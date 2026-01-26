@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit2, Trash2, Search, Flame, Wheat, Drumstick, Droplets, Leaf, Droplet, Apple, Gem } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, Flame, Wheat, Drumstick, Droplets, Leaf, Droplet, Apple, Gem, ImagePlus, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -96,6 +96,12 @@ export default function VendorMenu() {
     { value: 'per bowl', label: 'Per Bowl' },
   ];
 
+  // Image upload state
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // Form state
   const [formData, setFormData] = useState({
     name: '',
@@ -110,6 +116,7 @@ export default function VendorMenu() {
     is_available: true,
     calorie_classes: [] as CalorieClass[],
     nutrient_tags: [] as NutrientTag[],
+    image_url: '' as string,
   });
 
   // Auto-calculate calories from macros (fiber ~2 kcal/g)
@@ -207,11 +214,83 @@ export default function VendorMenu() {
     }
   };
 
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: 'Invalid file type',
+        description: 'Please select an image file',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: 'File too large',
+        description: 'Please select an image under 5MB',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  };
+
+  const removeImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+    setFormData(prev => ({ ...prev, image_url: '' }));
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const uploadImage = async (): Promise<string | null> => {
+    if (!imageFile || !vendor) return formData.image_url || null;
+
+    setUploadingImage(true);
+    try {
+      const fileExt = imageFile.name.split('.').pop();
+      const fileName = `product-${Date.now()}.${fileExt}`;
+      const filePath = `${vendor.user_id}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('vendor-assets')
+        .upload(filePath, imageFile);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('vendor-assets')
+        .getPublicUrl(filePath);
+
+      return publicUrl;
+    } catch (error: any) {
+      toast({
+        title: 'Image upload failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+      return null;
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!vendor) return;
 
     try {
+      // Upload image first if there's a new one
+      const imageUrl = await uploadImage();
+
       // Use auto-calculated calories if no manual override, or if manual is empty
       const finalCalories = formData.calories 
         ? parseInt(formData.calories) 
@@ -231,6 +310,7 @@ export default function VendorMenu() {
         is_available: formData.is_available,
         calorie_classes: formData.calorie_classes.length > 0 ? formData.calorie_classes : null,
         nutrient_tags: formData.nutrient_tags.length > 0 ? formData.nutrient_tags : null,
+        image_url: imageUrl,
       };
 
       if (editingProduct) {
@@ -268,7 +348,7 @@ export default function VendorMenu() {
       name: product.name,
       description: product.description || '',
       price: product.price.toString(),
-      serving_unit: ((product as any).serving_unit as ServingUnit) || 'per plate',
+      serving_unit: (product.serving_unit as ServingUnit) || 'per plate',
       calories: product.calories?.toString() || '',
       protein_grams: product.protein_grams?.toString() || '',
       carbs_grams: product.carbs_grams?.toString() || '',
@@ -276,8 +356,13 @@ export default function VendorMenu() {
       fiber_grams: product.fiber_grams?.toString() || '',
       is_available: product.is_available ?? true,
       calorie_classes: (product.calorie_classes as CalorieClass[]) || [],
-      nutrient_tags: ((product as any).nutrient_tags as NutrientTag[]) || [],
+      nutrient_tags: (product.nutrient_tags as NutrientTag[]) || [],
+      image_url: product.image_url || '',
     });
+    // Set image preview from existing URL
+    if (product.image_url) {
+      setImagePreview(product.image_url);
+    }
     setDialogOpen(true);
   };
 
@@ -322,6 +407,11 @@ export default function VendorMenu() {
 
   const resetForm = () => {
     setEditingProduct(null);
+    setImageFile(null);
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
     setFormData({
       name: '',
       description: '',
@@ -335,6 +425,7 @@ export default function VendorMenu() {
       is_available: true,
       calorie_classes: [],
       nutrient_tags: [],
+      image_url: '',
     });
   };
 
@@ -418,6 +509,44 @@ export default function VendorMenu() {
                       onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                       rows={2}
                     />
+                  </div>
+
+                  {/* Image Upload */}
+                  <div className="space-y-2">
+                    <Label>Product Image</Label>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageSelect}
+                      className="hidden"
+                    />
+                    {imagePreview ? (
+                      <div className="relative w-full h-40 rounded-lg overflow-hidden bg-secondary">
+                        <img
+                          src={imagePreview}
+                          alt="Product preview"
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={removeImage}
+                          className="absolute top-2 right-2 p-1.5 rounded-full bg-background/80 hover:bg-background text-foreground shadow-sm"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-full h-32 border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center gap-2 hover:border-primary/50 hover:bg-primary/5 transition-colors"
+                      >
+                        <ImagePlus className="w-8 h-8 text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground">Click to upload image</span>
+                        <span className="text-xs text-muted-foreground">Max 5MB</span>
+                      </button>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
@@ -631,8 +760,15 @@ export default function VendorMenu() {
                     />
                   </div>
 
-                  <Button type="submit" className="w-full">
-                    {editingProduct ? `Update ${labels.itemSingular.charAt(0).toUpperCase() + labels.itemSingular.slice(1)}` : labels.addButton}
+                  <Button type="submit" className="w-full" disabled={uploadingImage}>
+                    {uploadingImage ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      editingProduct ? `Update ${labels.itemSingular.charAt(0).toUpperCase() + labels.itemSingular.slice(1)}` : labels.addButton
+                    )}
                   </Button>
                 </form>
               </DialogContent>
