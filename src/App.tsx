@@ -29,6 +29,7 @@ import VendorPromos from "./pages/vendor/VendorPromos";
 import VendorRiders from "./pages/vendor/VendorRiders";
 import VendorStaff from "./pages/vendor/VendorStaff";
 import VendorStaffJoin from "./pages/vendor/VendorStaffJoin";
+import VendorStaffLogin from "./pages/vendor/VendorStaffLogin";
 import VendorRiderJoin from "./pages/rider/VendorRiderJoin";
 import RiderAuth from "./pages/rider/RiderAuth";
 import RiderDashboard from "./pages/rider/RiderDashboard";
@@ -84,6 +85,7 @@ const App = () => (
               <Route path="/vendor/riders" element={<VendorRiders />} />
               <Route path="/vendor/staff" element={<VendorStaff />} />
               <Route path="/vendor/staff/join/:code" element={<VendorStaffJoin />} />
+              <Route path="/vendor/staff-login/:vendorId?" element={<VendorStaffLogin />} />
               {/* Rider Portal Routes */}
               <Route path="/rider/auth" element={<RiderAuth />} />
               <Route path="/rider/dashboard" element={<RiderDashboard />} />

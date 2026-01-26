@@ -180,9 +180,26 @@ const handler = async (req: Request): Promise<Response> => {
     let userId: string;
 
     if (existingUser) {
-      // User exists, use their ID
+      // User exists - UPDATE their password so emailed credentials work
       userId = existingUser.id;
-      console.log(`User ${email} already exists, linking to staff record`);
+      console.log(`User ${email} already exists, updating password and linking to staff record`);
+      
+      // Update the user's password to match what we'll send in the email
+      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+        password: password,
+        email_confirm: true,
+        user_metadata: {
+          ...existingUser.user_metadata,
+          full_name: fullName
+        }
+      });
+      
+      if (updateError) {
+        console.error("Error updating user password:", updateError);
+        throw new Error(`Failed to update user credentials: ${updateError.message}`);
+      }
+      
+      console.log(`Password updated for existing user ${email}`);
     } else {
       // Create new user account
       const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
@@ -205,44 +222,93 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Create staff record based on platform
     if (platform === "vendor") {
-      const { error: staffError } = await supabaseAdmin
+      // Check if staff record already exists
+      const { data: existingStaff } = await supabaseAdmin
         .from('vendor_staff')
-        .insert({
-          vendor_id: vendorId,
-          user_id: userId,
-          role: role,
-          invite_email: email,
-          invited_by: inviterId,
-          is_active: true,
-          invite_accepted_at: new Date().toISOString()
-        });
+        .select('id')
+        .eq('vendor_id', vendorId)
+        .eq('user_id', userId)
+        .maybeSingle();
 
-      if (staffError) {
-        console.error("Error creating vendor staff record:", staffError);
-        throw new Error(`Failed to create staff record: ${staffError.message}`);
+      if (existingStaff) {
+        // Update existing staff record
+        const { error: staffError } = await supabaseAdmin
+          .from('vendor_staff')
+          .update({
+            role: role,
+            is_active: true,
+            invite_accepted_at: new Date().toISOString()
+          })
+          .eq('id', existingStaff.id);
+
+        if (staffError) {
+          console.error("Error updating vendor staff record:", staffError);
+          throw new Error(`Failed to update staff record: ${staffError.message}`);
+        }
+      } else {
+        const { error: staffError } = await supabaseAdmin
+          .from('vendor_staff')
+          .insert({
+            vendor_id: vendorId,
+            user_id: userId,
+            role: role,
+            invite_email: email,
+            invited_by: inviterId,
+            is_active: true,
+            invite_accepted_at: new Date().toISOString()
+          });
+
+        if (staffError) {
+          console.error("Error creating vendor staff record:", staffError);
+          throw new Error(`Failed to create staff record: ${staffError.message}`);
+        }
       }
     } else {
-      const { error: staffError } = await supabaseAdmin
+      // Check if admin staff record already exists
+      const { data: existingStaff } = await supabaseAdmin
         .from('admin_staff')
-        .insert({
-          user_id: userId,
-          role: role,
-          invite_email: email,
-          invited_by: inviterId,
-          is_active: true,
-          invite_accepted_at: new Date().toISOString()
-        });
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle();
 
-      if (staffError) {
-        console.error("Error creating admin staff record:", staffError);
-        throw new Error(`Failed to create staff record: ${staffError.message}`);
+      if (existingStaff) {
+        // Update existing staff record
+        const { error: staffError } = await supabaseAdmin
+          .from('admin_staff')
+          .update({
+            role: role,
+            is_active: true,
+            invite_accepted_at: new Date().toISOString()
+          })
+          .eq('id', existingStaff.id);
+
+        if (staffError) {
+          console.error("Error updating admin staff record:", staffError);
+          throw new Error(`Failed to update staff record: ${staffError.message}`);
+        }
+      } else {
+        const { error: staffError } = await supabaseAdmin
+          .from('admin_staff')
+          .insert({
+            user_id: userId,
+            role: role,
+            invite_email: email,
+            invited_by: inviterId,
+            is_active: true,
+            invite_accepted_at: new Date().toISOString()
+          });
+
+        if (staffError) {
+          console.error("Error creating admin staff record:", staffError);
+          throw new Error(`Failed to create staff record: ${staffError.message}`);
+        }
       }
     }
 
-    // Determine workspace URL
+    // Determine workspace URL - use staff-specific login page for vendors
     const baseUrl = req.headers.get('origin') || 'https://fastcalories.online';
     const workspaceUrl = platform === "vendor" 
-      ? `${baseUrl}/vendor/auth`
+      ? `${baseUrl}/vendor/staff-login/${vendorId}`
       : `${baseUrl}/admin/auth`;
 
     // Send credentials email
