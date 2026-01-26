@@ -177,7 +177,7 @@ export function ActionHints() {
       title: order.vendor_name || `Order ${order.order_number}`,
       description: statusLabels[order.status] || order.status,
       icon: getStatusIcon(order.status),
-      action: () => navigate(`/order/${order.id}`),
+      action: () => navigate(`/orders/${order.id}`),
       priority: 1 + index * 0.1,
       dismissable: false,
       color: order.status === 'on_the_way' ? 'bg-primary' : 'bg-info',
