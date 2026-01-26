@@ -39,12 +39,24 @@ export default function AdminUsers() {
 
   const fetchUsers = async () => {
     try {
-      const { data } = await supabase
+      // Fetch profiles first
+      const { data: profilesData } = await supabase
         .from('profiles')
-        .select('*, user_roles(role)')
+        .select('*')
         .order('created_at', { ascending: false });
 
-      setUsers(data || []);
+      // Fetch all user roles separately
+      const { data: rolesData } = await supabase
+        .from('user_roles')
+        .select('user_id, role');
+
+      // Merge roles into profiles
+      const usersWithRoles = profilesData?.map(profile => ({
+        ...profile,
+        roles: rolesData?.filter(r => r.user_id === profile.user_id).map(r => r.role) || []
+      })) || [];
+
+      setUsers(usersWithRoles);
     } catch (error) {
       console.error('Error fetching users:', error);
     } finally {
@@ -108,7 +120,7 @@ export default function AdminUsers() {
                       <td className="py-3 px-4">{user.full_name || 'N/A'}</td>
                       <td className="py-3 px-4">{user.phone || 'N/A'}</td>
                       <td className="py-3 px-4">
-                        {user.user_roles?.map((r: any) => r.role).join(', ') || 'customer'}
+                        {user.roles?.join(', ') || 'customer'}
                       </td>
                       <td className="py-3 px-4 text-muted-foreground">
                         {format(new Date(user.created_at), 'PP')}
