@@ -259,6 +259,65 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
     }
   };
 
+  const handleResendInvite = async (member: StaffMember) => {
+    if (!member.invite_email) return;
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      // Get vendor name for the email
+      const { data: vendor } = await supabase
+        .from('vendors')
+        .select('name')
+        .eq('id', vendorId)
+        .single();
+      
+      // Get inviter's profile name
+      const { data: inviterProfile } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('user_id', user?.id)
+        .single();
+
+      // Get invite code from database
+      const { data: staffRecord } = await supabase
+        .from('vendor_staff')
+        .select('invite_code')
+        .eq('id', member.id)
+        .single();
+
+      if (!staffRecord?.invite_code) {
+        toast({ title: 'No invite code found', variant: 'destructive' });
+        return;
+      }
+
+      const inviteLink = `${window.location.origin}/vendor/staff/join/${staffRecord.invite_code}`;
+      
+      const { error: emailError } = await supabase.functions.invoke('send-staff-invite-email', {
+        body: {
+          email: member.invite_email,
+          inviteUrl: inviteLink,
+          inviterName: inviterProfile?.full_name || 'A team member',
+          role: member.role,
+          platform: 'vendor',
+          vendorName: vendor?.name
+        }
+      });
+      
+      if (emailError) {
+        throw emailError;
+      }
+      
+      toast({ 
+        title: 'Invite resent!', 
+        description: `Email sent to ${member.invite_email}`,
+      });
+    } catch (error) {
+      console.error('Error resending invite:', error);
+      toast({ title: 'Error resending invite', variant: 'destructive' });
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -443,7 +502,17 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
                         ? format(new Date(member.invite_accepted_at), 'PP')
                         : 'Not yet'}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right space-x-1">
+                      {member.role !== 'owner' && !member.invite_accepted_at && member.invite_email && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleResendInvite(member)}
+                          title="Resend invite email"
+                        >
+                          <Mail className="w-4 h-4 text-primary" />
+                        </Button>
+                      )}
                       {member.role !== 'owner' && (
                         <Button
                           variant="ghost"
