@@ -62,14 +62,12 @@ Deno.serve(async (req) => {
 
     console.log(`Finding riders near vendor ${vendorId} at ${vendorLat}, ${vendorLon}`);
 
-    // Fetch online riders with location
+    // Fetch online riders with location and work preferences
     const { data: riders, error: ridersError } = await supabase
       .from('rider_profiles')
-      .select('id, user_id, current_latitude, current_longitude, is_online, vehicle_type, affiliated_vendor_id')
+      .select('id, user_id, current_latitude, current_longitude, is_online, vehicle_type, affiliated_vendor_id, preferred_latitude, preferred_longitude, preferred_city, preferred_state, work_radius_km')
       .eq('is_online', true)
-      .eq('is_verified', true)
-      .not('current_latitude', 'is', null)
-      .not('current_longitude', 'is', null);
+      .eq('is_verified', true);
 
     if (ridersError) {
       console.error('Error fetching riders:', ridersError);
@@ -91,22 +89,41 @@ Deno.serve(async (req) => {
       .eq('id', vendorId)
       .single();
 
-    // Calculate distance and filter by radius
+    // Calculate distance and filter by radius, considering both current location and work preferences
     const nearbyRiders: RiderWithDistance[] = riders
-      .map(rider => ({
-        id: rider.id,
-        user_id: rider.user_id,
-        distance: calculateDistance(
+      .filter(rider => {
+        // Must have either current location or preferred location
+        const hasCurrentLocation = rider.current_latitude && rider.current_longitude;
+        const hasPreferredLocation = rider.preferred_latitude && rider.preferred_longitude;
+        return hasCurrentLocation || hasPreferredLocation;
+      })
+      .map(rider => {
+        // Use current location if available, otherwise use preferred location
+        const riderLat = rider.current_latitude || rider.preferred_latitude;
+        const riderLon = rider.current_longitude || rider.preferred_longitude;
+        
+        const distanceFromVendor = calculateDistance(
           vendorLat,
           vendorLon,
-          rider.current_latitude!,
-          rider.current_longitude!
-        ),
-        is_online: rider.is_online ?? false,
-        vehicle_type: rider.vehicle_type,
-        is_affiliated: rider.affiliated_vendor_id === vendorId,
-      }))
-      .filter(rider => rider.distance <= maxRadiusKm)
+          riderLat!,
+          riderLon!
+        );
+        
+        // Check if vendor is within rider's work radius (if set)
+        const riderWorkRadius = rider.work_radius_km || maxRadiusKm;
+        const withinWorkRadius = distanceFromVendor <= riderWorkRadius;
+        
+        return {
+          id: rider.id,
+          user_id: rider.user_id,
+          distance: distanceFromVendor,
+          is_online: rider.is_online ?? false,
+          vehicle_type: rider.vehicle_type,
+          is_affiliated: rider.affiliated_vendor_id === vendorId,
+          within_work_radius: withinWorkRadius,
+        };
+      })
+      .filter(rider => rider.distance <= maxRadiusKm && rider.within_work_radius)
       .sort((a, b) => {
         // If vendor prioritizes own riders, sort them first
         if (vendor?.own_rider_priority) {

@@ -74,14 +74,12 @@ Deno.serve(async (req) => {
 
       const searchRadius = parseFloat(riderSettings?.value || '5');
 
-      // Fetch online riders
+      // Fetch online riders with work preferences
       const { data: riders } = await supabase
         .from('rider_profiles')
-        .select('id, user_id, current_latitude, current_longitude, affiliated_vendor_id')
+        .select('id, user_id, current_latitude, current_longitude, affiliated_vendor_id, preferred_latitude, preferred_longitude, work_radius_km')
         .eq('is_online', true)
-        .eq('is_verified', true)
-        .not('current_latitude', 'is', null)
-        .not('current_longitude', 'is', null);
+        .eq('is_verified', true);
 
       if (!riders || riders.length === 0) {
         return new Response(
@@ -103,17 +101,36 @@ Deno.serve(async (req) => {
       };
 
       const ridersWithDistance = riders
-        .map(rider => ({
-          ...rider,
-          distance: calculateDistance(
+        .filter(rider => {
+          // Must have either current location or preferred location
+          const hasCurrentLocation = rider.current_latitude && rider.current_longitude;
+          const hasPreferredLocation = rider.preferred_latitude && rider.preferred_longitude;
+          return hasCurrentLocation || hasPreferredLocation;
+        })
+        .map(rider => {
+          // Use current location if available, otherwise use preferred location
+          const riderLat = rider.current_latitude || rider.preferred_latitude;
+          const riderLon = rider.current_longitude || rider.preferred_longitude;
+          
+          const distance = calculateDistance(
             vendorData.latitude,
             vendorData.longitude,
-            rider.current_latitude!,
-            rider.current_longitude!
-          ),
-          isAffiliated: rider.affiliated_vendor_id === order.vendor_id,
-        }))
-        .filter(r => r.distance <= searchRadius)
+            riderLat!,
+            riderLon!
+          );
+          
+          // Check if vendor is within rider's work radius
+          const riderWorkRadius = rider.work_radius_km || searchRadius;
+          const withinWorkRadius = distance <= riderWorkRadius;
+          
+          return {
+            ...rider,
+            distance,
+            isAffiliated: rider.affiliated_vendor_id === order.vendor_id,
+            withinWorkRadius,
+          };
+        })
+        .filter(r => r.distance <= searchRadius && r.withinWorkRadius)
         .sort((a, b) => {
           // Prioritize vendor's own riders if configured
           if (vendorData.own_rider_priority) {

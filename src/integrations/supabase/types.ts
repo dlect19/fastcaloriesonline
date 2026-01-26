@@ -1065,12 +1065,17 @@ export type Database = {
           id_document_url: string | null
           is_online: boolean | null
           is_verified: boolean | null
+          preferred_city: string | null
+          preferred_latitude: number | null
+          preferred_longitude: number | null
+          preferred_state: string | null
           rating: number | null
           total_deliveries: number | null
           updated_at: string
           user_id: string
           vehicle_plate: string | null
           vehicle_type: string | null
+          work_radius_km: number | null
         }
         Insert: {
           affiliated_vendor_id?: string | null
@@ -1081,12 +1086,17 @@ export type Database = {
           id_document_url?: string | null
           is_online?: boolean | null
           is_verified?: boolean | null
+          preferred_city?: string | null
+          preferred_latitude?: number | null
+          preferred_longitude?: number | null
+          preferred_state?: string | null
           rating?: number | null
           total_deliveries?: number | null
           updated_at?: string
           user_id: string
           vehicle_plate?: string | null
           vehicle_type?: string | null
+          work_radius_km?: number | null
         }
         Update: {
           affiliated_vendor_id?: string | null
@@ -1097,12 +1107,17 @@ export type Database = {
           id_document_url?: string | null
           is_online?: boolean | null
           is_verified?: boolean | null
+          preferred_city?: string | null
+          preferred_latitude?: number | null
+          preferred_longitude?: number | null
+          preferred_state?: string | null
           rating?: number | null
           total_deliveries?: number | null
           updated_at?: string
           user_id?: string
           vehicle_plate?: string | null
           vehicle_type?: string | null
+          work_radius_km?: number | null
         }
         Relationships: [
           {

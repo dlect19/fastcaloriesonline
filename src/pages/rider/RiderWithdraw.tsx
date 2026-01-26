@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
-import { RiderSidebar } from '@/components/rider/RiderSidebar';
+import { RiderLayout } from '@/components/rider/RiderLayout';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -327,15 +327,12 @@ export default function RiderWithdraw() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex">
-      <RiderSidebar isOnline={isOnline} onToggleOnline={toggleOnline} />
-      
-      <main className="flex-1 p-8">
-        <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">Withdraw Funds</h1>
-            <p className="text-muted-foreground">Manage your withdrawals and bank settings</p>
-          </div>
+    <RiderLayout isOnline={isOnline} onToggleOnline={toggleOnline}>
+      <div className="mb-6 md:mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground">Withdraw Funds</h1>
+          <p className="text-muted-foreground text-sm md:text-base">Manage your withdrawals and bank settings</p>
+        </div>
           <div className="flex gap-2">
             <Dialog open={settingsDialogOpen} onOpenChange={setSettingsDialogOpen}>
               <DialogTrigger asChild>
@@ -642,7 +639,6 @@ export default function RiderWithdraw() {
             )}
           </CardContent>
         </Card>
-      </main>
-    </div>
+    </RiderLayout>
   );
 }
