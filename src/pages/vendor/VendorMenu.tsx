@@ -86,12 +86,22 @@ export default function VendorMenu() {
 
   // Nutrient tag options
   type NutrientTag = 'water-rich' | 'vitamin-rich' | 'mineral-rich';
+  type ServingUnit = 'per plate' | 'per portion' | 'per piece' | 'per pack' | 'per bowl';
+
+  const servingUnitOptions: { value: ServingUnit; label: string }[] = [
+    { value: 'per plate', label: 'Per Plate' },
+    { value: 'per portion', label: 'Per Portion' },
+    { value: 'per piece', label: 'Per Piece' },
+    { value: 'per pack', label: 'Per Pack' },
+    { value: 'per bowl', label: 'Per Bowl' },
+  ];
 
   // Form state
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     price: '',
+    serving_unit: 'per plate' as ServingUnit,
     calories: '',
     protein_grams: '',
     carbs_grams: '',
@@ -212,6 +222,7 @@ export default function VendorMenu() {
         name: formData.name,
         description: formData.description || null,
         price: parseFloat(formData.price),
+        serving_unit: vendor.category === 'restaurant' ? formData.serving_unit : null,
         calories: finalCalories,
         protein_grams: formData.protein_grams ? parseFloat(formData.protein_grams) : null,
         carbs_grams: formData.carbs_grams ? parseFloat(formData.carbs_grams) : null,
@@ -257,6 +268,7 @@ export default function VendorMenu() {
       name: product.name,
       description: product.description || '',
       price: product.price.toString(),
+      serving_unit: ((product as any).serving_unit as ServingUnit) || 'per plate',
       calories: product.calories?.toString() || '',
       protein_grams: product.protein_grams?.toString() || '',
       carbs_grams: product.carbs_grams?.toString() || '',
@@ -314,6 +326,7 @@ export default function VendorMenu() {
       name: '',
       description: '',
       price: '',
+      serving_unit: 'per plate',
       calories: '',
       protein_grams: '',
       carbs_grams: '',
@@ -407,16 +420,37 @@ export default function VendorMenu() {
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="price">Price (₦) *</Label>
-                    <Input
-                      id="price"
-                      type="number"
-                      value={formData.price}
-                      onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                      required
-                      min="0"
-                    />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="price">Price (₦) *</Label>
+                      <Input
+                        id="price"
+                        type="number"
+                        value={formData.price}
+                        onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                        required
+                        min="0"
+                      />
+                    </div>
+
+                    {/* Serving Unit - Only show for restaurants */}
+                    {vendor?.category === 'restaurant' && (
+                      <div className="space-y-2">
+                        <Label htmlFor="serving_unit">Serving Unit</Label>
+                        <select
+                          id="serving_unit"
+                          value={formData.serving_unit}
+                          onChange={(e) => setFormData({ ...formData, serving_unit: e.target.value as ServingUnit })}
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        >
+                          {servingUnitOptions.map(option => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                   </div>
 
                   {/* Food Classes - Only show for restaurants */}

@@ -111,10 +111,17 @@ export function ProductCard({ product, vendor }: ProductCardProps) {
             )}
 
             <div className="mt-auto pt-2 flex items-center justify-between">
-              {/* Price */}
-              <span className="font-bold text-foreground">
-                ₦{product.price.toLocaleString()}
-              </span>
+              {/* Price with serving unit */}
+              <div className="flex flex-col">
+                <span className="font-bold text-foreground">
+                  ₦{product.price.toLocaleString()}
+                </span>
+                {(product as any).serving_unit && (
+                  <span className="text-xs text-muted-foreground">
+                    {(product as any).serving_unit}
+                  </span>
+                )}
+              </div>
 
               {/* Calorie Badge */}
               <div className="flex items-center gap-1">
@@ -218,11 +225,18 @@ export function ProductCard({ product, vendor }: ProductCardProps) {
               </div>
             </div>
 
-            {/* Price */}
+            {/* Price with serving unit */}
             <div className="flex items-center justify-between">
-              <span className="text-lg font-bold text-foreground">
-                ₦{(product.price * quantity).toLocaleString()}
-              </span>
+              <div className="flex flex-col">
+                <span className="text-lg font-bold text-foreground">
+                  ₦{(product.price * quantity).toLocaleString()}
+                </span>
+                {(product as any).serving_unit && (
+                  <span className="text-sm text-muted-foreground">
+                    {(product as any).serving_unit}
+                  </span>
+                )}
+              </div>
 
               {/* Quantity Selector */}
               <div className="flex items-center gap-3">

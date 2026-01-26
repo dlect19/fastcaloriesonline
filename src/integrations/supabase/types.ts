@@ -428,6 +428,7 @@ export type Database = {
           price: number
           protein_grams: number | null
           requires_prescription: boolean | null
+          serving_unit: string | null
           updated_at: string
           vendor_id: string
         }
@@ -450,6 +451,7 @@ export type Database = {
           price: number
           protein_grams?: number | null
           requires_prescription?: boolean | null
+          serving_unit?: string | null
           updated_at?: string
           vendor_id: string
         }
@@ -472,6 +474,7 @@ export type Database = {
           price?: number
           protein_grams?: number | null
           requires_prescription?: boolean | null
+          serving_unit?: string | null
           updated_at?: string
           vendor_id?: string
         }
