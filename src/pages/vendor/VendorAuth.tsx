@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
+import { ForgotPasswordModal } from '@/components/auth/ForgotPasswordModal';
 
 type AuthTab = 'login' | 'signup' | 'link';
 
@@ -17,6 +18,7 @@ export default function VendorAuth() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<AuthTab>('login');
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
 
   // Login state
   const [loginEmail, setLoginEmail] = useState('');
@@ -389,6 +391,13 @@ export default function VendorAuth() {
                       )}
                     </button>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowForgotPassword(true)}
+                    className="text-sm text-primary hover:underline"
+                  >
+                    Forgot password?
+                  </button>
                 </div>
 
                 <Button type="submit" className="w-full h-12" disabled={loading}>
@@ -740,6 +749,12 @@ export default function VendorAuth() {
           </p>
         </div>
       </div>
+
+      <ForgotPasswordModal 
+        open={showForgotPassword} 
+        onOpenChange={setShowForgotPassword}
+        platform="vendor"
+      />
     </div>
   );
 }

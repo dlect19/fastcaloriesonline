@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
+import { ForgotPasswordModal } from '@/components/auth/ForgotPasswordModal';
 
 interface VendorInfo {
   id: string;
@@ -27,6 +28,7 @@ export default function VendorStaffLogin() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
 
   useEffect(() => {
     if (vendorId) {
@@ -220,6 +222,13 @@ export default function VendorStaffLogin() {
                     )}
                   </button>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setShowForgotPassword(true)}
+                  className="text-sm text-primary hover:underline"
+                >
+                  Forgot password?
+                </button>
               </div>
 
               <Button
@@ -254,6 +263,12 @@ export default function VendorStaffLogin() {
             </div>
           </CardContent>
         </Card>
+
+        <ForgotPasswordModal 
+          open={showForgotPassword} 
+          onOpenChange={setShowForgotPassword}
+          platform="vendor"
+        />
       </div>
     </div>
   );
