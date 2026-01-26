@@ -1,323 +1,201 @@
 
-# Implementation Plan: Development/Production Environment Separation
+# Bank Account Verification System with Environment-Aware Paystack Keys
 
 ## Overview
+This plan implements a proper bank account verification flow for vendors and riders that dynamically fetches Nigerian banks from Paystack and auto-verifies account details. The system will use the correct Paystack keys (test/live) based on the platform environment.
 
-This plan implements a robust environment separation system for Fast Calories that ensures safe testing with Paystack test keys while preventing test data from ever appearing in production.
+## Current Issues
 
----
+1. **Static Bank List**: Using a hardcoded array of 20 bank names without bank codes
+2. **Manual Account Name Entry**: Users type their own account name (error-prone, no verification)
+3. **No Environment Awareness**: Existing `paystack-verify-bank` and `paystack-create-recipient` functions use a single `PAYSTACK_SECRET_KEY` regardless of environment
+4. **Missing Bank API Integration**: The Paystack `/bank` endpoint to fetch banks is not implemented
 
-## Architecture Summary
+## Solution Architecture
 
 ```text
-+-------------------+      +-------------------+
-|   DEVELOPMENT     |      |    PRODUCTION     |
-|   ENVIRONMENT     |      |    ENVIRONMENT    |
-+-------------------+      +-------------------+
-|                   |      |                   |
-| Paystack TEST     |      | Paystack LIVE     |
-| Public Key        |      | Public Key        |
-| Paystack TEST     |      | Paystack LIVE     |
-| Secret Key        |      | Secret Key        |
-|                   |      |                   |
-| Test Vendors      |      | Approved Vendors  |
-| Test Riders       |      | Verified Riders   |
-| Test Transactions |      | Real Transactions |
-|                   |      |                   |
-| No Real Payouts   |      | Real Bank Payouts |
-+-------------------+      +-------------------+
+User Flow:
+┌──────────────┐     ┌──────────────────┐     ┌────────────────────┐
+│ Select Bank  │────>│ Enter Account #  │────>│ Auto-Verify & Save │
+│ (from API)   │     │ (10 digits)      │     │ (resolved name)    │
+└──────────────┘     └──────────────────┘     └────────────────────┘
+       │                     │                        │
+       v                     v                        v
+┌──────────────────┐   ┌──────────────────┐   ┌──────────────────────┐
+│ paystack-list-   │   │ paystack-verify- │   │ paystack-create-     │
+│ banks            │   │ bank             │   │ recipient            │
+│ (environment-    │   │ (environment-    │   │ (environment-aware)  │
+│ aware)           │   │ aware)           │   │                      │
+└──────────────────┘   └──────────────────┘   └──────────────────────┘
 ```
 
----
+## Implementation Details
 
-## Database Changes
+### Phase 1: Create New Edge Function for Bank List
 
-### 1. Add Environment Column to Key Tables
+**New File: `supabase/functions/paystack-list-banks/index.ts`**
 
-**Vendors Table:**
-- Add `is_test_store` (boolean, default: false)
-- Add `approved_for_live` (boolean, default: false)
+This function will:
+- Fetch platform environment from database
+- Select the correct Paystack secret key (test or live)
+- Call `GET https://api.paystack.co/bank`
+- Return filtered list with bank name, code, and type
+- Cache results to reduce API calls
 
-**Rider Profiles Table:**
-- Add `is_test_rider` (boolean, default: false)
-
-**Orders Table:**
-- Add `environment` (text: 'development' | 'production', default: 'production')
-
-**Wallet Transactions Table:**
-- Add `environment` (text: 'development' | 'production', default: 'production')
-
-**Wallets Table:**
-- Add `test_balance` (numeric, default: 0)
-- Add `test_pending_balance` (numeric, default: 0)
-- Add `test_eligible_balance` (numeric, default: 0)
-
-**Platform Wallet Table:**
-- Add `test_balance` (numeric, default: 0)
-
-### 2. New Platform Settings
-
-Add new settings to `platform_settings` table:
-- `platform_environment` = 'development' | 'production'
-- `paystack_test_public_key` = (stored in secrets)
-- `paystack_live_public_key` = (stored in secrets)
-
-### 3. New Environment Switch Logs Table
-
-Create `environment_switch_logs` table:
-- `id` (uuid)
-- `switched_by` (uuid, references auth.users)
-- `from_environment` (text)
-- `to_environment` (text)
-- `confirmation_text` (text)
-- `ip_address` (text)
-- `created_at` (timestamp)
-
----
-
-## Secret Management
-
-### New Secrets Required
-
-| Secret Name | Description |
-|-------------|-------------|
-| PAYSTACK_TEST_SECRET_KEY | Paystack test secret key |
-| PAYSTACK_TEST_PUBLIC_KEY | Paystack test public key |
-| PAYSTACK_LIVE_SECRET_KEY | Paystack live secret key (rename current) |
-| PAYSTACK_LIVE_PUBLIC_KEY | Paystack live public key |
-
-### Edge Function Key Selection Logic
-
+Response format:
 ```typescript
-// In each Paystack edge function
-const platformEnv = await getPlatformEnvironment(supabase);
-const PAYSTACK_SECRET_KEY = platformEnv === 'development'
-  ? Deno.env.get("PAYSTACK_TEST_SECRET_KEY")
-  : Deno.env.get("PAYSTACK_LIVE_SECRET_KEY");
-```
-
----
-
-## Edge Function Updates
-
-### 1. Create `get-platform-config` Edge Function
-
-Returns the current platform environment and appropriate public key:
-
-```typescript
-// Returns:
 {
-  environment: 'development' | 'production',
-  paystackPublicKey: 'pk_test_xxx' | 'pk_live_xxx'
+  success: true,
+  data: [
+    { name: "Access Bank", code: "044", type: "nuban" },
+    { name: "Zenith Bank", code: "057", type: "nuban" },
+    // ... all Nigerian banks
+  ]
 }
 ```
 
-### 2. Update `paystack-initialize-payment`
+### Phase 2: Update Existing Edge Functions for Environment Awareness
 
-- Check platform environment
-- Use appropriate secret key
-- Block test transactions in production
-- Add `environment` to order metadata
+**Update: `supabase/functions/paystack-verify-bank/index.ts`**
 
-### 3. Update `paystack-webhook`
+Changes needed:
+- Add environment detection using `platform_settings` table
+- Select key dynamically:
+  ```typescript
+  const key = environment === "production"
+    ? Deno.env.get("PAYSTACK_LIVE_SECRET_KEY")
+    : Deno.env.get("PAYSTACK_TEST_SECRET_KEY");
+  ```
+- Call `GET https://api.paystack.co/bank/resolve?account_number=X&bank_code=Y`
+- Return verified account name
 
-- Verify webhook comes from correct environment
-- Update test balances in development mode
-- Update real balances in production mode
-- Block real money movement in development
+**Update: `supabase/functions/paystack-create-recipient/index.ts`**
 
-### 4. Update `process-payout`
+Same environment-aware key selection pattern to create Paystack recipients with the correct API key.
 
-- Check platform environment
-- **BLOCK ALL PAYOUTS in development mode**
-- Only allow real transfers in production
+### Phase 3: Create Reusable Bank Account Form Component
 
-### 5. Update `paystack-verify-bank`
+**New File: `src/components/BankAccountForm.tsx`**
 
-- Works in both environments (same API)
+A shared component used by both vendor and rider withdrawal pages:
 
----
+Features:
+- Fetches bank list on mount using `paystack-list-banks`
+- Searchable bank dropdown (with bank codes stored internally)
+- Account number input (10-digit validation)
+- Auto-verify button that calls `paystack-verify-bank`
+- Displays resolved account name (read-only)
+- Save button calls `paystack-create-recipient`
 
-## Frontend Changes
+UI Flow:
+1. User selects bank from searchable dropdown
+2. User enters 10-digit account number
+3. User clicks "Verify Account"
+4. System auto-fills account name from Paystack
+5. User confirms and saves
 
-### 1. Create Environment Config Hook
+### Phase 4: Update Withdrawal Pages
 
-**File: `src/hooks/useEnvironmentConfig.ts`**
+**Update: `src/pages/vendor/VendorWithdraw.tsx`**
+**Update: `src/pages/rider/RiderWithdraw.tsx`**
 
-```typescript
-export function useEnvironmentConfig() {
-  // Fetches current environment from edge function
-  // Returns { environment, paystackPublicKey, isTestMode }
-}
-```
-
-### 2. Update Admin Settings Page
-
-**File: `src/pages/admin/AdminSettings.tsx`**
-
-Add new "Environment" section:
-- Current environment indicator (badge)
-- Switch environment button (super_admin only)
-- Confirmation modal with typed confirmation
-- Environment switch history log
-
-### 3. Update Admin Vendors Page
-
-**File: `src/pages/admin/AdminVendors.tsx`**
-
-Add features:
-- "Test Store" badge on vendor cards
-- Toggle to mark vendor as test store
-- Filter tabs: All | Test | Live
-- "Approve for Live" action button
-
-### 4. Update Admin Riders Page
-
-**File: `src/pages/admin/AdminRiders.tsx`**
-
-Add features:
-- "Test Rider" badge on rider cards
-- Toggle to mark rider as test rider
-- Filter tabs: All | Test | Live
-
-### 5. Update Home Page Vendor Filtering
-
-**File: `src/components/home/VendorGrid.tsx`**
-
-Add environment-aware filtering:
-```typescript
-// In development: show only test stores
-// In production: show only approved live stores
-```
-
-### 6. Add Environment Banner
-
-**File: `src/components/EnvironmentBanner.tsx`**
-
-Sticky warning banner when in development mode:
-- Yellow background
-- "TEST MODE - Transactions are simulated"
-- Only visible to authenticated users
-
----
-
-## RLS Policy Updates
-
-### Vendors Table
-
-```sql
--- Customers can only see vendors matching current environment
-CREATE POLICY "Filter vendors by environment" ON public.vendors
-FOR SELECT USING (
-  -- Admins see all
-  has_role(auth.uid(), 'admin') OR
-  -- In production: only non-test approved stores
-  (get_platform_environment() = 'production' AND is_test_store = false AND approved_for_live = true AND is_active = true) OR
-  -- In development: only test stores
-  (get_platform_environment() = 'development' AND is_test_store = true AND is_active = true)
-);
-```
-
----
-
-## Security Controls
-
-### Environment Switch Requirements
-
-1. **Super Admin Only** - Only `super_admin` role can switch
-2. **Typed Confirmation** - Must type "I confirm this will enable real payments"
-3. **Audit Logging** - Every switch logged with user, timestamp, IP
-4. **Cooldown Period** - 5-minute delay before switch takes effect
-5. **Notification** - Alert sent to all super admins on switch
-
-### Data Isolation Rules
-
-| Data Type | In Development | In Production |
-|-----------|----------------|---------------|
-| Test Stores | Visible | Hidden |
-| Live Stores | Hidden | Visible |
-| Test Transactions | Recorded | Blocked |
-| Real Payments | Blocked | Enabled |
-| Bank Payouts | Simulated | Real |
-
----
-
-## Implementation Order
-
-### Phase 1: Database Setup
-1. Add columns to vendors, riders, orders, wallets tables
-2. Create environment_switch_logs table
-3. Add platform environment settings
-4. Create `get_platform_environment()` database function
-
-### Phase 2: Secrets & Edge Functions
-1. Add new Paystack secrets (test keys)
-2. Create `get-platform-config` edge function
-3. Update `paystack-initialize-payment`
-4. Update `paystack-webhook`
-5. Update `process-payout`
-
-### Phase 3: Admin UI
-1. Add environment section to AdminSettings
-2. Update AdminVendors with test store management
-3. Update AdminRiders with test rider management
-4. Add environment switch confirmation modal
-
-### Phase 4: Customer-Facing Changes
-1. Create useEnvironmentConfig hook
-2. Add EnvironmentBanner component
-3. Update VendorGrid filtering
-4. Test complete flow in both modes
-
----
+Changes:
+- Remove hardcoded `NIGERIAN_BANKS` array
+- Replace bank dialog content with new `BankAccountForm` component
+- Pass appropriate callbacks for success/error handling
 
 ## Files to Create
 
 | File | Purpose |
 |------|---------|
-| `src/hooks/useEnvironmentConfig.ts` | Hook to get current environment |
-| `src/components/EnvironmentBanner.tsx` | Warning banner for test mode |
-| `src/components/admin/EnvironmentSwitch.tsx` | Environment toggle UI |
-| `src/components/admin/EnvironmentSwitchConfirmation.tsx` | Confirmation modal |
-| `supabase/functions/get-platform-config/index.ts` | Returns environment config |
+| `supabase/functions/paystack-list-banks/index.ts` | Fetch banks from Paystack API with environment-aware keys |
+| `src/components/BankAccountForm.tsx` | Reusable bank account verification form |
 
 ## Files to Modify
 
 | File | Changes |
 |------|---------|
-| `src/pages/admin/AdminSettings.tsx` | Add environment section |
-| `src/pages/admin/AdminVendors.tsx` | Add test store management |
-| `src/pages/admin/AdminRiders.tsx` | Add test rider management |
-| `src/components/home/VendorGrid.tsx` | Environment-aware filtering |
-| `supabase/functions/paystack-initialize-payment/index.ts` | Dynamic key selection |
-| `supabase/functions/paystack-webhook/index.ts` | Environment-aware processing |
-| `supabase/functions/process-payout/index.ts` | Block payouts in dev mode |
-| `supabase/functions/paystack-verify-bank/index.ts` | Works in both modes |
+| `supabase/functions/paystack-verify-bank/index.ts` | Add environment-aware key selection |
+| `supabase/functions/paystack-create-recipient/index.ts` | Add environment-aware key selection |
+| `src/pages/vendor/VendorWithdraw.tsx` | Use new BankAccountForm component |
+| `src/pages/rider/RiderWithdraw.tsx` | Use new BankAccountForm component |
+| `supabase/config.toml` | Add new function configuration |
 
----
+## Technical Details
 
-## Testing Checklist
+### Environment Key Selection Pattern
 
-- [ ] Super admin can switch between environments
-- [ ] Confirmation required for production switch
-- [ ] Test stores only visible in development
-- [ ] Live stores only visible in production
-- [ ] Test payments use test keys
-- [ ] Real payments blocked in development
-- [ ] Payouts blocked in development
-- [ ] Environment switch is logged
-- [ ] Test mode banner appears
+All Paystack edge functions will use this helper:
 
----
+```typescript
+async function getPaystackSecretKey(supabase: SupabaseClient): Promise<string> {
+  const { data: envSetting } = await supabase
+    .from("platform_settings")
+    .select("value")
+    .eq("key", "platform_environment")
+    .single();
+
+  const environment = envSetting?.value || "development";
+  
+  return environment === "production"
+    ? Deno.env.get("PAYSTACK_LIVE_SECRET_KEY")!
+    : Deno.env.get("PAYSTACK_TEST_SECRET_KEY")!;
+}
+```
+
+### BankAccountForm Component Props
+
+```typescript
+interface BankAccountFormProps {
+  onSuccess: (data: {
+    bankName: string;
+    bankCode: string;
+    accountNumber: string;
+    accountName: string;
+    recipientCode: string;
+  }) => void;
+  onCancel: () => void;
+  existingBank?: string;
+  existingAccountNumber?: string;
+}
+```
+
+### Paystack API Responses
+
+**List Banks Response:**
+```json
+{
+  "status": true,
+  "data": [
+    { "name": "Access Bank", "code": "044", "type": "nuban", "active": true }
+  ]
+}
+```
+
+**Resolve Account Response:**
+```json
+{
+  "status": true,
+  "data": {
+    "account_number": "0001234567",
+    "account_name": "Doe Jane Loren"
+  }
+}
+```
+
+## Security Considerations
+
+1. **Environment Isolation**: Test keys only work with test accounts; live keys with real accounts
+2. **Server-side Verification**: Account names come directly from Paystack, preventing user manipulation
+3. **Input Validation**: 10-digit account number validation before API calls
+4. **Authentication Required**: All edge functions require valid user authentication
 
 ## Expected Outcome
 
-A platform that:
-1. Safely separates development and production
-2. Uses Paystack test keys in development
-3. Uses Paystack live keys in production
-4. Prevents test data from appearing live
-5. Blocks real money movement during testing
-6. Requires explicit super admin confirmation
-7. Logs all environment changes
-8. Scales from MVP to production safely
+After implementation:
+1. Vendors/riders see a complete list of Nigerian banks from Paystack API
+2. After entering account number, system auto-verifies and shows the actual account name
+3. Verified accounts are saved as Paystack recipients
+4. All operations use the correct keys based on platform environment (test vs live)
+5. In development mode, test bank accounts can be used for testing
+6. In production mode, real bank accounts work with live Paystack keys
