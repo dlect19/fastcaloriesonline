@@ -2,11 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { RiderLayout } from '@/components/rider/RiderLayout';
+import { RiderFloatingWidget } from '@/components/rider/RiderFloatingWidget';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Package, MapPin, Phone, Clock, Loader2 } from 'lucide-react';
+import { Package, MapPin, Phone, Clock, Loader2, ExternalLink } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useNotificationSound } from '@/hooks/useNotificationSound';
 import { format } from 'date-fns';
@@ -17,6 +18,7 @@ export default function RiderOrders() {
   const { playNotification } = useNotificationSound();
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(false);
+  const [floatModeEnabled, setFloatModeEnabled] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [activeOrders, setActiveOrders] = useState<any[]>([]);
   const [completedOrders, setCompletedOrders] = useState<any[]>([]);
@@ -24,6 +26,8 @@ export default function RiderOrders() {
 
   useEffect(() => {
     checkAuth();
+    const savedFloatMode = localStorage.getItem('rider_float_mode');
+    setFloatModeEnabled(savedFloatMode === 'true');
   }, []);
 
   useEffect(() => {
@@ -88,7 +92,7 @@ export default function RiderOrders() {
       // Active orders (assigned to this rider, not delivered/cancelled)
       const { data: active } = await supabase
         .from('orders')
-        .select('*, vendors(name, address, phone)')
+        .select('*, vendors(name, address, phone, latitude, longitude)')
         .eq('rider_id', user.id)
         .not('status', 'in', '("delivered","cancelled")')
         .order('created_at', { ascending: false });
@@ -172,6 +176,13 @@ export default function RiderOrders() {
     });
   };
 
+  const openInMaps = (address: string, lat?: number, lng?: number) => {
+    const query = lat && lng 
+      ? `${lat},${lng}` 
+      : encodeURIComponent(address);
+    window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank');
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -215,8 +226,24 @@ export default function RiderOrders() {
                 </CardHeader>
                 <CardContent className="space-y-4 p-4 md:p-6 pt-0">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Pickup Location */}
                     <div className="space-y-2">
-                      <p className="text-sm font-medium">Pickup From</p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium">Pickup From</p>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-7 text-xs"
+                          onClick={() => openInMaps(
+                            order.vendors?.address, 
+                            order.vendors?.latitude, 
+                            order.vendors?.longitude
+                          )}
+                        >
+                          <ExternalLink className="w-3 h-3 mr-1" />
+                          Map
+                        </Button>
+                      </div>
                       <div className="flex items-start gap-2 text-sm text-muted-foreground">
                         <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
                         <div className="min-w-0">
@@ -234,8 +261,20 @@ export default function RiderOrders() {
                       )}
                     </div>
 
+                    {/* Delivery Location */}
                     <div className="space-y-2">
-                      <p className="text-sm font-medium">Deliver To</p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium">Deliver To</p>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-7 text-xs"
+                          onClick={() => openInMaps(order.delivery_address_text)}
+                        >
+                          <ExternalLink className="w-3 h-3 mr-1" />
+                          Map
+                        </Button>
+                      </div>
                       <div className="flex items-start gap-2 text-sm text-muted-foreground">
                         <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
                         <p className="break-words">{order.delivery_address_text}</p>
@@ -298,6 +337,11 @@ export default function RiderOrders() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Floating Widget */}
+      {floatModeEnabled && (
+        <RiderFloatingWidget isOnline={isOnline} onToggleOnline={toggleOnline} />
+      )}
     </RiderLayout>
   );
 }
