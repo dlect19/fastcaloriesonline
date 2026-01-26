@@ -378,6 +378,36 @@ export type Database = {
         }
         Relationships: []
       }
+      environment_switch_logs: {
+        Row: {
+          confirmation_text: string
+          created_at: string | null
+          from_environment: string
+          id: string
+          ip_address: string | null
+          switched_by: string
+          to_environment: string
+        }
+        Insert: {
+          confirmation_text: string
+          created_at?: string | null
+          from_environment: string
+          id?: string
+          ip_address?: string | null
+          switched_by: string
+          to_environment: string
+        }
+        Update: {
+          confirmation_text?: string
+          created_at?: string | null
+          from_environment?: string
+          id?: string
+          ip_address?: string | null
+          switched_by?: string
+          to_environment?: string
+        }
+        Relationships: []
+      }
       order_items: {
         Row: {
           calories: number | null
@@ -488,6 +518,7 @@ export type Database = {
           delivery_fee: number | null
           delivery_instructions: string | null
           discount: number | null
+          environment: string | null
           estimated_delivery_at: string | null
           id: string
           order_number: string
@@ -516,6 +547,7 @@ export type Database = {
           delivery_fee?: number | null
           delivery_instructions?: string | null
           discount?: number | null
+          environment?: string | null
           estimated_delivery_at?: string | null
           id?: string
           order_number: string
@@ -544,6 +576,7 @@ export type Database = {
           delivery_fee?: number | null
           delivery_instructions?: string | null
           discount?: number | null
+          environment?: string | null
           estimated_delivery_at?: string | null
           id?: string
           order_number?: string
@@ -766,6 +799,7 @@ export type Database = {
           created_at: string | null
           currency: string | null
           id: string
+          test_balance: number | null
           total_earned: number | null
           total_paid_out: number | null
           updated_at: string | null
@@ -775,6 +809,7 @@ export type Database = {
           created_at?: string | null
           currency?: string | null
           id?: string
+          test_balance?: number | null
           total_earned?: number | null
           total_paid_out?: number | null
           updated_at?: string | null
@@ -784,6 +819,7 @@ export type Database = {
           created_at?: string | null
           currency?: string | null
           id?: string
+          test_balance?: number | null
           total_earned?: number | null
           total_paid_out?: number | null
           updated_at?: string | null
@@ -1145,6 +1181,7 @@ export type Database = {
           id_document_url: string | null
           is_email_verified: boolean | null
           is_online: boolean | null
+          is_test_rider: boolean | null
           is_verified: boolean | null
           nin_number: string | null
           nin_submitted_at: string | null
@@ -1170,6 +1207,7 @@ export type Database = {
           id_document_url?: string | null
           is_email_verified?: boolean | null
           is_online?: boolean | null
+          is_test_rider?: boolean | null
           is_verified?: boolean | null
           nin_number?: string | null
           nin_submitted_at?: string | null
@@ -1195,6 +1233,7 @@ export type Database = {
           id_document_url?: string | null
           is_email_verified?: boolean | null
           is_online?: boolean | null
+          is_test_rider?: boolean | null
           is_verified?: boolean | null
           nin_number?: string | null
           nin_submitted_at?: string | null
@@ -1527,6 +1566,7 @@ export type Database = {
       vendors: {
         Row: {
           address: string
+          approved_for_live: boolean | null
           banner_url: string | null
           category: Database["public"]["Enums"]["vendor_category"]
           city: string
@@ -1539,6 +1579,7 @@ export type Database = {
           estimated_delivery_minutes: number | null
           id: string
           is_active: boolean | null
+          is_test_store: boolean | null
           is_verified: boolean | null
           latitude: number | null
           logo_url: string | null
@@ -1556,6 +1597,7 @@ export type Database = {
         }
         Insert: {
           address: string
+          approved_for_live?: boolean | null
           banner_url?: string | null
           category?: Database["public"]["Enums"]["vendor_category"]
           city: string
@@ -1568,6 +1610,7 @@ export type Database = {
           estimated_delivery_minutes?: number | null
           id?: string
           is_active?: boolean | null
+          is_test_store?: boolean | null
           is_verified?: boolean | null
           latitude?: number | null
           logo_url?: string | null
@@ -1585,6 +1628,7 @@ export type Database = {
         }
         Update: {
           address?: string
+          approved_for_live?: boolean | null
           banner_url?: string | null
           category?: Database["public"]["Enums"]["vendor_category"]
           city?: string
@@ -1597,6 +1641,7 @@ export type Database = {
           estimated_delivery_minutes?: number | null
           id?: string
           is_active?: boolean | null
+          is_test_store?: boolean | null
           is_verified?: boolean | null
           latitude?: number | null
           logo_url?: string | null
@@ -1620,6 +1665,7 @@ export type Database = {
           balance_after: number | null
           category: string
           created_at: string | null
+          environment: string | null
           id: string
           metadata: Json | null
           notes: string | null
@@ -1638,6 +1684,7 @@ export type Database = {
           balance_after?: number | null
           category: string
           created_at?: string | null
+          environment?: string | null
           id?: string
           metadata?: Json | null
           notes?: string | null
@@ -1656,6 +1703,7 @@ export type Database = {
           balance_after?: number | null
           category?: string
           created_at?: string | null
+          environment?: string | null
           id?: string
           metadata?: Json | null
           notes?: string | null
@@ -1708,6 +1756,9 @@ export type Database = {
           paystack_recipient_code: string | null
           pending_balance: number | null
           pending_payouts: number | null
+          test_balance: number | null
+          test_eligible_balance: number | null
+          test_pending_balance: number | null
           total_earned: number | null
           total_withdrawn: number | null
           updated_at: string
@@ -1728,6 +1779,9 @@ export type Database = {
           paystack_recipient_code?: string | null
           pending_balance?: number | null
           pending_payouts?: number | null
+          test_balance?: number | null
+          test_eligible_balance?: number | null
+          test_pending_balance?: number | null
           total_earned?: number | null
           total_withdrawn?: number | null
           updated_at?: string
@@ -1748,6 +1802,9 @@ export type Database = {
           paystack_recipient_code?: string | null
           pending_balance?: number | null
           pending_payouts?: number | null
+          test_balance?: number | null
+          test_eligible_balance?: number | null
+          test_pending_balance?: number | null
           total_earned?: number | null
           total_withdrawn?: number | null
           updated_at?: string
@@ -1822,6 +1879,7 @@ export type Database = {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["admin_staff_role"]
       }
+      get_platform_environment: { Args: never; Returns: string }
       get_vendor_staff_role: {
         Args: { _user_id: string; _vendor_id: string }
         Returns: Database["public"]["Enums"]["vendor_staff_role"]
