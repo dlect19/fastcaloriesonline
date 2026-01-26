@@ -1,99 +1,187 @@
 
-# Mobile-Friendly Rider App with Work Location & Order Notifications
+# Rider App Enhancements: Dashboard Widget, Map Button, NIN Verification & Email OTP
 
 ## Overview
-This plan will transform the rider portal into a fully mobile-responsive experience, add a preferred work location feature for receiving geographically relevant orders, and implement notification sounds for new order pickups.
+This plan addresses several enhancements for the rider portal:
+1. Display work location on the dashboard
+2. Floating widget mode for mobile multitasking (using Picture-in-Picture concept)
+3. "View on Map" button for order addresses
+4. Email verification with OTP code instead of link-based verification
+5. NIN (National Identification Number) collection during signup
+6. Admin manual verification workflow before riders can receive orders
 
 ---
 
 ## Current State Analysis
-- The rider app uses a fixed 264px sidebar (`RiderSidebar`) that works on desktop but is not mobile-friendly
-- All rider pages (Dashboard, Orders, Earnings, Withdraw, Settings) display the sidebar and content side-by-side with fixed widths
-- The `rider_profiles` table has `current_latitude` and `current_longitude` for real-time location, but no preferred work area fields
-- No notification sound system exists for new orders
+- The rider app is now mobile-responsive with bottom navigation
+- Work location preferences are in `RiderSettings.tsx` but not shown on dashboard
+- No floating widget or map viewing capability exists
+- Email verification uses link-based flow (not OTP code)
+- The `rider_profiles` table has `is_verified` field but no NIN storage
+- Admin can verify riders in `AdminRiders.tsx` but no NIN details are shown
 
 ---
 
 ## Implementation Plan
 
-### Part 1: Mobile-Responsive Layout
+### Part 1: Work Location on Dashboard
 
-**1.1 Create Mobile Bottom Navigation for Riders**
-Create a new `RiderBottomNav` component (similar to the customer app's `BottomNav`) that displays on mobile screens:
-- Navigation items: Dashboard, Deliveries, Earnings, Withdraw, Settings
-- Online/Offline status indicator with quick toggle
-- Fixed to bottom of screen with safe area padding
+**Changes to RiderDashboard.tsx:**
+Add a "Work Location" card showing:
+- Current preferred city and state
+- Work radius setting
+- Quick link to settings to update location
 
-**1.2 Create Responsive Rider Layout Component**
-Create a `RiderLayout` wrapper component that:
-- Uses `useIsMobile()` hook to detect screen size
-- Shows sidebar on desktop (md breakpoint and above)
-- Shows mobile header with hamburger menu + bottom nav on mobile
-- Includes a Sheet/Drawer for accessing full menu on mobile
-
-**1.3 Update All Rider Pages**
-Refactor each rider page to use the new `RiderLayout`:
-- `RiderDashboard.tsx`
-- `RiderOrders.tsx`
-- `RiderEarnings.tsx`
-- `RiderWithdraw.tsx`
-- `RiderSettings.tsx`
-
-Changes include:
-- Responsive grid layouts (1 column on mobile, multi-column on desktop)
-- Reduced padding on mobile (`p-4` vs `p-8`)
-- Smaller headings on mobile
-
----
-
-### Part 2: Preferred Work Location Setting
-
-**2.1 Database Migration**
-Add new columns to `rider_profiles` table:
-```sql
-ALTER TABLE public.rider_profiles ADD COLUMN IF NOT EXISTS preferred_city TEXT;
-ALTER TABLE public.rider_profiles ADD COLUMN IF NOT EXISTS preferred_state TEXT;
-ALTER TABLE public.rider_profiles ADD COLUMN IF NOT EXISTS preferred_latitude NUMERIC;
-ALTER TABLE public.rider_profiles ADD COLUMN IF NOT EXISTS preferred_longitude NUMERIC;
-ALTER TABLE public.rider_profiles ADD COLUMN IF NOT EXISTS work_radius_km NUMERIC DEFAULT 10;
+```text
++------------------------+
+|  📍 Work Location      |
+|  Ikeja, Lagos State    |
+|  10km radius           |
+|  [Update Location →]   |
++------------------------+
 ```
 
-**2.2 Update Rider Settings Page**
-Add a new "Work Location" card in `RiderSettings.tsx`:
-- Input fields for preferred city and state
-- Work radius slider (5-50 km range)
-- "Use Current Location" button to auto-fill from GPS
-- Save functionality to update rider_profiles
+---
 
-**2.3 Update Rider Assignment Logic**
-Modify the `find-nearby-riders` and `assign-rider` Edge Functions to:
-- Consider rider's preferred work area when matching orders
-- Prioritize riders whose preferred location is closest to the vendor/customer
-- Only assign orders within the rider's configured work radius
+### Part 2: Floating Widget Mode (Mobile Multitasking)
+
+**Concept:** Create a minimizable floating widget that riders can use while using other apps. This uses a bottom sheet / drawer approach that can be minimized to a small floating button.
+
+**New Component: `RiderFloatingWidget.tsx`**
+- A floating action button (FAB) that appears when app is minimized
+- Shows: Online/Offline toggle, active order count, quick status update
+- Can be dragged around the screen
+- Expands to show current order details
+
+**Implementation:**
+- Add a "Float Mode" toggle in settings
+- When enabled, show a persistent floating button (using CSS position: fixed)
+- Button shows key info: online status indicator + order count badge
+- Tapping expands to mini-view with quick actions
+
+**Note:** True floating widget over other apps isn't possible in web browsers due to security restrictions. This implements an in-app floating mode that persists across pages.
 
 ---
 
-### Part 3: Notification Sound for New Orders
+### Part 3: "View on Map" Button
 
-**3.1 Add Notification Sound Asset**
-Add a notification sound file to `public/sounds/new-order.mp3`
+**Changes to RiderOrders.tsx:**
+Add a map button next to each address that opens the location in the device's default map app.
 
-**3.2 Create Notification Sound Hook**
-Create `useNotificationSound` hook:
-- Preloads the audio file
-- Provides a `playNotification()` function
-- Respects user's sound preference (stored in localStorage)
+**Implementation:**
+- Parse the delivery address coordinates (if available) or use the address text
+- Generate map URLs for:
+  - Google Maps: `https://www.google.com/maps/search/?api=1&query=...`
+  - Apple Maps (iOS): `maps://...`
+  - Waze: `https://waze.com/ul?...`
+- Show as a button/icon next to addresses: "📍 View on Map"
 
-**3.3 Update Rider Orders Page**
-Enhance the real-time order subscription in `RiderOrders.tsx`:
-- Play notification sound when new orders are assigned
-- Show visual toast notification
-- Vibrate device (if supported) for haptic feedback
+```typescript
+const openInMaps = (address: string, lat?: number, lng?: number) => {
+  const query = lat && lng 
+    ? `${lat},${lng}` 
+    : encodeURIComponent(address);
+  window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank');
+};
+```
 
-**3.4 Add Sound Toggle in Settings**
-Add a sound preference toggle in `RiderSettings.tsx`:
-- Enable/disable notification sounds
-- Stored in localStorage for persistence
+---
+
+### Part 4: Email Verification with OTP Code
+
+**Database Migration:**
+Create a new table for email verification OTPs:
+```sql
+CREATE TABLE public.email_verification_otps (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL,
+  email TEXT NOT NULL,
+  otp_code TEXT NOT NULL,
+  platform TEXT NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  used BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE public.email_verification_otps ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own verification OTPs" ON public.email_verification_otps
+FOR SELECT USING (auth.uid() = user_id);
+```
+
+**New Edge Functions:**
+
+1. **`send-email-verification-otp/index.ts`**
+   - Generates 6-digit OTP
+   - Stores in `email_verification_otps` table
+   - Sends branded email with code (valid for 10 minutes)
+   - Rate limiting: max 3 per hour
+
+2. **`verify-email-otp/index.ts`**
+   - Validates OTP code
+   - Marks email as verified in user metadata
+   - Updates `is_email_verified` flag in profiles (new column)
+
+**Changes to RiderAuth.tsx:**
+After signup:
+1. Show OTP input screen instead of "check your email" message
+2. User enters 6-digit code
+3. Verify via edge function
+4. Proceed to dashboard if valid
+
+**New Component: `EmailVerificationOTP.tsx`**
+- 6-digit input using existing InputOTP component
+- Resend button with cooldown timer
+- Auto-submit when 6 digits entered
+
+---
+
+### Part 5: NIN Data Collection
+
+**Database Migration:**
+Add NIN fields to `rider_profiles`:
+```sql
+ALTER TABLE public.rider_profiles 
+  ADD COLUMN IF NOT EXISTS nin_number TEXT,
+  ADD COLUMN IF NOT EXISTS nin_verified BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS nin_submitted_at TIMESTAMPTZ;
+```
+
+**Changes to RiderAuth.tsx (Signup Form):**
+Add new field after vehicle details:
+- NIN Number input (11 digits, validated)
+- Help text explaining why it's required
+- Info about data protection
+
+**Validation:**
+- Nigerian NIN is 11 digits
+- Basic format validation on client
+- Store encrypted or as-is (admin verification is manual)
+
+---
+
+### Part 6: Admin Manual Verification for Riders
+
+**Changes to AdminRiders.tsx:**
+Enhance the pending riders view to show:
+- NIN number (partially masked: `123****5678`)
+- Email verification status
+- Vehicle details
+- "Verify NIN" checkbox before approval
+
+**Verification Workflow:**
+1. Rider signs up with NIN
+2. Rider verifies email via OTP
+3. Admin sees rider in "Pending" tab with NIN details
+4. Admin manually verifies NIN (external check)
+5. Admin clicks "Verify" to activate rider
+
+**Order Assignment Logic:**
+Update `find-nearby-riders` and `assign-rider` edge functions:
+- Only assign to riders where:
+  - `is_verified = true` (admin verified)
+  - `nin_number IS NOT NULL`
+  - Email is verified
 
 ---
 
@@ -102,63 +190,89 @@ Add a sound preference toggle in `RiderSettings.tsx`:
 ### Files to Create
 | File | Purpose |
 |------|---------|
-| `src/components/rider/RiderBottomNav.tsx` | Mobile bottom navigation with online toggle |
-| `src/components/rider/RiderLayout.tsx` | Responsive wrapper for all rider pages |
-| `src/components/rider/RiderMobileHeader.tsx` | Mobile header with menu trigger |
-| `src/hooks/useNotificationSound.ts` | Hook for playing notification sounds |
-| `public/sounds/new-order.mp3` | Notification sound file |
-| `supabase/migrations/[timestamp]_rider_work_location.sql` | Database migration |
+| `src/components/rider/RiderFloatingWidget.tsx` | Floating widget for multitasking |
+| `src/components/rider/EmailVerificationOTP.tsx` | OTP input component for email verification |
+| `supabase/functions/send-email-verification-otp/index.ts` | Send OTP for email verification |
+| `supabase/functions/verify-email-otp/index.ts` | Verify email OTP code |
 
 ### Files to Modify
 | File | Changes |
 |------|---------|
-| `src/components/rider/RiderSidebar.tsx` | Add responsive visibility classes |
-| `src/pages/rider/RiderDashboard.tsx` | Use RiderLayout, responsive grids |
-| `src/pages/rider/RiderOrders.tsx` | Use RiderLayout, add notification sound |
-| `src/pages/rider/RiderEarnings.tsx` | Use RiderLayout, responsive grids |
-| `src/pages/rider/RiderWithdraw.tsx` | Use RiderLayout, responsive grids |
-| `src/pages/rider/RiderSettings.tsx` | Use RiderLayout, add work location + sound settings |
-| `supabase/functions/find-nearby-riders/index.ts` | Consider preferred work area |
-| `supabase/functions/assign-rider/index.ts` | Consider preferred work area |
+| `src/pages/rider/RiderDashboard.tsx` | Add work location card, floating widget toggle |
+| `src/pages/rider/RiderOrders.tsx` | Add "View on Map" buttons for addresses |
+| `src/pages/rider/RiderAuth.tsx` | Add NIN field, integrate OTP verification |
+| `src/pages/rider/RiderSettings.tsx` | Add floating widget toggle option |
+| `src/pages/admin/AdminRiders.tsx` | Show NIN details, verification workflow |
+| `supabase/functions/find-nearby-riders/index.ts` | Check NIN + email verification |
+| `supabase/functions/assign-rider/index.ts` | Check NIN + email verification |
 
-### Mobile Breakpoint Strategy
-- Mobile: < 768px (uses `useIsMobile()` hook)
-- Desktop: >= 768px
-- Uses Tailwind responsive prefixes (`md:`, `lg:`)
+### Database Changes
+- New table: `email_verification_otps`
+- New columns in `rider_profiles`: `nin_number`, `nin_verified`, `nin_submitted_at`
 
-### Notification Sound Implementation
+### Floating Widget Design
+```text
++----------------------------------+
+|  [Minimized FAB Button]          |
+|  🟢 Online · 2 orders            |
++----------------------------------+
+
+         ↓ Tap to expand ↓
+
++----------------------------------+
+|  🚚 Rider Mode                   |
+|  +--------------------------+    |
+|  | Online ○──────────────●  |    |
+|  +--------------------------+    |
+|  Active Order: #FC-240126-1234   |
+|  Status: Picked Up               |
+|  [Mark Delivered] [View Details] |
+|  +--------------------------+    |
+|  | [Minimize] [Full App →]  |    |
+|  +--------------------------+    |
++----------------------------------+
+```
+
+### Map Button Implementation
+For order cards, add a button that opens external maps:
 ```typescript
-// useNotificationSound.ts
-export function useNotificationSound() {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [soundEnabled, setSoundEnabled] = useState(
-    localStorage.getItem('rider-notification-sound') !== 'false'
-  );
+<Button
+  variant="outline"
+  size="sm"
+  onClick={() => {
+    const query = encodeURIComponent(order.delivery_address_text);
+    window.open(`https://www.google.com/maps/search/?api=1&query=${query}`);
+  }}
+>
+  <MapPin className="w-4 h-4 mr-1" />
+  View on Map
+</Button>
+```
 
-  useEffect(() => {
-    audioRef.current = new Audio('/sounds/new-order.mp3');
-    audioRef.current.load();
-  }, []);
-
-  const playNotification = useCallback(() => {
-    if (soundEnabled && audioRef.current) {
-      audioRef.current.currentTime = 0;
-      audioRef.current.play().catch(console.error);
-      // Vibrate if supported
-      if (navigator.vibrate) navigator.vibrate(200);
-    }
-  }, [soundEnabled]);
-
-  return { playNotification, soundEnabled, setSoundEnabled };
-}
+### Email OTP Flow
+```text
+1. User signs up
+2. System calls send-email-verification-otp
+3. 6-digit code sent to email
+4. User enters code in app
+5. System calls verify-email-otp
+6. On success: mark email verified, proceed
 ```
 
 ---
 
+## Security Considerations
+- NIN numbers should be handled carefully (PII data)
+- Admin panel shows partial NIN only (masked)
+- OTP rate limiting prevents brute force
+- Email verification required before rider can go online
+- Manual admin verification adds human oversight
+
 ## Summary
 This implementation will:
-1. Make the rider app fully usable on mobile phones with thumb-friendly bottom navigation
-2. Allow riders to set their preferred work area so they receive orders in their chosen zone
-3. Alert riders with a notification sound when new orders are assigned to them
-
-All changes follow existing patterns in the codebase and maintain consistency with the customer app's mobile design.
+1. Show work location summary on the rider dashboard
+2. Provide a floating widget for quick access while multitasking
+3. Add "View on Map" buttons for riders unfamiliar with locations
+4. Replace link-based email verification with OTP codes
+5. Collect NIN data during rider signup for security
+6. Require admin manual verification before riders can receive orders
