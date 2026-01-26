@@ -35,3 +35,9 @@ verify_jwt = false
 
 [functions.ai-meal-recommendation]
 verify_jwt = false
+
+[functions.paystack-initialize-payment]
+verify_jwt = false
+
+[functions.paystack-verify-payment]
+verify_jwt = false
