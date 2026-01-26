@@ -35,6 +35,7 @@ import VendorRiderJoin from "./pages/rider/VendorRiderJoin";
 import RiderAuth from "./pages/rider/RiderAuth";
 import RiderDashboard from "./pages/rider/RiderDashboard";
 import RiderOrders from "./pages/rider/RiderOrders";
+import RiderAvailableOrders from "./pages/rider/RiderAvailableOrders";
 import RiderEarnings from "./pages/rider/RiderEarnings";
 import RiderWithdraw from "./pages/rider/RiderWithdraw";
 import RiderSettings from "./pages/rider/RiderSettings";
@@ -94,6 +95,7 @@ const App = () => (
               <Route path="/rider/auth" element={<RiderAuth />} />
               <Route path="/rider/dashboard" element={<RiderDashboard />} />
               <Route path="/rider/orders" element={<RiderOrders />} />
+              <Route path="/rider/available" element={<RiderAvailableOrders />} />
               <Route path="/rider/earnings" element={<RiderEarnings />} />
               <Route path="/rider/withdraw" element={<RiderWithdraw />} />
               <Route path="/rider/settings" element={<RiderSettings />} />

@@ -436,6 +436,7 @@ export type Database = {
         Row: {
           cancellation_reason: string | null
           cancelled_at: string | null
+          confirmation_code: string | null
           created_at: string
           delivered_at: string | null
           delivery_address_id: string | null
@@ -463,6 +464,7 @@ export type Database = {
         Insert: {
           cancellation_reason?: string | null
           cancelled_at?: string | null
+          confirmation_code?: string | null
           created_at?: string
           delivered_at?: string | null
           delivery_address_id?: string | null
@@ -490,6 +492,7 @@ export type Database = {
         Update: {
           cancellation_reason?: string | null
           cancelled_at?: string | null
+          confirmation_code?: string | null
           created_at?: string
           delivered_at?: string | null
           delivery_address_id?: string | null

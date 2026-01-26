@@ -5,8 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Package, X, Maximize2, Truck, MapPin, ExternalLink } from 'lucide-react';
+import { Package, X, Maximize2, Truck, MapPin, ExternalLink, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
+
+// Generate a random 6-digit confirmation code
+const generateConfirmationCode = (): string => {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+};
 
 interface RiderFloatingWidgetProps {
   isOnline: boolean;
@@ -15,6 +21,7 @@ interface RiderFloatingWidgetProps {
 
 export function RiderFloatingWidget({ isOnline, onToggleOnline }: RiderFloatingWidgetProps) {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [expanded, setExpanded] = useState(false);
   const [activeOrder, setActiveOrder] = useState<any>(null);
   const [activeOrderCount, setActiveOrderCount] = useState(0);
@@ -59,12 +66,29 @@ export function RiderFloatingWidget({ isOnline, onToggleOnline }: RiderFloatingW
   const updateOrderStatus = async (newStatus: string) => {
     if (!activeOrder) return;
     
-    const updateData: any = { status: newStatus };
+    // Redirect to orders page for delivery verification
     if (newStatus === 'delivered') {
-      updateData.delivered_at = new Date().toISOString();
+      navigate('/rider/orders');
+      toast({
+        title: 'Verify delivery on Orders page',
+        description: 'Please enter the customer\'s confirmation code to complete delivery.',
+      });
+      return;
+    }
+    
+    const updateData: any = { status: newStatus };
+    
+    // Generate confirmation code when rider picks up the order
+    if (newStatus === 'picked_up') {
+      updateData.confirmation_code = generateConfirmationCode();
     }
 
     await supabase.from('orders').update(updateData).eq('id', activeOrder.id);
+    toast({ 
+      title: newStatus === 'picked_up' 
+        ? '📦 Order picked up! Code sent to customer.' 
+        : 'Status updated' 
+    });
     fetchActiveOrders();
   };
 
@@ -176,7 +200,12 @@ export function RiderFloatingWidget({ isOnline, onToggleOnline }: RiderFloatingW
                   className="flex-1 text-xs h-8"
                   onClick={() => updateOrderStatus(getNextStatus(activeOrder.status))}
                 >
-                  {getNextStatus(activeOrder.status) === 'delivered' ? 'Delivered' : 'Next'}
+                  {getNextStatus(activeOrder.status) === 'delivered' ? (
+                    <>
+                      <ShieldCheck className="w-3 h-3 mr-1" />
+                      Verify
+                    </>
+                  ) : 'Next'}
                 </Button>
               )}
             </div>
