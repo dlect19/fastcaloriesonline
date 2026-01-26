@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Store, Mail, Phone, MapPin, Save } from 'lucide-react';
+import { Store, Mail, Phone, MapPin, Save, Camera, ImageIcon, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,6 +23,11 @@ export default function VendorSettings() {
   const [vendor, setVendor] = useState<Vendor | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingBanner, setUploadingBanner] = useState(false);
+
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const bannerInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -35,6 +40,8 @@ export default function VendorSettings() {
     min_order_amount: '',
     delivery_fee: '',
     estimated_delivery_minutes: '',
+    logo_url: '',
+    banner_url: '',
   });
 
   useEffect(() => {
@@ -49,12 +56,15 @@ export default function VendorSettings() {
 
   const fetchData = async () => {
     try {
-      const { data: vendorData } = await supabase
+      // Use limit(1) to handle multiple vendor profiles
+      const { data: vendorResults } = await supabase
         .from('vendors')
         .select('*')
         .eq('user_id', user?.id)
-        .maybeSingle();
+        .order('created_at', { ascending: false })
+        .limit(1);
 
+      const vendorData = vendorResults?.[0] || null;
       setVendor(vendorData);
 
       if (vendorData) {
@@ -69,12 +79,118 @@ export default function VendorSettings() {
           min_order_amount: vendorData.min_order_amount?.toString() || '0',
           delivery_fee: vendorData.delivery_fee?.toString() || '0',
           estimated_delivery_minutes: vendorData.estimated_delivery_minutes?.toString() || '30',
+          logo_url: vendorData.logo_url || '',
+          banner_url: vendorData.banner_url || '',
         });
       }
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const uploadImage = async (file: File, type: 'logo' | 'banner') => {
+    if (!user || !vendor) return null;
+
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${type}-${Date.now()}.${fileExt}`;
+    const filePath = `${user.id}/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('vendor-assets')
+      .upload(filePath, file, { upsert: true });
+
+    if (uploadError) {
+      throw uploadError;
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('vendor-assets')
+      .getPublicUrl(filePath);
+
+    return publicUrl;
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: 'Invalid file type',
+        description: 'Please upload an image file',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast({
+        title: 'File too large',
+        description: 'Please upload an image smaller than 2MB',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setUploadingLogo(true);
+    try {
+      const url = await uploadImage(file, 'logo');
+      if (url) {
+        setFormData({ ...formData, logo_url: url });
+        toast({ title: 'Logo uploaded successfully' });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Upload failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  const handleBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: 'Invalid file type',
+        description: 'Please upload an image file',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: 'File too large',
+        description: 'Please upload an image smaller than 5MB',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setUploadingBanner(true);
+    try {
+      const url = await uploadImage(file, 'banner');
+      if (url) {
+        setFormData({ ...formData, banner_url: url });
+        toast({ title: 'Banner uploaded successfully' });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Upload failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setUploadingBanner(false);
     }
   };
 
@@ -96,6 +212,8 @@ export default function VendorSettings() {
           min_order_amount: parseFloat(formData.min_order_amount) || 0,
           delivery_fee: parseFloat(formData.delivery_fee) || 0,
           estimated_delivery_minutes: parseInt(formData.estimated_delivery_minutes) || 30,
+          logo_url: formData.logo_url || null,
+          banner_url: formData.banner_url || null,
         })
         .eq('id', vendor.id);
 
@@ -145,6 +263,86 @@ export default function VendorSettings() {
               {saving ? 'Saving...' : 'Save Changes'}
             </Button>
           </div>
+
+          {/* Logo & Banner Upload */}
+          <Card className="border-0 shadow-soft">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Camera className="w-5 h-5" />
+                Brand Assets
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Logo Upload */}
+              <div className="space-y-3">
+                <Label>Business Logo</Label>
+                <div className="flex items-center gap-4">
+                  <div 
+                    className="w-24 h-24 rounded-2xl bg-muted flex items-center justify-center overflow-hidden border-2 border-dashed border-border cursor-pointer hover:border-primary transition-colors"
+                    onClick={() => logoInputRef.current?.click()}
+                  >
+                    {uploadingLogo ? (
+                      <Loader2 className="w-8 h-8 text-muted-foreground animate-spin" />
+                    ) : formData.logo_url ? (
+                      <img src={formData.logo_url} alt="Logo" className="w-full h-full object-cover" />
+                    ) : (
+                      <Store className="w-8 h-8 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Upload your business logo. Recommended: 400x400px, max 2MB.
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => logoInputRef.current?.click()}
+                      disabled={uploadingLogo}
+                    >
+                      {uploadingLogo ? 'Uploading...' : 'Choose Logo'}
+                    </Button>
+                    <input
+                      ref={logoInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleLogoUpload}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Banner Upload */}
+              <div className="space-y-3">
+                <Label>Cover Banner</Label>
+                <div 
+                  className="w-full h-40 rounded-2xl bg-muted flex items-center justify-center overflow-hidden border-2 border-dashed border-border cursor-pointer hover:border-primary transition-colors"
+                  onClick={() => bannerInputRef.current?.click()}
+                >
+                  {uploadingBanner ? (
+                    <Loader2 className="w-8 h-8 text-muted-foreground animate-spin" />
+                  ) : formData.banner_url ? (
+                    <img src={formData.banner_url} alt="Banner" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="text-center">
+                      <ImageIcon className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
+                      <p className="text-sm text-muted-foreground">Click to upload banner</p>
+                    </div>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Recommended: 1200x400px, max 5MB. This appears at the top of your store page.
+                </p>
+                <input
+                  ref={bannerInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleBannerUpload}
+                />
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Business Info */}
           <Card className="border-0 shadow-soft">
