@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Wallet, ArrowUpRight, Building2, CreditCard, Clock, Settings, AlertCircle, Loader2 } from 'lucide-react';
+import { Wallet, ArrowUpRight, Building2, CreditCard, Clock, Settings, AlertCircle, Loader2, ShieldCheck } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { VendorSidebar } from '@/components/vendor/VendorSidebar';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -64,6 +65,11 @@ export default function VendorWithdraw() {
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  
+  // OTP verification state
+  const [otpStep, setOtpStep] = useState<'amount' | 'otp'>('amount');
+  const [otp, setOtp] = useState('');
+  const [sendingOtp, setSendingOtp] = useState(false);
 
   // Bank details form
   const [bankName, setBankName] = useState('');
@@ -215,7 +221,7 @@ export default function VendorWithdraw() {
     }
   };
 
-  const handleWithdraw = async () => {
+  const handleRequestOTP = async () => {
     const amount = Number(withdrawAmount);
     if (!amount || amount <= 0) {
       toast({ title: 'Enter a valid amount', variant: 'destructive' });
@@ -233,17 +239,61 @@ export default function VendorWithdraw() {
       return;
     }
 
+    setSendingOtp(true);
+    try {
+      const { error } = await supabase.functions.invoke('send-withdrawal-otp', {
+        body: {
+          email: user?.email,
+          userName: vendor?.name,
+          amount,
+          userType: 'vendor',
+        },
+      });
+
+      if (error) throw error;
+
+      toast({ title: 'OTP sent!', description: 'Check your email for the verification code.' });
+      setOtpStep('otp');
+    } catch (error: any) {
+      toast({ title: 'Failed to send OTP', description: error.message, variant: 'destructive' });
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
+  const handleVerifyAndWithdraw = async () => {
+    if (otp.length !== 6) {
+      toast({ title: 'Please enter the 6-digit OTP', variant: 'destructive' });
+      return;
+    }
+
+    const amount = Number(withdrawAmount);
+
     setSubmitting(true);
     try {
+      // Verify OTP
+      const { data: verifyData, error: verifyError } = await supabase.functions.invoke('verify-withdrawal-otp', {
+        body: {
+          email: user?.email,
+          otp,
+          expectedAmount: amount,
+        },
+      });
+
+      if (verifyError || !verifyData?.valid) {
+        throw new Error('Invalid or expired OTP');
+      }
+
+      // Process withdrawal
       const { error } = await supabase
         .from('withdrawal_requests')
         .insert({
-          wallet_id: wallet.id,
+          wallet_id: wallet!.id,
           user_id: user?.id,
           amount,
-          bank_name: wallet.bank_name,
-          bank_account_number: wallet.bank_account_number,
-          bank_account_name: wallet.bank_account_name || '',
+          bank_name: wallet!.bank_name,
+          bank_account_number: wallet!.bank_account_number,
+          bank_account_name: wallet!.bank_account_name || '',
           user_type: 'vendor',
         });
 
@@ -252,11 +302,21 @@ export default function VendorWithdraw() {
       toast({ title: 'Withdrawal request submitted', description: 'Your request will be processed within 24-48 hours.' });
       setWithdrawDialogOpen(false);
       setWithdrawAmount('');
+      setOtp('');
+      setOtpStep('amount');
       fetchData();
     } catch (error: any) {
       toast({ title: 'Withdrawal failed', description: error.message, variant: 'destructive' });
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleCloseWithdrawDialog = (open: boolean) => {
+    setWithdrawDialogOpen(open);
+    if (!open) {
+      setOtpStep('amount');
+      setOtp('');
     }
   };
 
@@ -488,7 +548,7 @@ export default function VendorWithdraw() {
           </div>
 
           {/* Withdraw Button */}
-          <Dialog open={withdrawDialogOpen} onOpenChange={setWithdrawDialogOpen}>
+          <Dialog open={withdrawDialogOpen} onOpenChange={handleCloseWithdrawDialog}>
             <DialogTrigger asChild>
               <Button size="lg" className="gap-2">
                 <ArrowUpRight className="w-5 h-5" />
@@ -497,50 +557,113 @@ export default function VendorWithdraw() {
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Request Withdrawal</DialogTitle>
+                <DialogTitle className="flex items-center gap-2">
+                  {otpStep === 'otp' && <ShieldCheck className="w-5 h-5 text-primary" />}
+                  {otpStep === 'amount' ? 'Request Withdrawal' : 'Verify OTP'}
+                </DialogTitle>
                 <DialogDescription>
-                  Withdraw funds to your bank account
+                  {otpStep === 'amount' 
+                    ? 'Withdraw funds to your bank account' 
+                    : 'Enter the 6-digit code sent to your email'}
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4">
-                {wallet?.bank_name ? (
-                  <div className="p-4 bg-muted rounded-lg">
-                    <p className="text-sm text-muted-foreground">Withdrawing to:</p>
-                    <p className="font-medium">{wallet.bank_name}</p>
-                    <p className="text-sm">{wallet.bank_account_number} - {wallet.bank_account_name}</p>
+              
+              {otpStep === 'amount' ? (
+                <div className="space-y-4">
+                  {wallet?.bank_name ? (
+                    <div className="p-4 bg-muted rounded-lg">
+                      <p className="text-sm text-muted-foreground">Withdrawing to:</p>
+                      <p className="font-medium">{wallet.bank_name}</p>
+                      <p className="text-sm">{wallet.bank_account_number} - {wallet.bank_account_name}</p>
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-yellow-50 rounded-lg text-center">
+                      <p className="text-sm text-yellow-700">Please add bank details first</p>
+                      <Button variant="outline" size="sm" className="mt-2" onClick={() => setBankDialogOpen(true)}>
+                        Add Bank Details
+                      </Button>
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label>Amount (₦)</Label>
+                    <Input
+                      type="number"
+                      value={withdrawAmount}
+                      onChange={(e) => setWithdrawAmount(e.target.value)}
+                      placeholder="Enter amount"
+                      max={eligibleBalance}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Eligible balance: {formatCurrency(eligibleBalance)}
+                    </p>
                   </div>
-                ) : (
-                  <div className="p-4 bg-yellow-50 rounded-lg text-center">
-                    <p className="text-sm text-yellow-700">Please add bank details first</p>
-                    <Button variant="outline" size="sm" className="mt-2" onClick={() => setBankDialogOpen(true)}>
-                      Add Bank Details
+
+                  <Button 
+                    onClick={handleRequestOTP} 
+                    className="w-full" 
+                    disabled={sendingOtp || !wallet?.bank_name}
+                  >
+                    {sendingOtp ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                    Send Verification Code
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="p-4 bg-muted rounded-lg text-center">
+                    <p className="text-sm text-muted-foreground mb-1">Withdrawing</p>
+                    <p className="text-2xl font-bold text-primary">{formatCurrency(Number(withdrawAmount))}</p>
+                    <p className="text-xs text-muted-foreground mt-1">to {wallet?.bank_name}</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-center block">Enter OTP</Label>
+                    <div className="flex justify-center">
+                      <InputOTP value={otp} onChange={setOtp} maxLength={6}>
+                        <InputOTPGroup>
+                          <InputOTPSlot index={0} />
+                          <InputOTPSlot index={1} />
+                          <InputOTPSlot index={2} />
+                          <InputOTPSlot index={3} />
+                          <InputOTPSlot index={4} />
+                          <InputOTPSlot index={5} />
+                        </InputOTPGroup>
+                      </InputOTP>
+                    </div>
+                    <p className="text-xs text-muted-foreground text-center">
+                      Code sent to {user?.email}
+                    </p>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline"
+                      onClick={() => setOtpStep('amount')} 
+                      className="flex-1"
+                    >
+                      Back
+                    </Button>
+                    <Button 
+                      onClick={handleVerifyAndWithdraw} 
+                      className="flex-1" 
+                      disabled={submitting || otp.length !== 6}
+                    >
+                      {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                      Confirm Withdrawal
                     </Button>
                   </div>
-                )}
 
-                <div className="space-y-2">
-                  <Label>Amount (₦)</Label>
-                  <Input
-                    type="number"
-                    value={withdrawAmount}
-                    onChange={(e) => setWithdrawAmount(e.target.value)}
-                    placeholder="Enter amount"
-                    max={eligibleBalance}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Eligible balance: {formatCurrency(eligibleBalance)}
-                  </p>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="w-full text-muted-foreground"
+                    onClick={handleRequestOTP}
+                    disabled={sendingOtp}
+                  >
+                    {sendingOtp ? 'Sending...' : 'Resend Code'}
+                  </Button>
                 </div>
-
-                <Button 
-                  onClick={handleWithdraw} 
-                  className="w-full" 
-                  disabled={submitting || !wallet?.bank_name}
-                >
-                  {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                  Submit Withdrawal Request
-                </Button>
-              </div>
+              )}
             </DialogContent>
           </Dialog>
 
