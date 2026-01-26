@@ -24,6 +24,9 @@ import VendorReviews from "./pages/vendor/VendorReviews";
 import VendorEarnings from "./pages/vendor/VendorEarnings";
 import VendorHours from "./pages/vendor/VendorHours";
 import VendorSettings from "./pages/vendor/VendorSettings";
+import VendorPromos from "./pages/vendor/VendorPromos";
+import VendorRiders from "./pages/vendor/VendorRiders";
+import VendorRiderJoin from "./pages/rider/VendorRiderJoin";
 import RiderAuth from "./pages/rider/RiderAuth";
 import RiderDashboard from "./pages/rider/RiderDashboard";
 import RiderOrders from "./pages/rider/RiderOrders";
@@ -70,12 +73,15 @@ const App = () => (
               <Route path="/vendor/earnings" element={<VendorEarnings />} />
               <Route path="/vendor/hours" element={<VendorHours />} />
               <Route path="/vendor/settings" element={<VendorSettings />} />
+              <Route path="/vendor/promos" element={<VendorPromos />} />
+              <Route path="/vendor/riders" element={<VendorRiders />} />
               {/* Rider Portal Routes */}
               <Route path="/rider/auth" element={<RiderAuth />} />
               <Route path="/rider/dashboard" element={<RiderDashboard />} />
               <Route path="/rider/orders" element={<RiderOrders />} />
               <Route path="/rider/earnings" element={<RiderEarnings />} />
               <Route path="/rider/settings" element={<RiderSettings />} />
+              <Route path="/rider/join/:code" element={<VendorRiderJoin />} />
               {/* Admin Portal Routes */}
               <Route path="/admin/auth" element={<AdminAuth />} />
               <Route path="/admin/dashboard" element={<AdminDashboard />} />

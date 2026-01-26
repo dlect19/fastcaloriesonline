@@ -8,16 +8,17 @@ import { useToast } from '@/hooks/use-toast';
 
 interface PromoCodeInputProps {
   subtotal: number;
+  vendorId?: string;
   onDiscountApplied: (discount: number, promoCode: string | null) => void;
 }
 
-export function PromoCodeInput({ subtotal, onDiscountApplied }: PromoCodeInputProps) {
+export function PromoCodeInput({ subtotal, vendorId, onDiscountApplied }: PromoCodeInputProps) {
   const { toast } = useToast();
   const { loading, appliedPromo, applyPromo, clearPromo } = usePromoCode();
   const [code, setCode] = useState('');
 
   const handleApply = async () => {
-    const result = await applyPromo(code, subtotal);
+    const result = await applyPromo(code, subtotal, vendorId);
     
     if (result.valid) {
       toast({ title: 'Promo applied!', description: result.message });
