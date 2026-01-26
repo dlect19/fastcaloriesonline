@@ -153,7 +153,7 @@ const handler = async (req: Request): Promise<Response> => {
     `;
 
     const { error: emailError } = await resend.emails.send({
-      from: "Fast Calories <onboarding@resend.dev>",
+      from: "Fast Calories <noreply@fastcalories.online>",
       to: [normalizedEmail],
       subject: `${otpCode} is your password reset code`,
       html: emailHtml,
