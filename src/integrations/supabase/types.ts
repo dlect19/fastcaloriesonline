@@ -345,6 +345,39 @@ export type Database = {
         }
         Relationships: []
       }
+      email_verification_otps: {
+        Row: {
+          created_at: string | null
+          email: string
+          expires_at: string
+          id: string
+          otp_code: string
+          platform: string
+          used: boolean | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          expires_at: string
+          id?: string
+          otp_code: string
+          platform: string
+          used?: boolean | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          expires_at?: string
+          id?: string
+          otp_code?: string
+          platform?: string
+          used?: boolean | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       order_items: {
         Row: {
           calories: number | null
@@ -1063,8 +1096,12 @@ export type Database = {
           current_longitude: number | null
           id: string
           id_document_url: string | null
+          is_email_verified: boolean | null
           is_online: boolean | null
           is_verified: boolean | null
+          nin_number: string | null
+          nin_submitted_at: string | null
+          nin_verified: boolean | null
           preferred_city: string | null
           preferred_latitude: number | null
           preferred_longitude: number | null
@@ -1084,8 +1121,12 @@ export type Database = {
           current_longitude?: number | null
           id?: string
           id_document_url?: string | null
+          is_email_verified?: boolean | null
           is_online?: boolean | null
           is_verified?: boolean | null
+          nin_number?: string | null
+          nin_submitted_at?: string | null
+          nin_verified?: boolean | null
           preferred_city?: string | null
           preferred_latitude?: number | null
           preferred_longitude?: number | null
@@ -1105,8 +1146,12 @@ export type Database = {
           current_longitude?: number | null
           id?: string
           id_document_url?: string | null
+          is_email_verified?: boolean | null
           is_online?: boolean | null
           is_verified?: boolean | null
+          nin_number?: string | null
+          nin_submitted_at?: string | null
+          nin_verified?: boolean | null
           preferred_city?: string | null
           preferred_latitude?: number | null
           preferred_longitude?: number | null
