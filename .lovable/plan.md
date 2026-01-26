@@ -1,251 +1,162 @@
 
+# Implementation Plan: Fix Order Flow & Add PWA Support
 
-# Plan: Consumer Nutrition Analytics Dashboard
+## Problem Summary
 
-## Overview
+I found three issues that need to be fixed:
 
-Create a new "Nutrition Analytics" page in the admin portal that provides comprehensive reporting on consumer calorie consumption and food class distribution. The dashboard will display data in daily, monthly, and yearly views with visual charts for demographic analysis.
+1. **Orders showing "picked up" incorrectly** - The vendor dashboard lets the vendor change the order to "picked up" status even when no rider has claimed it. This is wrong - only the rider should be able to mark an order as picked up.
 
----
+2. **Rider not seeing available orders** - Because the orders were incorrectly marked as "picked up" (not "ready for pickup"), the rider couldn't see them. The orders need to stay at "ready for pickup" until a rider actually claims and picks them up.
 
-## Data Sources
-
-The feature will leverage existing tables:
-
-| Table | Data Used |
-|-------|-----------|
-| `calorie_logs` | User calorie consumption, macros, meal types, dates |
-| `order_items` | Calories per item, product references |
-| `products` | Calorie classes (carbs, protein, fats, fiber), nutrient data |
-| `profiles` | User info for per-consumer breakdown |
+3. **PWA support needed** - You want riders and customers to install the app on their phones like a real app.
 
 ---
 
-## Implementation Tasks
+## Part 1: Fix the Order Status Flow
 
-### Task 1: Add Nutrition Analytics to Admin Sidebar
+### What's Wrong
+Currently, vendors can click through all the order statuses (Pending → Confirmed → Preparing → Ready → Picked Up → Delivered). But "Picked Up", "On the Way", and "Delivered" should only be changed by the rider, not the vendor.
 
-**File**: `src/components/admin/AdminSidebar.tsx`
+### The Fix
+Restrict the vendor's ability to only go up to "Ready for Pickup". After that, the vendor waits for a rider to claim and update the order.
 
-Add new menu item:
+**Files to modify:**
+- `src/pages/vendor/VendorOrders.tsx` - Stop the vendor from changing status past "ready_for_pickup"
+
+**Code change:**
 ```typescript
-{ icon: Activity, label: 'Nutrition', path: '/admin/nutrition' },
-```
-
----
-
-### Task 2: Create Admin Nutrition Analytics Page
-
-**New File**: `src/pages/admin/AdminNutrition.tsx`
-
-#### Section 1: Platform Nutrition Overview (Top Cards)
-- **Total Calories Consumed**: Sum of all calorie_logs
-- **Total Users Tracking**: Count of unique users with calorie_logs
-- **Average Daily Intake**: Average calories per user per day
-- **Most Popular Food Class**: Most consumed class (carbs/protein/fats/fiber)
-
-#### Section 2: Time Period Selector
-- Tabs or dropdown for: **Today**, **This Week**, **This Month**, **This Year**
-- Date range picker for custom ranges
-
-#### Section 3: Food Class Distribution (Pie Chart)
-- Visual breakdown showing percentage of:
-  - Carbohydrates consumption
-  - Protein consumption
-  - Fats consumption
-  - Fiber consumption
-- Use `recharts` PieChart component
-
-#### Section 4: Calorie Trends (Line/Bar Chart)
-- **Daily View**: Calories consumed per hour of day
-- **Weekly View**: Calories consumed per day of week
-- **Monthly View**: Calories consumed per day of month
-- **Yearly View**: Calories consumed per month
-
-#### Section 5: Per-Consumer Breakdown (Table)
-- Columns: User Name, Total Calories, Avg Daily, Top Food Class, Last Activity
-- Sortable and searchable
-- Click to expand: Show detailed breakdown per user
-
----
-
-### Task 3: Add Route to App.tsx
-
-**File**: `src/App.tsx`
-
-Add route:
-```typescript
-<Route path="/admin/nutrition" element={<AdminNutrition />} />
-```
-
----
-
-## Technical Details
-
-### Data Fetching Strategy
-
-```typescript
-// Fetch calorie logs with date filtering
-const fetchNutritionData = async (startDate: Date, endDate: Date) => {
-  // Get all calorie logs in range
-  const { data: logs } = await supabase
-    .from('calorie_logs')
-    .select('*')
-    .gte('log_date', startDate.toISOString().split('T')[0])
-    .lte('log_date', endDate.toISOString().split('T')[0]);
-
-  // Get order items with product info for food classes
-  const { data: orderItems } = await supabase
-    .from('order_items')
-    .select('*, products(calorie_classes, calories)')
-    .gte('created_at', startDate.toISOString())
-    .lte('created_at', endDate.toISOString());
-
-  // Get user profiles for names
-  const userIds = [...new Set(logs?.map(l => l.user_id) || [])];
-  const { data: profiles } = await supabase
-    .from('profiles')
-    .select('user_id, full_name')
-    .in('user_id', userIds);
-
-  return { logs, orderItems, profiles };
-};
-```
-
-### Chart Components Using Recharts
-
-```typescript
-// Pie Chart for Food Class Distribution
-<PieChart>
-  <Pie data={foodClassData} dataKey="value" nameKey="name" />
-  <Tooltip />
-  <Legend />
-</PieChart>
-
-// Line Chart for Trends
-<LineChart data={trendData}>
-  <XAxis dataKey="date" />
-  <YAxis />
-  <Line type="monotone" dataKey="calories" stroke="#22c55e" />
-  <Tooltip />
-</LineChart>
-```
-
-### Per-User Statistics Calculation
-
-```typescript
-interface UserNutritionStats {
-  userId: string;
-  fullName: string;
-  totalCalories: number;
-  avgDailyCalories: number;
-  topFoodClass: 'carbs' | 'protein' | 'fats' | 'fiber';
-  carbsTotal: number;
-  proteinTotal: number;
-  fatsTotal: number;
-  fiberTotal: number;
-  lastActivity: string;
-}
-
-const calculateUserStats = (logs: CalorieLog[], userId: string): UserNutritionStats => {
-  const userLogs = logs.filter(l => l.user_id === userId);
-  const uniqueDays = new Set(userLogs.map(l => l.log_date)).size;
-  
-  const totals = userLogs.reduce((acc, log) => ({
-    calories: acc.calories + (log.calories || 0),
-    carbs: acc.carbs + (log.carbs_grams || 0),
-    protein: acc.protein + (log.protein_grams || 0),
-    fats: acc.fats + (log.fats_grams || 0),
-  }), { calories: 0, carbs: 0, protein: 0, fats: 0 });
-
-  // Determine top food class by grams consumed
-  const classes = [
-    { name: 'carbs', value: totals.carbs },
-    { name: 'protein', value: totals.protein },
-    { name: 'fats', value: totals.fats },
+// Modify getNextStatus to stop at ready_for_pickup for vendors
+const getNextStatus = (currentStatus: OrderStatus): OrderStatus | null => {
+  const vendorStatusFlow: OrderStatus[] = [
+    'pending', 'confirmed', 'preparing', 'ready_for_pickup'
   ];
-  const topClass = classes.sort((a, b) => b.value - a.value)[0];
-
-  return {
-    userId,
-    totalCalories: totals.calories,
-    avgDailyCalories: uniqueDays > 0 ? Math.round(totals.calories / uniqueDays) : 0,
-    topFoodClass: topClass.name as 'carbs' | 'protein' | 'fats',
-    carbsTotal: totals.carbs,
-    proteinTotal: totals.protein,
-    fatsTotal: totals.fats,
-    lastActivity: userLogs[0]?.created_at || '',
-  };
+  const currentIndex = vendorStatusFlow.indexOf(currentStatus);
+  if (currentIndex === -1 || currentIndex >= vendorStatusFlow.length - 1) return null;
+  return vendorStatusFlow[currentIndex + 1];
 };
 ```
 
 ---
 
-## UI Layout
+## Part 2: Fix Existing Orders (Database Update)
 
-```
-+------------------------------------------------------------------+
-|  Nutrition Analytics                                              |
-+------------------------------------------------------------------+
+### The Problem
+The current orders are stuck at "picked_up" status with no rider. We need to reset them to "ready_for_pickup" so riders can see and claim them.
 
-+------------------------------------------------------------------+
-|  Platform Overview                                                |
-|  +------------+ +------------+ +------------+ +------------+     |
-|  | Total      | | Users      | | Avg Daily  | | Top Food   |     |
-|  | Calories   | | Tracking   | | Intake     | | Class      |     |
-|  +------------+ +------------+ +------------+ +------------+     |
-+------------------------------------------------------------------+
+### The Fix
+Update the orders in the database:
 
-+------------------------------------------------------------------+
-|  [ Today ] [ Week ] [ Month ] [ Year ] [ Custom ]                |
-+------------------------------------------------------------------+
-
-+----------------------------------+-------------------------------+
-|  Food Class Distribution         |  Calorie Trends               |
-|  [======= Pie Chart =======]     |  [====== Line Chart ======]   |
-|  - Carbs: 45%                    |  Shows consumption over time  |
-|  - Protein: 30%                  |                               |
-|  - Fats: 20%                     |                               |
-|  - Fiber: 5%                     |                               |
-+----------------------------------+-------------------------------+
-
-+------------------------------------------------------------------+
-|  Per-Consumer Breakdown                                           |
-|  +-------+-------------+----------+--------+----------+--------+ |
-|  | User  | Total Cals  | Avg/Day  | Carbs  | Protein  | Fats   | |
-|  +-------+-------------+----------+--------+----------+--------+ |
-|  | John  | 45,230      | 2,150    | 2,100g | 1,200g   | 890g   | |
-|  | Jane  | 38,500      | 1,830    | 1,800g | 1,100g   | 750g   | |
-|  +-------+-------------+----------+--------+----------+--------+ |
-+------------------------------------------------------------------+
+```sql
+UPDATE orders 
+SET status = 'ready_for_pickup', confirmation_code = NULL
+WHERE status = 'picked_up' AND rider_id IS NULL;
 ```
 
 ---
 
-## Files Summary
+## Part 3: Add PWA (Installable App) Support
 
-| File | Action | Description |
-|------|--------|-------------|
-| `src/components/admin/AdminSidebar.tsx` | Modify | Add "Nutrition" menu item |
-| `src/pages/admin/AdminNutrition.tsx` | Create | New analytics page with charts |
-| `src/App.tsx` | Modify | Add route for `/admin/nutrition` |
+This will let users install the app on their phone's home screen, making it work like a native app with offline support.
+
+### Files to Create/Modify:
+
+**1. Install the PWA plugin (dependency):**
+- Add `vite-plugin-pwa` package
+
+**2. Update `vite.config.ts`:**
+```typescript
+import { VitePWA } from 'vite-plugin-pwa'
+
+export default defineConfig({
+  plugins: [
+    react(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      includeAssets: ['favicon.ico', 'images/fast-calories-logo.png'],
+      manifest: {
+        name: 'Fast Calories - Eat Smart, Live Healthy',
+        short_name: 'Fast Calories',
+        description: 'Nigeria\'s #1 health-aware food delivery platform',
+        theme_color: '#16a34a',
+        background_color: '#ffffff',
+        display: 'standalone',
+        start_url: '/',
+        icons: [
+          { src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' },
+          { src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png' },
+          { src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+        ]
+      },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/.*supabase\.co\/.*/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'supabase-cache',
+              expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 }
+            }
+          }
+        ]
+      }
+    })
+  ]
+})
+```
+
+**3. Update `index.html` with PWA meta tags:**
+```html
+<meta name="theme-color" content="#16a34a" />
+<link rel="apple-touch-icon" href="/pwa-192x192.png" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+```
+
+**4. Create PWA icons in `/public` folder:**
+- `pwa-192x192.png` (192x192 pixels)
+- `pwa-512x512.png` (512x512 pixels)
+
+**5. Create install prompt page `src/pages/Install.tsx`:**
+A dedicated page that shows install instructions for both iOS and Android users.
+
+**6. Add route for install page in `src/App.tsx`:**
+```typescript
+<Route path="/install" element={<Install />} />
+```
 
 ---
 
-## Expected Outcome
+## How Users Will Install the App
 
-After implementation, admins will be able to:
-1. View total platform calorie consumption statistics
-2. See food class distribution as a pie chart
-3. Track calorie trends over time (day/week/month/year)
-4. View per-user nutrition breakdown
-5. Filter data by custom date ranges
-6. Identify popular food classes and consumption patterns
+### On Android (Chrome):
+1. Open the app in Chrome
+2. Tap the browser menu (3 dots)
+3. Tap "Install app" or "Add to Home Screen"
+
+### On iPhone (Safari):
+1. Open the app in Safari
+2. Tap the Share button
+3. Tap "Add to Home Screen"
 
 ---
 
-## Dependencies
+## Summary of Changes
 
-- `recharts` (already installed) - For PieChart and LineChart visualization
-- No database migrations needed - Uses existing calorie_logs and products tables
+| Task | Files |
+|------|-------|
+| Restrict vendor status changes | `src/pages/vendor/VendorOrders.tsx` |
+| Fix stuck orders | Database update (SQL) |
+| Add PWA support | `vite.config.ts`, `index.html`, `src/pages/Install.tsx`, `src/App.tsx` |
+| Create PWA icons | `public/pwa-192x192.png`, `public/pwa-512x512.png` |
 
+---
+
+## Technical Notes
+
+- The PWA will cache essential files for faster loading
+- API calls will use "Network First" strategy - try to fetch fresh data, fall back to cache if offline
+- The app will auto-update when new versions are deployed
+- Icons will be generated from the existing Fast Calories logo
