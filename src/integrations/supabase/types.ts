@@ -1163,7 +1163,13 @@ export type Database = {
       }
       wallets: {
         Row: {
+          auto_withdraw: boolean | null
+          auto_withdraw_day: number | null
+          auto_withdraw_threshold: number | null
           balance: number | null
+          bank_account_name: string | null
+          bank_account_number: string | null
+          bank_name: string | null
           created_at: string
           id: string
           pending_balance: number | null
@@ -1173,7 +1179,13 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          auto_withdraw?: boolean | null
+          auto_withdraw_day?: number | null
+          auto_withdraw_threshold?: number | null
           balance?: number | null
+          bank_account_name?: string | null
+          bank_account_number?: string | null
+          bank_name?: string | null
           created_at?: string
           id?: string
           pending_balance?: number | null
@@ -1183,7 +1195,13 @@ export type Database = {
           user_id: string
         }
         Update: {
+          auto_withdraw?: boolean | null
+          auto_withdraw_day?: number | null
+          auto_withdraw_threshold?: number | null
           balance?: number | null
+          bank_account_name?: string | null
+          bank_account_number?: string | null
+          bank_name?: string | null
           created_at?: string
           id?: string
           pending_balance?: number | null
@@ -1193,6 +1211,62 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      withdrawal_requests: {
+        Row: {
+          amount: number
+          bank_account_name: string
+          bank_account_number: string
+          bank_name: string
+          created_at: string
+          id: string
+          notes: string | null
+          processed_at: string | null
+          requested_at: string
+          status: string
+          user_id: string
+          user_type: string
+          wallet_id: string
+        }
+        Insert: {
+          amount: number
+          bank_account_name: string
+          bank_account_number: string
+          bank_name: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          processed_at?: string | null
+          requested_at?: string
+          status?: string
+          user_id: string
+          user_type?: string
+          wallet_id: string
+        }
+        Update: {
+          amount?: number
+          bank_account_name?: string
+          bank_account_number?: string
+          bank_name?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          processed_at?: string | null
+          requested_at?: string
+          status?: string
+          user_id?: string
+          user_type?: string
+          wallet_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "withdrawal_requests_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

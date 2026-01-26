@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, Package, DollarSign, Settings, LogOut, Power } from 'lucide-react';
+import { Home, Package, DollarSign, ArrowUpRight, Settings, LogOut, Power } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -11,6 +11,7 @@ const menuItems = [
   { icon: Home, label: 'Dashboard', path: '/rider/dashboard' },
   { icon: Package, label: 'Deliveries', path: '/rider/orders' },
   { icon: DollarSign, label: 'Earnings', path: '/rider/earnings' },
+  { icon: ArrowUpRight, label: 'Withdraw', path: '/rider/withdraw' },
   { icon: Settings, label: 'Settings', path: '/rider/settings' },
 ];
 

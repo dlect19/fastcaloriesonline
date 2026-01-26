@@ -5,6 +5,7 @@ import {
   ShoppingBag,
   Star,
   Wallet,
+  ArrowUpRight,
   Clock,
   Settings,
   LogOut,
@@ -27,6 +28,7 @@ const navItems = [
   { id: 'riders', icon: Users, label: 'My Riders', path: '/vendor/riders' },
   { id: 'reviews', icon: Star, label: 'Reviews', path: '/vendor/reviews' },
   { id: 'earnings', icon: Wallet, label: 'Earnings', path: '/vendor/earnings' },
+  { id: 'withdraw', icon: ArrowUpRight, label: 'Withdraw', path: '/vendor/withdraw' },
   { id: 'hours', icon: Clock, label: 'Working Hours', path: '/vendor/hours' },
   { id: 'settings', icon: Settings, label: 'Settings', path: '/vendor/settings' },
 ];
