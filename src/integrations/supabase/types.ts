@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_logs: {
+        Row: {
+          action: string
+          created_at: string | null
+          details: Json | null
+          entity_id: string | null
+          entity_type: string
+          id: string
+          ip_address: string | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string | null
+          details?: Json | null
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          ip_address?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string | null
+          details?: Json | null
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          ip_address?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       addresses: {
         Row: {
           address_line: string
@@ -49,6 +82,36 @@ export type Database = {
           latitude?: number | null
           longitude?: number | null
           state?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      admin_staff: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          permissions: string[] | null
+          role: Database["public"]["Enums"]["admin_staff_role"]
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          permissions?: string[] | null
+          role?: Database["public"]["Enums"]["admin_staff_role"]
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          permissions?: string[] | null
+          role?: Database["public"]["Enums"]["admin_staff_role"]
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: []
@@ -1042,6 +1105,56 @@ export type Database = {
           },
         ]
       }
+      vendor_staff: {
+        Row: {
+          created_at: string | null
+          id: string
+          invite_accepted_at: string | null
+          invite_email: string | null
+          invited_by: string | null
+          is_active: boolean | null
+          permissions: string[] | null
+          role: Database["public"]["Enums"]["vendor_staff_role"]
+          updated_at: string | null
+          user_id: string
+          vendor_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          invite_accepted_at?: string | null
+          invite_email?: string | null
+          invited_by?: string | null
+          is_active?: boolean | null
+          permissions?: string[] | null
+          role?: Database["public"]["Enums"]["vendor_staff_role"]
+          updated_at?: string | null
+          user_id: string
+          vendor_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          invite_accepted_at?: string | null
+          invite_email?: string | null
+          invited_by?: string | null
+          is_active?: boolean | null
+          permissions?: string[] | null
+          role?: Database["public"]["Enums"]["vendor_staff_role"]
+          updated_at?: string | null
+          user_id?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_staff_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendor_working_hours: {
         Row: {
           close_time: string
@@ -1274,11 +1387,24 @@ export type Database = {
     }
     Functions: {
       add_vendor_role: { Args: never; Returns: undefined }
+      get_admin_staff_role: {
+        Args: { _user_id: string }
+        Returns: Database["public"]["Enums"]["admin_staff_role"]
+      }
+      get_vendor_staff_role: {
+        Args: { _user_id: string; _vendor_id: string }
+        Returns: Database["public"]["Enums"]["vendor_staff_role"]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      is_super_admin: { Args: { _user_id: string }; Returns: boolean }
+      is_vendor_owner: {
+        Args: { _user_id: string; _vendor_id: string }
         Returns: boolean
       }
       owns_vendor: {
@@ -1287,6 +1413,7 @@ export type Database = {
       }
     }
     Enums: {
+      admin_staff_role: "super_admin" | "admin" | "support" | "analyst"
       app_role: "customer" | "vendor" | "rider" | "admin"
       calorie_class: "carbs" | "protein" | "fats" | "fiber"
       order_status:
@@ -1299,6 +1426,7 @@ export type Database = {
         | "delivered"
         | "cancelled"
       vendor_category: "restaurant" | "pharmacy" | "market"
+      vendor_staff_role: "owner" | "manager" | "cashier" | "viewer"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1426,6 +1554,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      admin_staff_role: ["super_admin", "admin", "support", "analyst"],
       app_role: ["customer", "vendor", "rider", "admin"],
       calorie_class: ["carbs", "protein", "fats", "fiber"],
       order_status: [
@@ -1439,6 +1568,7 @@ export const Constants = {
         "cancelled",
       ],
       vendor_category: ["restaurant", "pharmacy", "market"],
+      vendor_staff_role: ["owner", "manager", "cashier", "viewer"],
     },
   },
 } as const

@@ -13,6 +13,7 @@ const menuItems = [
   { icon: Bike, label: 'Riders', path: '/admin/riders' },
   { icon: Ticket, label: 'Promo Codes', path: '/admin/promos' },
   { icon: Users, label: 'Users', path: '/admin/users' },
+  { icon: Users, label: 'Admin Staff', path: '/admin/staff' },
   { icon: Settings, label: 'Settings', path: '/admin/settings' },
 ];
 
