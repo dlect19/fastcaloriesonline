@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.verify-password-reset-otp]
 verify_jwt = false
+
+[functions.ai-meal-recommendation]
+verify_jwt = false

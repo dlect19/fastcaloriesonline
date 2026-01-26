@@ -47,6 +47,7 @@ import AdminUsers from "./pages/admin/AdminUsers";
 import AdminStaff from "./pages/admin/AdminStaff";
 import AdminStaffJoin from "./pages/admin/AdminStaffJoin";
 import AdminSettings from "./pages/admin/AdminSettings";
+import AdminAdvertisements from "./pages/admin/AdminAdvertisements";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -105,6 +106,7 @@ const App = () => (
               <Route path="/admin/staff" element={<AdminStaff />} />
               <Route path="/admin/staff/join/:code" element={<AdminStaffJoin />} />
               <Route path="/admin/settings" element={<AdminSettings />} />
+              <Route path="/admin/advertisements" element={<AdminAdvertisements />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
