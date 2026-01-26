@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, Package, Store, Bike, Ticket, Users, Settings, LogOut } from 'lucide-react';
+import { Home, Package, Store, Bike, Ticket, Users, Settings, LogOut, Image } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -12,6 +12,7 @@ const menuItems = [
   { icon: Store, label: 'Vendors', path: '/admin/vendors' },
   { icon: Bike, label: 'Riders', path: '/admin/riders' },
   { icon: Ticket, label: 'Promo Codes', path: '/admin/promos' },
+  { icon: Image, label: 'Carousel', path: '/admin/advertisements' },
   { icon: Users, label: 'Users', path: '/admin/users' },
   { icon: Users, label: 'Admin Staff', path: '/admin/staff' },
   { icon: Settings, label: 'Settings', path: '/admin/settings' },

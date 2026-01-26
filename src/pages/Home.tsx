@@ -8,6 +8,7 @@ import { VendorGrid } from '@/components/home/VendorGrid';
 import { BottomNav } from '@/components/home/BottomNav';
 import { CartButton } from '@/components/cart/CartButton';
 import { ActionHints } from '@/components/home/ActionHints';
+import { AIMealRecommendation } from '@/components/home/AIMealRecommendation';
 import { Button } from '@/components/ui/button';
 import { LogOut, Flame, Star, ChevronRight, Sparkles, Heart, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -222,6 +223,9 @@ export default function Home() {
 
         {/* Calorie Widget */}
         <CalorieWidget />
+
+        {/* AI Meal Recommendations */}
+        <AIMealRecommendation />
 
         {/* Promo Banner */}
         <PromoBanner />
