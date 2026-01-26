@@ -1,1 +1,13 @@
 project_id = "yrfbvuiinvytlvouzyxv"
+
+[functions.send-verification-email]
+verify_jwt = false
+
+[functions.send-withdrawal-otp]
+verify_jwt = false
+
+[functions.verify-withdrawal-otp]
+verify_jwt = false
+
+[functions.send-staff-invite-email]
+verify_jwt = false
