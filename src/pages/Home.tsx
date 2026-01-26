@@ -7,6 +7,7 @@ import { CalorieWidget } from '@/components/home/CalorieWidget';
 import { VendorGrid } from '@/components/home/VendorGrid';
 import { BottomNav } from '@/components/home/BottomNav';
 import { CartButton } from '@/components/cart/CartButton';
+import { ActionHints } from '@/components/home/ActionHints';
 import { Button } from '@/components/ui/button';
 import { LogOut, Flame, Star, ChevronRight, Sparkles, Heart, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -215,6 +216,9 @@ export default function Home() {
             <LogOut className="w-5 h-5" />
           </Button>
         </div>
+
+        {/* Action Hints - Orders & Next Steps */}
+        <ActionHints />
 
         {/* Calorie Widget */}
         <CalorieWidget consumed={1250} target={2000} />
