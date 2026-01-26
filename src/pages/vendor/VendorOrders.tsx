@@ -158,6 +158,29 @@ export default function VendorOrders() {
 
       if (error) throw error;
 
+      // Automatically assign a rider when order becomes ready for pickup
+      if (newStatus === 'ready_for_pickup') {
+        try {
+          const { data, error: assignError } = await supabase.functions.invoke('assign-rider', {
+            body: { orderId }
+          });
+          
+          if (assignError) {
+            console.error('Error assigning rider:', assignError);
+          } else if (data?.success) {
+            toast({ title: 'Rider assigned to order!' });
+          } else if (data?.error) {
+            toast({ 
+              title: 'No riders available', 
+              description: data.error,
+              variant: 'destructive' 
+            });
+          }
+        } catch (assignErr) {
+          console.error('Failed to call assign-rider:', assignErr);
+        }
+      }
+
       toast({ title: `Order updated to ${statusConfig[newStatus].label}` });
       fetchData();
     } catch (error: any) {
