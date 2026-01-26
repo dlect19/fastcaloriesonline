@@ -24,6 +24,53 @@ import type { Tables } from '@/integrations/supabase/types';
 type Product = Tables<'products'>;
 type Vendor = Tables<'vendors'>;
 
+const getCategoryLabels = (category: string | undefined) => {
+  switch (category) {
+    case 'pharmacy':
+      return {
+        pageTitle: 'Inventory Management',
+        itemSingular: 'medicine',
+        itemPlural: 'medicines',
+        addButton: 'Add Medicine',
+        searchPlaceholder: 'Search medicines...',
+        emptyState: 'No medicines yet',
+        addFirstButton: 'Add Your First Medicine',
+        dialogTitleAdd: 'Add New Medicine',
+        dialogTitleEdit: 'Edit Medicine',
+        nameLabel: 'Medicine Name',
+        defaultEmoji: '💊',
+      };
+    case 'market':
+      return {
+        pageTitle: 'Store Inventory',
+        itemSingular: 'item',
+        itemPlural: 'items',
+        addButton: 'Add Item',
+        searchPlaceholder: 'Search items...',
+        emptyState: 'No items yet',
+        addFirstButton: 'Add Your First Item',
+        dialogTitleAdd: 'Add New Item',
+        dialogTitleEdit: 'Edit Item',
+        nameLabel: 'Item Name',
+        defaultEmoji: '🛒',
+      };
+    default: // restaurant
+      return {
+        pageTitle: 'Menu Management',
+        itemSingular: 'meal',
+        itemPlural: 'meals',
+        addButton: 'Add Meal',
+        searchPlaceholder: 'Search meals...',
+        emptyState: 'No meals yet',
+        addFirstButton: 'Add Your First Meal',
+        dialogTitleAdd: 'Add New Meal',
+        dialogTitleEdit: 'Edit Meal',
+        nameLabel: 'Meal Name',
+        defaultEmoji: '🍽️',
+      };
+  }
+};
+
 export default function VendorMenu() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
@@ -59,12 +106,14 @@ export default function VendorMenu() {
 
   const fetchData = async () => {
     try {
-      const { data: vendorData } = await supabase
+      const { data: vendorRows } = await supabase
         .from('vendors')
         .select('*')
         .eq('user_id', user?.id)
-        .maybeSingle();
+        .order('created_at', { ascending: false })
+        .limit(1);
 
+      const vendorData = vendorRows?.[0] || null;
       setVendor(vendorData);
 
       if (vendorData) {
@@ -201,6 +250,8 @@ export default function VendorMenu() {
     p.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const labels = getCategoryLabels(vendor?.category);
+
   if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-background">
@@ -228,8 +279,8 @@ export default function VendorMenu() {
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-foreground">Menu Management</h1>
-              <p className="text-muted-foreground">{products.length} products</p>
+              <h1 className="text-2xl font-bold text-foreground">{labels.pageTitle}</h1>
+              <p className="text-muted-foreground">{products.length} {labels.itemPlural}</p>
             </div>
             <Dialog open={dialogOpen} onOpenChange={(open) => {
               setDialogOpen(open);
@@ -238,18 +289,18 @@ export default function VendorMenu() {
               <DialogTrigger asChild>
                 <Button className="gap-2">
                   <Plus className="w-4 h-4" />
-                  Add Product
+                  {labels.addButton}
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>
-                    {editingProduct ? 'Edit Product' : 'Add New Product'}
+                    {editingProduct ? labels.dialogTitleEdit : labels.dialogTitleAdd}
                   </DialogTitle>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="name">Product Name *</Label>
+                    <Label htmlFor="name">{labels.nameLabel} *</Label>
                     <Input
                       id="name"
                       value={formData.name}
@@ -338,7 +389,7 @@ export default function VendorMenu() {
                   </div>
 
                   <Button type="submit" className="w-full">
-                    {editingProduct ? 'Update Product' : 'Add Product'}
+                    {editingProduct ? `Update ${labels.itemSingular.charAt(0).toUpperCase() + labels.itemSingular.slice(1)}` : labels.addButton}
                   </Button>
                 </form>
               </DialogContent>
@@ -349,7 +400,7 @@ export default function VendorMenu() {
           <div className="relative max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
             <Input
-              placeholder="Search products..."
+              placeholder={labels.searchPlaceholder}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
@@ -360,10 +411,10 @@ export default function VendorMenu() {
           {filteredProducts.length === 0 ? (
             <div className="text-center py-16 bg-card rounded-2xl border border-border">
               <p className="text-muted-foreground mb-4">
-                {searchQuery ? 'No products found' : 'No products yet'}
+                {searchQuery ? `No ${labels.itemPlural} found` : labels.emptyState}
               </p>
               {!searchQuery && (
-                <Button onClick={() => setDialogOpen(true)}>Add Your First Product</Button>
+                <Button onClick={() => setDialogOpen(true)}>{labels.addFirstButton}</Button>
               )}
             </div>
           ) : (
@@ -381,7 +432,7 @@ export default function VendorMenu() {
                     />
                   ) : (
                     <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center text-2xl">
-                      🍽️
+                      {labels.defaultEmoji}
                     </div>
                   )}
 
