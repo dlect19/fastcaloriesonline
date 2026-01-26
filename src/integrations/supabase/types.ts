@@ -432,6 +432,50 @@ export type Database = {
           },
         ]
       }
+      order_reassignments: {
+        Row: {
+          created_at: string
+          id: string
+          new_rider_id: string
+          new_rider_share: number
+          order_id: string
+          original_rider_id: string
+          original_rider_share: number
+          reason: string | null
+          reassigned_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          new_rider_id: string
+          new_rider_share?: number
+          order_id: string
+          original_rider_id: string
+          original_rider_share?: number
+          reason?: string | null
+          reassigned_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          new_rider_id?: string
+          new_rider_share?: number
+          order_id?: string
+          original_rider_id?: string
+          original_rider_share?: number
+          reason?: string | null
+          reassigned_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_reassignments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orders: {
         Row: {
           cancellation_reason: string | null

@@ -4,11 +4,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { RiderLayout } from '@/components/rider/RiderLayout';
 import { RiderFloatingWidget } from '@/components/rider/RiderFloatingWidget';
 import { ConfirmationCodeDialog } from '@/components/rider/ConfirmationCodeDialog';
+import { ReassignOrderDialog } from '@/components/rider/ReassignOrderDialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Package, MapPin, Phone, Clock, Loader2, ExternalLink, ShieldCheck } from 'lucide-react';
+import { Package, MapPin, Phone, Clock, Loader2, ExternalLink, ShieldCheck, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useNotificationSound } from '@/hooks/useNotificationSound';
 import { format } from 'date-fns';
@@ -31,6 +32,8 @@ export default function RiderOrders() {
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [pendingDeliveryOrder, setPendingDeliveryOrder] = useState<any>(null);
   const [confirmingDelivery, setConfirmingDelivery] = useState(false);
+  const [reassignDialogOpen, setReassignDialogOpen] = useState(false);
+  const [orderToReassign, setOrderToReassign] = useState<any>(null);
   const previousOrderCount = useRef<number>(0);
 
   useEffect(() => {
@@ -357,19 +360,37 @@ export default function RiderOrders() {
                     </div>
 
                     {getNextStatus(order.status) && (
-                      <Button 
-                        onClick={() => updateOrderStatus(order.id, getNextStatus(order.status), order)}
-                        className="w-full md:w-auto"
-                      >
-                        {getNextStatus(order.status) === 'delivered' ? (
-                          <>
-                            <ShieldCheck className="w-4 h-4 mr-2" />
-                            Verify & Deliver
-                          </>
-                        ) : (
-                          `Mark as ${getNextStatus(order.status).replace(/_/g, ' ')}`
+                      <div className="flex gap-2 flex-wrap">
+                        {/* Reassign Button - only for active deliveries */}
+                        {['picked_up', 'on_the_way'].includes(order.status) && (
+                          <Button 
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setOrderToReassign(order);
+                              setReassignDialogOpen(true);
+                            }}
+                            className="text-warning border-warning/50 hover:bg-warning/10"
+                          >
+                            <RefreshCw className="w-4 h-4 mr-1" />
+                            Reassign
+                          </Button>
                         )}
-                      </Button>
+                        
+                        <Button 
+                          onClick={() => updateOrderStatus(order.id, getNextStatus(order.status), order)}
+                          className="flex-1 md:flex-none"
+                        >
+                          {getNextStatus(order.status) === 'delivered' ? (
+                            <>
+                              <ShieldCheck className="w-4 h-4 mr-2" />
+                              Verify & Deliver
+                            </>
+                          ) : (
+                            `Mark as ${getNextStatus(order.status).replace(/_/g, ' ')}`
+                          )}
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </CardContent>
@@ -423,6 +444,14 @@ export default function RiderOrders() {
         onConfirm={handleConfirmDelivery}
         isLoading={confirmingDelivery}
         orderNumber={pendingDeliveryOrder?.order_number}
+      />
+
+      {/* Reassign Order Dialog */}
+      <ReassignOrderDialog
+        open={reassignDialogOpen}
+        onOpenChange={setReassignDialogOpen}
+        order={orderToReassign}
+        onReassigned={fetchOrders}
       />
     </RiderLayout>
   );
