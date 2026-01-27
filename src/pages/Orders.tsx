@@ -65,14 +65,26 @@ export default function Orders() {
   };
 
   const fetchOrders = async () => {
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
+    
     try {
+      console.log('Fetching orders for user:', user.id);
+      
       const { data, error } = await supabase
         .from('orders')
         .select('*')
-        .eq('user_id', user?.id)
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Orders query error:', error);
+        throw error;
+      }
+      
+      console.log('Orders fetched:', data?.length || 0, 'orders');
       setOrders(data || []);
     } catch (error) {
       console.error('Error fetching orders:', error);
