@@ -59,6 +59,29 @@ serve(async (req) => {
       );
     }
 
+    // Get order details including items for calorie logging
+    const { data: orderData, error: orderFetchError } = await supabaseClient
+      .from('orders')
+      .select(`
+        *,
+        order_items (
+          id,
+          product_name,
+          calories,
+          quantity
+        )
+      `)
+      .eq('id', orderId)
+      .single();
+
+    if (orderFetchError) {
+      console.error('Order fetch error:', orderFetchError);
+      return new Response(
+        JSON.stringify({ success: false, message: 'Order not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Update order payment status
     const { error: updateError } = await supabaseClient
       .from('orders')
@@ -75,6 +98,61 @@ serve(async (req) => {
         JSON.stringify({ success: false, message: 'Failed to update order' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Log calories for the user if order has calorie data
+    if (orderData.user_id && orderData.total_calories && orderData.total_calories > 0) {
+      try {
+        // Calculate total macros from order items
+        let totalCarbs = 0;
+        let totalProtein = 0;
+        let totalFats = 0;
+
+        // Get product details for macro info
+        const productIds = (orderData.order_items || [])
+          .filter((item: any) => item.product_id)
+          .map((item: any) => item.product_id);
+
+        if (productIds.length > 0) {
+          const { data: products } = await supabaseClient
+            .from('products')
+            .select('id, carbs_grams, protein_grams, fats_grams')
+            .in('id', productIds);
+
+          if (products) {
+            for (const item of orderData.order_items || []) {
+              const product = products.find((p: any) => p.id === item.product_id);
+              if (product) {
+                totalCarbs += (product.carbs_grams || 0) * (item.quantity || 1);
+                totalProtein += (product.protein_grams || 0) * (item.quantity || 1);
+                totalFats += (product.fats_grams || 0) * (item.quantity || 1);
+              }
+            }
+          }
+        }
+
+        const { error: calorieLogError } = await supabaseClient
+          .from('calorie_logs')
+          .insert({
+            user_id: orderData.user_id,
+            order_id: orderId,
+            calories: orderData.total_calories,
+            carbs_grams: totalCarbs,
+            protein_grams: totalProtein,
+            fats_grams: totalFats,
+            meal_type: 'order',
+            log_date: new Date().toISOString().split('T')[0],
+          });
+
+        if (calorieLogError) {
+          console.error('Calorie log error:', calorieLogError);
+        } else {
+          console.log(`Logged ${orderData.total_calories} calories for user ${orderData.user_id}`);
+        }
+      } catch (calorieErr) {
+        console.error('Error logging calories:', calorieErr);
+        // Don't fail the payment for calorie logging errors
+      }
     }
 
     console.log(`Order ${orderNumber} payment confirmed`);

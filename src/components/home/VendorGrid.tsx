@@ -6,13 +6,14 @@ import { Button } from '@/components/ui/button';
 import { MapPin, Navigation } from 'lucide-react';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { useDeliverySettings } from '@/hooks/useDeliverySettings';
-import { calculateDistance, formatDistance } from '@/lib/location';
+import { calculateDistance, formatDistance, calculateDeliveryFee } from '@/lib/location';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Vendor = Tables<'vendors'>;
 
 interface VendorWithDistance extends Vendor {
   distance: number | null;
+  dynamicDeliveryFee: number;
 }
 
 // Fallback mock data for demo when no vendors exist
@@ -150,19 +151,28 @@ export function VendorGrid({ title = 'Nearby Vendors', category = 'all' }: Vendo
           return true;
         });
 
-    // Add distance calculations
+    // Add distance calculations and dynamic delivery fee
     const withDistance = filtered.map(v => {
       const vendorLat = v.latitude;
       const vendorLon = v.longitude;
       
       let distance: number | null = null;
+      let dynamicDeliveryFee = settings.baseDeliveryFee;
+      
       if (latitude && longitude && vendorLat && vendorLon) {
         distance = calculateDistance(latitude, longitude, vendorLat, vendorLon);
+        dynamicDeliveryFee = calculateDeliveryFee(
+          distance,
+          settings.baseDeliveryFee,
+          settings.baseDeliveryDistanceKm,
+          settings.perKmFee
+        );
       }
 
       return {
         ...v,
         distance,
+        dynamicDeliveryFee,
       } as VendorWithDistance;
     });
 
@@ -185,7 +195,7 @@ export function VendorGrid({ title = 'Nearby Vendors', category = 'all' }: Vendo
       if (b.distance === null) return -1;
       return a.distance - b.distance;
     });
-  }, [displayVendors, category, latitude, longitude, settings.vendorDeliveryRadiusKm]);
+  }, [displayVendors, category, latitude, longitude, settings]);
 
   if (loading) {
     return (
@@ -266,7 +276,7 @@ export function VendorGrid({ title = 'Nearby Vendors', category = 'all' }: Vendo
               category={vendor.description || `${vendor.category}`}
               rating={vendor.rating || 0}
               deliveryTime={vendor.estimated_delivery_minutes || 30}
-              deliveryFee={vendor.delivery_fee || 0}
+              deliveryFee={vendor.dynamicDeliveryFee}
               isOpen={vendor.is_active ?? true}
               imageUrl={useMock ? undefined : (vendor as Vendor).banner_url || undefined}
               distance={vendor.distance !== null ? formatDistance(vendor.distance) : undefined}
