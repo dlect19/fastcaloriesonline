@@ -297,6 +297,21 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Transfer initiated successfully:", paystackData.data.transfer_code);
 
+    // Send withdrawal receipt email (fire and forget)
+    try {
+      await fetch(`${SUPABASE_URL}/functions/v1/send-withdrawal-receipt`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+        body: JSON.stringify({ payoutRequestId: payoutRequest.id, status: 'processing' }),
+      });
+      console.log('Withdrawal receipt email triggered');
+    } catch (emailErr) {
+      console.error('Failed to trigger withdrawal receipt:', emailErr);
+    }
+
     return new Response(
       JSON.stringify({
         success: true,

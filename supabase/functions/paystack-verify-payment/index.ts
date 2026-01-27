@@ -79,6 +79,21 @@ serve(async (req) => {
 
     console.log(`Order ${orderNumber} payment confirmed`);
 
+    // Send payment receipt email (fire and forget)
+    try {
+      await fetch(`${supabaseUrl}/functions/v1/send-payment-receipt`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseServiceKey}`,
+        },
+        body: JSON.stringify({ orderId }),
+      });
+      console.log('Payment receipt email triggered');
+    } catch (emailErr) {
+      console.error('Failed to trigger receipt email:', emailErr);
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true, 

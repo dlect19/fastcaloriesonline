@@ -62,3 +62,9 @@ verify_jwt = false
 
 [functions.paystack-list-banks]
 verify_jwt = false
+
+[functions.send-payment-receipt]
+verify_jwt = false
+
+[functions.send-withdrawal-receipt]
+verify_jwt = false

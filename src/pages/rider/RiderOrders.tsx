@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Package, MapPin, Phone, Clock, Loader2, ExternalLink, ShieldCheck, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useNotificationSound } from '@/hooks/useNotificationSound';
+import { useRepeatingNotificationSound } from '@/hooks/useRepeatingNotificationSound';
 import { format } from 'date-fns';
 
 // Generate a random 6-digit confirmation code
@@ -22,7 +22,10 @@ const generateConfirmationCode = (): string => {
 export default function RiderOrders() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { playNotification } = useNotificationSound();
+  const { playOnce, startRepeating, stopRepeating } = useRepeatingNotificationSound({ 
+    intervalMs: 10000, 
+    storageKey: 'rider-notification-sound' 
+  });
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(false);
   const [floatModeEnabled, setFloatModeEnabled] = useState(false);
@@ -61,10 +64,10 @@ export default function RiderOrders() {
           if (payload.eventType === 'UPDATE' && payload.new.rider_id === userId) {
             const wasJustAssigned = payload.old.rider_id !== userId;
             if (wasJustAssigned) {
-              playNotification();
+              startRepeating();
               toast({
                 title: '🚚 New Delivery!',
-                description: `Order #${payload.new.order_number} has been assigned to you.`,
+                description: `Order #${payload.new.order_number} has been assigned to you. Accept to stop notification.`,
               });
             }
           }
@@ -76,7 +79,7 @@ export default function RiderOrders() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [userId, playNotification, toast]);
+  }, [userId, startRepeating, toast]);
 
   const checkAuth = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -111,7 +114,7 @@ export default function RiderOrders() {
 
       // Check if there are new orders
       if (active && active.length > previousOrderCount.current && previousOrderCount.current > 0) {
-        playNotification();
+        startRepeating();
         toast({
           title: '🚚 New Delivery!',
           description: 'You have a new order assigned.',
@@ -138,6 +141,9 @@ export default function RiderOrders() {
   };
 
   const updateOrderStatus = async (orderId: string, newStatus: string, order?: any) => {
+    // Stop notification sound when rider takes action
+    stopRepeating();
+    
     // If trying to deliver, open confirmation dialog instead
     if (newStatus === 'delivered') {
       setPendingDeliveryOrder(order || activeOrders.find(o => o.id === orderId));

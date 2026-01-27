@@ -17,7 +17,7 @@ import { OrderRiderInfo } from '@/components/vendor/OrderRiderInfo';
 import { useAuth } from '@/hooks/useAuth';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
 import { useToast } from '@/hooks/use-toast';
-import { useVendorNotificationSound } from '@/hooks/useVendorNotificationSound';
+import { useRepeatingNotificationSound } from '@/hooks/useRepeatingNotificationSound';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables, Database } from '@/integrations/supabase/types';
 
@@ -50,7 +50,10 @@ export default function VendorOrders() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { playNotification } = useVendorNotificationSound();
+  const { playOnce, startRepeating, stopRepeating, isPlaying } = useRepeatingNotificationSound({ 
+    intervalMs: 10000, 
+    storageKey: 'vendor-notification-sound' 
+  });
   const [vendor, setVendor] = useState<Vendor | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -87,10 +90,11 @@ export default function VendorOrders() {
           const oldOrder = payload.old as Partial<Order>;
           
           if (payload.eventType === 'INSERT') {
-            playNotification();
+            // Start repeating notification for new orders
+            startRepeating();
             toast({
               title: '🔔 New Order!',
-              description: 'You have a new order to process',
+              description: 'You have a new order to process. Accept to stop the notification.',
             });
           }
           
@@ -177,6 +181,9 @@ export default function VendorOrders() {
         .eq('id', orderId);
 
       if (error) throw error;
+
+      // Stop notification sound when vendor confirms/updates an order
+      stopRepeating();
 
       // Automatically assign a rider when order becomes ready for pickup
       if (newStatus === 'ready_for_pickup') {
