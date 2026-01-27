@@ -17,11 +17,15 @@ export function useRepeatingNotificationSound(options: UseRepeatingNotificationS
 
   useEffect(() => {
     // Preload the audio
-    audioRef.current = new Audio('/sounds/new-order.mp3');
-    audioRef.current.load();
+    const audio = new Audio('/sounds/new-order.mp3');
+    audio.load();
+    audioRef.current = audio;
     
     return () => {
-      stopRepeating();
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current = null;
@@ -34,21 +38,28 @@ export function useRepeatingNotificationSound(options: UseRepeatingNotificationS
   }, [soundEnabled, storageKey]);
 
   const playOnce = useCallback(() => {
-    if (soundEnabled && audioRef.current) {
+    console.log('playOnce called, soundEnabled:', soundEnabled, 'audioRef:', !!audioRef.current);
+    if (audioRef.current) {
       audioRef.current.currentTime = 0;
-      audioRef.current.play().catch((err) => {
-        console.error('Failed to play notification sound:', err);
-      });
+      audioRef.current.play()
+        .then(() => console.log('Audio played successfully'))
+        .catch((err) => {
+          console.error('Failed to play notification sound:', err);
+        });
       
       // Vibrate if supported (mobile devices)
       if (navigator.vibrate) {
         navigator.vibrate([200, 100, 200]);
       }
     }
-  }, [soundEnabled]);
+  }, []);
 
   const startRepeating = useCallback(() => {
-    if (!soundEnabled) return;
+    console.log('startRepeating called, soundEnabled:', soundEnabled);
+    if (!soundEnabled) {
+      console.log('Sound disabled, not starting repeat');
+      return;
+    }
     
     // Play immediately
     playOnce();
@@ -61,6 +72,7 @@ export function useRepeatingNotificationSound(options: UseRepeatingNotificationS
     
     // Set up repeating interval
     intervalRef.current = setInterval(() => {
+      console.log('Interval tick - playing sound');
       playOnce();
     }, intervalMs);
   }, [soundEnabled, playOnce, intervalMs]);

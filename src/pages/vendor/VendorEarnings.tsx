@@ -64,8 +64,9 @@ export default function VendorEarnings() {
 
   const fetchData = async () => {
     try {
-      // Get vendor data
-      const { data: vendorData } = await supabase
+      // First check if user is a vendor owner
+      let vendorData = null;
+      const { data: ownedVendor } = await supabase
         .from('vendors')
         .select('id, name, commission_rate')
         .eq('user_id', user?.id)
@@ -73,14 +74,71 @@ export default function VendorEarnings() {
         .limit(1)
         .maybeSingle();
 
+      if (ownedVendor) {
+        vendorData = ownedVendor;
+      } else {
+        // Check if user is staff of any vendor
+        const { data: staffRecord } = await supabase
+          .from('vendor_staff')
+          .select('vendor_id')
+          .eq('user_id', user?.id)
+          .eq('is_active', true)
+          .maybeSingle();
+
+        if (staffRecord) {
+          const { data: staffVendor } = await supabase
+            .from('vendors')
+            .select('id, name, commission_rate')
+            .eq('id', staffRecord.vendor_id)
+            .single();
+          vendorData = staffVendor;
+        }
+      }
+
       setVendor(vendorData);
 
-      // Get wallet data
-      const { data: walletData } = await supabase
+      if (!vendorData) {
+        setLoading(false);
+        return;
+      }
+
+      // Get wallet data - for vendors, wallet should be linked to the vendor owner's user_id
+      // Get the vendor owner's user_id
+      const { data: vendorFull } = await supabase
+        .from('vendors')
+        .select('user_id')
+        .eq('id', vendorData.id)
+        .single();
+
+      const vendorOwnerId = vendorFull?.user_id;
+
+      // Get or create wallet for vendor
+      let { data: walletData } = await supabase
         .from('wallets')
         .select('*')
-        .eq('user_id', user?.id)
+        .eq('user_id', vendorOwnerId)
         .maybeSingle();
+
+      // Auto-create wallet if it doesn't exist for vendor
+      if (!walletData && vendorOwnerId) {
+        const { data: newWallet, error: createError } = await supabase
+          .from('wallets')
+          .insert({
+            user_id: vendorOwnerId,
+            wallet_type: 'vendor',
+            balance: 0,
+            eligible_balance: 0,
+            pending_balance: 0,
+            total_earned: 0,
+            total_withdrawn: 0,
+          })
+          .select()
+          .single();
+        
+        if (!createError && newWallet) {
+          walletData = newWallet;
+        }
+      }
 
       if (walletData) {
         setWallet({
