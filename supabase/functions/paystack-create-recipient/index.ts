@@ -112,12 +112,56 @@ const handler = async (req: Request): Promise<Response> => {
     const recipientCode = paystackData.data.recipient_code;
     console.log("Paystack recipient created:", recipientCode);
 
-    // Get user's wallet
-    const { data: wallet, error: walletError } = await supabase
+    // Get user's wallet - try vendor wallet first, then rider, then default
+    let wallet = null;
+    let walletError = null;
+
+    // Try vendor wallet first
+    const { data: vendorWallet, error: vendorError } = await supabase
       .from("wallets")
       .select("id")
       .eq("user_id", userId)
-      .single();
+      .eq("wallet_type", "vendor")
+      .maybeSingle();
+
+    if (vendorWallet) {
+      wallet = vendorWallet;
+    } else {
+      // Try rider wallet
+      const { data: riderWallet, error: riderError } = await supabase
+        .from("wallets")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("wallet_type", "rider")
+        .maybeSingle();
+
+      if (riderWallet) {
+        wallet = riderWallet;
+      } else {
+        // Try default/customer wallet
+        const { data: defaultWallet, error: defaultError } = await supabase
+          .from("wallets")
+          .select("id")
+          .eq("user_id", userId)
+          .is("wallet_type", null)
+          .maybeSingle();
+
+        if (defaultWallet) {
+          wallet = defaultWallet;
+        } else {
+          // Last resort: get any wallet for user
+          const { data: anyWallet, error: anyError } = await supabase
+            .from("wallets")
+            .select("id")
+            .eq("user_id", userId)
+            .limit(1)
+            .maybeSingle();
+
+          wallet = anyWallet;
+          walletError = anyError;
+        }
+      }
+    }
 
     if (walletError || !wallet) {
       console.error("Wallet not found for user:", userId);
