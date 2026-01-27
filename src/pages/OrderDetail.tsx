@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BottomNav } from '@/components/home/BottomNav';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { RiderReviewForm } from '@/components/order/RiderReviewForm';
+import { RiderInfoCard } from '@/components/order/RiderInfoCard';
 import { ArrowLeft, Package, Check, Truck, MapPin, Phone, Loader2, Store, Clock, Bike, ShieldCheck, Star } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -240,6 +241,11 @@ export default function OrderDetail() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Rider Info - Show when order is picked up or on the way */}
+        {order.rider_id && ['picked_up', 'on_the_way'].includes(order.status) && (
+          <RiderInfoCard riderId={order.rider_id} />
+        )}
 
         {/* Confirmation Code - Show when order is picked up or on the way */}
         {order.confirmation_code && ['picked_up', 'on_the_way'].includes(order.status) && (
