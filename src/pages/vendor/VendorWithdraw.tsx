@@ -121,11 +121,12 @@ export default function VendorWithdraw() {
 
       setVendor(vendorData);
 
-      // Fetch wallet
+      // Fetch vendor wallet specifically
       const { data: walletData } = await supabase
         .from('wallets')
         .select('*')
         .eq('user_id', user?.id)
+        .eq('wallet_type', 'vendor')
         .maybeSingle();
 
       if (walletData) {

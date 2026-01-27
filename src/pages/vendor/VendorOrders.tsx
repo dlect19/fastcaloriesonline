@@ -108,8 +108,9 @@ export default function VendorOrders() {
             });
           }
           
-          // Notify when rider is assigned
+          // Notify when rider is assigned and stop notification sound
           if (payload.eventType === 'UPDATE' && newOrder.rider_id && !oldOrder.rider_id) {
+            stopRepeating(); // Stop notification sound when rider accepts order
             toast({
               title: '🚴 Rider Assigned!',
               description: `A rider has been assigned to order #${newOrder.order_number}`,
