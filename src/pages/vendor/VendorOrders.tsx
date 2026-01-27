@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clock, CheckCircle, XCircle, Package, ChevronDown, Loader2 } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, Package, ChevronDown, ChevronUp, Loader2, ShoppingBag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -11,6 +11,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import { VendorSidebar } from '@/components/vendor/VendorSidebar';
 import { AccessDenied } from '@/components/vendor/AccessDenied';
 import { OrderRiderInfo } from '@/components/vendor/OrderRiderInfo';
@@ -22,8 +27,11 @@ import { supabase } from '@/integrations/supabase/client';
 import type { Tables, Database } from '@/integrations/supabase/types';
 
 type Order = Tables<'orders'>;
+type OrderItem = Tables<'order_items'>;
 type OrderStatus = Database['public']['Enums']['order_status'];
 type Vendor = Tables<'vendors'>;
+
+type OrderWithItems = Order & { items: OrderItem[] };
 
 const statusFlow: OrderStatus[] = [
   'pending',
@@ -55,9 +63,10 @@ export default function VendorOrders() {
     storageKey: 'vendor-notification-sound' 
   });
   const [vendor, setVendor] = useState<Vendor | null>(null);
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('active');
+  const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
 
   const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendor?.id || null);
 
@@ -158,13 +167,31 @@ export default function VendorOrders() {
       setVendor(vendorData);
 
       if (vendorData) {
+        // Fetch orders with their items
         const { data: ordersData } = await supabase
           .from('orders')
           .select('*')
           .eq('vendor_id', vendorData.id)
           .order('created_at', { ascending: false });
 
-        setOrders(ordersData || []);
+        if (ordersData && ordersData.length > 0) {
+          // Fetch all order items for these orders
+          const orderIds = ordersData.map(o => o.id);
+          const { data: itemsData } = await supabase
+            .from('order_items')
+            .select('*')
+            .in('order_id', orderIds);
+
+          // Map items to their orders
+          const ordersWithItems: OrderWithItems[] = ordersData.map(order => ({
+            ...order,
+            items: (itemsData || []).filter(item => item.order_id === order.id)
+          }));
+
+          setOrders(ordersWithItems);
+        } else {
+          setOrders([]);
+        }
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -273,70 +300,166 @@ export default function VendorOrders() {
     );
   }
 
-  const renderOrderCard = (order: Order) => {
+  const toggleOrderExpanded = (orderId: string) => {
+    setExpandedOrders(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(orderId)) {
+        newSet.delete(orderId);
+      } else {
+        newSet.add(orderId);
+      }
+      return newSet;
+    });
+  };
+
+  const renderOrderCard = (order: OrderWithItems) => {
     const status = statusConfig[order.status] || statusConfig.pending;
     const StatusIcon = status.icon;
     const nextStatus = getNextStatus(order.status as OrderStatus);
+    const isExpanded = expandedOrders.has(order.id);
 
     return (
       <div
         key={order.id}
-        className="bg-card rounded-xl p-4 border border-border"
+        className="bg-card rounded-xl border border-border overflow-hidden"
       >
-        <div className="flex items-start justify-between mb-3">
-          <div>
-            <p className="font-semibold text-foreground">{order.order_number}</p>
-            <p className="text-sm text-muted-foreground">{formatDate(order.created_at)}</p>
+        <div className="p-4">
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <p className="font-semibold text-foreground">{order.order_number}</p>
+              <p className="text-sm text-muted-foreground">{formatDate(order.created_at)}</p>
+            </div>
+            <Badge className={`${status.color} border-0`}>
+              <StatusIcon className="w-3 h-3 mr-1" />
+              {status.label}
+            </Badge>
           </div>
-          <Badge className={`${status.color} border-0`}>
-            <StatusIcon className="w-3 h-3 mr-1" />
-            {status.label}
-          </Badge>
-        </div>
 
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-muted-foreground">
-              {order.total_calories ? `${order.total_calories} cal • ` : ''}
-              ₦{Number(order.total).toLocaleString()}
-            </p>
-            {order.delivery_address_text && (
-              <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
-                📍 {order.delivery_address_text}
+          {/* Order Items Preview */}
+          <Collapsible open={isExpanded} onOpenChange={() => toggleOrderExpanded(order.id)}>
+            <CollapsibleTrigger asChild>
+              <button className="w-full flex items-center justify-between py-2 px-3 bg-muted/50 rounded-lg hover:bg-muted transition-colors mb-3">
+                <div className="flex items-center gap-2">
+                  <ShoppingBag className="w-4 h-4 text-primary" />
+                  <span className="text-sm font-medium">
+                    {order.items.length} item{order.items.length !== 1 ? 's' : ''} in order
+                  </span>
+                </div>
+                {isExpanded ? (
+                  <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                )}
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="bg-muted/30 rounded-lg p-3 mb-3 space-y-2">
+                {order.items.length > 0 ? (
+                  order.items.map((item) => (
+                    <div key={item.id} className="flex justify-between items-start text-sm">
+                      <div className="flex-1">
+                        <p className="font-medium text-foreground">
+                          {item.quantity}x {item.product_name}
+                        </p>
+                        {item.special_instructions && (
+                          <p className="text-xs text-muted-foreground italic mt-0.5">
+                            Note: {item.special_instructions}
+                          </p>
+                        )}
+                        {item.calories && item.calories > 0 && (
+                          <p className="text-xs text-muted-foreground">{item.calories} cal</p>
+                        )}
+                      </div>
+                      <p className="font-medium text-foreground">
+                        ₦{Number(item.total_price).toLocaleString()}
+                      </p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-2">
+                    No items found
+                  </p>
+                )}
+                
+                {/* Order Summary */}
+                <div className="border-t border-border pt-2 mt-2 space-y-1">
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>Subtotal</span>
+                    <span>₦{Number(order.subtotal).toLocaleString()}</span>
+                  </div>
+                  {order.delivery_fee && Number(order.delivery_fee) > 0 && (
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Delivery</span>
+                      <span>₦{Number(order.delivery_fee).toLocaleString()}</span>
+                    </div>
+                  )}
+                  {order.service_fee && Number(order.service_fee) > 0 && (
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Service Fee</span>
+                      <span>₦{Number(order.service_fee).toLocaleString()}</span>
+                    </div>
+                  )}
+                  {order.discount && Number(order.discount) > 0 && (
+                    <div className="flex justify-between text-xs text-calorie-low">
+                      <span>Discount</span>
+                      <span>-₦{Number(order.discount).toLocaleString()}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-sm font-semibold pt-1 border-t border-border">
+                    <span>Total</span>
+                    <span className="text-primary">₦{Number(order.total).toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">
+                {order.total_calories ? `${order.total_calories} cal • ` : ''}
+                ₦{Number(order.total).toLocaleString()}
               </p>
+              {order.delivery_address_text && (
+                <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
+                  📍 {order.delivery_address_text}
+                </p>
+              )}
+            </div>
+
+            {order.status !== 'delivered' && order.status !== 'cancelled' && nextStatus && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" className="gap-1">
+                    Update
+                    <ChevronDown className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {nextStatus && (
+                    <DropdownMenuItem
+                      onClick={() => updateOrderStatus(order.id, nextStatus)}
+                    >
+                      Mark as {statusConfig[nextStatus].label}
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem
+                    className="text-destructive"
+                    onClick={() => updateOrderStatus(order.id, 'cancelled')}
+                  >
+                    Cancel Order
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
           </div>
-
-          {order.status !== 'delivered' && order.status !== 'cancelled' && nextStatus && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="sm" className="gap-1">
-                  Update
-                  <ChevronDown className="w-4 h-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {nextStatus && (
-                  <DropdownMenuItem
-                    onClick={() => updateOrderStatus(order.id, nextStatus)}
-                  >
-                    Mark as {statusConfig[nextStatus].label}
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem
-                  className="text-destructive"
-                  onClick={() => updateOrderStatus(order.id, 'cancelled')}
-                >
-                  Cancel Order
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
         </div>
 
         {/* Rider Info */}
         {order.rider_id && ['ready_for_pickup', 'picked_up', 'on_the_way', 'delivered'].includes(order.status) && (
-          <OrderRiderInfo riderId={order.rider_id} orderStatus={order.status} />
+          <div className="px-4 pb-4">
+            <OrderRiderInfo riderId={order.rider_id} orderStatus={order.status} />
+          </div>
         )}
       </div>
     );
