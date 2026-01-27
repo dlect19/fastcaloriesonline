@@ -5,11 +5,13 @@ import { RiderLayout } from '@/components/rider/RiderLayout';
 import { RiderFloatingWidget } from '@/components/rider/RiderFloatingWidget';
 import { ConfirmationCodeDialog } from '@/components/rider/ConfirmationCodeDialog';
 import { ReassignOrderDialog } from '@/components/rider/ReassignOrderDialog';
+import { MapOptionsMenu } from '@/components/shared/MapOptionsMenu';
+import { SoundEnableBanner } from '@/components/shared/SoundEnableBanner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Package, MapPin, Phone, Clock, Loader2, ExternalLink, ShieldCheck, RefreshCw } from 'lucide-react';
+import { Package, MapPin, Phone, Clock, Loader2, ShieldCheck, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useRepeatingNotificationSound } from '@/hooks/useRepeatingNotificationSound';
 import { format } from 'date-fns';
@@ -22,7 +24,7 @@ const generateConfirmationCode = (): string => {
 export default function RiderOrders() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { playOnce, startRepeating, stopRepeating } = useRepeatingNotificationSound({ 
+  const { playOnce, startRepeating, stopRepeating, soundEnabled, isBlocked, setSoundEnabled, unlock } = useRepeatingNotificationSound({ 
     intervalMs: 10000, 
     storageKey: 'rider-notification-sound' 
   });
@@ -240,6 +242,11 @@ export default function RiderOrders() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    // Stop repeating sound when going offline
+    if (!online) {
+      stopRepeating();
+    }
+
     await supabase
       .from('rider_profiles')
       .update({ is_online: online })
@@ -249,13 +256,6 @@ export default function RiderOrders() {
     toast({
       title: online ? 'You are now online' : 'You are now offline',
     });
-  };
-
-  const openInMaps = (address: string, lat?: number, lng?: number) => {
-    const query = lat && lng 
-      ? `${lat},${lng}` 
-      : encodeURIComponent(address);
-    window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank');
   };
 
   if (loading) {
@@ -272,6 +272,16 @@ export default function RiderOrders() {
         <h1 className="text-2xl md:text-3xl font-bold text-foreground">Deliveries</h1>
         <p className="text-muted-foreground text-sm md:text-base">Manage your delivery orders</p>
       </div>
+
+      {/* Sound notification controls */}
+      <SoundEnableBanner
+        soundEnabled={soundEnabled}
+        isBlocked={isBlocked}
+        onToggleSound={setSoundEnabled}
+        onUnlock={unlock}
+        onTestSound={playOnce}
+        className="mb-4"
+      />
 
       <Tabs defaultValue="active">
         <TabsList className="w-full md:w-auto">
@@ -305,19 +315,12 @@ export default function RiderOrders() {
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <p className="text-sm font-medium">Pickup From</p>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
+                        <MapOptionsMenu 
+                          address={order.vendors?.address || ''} 
+                          latitude={order.vendors?.latitude}
+                          longitude={order.vendors?.longitude}
                           className="h-7 text-xs"
-                          onClick={() => openInMaps(
-                            order.vendors?.address, 
-                            order.vendors?.latitude, 
-                            order.vendors?.longitude
-                          )}
-                        >
-                          <ExternalLink className="w-3 h-3 mr-1" />
-                          Map
-                        </Button>
+                        />
                       </div>
                       <div className="flex items-start gap-2 text-sm text-muted-foreground">
                         <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
@@ -340,15 +343,10 @@ export default function RiderOrders() {
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <p className="text-sm font-medium">Deliver To</p>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
+                        <MapOptionsMenu 
+                          address={order.delivery_address_text || ''} 
                           className="h-7 text-xs"
-                          onClick={() => openInMaps(order.delivery_address_text)}
-                        >
-                          <ExternalLink className="w-3 h-3 mr-1" />
-                          Map
-                        </Button>
+                        />
                       </div>
                       <div className="flex items-start gap-2 text-sm text-muted-foreground">
                         <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clock, CheckCircle, XCircle, Package, ChevronDown, ChevronUp, Loader2, ShoppingBag } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, Package, ChevronDown, ChevronUp, ShoppingBag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -19,6 +19,7 @@ import {
 import { VendorSidebar } from '@/components/vendor/VendorSidebar';
 import { AccessDenied } from '@/components/vendor/AccessDenied';
 import { OrderRiderInfo } from '@/components/vendor/OrderRiderInfo';
+import { SoundEnableBanner } from '@/components/shared/SoundEnableBanner';
 import { useAuth } from '@/hooks/useAuth';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
 import { useToast } from '@/hooks/use-toast';
@@ -58,7 +59,7 @@ export default function VendorOrders() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { playOnce, startRepeating, stopRepeating, isPlaying } = useRepeatingNotificationSound({ 
+  const { playOnce, startRepeating, stopRepeating, soundEnabled, isBlocked, setSoundEnabled, unlock } = useRepeatingNotificationSound({ 
     intervalMs: 10000, 
     storageKey: 'vendor-notification-sound' 
   });
@@ -478,6 +479,15 @@ export default function VendorOrders() {
               {activeOrders.length} active • {completedOrders.length} completed
             </p>
           </div>
+
+          {/* Sound notification controls */}
+          <SoundEnableBanner
+            soundEnabled={soundEnabled}
+            isBlocked={isBlocked}
+            onToggleSound={setSoundEnabled}
+            onUnlock={unlock}
+            onTestSound={playOnce}
+          />
 
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab}>

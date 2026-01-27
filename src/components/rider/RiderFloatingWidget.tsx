@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Package, X, Maximize2, Truck, MapPin, ExternalLink, ShieldCheck } from 'lucide-react';
+import { MapOptionsMenu } from '@/components/shared/MapOptionsMenu';
+import { Package, X, Maximize2, Truck, MapPin, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
@@ -58,10 +59,6 @@ export function RiderFloatingWidget({ isOnline, onToggleOnline }: RiderFloatingW
     setActiveOrder(orders?.[0] || null);
   };
 
-  const openInMaps = (address: string) => {
-    const query = encodeURIComponent(address);
-    window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank');
-  };
 
   const updateOrderStatus = async (newStatus: string) => {
     if (!activeOrder) return;
@@ -185,15 +182,12 @@ export function RiderFloatingWidget({ isOnline, onToggleOnline }: RiderFloatingW
             </div>
 
             <div className="flex gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
+              <MapOptionsMenu 
+                address={activeOrder.delivery_address_text || ''} 
+                variant="outline"
+                size="sm"
                 className="flex-1 text-xs h-8"
-                onClick={() => openInMaps(activeOrder.delivery_address_text)}
-              >
-                <ExternalLink className="w-3 h-3 mr-1" />
-                Map
-              </Button>
+              />
               {getNextStatus(activeOrder.status) && (
                 <Button 
                   size="sm" 

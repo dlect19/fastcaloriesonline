@@ -6,13 +6,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { DollarSign, TrendingUp, Wallet, ArrowUpRight, Loader2 } from 'lucide-react';
+import { DollarSign, TrendingUp, Wallet, ArrowUpRight, Loader2, FlaskConical } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 
 export default function RiderEarnings() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { isTestMode } = useEnvironmentConfig();
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(false);
   const [wallet, setWallet] = useState<any>(null);
@@ -43,7 +46,6 @@ export default function RiderEarnings() {
 
   const fetchEarnings = async (userId: string) => {
     try {
-      // Get or create wallet for rider
       let { data: walletData } = await supabase
         .from('wallets')
         .select('*')
@@ -51,9 +53,7 @@ export default function RiderEarnings() {
         .eq('wallet_type', 'rider')
         .maybeSingle();
 
-      // If no rider wallet, check for any wallet and update type, or create new one
       if (!walletData) {
-        // Check if there's a customer wallet to update
         const { data: existingWallet } = await supabase
           .from('wallets')
           .select('*')
@@ -61,7 +61,6 @@ export default function RiderEarnings() {
           .maybeSingle();
 
         if (existingWallet) {
-          // Update existing wallet to rider type
           const { data: updated } = await supabase
             .from('wallets')
             .update({ wallet_type: 'rider' })
@@ -70,31 +69,18 @@ export default function RiderEarnings() {
             .single();
           walletData = updated;
         } else {
-          // Create new rider wallet
-          const { data: newWallet, error: createError } = await supabase
+          const { data: newWallet } = await supabase
             .from('wallets')
-            .insert({
-              user_id: userId,
-              wallet_type: 'rider',
-              balance: 0,
-              eligible_balance: 0,
-              pending_balance: 0,
-              total_earned: 0,
-              total_withdrawn: 0,
-            })
+            .insert({ user_id: userId, wallet_type: 'rider', balance: 0, eligible_balance: 0, pending_balance: 0, total_earned: 0, total_withdrawn: 0 })
             .select()
             .single();
-          
-          if (!createError && newWallet) {
-            walletData = newWallet;
-          }
+          walletData = newWallet;
         }
       }
 
       setWallet(walletData);
 
       if (walletData) {
-        // Get wallet transactions
         const { data: txns } = await supabase
           .from('wallet_transactions')
           .select('*')
@@ -117,16 +103,7 @@ export default function RiderEarnings() {
       toast({ title: 'Enter a valid amount', variant: 'destructive' });
       return;
     }
-
-    if (amount > (wallet?.balance || 0)) {
-      toast({ title: 'Insufficient balance', variant: 'destructive' });
-      return;
-    }
-
-    toast({
-      title: 'Withdrawal requested',
-      description: 'Your withdrawal request has been submitted for processing.',
-    });
+    toast({ title: 'Withdrawal requested', description: 'Your withdrawal request has been submitted.' });
     setWithdrawDialogOpen(false);
     setWithdrawAmount('');
   };
@@ -134,12 +111,7 @@ export default function RiderEarnings() {
   const toggleOnline = async (online: boolean) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-
-    await supabase
-      .from('rider_profiles')
-      .update({ is_online: online })
-      .eq('user_id', user.id);
-
+    await supabase.from('rider_profiles').update({ is_online: online }).eq('user_id', user.id);
     setIsOnline(online);
   };
 
@@ -151,10 +123,23 @@ export default function RiderEarnings() {
     );
   }
 
+  const balance = isTestMode ? (Number(wallet?.test_balance) || 0) : (Number(wallet?.balance) || 0);
+  const totalEarned = isTestMode 
+    ? transactions.filter(t => t.transaction_type === 'credit').reduce((sum, t) => sum + Number(t.amount), 0)
+    : (Number(wallet?.total_earned) || 0);
+
   return (
     <RiderLayout isOnline={isOnline} onToggleOnline={toggleOnline}>
       <div className="mb-6 md:mb-8">
-        <h1 className="text-2xl md:text-3xl font-bold text-foreground">Earnings</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground">Earnings</h1>
+          {isTestMode && (
+            <Badge variant="outline" className="bg-accent/20 text-accent border-accent/30">
+              <FlaskConical className="w-3 h-3 mr-1" />
+              Test Mode
+            </Badge>
+          )}
+        </div>
         <p className="text-muted-foreground text-sm md:text-base">Track your income and withdrawals</p>
       </div>
 
@@ -165,12 +150,12 @@ export default function RiderEarnings() {
             <Wallet className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl md:text-2xl font-bold">₦{(wallet?.balance || 0).toLocaleString()}</div>
+            <div className="text-xl md:text-2xl font-bold">₦{balance.toLocaleString()}</div>
             <Dialog open={withdrawDialogOpen} onOpenChange={setWithdrawDialogOpen}>
               <DialogTrigger asChild>
-                <Button size="sm" className="mt-2 w-full md:w-auto">
+                <Button size="sm" className="mt-2 w-full md:w-auto" disabled={isTestMode}>
                   <ArrowUpRight className="w-4 h-4 mr-1" />
-                  Withdraw
+                  {isTestMode ? 'Test Mode' : 'Withdraw'}
                 </Button>
               </DialogTrigger>
               <DialogContent>
@@ -180,19 +165,10 @@ export default function RiderEarnings() {
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label>Amount (₦)</Label>
-                    <Input
-                      type="number"
-                      value={withdrawAmount}
-                      onChange={(e) => setWithdrawAmount(e.target.value)}
-                      placeholder="Enter amount"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Available: ₦{(wallet?.balance || 0).toLocaleString()}
-                    </p>
+                    <Input type="number" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} placeholder="Enter amount" />
+                    <p className="text-xs text-muted-foreground">Available: ₦{balance.toLocaleString()}</p>
                   </div>
-                  <Button onClick={handleWithdraw} className="w-full">
-                    Request Withdrawal
-                  </Button>
+                  <Button onClick={handleWithdraw} className="w-full">Request Withdrawal</Button>
                 </div>
               </DialogContent>
             </Dialog>
@@ -205,7 +181,7 @@ export default function RiderEarnings() {
             <TrendingUp className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl md:text-2xl font-bold">₦{(wallet?.total_earned || 0).toLocaleString()}</div>
+            <div className="text-xl md:text-2xl font-bold">₦{totalEarned.toLocaleString()}</div>
           </CardContent>
         </Card>
 
@@ -232,12 +208,8 @@ export default function RiderEarnings() {
               {transactions.map((txn) => (
                 <div key={txn.id} className="flex items-center justify-between py-3 border-b last:border-0">
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium text-sm md:text-base truncate capitalize">
-                      {txn.category?.replace(/_/g, ' ') || txn.transaction_type}
-                    </p>
-                    <p className="text-xs md:text-sm text-muted-foreground">
-                      {new Date(txn.created_at).toLocaleDateString()}
-                    </p>
+                    <p className="font-medium text-sm md:text-base truncate capitalize">{txn.category?.replace(/_/g, ' ') || txn.transaction_type}</p>
+                    <p className="text-xs md:text-sm text-muted-foreground">{new Date(txn.created_at).toLocaleDateString()}</p>
                   </div>
                   <p className={`font-bold text-sm md:text-base ml-2 ${txn.transaction_type === 'credit' ? 'text-calorie-low' : 'text-destructive'}`}>
                     {txn.transaction_type === 'credit' ? '+' : '-'}₦{Number(txn.amount).toLocaleString()}
