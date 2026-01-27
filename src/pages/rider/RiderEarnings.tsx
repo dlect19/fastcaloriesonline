@@ -43,38 +43,58 @@ export default function RiderEarnings() {
 
   const fetchEarnings = async (userId: string) => {
     try {
-      // Get wallet
+      // Get or create wallet for rider
       let { data: walletData } = await supabase
         .from('wallets')
         .select('*')
         .eq('user_id', userId)
+        .eq('wallet_type', 'rider')
         .maybeSingle();
 
-      // Auto-create wallet if it doesn't exist for rider
+      // If no rider wallet, check for any wallet and update type, or create new one
       if (!walletData) {
-        const { data: newWallet, error: createError } = await supabase
+        // Check if there's a customer wallet to update
+        const { data: existingWallet } = await supabase
           .from('wallets')
-          .insert({
-            user_id: userId,
-            wallet_type: 'rider',
-            balance: 0,
-            eligible_balance: 0,
-            pending_balance: 0,
-            total_earned: 0,
-            total_withdrawn: 0,
-          })
-          .select()
-          .single();
-        
-        if (!createError && newWallet) {
-          walletData = newWallet;
+          .select('*')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (existingWallet) {
+          // Update existing wallet to rider type
+          const { data: updated } = await supabase
+            .from('wallets')
+            .update({ wallet_type: 'rider' })
+            .eq('id', existingWallet.id)
+            .select()
+            .single();
+          walletData = updated;
+        } else {
+          // Create new rider wallet
+          const { data: newWallet, error: createError } = await supabase
+            .from('wallets')
+            .insert({
+              user_id: userId,
+              wallet_type: 'rider',
+              balance: 0,
+              eligible_balance: 0,
+              pending_balance: 0,
+              total_earned: 0,
+              total_withdrawn: 0,
+            })
+            .select()
+            .single();
+          
+          if (!createError && newWallet) {
+            walletData = newWallet;
+          }
         }
       }
 
       setWallet(walletData);
 
       if (walletData) {
-        // Get wallet transactions (not the old transactions table)
+        // Get wallet transactions
         const { data: txns } = await supabase
           .from('wallet_transactions')
           .select('*')
