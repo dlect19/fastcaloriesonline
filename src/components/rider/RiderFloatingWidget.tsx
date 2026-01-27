@@ -114,7 +114,7 @@ export function RiderFloatingWidget({ isOnline, onToggleOnline }: RiderFloatingW
       <button
         onClick={() => setExpanded(true)}
         className={cn(
-          "fixed bottom-20 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-full shadow-lg transition-all",
+          "fixed bottom-28 right-4 z-[60] flex items-center gap-2 px-4 py-3 rounded-full shadow-lg transition-all",
           isOnline 
             ? "bg-primary text-primary-foreground" 
             : "bg-muted text-muted-foreground"
@@ -136,7 +136,7 @@ export function RiderFloatingWidget({ isOnline, onToggleOnline }: RiderFloatingW
 
   // Expanded widget
   return (
-    <Card className="fixed bottom-20 right-4 left-4 md:left-auto md:w-80 z-50 shadow-xl border-2">
+    <Card className="fixed bottom-28 right-4 left-4 md:left-auto md:w-80 z-[60] shadow-xl border-2">
       <CardHeader className="flex flex-row items-center justify-between p-3 pb-2">
         <CardTitle className="text-sm flex items-center gap-2">
           <Truck className="w-4 h-4" />
