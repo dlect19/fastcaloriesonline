@@ -43,7 +43,14 @@ export function OrderHistoryCard({ userId }: OrderHistoryCardProps) {
   }, [userId]);
 
   const fetchOrders = async () => {
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
+    
     try {
+      console.log('Fetching order history for user:', userId);
+      
       const { data, error } = await supabase
         .from('orders')
         .select('*')
@@ -51,7 +58,12 @@ export function OrderHistoryCard({ userId }: OrderHistoryCardProps) {
         .order('created_at', { ascending: false })
         .limit(5);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Order history query error:', error);
+        throw error;
+      }
+      
+      console.log('Order history fetched:', data?.length || 0, 'orders');
       setOrders(data || []);
     } catch (error) {
       console.error('Error fetching orders:', error);
