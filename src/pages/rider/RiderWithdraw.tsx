@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Wallet, ArrowUpRight, Building2, CreditCard, Settings, Loader2, ShieldCheck } from 'lucide-react';
+import { Wallet, ArrowUpRight, Building2, CreditCard, Settings, Loader2, ShieldCheck, FlaskConical } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,7 @@ import { RiderLayout } from '@/components/rider/RiderLayout';
 import { BankAccountForm } from '@/components/BankAccountForm';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 
 interface WalletData {
   id: string;
@@ -41,6 +42,7 @@ interface WithdrawalRequest {
 export default function RiderWithdraw() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { isTestMode } = useEnvironmentConfig();
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(false);
   const [wallet, setWallet] = useState<WalletData | null>(null);
@@ -91,15 +93,28 @@ export default function RiderWithdraw() {
 
   const fetchData = async (userId: string) => {
     try {
-      // Fetch wallet
+      // Fetch rider wallet specifically
       const { data: walletData } = await supabase
         .from('wallets')
         .select('*')
         .eq('user_id', userId)
+        .eq('wallet_type', 'rider')
         .maybeSingle();
 
       if (walletData) {
-        setWallet(walletData as WalletData);
+        // Use test columns if in test mode
+        const balance = isTestMode 
+          ? Number(walletData.test_balance) || 0 
+          : Number(walletData.balance) || 0;
+        const eligibleBalance = isTestMode 
+          ? Number(walletData.test_eligible_balance) || 0 
+          : Number(walletData.eligible_balance) || 0;
+        
+        setWallet({
+          ...walletData,
+          balance: balance,
+          pending_balance: eligibleBalance, // Rider earnings are immediately eligible
+        } as WalletData);
         setBankName(walletData.bank_name || '');
         setAccountNumber(walletData.bank_account_number || '');
         setAccountName(walletData.bank_account_name || '');

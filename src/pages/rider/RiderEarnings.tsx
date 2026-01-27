@@ -46,6 +46,7 @@ export default function RiderEarnings() {
 
   const fetchEarnings = async (userId: string) => {
     try {
+      // Fetch specifically the rider wallet
       let { data: walletData } = await supabase
         .from('wallets')
         .select('*')
@@ -54,28 +55,21 @@ export default function RiderEarnings() {
         .maybeSingle();
 
       if (!walletData) {
-        const { data: existingWallet } = await supabase
+        // Create a new rider wallet if it doesn't exist
+        const { data: newWallet } = await supabase
           .from('wallets')
-          .select('*')
-          .eq('user_id', userId)
-          .maybeSingle();
-
-        if (existingWallet) {
-          const { data: updated } = await supabase
-            .from('wallets')
-            .update({ wallet_type: 'rider' })
-            .eq('id', existingWallet.id)
-            .select()
-            .single();
-          walletData = updated;
-        } else {
-          const { data: newWallet } = await supabase
-            .from('wallets')
-            .insert({ user_id: userId, wallet_type: 'rider', balance: 0, eligible_balance: 0, pending_balance: 0, total_earned: 0, total_withdrawn: 0 })
-            .select()
-            .single();
-          walletData = newWallet;
-        }
+          .insert({ 
+            user_id: userId, 
+            wallet_type: 'rider', 
+            balance: 0, 
+            eligible_balance: 0, 
+            pending_balance: 0, 
+            total_earned: 0, 
+            total_withdrawn: 0 
+          })
+          .select()
+          .single();
+        walletData = newWallet;
       }
 
       setWallet(walletData);
@@ -123,7 +117,12 @@ export default function RiderEarnings() {
     );
   }
 
-  const balance = isTestMode ? (Number(wallet?.test_balance) || 0) : (Number(wallet?.balance) || 0);
+  const balance = isTestMode 
+    ? (Number(wallet?.test_balance) || 0) 
+    : (Number(wallet?.balance) || 0);
+  const eligibleBalance = isTestMode 
+    ? (Number(wallet?.test_eligible_balance) || 0) 
+    : (Number(wallet?.eligible_balance) || 0);
   const totalEarned = isTestMode 
     ? transactions.filter(t => t.transaction_type === 'credit').reduce((sum, t) => sum + Number(t.amount), 0)
     : (Number(wallet?.total_earned) || 0);

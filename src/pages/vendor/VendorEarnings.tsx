@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TrendingUp, Wallet, ArrowUpRight, ArrowDownRight, Calendar, Clock, AlertCircle, Loader2 } from 'lucide-react';
+import { TrendingUp, Wallet, ArrowUpRight, ArrowDownRight, Calendar, Clock, AlertCircle, FlaskConical } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -9,8 +9,8 @@ import { VendorSidebar } from '@/components/vendor/VendorSidebar';
 import { AccessDenied } from '@/components/vendor/AccessDenied';
 import { useAuth } from '@/hooks/useAuth';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
+import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 import { supabase } from '@/integrations/supabase/client';
-
 interface Vendor {
   id: string;
   name: string;
@@ -45,11 +45,11 @@ interface WalletTransaction {
 export default function VendorEarnings() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const { isTestMode } = useEnvironmentConfig();
   const [vendor, setVendor] = useState<Vendor | null>(null);
   const [wallet, setWallet] = useState<VendorWallet | null>(null);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [loading, setLoading] = useState(true);
-
   const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendor?.id || null);
 
   useEffect(() => {
@@ -112,11 +112,12 @@ export default function VendorEarnings() {
 
       const vendorOwnerId = vendorFull?.user_id;
 
-      // Get or create wallet for vendor
+      // Get or create wallet for vendor - specifically the vendor wallet
       let { data: walletData } = await supabase
         .from('wallets')
         .select('*')
         .eq('user_id', vendorOwnerId)
+        .eq('wallet_type', 'vendor')
         .maybeSingle();
 
       // Auto-create wallet if it doesn't exist for vendor
@@ -141,20 +142,32 @@ export default function VendorEarnings() {
       }
 
       if (walletData) {
+        // Use test columns if in test mode, otherwise production columns
+        const balance = isTestMode 
+          ? Number(walletData.test_balance) || 0 
+          : Number(walletData.balance) || 0;
+        const pendingBalance = isTestMode 
+          ? Number(walletData.test_pending_balance) || 0 
+          : Number(walletData.pending_balance) || 0;
+        const eligibleBalance = isTestMode 
+          ? Number(walletData.test_eligible_balance) || 0 
+          : Number(walletData.eligible_balance) || 0;
+        // Total earned from transactions for test mode
+        const totalEarned = isTestMode ? 0 : Number(walletData.total_earned) || 0;
         setWallet({
           id: walletData.id,
-          balance: Number(walletData.balance) || 0,
-          pending_balance: Number(walletData.pending_balance) || 0,
-          eligible_balance: Number(walletData.eligible_balance) || 0,
+          balance: balance,
+          pending_balance: pendingBalance,
+          eligible_balance: eligibleBalance,
           pending_payouts: Number(walletData.pending_payouts) || 0,
-          total_earned: Number(walletData.total_earned) || 0,
+          total_earned: totalEarned,
           total_withdrawn: Number(walletData.total_withdrawn) || 0,
           bank_name: walletData.bank_name,
           bank_account_number: walletData.bank_account_number,
           bank_account_name: walletData.bank_account_name,
         });
 
-        // Get recent transactions
+        // Get recent transactions - filter by environment in test mode
         const { data: txData } = await supabase
           .from('wallet_transactions')
           .select('*')
@@ -249,7 +262,15 @@ export default function VendorEarnings() {
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-foreground">Earnings</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold text-foreground">Earnings</h1>
+                {isTestMode && (
+                  <Badge variant="outline" className="bg-accent/20 text-accent border-accent/30">
+                    <FlaskConical className="w-3 h-3 mr-1" />
+                    Test Mode
+                  </Badge>
+                )}
+              </div>
               <p className="text-muted-foreground">Track your revenue and payouts</p>
             </div>
             {hasPermission('request_withdrawal') && (

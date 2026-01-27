@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Wallet, ArrowUpRight, Building2, CreditCard, Clock, Settings, AlertCircle, Loader2, ShieldCheck } from 'lucide-react';
+import { Wallet, ArrowUpRight, Building2, CreditCard, Clock, Settings, AlertCircle, Loader2, ShieldCheck, FlaskConical } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,6 +16,7 @@ import { AccessDenied } from '@/components/vendor/AccessDenied';
 import { BankAccountForm } from '@/components/BankAccountForm';
 import { useAuth } from '@/hooks/useAuth';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
+import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { Tables } from '@/integrations/supabase/types';
@@ -50,6 +51,7 @@ export default function VendorWithdraw() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { isTestMode } = useEnvironmentConfig();
   const [vendor, setVendor] = useState<Vendor | null>(null);
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
@@ -130,7 +132,25 @@ export default function VendorWithdraw() {
         .maybeSingle();
 
       if (walletData) {
-        setWallet(walletData as WalletData);
+        // Use test columns if in test mode, otherwise production columns
+        const balance = isTestMode 
+          ? Number(walletData.test_balance) || 0 
+          : Number(walletData.balance) || 0;
+        const pendingBal = isTestMode 
+          ? Number(walletData.test_pending_balance) || 0 
+          : Number(walletData.pending_balance) || 0;
+        const eligibleBal = isTestMode 
+          ? Number(walletData.test_eligible_balance) || 0 
+          : Number(walletData.eligible_balance) || 0;
+        
+        setWallet({
+          ...walletData,
+          balance: balance,
+          pending_balance: pendingBal,
+        } as WalletData);
+        // Set eligible balance from wallet
+        setEligibleBalance(eligibleBal);
+        
         setBankName(walletData.bank_name || '');
         setAccountNumber(walletData.bank_account_number || '');
         setAccountName(walletData.bank_account_name || '');
@@ -147,32 +167,6 @@ export default function VendorWithdraw() {
           .limit(20);
 
         setWithdrawals(withdrawalData || []);
-      }
-
-      // Calculate eligible balance (orders delivered 24+ hours ago)
-      if (vendorData) {
-        const twentyFourHoursAgo = new Date();
-        twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
-
-        const { data: eligibleOrders } = await supabase
-          .from('orders')
-          .select('subtotal')
-          .eq('vendor_id', vendorData.id)
-          .eq('status', 'delivered')
-          .lt('delivered_at', twentyFourHoursAgo.toISOString());
-
-        const commissionRate = vendorData.commission_rate || 15;
-        const totalEligible = (eligibleOrders || []).reduce((sum, o) => {
-          const subtotal = Number(o.subtotal);
-          return sum + (subtotal - (subtotal * commissionRate / 100));
-        }, 0);
-
-        // Subtract already withdrawn/pending withdrawals
-        const pendingWithdrawals = withdrawals
-          .filter(w => w.status === 'pending' || w.status === 'processing')
-          .reduce((sum, w) => sum + Number(w.amount), 0);
-
-        setEligibleBalance(Math.max(0, totalEligible - (walletData?.total_withdrawn || 0) - pendingWithdrawals));
       }
     } catch (error) {
       console.error('Error fetching data:', error);
