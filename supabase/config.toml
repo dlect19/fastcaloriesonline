@@ -68,3 +68,6 @@ verify_jwt = false
 
 [functions.send-withdrawal-receipt]
 verify_jwt = false
+
+[functions.backfill-ledger]
+verify_jwt = false

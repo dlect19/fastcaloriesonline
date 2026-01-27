@@ -5,15 +5,27 @@ interface UseRepeatingNotificationSoundOptions {
   storageKey?: string;
 }
 
-export function useRepeatingNotificationSound(options: UseRepeatingNotificationSoundOptions = {}) {
+interface UseRepeatingNotificationSoundReturn {
+  playOnce: () => void;
+  startRepeating: () => void;
+  stopRepeating: () => void;
+  isPlaying: boolean;
+  soundEnabled: boolean;
+  isBlocked: boolean;
+  setSoundEnabled: (enabled: boolean) => void;
+  unlock: () => Promise<boolean>;
+}
+
+export function useRepeatingNotificationSound(options: UseRepeatingNotificationSoundOptions = {}): UseRepeatingNotificationSoundReturn {
   const { intervalMs = 10000, storageKey = 'notification-sound' } = options;
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const [soundEnabled, setSoundEnabled] = useState(() => {
+  const [soundEnabled, setSoundEnabledState] = useState(() => {
     return localStorage.getItem(storageKey) !== 'false';
   });
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(false);
 
   useEffect(() => {
     // Preload the audio
@@ -38,24 +50,42 @@ export function useRepeatingNotificationSound(options: UseRepeatingNotificationS
   }, [soundEnabled, storageKey]);
 
   const playOnce = useCallback(() => {
-    console.log('playOnce called, soundEnabled:', soundEnabled, 'audioRef:', !!audioRef.current);
-    if (audioRef.current) {
-      audioRef.current.currentTime = 0;
-      audioRef.current.play()
-        .then(() => console.log('Audio played successfully'))
-        .catch((err) => {
-          console.error('Failed to play notification sound:', err);
-        });
-      
-      // Vibrate if supported (mobile devices)
-      if (navigator.vibrate) {
-        navigator.vibrate([200, 100, 200]);
-      }
-    }
+    if (!audioRef.current) return;
+    
+    audioRef.current.currentTime = 0;
+    audioRef.current.play()
+      .then(() => {
+        setIsBlocked(false);
+        // Vibrate if supported (mobile devices)
+        if (navigator.vibrate) {
+          navigator.vibrate([200, 100, 200]);
+        }
+      })
+      .catch((err) => {
+        console.warn('Audio playback blocked:', err.name);
+        if (err.name === 'NotAllowedError') {
+          setIsBlocked(true);
+        }
+      });
   }, []);
 
+  const unlock = useCallback(async (): Promise<boolean> => {
+    if (!audioRef.current) return false;
+    
+    try {
+      audioRef.current.currentTime = 0;
+      await audioRef.current.play();
+      setIsBlocked(false);
+      setSoundEnabledState(true);
+      localStorage.setItem(storageKey, 'true');
+      return true;
+    } catch (err) {
+      console.warn('Failed to unlock audio:', err);
+      return false;
+    }
+  }, [storageKey]);
+
   const startRepeating = useCallback(() => {
-    console.log('startRepeating called, soundEnabled:', soundEnabled);
     if (!soundEnabled) {
       console.log('Sound disabled, not starting repeat');
       return;
@@ -72,7 +102,6 @@ export function useRepeatingNotificationSound(options: UseRepeatingNotificationS
     
     // Set up repeating interval
     intervalRef.current = setInterval(() => {
-      console.log('Interval tick - playing sound');
       playOnce();
     }, intervalMs);
   }, [soundEnabled, playOnce, intervalMs]);
@@ -86,7 +115,7 @@ export function useRepeatingNotificationSound(options: UseRepeatingNotificationS
   }, []);
 
   const toggleSound = useCallback((enabled: boolean) => {
-    setSoundEnabled(enabled);
+    setSoundEnabledState(enabled);
     if (!enabled) {
       stopRepeating();
     }
@@ -97,7 +126,9 @@ export function useRepeatingNotificationSound(options: UseRepeatingNotificationS
     startRepeating,
     stopRepeating,
     isPlaying,
-    soundEnabled, 
-    setSoundEnabled: toggleSound 
+    soundEnabled,
+    isBlocked,
+    setSoundEnabled: toggleSound,
+    unlock
   };
 }
