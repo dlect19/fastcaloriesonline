@@ -71,3 +71,6 @@ verify_jwt = false
 
 [functions.backfill-ledger]
 verify_jwt = false
+
+[functions.estimate-calories-from-image]
+verify_jwt = false

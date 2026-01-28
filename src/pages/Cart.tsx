@@ -13,7 +13,9 @@ import { OrderSummary } from '@/components/cart/OrderSummary';
 import { AddressSelector } from '@/components/cart/AddressSelector';
 import { TakeawayPackDisplay } from '@/components/cart/TakeawayPackDisplay';
 import { PromoCodeInput } from '@/components/cart/PromoCodeInput';
-import { ArrowLeft, ShoppingBag, Leaf, Loader2, AlertTriangle } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { ArrowLeft, ShoppingBag, Leaf, Loader2, AlertTriangle, Store } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Tables } from '@/integrations/supabase/types';
 
@@ -22,7 +24,10 @@ type Address = Tables<'addresses'>;
 interface VendorLocation {
   latitude: number | null;
   longitude: number | null;
+  address: string | null;
 }
+
+type DeliveryType = 'delivery' | 'self_pickup';
 
 export default function Cart() {
   const { user, loading: authLoading } = useAuth();
@@ -38,31 +43,38 @@ export default function Cart() {
   const [placingOrder, setPlacingOrder] = useState(false);
   const [promoDiscount, setPromoDiscount] = useState(0);
   const [appliedPromoCode, setAppliedPromoCode] = useState<string | null>(null);
-  const [vendorLocation, setVendorLocation] = useState<VendorLocation>({ latitude: null, longitude: null });
+  const [vendorLocation, setVendorLocation] = useState<VendorLocation>({ latitude: null, longitude: null, address: null });
+  const [deliveryType, setDeliveryType] = useState<DeliveryType>('delivery');
 
   // Fetch vendor location for delivery fee calculation
   useEffect(() => {
     if (vendorId) {
       supabase
         .from('vendors')
-        .select('latitude, longitude')
+        .select('latitude, longitude, address')
         .eq('id', vendorId)
         .single()
         .then(({ data }) => {
           if (data) {
-            setVendorLocation({ latitude: data.latitude, longitude: data.longitude });
+            setVendorLocation({ 
+              latitude: data.latitude, 
+              longitude: data.longitude,
+              address: data.address 
+            });
           }
         });
     }
   }, [vendorId]);
 
-  // Calculate dynamic delivery fee
-  const { fee: deliveryFee, isOutOfRange, distanceKm, hasCoordinates } = useDeliveryFee({
+  // Calculate dynamic delivery fee (0 for self-pickup)
+  const { fee: calculatedDeliveryFee, isOutOfRange, distanceKm, hasCoordinates } = useDeliveryFee({
     vendorLat: vendorLocation.latitude,
     vendorLon: vendorLocation.longitude,
     customerLat: selectedAddress?.latitude ?? null,
     customerLon: selectedAddress?.longitude ?? null,
   });
+  
+  const deliveryFee = deliveryType === 'self_pickup' ? 0 : calculatedDeliveryFee;
 
   // Calculate applicable takeaway packs
   const applicablePacks = useMemo(() => {
@@ -122,7 +134,7 @@ export default function Cart() {
   const handlePlaceOrder = async () => {
     if (!user || !vendorId || items.length === 0) return;
 
-    if (!selectedAddress) {
+    if (deliveryType === 'delivery' && !selectedAddress) {
       toast({
         title: 'No delivery address',
         description: 'Please select or add a delivery address',
@@ -147,8 +159,11 @@ export default function Cart() {
           service_fee: serviceFee,
           total,
           total_calories: totalCalories,
-          delivery_address_id: selectedAddress.id,
-          delivery_address_text: `${selectedAddress.address_line}, ${selectedAddress.city}, ${selectedAddress.state}`,
+          delivery_address_id: deliveryType === 'delivery' ? selectedAddress.id : null,
+          delivery_address_text: deliveryType === 'delivery' 
+            ? `${selectedAddress.address_line}, ${selectedAddress.city}, ${selectedAddress.state}`
+            : `Self-pickup at ${vendorName}`,
+          delivery_type: deliveryType,
           status: 'pending',
           payment_status: 'pending',
         })
@@ -306,15 +321,39 @@ export default function Cart() {
               <TakeawayPackDisplay packs={applicablePacks} />
             )}
 
-            {/* Address Selector */}
-            <AddressSelector
-              addresses={addresses}
-              selectedAddress={selectedAddress}
-              onSelect={setSelectedAddress}
-              loading={loadingAddresses}
-              userId={user.id}
-              onAddressAdded={fetchAddresses}
-            />
+            {/* Delivery Type Toggle */}
+            <section className="bg-card rounded-xl border border-border p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Store className="w-5 h-5 text-primary" />
+                  <div>
+                    <Label className="font-medium">Self-Pickup</Label>
+                    <p className="text-xs text-muted-foreground">Pick up your order at the store</p>
+                  </div>
+                </div>
+                <Switch
+                  checked={deliveryType === 'self_pickup'}
+                  onCheckedChange={(checked) => setDeliveryType(checked ? 'self_pickup' : 'delivery')}
+                />
+              </div>
+              {deliveryType === 'self_pickup' && vendorLocation.address && (
+                <p className="text-sm text-muted-foreground mt-3 pl-8">
+                  📍 Pickup at: {vendorLocation.address}
+                </p>
+              )}
+            </section>
+
+            {/* Address Selector - only show for delivery */}
+            {deliveryType === 'delivery' && (
+              <AddressSelector
+                addresses={addresses}
+                selectedAddress={selectedAddress}
+                onSelect={setSelectedAddress}
+                loading={loadingAddresses}
+                userId={user.id}
+                onAddressAdded={fetchAddresses}
+              />
+            )}
 
             {/* Promo Code */}
             <PromoCodeInput subtotal={subtotal} vendorId={vendorId || undefined} onDiscountApplied={handlePromoApplied} />

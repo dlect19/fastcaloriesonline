@@ -51,6 +51,7 @@ import AdminStaffJoin from "./pages/admin/AdminStaffJoin";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminAdvertisements from "./pages/admin/AdminAdvertisements";
 import AdminNutrition from "./pages/admin/AdminNutrition";
+import AdminPayouts from "./pages/admin/AdminPayouts";
 import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
 
@@ -114,6 +115,7 @@ const App = () => (
               <Route path="/admin/settings" element={<AdminSettings />} />
               <Route path="/admin/advertisements" element={<AdminAdvertisements />} />
               <Route path="/admin/nutrition" element={<AdminNutrition />} />
+              <Route path="/admin/payouts" element={<AdminPayouts />} />
               {/* Install Page */}
               <Route path="/install" element={<Install />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

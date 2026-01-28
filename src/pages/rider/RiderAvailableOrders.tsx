@@ -5,8 +5,10 @@ import { RiderLayout } from '@/components/rider/RiderLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { SoundEnableBanner } from '@/components/shared/SoundEnableBanner';
 import { Package, MapPin, Loader2, Navigation, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useRepeatingNotificationSound } from '@/hooks/useRepeatingNotificationSound';
 import { format } from 'date-fns';
 
 // Haversine formula for distance calculation
@@ -31,6 +33,20 @@ export default function RiderAvailableOrders() {
   const [riderProfile, setRiderProfile] = useState<any>(null);
   const [availableOrders, setAvailableOrders] = useState<any[]>([]);
 
+  // Notification sound hook
+  const { 
+    playOnce, 
+    startRepeating, 
+    stopRepeating, 
+    soundEnabled, 
+    isBlocked, 
+    setSoundEnabled, 
+    unlock 
+  } = useRepeatingNotificationSound({ 
+    intervalMs: 10000, 
+    storageKey: 'rider-available-orders-sound' 
+  });
+
   useEffect(() => {
     checkAuth();
   }, []);
@@ -44,7 +60,21 @@ export default function RiderAvailableOrders() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders' },
-        () => fetchAvailableOrders()
+        (payload) => {
+          const newOrder = payload.new as any;
+          const oldOrder = payload.old as any;
+          
+          // Check if this is a new ready_for_pickup order without a rider
+          if (payload.eventType === 'UPDATE' && 
+              newOrder.status === 'ready_for_pickup' && 
+              !newOrder.rider_id &&
+              oldOrder.status !== 'ready_for_pickup') {
+            // Play notification sound for new available order
+            startRepeating();
+          }
+          
+          fetchAvailableOrders();
+        }
       )
       .subscribe();
 
@@ -52,6 +82,15 @@ export default function RiderAvailableOrders() {
       supabase.removeChannel(channel);
     };
   }, [riderProfile]);
+
+  // Start notification sound when there are available orders
+  useEffect(() => {
+    if (availableOrders.length > 0 && isOnline && !loading) {
+      startRepeating();
+    } else {
+      stopRepeating();
+    }
+  }, [availableOrders.length, isOnline, loading]);
 
   const checkAuth = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -175,6 +214,9 @@ export default function RiderAvailableOrders() {
 
       if (error) throw error;
 
+      // Stop notification sound when order is claimed
+      stopRepeating();
+
       toast({
         title: '🎉 Order claimed!',
         description: 'Head to the vendor to pick up the order.',
@@ -203,9 +245,20 @@ export default function RiderAvailableOrders() {
       .eq('user_id', user.id);
 
     setIsOnline(online);
+    
+    // Stop notification sound when going offline
+    if (!online) {
+      stopRepeating();
+    }
+    
     toast({
       title: online ? 'You are now online' : 'You are now offline',
     });
+  };
+
+  const handleTestSound = () => {
+    playOnce();
+    toast({ title: '🔔 Sound test', description: 'Did you hear it?' });
   };
 
   if (loading) {
@@ -236,6 +289,18 @@ export default function RiderAvailableOrders() {
           <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
         </Button>
       </div>
+
+      {/* Sound Enable Banner */}
+      {isOnline && hasLocation && (
+        <SoundEnableBanner
+          soundEnabled={soundEnabled}
+          isBlocked={isBlocked}
+          onToggleSound={setSoundEnabled}
+          onUnlock={unlock}
+          onTestSound={handleTestSound}
+          className="mb-4"
+        />
+      )}
 
       {!hasLocation ? (
         <Card>
@@ -320,7 +385,7 @@ export default function RiderAvailableOrders() {
                   <div>
                     <p className="text-sm text-muted-foreground">You'll earn</p>
                     <p className="font-bold text-lg text-calorie-low">
-                      ₦{(Number(order.total) * 0.1).toLocaleString()}
+                      ₦{(Number(order.delivery_fee || 0) * 0.8).toLocaleString()}
                     </p>
                   </div>
                   <Button 

@@ -408,6 +408,35 @@ export type Database = {
         }
         Relationships: []
       }
+      favorites: {
+        Row: {
+          created_at: string | null
+          id: string
+          user_id: string
+          vendor_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          user_id: string
+          vendor_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          user_id?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "favorites_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_items: {
         Row: {
           calories: number | null
@@ -517,6 +546,7 @@ export type Database = {
           delivery_address_text: string | null
           delivery_fee: number | null
           delivery_instructions: string | null
+          delivery_type: string | null
           discount: number | null
           environment: string | null
           estimated_delivery_at: string | null
@@ -546,6 +576,7 @@ export type Database = {
           delivery_address_text?: string | null
           delivery_fee?: number | null
           delivery_instructions?: string | null
+          delivery_type?: string | null
           discount?: number | null
           environment?: string | null
           estimated_delivery_at?: string | null
@@ -575,6 +606,7 @@ export type Database = {
           delivery_address_text?: string | null
           delivery_fee?: number | null
           delivery_instructions?: string | null
+          delivery_type?: string | null
           discount?: number | null
           environment?: string | null
           estimated_delivery_at?: string | null
@@ -1875,6 +1907,7 @@ export type Database = {
     }
     Functions: {
       add_vendor_role: { Args: never; Returns: undefined }
+      cancel_stale_pending_orders: { Args: never; Returns: number }
       get_admin_staff_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["admin_staff_role"]
