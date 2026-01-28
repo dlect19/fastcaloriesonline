@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
     // Get order details
     const { data: order, error: orderError } = await supabase
       .from('orders')
-      .select('id, vendor_id, status, rider_id, vendors(latitude, longitude, delivery_mode, own_rider_priority)')
+      .select('id, vendor_id, status, rider_id, delivery_type, vendors(latitude, longitude, delivery_mode, own_rider_priority)')
       .eq('id', orderId)
       .single();
 
@@ -43,6 +43,15 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ error: 'Order not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Skip rider assignment for self-pickup orders
+    if (order.delivery_type === 'self_pickup') {
+      console.log('Self-pickup order, skipping rider assignment');
+      return new Response(
+        JSON.stringify({ success: true, message: 'Self-pickup order, no rider needed' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -73,6 +82,16 @@ Deno.serve(async (req) => {
         .single();
 
       const searchRadius = parseFloat(riderSettings?.value || '5');
+
+      // Get vendor's affiliated riders from vendor_riders table
+      const { data: vendorRiders } = await supabase
+        .from('vendor_riders')
+        .select('rider_profile_id')
+        .eq('vendor_id', order.vendor_id)
+        .eq('is_active', true);
+
+      const vendorRiderProfileIds = (vendorRiders || []).map(vr => vr.rider_profile_id);
+      console.log(`Found ${vendorRiderProfileIds.length} affiliated riders for vendor ${order.vendor_id}`);
 
       // Fetch online riders with work preferences
       // Include verified riders who are online and have email verified
@@ -125,10 +144,15 @@ Deno.serve(async (req) => {
           const riderWorkRadius = rider.work_radius_km || searchRadius;
           const withinWorkRadius = distance <= riderWorkRadius;
           
+          // Check if rider is affiliated via vendor_riders table OR affiliated_vendor_id
+          const isAffiliatedViaTable = vendorRiderProfileIds.includes(rider.id);
+          const isAffiliatedViaColumn = rider.affiliated_vendor_id === order.vendor_id;
+          const isAffiliated = isAffiliatedViaTable || isAffiliatedViaColumn;
+          
           return {
             ...rider,
             distance,
-            isAffiliated: rider.affiliated_vendor_id === order.vendor_id,
+            isAffiliated,
             withinWorkRadius,
           };
         })
@@ -151,7 +175,8 @@ Deno.serve(async (req) => {
 
       // Get the user_id of the nearest rider
       assignedRiderId = ridersWithDistance[0].user_id;
-      console.log(`Auto-assigned nearest rider: ${assignedRiderId} (${ridersWithDistance[0].distance.toFixed(2)}km away)`);
+      const isAffiliated = ridersWithDistance[0].isAffiliated;
+      console.log(`Auto-assigned ${isAffiliated ? 'affiliated ' : ''}rider: ${assignedRiderId} (${ridersWithDistance[0].distance.toFixed(2)}km away)`);
     }
 
     // Update order with assigned rider

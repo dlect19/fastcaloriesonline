@@ -88,6 +88,30 @@ export function RiderReviewForm({ orderId, riderId, vendorId, onReviewSubmitted 
         }
       }
 
+      // Update vendor's average rating
+      if (vendorId && vendorRating > 0) {
+        const { data: allVendorReviews } = await supabase
+          .from('reviews')
+          .select('vendor_rating')
+          .eq('vendor_id', vendorId)
+          .not('vendor_rating', 'is', null);
+
+        if (allVendorReviews && allVendorReviews.length > 0) {
+          const totalReviews = allVendorReviews.length;
+          const avgRating = allVendorReviews.reduce((sum, r) => sum + (r.vendor_rating || 0), 0) / totalReviews;
+          
+          await supabase
+            .from('vendors')
+            .update({ 
+              rating: avgRating,
+              total_ratings: totalReviews
+            })
+            .eq('id', vendorId);
+          
+          console.log(`Updated vendor ${vendorId} rating to ${avgRating.toFixed(2)} (${totalReviews} reviews)`);
+        }
+      }
+
       toast({ title: '⭐ Thank you for your review!' });
       setSubmitted(true);
       onReviewSubmitted?.();
