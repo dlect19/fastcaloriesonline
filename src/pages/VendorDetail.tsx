@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -9,8 +9,9 @@ import { ProductCard } from '@/components/vendor/ProductCard';
 import { ComboCard } from '@/components/vendor/ComboCard';
 import { CartButton } from '@/components/cart/CartButton';
 import { BottomNav } from '@/components/home/BottomNav';
-import { ArrowLeft, Leaf, Search, Package } from 'lucide-react';
+import { ArrowLeft, Leaf, Search, Package, Heart } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { useToast } from '@/hooks/use-toast';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Vendor = Tables<'vendors'>;
@@ -39,8 +40,10 @@ interface Combo {
 
 export default function VendorDetail() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { toast } = useToast();
 
   const [vendor, setVendor] = useState<Vendor | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
@@ -49,12 +52,24 @@ export default function VendorDetail() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [togglingFavorite, setTogglingFavorite] = useState(false);
 
   useEffect(() => {
     if (id) {
       fetchVendorData();
+      if (user) {
+        checkFavoriteStatus();
+        // Handle ?action=favorite from QR code
+        const action = searchParams.get('action');
+        if (action === 'favorite') {
+          handleToggleFavorite(true);
+          // Remove the query param after handling
+          navigate(`/vendor/${id}`, { replace: true });
+        }
+      }
     }
-  }, [id]);
+  }, [id, user, searchParams]);
 
   const fetchVendorData = async () => {
     if (!id) return;
@@ -127,6 +142,41 @@ export default function VendorDetail() {
     }
   };
 
+  const checkFavoriteStatus = async () => {
+    if (!user || !id) return;
+    const { data } = await supabase
+      .from('favorites')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('vendor_id', id)
+      .maybeSingle();
+    setIsFavorite(!!data);
+  };
+
+  const handleToggleFavorite = async (forceAdd = false) => {
+    if (!user) {
+      toast({ title: 'Please log in', description: 'You need to be logged in to favorite vendors', variant: 'destructive' });
+      return;
+    }
+    if (!id) return;
+    setTogglingFavorite(true);
+    try {
+      if (isFavorite && !forceAdd) {
+        await supabase.from('favorites').delete().eq('user_id', user.id).eq('vendor_id', id);
+        setIsFavorite(false);
+        toast({ title: 'Removed from favorites' });
+      } else {
+        await supabase.from('favorites').upsert({ user_id: user.id, vendor_id: id }, { onConflict: 'user_id,vendor_id' });
+        setIsFavorite(true);
+        toast({ title: '❤️ Added to favorites!', description: 'Find this vendor quickly in your Favorites page.' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setTogglingFavorite(false);
+    }
+  };
+
   const filteredProducts = products.filter(product => {
     const matchesCategory = selectedCategory === 'all' || product.category_id === selectedCategory;
     const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -161,8 +211,8 @@ export default function VendorDetail() {
 
   return (
     <div className="min-h-screen bg-background pb-32">
-      {/* Back Button */}
-      <div className="fixed top-4 left-4 z-30">
+      {/* Back Button & Favorite Button */}
+      <div className="fixed top-4 left-4 z-30 flex items-center gap-2">
         <Button
           variant="secondary"
           size="icon"
@@ -170,6 +220,18 @@ export default function VendorDetail() {
           className="rounded-full shadow-lg bg-background/90 backdrop-blur-sm"
         >
           <ArrowLeft className="w-5 h-5" />
+        </Button>
+      </div>
+      
+      <div className="fixed top-4 right-4 z-30">
+        <Button
+          variant="secondary"
+          size="icon"
+          onClick={() => handleToggleFavorite()}
+          disabled={togglingFavorite}
+          className="rounded-full shadow-lg bg-background/90 backdrop-blur-sm"
+        >
+          <Heart className={`w-5 h-5 ${isFavorite ? 'fill-destructive text-destructive' : ''}`} />
         </Button>
       </div>
 

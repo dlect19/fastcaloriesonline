@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Store, Mail, Phone, MapPin, Save, Camera, ImageIcon, Loader2, Megaphone, Bike, Users, Building2 } from 'lucide-react';
+import { Store, Mail, Phone, MapPin, Save, Camera, ImageIcon, Loader2, Megaphone, Bike, Users, Building2, Heart, QrCode } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -599,6 +599,52 @@ export default function VendorSettings() {
                     logo_url: vendor.logo_url,
                   }}
                 />
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Favorites QR Code */}
+          <Card className="border-0 shadow-soft">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Heart className="w-5 h-5 text-destructive" />
+                Customer Favorites QR Code
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Display this QR code in your store. When customers scan it, they can instantly add your store to their favorites for quick access.
+              </p>
+              {vendor && (
+                <div className="flex flex-col items-center gap-4 p-4 bg-muted/50 rounded-xl">
+                  <div className="p-4 bg-background rounded-lg shadow-sm">
+                    <img 
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`${window.location.origin}/vendor/${vendor.id}?action=favorite`)}`}
+                      alt="Favorites QR Code"
+                      className="w-48 h-48"
+                    />
+                  </div>
+                  <div className="text-center">
+                    <p className="font-medium text-foreground">Scan to Favorite</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {window.location.origin}/vendor/{vendor.id}?action=favorite
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => {
+                      const link = document.createElement('a');
+                      link.href = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(`${window.location.origin}/vendor/${vendor.id}?action=favorite`)}`;
+                      link.download = `${vendor.name}-favorites-qr.png`;
+                      link.click();
+                    }}
+                  >
+                    <QrCode className="w-4 h-4" />
+                    Download QR Code
+                  </Button>
+                </div>
               )}
             </CardContent>
           </Card>

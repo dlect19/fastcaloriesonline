@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clock, CheckCircle, XCircle, Package, ChevronDown, ChevronUp, ShoppingBag } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, Package, ChevronDown, ChevronUp, ShoppingBag, Store } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -19,6 +19,7 @@ import {
 import { VendorSidebar } from '@/components/vendor/VendorSidebar';
 import { AccessDenied } from '@/components/vendor/AccessDenied';
 import { OrderRiderInfo } from '@/components/vendor/OrderRiderInfo';
+import { SelfPickupVerifyDialog } from '@/components/vendor/SelfPickupVerifyDialog';
 import { SoundEnableBanner } from '@/components/shared/SoundEnableBanner';
 import { useAuth } from '@/hooks/useAuth';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
@@ -68,6 +69,7 @@ export default function VendorOrders() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('active');
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
+  const [selfPickupDialog, setSelfPickupDialog] = useState<{ open: boolean; order: OrderWithItems | null }>({ open: false, order: null });
 
   const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendor?.id || null);
 
@@ -383,24 +385,12 @@ export default function VendorOrders() {
                   </p>
                 )}
                 
-                {/* Order Summary */}
+                {/* Order Summary - Vendors only see their revenue (subtotal minus discounts) */}
                 <div className="border-t border-border pt-2 mt-2 space-y-1">
                   <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>Subtotal</span>
+                    <span>Meal Total</span>
                     <span>₦{Number(order.subtotal).toLocaleString()}</span>
                   </div>
-                  {order.delivery_fee && Number(order.delivery_fee) > 0 && (
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>Delivery</span>
-                      <span>₦{Number(order.delivery_fee).toLocaleString()}</span>
-                    </div>
-                  )}
-                  {order.service_fee && Number(order.service_fee) > 0 && (
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>Service Fee</span>
-                      <span>₦{Number(order.service_fee).toLocaleString()}</span>
-                    </div>
-                  )}
                   {order.discount && Number(order.discount) > 0 && (
                     <div className="flex justify-between text-xs text-calorie-low">
                       <span>Discount</span>
@@ -408,9 +398,12 @@ export default function VendorOrders() {
                     </div>
                   )}
                   <div className="flex justify-between text-sm font-semibold pt-1 border-t border-border">
-                    <span>Total</span>
-                    <span className="text-primary">₦{Number(order.total).toLocaleString()}</span>
+                    <span>Your Revenue</span>
+                    <span className="text-primary">₦{Number(order.subtotal - (order.discount || 0)).toLocaleString()}</span>
                   </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Delivery fees and service charges go to riders/platform
+                  </p>
                 </div>
               </div>
             </CollapsibleContent>
@@ -420,16 +413,61 @@ export default function VendorOrders() {
             <div>
               <p className="text-sm text-muted-foreground">
                 {order.total_calories ? `${order.total_calories} cal • ` : ''}
-                ₦{Number(order.total).toLocaleString()}
+                ₦{Number(order.subtotal).toLocaleString()}
               </p>
-              {order.delivery_address_text && (
+              {/* Show delivery type indicator */}
+              {order.delivery_type === 'self_pickup' ? (
+                <p className="text-xs text-primary mt-1 flex items-center gap-1">
+                  <Store className="w-3 h-3" /> Self-Pickup
+                </p>
+              ) : order.delivery_address_text && (
                 <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
                   📍 {order.delivery_address_text}
                 </p>
               )}
             </div>
 
-            {order.status !== 'delivered' && order.status !== 'cancelled' && nextStatus && (
+            {/* Self-pickup verify button when order is ready */}
+            {order.delivery_type === 'self_pickup' && order.status === 'ready_for_pickup' && (
+              <Button 
+                size="sm" 
+                className="gap-1 bg-calorie-low hover:bg-calorie-low/90"
+                onClick={() => setSelfPickupDialog({ open: true, order })}
+              >
+                <CheckCircle className="w-4 h-4" />
+                Verify & Deliver
+              </Button>
+            )}
+
+            {/* Regular delivery order actions */}
+            {order.delivery_type !== 'self_pickup' && order.status !== 'delivered' && order.status !== 'cancelled' && nextStatus && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" className="gap-1">
+                    Update
+                    <ChevronDown className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {nextStatus && (
+                    <DropdownMenuItem
+                      onClick={() => updateOrderStatus(order.id, nextStatus)}
+                    >
+                      Mark as {statusConfig[nextStatus].label}
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem
+                    className="text-destructive"
+                    onClick={() => updateOrderStatus(order.id, 'cancelled')}
+                  >
+                    Cancel Order
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
+            {/* Self-pickup orders status update (before ready) */}
+            {order.delivery_type === 'self_pickup' && order.status !== 'delivered' && order.status !== 'cancelled' && order.status !== 'ready_for_pickup' && nextStatus && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button size="sm" className="gap-1">
@@ -457,8 +495,8 @@ export default function VendorOrders() {
           </div>
         </div>
 
-        {/* Rider Info */}
-        {order.rider_id && ['ready_for_pickup', 'picked_up', 'on_the_way', 'delivered'].includes(order.status) && (
+        {/* Rider Info - Only for delivery orders */}
+        {order.delivery_type !== 'self_pickup' && order.rider_id && ['ready_for_pickup', 'picked_up', 'on_the_way', 'delivered'].includes(order.status) && (
           <div className="px-4 pb-4">
             <OrderRiderInfo riderId={order.rider_id} orderStatus={order.status} />
           </div>
@@ -530,6 +568,21 @@ export default function VendorOrders() {
               )}
             </TabsContent>
           </Tabs>
+
+          {/* Self-Pickup Verification Dialog */}
+          {selfPickupDialog.order && (
+            <SelfPickupVerifyDialog
+              open={selfPickupDialog.open}
+              onOpenChange={(open) => setSelfPickupDialog({ ...selfPickupDialog, open })}
+              orderId={selfPickupDialog.order.id}
+              orderNumber={selfPickupDialog.order.order_number}
+              confirmationCode={selfPickupDialog.order.confirmation_code || ''}
+              onVerified={() => {
+                fetchData();
+                setSelfPickupDialog({ open: false, order: null });
+              }}
+            />
+          )}
         </div>
       </main>
     </div>

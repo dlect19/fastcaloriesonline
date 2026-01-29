@@ -229,32 +229,50 @@ export default function OrderDetail() {
           </CardContent>
         </Card>
 
-        {/* Delivery Address */}
+        {/* Delivery Address or Pickup Address */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Delivery Address</CardTitle>
+            <CardTitle className="text-lg">
+              {order.delivery_type === 'self_pickup' ? 'Pickup Location' : 'Delivery Address'}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-start gap-3">
               <MapPin className="w-5 h-5 text-muted-foreground mt-0.5" />
-              <span>{order.delivery_address_text}</span>
+              <span>
+                {order.delivery_type === 'self_pickup' 
+                  ? order.vendors?.address 
+                  : order.delivery_address_text}
+              </span>
             </div>
+            {order.delivery_type === 'self_pickup' && (
+              <p className="text-xs text-primary mt-2 flex items-center gap-1">
+                <Store className="w-3 h-3" /> Self-Pickup Order
+              </p>
+            )}
           </CardContent>
         </Card>
 
-        {/* Rider Info - Show when order is picked up or on the way */}
-        {order.rider_id && ['picked_up', 'on_the_way'].includes(order.status) && (
+        {/* Rider Info - Only for delivery orders when picked up or on the way */}
+        {order.delivery_type !== 'self_pickup' && order.rider_id && ['picked_up', 'on_the_way'].includes(order.status) && (
           <RiderInfoCard riderId={order.rider_id} />
         )}
 
-        {/* Confirmation Code - Show when order is picked up or on the way */}
-        {order.confirmation_code && ['picked_up', 'on_the_way'].includes(order.status) && (
+        {/* Confirmation Code - Show for self-pickup when ready, or delivery when picked up/on the way */}
+        {order.confirmation_code && (
+          (order.delivery_type === 'self_pickup' && order.status === 'ready_for_pickup') ||
+          (order.delivery_type !== 'self_pickup' && ['picked_up', 'on_the_way'].includes(order.status))
+        ) && (
           <Alert className="border-primary bg-primary/5">
             <ShieldCheck className="h-5 w-5 text-primary" />
-            <AlertTitle className="text-primary">Delivery Confirmation Code</AlertTitle>
+            <AlertTitle className="text-primary">
+              {order.delivery_type === 'self_pickup' ? 'Pickup Verification Code' : 'Delivery Confirmation Code'}
+            </AlertTitle>
             <AlertDescription className="space-y-2">
               <p className="text-muted-foreground">
-                Give this code to the rider when they arrive to confirm delivery:
+                {order.delivery_type === 'self_pickup' 
+                  ? 'Show this code to the vendor when you pick up your order:'
+                  : 'Give this code to the rider when they arrive to confirm delivery:'}
               </p>
               <div className="flex items-center justify-center gap-2 py-3">
                 <span className="text-3xl font-bold tracking-[0.5em] text-foreground">
@@ -262,7 +280,9 @@ export default function OrderDetail() {
                 </span>
               </div>
               <p className="text-xs text-muted-foreground text-center">
-                Do not share this code until you receive your order
+                {order.delivery_type === 'self_pickup'
+                  ? 'This code verifies that you are the order owner'
+                  : 'Do not share this code until you receive your order'}
               </p>
             </AlertDescription>
           </Alert>
