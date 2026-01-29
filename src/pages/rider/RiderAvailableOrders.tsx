@@ -64,10 +64,11 @@ export default function RiderAvailableOrders() {
           const newOrder = payload.new as any;
           const oldOrder = payload.old as any;
           
-          // Check if this is a new ready_for_pickup order without a rider
+          // Check if this is a new ready_for_pickup order without a rider (exclude self-pickup)
           if (payload.eventType === 'UPDATE' && 
               newOrder.status === 'ready_for_pickup' && 
               !newOrder.rider_id &&
+              newOrder.delivery_type !== 'self_pickup' &&
               oldOrder.status !== 'ready_for_pickup') {
             // Play notification sound for new available order
             startRepeating();
@@ -119,12 +120,13 @@ export default function RiderAvailableOrders() {
     if (!profile) return;
     
     try {
-      // Get orders that are ready for pickup and have no rider assigned
+      // Get orders that are ready for pickup, have no rider assigned, and are NOT self-pickup
       const { data: orders, error } = await supabase
         .from('orders')
         .select('*, vendors(name, address, latitude, longitude)')
         .eq('status', 'ready_for_pickup')
         .is('rider_id', null)
+        .neq('delivery_type', 'self_pickup') // Exclude self-pickup orders
         .order('created_at', { ascending: false });
 
       if (error) throw error;

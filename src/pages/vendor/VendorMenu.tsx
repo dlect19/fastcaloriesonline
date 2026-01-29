@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit2, Trash2, Search, Flame, Wheat, Drumstick, Droplets, Leaf, Droplet, Apple, Gem, ImagePlus, X, Loader2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, Flame, Wheat, Drumstick, Droplets, Leaf, Droplet, Apple, Gem, ImagePlus, X, Loader2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -106,6 +106,7 @@ export default function VendorMenu() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [estimatingCalories, setEstimatingCalories] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form state
@@ -539,19 +540,64 @@ export default function VendorMenu() {
                       className="hidden"
                     />
                     {imagePreview ? (
-                      <div className="relative w-full h-40 rounded-lg overflow-hidden bg-secondary">
-                        <img
-                          src={imagePreview}
-                          alt="Product preview"
-                          className="w-full h-full object-cover"
-                        />
-                        <button
-                          type="button"
-                          onClick={removeImage}
-                          className="absolute top-2 right-2 p-1.5 rounded-full bg-background/80 hover:bg-background text-foreground shadow-sm"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
+                      <div className="space-y-3">
+                        <div className="relative w-full h-40 rounded-lg overflow-hidden bg-secondary">
+                          <img
+                            src={imagePreview}
+                            alt="Product preview"
+                            className="w-full h-full object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={removeImage}
+                            className="absolute top-2 right-2 p-1.5 rounded-full bg-background/80 hover:bg-background text-foreground shadow-sm"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                        {/* AI Estimate Calories Button - Only for restaurants */}
+                        {vendor?.category === 'restaurant' && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="w-full gap-2"
+                            disabled={estimatingCalories}
+                            onClick={async () => {
+                              if (!imagePreview) return;
+                              setEstimatingCalories(true);
+                              try {
+                                const { data, error } = await supabase.functions.invoke('estimate-calories-from-image', {
+                                  body: { imageUrl: imagePreview }
+                                });
+                                if (error) throw error;
+                                if (data?.success) {
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    calories: data.calories?.toString() || prev.calories,
+                                    protein_grams: data.protein_grams?.toString() || prev.protein_grams,
+                                    carbs_grams: data.carbs_grams?.toString() || prev.carbs_grams,
+                                    fats_grams: data.fats_grams?.toString() || prev.fats_grams,
+                                    fiber_grams: data.fiber_grams?.toString() || prev.fiber_grams,
+                                  }));
+                                  toast({ title: 'AI estimation complete', description: 'Nutritional values have been filled in. Please review and adjust if needed.' });
+                                } else {
+                                  throw new Error(data?.error || 'Failed to estimate');
+                                }
+                              } catch (err: any) {
+                                toast({ title: 'Estimation failed', description: err.message, variant: 'destructive' });
+                              } finally {
+                                setEstimatingCalories(false);
+                              }
+                            }}
+                          >
+                            {estimatingCalories ? (
+                              <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</>
+                            ) : (
+                              <><Sparkles className="w-4 h-4" /> Estimate Calories with AI</>
+                            )}
+                          </Button>
+                        )}
                       </div>
                     ) : (
                       <button
