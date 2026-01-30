@@ -6,9 +6,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { MapPin, Bike, DollarSign, Settings2, Save, Loader2 } from 'lucide-react';
+import { MapPin, Bike, DollarSign, Settings2, Save, Loader2, CreditCard, Navigation } from 'lucide-react';
 import { EnvironmentSwitch } from '@/components/admin/EnvironmentSwitch';
 import { AdminTestModeToggle } from '@/components/admin/AdminTestModeToggle';
 
@@ -40,6 +42,14 @@ export default function AdminSettings() {
     { key: 'min_withdrawal_amount', label: 'Min Withdrawal', unit: '₦', icon: DollarSign, description: 'Minimum amount for withdrawals' },
     { key: 'vendor_earnings_hold_hours', label: 'Vendor Hold Period', unit: 'hrs', icon: Settings2, description: 'Hours to hold vendor earnings before eligible' },
     { key: 'rider_earnings_hold_hours', label: 'Rider Hold Period', unit: 'hrs', icon: Settings2, description: 'Hours to hold rider earnings before eligible' },
+  ];
+
+  const navigationApps = [
+    { value: 'google_maps', label: 'Google Maps' },
+    { value: 'waze', label: 'Waze' },
+    { value: 'apple_maps', label: 'Apple Maps' },
+    { value: 'here_wego', label: 'HERE WeGo' },
+    { value: 'openstreetmap', label: 'OpenStreetMap' },
   ];
 
   useEffect(() => {
@@ -112,6 +122,26 @@ export default function AdminSettings() {
 
           if (error) throw error;
         }
+      }
+
+      // Save payout approval mode
+      if (settings['payout_approval_mode']) {
+        await supabase.from('platform_settings').upsert({
+          key: 'payout_approval_mode',
+          value: settings['payout_approval_mode'],
+          description: 'Payout approval mode: auto or manual',
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'key' });
+      }
+
+      // Save default navigation app
+      if (settings['default_navigation_app']) {
+        await supabase.from('platform_settings').upsert({
+          key: 'default_navigation_app',
+          value: settings['default_navigation_app'],
+          description: 'Default navigation app for riders',
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'key' });
       }
 
       toast({
@@ -328,6 +358,103 @@ export default function AdminSettings() {
                   </p>
                   <p className="text-sm text-muted-foreground">
                     Rider earnings become available <span className="text-primary font-medium">immediately</span> (hold: {settings['rider_earnings_hold_hours'] || '0'} hours)
+                  </p>
+                </div>
+
+                <div className="flex justify-end">
+                  <Button onClick={handleSave} disabled={saving}>
+                    {saving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4 mr-2" />
+                        Save Settings
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Payout Settings Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CreditCard className="w-5 h-5 text-primary" />
+                  Payout Settings
+                </CardTitle>
+                <CardDescription>
+                  Configure how payouts are processed
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex items-center justify-between p-4 bg-secondary rounded-lg">
+                  <div className="space-y-1">
+                    <Label className="text-base">Automatic Payout Approval</Label>
+                    <p className="text-sm text-muted-foreground">
+                      {settings['payout_approval_mode'] === 'auto' 
+                        ? 'Payouts are processed automatically without admin review'
+                        : 'Payouts require manual admin approval before processing'}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={settings['payout_approval_mode'] === 'auto'}
+                    onCheckedChange={(checked) => handleSettingChange('payout_approval_mode', checked ? 'auto' : 'manual')}
+                  />
+                </div>
+
+                <div className="flex justify-end">
+                  <Button onClick={handleSave} disabled={saving}>
+                    {saving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4 mr-2" />
+                        Save Settings
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Navigation App Settings Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Navigation className="w-5 h-5 text-primary" />
+                  Navigation Settings
+                </CardTitle>
+                <CardDescription>
+                  Configure default navigation app for riders
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <Label>Default Navigation App</Label>
+                  <Select
+                    value={settings['default_navigation_app'] || 'google_maps'}
+                    onValueChange={(value) => handleSettingChange('default_navigation_app', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select navigation app" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {navigationApps.map((app) => (
+                        <SelectItem key={app.value} value={app.value}>
+                          {app.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-sm text-muted-foreground">
+                    This app will be used as the default for riders when navigating to delivery locations
                   </p>
                 </div>
 

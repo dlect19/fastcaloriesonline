@@ -30,19 +30,35 @@ export function CalorieGoalCard({ profile, onUpdate }: CalorieGoalCardProps) {
   const [healthGoal, setHealthGoal] = useState(profile?.health_goal || 'maintain');
 
   const handleSave = async () => {
-    if (!profile) return;
-    
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          daily_calorie_target: calorieTarget,
-          health_goal: healthGoal,
-        })
-        .eq('user_id', profile.user_id);
+      if (profile) {
+        // Update existing profile
+        const { error } = await supabase
+          .from('profiles')
+          .update({
+            daily_calorie_target: calorieTarget,
+            health_goal: healthGoal,
+          })
+          .eq('user_id', profile.user_id);
 
-      if (error) throw error;
+        if (error) throw error;
+      } else {
+        // Profile might not exist yet - need to get user_id from auth
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
+
+        // Try to upsert the profile
+        const { error } = await supabase
+          .from('profiles')
+          .upsert({
+            user_id: user.id,
+            daily_calorie_target: calorieTarget,
+            health_goal: healthGoal,
+          }, { onConflict: 'user_id' });
+
+        if (error) throw error;
+      }
 
       toast({
         title: 'Success',
@@ -50,11 +66,11 @@ export function CalorieGoalCard({ profile, onUpdate }: CalorieGoalCardProps) {
       });
       setIsEditing(false);
       onUpdate();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating goals:', error);
       toast({
         title: 'Error',
-        description: 'Failed to update goals',
+        description: error.message || 'Failed to update goals',
         variant: 'destructive',
       });
     } finally {

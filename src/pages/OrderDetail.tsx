@@ -12,14 +12,22 @@ import { ArrowLeft, Package, Check, Truck, MapPin, Phone, Loader2, Store, Clock,
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
-const ORDER_STATUSES = [
+const DELIVERY_ORDER_STATUSES = [
   { key: 'pending', label: 'Order Placed', icon: Package },
   { key: 'confirmed', label: 'Confirmed', icon: Check },
   { key: 'preparing', label: 'Preparing', icon: Store },
-  { key: 'ready_for_pickup', label: 'Ready', icon: Clock },
+  { key: 'ready_for_pickup', label: 'Ready for Rider', icon: Clock },
   { key: 'picked_up', label: 'Picked Up', icon: Bike },
   { key: 'on_the_way', label: 'On the Way', icon: Truck },
   { key: 'delivered', label: 'Delivered', icon: MapPin },
+];
+
+const SELF_PICKUP_ORDER_STATUSES = [
+  { key: 'pending', label: 'Order Placed', icon: Package },
+  { key: 'confirmed', label: 'Confirmed', icon: Check },
+  { key: 'preparing', label: 'Preparing', icon: Store },
+  { key: 'ready_for_pickup', label: 'Ready for Pickup', icon: Clock },
+  { key: 'delivered', label: 'Picked Up', icon: MapPin },
 ];
 
 export default function OrderDetail() {
@@ -98,10 +106,15 @@ export default function OrderDetail() {
     };
   };
 
+  const getOrderStatuses = () => {
+    return order?.delivery_type === 'self_pickup' ? SELF_PICKUP_ORDER_STATUSES : DELIVERY_ORDER_STATUSES;
+  };
+
   const getCurrentStepIndex = () => {
     if (!order) return 0;
     if (order.status === 'cancelled') return -1;
-    const index = ORDER_STATUSES.findIndex(s => s.key === order.status);
+    const statuses = getOrderStatuses();
+    const index = statuses.findIndex(s => s.key === order.status);
     return index >= 0 ? index : 0;
   };
 
@@ -159,7 +172,7 @@ export default function OrderDetail() {
               </div>
             ) : (
               <div className="relative">
-                {ORDER_STATUSES.map((status, index) => {
+                {getOrderStatuses().map((status, index) => {
                   const isCompleted = index <= currentStep;
                   const isCurrent = index === currentStep;
                   const Icon = status.icon;
@@ -176,7 +189,7 @@ export default function OrderDetail() {
                         >
                           <Icon className="w-5 h-5" />
                         </div>
-                        {index < ORDER_STATUSES.length - 1 && (
+                        {index < getOrderStatuses().length - 1 && (
                           <div
                             className={cn(
                               "absolute left-1/2 top-10 -translate-x-1/2 w-0.5 h-6",
@@ -192,7 +205,7 @@ export default function OrderDetail() {
                         )}>
                           {status.label}
                         </p>
-                        {isCurrent && order.estimated_delivery_at && (
+                        {isCurrent && order.estimated_delivery_at && order.delivery_type !== 'self_pickup' && (
                           <p className="text-sm text-primary">
                             Est. arrival: {format(new Date(order.estimated_delivery_at), 'p')}
                           </p>
