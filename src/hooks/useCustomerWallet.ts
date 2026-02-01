@@ -146,6 +146,7 @@ export function useCustomerWallet() {
     hasDVA,
     dvaDetails,
     profileComplete,
+    isTestMode,
     refetch: fetchWallet,
     initializeFunding,
     payWithWallet,
