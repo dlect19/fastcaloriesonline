@@ -272,12 +272,13 @@ export default function VendorRiderJoin() {
               className="w-full gap-2"
               size="lg"
             >
-              {joining ? (
+              {joining && (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Joining...
                 </>
-              ) : (
+              )}
+              {!joining && (
                 <>
                   <Bike className="w-4 h-4" />
                   Join as Rider
@@ -287,14 +288,14 @@ export default function VendorRiderJoin() {
           ) : (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground text-center">
-                You need to sign in to join this team
+                Sign in or create an account to join this team
               </p>
               <Button
                 onClick={handleJoin}
                 className="w-full"
                 size="lg"
               >
-                Sign In to Continue
+                Sign Up / Sign In
               </Button>
             </div>
           )}

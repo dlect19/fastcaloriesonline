@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,7 +14,9 @@ import { EmailVerificationOTP } from '@/components/rider/EmailVerificationOTP';
 
 export default function RiderAuth() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
+  const redirectUrl = searchParams.get('redirect');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -49,7 +51,8 @@ export default function RiderAuth() {
         .eq('user_id', user.id);
       
       if (roles?.some(r => r.role === 'rider')) {
-        navigate('/rider/dashboard');
+        // If there's a redirect URL (like an invite link), go there instead
+        navigate(redirectUrl || '/rider/dashboard');
       }
     }
   };
@@ -88,7 +91,8 @@ export default function RiderAuth() {
       }
 
       toast({ title: 'Welcome back!' });
-      navigate('/rider/dashboard');
+      // Redirect to invite link if present, otherwise dashboard
+      navigate(redirectUrl || '/rider/dashboard');
     } catch (error: any) {
       toast({
         title: 'Login failed',
@@ -173,7 +177,7 @@ export default function RiderAuth() {
 
             if (existingRoles?.some(r => r.role === 'rider')) {
               toast({ title: 'Welcome back!' });
-              navigate('/rider/dashboard');
+              navigate(redirectUrl || '/rider/dashboard');
               return;
             }
 
@@ -277,9 +281,10 @@ export default function RiderAuth() {
   const handleEmailVerified = () => {
     toast({
       title: 'Registration successful!',
-      description: 'Your account is pending admin verification.',
+      description: redirectUrl ? 'You can now join the vendor team!' : 'Your account is pending admin verification.',
     });
-    navigate('/rider/dashboard');
+    // Redirect to invite link if present, otherwise dashboard
+    navigate(redirectUrl || '/rider/dashboard');
   };
 
   if (showEmailVerification && pendingUserId) {
@@ -302,10 +307,12 @@ export default function RiderAuth() {
             <img src={fastCaloriesLogo} alt="Fast Calories" className="w-16 h-16 object-contain" />
           </div>
           <CardTitle className="text-2xl">Rider Portal</CardTitle>
-          <CardDescription>Deliver with Fast Calories</CardDescription>
+          <CardDescription>
+            {redirectUrl ? 'Sign in or create an account to join the team' : 'Deliver with Fast Calories'}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="login">
+          <Tabs defaultValue={redirectUrl ? 'signup' : 'login'}>
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="login">Login</TabsTrigger>
               <TabsTrigger value="signup">Sign Up</TabsTrigger>
