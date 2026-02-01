@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { MapPin, Bike, DollarSign, Settings2, Save, Loader2, CreditCard, Navigation } from 'lucide-react';
 import { EnvironmentSwitch } from '@/components/admin/EnvironmentSwitch';
 import { AdminTestModeToggle } from '@/components/admin/AdminTestModeToggle';
+import { PaystackBalanceCard } from '@/components/admin/PaystackBalanceCard';
 
 interface DeliverySetting {
   key: string;
@@ -181,6 +182,9 @@ export default function AdminSettings() {
           <div className="space-y-6 max-w-3xl">
             {/* Environment Switch Section */}
             <EnvironmentSwitch />
+            
+            {/* Paystack Balance Card */}
+            <PaystackBalanceCard />
             
             {/* Admin Test Mode (only shows when platform is in production) */}
             <AdminTestModeToggle />
