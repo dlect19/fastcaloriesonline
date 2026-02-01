@@ -120,6 +120,23 @@ serve(async (req) => {
       );
     }
 
+    // Get user profile to get phone number
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("phone")
+      .eq("user_id", user.id)
+      .single();
+
+    if (!profile?.phone) {
+      return new Response(
+        JSON.stringify({ 
+          error: "Phone number required",
+          message: "Please add your phone number in your profile before creating a virtual account."
+        }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
     // Verify customer exists in current Paystack environment before creating DVA
     const verifyResponse = await fetch(
       `https://api.paystack.co/customer/${wallet.paystack_customer_code}`,
@@ -140,6 +157,28 @@ serve(async (req) => {
         }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
+    }
+
+    // Update customer with phone number to ensure DVA can be created
+    const updateCustomerResponse = await fetch(
+      `https://api.paystack.co/customer/${wallet.paystack_customer_code}`,
+      {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${paystackSecretKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          phone: profile.phone,
+        }),
+      }
+    );
+
+    if (!updateCustomerResponse.ok) {
+      const updateError = await updateCustomerResponse.json();
+      console.error("Failed to update customer phone:", updateError);
+    } else {
+      console.log("Customer phone updated successfully");
     }
 
     // Create dedicated virtual account on Paystack using customer_code
