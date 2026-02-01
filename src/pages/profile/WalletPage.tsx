@@ -167,6 +167,7 @@ export default function WalletPage() {
             bankName={dvaDetails.bankName}
             accountNumber={dvaDetails.accountNumber}
             accountName={dvaDetails.accountName}
+            onRefresh={refetch}
           />
         ) : (
           <Card className="border-0 shadow-soft">

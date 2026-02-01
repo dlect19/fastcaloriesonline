@@ -1,18 +1,21 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Building2, Copy, Check } from 'lucide-react';
+import { Building2, Copy, Check, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface VirtualAccountCardProps {
   bankName: string;
   accountNumber: string;
   accountName: string;
+  onRefresh?: () => void;
 }
 
-export function VirtualAccountCard({ bankName, accountNumber, accountName }: VirtualAccountCardProps) {
+export function VirtualAccountCard({ bankName, accountNumber, accountName, onRefresh }: VirtualAccountCardProps) {
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const handleCopy = async () => {
     try {
@@ -29,6 +32,39 @@ export function VirtualAccountCard({ bankName, accountNumber, accountName }: Vir
         description: 'Please copy manually',
         variant: 'destructive',
       });
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('requery-dva-transactions', {
+        body: {},
+      });
+
+      if (error) throw error;
+
+      if (data?.transactions_processed > 0) {
+        toast({
+          title: 'Transactions Found!',
+          description: data.message,
+        });
+        onRefresh?.();
+      } else {
+        toast({
+          title: 'No New Transactions',
+          description: 'Your wallet is up to date',
+        });
+      }
+    } catch (error) {
+      console.error('Error requerying DVA:', error);
+      toast({
+        title: 'Refresh Failed',
+        description: error instanceof Error ? error.message : 'Could not check for transactions',
+        variant: 'destructive',
+      });
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -76,10 +112,20 @@ export function VirtualAccountCard({ bankName, accountNumber, accountName }: Vir
           </div>
         </div>
 
-        <div className="pt-2 border-t border-border">
+        <div className="pt-2 border-t border-border flex items-center justify-between">
           <p className="text-xs text-muted-foreground">
-            💡 Bank transfers are credited automatically within minutes
+            💡 Bank transfers are credited automatically
           </p>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="gap-1 text-xs"
+          >
+            <RefreshCw className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Checking...' : 'Refresh'}
+          </Button>
         </div>
       </CardContent>
     </Card>
