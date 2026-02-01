@@ -5,6 +5,7 @@ import { useCart } from '@/hooks/useCart';
 import { useTakeawayPacks } from '@/hooks/useTakeawayPacks';
 import { usePromoCode } from '@/hooks/usePromoCode';
 import { useDeliveryFee } from '@/hooks/useDeliveryFee';
+import { useCustomerWallet } from '@/hooks/useCustomerWallet';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { BottomNav } from '@/components/home/BottomNav';
@@ -13,6 +14,7 @@ import { OrderSummary } from '@/components/cart/OrderSummary';
 import { AddressSelector } from '@/components/cart/AddressSelector';
 import { TakeawayPackDisplay } from '@/components/cart/TakeawayPackDisplay';
 import { PromoCodeInput } from '@/components/cart/PromoCodeInput';
+import { PaymentMethodSelector, PaymentMethod } from '@/components/cart/PaymentMethodSelector';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { ArrowLeft, ShoppingBag, Leaf, Loader2, AlertTriangle, Store } from 'lucide-react';
@@ -34,6 +36,7 @@ export default function Cart() {
   const { items, vendorId, vendorName, subtotal, totalCalories, clearCart } = useCart();
   const { getApplicablePacks } = useTakeawayPacks(vendorId);
   const { appliedPromo, incrementUsage } = usePromoCode();
+  const { balance: walletBalance, isDisabled: isWalletDisabled, payWithWallet } = useCustomerWallet();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -45,6 +48,7 @@ export default function Cart() {
   const [appliedPromoCode, setAppliedPromoCode] = useState<string | null>(null);
   const [vendorLocation, setVendorLocation] = useState<VendorLocation>({ latitude: null, longitude: null, address: null });
   const [deliveryType, setDeliveryType] = useState<DeliveryType>('delivery');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
 
   // Fetch vendor location for delivery fee calculation
   useEffect(() => {
@@ -143,8 +147,21 @@ export default function Cart() {
       return;
     }
 
+    // Validate payment method
+    if (paymentMethod === 'wallet' && walletBalance < total) {
+      toast({
+        title: 'Insufficient Balance',
+        description: 'Your wallet balance is not enough for this order',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setPlacingOrder(true);
     try {
+      // Determine payment method for order
+      const orderPaymentMethod = paymentMethod === 'wallet' ? 'wallet' : 'paystack';
+      
       // Create order
       const { data: order, error: orderError } = await supabase
         .from('orders')
@@ -159,13 +176,14 @@ export default function Cart() {
           service_fee: serviceFee,
           total,
           total_calories: totalCalories,
-          delivery_address_id: deliveryType === 'delivery' ? selectedAddress.id : null,
+          delivery_address_id: deliveryType === 'delivery' ? selectedAddress?.id : null,
           delivery_address_text: deliveryType === 'delivery' 
-            ? `${selectedAddress.address_line}, ${selectedAddress.city}, ${selectedAddress.state}`
+            ? `${selectedAddress?.address_line}, ${selectedAddress?.city}, ${selectedAddress?.state}`
             : `Self-pickup at ${vendorName}`,
           delivery_type: deliveryType,
           status: 'pending',
           payment_status: 'pending',
+          payment_method: orderPaymentMethod,
         })
         .select()
         .single();
@@ -218,30 +236,51 @@ export default function Cart() {
         await incrementUsage(appliedPromo.id);
       }
 
-      // Initialize Paystack payment
-      const callbackUrl = `${window.location.origin}/payment-callback`;
-      const { data: paymentData, error: paymentError } = await supabase.functions.invoke(
-        'paystack-initialize-payment',
-        {
-          body: { orderId: order.id, callbackUrl },
+      // Process payment based on method
+      if (paymentMethod === 'wallet') {
+        // Pay with wallet
+        try {
+          await payWithWallet(order.id);
+          clearCart();
+          toast({
+            title: 'Order Placed!',
+            description: 'Your order has been paid with wallet balance.',
+          });
+          navigate(`/orders/${order.id}`);
+        } catch (walletError) {
+          console.error('Wallet payment error:', walletError);
+          toast({
+            title: 'Payment Failed',
+            description: walletError instanceof Error ? walletError.message : 'Failed to process wallet payment',
+            variant: 'destructive',
+          });
         }
-      );
+      } else {
+        // Pay with Paystack (card)
+        const callbackUrl = `${window.location.origin}/payment-callback`;
+        const { data: paymentData, error: paymentError } = await supabase.functions.invoke(
+          'paystack-initialize-payment',
+          {
+            body: { orderId: order.id, callbackUrl },
+          }
+        );
 
-      if (paymentError || !paymentData?.authorization_url) {
-        console.error('Payment initialization error:', paymentError || paymentData);
-        toast({
-          title: 'Payment Error',
-          description: 'Could not initialize payment. Please try again.',
-          variant: 'destructive',
-        });
-        return;
+        if (paymentError || !paymentData?.authorization_url) {
+          console.error('Payment initialization error:', paymentError || paymentData);
+          toast({
+            title: 'Payment Error',
+            description: 'Could not initialize payment. Please try again.',
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        // Clear cart before redirecting
+        clearCart();
+
+        // Redirect to Paystack checkout
+        window.location.href = paymentData.authorization_url;
       }
-
-      // Clear cart before redirecting
-      clearCart();
-
-      // Redirect to Paystack checkout
-      window.location.href = paymentData.authorization_url;
 
     } catch (error) {
       console.error('Error placing order:', error);
@@ -358,6 +397,15 @@ export default function Cart() {
             {/* Promo Code */}
             <PromoCodeInput subtotal={subtotal} vendorId={vendorId || undefined} onDiscountApplied={handlePromoApplied} />
 
+            {/* Payment Method Selector */}
+            <PaymentMethodSelector
+              walletBalance={walletBalance}
+              orderTotal={total}
+              selectedMethod={paymentMethod}
+              onMethodChange={setPaymentMethod}
+              isWalletDisabled={isWalletDisabled}
+            />
+
             {/* Order Summary */}
             <OrderSummary
               subtotal={subtotal}
@@ -379,16 +427,16 @@ export default function Cart() {
             <Button 
               className="w-full h-14 text-base font-semibold shadow-button"
               onClick={handlePlaceOrder}
-              disabled={placingOrder || !selectedAddress}
+              disabled={placingOrder || (deliveryType === 'delivery' && !selectedAddress)}
             >
               {placingOrder ? (
                 <>
                   <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  Placing Order...
+                  {paymentMethod === 'wallet' ? 'Processing Payment...' : 'Placing Order...'}
                 </>
               ) : (
                 <>
-                  Place Order • ₦{total.toLocaleString()}
+                  {paymentMethod === 'wallet' ? 'Pay with Wallet' : 'Place Order'} • ₦{total.toLocaleString()}
                 </>
               )}
             </Button>
