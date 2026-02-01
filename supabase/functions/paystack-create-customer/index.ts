@@ -107,21 +107,42 @@ serve(async (req) => {
       .eq("wallet_type", "customer")
       .single();
 
-    if (existingWallet?.paystack_customer_code) {
-      console.log(`Customer already exists: ${existingWallet.paystack_customer_code}`);
-      return new Response(
-        JSON.stringify({
-          success: true,
-          customer_id: existingWallet.paystack_customer_id,
-          customer_code: existingWallet.paystack_customer_code,
-          message: "Customer already exists",
-        }),
-        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
-    }
-
     // Get Paystack secret key
     const paystackSecretKey = await getPaystackSecretKey(supabaseAdmin);
+
+    // If we have stored customer data, verify it exists in current Paystack environment
+    if (existingWallet?.paystack_customer_code) {
+      console.log(`Verifying existing customer: ${existingWallet.paystack_customer_code}`);
+      
+      const verifyResponse = await fetch(
+        `https://api.paystack.co/customer/${existingWallet.paystack_customer_code}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${paystackSecretKey}`,
+          },
+        }
+      );
+      
+      if (verifyResponse.ok) {
+        const verifyData = await verifyResponse.json();
+        if (verifyData.status) {
+          console.log(`Customer verified in current environment: ${existingWallet.paystack_customer_code}`);
+          return new Response(
+            JSON.stringify({
+              success: true,
+              customer_id: existingWallet.paystack_customer_id,
+              customer_code: existingWallet.paystack_customer_code,
+              message: "Customer already exists",
+            }),
+            { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+          );
+        }
+      }
+      
+      // Customer doesn't exist in current environment, need to create new one
+      console.log(`Customer not found in current environment, creating new one`);
+    }
 
     // Create customer on Paystack
     const paystackResponse = await fetch("https://api.paystack.co/customer", {
