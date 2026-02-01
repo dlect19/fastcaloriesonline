@@ -37,7 +37,7 @@ export function RiderSidebar({ isOnline = false, onToggleOnline }: RiderSidebarP
       {/* Logo Header */}
       <div className="p-6 border-b border-border">
         <div className="flex items-center gap-3">
-          <img src={fastCaloriesLogo} alt="Fast Calories" className="w-10 h-10 object-contain" />
+          <img src={fastCaloriesLogo} alt="Fast Calories" className="w-12 h-12 object-contain" />
           <div>
             <h1 className="font-bold text-foreground">Fast Calories</h1>
             <p className="text-xs text-muted-foreground">Rider Portal</p>
