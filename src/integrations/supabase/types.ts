@@ -1786,9 +1786,16 @@ export type Database = {
           bank_account_number: string | null
           bank_name: string | null
           created_at: string
+          dva_account_name: string | null
+          dva_account_number: string | null
+          dva_active: boolean | null
+          dva_bank_name: string | null
+          dva_created_at: string | null
           eligible_balance: number | null
           id: string
           is_disabled: boolean | null
+          paystack_customer_code: string | null
+          paystack_customer_id: number | null
           paystack_recipient_code: string | null
           pending_balance: number | null
           pending_payouts: number | null
@@ -1810,9 +1817,16 @@ export type Database = {
           bank_account_number?: string | null
           bank_name?: string | null
           created_at?: string
+          dva_account_name?: string | null
+          dva_account_number?: string | null
+          dva_active?: boolean | null
+          dva_bank_name?: string | null
+          dva_created_at?: string | null
           eligible_balance?: number | null
           id?: string
           is_disabled?: boolean | null
+          paystack_customer_code?: string | null
+          paystack_customer_id?: number | null
           paystack_recipient_code?: string | null
           pending_balance?: number | null
           pending_payouts?: number | null
@@ -1834,9 +1848,16 @@ export type Database = {
           bank_account_number?: string | null
           bank_name?: string | null
           created_at?: string
+          dva_account_name?: string | null
+          dva_account_number?: string | null
+          dva_active?: boolean | null
+          dva_bank_name?: string | null
+          dva_created_at?: string | null
           eligible_balance?: number | null
           id?: string
           is_disabled?: boolean | null
+          paystack_customer_code?: string | null
+          paystack_customer_id?: number | null
           paystack_recipient_code?: string | null
           pending_balance?: number | null
           pending_payouts?: number | null

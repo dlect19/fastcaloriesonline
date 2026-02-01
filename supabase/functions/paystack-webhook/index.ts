@@ -109,6 +109,9 @@ const handler = async (req: Request): Promise<Response> => {
       case "transfer.reversed":
         await handleTransferReversed(supabaseAdmin, event.data, platformEnvironment);
         break;
+      case "dedicatedaccount.assign.success":
+        await handleDVAAssigned(supabaseAdmin, event.data);
+        break;
       default:
         console.log("Unhandled event type:", event.event);
     }
@@ -132,9 +135,16 @@ async function handleChargeSuccess(supabase: SupabaseClient, data: any, environm
   const reference = data.reference as string;
   const amount = (data.amount as number) / 100; // Paystack sends amount in kobo
   const metadata = data.metadata;
+  const channel = data.channel as string;
   const isTestMode = environment === "development";
 
-  console.log(`Processing charge.success for reference: ${reference}, amount: ${amount}, testMode: ${isTestMode}`);
+  console.log(`Processing charge.success for reference: ${reference}, amount: ${amount}, channel: ${channel}, testMode: ${isTestMode}`);
+
+  // Check if this is a DVA (dedicated_nuban) funding
+  if (channel === "dedicated_nuban") {
+    await handleDVAFunding(supabase, data, environment, isTestMode);
+    return;
+  }
 
   // Check if this is a wallet funding transaction
   if (metadata?.type === "wallet_funding") {
@@ -622,6 +632,138 @@ async function handleTransferFailed(supabase: SupabaseClient, data: any, environ
 async function handleTransferReversed(supabase: SupabaseClient, data: any, environment: string) {
   // Similar to failed, but for reversed transfers
   await handleTransferFailed(supabase, data, environment);
+}
+
+// Handle DVA assignment success (when account is created)
+// deno-lint-ignore no-explicit-any
+async function handleDVAAssigned(supabase: SupabaseClient, data: any) {
+  const customerCode = data.customer?.customer_code as string;
+  const accountNumber = data.dedicated_account?.account_number as string;
+  const accountName = data.dedicated_account?.account_name as string;
+  const bankName = data.dedicated_account?.bank?.name as string || "Wema Bank";
+
+  console.log(`DVA assigned: ${accountNumber} for customer ${customerCode}`);
+
+  if (!customerCode || !accountNumber) {
+    console.error("Missing customer_code or account_number in DVA assignment");
+    return;
+  }
+
+  // Find wallet by paystack_customer_code and update DVA details
+  const { error } = await supabase
+    .from("wallets")
+    .update({
+      dva_bank_name: bankName,
+      dva_account_number: accountNumber,
+      dva_account_name: accountName,
+      dva_active: true,
+      dva_created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("paystack_customer_code", customerCode)
+    .eq("wallet_type", "customer");
+
+  if (error) {
+    console.error("Error updating wallet with DVA:", error);
+  } else {
+    console.log("Wallet updated with DVA details");
+  }
+}
+
+// Handle DVA (dedicated_nuban) funding
+// deno-lint-ignore no-explicit-any
+async function handleDVAFunding(supabase: SupabaseClient, data: any, environment: string, isTestMode: boolean) {
+  const reference = data.reference as string;
+  const amount = (data.amount as number) / 100; // Convert from kobo
+  const customerCode = data.customer?.customer_code as string;
+  const customerEmail = data.customer?.email as string;
+
+  console.log(`Processing DVA funding: ${reference}, amount: ${amount}, customer: ${customerCode || customerEmail}`);
+
+  if (!customerCode && !customerEmail) {
+    console.error("No customer identifier in DVA funding");
+    return;
+  }
+
+  // Idempotency check
+  const { data: existingTx } = await supabase
+    .from("wallet_transactions")
+    .select("id")
+    .eq("paystack_reference", reference)
+    .eq("category", "dva_funding")
+    .single();
+
+  if (existingTx) {
+    console.log(`DVA funding ${reference} already processed, skipping`);
+    return;
+  }
+
+  // Find wallet by paystack_customer_code
+  let wallet;
+  if (customerCode) {
+    const { data: walletData, error: walletError } = await supabase
+      .from("wallets")
+      .select("*")
+      .eq("paystack_customer_code", customerCode)
+      .eq("wallet_type", "customer")
+      .single();
+
+    if (walletError || !walletData) {
+      console.error("Wallet not found for customer:", customerCode);
+      return;
+    }
+    wallet = walletData;
+  } else {
+    // Fallback to finding by email through profiles
+    console.log("Customer code not found, cannot process DVA funding");
+    return;
+  }
+
+  // Check if wallet is disabled
+  if (wallet.is_disabled) {
+    console.error("Customer wallet is disabled, cannot credit DVA funding");
+    return;
+  }
+
+  // Credit wallet - DVA is production only but handle both for safety
+  const currentBalance = isTestMode
+    ? Number(wallet.test_balance) || 0
+    : Number(wallet.balance) || 0;
+
+  const newBalance = currentBalance + amount;
+
+  if (isTestMode) {
+    await supabase
+      .from("wallets")
+      .update({ test_balance: newBalance, updated_at: new Date().toISOString() })
+      .eq("id", wallet.id);
+  } else {
+    await supabase
+      .from("wallets")
+      .update({ balance: newBalance, updated_at: new Date().toISOString() })
+      .eq("id", wallet.id);
+  }
+
+  // Log wallet transaction
+  await supabase.from("wallet_transactions").insert({
+    wallet_id: wallet.id,
+    wallet_type: "customer",
+    transaction_type: "credit",
+    category: "dva_funding",
+    amount: amount,
+    balance_after: newBalance,
+    paystack_reference: reference,
+    status: "completed",
+    environment,
+    notes: "Bank transfer funding via virtual account",
+    metadata: {
+      payment_channel: "dedicated_nuban",
+      sender_bank: data.authorization?.bank,
+      sender_name: data.authorization?.sender_name,
+    },
+  });
+
+  console.log(`DVA funding successful: ${reference}, new balance: ${newBalance}`);
 }
 
 serve(handler);
