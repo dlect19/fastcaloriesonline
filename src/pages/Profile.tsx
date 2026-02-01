@@ -10,7 +10,7 @@ import { ProfileForm } from '@/components/profile/ProfileForm';
 import { CalorieGoalCard } from '@/components/profile/CalorieGoalCard';
 import { OrderHistoryCard } from '@/components/profile/OrderHistoryCard';
 import { AddressesCard } from '@/components/profile/AddressesCard';
-import { Leaf, ArrowLeft, Receipt, ChevronRight } from 'lucide-react';
+import { Leaf, ArrowLeft, Receipt, ChevronRight, Wallet } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Tables } from '@/integrations/supabase/types';
 
@@ -131,6 +131,27 @@ export default function Profile() {
         />
 
         <OrderHistoryCard userId={user.id} />
+
+        {/* Wallet Link */}
+        <Card 
+          className="border-0 shadow-soft cursor-pointer hover:bg-muted/50 transition-colors"
+          onClick={() => navigate('/profile/wallet')}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <Wallet className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <p className="font-medium">My Wallet</p>
+                  <p className="text-sm text-muted-foreground">View balance & add money</p>
+                </div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-muted-foreground" />
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Transaction History Link */}
         <Card 

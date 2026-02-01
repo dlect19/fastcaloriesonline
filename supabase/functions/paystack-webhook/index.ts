@@ -136,6 +136,12 @@ async function handleChargeSuccess(supabase: SupabaseClient, data: any, environm
 
   console.log(`Processing charge.success for reference: ${reference}, amount: ${amount}, testMode: ${isTestMode}`);
 
+  // Check if this is a wallet funding transaction
+  if (metadata?.type === "wallet_funding") {
+    await handleWalletFunding(supabase, data, environment, isTestMode);
+    return;
+  }
+
   if (!metadata?.order_id) {
     console.log("No order_id in metadata, skipping");
     return;
@@ -367,6 +373,110 @@ async function handleChargeSuccess(supabase: SupabaseClient, data: any, environm
 
     console.log("Production charge processed successfully");
   }
+}
+
+// Handle wallet funding transactions
+// deno-lint-ignore no-explicit-any
+async function handleWalletFunding(supabase: SupabaseClient, data: any, environment: string, isTestMode: boolean) {
+  const reference = data.reference as string;
+  const amount = (data.amount as number) / 100; // Convert from kobo
+  const metadata = data.metadata;
+  const userId = metadata?.user_id as string;
+
+  console.log(`Processing wallet funding: ${reference}, amount: ${amount}, user: ${userId}`);
+
+  if (!userId) {
+    console.error("No user_id in wallet funding metadata");
+    return;
+  }
+
+  // Idempotency check - see if this reference was already processed
+  const { data: existingTx } = await supabase
+    .from("wallet_transactions")
+    .select("id")
+    .eq("paystack_reference", reference)
+    .eq("category", "wallet_funding")
+    .single();
+
+  if (existingTx) {
+    console.log(`Wallet funding ${reference} already processed, skipping`);
+    return;
+  }
+
+  // Get or create customer wallet
+  let { data: customerWallet, error: walletError } = await supabase
+    .from("wallets")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("wallet_type", "customer")
+    .single();
+
+  if (walletError && walletError.code === "PGRST116") {
+    // Wallet doesn't exist, create it
+    const { data: newWallet, error: createError } = await supabase
+      .from("wallets")
+      .insert({
+        user_id: userId,
+        wallet_type: "customer",
+      })
+      .select()
+      .single();
+
+    if (createError) {
+      console.error("Error creating customer wallet:", createError);
+      return;
+    }
+    customerWallet = newWallet;
+  } else if (walletError) {
+    console.error("Error fetching customer wallet:", walletError);
+    return;
+  }
+
+  // Check if wallet is disabled
+  if (customerWallet.is_disabled) {
+    console.error("Customer wallet is disabled, cannot fund");
+    return;
+  }
+
+  // Credit wallet
+  const currentBalance = isTestMode
+    ? Number(customerWallet.test_balance) || 0
+    : Number(customerWallet.balance) || 0;
+
+  const newBalance = currentBalance + amount;
+
+  if (isTestMode) {
+    await supabase
+      .from("wallets")
+      .update({ test_balance: newBalance, updated_at: new Date().toISOString() })
+      .eq("id", customerWallet.id);
+  } else {
+    await supabase
+      .from("wallets")
+      .update({ balance: newBalance, updated_at: new Date().toISOString() })
+      .eq("id", customerWallet.id);
+  }
+
+  // Log wallet transaction
+  await supabase.from("wallet_transactions").insert({
+    wallet_id: customerWallet.id,
+    wallet_type: "customer",
+    transaction_type: "credit",
+    category: "wallet_funding",
+    amount: amount,
+    balance_after: newBalance,
+    paystack_reference: reference,
+    status: "completed",
+    environment,
+    notes: `Wallet funding via Paystack`,
+    metadata: {
+      payment_channel: data.channel,
+      card_type: data.authorization?.card_type,
+      bank: data.authorization?.bank,
+    },
+  });
+
+  console.log(`Wallet funding successful: ${reference}, new balance: ${newBalance}`);
 }
 
 // deno-lint-ignore no-explicit-any

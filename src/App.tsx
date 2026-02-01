@@ -52,8 +52,10 @@ import AdminSettings from "./pages/admin/AdminSettings";
 import AdminAdvertisements from "./pages/admin/AdminAdvertisements";
 import AdminNutrition from "./pages/admin/AdminNutrition";
 import AdminPayouts from "./pages/admin/AdminPayouts";
+import AdminCustomerWallets from "./pages/admin/AdminCustomerWallets";
 import Install from "./pages/Install";
 import TransactionHistoryPage from "./pages/profile/TransactionHistoryPage";
+import WalletPage from "./pages/profile/WalletPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -80,6 +82,7 @@ const App = () => (
               <Route path="/verification-pending" element={<VerificationPending />} />
               <Route path="/payment-callback" element={<PaymentCallback />} />
               <Route path="/profile/transactions" element={<TransactionHistoryPage />} />
+              <Route path="/profile/wallet" element={<WalletPage />} />
               {/* Vendor Portal Routes */}
               <Route path="/vendor/auth" element={<VendorAuth />} />
               <Route path="/vendor/dashboard" element={<VendorDashboard />} />
@@ -118,6 +121,7 @@ const App = () => (
               <Route path="/admin/advertisements" element={<AdminAdvertisements />} />
               <Route path="/admin/nutrition" element={<AdminNutrition />} />
               <Route path="/admin/payouts" element={<AdminPayouts />} />
+              <Route path="/admin/customer-wallets" element={<AdminCustomerWallets />} />
               {/* Install Page */}
               <Route path="/install" element={<Install />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
