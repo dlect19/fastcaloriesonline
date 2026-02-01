@@ -53,6 +53,7 @@ import AdminAdvertisements from "./pages/admin/AdminAdvertisements";
 import AdminNutrition from "./pages/admin/AdminNutrition";
 import AdminPayouts from "./pages/admin/AdminPayouts";
 import AdminCustomerWallets from "./pages/admin/AdminCustomerWallets";
+import AdminWalletFunding from "./pages/admin/AdminWalletFunding";
 import Install from "./pages/Install";
 import TransactionHistoryPage from "./pages/profile/TransactionHistoryPage";
 import WalletPage from "./pages/profile/WalletPage";
@@ -122,6 +123,7 @@ const App = () => (
               <Route path="/admin/nutrition" element={<AdminNutrition />} />
               <Route path="/admin/payouts" element={<AdminPayouts />} />
               <Route path="/admin/customer-wallets" element={<AdminCustomerWallets />} />
+              <Route path="/admin/wallet-funding" element={<AdminWalletFunding />} />
               {/* Install Page */}
               <Route path="/install" element={<Install />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
