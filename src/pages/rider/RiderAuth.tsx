@@ -401,18 +401,17 @@ export default function RiderAuth() {
                       id="vehicle-type"
                       value={vehicleType}
                       onChange={(e) => setVehicleType(e.target.value)}
-                      placeholder="e.g., Motorcycle"
+                      placeholder="e.g., Motorcycle, Bicycle"
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="vehicle-plate">Plate Number</Label>
+                    <Label htmlFor="vehicle-plate">Plate Number <span className="text-muted-foreground text-xs">(optional)</span></Label>
                     <Input
                       id="vehicle-plate"
                       value={vehiclePlate}
                       onChange={(e) => setVehiclePlate(e.target.value)}
-                      placeholder="e.g., ABC-123"
-                      required
+                      placeholder="N/A for bicycles"
                     />
                   </div>
                 </div>
