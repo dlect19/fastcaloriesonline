@@ -122,15 +122,23 @@ export default function RiderWithdraw() {
         setAutoWithdrawThreshold(String(walletData.auto_withdraw_threshold || 5000));
         setAutoWithdrawDay(String(walletData.auto_withdraw_day || 1));
 
-        // Fetch withdrawal requests
-        const { data: withdrawalData } = await supabase
-          .from('withdrawal_requests')
+        // Fetch payout requests (withdrawal history)
+        const { data: payoutData } = await supabase
+          .from('payout_requests')
           .select('*')
           .eq('wallet_id', walletData.id)
-          .order('requested_at', { ascending: false })
+          .order('created_at', { ascending: false })
           .limit(20);
 
-        setWithdrawals(withdrawalData || []);
+        // Map to expected format
+        setWithdrawals((payoutData || []).map(p => ({
+          id: p.id,
+          amount: p.amount,
+          status: p.status || 'pending',
+          requested_at: p.created_at,
+          processed_at: p.processed_at,
+          notes: p.failure_reason,
+        })));
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -278,9 +286,9 @@ export default function RiderWithdraw() {
         throw new Error('Invalid or expired OTP');
       }
 
-      // Process withdrawal
+      // Process withdrawal - insert into payout_requests table
       const { error } = await supabase
-        .from('withdrawal_requests')
+        .from('payout_requests')
         .insert({
           wallet_id: wallet!.id,
           user_id: user.id,
@@ -289,6 +297,7 @@ export default function RiderWithdraw() {
           bank_account_number: wallet!.bank_account_number,
           bank_account_name: wallet!.bank_account_name || '',
           user_type: 'rider',
+          status: 'pending',
         });
 
       if (error) throw error;
