@@ -52,12 +52,13 @@ export function VendorRiderCard({ rider, vendorId, onToggleStatus }: VendorRider
 
       if (orders) {
         const completedOrders = orders.filter(o => o.status === 'delivered');
-        const totalEarnings = completedOrders.reduce((sum, o) => sum + (o.delivery_fee || 0) * 0.8, 0); // 80% rider share
+        // 80% goes to vendor for affiliated riders
+        const vendorDeliveryRevenue = completedOrders.reduce((sum, o) => sum + (o.delivery_fee || 0) * 0.8, 0);
         
         setStats({
           totalDeliveries: orders.length,
           completedDeliveries: completedOrders.length,
-          totalEarnings: Math.round(totalEarnings),
+          totalEarnings: Math.round(vendorDeliveryRevenue),
         });
       }
     } catch (error) {
@@ -179,7 +180,7 @@ export function VendorRiderCard({ rider, vendorId, onToggleStatus }: VendorRider
               <div className="bg-muted/50 rounded-lg p-3 text-center">
                 <TrendingUp className="w-5 h-5 mx-auto text-accent mb-1" />
                 <p className="text-lg font-bold">₦{(stats?.totalEarnings || 0).toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground">Rider Earned</p>
+                <p className="text-xs text-muted-foreground">Your Revenue</p>
               </div>
             </>
           )}
