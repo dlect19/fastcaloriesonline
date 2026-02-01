@@ -87,16 +87,21 @@ serve(async (req: Request): Promise<Response> => {
     const reference = data.reference as string;
     const amount = (data.amount as number) / 100; // Convert from kobo to naira
     const customerCode = data.customer?.customer_code as string;
-    const accountNumber = data.dedicated_account?.account_number as string;
+    // DVA account can be in dedicated_account or in metadata
+    const accountNumber = data.dedicated_account?.account_number 
+      || data.metadata?.receiver_account_number as string;
+    const senderName = data.authorization?.sender_name 
+      || `${data.customer?.first_name || ''} ${data.customer?.last_name || ''}`.trim() 
+      || 'Unknown';
 
-    console.log(`Processing DVA funding: ref=${reference}, amount=${amount}, customer=${customerCode}, account=${accountNumber}`);
+    console.log(`Processing wallet funding via DVA: ref=${reference}, amount=${amount}, customer=${customerCode}, account=${accountNumber}`);
 
-    // Idempotency check
+    // Idempotency check - check for wallet_funding with this reference
     const { data: existingTx } = await supabaseAdmin
       .from("wallet_transactions")
       .select("id")
       .eq("paystack_reference", reference)
-      .eq("category", "dva_funding")
+      .eq("category", "wallet_funding")
       .single();
 
     if (existingTx) {
@@ -174,19 +179,20 @@ serve(async (req: Request): Promise<Response> => {
         wallet_id: wallet.id,
         wallet_type: "customer",
         transaction_type: "credit",
-        category: "dva_funding",
+        category: "wallet_funding",
         amount: amount,
         balance_after: newBalance,
         paystack_reference: reference,
         status: "completed",
         environment,
-        notes: `DVA bank transfer to ${accountNumber}`,
+        notes: `Wallet funding via Virtual Account from ${senderName}`,
         metadata: {
+          funding_method: "virtual_account",
           customer_code: customerCode,
           dva_account_number: accountNumber,
-          bank_name: data.dedicated_account?.bank?.name || "Wema Bank",
-          sender_name: data.customer?.first_name || "Unknown",
-          sender_bank: data.authorization?.bank || "Unknown",
+          bank_name: data.dedicated_account?.bank?.name || data.metadata?.receiver_bank || "Wema Bank",
+          sender_name: senderName,
+          sender_bank: data.authorization?.sender_bank || data.authorization?.bank || "Unknown",
         },
       })
       .select()
@@ -196,7 +202,7 @@ serve(async (req: Request): Promise<Response> => {
       console.error("Failed to log transaction:", txError);
     }
 
-    console.log(`DVA funding successful: ${reference}, wallet ${wallet.id}, new balance: ${newBalance}`);
+    console.log(`Wallet funding successful: ${reference}, wallet ${wallet.id}, new balance: ${newBalance}`);
 
     return new Response(
       JSON.stringify({ 
