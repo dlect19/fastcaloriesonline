@@ -6,14 +6,10 @@ import type { Tables } from '@/integrations/supabase/types';
 
 type WalletRow = Tables<'wallets'>;
 
-interface WalletWithDisabled extends WalletRow {
-  is_disabled?: boolean | null;
-}
-
 export function useCustomerWallet() {
   const { user } = useAuth();
   const { isTestMode } = useEnvironmentConfig();
-  const [wallet, setWallet] = useState<WalletWithDisabled | null>(null);
+  const [wallet, setWallet] = useState<WalletRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,7 +31,7 @@ export function useCustomerWallet() {
 
       if (fetchError) throw fetchError;
       // Cast to include is_disabled (added via migration)
-      setWallet(data as WalletWithDisabled | null);
+      setWallet(data);
       setError(null);
     } catch (err) {
       console.error('Error fetching wallet:', err);
@@ -64,7 +60,7 @@ export function useCustomerWallet() {
           filter: `id=eq.${wallet.id}`,
         },
         (payload) => {
-          setWallet(payload.new as WalletWithDisabled);
+          setWallet(payload.new as WalletRow);
         }
       )
       .subscribe();
