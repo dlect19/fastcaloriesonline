@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Wallet, ArrowUpRight, Building2, CreditCard, Clock, Settings, AlertCircle, Loader2, ShieldCheck, FlaskConical } from 'lucide-react';
+import { Wallet, ArrowUpRight, Building2, CreditCard, Clock, Settings, AlertCircle, Loader2, ShieldCheck, FlaskConical, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -47,6 +47,10 @@ interface WithdrawalRequest {
   notes: string | null;
 }
 
+interface RecipientData {
+  created_in_environment: string | null;
+}
+
 export default function VendorWithdraw() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
@@ -67,6 +71,7 @@ export default function VendorWithdraw() {
   const [otpStep, setOtpStep] = useState<'amount' | 'otp'>('amount');
   const [otp, setOtp] = useState('');
   const [sendingOtp, setSendingOtp] = useState(false);
+  const [recipientEnvironment, setRecipientEnvironment] = useState<string | null>(null);
 
   // Bank details form
   const [bankName, setBankName] = useState('');
@@ -167,6 +172,16 @@ export default function VendorWithdraw() {
           .limit(20);
 
         setWithdrawals(withdrawalData || []);
+
+        // Fetch recipient environment info
+        const { data: recipientData } = await supabase
+          .from('paystack_recipients')
+          .select('created_in_environment')
+          .eq('user_id', user?.id)
+          .eq('is_default', true)
+          .maybeSingle();
+        
+        setRecipientEnvironment(recipientData?.created_in_environment || null);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -475,6 +490,30 @@ export default function VendorWithdraw() {
               </Dialog>
             </div>
           </div>
+
+          {/* Environment Mismatch Warning */}
+          {recipientEnvironment && !isTestMode && recipientEnvironment === 'development' && (
+            <Card className="border-destructive bg-destructive/10">
+              <CardContent className="p-4 flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-destructive mt-0.5" />
+                <div>
+                  <p className="font-medium text-destructive">Bank Details Need Update</p>
+                  <p className="text-sm text-destructive/90">
+                    Your bank details were set up in test mode and cannot be used for real withdrawals. 
+                    Please update your bank details to enable production withdrawals.
+                  </p>
+                  <Button 
+                    variant="destructive" 
+                    size="sm" 
+                    className="mt-2"
+                    onClick={() => setBankDialogOpen(true)}
+                  >
+                    Update Bank Details
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Dispute Notice */}
           <Card className="border-yellow-200 bg-yellow-50">

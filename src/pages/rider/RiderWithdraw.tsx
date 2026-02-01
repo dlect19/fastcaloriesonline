@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Wallet, ArrowUpRight, Building2, CreditCard, Settings, Loader2, ShieldCheck, FlaskConical } from 'lucide-react';
+import { Wallet, ArrowUpRight, Building2, CreditCard, Settings, Loader2, ShieldCheck, FlaskConical, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,6 +39,10 @@ interface WithdrawalRequest {
   notes: string | null;
 }
 
+interface RecipientData {
+  created_in_environment: string | null;
+}
+
 export default function RiderWithdraw() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -57,6 +61,7 @@ export default function RiderWithdraw() {
   const [otpStep, setOtpStep] = useState<'amount' | 'otp'>('amount');
   const [otp, setOtp] = useState('');
   const [sendingOtp, setSendingOtp] = useState(false);
+  const [recipientEnvironment, setRecipientEnvironment] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState('');
 
   // Bank details form
@@ -139,6 +144,16 @@ export default function RiderWithdraw() {
           processed_at: p.processed_at,
           notes: p.failure_reason,
         })));
+
+        // Fetch recipient environment info
+        const { data: recipientData } = await supabase
+          .from('paystack_recipients')
+          .select('created_in_environment')
+          .eq('user_id', userId)
+          .eq('is_default', true)
+          .maybeSingle();
+        
+        setRecipientEnvironment(recipientData?.created_in_environment || null);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -438,6 +453,30 @@ export default function RiderWithdraw() {
             </Dialog>
           </div>
         </div>
+
+        {/* Environment Mismatch Warning */}
+        {recipientEnvironment && !isTestMode && recipientEnvironment === 'development' && (
+          <Card className="border-destructive bg-destructive/10 mb-6">
+            <CardContent className="p-4 flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-destructive mt-0.5" />
+              <div>
+                <p className="font-medium text-destructive">Bank Details Need Update</p>
+                <p className="text-sm text-destructive/90">
+                  Your bank details were set up in test mode and cannot be used for real withdrawals. 
+                  Please update your bank details to enable production withdrawals.
+                </p>
+                <Button 
+                  variant="destructive" 
+                  size="sm" 
+                  className="mt-2"
+                  onClick={() => setBankDialogOpen(true)}
+                >
+                  Update Bank Details
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Info Card - Riders can withdraw immediately */}
         <Card className="border-green-200 bg-green-50 mb-6">
