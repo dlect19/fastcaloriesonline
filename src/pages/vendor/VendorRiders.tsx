@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Plus, Copy, QrCode, RefreshCw, Trash2, Circle, Bike, TrendingUp } from 'lucide-react';
+import { Users, Plus, Copy, QrCode, RefreshCw, Trash2, Circle, Bike, TrendingUp, Banknote } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -60,6 +60,7 @@ export default function VendorRiders() {
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [currentInviteLink, setCurrentInviteLink] = useState('');
+  const [deliveryRevenue, setDeliveryRevenue] = useState(0);
 
   const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendor?.id || null);
 
@@ -135,6 +136,29 @@ export default function VendorRiders() {
           .order('created_at', { ascending: false });
 
         setInvites(invitesData || []);
+
+        // Calculate total delivery revenue from affiliated riders
+        // Get all completed orders by affiliated riders for this vendor
+        const riderUserIds = ridersWithNames
+          .map((r: VendorRider) => r.rider_profile?.user_id)
+          .filter(Boolean);
+
+        if (riderUserIds.length > 0) {
+          const { data: deliveredOrders } = await supabase
+            .from('orders')
+            .select('delivery_fee')
+            .eq('vendor_id', vendorData.id)
+            .eq('status', 'delivered')
+            .in('rider_id', riderUserIds);
+
+          if (deliveredOrders) {
+            const totalRevenue = deliveredOrders.reduce(
+              (sum, o) => sum + (o.delivery_fee || 0) * 0.8, // 80% vendor share
+              0
+            );
+            setDeliveryRevenue(Math.round(totalRevenue));
+          }
+        }
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -346,6 +370,27 @@ export default function VendorRiders() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Delivery Revenue Card */}
+          <Card className="border-0 shadow-soft bg-gradient-to-br from-primary/5 to-primary/10">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
+                    <Banknote className="w-6 h-6 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Delivery Revenue</p>
+                    <p className="text-3xl font-bold text-foreground">₦{deliveryRevenue.toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Total from affiliated riders (available in your wallet)
+                    </p>
+                  </div>
+                </div>
+                <TrendingUp className="w-8 h-8 text-primary/40" />
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Pending Invites */}
           {invites.length > 0 && (
