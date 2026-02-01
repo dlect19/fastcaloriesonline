@@ -53,6 +53,7 @@ import AdminAdvertisements from "./pages/admin/AdminAdvertisements";
 import AdminNutrition from "./pages/admin/AdminNutrition";
 import AdminPayouts from "./pages/admin/AdminPayouts";
 import Install from "./pages/Install";
+import TransactionHistoryPage from "./pages/profile/TransactionHistoryPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -78,6 +79,7 @@ const App = () => (
               <Route path="/verify-email" element={<VerifyEmail />} />
               <Route path="/verification-pending" element={<VerificationPending />} />
               <Route path="/payment-callback" element={<PaymentCallback />} />
+              <Route path="/profile/transactions" element={<TransactionHistoryPage />} />
               {/* Vendor Portal Routes */}
               <Route path="/vendor/auth" element={<VendorAuth />} />
               <Route path="/vendor/dashboard" element={<VendorDashboard />} />

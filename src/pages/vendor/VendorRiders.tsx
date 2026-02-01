@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Plus, Copy, QrCode, RefreshCw, Trash2, Circle, Bike } from 'lucide-react';
+import { Users, Plus, Copy, QrCode, RefreshCw, Trash2, Circle, Bike, TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { VendorSidebar } from '@/components/vendor/VendorSidebar';
+import { VendorRiderCard } from '@/components/vendor/VendorRiderCard';
 import { AccessDenied } from '@/components/vendor/AccessDenied';
 import { useAuth } from '@/hooks/useAuth';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
@@ -29,6 +30,14 @@ interface VendorRider {
     user_id: string;
   };
   user_name?: string;
+}
+
+interface RiderInvite {
+  id: string;
+  invite_code: string;
+  is_used: boolean;
+  expires_at: string | null;
+  created_at: string;
 }
 
 interface RiderInvite {
@@ -298,8 +307,8 @@ export default function VendorRiders() {
             <Card className="border-0 shadow-soft">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center">
-                    <Circle className="w-5 h-5 text-green-500 fill-green-500" />
+                  <div className="w-10 h-10 rounded-xl bg-success/10 flex items-center justify-center">
+                    <Circle className="w-5 h-5 text-success fill-success" />
                   </div>
                   <div>
                     <p className="text-2xl font-bold">{onlineRidersCount}</p>
@@ -311,8 +320,8 @@ export default function VendorRiders() {
             <Card className="border-0 shadow-soft">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
-                    <RefreshCw className="w-5 h-5 text-blue-500" />
+                  <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
+                    <RefreshCw className="w-5 h-5 text-accent" />
                   </div>
                   <div>
                     <p className="text-2xl font-bold">{invites.length}</p>
@@ -324,8 +333,8 @@ export default function VendorRiders() {
             <Card className="border-0 shadow-soft">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center">
-                    <Bike className="w-5 h-5 text-orange-500" />
+                  <div className="w-10 h-10 rounded-xl bg-warning/10 flex items-center justify-center">
+                    <Bike className="w-5 h-5 text-warning" />
                   </div>
                   <div>
                     <p className="text-2xl font-bold">
@@ -409,52 +418,14 @@ export default function VendorRiders() {
                   </p>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {riders.map((rider) => (
-                    <div
+                    <VendorRiderCard
                       key={rider.id}
-                      className="flex items-center justify-between p-4 bg-muted/30 rounded-xl"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                          <Bike className="w-6 h-6 text-primary" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{rider.user_name}</span>
-                            {rider.rider_profile?.is_online && rider.is_active && (
-                              <span className="flex items-center gap-1 text-xs text-green-500">
-                                <Circle className="w-2 h-2 fill-current" />
-                                Online
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <span>{rider.rider_profile?.vehicle_type || 'Vehicle not set'}</span>
-                            <span>•</span>
-                            <span>{rider.rider_profile?.total_deliveries || 0} deliveries</span>
-                            {rider.rider_profile?.rating && (
-                              <>
-                                <span>•</span>
-                                <span>★ {rider.rider_profile.rating.toFixed(1)}</span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={rider.is_active ? 'default' : 'secondary'}>
-                          {rider.is_active ? 'Active' : 'Inactive'}
-                        </Badge>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => toggleRiderStatus(rider.id, rider.is_active)}
-                        >
-                          {rider.is_active ? 'Deactivate' : 'Activate'}
-                        </Button>
-                      </div>
-                    </div>
+                      rider={rider}
+                      vendorId={vendor?.id || ''}
+                      onToggleStatus={toggleRiderStatus}
+                    />
                   ))}
                 </div>
               )}
