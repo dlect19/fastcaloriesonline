@@ -86,3 +86,9 @@ verify_jwt = false
 
 [functions.verify-wallet-funding]
 verify_jwt = false
+
+[functions.paystack-create-customer]
+verify_jwt = false
+
+[functions.paystack-create-dva]
+verify_jwt = false

@@ -8,17 +8,20 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BottomNav } from '@/components/home/BottomNav';
 import { TransactionHistory } from '@/components/shared/TransactionHistory';
 import { FundWalletDialog } from '@/components/profile/FundWalletDialog';
-import { ArrowLeft, Wallet, Plus, Leaf, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { VirtualAccountCard } from '@/components/profile/VirtualAccountCard';
+import { CreateDVADialog } from '@/components/profile/CreateDVADialog';
+import { ArrowLeft, Wallet, Plus, Leaf, AlertCircle, CheckCircle2, Loader2, Building2, User } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function WalletPage() {
   const { user, loading: authLoading } = useAuth();
-  const { wallet, balance, loading: walletLoading, isDisabled, refetch } = useCustomerWallet();
+  const { wallet, balance, loading: walletLoading, isDisabled, hasDVA, dvaDetails, profileComplete, refetch } = useCustomerWallet();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const [fundDialogOpen, setFundDialogOpen] = useState(false);
+  const [dvaDialogOpen, setDvaDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('profile');
   const [verifying, setVerifying] = useState(false);
   const verificationAttempted = useRef(false);
@@ -158,12 +161,60 @@ export default function WalletPage() {
           </CardContent>
         </Card>
 
+        {/* Virtual Account Section */}
+        {hasDVA && dvaDetails ? (
+          <VirtualAccountCard
+            bankName={dvaDetails.bankName}
+            accountNumber={dvaDetails.accountNumber}
+            accountName={dvaDetails.accountName}
+          />
+        ) : (
+          <Card className="border-0 shadow-soft">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                    <Building2 className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-medium">Virtual Account</p>
+                    <p className="text-sm text-muted-foreground">
+                      {profileComplete 
+                        ? 'Get a bank account to fund wallet' 
+                        : 'Complete profile to enable'}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant={profileComplete ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    if (profileComplete) {
+                      setDvaDialogOpen(true);
+                    } else {
+                      navigate('/profile');
+                    }
+                  }}
+                  disabled={isDisabled}
+                >
+                  {profileComplete ? 'Get Account' : (
+                    <>
+                      <User className="w-4 h-4 mr-1" />
+                      Update Profile
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Quick Info */}
         <div className="grid grid-cols-2 gap-4">
           <Card className="border-0 shadow-soft">
             <CardContent className="p-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center">
-                <CheckCircle2 className="w-5 h-5 text-green-500" />
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                <CheckCircle2 className="w-5 h-5 text-primary" />
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Status</p>
@@ -196,6 +247,14 @@ export default function WalletPage() {
       <FundWalletDialog
         open={fundDialogOpen}
         onOpenChange={setFundDialogOpen}
+      />
+
+      {/* Create DVA Dialog */}
+      <CreateDVADialog
+        open={dvaDialogOpen}
+        onOpenChange={setDvaDialogOpen}
+        profileComplete={profileComplete}
+        onSuccess={refetch}
       />
 
       <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
