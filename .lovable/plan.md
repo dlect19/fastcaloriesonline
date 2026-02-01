@@ -1,273 +1,246 @@
 
-# Implementation Plan: Fixing Reported Issues and Adding Vendor-Rider Management
+# Customer Virtual Wallet Implementation Plan
 
 ## Overview
 
-This plan addresses six reported issues and introduces a new vendor-rider management system. The implementation will be done in phases to ensure stability.
+This plan implements a customer virtual wallet system that allows customers to fund their wallet via Paystack, pay for orders using wallet balance, and receive refunds into their wallet. The wallet is an internal ledger-based system that integrates with the existing `wallets` and `wallet_transactions` tables.
 
 ---
 
-## Issues Summary
+## Current State Analysis
 
-| Issue | Root Cause | Solution |
-|-------|------------|----------|
-| 1. Health Goals Failure | Database CHECK constraint only allows `maintain`, `light_eating`, `active_lifestyle` but app sends `lose_weight`, `gain_weight`, `build_muscle` | Alter constraint to allow all 6 values |
-| 2. Search Button Not Working | No actual search navigation - header only triggers `onSearch` callback which isn't connected to search page | Add search submission to navigate to `/explore` with query param |
-| 3. QR Code Scanner Not Working | Dialog shows placeholder camera icon instead of actual scanner | Integrate native camera QR scanning with fallback |
-| 4. Navigation App Not Respecting Admin Setting | `MapOptionsMenu` shows all navigation apps statically, ignores `default_navigation_app` setting | Fetch setting and show only the configured app |
-| 5. Download Button Link | "Download App" button navigates to `/auth` instead of `/install` | Change navigation target to `/install` |
-| 6. Vendor-Rider System Enhancement | Riders joining via vendor invite can still see all platform orders | Restrict vendor-affiliated riders to vendor-only orders |
+The project already has a robust wallet infrastructure:
+- **`wallets` table**: Supports multiple wallet types (`customer`, `vendor`, `rider`) with columns for `balance`, `pending_balance`, `eligible_balance`, etc.
+- **`wallet_transactions` table**: Comprehensive transaction ledger with categories like `vendor_share`, `rider_share`, `platform_commission`
+- **Paystack integration**: Edge functions for payment initialization, verification, and webhooks
+- **TransactionHistory component**: Reusable UI for viewing wallet transactions
 
 ---
 
-## Phase 1: Database Changes
+## Implementation Phases
 
-### 1.1 Fix Health Goal Constraint
+### Phase 1: Database Schema Updates
 
-The `profiles` table has a CHECK constraint that only allows three values:
-```sql
-CHECK ((health_goal = ANY (ARRAY['maintain', 'light_eating', 'active_lifestyle'])))
-```
+**New transaction categories needed:**
+- `wallet_funding` - When customer adds money to wallet
+- `wallet_payment` - When customer pays for order using wallet
+- `refund` - When customer receives refund
 
-The app offers four different values:
-- `lose_weight`, `maintain`, `gain_weight`, `build_muscle`
-
-**Solution**: Drop the old constraint and create a new one that supports all 6 values (both old and new):
+**New RLS policies:**
+- Allow customers to view their own wallet
+- Allow customers to view their own wallet transactions
 
 ```sql
-ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_health_goal_check;
-
-ALTER TABLE public.profiles ADD CONSTRAINT profiles_health_goal_check 
-  CHECK (health_goal IS NULL OR health_goal = ANY (ARRAY[
-    'maintain', 'light_eating', 'active_lifestyle',
-    'lose_weight', 'gain_weight', 'build_muscle'
-  ]));
+-- Update wallet_transactions RLS to allow customers to view their transactions
+CREATE POLICY "Users can view own wallet transactions"
+ON wallet_transactions FOR SELECT
+USING (wallet_id IN (
+  SELECT id FROM wallets WHERE user_id = auth.uid()
+));
 ```
 
 ---
 
-## Phase 2: Frontend Fixes
+### Phase 2: Edge Functions
 
-### 2.1 Search Button Navigation
+#### 2.1 `paystack-initialize-wallet-funding`
+Initialize a Paystack transaction specifically for wallet funding.
 
-**File**: `src/components/home/Header.tsx`
+**Flow:**
+1. Customer requests to add ₦X to wallet
+2. Initialize Paystack transaction with metadata: `{ type: "wallet_funding", user_id: "..." }`
+3. Return authorization URL for payment
 
-**Current behavior**: The search input calls `onSearch?.(e.target.value)` on change, but nothing happens on Enter/submit.
+#### 2.2 Update `paystack-webhook`
+Extend the existing webhook handler to process wallet funding:
 
-**Fix**: Add form submission that navigates to `/explore?q={searchQuery}` when user presses Enter:
+**On `charge.success` with `type: wallet_funding`:**
+1. Verify transaction hasn't been processed (idempotency check)
+2. Credit customer's wallet balance
+3. Log transaction in `wallet_transactions` with category `wallet_funding`
 
-```tsx
-const handleSearchSubmit = (e: React.FormEvent) => {
-  e.preventDefault();
-  if (searchQuery.trim()) {
-    navigate(`/explore?q=${encodeURIComponent(searchQuery.trim())}`);
-  }
-};
-```
+#### 2.3 `process-wallet-payment` (new)
+Process order payment using wallet balance:
 
-**Also update** `src/pages/Explore.tsx` to read `?q=` from URL and pre-populate the search field.
+**Flow:**
+1. Validate wallet balance >= order total
+2. Debit customer wallet
+3. Log transaction with category `wallet_payment`
+4. Credit vendor/rider/platform wallets (use existing split logic)
+5. Update order payment status
 
----
+#### 2.4 `process-refund` (new)
+Process refund to customer wallet:
 
-### 2.2 QR Code Scanner Integration
-
-**File**: `src/components/home/Header.tsx`
-
-**Current behavior**: Shows a placeholder camera icon with instructions to "use your camera app."
-
-**Fix**: Implement actual camera-based QR scanning using the browser's `BarcodeDetector` API (with fallback for unsupported browsers):
-
-1. Request camera access via `navigator.mediaDevices.getUserMedia`
-2. Stream video to a hidden `<video>` element
-3. Use `BarcodeDetector` API to detect QR codes
-4. Parse the QR content (expected format: `https://.../vendor/{id}?action=favorite`)
-5. Navigate to vendor page with favorite action
-
-For browsers without `BarcodeDetector` support, show instructions to use the native camera app.
+**Flow:**
+1. Verify order is eligible for refund
+2. Credit customer wallet
+3. Log transaction with category `refund`
+4. Reverse vendor/rider credits if applicable
 
 ---
 
-### 2.3 Navigation App Respect Admin Setting
+### Phase 3: Frontend - Customer Wallet Page
 
-**File**: `src/components/shared/MapOptionsMenu.tsx`
+Create `src/pages/profile/WalletPage.tsx`:
 
-**Current behavior**: Shows all 5 navigation apps (Google, Bing, OSM, HERE, native).
+**Features:**
+- Display current wallet balance
+- "Add Money" button → Opens funding modal
+- Transaction history (reuse `TransactionHistory` component)
+- Wallet balance shown prominently
 
-**Fix**:
-1. Create a new hook `usePlatformSettings()` to fetch `default_navigation_app` setting
-2. Update `MapOptionsMenu` to:
-   - Show only the admin-configured app as the primary option
-   - Optionally show "Other apps" in a submenu for flexibility
-
----
-
-### 2.4 Download Button Link
-
-**File**: `src/pages/Home.tsx` (line 181-187)
-
-**Current code**:
-```tsx
-<Button
-  onClick={() => navigate('/auth')}
-  variant="secondary"
-  className="font-semibold shadow-lg"
->
-  Download App
-</Button>
-```
-
-**Fix**: Change navigation target:
-```tsx
-onClick={() => navigate('/install')}
-```
+**Add Money Modal:**
+- Amount input with preset buttons (₦1000, ₦2000, ₦5000, ₦10000)
+- Custom amount field
+- "Fund Wallet" button → Redirects to Paystack
 
 ---
 
-## Phase 3: Vendor-Rider Restriction System
+### Phase 4: Checkout Integration
 
-### 3.1 Architecture Overview
+Update `src/pages/Cart.tsx` to support wallet payment:
 
-When a rider joins a vendor's team via invite, they become a "vendor-affiliated rider" who can ONLY see and accept orders from that specific vendor.
+**New checkout options:**
+1. **Pay with Wallet** - If wallet balance >= total
+2. **Pay with Paystack** - Direct card/bank payment
+3. **Pay with Wallet + Paystack** (optional) - Use partial wallet balance
+
+**UI Changes:**
+- Show wallet balance in checkout
+- Payment method selector (Wallet / Card)
+- If insufficient balance, show option to top up or pay difference
+
+---
+
+### Phase 5: Admin Controls
+
+Create `src/pages/admin/AdminCustomerWallets.tsx`:
+
+**Features:**
+- List all customer wallets with balances
+- Search by customer name/email
+- View transaction history for any wallet
+- Manual credit/debit form (with notes)
+- Disable wallet toggle for fraud cases
+
+---
+
+## Technical Architecture
 
 ```text
-+-------------------+       +-------------------+       +-------------------+
-|     Vendor        |       |   vendor_riders   |       |  Rider Profile    |
-|  (My Riders tab)  |------>|  (link table)     |<------|  (affiliated      |
-|                   |       |                   |       |   vendor_id)      |
-+-------------------+       +-------------------+       +-------------------+
-         |                          |
-         v                          v
-  Generate Invite              Join Flow
-  (QR code/link)         (creates link + sets affiliation)
++------------------+     +----------------------+     +-------------------+
+|   Cart.tsx       |     | paystack-initialize- |     | Paystack API      |
+| (Payment Method) | --> | wallet-funding       | --> | (Process Payment) |
++------------------+     +----------------------+     +-------------------+
+                                                              |
+                                                              v
++------------------+     +----------------------+     +-------------------+
+|  WalletPage.tsx  |     | paystack-webhook     |     | wallet_transactions|
+| (View Balance)   | <-- | (Credit Wallet)      | <-- | (Ledger Entry)    |
++------------------+     +----------------------+     +-------------------+
 ```
-
-### 3.2 Database Changes
-
-Add a column to track restriction mode (for future flexibility):
-
-```sql
-ALTER TABLE public.vendor_riders 
-  ADD COLUMN IF NOT EXISTS restriction_mode TEXT 
-  DEFAULT 'vendor_only' 
-  CHECK (restriction_mode IN ('vendor_only', 'any_orders'));
-```
-
-### 3.3 Backend Changes: Available Orders Filter
-
-**File**: `src/pages/rider/RiderAvailableOrders.tsx`
-
-Update the order fetching logic to:
-1. Check if rider has `affiliated_vendor_id` set
-2. If affiliated, filter orders to only show those from the affiliated vendor
-3. If not affiliated (platform rider), show all nearby orders
-
-```tsx
-// Current query
-.select('*, vendors(name, address, latitude, longitude)')
-.eq('status', 'ready_for_pickup')
-.is('rider_id', null)
-.neq('delivery_type', 'self_pickup')
-
-// Updated query for affiliated riders
-if (profile.affiliated_vendor_id) {
-  query = query.eq('vendor_id', profile.affiliated_vendor_id);
-}
-```
-
-### 3.4 UI Changes: Hide Sensitive Information
-
-For vendor-affiliated riders, hide revenue/fee information they shouldn't see:
-
-**Files to update**:
-- `src/pages/rider/RiderDashboard.tsx` - Hide "Today's Earnings" if affiliated
-- `src/pages/rider/RiderAvailableOrders.tsx` - Hide "You'll earn" amount
-- `src/pages/rider/RiderOrders.tsx` - Hide earning amounts
-- `src/pages/rider/RiderEarnings.tsx` - Block access or show simplified view
-
-Create a helper hook `useRiderRestrictions()`:
-```tsx
-export function useRiderRestrictions(riderProfile: RiderProfile | null) {
-  const isAffiliated = !!riderProfile?.affiliated_vendor_id;
-  
-  return {
-    isAffiliated,
-    canViewEarnings: !isAffiliated, // Platform riders can see earnings
-    canViewAllOrders: !isAffiliated, // Platform riders see all orders
-  };
-}
-```
-
-### 3.5 Vendor Control Panel Enhancements
-
-**File**: `src/pages/vendor/VendorRiders.tsx`
-
-Add controls for vendor to manage their riders:
-1. Activate/Deactivate riders (already exists)
-2. View rider's delivery stats for their vendor only
-3. Remove rider from team
 
 ---
 
-## Phase 4: Vendor-Rider Login Flow (Optional Enhancement)
+## Security Measures
 
-Currently, riders who join a vendor's team use the standard `/rider/auth` page. For a dedicated experience:
-
-### Option A: Use Existing Flow (Recommended)
-- Riders continue using `/rider/auth`
-- After login, the system detects their `affiliated_vendor_id` and adjusts their dashboard accordingly
-- The vendor's branding is shown in the rider dashboard header
-
-### Option B: Dedicated Login Page
-Create `/rider/login/:vendorId` similar to `/vendor/staff-login/:vendorId`:
-- Shows vendor branding
-- Validates rider is affiliated with that vendor
-- Redirects to restricted rider dashboard
+1. **Backend-only balance modifications** - All wallet credits/debits happen in edge functions
+2. **Webhook signature verification** - Use existing Paystack signature validation
+3. **Unique transaction references** - Prevent duplicate credits using `paystack_reference`
+4. **Idempotency checks** - Check for existing transactions before processing
+5. **Non-negative balance constraint** - Validate balance before debits
+6. **RLS policies** - Customers can only view their own wallet/transactions
 
 ---
 
-## Implementation Checklist
+## File Changes Summary
 
-### Database Migration
-- [ ] Drop old `profiles_health_goal_check` constraint
-- [ ] Add new constraint with all 6 health goal values
+### New Files:
+| File | Purpose |
+|------|---------|
+| `src/pages/profile/WalletPage.tsx` | Customer wallet dashboard |
+| `src/components/profile/FundWalletDialog.tsx` | Modal for adding funds |
+| `src/components/cart/PaymentMethodSelector.tsx` | Choose wallet/card payment |
+| `supabase/functions/paystack-initialize-wallet-funding/index.ts` | Initialize wallet top-up |
+| `supabase/functions/process-wallet-payment/index.ts` | Pay for order with wallet |
+| `supabase/functions/process-refund/index.ts` | Process refunds to wallet |
+| `src/pages/admin/AdminCustomerWallets.tsx` | Admin wallet management |
+| `src/hooks/useCustomerWallet.ts` | Hook for wallet operations |
 
-### Frontend Updates
-- [ ] `Header.tsx` - Add search form submission with Enter key
-- [ ] `Header.tsx` - Implement BarcodeDetector QR scanning
-- [ ] `Explore.tsx` - Read `?q=` query param on load
-- [ ] `MapOptionsMenu.tsx` - Use admin-configured navigation app
-- [ ] `Home.tsx` - Change Download button to `/install`
+### Modified Files:
+| File | Changes |
+|------|---------|
+| `supabase/functions/paystack-webhook/index.ts` | Handle `wallet_funding` type |
+| `src/pages/Cart.tsx` | Add payment method selector, wallet payment option |
+| `src/pages/Profile.tsx` | Add link to wallet page |
+| `src/App.tsx` | Add wallet route |
+| `src/components/shared/TransactionHistory.tsx` | Add new category labels |
+| `src/components/admin/AdminSidebar.tsx` | Add customer wallets link |
 
-### Rider Restriction System
-- [ ] `RiderAvailableOrders.tsx` - Filter orders by affiliated vendor
-- [ ] `RiderDashboard.tsx` - Conditionally hide earnings for affiliated riders
-- [ ] `RiderOrders.tsx` - Hide earnings info for affiliated riders
-- [ ] `useRiderRestrictions.ts` - Create helper hook
-
-### Hooks and Utilities
-- [ ] `usePlatformSettings.ts` - New hook for fetching platform settings
-
----
-
-## Technical Notes
-
-### QR Scanner Browser Support
-- `BarcodeDetector` is supported in Chrome 88+, Edge 88+, Opera 74+
-- Safari and Firefox do not support it
-- For unsupported browsers, show fallback with manual entry option
-
-### Health Goals Mapping
-The app will use the new values (`lose_weight`, `maintain`, `gain_weight`, `build_muscle`). Old values in the database (`light_eating`, `active_lifestyle`) will still be valid but may not render correctly in the UI until the user updates their goal.
+### Database Changes:
+| Type | Description |
+|------|-------------|
+| RLS Policy | Customer wallet transaction viewing |
+| Migration | Add `is_disabled` column to wallets table |
 
 ---
 
-## Testing Recommendations
+## Checkout Flow Summary
 
-After implementation:
-1. Test health goals save/update with all 6 values
-2. Test search navigation from home page
-3. Test QR scanning on supported browsers
-4. Verify only the admin-configured navigation app appears
-5. Test rider invitation flow end-to-end
-6. Verify affiliated riders only see their vendor's orders
-7. Confirm earnings are hidden for affiliated riders
+```text
+Customer at Checkout
+        |
+        v
+[Show Wallet Balance: ₦5,000]
+[Order Total: ₦3,500]
+        |
+        +---> [Pay with Wallet] --> Deduct from wallet --> Order Confirmed
+        |
+        +---> [Pay with Card] --> Paystack checkout --> Order Confirmed
+        |
+        +---> [Wallet + Card] --> Deduct wallet, pay remainder via Paystack
+```
+
+---
+
+## Refund Handling
+
+**Automated refunds for:**
+- Cancelled orders (by vendor before preparation)
+- Failed deliveries
+
+**Refund process:**
+1. Admin/system triggers refund via edge function
+2. Credit customer wallet with refund amount
+3. Log transaction with category `refund` and order reference
+4. (Optional) Reverse vendor/rider credits
+
+**No bank transfers** - Refunds stay in wallet for future purchases
+
+---
+
+## Admin Wallet Management
+
+**Capabilities:**
+1. View all customer wallets with search/filter
+2. View transaction history for any customer
+3. Manual credit (for disputes/compensation)
+4. Manual debit (for chargebacks)
+5. Disable wallet (fraud prevention)
+6. All manual adjustments require notes and are logged
+
+---
+
+## Testing Checklist
+
+1. Fund wallet via Paystack (test mode)
+2. Verify webhook credits wallet correctly
+3. Pay for order using wallet balance
+4. Verify wallet debited and order confirmed
+5. Test insufficient balance handling
+6. Test partial wallet + card payment
+7. Test refund flow
+8. Verify admin can view/manage wallets
+9. Test duplicate payment prevention
+10. Verify RLS policies work correctly
