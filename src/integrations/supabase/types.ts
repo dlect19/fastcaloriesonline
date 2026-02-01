@@ -303,6 +303,66 @@ export type Database = {
           },
         ]
       }
+      daily_promo_stats: {
+        Row: {
+          created_at: string | null
+          environment: string | null
+          high_discount_winners: number | null
+          id: string
+          stat_date: string
+          total_promo_cost: number | null
+          total_revenue: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          environment?: string | null
+          high_discount_winners?: number | null
+          id?: string
+          stat_date?: string
+          total_promo_cost?: number | null
+          total_revenue?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          environment?: string | null
+          high_discount_winners?: number | null
+          id?: string
+          stat_date?: string
+          total_promo_cost?: number | null
+          total_revenue?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      daily_spin_usage: {
+        Row: {
+          created_at: string | null
+          free_spins_used: number | null
+          id: string
+          spin_date: string
+          try_again_used: boolean | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          free_spins_used?: number | null
+          id?: string
+          spin_date?: string
+          try_again_used?: boolean | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          free_spins_used?: number | null
+          id?: string
+          spin_date?: string
+          try_again_used?: boolean | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       drug_reminders: {
         Row: {
           created_at: string
@@ -801,6 +861,39 @@ export type Database = {
           },
         ]
       }
+      platform_promotions: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          discount_percentage: number
+          id: string
+          is_active: boolean | null
+          name: string
+          promo_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          discount_percentage?: number
+          id?: string
+          is_active?: boolean | null
+          name: string
+          promo_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          discount_percentage?: number
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          promo_type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       platform_settings: {
         Row: {
           created_at: string | null
@@ -1155,6 +1248,53 @@ export type Database = {
           },
         ]
       }
+      promo_usage_log: {
+        Row: {
+          created_at: string | null
+          discount_amount: number
+          discount_percentage: number
+          environment: string | null
+          id: string
+          order_id: string | null
+          platform_cost: number
+          promo_source: string
+          promo_type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          discount_amount: number
+          discount_percentage: number
+          environment?: string | null
+          id?: string
+          order_id?: string | null
+          platform_cost: number
+          promo_source: string
+          promo_type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          discount_amount?: number
+          discount_percentage?: number
+          environment?: string | null
+          id?: string
+          order_id?: string | null
+          platform_cost?: number
+          promo_source?: string
+          promo_type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "promo_usage_log_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reviews: {
         Row: {
           comment: string | null
@@ -1295,6 +1435,131 @@ export type Database = {
           },
         ]
       }
+      spin_results: {
+        Row: {
+          created_at: string | null
+          discount_percentage: number
+          expires_at: string
+          id: string
+          is_try_again: boolean | null
+          is_used: boolean | null
+          segment_id: string | null
+          used_on_order_id: string | null
+          user_id: string
+          wheel_type: string
+        }
+        Insert: {
+          created_at?: string | null
+          discount_percentage?: number
+          expires_at: string
+          id?: string
+          is_try_again?: boolean | null
+          is_used?: boolean | null
+          segment_id?: string | null
+          used_on_order_id?: string | null
+          user_id: string
+          wheel_type: string
+        }
+        Update: {
+          created_at?: string | null
+          discount_percentage?: number
+          expires_at?: string
+          id?: string
+          is_try_again?: boolean | null
+          is_used?: boolean | null
+          segment_id?: string | null
+          used_on_order_id?: string | null
+          user_id?: string
+          wheel_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "spin_results_segment_id_fkey"
+            columns: ["segment_id"]
+            isOneToOne: false
+            referencedRelation: "spin_wheel_segments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spin_results_used_on_order_id_fkey"
+            columns: ["used_on_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      spin_wheel_config: {
+        Row: {
+          cost: number
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          updated_at: string | null
+          wheel_type: string
+        }
+        Insert: {
+          cost?: number
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          updated_at?: string | null
+          wheel_type: string
+        }
+        Update: {
+          cost?: number
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          updated_at?: string | null
+          wheel_type?: string
+        }
+        Relationships: []
+      }
+      spin_wheel_segments: {
+        Row: {
+          color: string | null
+          created_at: string | null
+          discount_percentage: number
+          id: string
+          is_try_again: boolean | null
+          probability_weight: number
+          segment_label: string
+          sort_order: number | null
+          wheel_config_id: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string | null
+          discount_percentage?: number
+          id?: string
+          is_try_again?: boolean | null
+          probability_weight?: number
+          segment_label: string
+          sort_order?: number | null
+          wheel_config_id: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string | null
+          discount_percentage?: number
+          id?: string
+          is_try_again?: boolean | null
+          probability_weight?: number
+          segment_label?: string
+          sort_order?: number | null
+          wheel_config_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "spin_wheel_segments_wheel_config_id_fkey"
+            columns: ["wheel_config_id"]
+            isOneToOne: false
+            referencedRelation: "spin_wheel_config"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       takeaway_packs: {
         Row: {
           created_at: string | null
@@ -1398,6 +1663,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_order_stats: {
+        Row: {
+          completed_orders: number | null
+          created_at: string | null
+          first_order_promo_used: boolean | null
+          id: string
+          last_loyalty_promo_at: string | null
+          total_spent: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          completed_orders?: number | null
+          created_at?: string | null
+          first_order_promo_used?: boolean | null
+          id?: string
+          last_loyalty_promo_at?: string | null
+          total_spent?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          completed_orders?: number | null
+          created_at?: string | null
+          first_order_promo_used?: boolean | null
+          id?: string
+          last_loyalty_promo_at?: string | null
+          total_spent?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {
