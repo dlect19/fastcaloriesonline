@@ -6,8 +6,9 @@ import { RiderFloatingWidget } from '@/components/rider/RiderFloatingWidget';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Package, DollarSign, Star, TrendingUp, Loader2, MapPin, Settings, Navigation, Bell, ArrowRight } from 'lucide-react';
+import { Package, DollarSign, Star, TrendingUp, Loader2, MapPin, Settings, Navigation, Bell, ArrowRight, Lock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useRiderRestrictions } from '@/hooks/useRiderRestrictions';
 
 // Haversine formula for distance calculation
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
@@ -20,6 +21,7 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   return R * c;
 };
+
 export default function RiderDashboard() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -34,6 +36,10 @@ export default function RiderDashboard() {
   });
   const [riderProfile, setRiderProfile] = useState<any>(null);
   const [availableOrderCount, setAvailableOrderCount] = useState(0);
+  const [affiliatedVendorName, setAffiliatedVendorName] = useState<string | null>(null);
+
+  // Use rider restrictions hook
+  const { isAffiliated, affiliatedVendorId, canViewEarnings } = useRiderRestrictions(riderProfile);
 
   useEffect(() => {
     checkAuth();
@@ -41,6 +47,22 @@ export default function RiderDashboard() {
     const savedFloatMode = localStorage.getItem('rider_float_mode');
     setFloatModeEnabled(savedFloatMode === 'true');
   }, []);
+
+  // Fetch affiliated vendor name
+  useEffect(() => {
+    if (affiliatedVendorId) {
+      fetchVendorName(affiliatedVendorId);
+    }
+  }, [affiliatedVendorId]);
+
+  const fetchVendorName = async (vendorId: string) => {
+    const { data } = await supabase
+      .from('vendors')
+      .select('name')
+      .eq('id', vendorId)
+      .single();
+    if (data) setAffiliatedVendorName(data.name);
+  };
 
   // Subscribe to realtime order updates
   useEffect(() => {
@@ -110,7 +132,7 @@ export default function RiderDashboard() {
         await fetchAvailableOrdersCount(profile);
       }
 
-      // Get today's deliveries
+      // Get today's deliveries - only show earnings for platform riders
       const today = new Date().toISOString().split('T')[0];
       const { data: todayOrders } = await supabase
         .from('orders')
@@ -120,7 +142,7 @@ export default function RiderDashboard() {
         .gte('delivered_at', today);
 
       if (todayOrders) {
-        const todayEarnings = todayOrders.reduce((sum, o) => sum + (Number(o.total) * 0.1), 0); // 10% commission
+        const todayEarnings = todayOrders.reduce((sum, o) => sum + (Number(o.total) * 0.1), 0);
         setStats(prev => ({
           ...prev,
           todayDeliveries: todayOrders.length,
@@ -136,12 +158,19 @@ export default function RiderDashboard() {
 
   const fetchAvailableOrdersCount = async (profile: any) => {
     try {
-      // Get orders that are ready for pickup and have no rider assigned
-      const { data: orders, error } = await supabase
+      // Build query - for affiliated riders, only count their vendor's orders
+      let query = supabase
         .from('orders')
         .select('id, vendors(latitude, longitude)')
         .eq('status', 'ready_for_pickup')
         .is('rider_id', null);
+
+      // VENDOR-ONLY RESTRICTION
+      if (profile.affiliated_vendor_id) {
+        query = query.eq('vendor_id', profile.affiliated_vendor_id);
+      }
+
+      const { data: orders, error } = await query;
 
       if (error) throw error;
 
@@ -218,8 +247,24 @@ export default function RiderDashboard() {
     <RiderLayout isOnline={isOnline} onToggleOnline={toggleOnline}>
       <div className="mb-6 md:mb-8">
         <h1 className="text-2xl md:text-3xl font-bold text-foreground">Dashboard</h1>
-        <p className="text-muted-foreground text-sm md:text-base">Welcome back, rider!</p>
+        <p className="text-muted-foreground text-sm md:text-base">
+          {isAffiliated && affiliatedVendorName 
+            ? `Rider for ${affiliatedVendorName}` 
+            : 'Welcome back, rider!'}
+        </p>
       </div>
+
+      {/* Affiliated Rider Notice */}
+      {isAffiliated && (
+        <Card className="mb-4 md:mb-6 border-primary/30 bg-primary/5">
+          <CardContent className="p-3 md:p-4">
+            <p className="text-primary font-medium text-sm md:text-base flex items-center gap-2">
+              <Lock className="w-4 h-4" />
+              You're a dedicated rider for {affiliatedVendorName}. You'll only see orders from this vendor.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {!riderProfile?.is_verified && (
         <Card className="mb-4 md:mb-6 border-calorie-medium">
@@ -254,15 +299,28 @@ export default function RiderDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Today's Earnings</CardTitle>
-            <DollarSign className="w-4 h-4 text-muted-foreground hidden md:block" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl md:text-2xl font-bold">₦{stats.todayEarnings.toLocaleString()}</div>
-          </CardContent>
-        </Card>
+        {/* Only show earnings for platform riders (not affiliated) */}
+        {canViewEarnings ? (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Today's Earnings</CardTitle>
+              <DollarSign className="w-4 h-4 text-muted-foreground hidden md:block" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl md:text-2xl font-bold">₦{stats.todayEarnings.toLocaleString()}</div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Active Orders</CardTitle>
+              <Package className="w-4 h-4 text-muted-foreground hidden md:block" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl md:text-2xl font-bold">{availableOrderCount}</div>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -328,7 +386,9 @@ export default function RiderDashboard() {
                     {availableOrderCount} Order{availableOrderCount > 1 ? 's' : ''} Available!
                   </p>
                   <p className="text-muted-foreground text-sm">
-                    Nearby delivery requests waiting for you
+                    {isAffiliated 
+                      ? `Orders from ${affiliatedVendorName}` 
+                      : 'Nearby delivery requests waiting for you'}
                   </p>
                 </div>
               </div>
@@ -345,7 +405,11 @@ export default function RiderDashboard() {
         <Card className="mb-6 md:mb-8">
           <CardContent className="p-6 md:p-8 text-center">
             <Package className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-            <p className="font-medium mb-2">No available orders nearby</p>
+            <p className="font-medium mb-2">
+              {isAffiliated 
+                ? `No orders from ${affiliatedVendorName}` 
+                : 'No available orders nearby'}
+            </p>
             <p className="text-muted-foreground text-sm mb-4">
               Stay online - new orders will appear when customers place them.
             </p>
