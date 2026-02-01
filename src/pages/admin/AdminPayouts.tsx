@@ -90,7 +90,7 @@ export default function AdminPayouts() {
     setProcessing(selectedPayout.id);
     try {
       const { data, error } = await supabase.functions.invoke('process-payout', {
-        body: { payoutId: selectedPayout.id, action: 'approve' }
+        body: { payout_request_id: selectedPayout.id }
       });
 
       if (error) throw error;
