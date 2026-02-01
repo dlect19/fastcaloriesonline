@@ -297,7 +297,7 @@ export default function AdminPayouts() {
             </div>
           )}
 
-          {payout.status === 'failed' && isRetryableFailure(payout.failure_reason) && (
+          {payout.status === 'failed' && (
             <div className="mt-4">
               <Button 
                 size="sm" 
