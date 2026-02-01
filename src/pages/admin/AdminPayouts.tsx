@@ -102,20 +102,32 @@ export default function AdminPayouts() {
         body: { payout_request_id: selectedPayout.id }
       });
 
-      if (error) throw error;
+      // Handle both error object and error in response body
+      if (error) {
+        throw new Error(error.message || 'Failed to process payout');
+      }
 
       if (data?.success) {
         toast({ title: '✅ Payout approved and processed!' });
         fetchPayouts();
       } else {
-        throw new Error(data?.error || 'Failed to process payout');
+        // Extract error message from response
+        const errorMessage = data?.error || 'Failed to process payout';
+        toast({
+          title: 'Payout Failed',
+          description: errorMessage,
+          variant: 'destructive'
+        });
+        fetchPayouts(); // Refresh to show updated status
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       toast({
         title: 'Error processing payout',
-        description: error.message,
+        description: errorMessage,
         variant: 'destructive'
       });
+      fetchPayouts();
     } finally {
       setProcessing(null);
       setSelectedPayout(null);
@@ -145,18 +157,29 @@ export default function AdminPayouts() {
         body: { payout_request_id: selectedPayout.id }
       });
 
-      if (error) throw error;
+      // Handle both error object and error in response body
+      if (error) {
+        throw new Error(error.message || 'Failed to process payout');
+      }
 
       if (data?.success) {
         toast({ title: '✅ Payout retry successful! Email sent to user.' });
         fetchPayouts();
       } else {
-        throw new Error(data?.error || 'Failed to process payout');
+        // Extract error message from response
+        const errorMessage = data?.error || 'Failed to process payout';
+        toast({
+          title: 'Retry Failed',
+          description: errorMessage,
+          variant: 'destructive'
+        });
+        fetchPayouts(); // Refresh to show updated status
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       toast({
         title: 'Retry failed',
-        description: error.message,
+        description: errorMessage,
         variant: 'destructive'
       });
       fetchPayouts(); // Refresh to show updated status
