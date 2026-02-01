@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useCustomerWallet } from '@/hooks/useCustomerWallet';
@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BottomNav } from '@/components/home/BottomNav';
 import { TransactionHistory } from '@/components/shared/TransactionHistory';
 import { FundWalletDialog } from '@/components/profile/FundWalletDialog';
-import { ArrowLeft, Wallet, Plus, Leaf, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Wallet, Plus, Leaf, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -20,21 +20,58 @@ export default function WalletPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [fundDialogOpen, setFundDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('profile');
+  const [verifying, setVerifying] = useState(false);
+  const verificationAttempted = useRef(false);
 
-  // Handle funding success callback
+  // Handle Paystack callback - verify payment reference
   useEffect(() => {
-    const fundingStatus = searchParams.get('funding');
-    if (fundingStatus === 'success') {
-      toast({
-        title: 'Wallet Funded!',
-        description: 'Your wallet has been credited successfully.',
-      });
-      // Clear the URL parameter
-      setSearchParams({});
-      // Refresh wallet balance
-      refetch();
+    const verifyPayment = async () => {
+      // Check for Paystack reference in URL (trxref or reference)
+      const reference = searchParams.get('trxref') || searchParams.get('reference');
+      
+      if (!reference || verificationAttempted.current) return;
+      
+      verificationAttempted.current = true;
+      setVerifying(true);
+      
+      try {
+        const { data, error } = await supabase.functions.invoke('verify-wallet-funding', {
+          body: { reference },
+        });
+
+        if (error) throw error;
+
+        if (data?.success) {
+          toast({
+            title: 'Wallet Funded!',
+            description: data.message || 'Your wallet has been credited successfully.',
+          });
+          refetch();
+        } else if (data?.error) {
+          toast({
+            title: 'Verification Issue',
+            description: data.error,
+            variant: 'destructive',
+          });
+        }
+      } catch (error) {
+        console.error('Error verifying payment:', error);
+        toast({
+          title: 'Verification Failed',
+          description: error instanceof Error ? error.message : 'Could not verify payment',
+          variant: 'destructive',
+        });
+      } finally {
+        setVerifying(false);
+        // Clear URL parameters
+        setSearchParams({});
+      }
+    };
+
+    if (user && !authLoading) {
+      verifyPayment();
     }
-  }, [searchParams, setSearchParams, toast, refetch]);
+  }, [searchParams, setSearchParams, toast, refetch, user, authLoading]);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -42,14 +79,20 @@ export default function WalletPage() {
     }
   }, [user, authLoading, navigate]);
 
-  if (authLoading || walletLoading) {
+  if (authLoading || walletLoading || verifying) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center animate-pulse-soft">
-            <Leaf className="w-9 h-9 text-primary-foreground" />
+            {verifying ? (
+              <Loader2 className="w-9 h-9 text-primary-foreground animate-spin" />
+            ) : (
+              <Leaf className="w-9 h-9 text-primary-foreground" />
+            )}
           </div>
-          <p className="text-muted-foreground">Loading wallet...</p>
+          <p className="text-muted-foreground">
+            {verifying ? 'Verifying payment...' : 'Loading wallet...'}
+          </p>
         </div>
       </div>
     );
