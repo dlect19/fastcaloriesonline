@@ -1963,6 +1963,7 @@ export type Database = {
         Args: { _user_id: string; _vendor_id: string }
         Returns: boolean
       }
+      release_pending_vendor_earnings: { Args: never; Returns: number }
     }
     Enums: {
       admin_staff_role: "super_admin" | "admin" | "support" | "analyst"
