@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Search, Filter, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -28,13 +29,23 @@ const calorieFilters = [
 ];
 
 export default function Explore() {
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchParams] = useSearchParams();
+  const initialQuery = searchParams.get('q') || '';
+  const [searchQuery, setSearchQuery] = useState(initialQuery);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedCalorieFilter, setSelectedCalorieFilter] = useState('all');
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
+
+  // Initialize search from URL query param
+  useEffect(() => {
+    const queryFromUrl = searchParams.get('q');
+    if (queryFromUrl) {
+      setSearchQuery(queryFromUrl);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     fetchData();

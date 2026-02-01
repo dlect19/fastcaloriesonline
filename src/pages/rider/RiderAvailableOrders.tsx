@@ -6,9 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { SoundEnableBanner } from '@/components/shared/SoundEnableBanner';
-import { Package, MapPin, Loader2, Navigation, RefreshCw } from 'lucide-react';
+import { Package, MapPin, Loader2, Navigation, RefreshCw, Lock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useRepeatingNotificationSound } from '@/hooks/useRepeatingNotificationSound';
+import { useRiderRestrictions } from '@/hooks/useRiderRestrictions';
 import { format } from 'date-fns';
 
 // Haversine formula for distance calculation
@@ -32,6 +33,10 @@ export default function RiderAvailableOrders() {
   const [isOnline, setIsOnline] = useState(false);
   const [riderProfile, setRiderProfile] = useState<any>(null);
   const [availableOrders, setAvailableOrders] = useState<any[]>([]);
+  const [affiliatedVendorName, setAffiliatedVendorName] = useState<string | null>(null);
+
+  // Use rider restrictions hook
+  const { isAffiliated, affiliatedVendorId, canViewEarnings } = useRiderRestrictions(riderProfile);
 
   // Notification sound hook
   const { 
@@ -70,8 +75,10 @@ export default function RiderAvailableOrders() {
               !newOrder.rider_id &&
               newOrder.delivery_type !== 'self_pickup' &&
               oldOrder.status !== 'ready_for_pickup') {
-            // Play notification sound for new available order
-            startRepeating();
+            // For affiliated riders, only notify if order is from their vendor
+            if (!isAffiliated || newOrder.vendor_id === affiliatedVendorId) {
+              startRepeating();
+            }
           }
           
           fetchAvailableOrders();
@@ -82,7 +89,7 @@ export default function RiderAvailableOrders() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [riderProfile]);
+  }, [riderProfile, isAffiliated, affiliatedVendorId]);
 
   // Start notification sound when there are available orders
   useEffect(() => {
@@ -92,6 +99,22 @@ export default function RiderAvailableOrders() {
       stopRepeating();
     }
   }, [availableOrders.length, isOnline, loading]);
+
+  // Fetch affiliated vendor name
+  useEffect(() => {
+    if (affiliatedVendorId) {
+      fetchVendorName(affiliatedVendorId);
+    }
+  }, [affiliatedVendorId]);
+
+  const fetchVendorName = async (vendorId: string) => {
+    const { data } = await supabase
+      .from('vendors')
+      .select('name')
+      .eq('id', vendorId)
+      .single();
+    if (data) setAffiliatedVendorName(data.name);
+  };
 
   const checkAuth = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -120,14 +143,20 @@ export default function RiderAvailableOrders() {
     if (!profile) return;
     
     try {
-      // Get orders that are ready for pickup, have no rider assigned, and are NOT self-pickup
-      const { data: orders, error } = await supabase
+      // Build query - for affiliated riders, only show their vendor's orders
+      let query = supabase
         .from('orders')
         .select('*, vendors(name, address, latitude, longitude)')
         .eq('status', 'ready_for_pickup')
         .is('rider_id', null)
-        .neq('delivery_type', 'self_pickup') // Exclude self-pickup orders
-        .order('created_at', { ascending: false });
+        .neq('delivery_type', 'self_pickup');
+
+      // VENDOR-ONLY RESTRICTION: If rider is affiliated, only show that vendor's orders
+      if (profile.affiliated_vendor_id) {
+        query = query.eq('vendor_id', profile.affiliated_vendor_id);
+      }
+
+      const { data: orders, error } = await query.order('created_at', { ascending: false });
 
       if (error) throw error;
 
@@ -212,7 +241,7 @@ export default function RiderAvailableOrders() {
         .from('orders')
         .update({ rider_id: user.id })
         .eq('id', orderId)
-        .is('rider_id', null); // Extra safety check
+        .is('rider_id', null);
 
       if (error) throw error;
 
@@ -279,7 +308,14 @@ export default function RiderAvailableOrders() {
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-foreground">Available Orders</h1>
           <p className="text-muted-foreground text-sm md:text-base">
-            Orders within {riderProfile?.work_radius_km || 10}km of your location
+            {isAffiliated && affiliatedVendorName ? (
+              <span className="flex items-center gap-1">
+                <Lock className="w-3 h-3" />
+                Orders from {affiliatedVendorName} only
+              </span>
+            ) : (
+              `Orders within ${riderProfile?.work_radius_km || 10}km of your location`
+            )}
           </p>
         </div>
         <Button 
@@ -291,6 +327,18 @@ export default function RiderAvailableOrders() {
           <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
         </Button>
       </div>
+
+      {/* Affiliated Rider Notice */}
+      {isAffiliated && (
+        <Card className="mb-4 border-primary/30 bg-primary/5">
+          <CardContent className="p-4">
+            <p className="text-sm text-primary font-medium flex items-center gap-2">
+              <Lock className="w-4 h-4" />
+              You're a dedicated rider for {affiliatedVendorName}. You'll only see orders from this vendor.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Sound Enable Banner */}
       {isOnline && hasLocation && (
@@ -334,7 +382,11 @@ export default function RiderAvailableOrders() {
         <Card>
           <CardContent className="p-6 md:p-8 text-center">
             <Package className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">No available orders nearby</p>
+            <p className="text-muted-foreground">
+              {isAffiliated 
+                ? `No available orders from ${affiliatedVendorName}` 
+                : 'No available orders nearby'}
+            </p>
             <p className="text-xs text-muted-foreground mt-2">
               Pull down or tap refresh to check for new orders
             </p>
@@ -382,14 +434,20 @@ export default function RiderAvailableOrders() {
                   </div>
                 </div>
 
-                {/* Earnings & Actions */}
+                {/* Actions - Hide earnings for affiliated riders */}
                 <div className="flex items-center justify-between pt-3 border-t">
-                  <div>
-                    <p className="text-sm text-muted-foreground">You'll earn</p>
-                    <p className="font-bold text-lg text-calorie-low">
-                      ₦{(Number(order.delivery_fee || 0) * 0.8).toLocaleString()}
-                    </p>
-                  </div>
+                  {canViewEarnings ? (
+                    <div>
+                      <p className="text-sm text-muted-foreground">You'll earn</p>
+                      <p className="font-bold text-lg text-calorie-low">
+                        ₦{(Number(order.delivery_fee || 0) * 0.8).toLocaleString()}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-muted-foreground">
+                      Delivery assignment
+                    </div>
+                  )}
                   <Button 
                     onClick={() => claimOrder(order.id)}
                     disabled={claiming === order.id}

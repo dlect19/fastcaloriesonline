@@ -179,7 +179,7 @@ export default function Home() {
                 <p className="text-primary-foreground/80 text-sm">Join thousands of health-conscious Nigerians</p>
               </div>
               <Button
-                onClick={() => navigate('/auth')}
+                onClick={() => navigate('/install')}
                 variant="secondary"
                 className="font-semibold shadow-lg"
               >

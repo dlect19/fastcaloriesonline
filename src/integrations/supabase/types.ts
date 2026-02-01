@@ -1468,6 +1468,7 @@ export type Database = {
           id: string
           invite_code: string
           is_active: boolean | null
+          restriction_mode: string | null
           rider_profile_id: string
           updated_at: string | null
           vendor_id: string
@@ -1477,6 +1478,7 @@ export type Database = {
           id?: string
           invite_code: string
           is_active?: boolean | null
+          restriction_mode?: string | null
           rider_profile_id: string
           updated_at?: string | null
           vendor_id: string
@@ -1486,6 +1488,7 @@ export type Database = {
           id?: string
           invite_code?: string
           is_active?: boolean | null
+          restriction_mode?: string | null
           rider_profile_id?: string
           updated_at?: string | null
           vendor_id?: string

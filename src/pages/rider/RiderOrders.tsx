@@ -11,9 +11,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Package, MapPin, Phone, Clock, Loader2, ShieldCheck, RefreshCw } from 'lucide-react';
+import { Package, MapPin, Phone, Clock, Loader2, ShieldCheck, RefreshCw, Lock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useRepeatingNotificationSound } from '@/hooks/useRepeatingNotificationSound';
+import { useRiderRestrictions } from '@/hooks/useRiderRestrictions';
 import { format } from 'date-fns';
 
 // Generate a random 6-digit confirmation code
@@ -32,6 +33,7 @@ export default function RiderOrders() {
   const [isOnline, setIsOnline] = useState(false);
   const [floatModeEnabled, setFloatModeEnabled] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [riderProfile, setRiderProfile] = useState<any>(null);
   const [activeOrders, setActiveOrders] = useState<any[]>([]);
   const [completedOrders, setCompletedOrders] = useState<any[]>([]);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
@@ -40,6 +42,9 @@ export default function RiderOrders() {
   const [reassignDialogOpen, setReassignDialogOpen] = useState(false);
   const [orderToReassign, setOrderToReassign] = useState<any>(null);
   const previousOrderCount = useRef<number>(0);
+
+  // Use rider restrictions hook
+  const { isAffiliated, canViewEarnings } = useRiderRestrictions(riderProfile);
 
   useEffect(() => {
     checkAuth();
@@ -93,10 +98,11 @@ export default function RiderOrders() {
 
     const { data: profile } = await supabase
       .from('rider_profiles')
-      .select('is_online')
+      .select('*')
       .eq('user_id', user.id)
       .maybeSingle();
 
+    setRiderProfile(profile);
     setIsOnline(profile?.is_online || false);
     await fetchOrders();
   };
@@ -356,12 +362,20 @@ export default function RiderOrders() {
                   </div>
 
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-4 border-t">
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-sm text-muted-foreground">
-                        Earning: ₦{(Number(order.total) * 0.1).toLocaleString()}
-                      </span>
-                    </div>
+                    {/* Only show earnings for platform riders */}
+                    {canViewEarnings ? (
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground">
+                          Earning: ₦{(Number(order.total) * 0.1).toLocaleString()}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Lock className="w-4 h-4" />
+                        Vendor delivery
+                      </div>
+                    )}
 
                     {getNextStatus(order.status) && (
                       <div className="flex gap-2 flex-wrap">
@@ -427,7 +441,14 @@ export default function RiderOrders() {
                     <p className="text-sm text-muted-foreground truncate">
                       {order.vendors?.name} → {order.delivery_address_text?.split(',')[0]}
                     </p>
-                    <p className="font-medium">₦{(Number(order.total) * 0.1).toLocaleString()}</p>
+                    {canViewEarnings ? (
+                      <p className="font-medium">₦{(Number(order.total) * 0.1).toLocaleString()}</p>
+                    ) : (
+                      <Badge variant="secondary" className="text-xs">
+                        <Lock className="w-3 h-3 mr-1" />
+                        Completed
+                      </Badge>
+                    )}
                   </div>
                 </CardContent>
               </Card>

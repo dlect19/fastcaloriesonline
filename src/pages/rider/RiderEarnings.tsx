@@ -8,9 +8,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { DollarSign, TrendingUp, Wallet, ArrowUpRight, Loader2, FlaskConical } from 'lucide-react';
+import { DollarSign, TrendingUp, Wallet, ArrowUpRight, Loader2, FlaskConical, Lock, Package } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
+import { useRiderRestrictions } from '@/hooks/useRiderRestrictions';
 
 export default function RiderEarnings() {
   const navigate = useNavigate();
@@ -18,14 +19,35 @@ export default function RiderEarnings() {
   const { isTestMode } = useEnvironmentConfig();
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(false);
+  const [riderProfile, setRiderProfile] = useState<any>(null);
   const [wallet, setWallet] = useState<any>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
+  const [affiliatedVendorName, setAffiliatedVendorName] = useState<string | null>(null);
+
+  // Use rider restrictions hook
+  const { isAffiliated, affiliatedVendorId, canViewEarnings } = useRiderRestrictions(riderProfile);
 
   useEffect(() => {
     checkAuth();
   }, []);
+
+  // Fetch affiliated vendor name
+  useEffect(() => {
+    if (affiliatedVendorId) {
+      fetchVendorName(affiliatedVendorId);
+    }
+  }, [affiliatedVendorId]);
+
+  const fetchVendorName = async (vendorId: string) => {
+    const { data } = await supabase
+      .from('vendors')
+      .select('name')
+      .eq('id', vendorId)
+      .single();
+    if (data) setAffiliatedVendorName(data.name);
+  };
 
   const checkAuth = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -36,10 +58,11 @@ export default function RiderEarnings() {
 
     const { data: profile } = await supabase
       .from('rider_profiles')
-      .select('is_online')
+      .select('*')
       .eq('user_id', user.id)
       .maybeSingle();
 
+    setRiderProfile(profile);
     setIsOnline(profile?.is_online || false);
     await fetchEarnings(user.id);
   };
@@ -117,6 +140,38 @@ export default function RiderEarnings() {
     );
   }
 
+  // If rider is affiliated, show restricted view
+  if (isAffiliated) {
+    return (
+      <RiderLayout isOnline={isOnline} onToggleOnline={toggleOnline}>
+        <div className="mb-6 md:mb-8">
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground">Deliveries</h1>
+          <p className="text-muted-foreground text-sm md:text-base">
+            Rider for {affiliatedVendorName}
+          </p>
+        </div>
+
+        <Card className="mb-6">
+          <CardContent className="p-8 text-center">
+            <Lock className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+            <h2 className="text-xl font-bold mb-2">Earnings Not Available</h2>
+            <p className="text-muted-foreground mb-4">
+              As a dedicated rider for {affiliatedVendorName}, your earnings are managed directly by the vendor.
+            </p>
+            <p className="text-sm text-muted-foreground mb-6">
+              Please contact {affiliatedVendorName} for any questions about your compensation.
+            </p>
+            <Button variant="outline" onClick={() => navigate('/rider/orders')}>
+              <Package className="w-4 h-4 mr-2" />
+              View My Deliveries
+            </Button>
+          </CardContent>
+        </Card>
+      </RiderLayout>
+    );
+  }
+
+  // Platform rider - show full earnings
   const balance = isTestMode 
     ? (Number(wallet?.test_balance) || 0) 
     : (Number(wallet?.balance) || 0);
