@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TrendingUp, Wallet, ArrowUpRight, ArrowDownRight, Calendar, Clock, AlertCircle, FlaskConical } from 'lucide-react';
+import { TrendingUp, Wallet, ArrowUpRight, ArrowDownRight, Calendar, Clock, AlertCircle, FlaskConical, Bike } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -201,6 +201,7 @@ export default function VendorEarnings() {
   const getCategoryLabel = (category: string) => {
     const labels: Record<string, string> = {
       vendor_share: 'Order Earnings',
+      vendor_rider_share: 'Rider Delivery Revenue',
       platform_commission: 'Commission',
       withdrawal: 'Withdrawal',
       refund: 'Refund',
@@ -208,6 +209,11 @@ export default function VendorEarnings() {
     };
     return labels[category] || category;
   };
+
+  // Calculate rider delivery revenue from transactions
+  const riderDeliveryRevenue = transactions
+    .filter(tx => tx.category === 'vendor_rider_share' && tx.status === 'completed')
+    .reduce((sum, tx) => sum + tx.amount, 0);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -384,7 +390,37 @@ export default function VendorEarnings() {
             </Card>
           </div>
 
-          {/* Pending Payouts Info */}
+          {/* Rider Delivery Revenue Card */}
+          {riderDeliveryRevenue > 0 && (
+            <Card className="border-0 shadow-soft bg-gradient-to-br from-accent/5 to-accent/10">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-accent/20 flex items-center justify-center">
+                      <Bike className="w-6 h-6 text-accent" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Rider Delivery Revenue</p>
+                      <p className="text-2xl font-bold text-foreground">
+                        {formatCurrency(riderDeliveryRevenue)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Earnings from affiliated riders (included in Available Balance)
+                      </p>
+                    </div>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => navigate('/vendor/riders')}
+                  >
+                    View Riders
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {(wallet?.pending_payouts || 0) > 0 && (
             <Card className="border-0 shadow-soft bg-primary/5">
               <CardContent className="p-4">
