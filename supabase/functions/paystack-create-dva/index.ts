@@ -120,7 +120,29 @@ serve(async (req) => {
       );
     }
 
-    // Create dedicated virtual account on Paystack
+    // Verify customer exists in current Paystack environment before creating DVA
+    const verifyResponse = await fetch(
+      `https://api.paystack.co/customer/${wallet.paystack_customer_code}`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${paystackSecretKey}`,
+        },
+      }
+    );
+
+    if (!verifyResponse.ok) {
+      console.error("Customer not found in current Paystack environment");
+      return new Response(
+        JSON.stringify({ 
+          error: "Customer not found in current environment",
+          message: "Please re-create your Paystack customer first. The customer may have been created in a different environment (test vs production)."
+        }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Create dedicated virtual account on Paystack using customer_code
     const paystackResponse = await fetch("https://api.paystack.co/dedicated_account", {
       method: "POST",
       headers: {
@@ -128,7 +150,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        customer: wallet.paystack_customer_id,
+        customer: wallet.paystack_customer_code, // Use customer_code instead of ID
         preferred_bank: "wema-bank",
       }),
     });
