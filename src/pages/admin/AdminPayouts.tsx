@@ -348,9 +348,9 @@ export default function AdminPayouts() {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background flex">
         <AdminSidebar />
-        <main className="lg:ml-64 pt-14 lg:pt-0">
+        <main className="flex-1 lg:ml-0">
           <div className="p-6 space-y-6">
             <Skeleton className="h-8 w-48" />
             <div className="grid gap-4">
@@ -368,9 +368,9 @@ export default function AdminPayouts() {
   const totalProcessed = completedPayouts.reduce((sum, p) => sum + Number(p.amount), 0);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex">
       <AdminSidebar />
-      <main className="lg:ml-64 pt-14 lg:pt-0">
+      <main className="flex-1 lg:ml-0">
         <div className="p-6 space-y-6">
           <div className="flex items-center justify-between">
             <div>
