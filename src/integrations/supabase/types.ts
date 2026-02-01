@@ -754,6 +754,7 @@ export type Database = {
           account_number: string
           bank_code: string
           created_at: string | null
+          created_in_environment: string | null
           id: string
           is_default: boolean | null
           is_verified: boolean | null
@@ -767,6 +768,7 @@ export type Database = {
           account_number: string
           bank_code: string
           created_at?: string | null
+          created_in_environment?: string | null
           id?: string
           is_default?: boolean | null
           is_verified?: boolean | null
@@ -780,6 +782,7 @@ export type Database = {
           account_number?: string
           bank_code?: string
           created_at?: string | null
+          created_in_environment?: string | null
           id?: string
           is_default?: boolean | null
           is_verified?: boolean | null

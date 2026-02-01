@@ -16,22 +16,25 @@ interface CreateRecipientRequest {
   bank_name: string;
 }
 
-async function getPaystackSecretKey(): Promise<string> {
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-  
+// deno-lint-ignore no-explicit-any
+type SupabaseClient = any;
+
+async function getPaystackConfig(supabase: SupabaseClient): Promise<{ key: string; environment: string }> {
   const { data: envSetting } = await supabase
     .from("platform_settings")
     .select("value")
     .eq("key", "platform_environment")
     .single();
 
-  const environment = envSetting?.value || "development";
+  const environment = (envSetting?.value as string) || "development";
   
   console.log("Platform environment for recipient creation:", environment);
   
-  return environment === "production"
+  const key = environment === "production"
     ? Deno.env.get("PAYSTACK_LIVE_SECRET_KEY")!
     : Deno.env.get("PAYSTACK_TEST_SECRET_KEY")!;
+
+  return { key, environment };
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -75,10 +78,11 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Get the correct Paystack key based on environment
-    const paystackSecretKey = await getPaystackSecretKey();
+    // Get the correct Paystack key and environment
+    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const { key: paystackSecretKey, environment } = await getPaystackConfig(supabaseAdmin);
 
-    console.log("Creating Paystack recipient for user:", userId);
+    console.log("Creating Paystack recipient for user:", userId, "in environment:", environment);
 
     // Create recipient on Paystack
     const paystackResponse = await fetch("https://api.paystack.co/transferrecipient", {
@@ -177,7 +181,7 @@ const handler = async (req: Request): Promise<Response> => {
       .update({ is_default: false })
       .eq("user_id", userId);
 
-    // Save recipient to database
+    // Save recipient to database with environment tracking
     const { data: recipient, error: insertError } = await supabase
       .from("paystack_recipients")
       .insert({
@@ -189,6 +193,7 @@ const handler = async (req: Request): Promise<Response> => {
         recipient_code: recipientCode,
         is_verified: true,
         is_default: true,
+        created_in_environment: environment,
       })
       .select()
       .single();

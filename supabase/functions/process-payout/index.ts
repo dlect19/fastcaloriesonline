@@ -223,25 +223,54 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Get recipient code - check multiple sources
+    // Get recipient code and validate environment - check multiple sources
     let finalRecipientCode = payoutRequest.recipient_code || payoutRequest.paystack_recipients?.recipient_code;
+    let recipientEnvironment = payoutRequest.paystack_recipients?.created_in_environment;
     
     if (!finalRecipientCode) {
-      // Try to get from wallet
-      const { data: wallet } = await supabase
-        .from("wallets")
-        .select("paystack_recipient_code")
-        .eq("id", payoutRequest.wallet_id)
-        .single();
+      // Try to get from default recipient
+      const { data: defaultRecipient } = await supabase
+        .from("paystack_recipients")
+        .select("recipient_code, created_in_environment")
+        .eq("user_id", payoutRequest.user_id)
+        .eq("is_default", true)
+        .maybeSingle();
 
-      if (wallet?.paystack_recipient_code) {
-        finalRecipientCode = wallet.paystack_recipient_code;
+      if (defaultRecipient?.recipient_code) {
+        finalRecipientCode = defaultRecipient.recipient_code;
+        recipientEnvironment = defaultRecipient.created_in_environment;
+      } else {
+        // Fallback to wallet recipient code
+        const { data: wallet } = await supabase
+          .from("wallets")
+          .select("paystack_recipient_code")
+          .eq("id", payoutRequest.wallet_id)
+          .single();
+
+        if (wallet?.paystack_recipient_code) {
+          finalRecipientCode = wallet.paystack_recipient_code;
+        }
       }
     }
 
     if (!finalRecipientCode) {
       return new Response(
         JSON.stringify({ success: false, error: "No recipient code found. Please add bank details first." }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // CRITICAL: Validate recipient was created in current environment
+    if (recipientEnvironment && recipientEnvironment !== environment) {
+      console.log(`Environment mismatch: recipient created in ${recipientEnvironment}, current is ${environment}`);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Bank details were set up in ${recipientEnvironment} mode. Please re-add your bank account to enable ${environment} withdrawals.`,
+          require_bank_update: true,
+          recipient_environment: recipientEnvironment,
+          current_environment: environment,
+        }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
