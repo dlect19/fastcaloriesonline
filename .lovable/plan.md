@@ -1,294 +1,273 @@
 
-
-# Implementation Plan: Multiple Feature Enhancements
-
-This plan addresses 12 feature requests spanning order management, notifications, reviews, payments, and AI integration.
-
----
+# Implementation Plan: Fixing Reported Issues and Adding Vendor-Rider Management
 
 ## Overview
 
-The features are organized by priority and dependency into 4 phases:
-
-1. **Phase 1 - Quick Fixes** (Critical bugs and missing functionality)
-2. **Phase 2 - Notifications and Reviews** (User experience improvements)
-3. **Phase 3 - New Features** (Self-pickup, QR favorites, bulk orders)
-4. **Phase 4 - AI Integration** (Calorie estimation from images)
+This plan addresses six reported issues and introduces a new vendor-rider management system. The implementation will be done in phases to ensure stability.
 
 ---
 
-## Phase 1: Quick Fixes
+## Issues Summary
 
-### 1.1 Cancel Order When Payment Fails
-
-**Problem**: Orders remain "pending" when customers cancel/abandon payment.
-
-**Solution**: 
-- Add order expiration logic - orders with `payment_status='pending'` older than 30 minutes auto-cancel
-- Add a database trigger or scheduled job to mark stale pending orders as `cancelled`
-- Update VendorOrders page to show cancelled orders in completed tab
-
-**Files to modify**:
-- Create new migration for scheduled cleanup or trigger
-- `src/pages/vendor/VendorOrders.tsx` - Ensure cancelled status displays properly
-
-### 1.2 Takeaway Pack Total Not Summed
-
-**Problem**: Takeaway packs are displayed but their cost may not be included in the total correctly.
-
-**Analysis**: The Cart.tsx already calculates `packagingFee` and includes it in `total`. The order items are also created for packs. Need to verify the order creation in `paystack-initialize-payment`.
-
-**Solution**:
-- Verify `packagingFee` is included in the order total sent to Paystack
-- Ensure takeaway pack items appear in order summary on vendor side
-
-**Files to review/modify**:
-- `src/pages/Cart.tsx` (line 77: total calculation looks correct)
-- `supabase/functions/paystack-initialize-payment/index.ts` - Verify total matches
-
-### 1.3 Personal Riders for Vendor Not Prioritized
-
-**Problem**: Vendor's own affiliated riders should be prioritized but may not be working correctly.
-
-**Analysis**: The `assign-rider` function has logic for `own_rider_priority` but only checks `affiliated_vendor_id`. Need to also check `vendor_riders` table.
-
-**Solution**:
-- Update `assign-rider` edge function to query `vendor_riders` table for active riders
-- Prioritize riders in `vendor_riders` with matching `vendor_id` when `own_rider_priority=true`
-
-**Files to modify**:
-- `supabase/functions/assign-rider/index.ts`
+| Issue | Root Cause | Solution |
+|-------|------------|----------|
+| 1. Health Goals Failure | Database CHECK constraint only allows `maintain`, `light_eating`, `active_lifestyle` but app sends `lose_weight`, `gain_weight`, `build_muscle` | Alter constraint to allow all 6 values |
+| 2. Search Button Not Working | No actual search navigation - header only triggers `onSearch` callback which isn't connected to search page | Add search submission to navigate to `/explore` with query param |
+| 3. QR Code Scanner Not Working | Dialog shows placeholder camera icon instead of actual scanner | Integrate native camera QR scanning with fallback |
+| 4. Navigation App Not Respecting Admin Setting | `MapOptionsMenu` shows all navigation apps statically, ignores `default_navigation_app` setting | Fetch setting and show only the configured app |
+| 5. Download Button Link | "Download App" button navigates to `/auth` instead of `/install` | Change navigation target to `/install` |
+| 6. Vendor-Rider System Enhancement | Riders joining via vendor invite can still see all platform orders | Restrict vendor-affiliated riders to vendor-only orders |
 
 ---
 
-## Phase 2: Notifications and Reviews
+## Phase 1: Database Changes
 
-### 2.1 Rider Notification Sound for New Orders
+### 1.1 Fix Health Goal Constraint
 
-**Problem**: Riders don't get audio alerts for new available orders.
+The `profiles` table has a CHECK constraint that only allows three values:
+```sql
+CHECK ((health_goal = ANY (ARRAY['maintain', 'light_eating', 'active_lifestyle'])))
+```
 
-**Solution**:
-- Add `useRepeatingNotificationSound` hook to `RiderAvailableOrders.tsx`
-- Trigger sound when new orders enter the rider's work radius
-- Add `SoundEnableBanner` component for user gesture unlock
-- Stop sound when rider claims an order
+The app offers four different values:
+- `lose_weight`, `maintain`, `gain_weight`, `build_muscle`
 
-**Files to modify**:
-- `src/pages/rider/RiderAvailableOrders.tsx` - Add notification sound logic
-- `src/pages/rider/RiderDashboard.tsx` - Add alert sound for available orders
-
-### 2.2 Reviews Not Reflecting in Vendor Dashboard
-
-**Problem**: Customer reviews are submitted but vendor rating not updated.
-
-**Analysis**: The `RiderReviewForm` updates `rider_profiles.rating` but does NOT update `vendors.rating`.
-
-**Solution**:
-- After inserting a review with `vendor_rating`, recalculate and update `vendors.rating` and `vendors.total_ratings`
-- Add this logic to `RiderReviewForm.tsx`
-
-**Files to modify**:
-- `src/components/order/RiderReviewForm.tsx` - Add vendor rating update logic
-
-### 2.3 Reviews Not Showing on Explore Page
-
-**Problem**: Vendors on Explore page show static ratings, not updated from reviews.
-
-**Solution**:
-- Vendors already have a `rating` column that should be updated when reviews are submitted
-- Once 2.2 is fixed, the Explore page will automatically show correct ratings
-
----
-
-## Phase 3: New Features
-
-### 3.1 Payout Approval Process
-
-**Problem**: Admin needs to approve pending payouts.
-
-**Solution**:
-- Create `AdminPayouts.tsx` page for managing payout requests
-- Show pending, processing, completed, failed payouts
-- Add approve/reject actions that call `process-payout` edge function
-- Add navigation to AdminSidebar
-
-**Files to create**:
-- `src/pages/admin/AdminPayouts.tsx`
-
-**Files to modify**:
-- `src/components/admin/AdminSidebar.tsx` - Add Payouts link
-
-### 3.2 Receipt Going to Wrong Person
-
-**Problem**: Rider might be receiving customer receipt.
-
-**Analysis**: The `send-payment-receipt` function correctly fetches `order.user_id` and gets customer email from auth. The issue might be that `order.user_id` is sometimes set to a vendor/staff user.
-
-**Solution**:
-- Add logging to verify recipient email in `send-payment-receipt`
-- Ensure order creation always uses the authenticated customer's ID
-
-### 3.3 Self-Pickup Option
-
-**Problem**: Customers must use delivery even if they want to pick up themselves.
-
-**Solution**:
-- Add `delivery_type` column to orders table (`delivery` | `self_pickup`)
-- Update Cart.tsx with toggle for delivery type
-- When self-pickup: delivery_fee = 0, no rider assignment, show vendor address for pickup
-- Update order status flow for self-pickup (skip rider statuses)
-
-**Files to modify**:
-- Create migration for `delivery_type` column
-- `src/pages/Cart.tsx` - Add delivery type selector
-- `src/pages/vendor/VendorOrders.tsx` - Handle self-pickup orders differently
-- `supabase/functions/assign-rider/index.ts` - Skip assignment for self-pickup
-
-### 3.4 QR Code to Add Store as Favorite
-
-**Problem**: No way for customers to quickly favorite a vendor via QR scan.
-
-**Solution**:
-- Create `favorites` table: `id, user_id, vendor_id, created_at`
-- Generate QR codes for vendors that link to `/vendor/{id}?action=favorite`
-- Update VendorDetail.tsx to handle `?action=favorite` parameter
-- Add heart icon to VendorCard and VendorDetail for favoriting
-
-**Files to create**:
-- Migration for `favorites` table
-
-**Files to modify**:
-- `src/pages/VendorDetail.tsx` - Add favorite functionality
-- `src/pages/Favorites.tsx` - Connect to favorites table
-- `src/pages/vendor/VendorSettings.tsx` - Show vendor QR code with favorite link
-
-### 3.5 Bulk Orders from Different Locations
-
-**Problem**: Cannot order from multiple vendors in one session.
-
-**Solution**: This is a significant architectural change. Current cart is single-vendor.
-
-**Approach**:
-- Allow multiple vendor carts (cart per vendor)
-- Checkout creates separate orders per vendor
-- Each order has its own rider assignment
-- Single Paystack payment for combined total
-
-**Note**: This is complex and should be a separate project phase.
-
-### 3.6 Subscription Plans
-
-**Problem**: No subscription model for vendors.
-
-**Solution**:
-- Create `subscription_plans` table: `id, name, price, duration_days, commission_rate, visibility_boost, features`
-- Create `vendor_subscriptions` table: `id, vendor_id, plan_id, starts_at, ends_at, is_active`
-- Lower commission for subscribed vendors
-- Boost visibility in search results for premium vendors
-
-**Note**: This is a significant feature requiring payment integration for recurring billing.
-
----
-
-## Phase 4: AI Calorie Estimation
-
-### 4.1 AI-Powered Calorie Detection from Food Images
-
-**Problem**: Vendors manually enter calories; would be easier to auto-detect from images.
-
-**Solution**:
-- Use Lovable AI (google/gemini-2.5-flash with vision capability) to analyze food images
-- Create edge function `estimate-calories-from-image`
-- Update VendorMenu.tsx to call AI when image is uploaded
-- Pre-fill calorie and macro fields with AI estimates
-- Allow vendor to confirm or adjust values
-
-**Files to create**:
-- `supabase/functions/estimate-calories-from-image/index.ts`
-
-**Files to modify**:
-- `src/pages/vendor/VendorMenu.tsx` - Add "Estimate with AI" button after image upload
-
-**AI Integration Details**:
-- Model: `google/gemini-2.5-flash` (supports image analysis)
-- Prompt: "Analyze this food image and estimate nutritional content including calories, protein grams, carbs grams, fat grams, and fiber grams. Return as JSON."
-- Response handling: Parse AI response and populate form fields
-
----
-
-## Technical Implementation Details
-
-### Database Changes
+**Solution**: Drop the old constraint and create a new one that supports all 6 values (both old and new):
 
 ```sql
--- 1. Add delivery_type to orders
-ALTER TABLE orders ADD COLUMN delivery_type TEXT DEFAULT 'delivery' CHECK (delivery_type IN ('delivery', 'self_pickup'));
+ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_health_goal_check;
 
--- 2. Create favorites table
-CREATE TABLE favorites (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id),
-  vendor_id UUID NOT NULL REFERENCES vendors(id),
-  created_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(user_id, vendor_id)
-);
-
--- Enable RLS
-ALTER TABLE favorites ENABLE ROW LEVEL SECURITY;
-
--- Users can manage own favorites
-CREATE POLICY "Users can manage own favorites" ON favorites
-  FOR ALL USING (auth.uid() = user_id);
-
--- 3. Auto-cancel stale pending orders (trigger)
-CREATE OR REPLACE FUNCTION cancel_stale_pending_orders()
-RETURNS TRIGGER AS $$
-BEGIN
-  IF NEW.payment_status = 'pending' AND 
-     NEW.created_at < NOW() - INTERVAL '30 minutes' THEN
-    NEW.status := 'cancelled';
-    NEW.cancellation_reason := 'Payment not completed within time limit';
-  END IF;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-```
-
-### Edge Function: estimate-calories-from-image
-
-```typescript
-// Endpoint: /functions/v1/estimate-calories-from-image
-// Input: { imageUrl: string }
-// Output: { calories, protein_grams, carbs_grams, fats_grams, fiber_grams }
-
-// Uses Lovable AI Gateway with gemini-2.5-flash for image analysis
+ALTER TABLE public.profiles ADD CONSTRAINT profiles_health_goal_check 
+  CHECK (health_goal IS NULL OR health_goal = ANY (ARRAY[
+    'maintain', 'light_eating', 'active_lifestyle',
+    'lose_weight', 'gain_weight', 'build_muscle'
+  ]));
 ```
 
 ---
 
-## Recommended Implementation Order
+## Phase 2: Frontend Fixes
 
-1. **Week 1**: Phase 1 (Quick fixes) + Reviews fix (2.2, 2.3)
-2. **Week 2**: Rider notifications (2.1) + Admin Payouts (3.1) + Self-pickup (3.3)
-3. **Week 3**: Favorites/QR (3.4) + AI Calorie Estimation (4.1)
-4. **Future**: Bulk orders (3.5) + Subscriptions (3.6)
+### 2.1 Search Button Navigation
+
+**File**: `src/components/home/Header.tsx`
+
+**Current behavior**: The search input calls `onSearch?.(e.target.value)` on change, but nothing happens on Enter/submit.
+
+**Fix**: Add form submission that navigates to `/explore?q={searchQuery}` when user presses Enter:
+
+```tsx
+const handleSearchSubmit = (e: React.FormEvent) => {
+  e.preventDefault();
+  if (searchQuery.trim()) {
+    navigate(`/explore?q=${encodeURIComponent(searchQuery.trim())}`);
+  }
+};
+```
+
+**Also update** `src/pages/Explore.tsx` to read `?q=` from URL and pre-populate the search field.
 
 ---
 
-## Summary
+### 2.2 QR Code Scanner Integration
 
-| Feature | Complexity | Priority |
-|---------|------------|----------|
-| Cancel stale orders | Low | High |
-| Takeaway pack sum | Low | High |
-| Personal riders | Medium | High |
-| Rider notification sound | Medium | High |
-| Vendor rating update | Low | High |
-| Admin payouts page | Medium | Medium |
-| Receipt recipient fix | Low | Medium |
-| Self-pickup option | Medium | Medium |
-| QR favorites | Medium | Medium |
-| AI calorie estimation | Medium | Medium |
-| Bulk orders | High | Low |
-| Subscriptions | High | Low |
+**File**: `src/components/home/Header.tsx`
 
+**Current behavior**: Shows a placeholder camera icon with instructions to "use your camera app."
+
+**Fix**: Implement actual camera-based QR scanning using the browser's `BarcodeDetector` API (with fallback for unsupported browsers):
+
+1. Request camera access via `navigator.mediaDevices.getUserMedia`
+2. Stream video to a hidden `<video>` element
+3. Use `BarcodeDetector` API to detect QR codes
+4. Parse the QR content (expected format: `https://.../vendor/{id}?action=favorite`)
+5. Navigate to vendor page with favorite action
+
+For browsers without `BarcodeDetector` support, show instructions to use the native camera app.
+
+---
+
+### 2.3 Navigation App Respect Admin Setting
+
+**File**: `src/components/shared/MapOptionsMenu.tsx`
+
+**Current behavior**: Shows all 5 navigation apps (Google, Bing, OSM, HERE, native).
+
+**Fix**:
+1. Create a new hook `usePlatformSettings()` to fetch `default_navigation_app` setting
+2. Update `MapOptionsMenu` to:
+   - Show only the admin-configured app as the primary option
+   - Optionally show "Other apps" in a submenu for flexibility
+
+---
+
+### 2.4 Download Button Link
+
+**File**: `src/pages/Home.tsx` (line 181-187)
+
+**Current code**:
+```tsx
+<Button
+  onClick={() => navigate('/auth')}
+  variant="secondary"
+  className="font-semibold shadow-lg"
+>
+  Download App
+</Button>
+```
+
+**Fix**: Change navigation target:
+```tsx
+onClick={() => navigate('/install')}
+```
+
+---
+
+## Phase 3: Vendor-Rider Restriction System
+
+### 3.1 Architecture Overview
+
+When a rider joins a vendor's team via invite, they become a "vendor-affiliated rider" who can ONLY see and accept orders from that specific vendor.
+
+```text
++-------------------+       +-------------------+       +-------------------+
+|     Vendor        |       |   vendor_riders   |       |  Rider Profile    |
+|  (My Riders tab)  |------>|  (link table)     |<------|  (affiliated      |
+|                   |       |                   |       |   vendor_id)      |
++-------------------+       +-------------------+       +-------------------+
+         |                          |
+         v                          v
+  Generate Invite              Join Flow
+  (QR code/link)         (creates link + sets affiliation)
+```
+
+### 3.2 Database Changes
+
+Add a column to track restriction mode (for future flexibility):
+
+```sql
+ALTER TABLE public.vendor_riders 
+  ADD COLUMN IF NOT EXISTS restriction_mode TEXT 
+  DEFAULT 'vendor_only' 
+  CHECK (restriction_mode IN ('vendor_only', 'any_orders'));
+```
+
+### 3.3 Backend Changes: Available Orders Filter
+
+**File**: `src/pages/rider/RiderAvailableOrders.tsx`
+
+Update the order fetching logic to:
+1. Check if rider has `affiliated_vendor_id` set
+2. If affiliated, filter orders to only show those from the affiliated vendor
+3. If not affiliated (platform rider), show all nearby orders
+
+```tsx
+// Current query
+.select('*, vendors(name, address, latitude, longitude)')
+.eq('status', 'ready_for_pickup')
+.is('rider_id', null)
+.neq('delivery_type', 'self_pickup')
+
+// Updated query for affiliated riders
+if (profile.affiliated_vendor_id) {
+  query = query.eq('vendor_id', profile.affiliated_vendor_id);
+}
+```
+
+### 3.4 UI Changes: Hide Sensitive Information
+
+For vendor-affiliated riders, hide revenue/fee information they shouldn't see:
+
+**Files to update**:
+- `src/pages/rider/RiderDashboard.tsx` - Hide "Today's Earnings" if affiliated
+- `src/pages/rider/RiderAvailableOrders.tsx` - Hide "You'll earn" amount
+- `src/pages/rider/RiderOrders.tsx` - Hide earning amounts
+- `src/pages/rider/RiderEarnings.tsx` - Block access or show simplified view
+
+Create a helper hook `useRiderRestrictions()`:
+```tsx
+export function useRiderRestrictions(riderProfile: RiderProfile | null) {
+  const isAffiliated = !!riderProfile?.affiliated_vendor_id;
+  
+  return {
+    isAffiliated,
+    canViewEarnings: !isAffiliated, // Platform riders can see earnings
+    canViewAllOrders: !isAffiliated, // Platform riders see all orders
+  };
+}
+```
+
+### 3.5 Vendor Control Panel Enhancements
+
+**File**: `src/pages/vendor/VendorRiders.tsx`
+
+Add controls for vendor to manage their riders:
+1. Activate/Deactivate riders (already exists)
+2. View rider's delivery stats for their vendor only
+3. Remove rider from team
+
+---
+
+## Phase 4: Vendor-Rider Login Flow (Optional Enhancement)
+
+Currently, riders who join a vendor's team use the standard `/rider/auth` page. For a dedicated experience:
+
+### Option A: Use Existing Flow (Recommended)
+- Riders continue using `/rider/auth`
+- After login, the system detects their `affiliated_vendor_id` and adjusts their dashboard accordingly
+- The vendor's branding is shown in the rider dashboard header
+
+### Option B: Dedicated Login Page
+Create `/rider/login/:vendorId` similar to `/vendor/staff-login/:vendorId`:
+- Shows vendor branding
+- Validates rider is affiliated with that vendor
+- Redirects to restricted rider dashboard
+
+---
+
+## Implementation Checklist
+
+### Database Migration
+- [ ] Drop old `profiles_health_goal_check` constraint
+- [ ] Add new constraint with all 6 health goal values
+
+### Frontend Updates
+- [ ] `Header.tsx` - Add search form submission with Enter key
+- [ ] `Header.tsx` - Implement BarcodeDetector QR scanning
+- [ ] `Explore.tsx` - Read `?q=` query param on load
+- [ ] `MapOptionsMenu.tsx` - Use admin-configured navigation app
+- [ ] `Home.tsx` - Change Download button to `/install`
+
+### Rider Restriction System
+- [ ] `RiderAvailableOrders.tsx` - Filter orders by affiliated vendor
+- [ ] `RiderDashboard.tsx` - Conditionally hide earnings for affiliated riders
+- [ ] `RiderOrders.tsx` - Hide earnings info for affiliated riders
+- [ ] `useRiderRestrictions.ts` - Create helper hook
+
+### Hooks and Utilities
+- [ ] `usePlatformSettings.ts` - New hook for fetching platform settings
+
+---
+
+## Technical Notes
+
+### QR Scanner Browser Support
+- `BarcodeDetector` is supported in Chrome 88+, Edge 88+, Opera 74+
+- Safari and Firefox do not support it
+- For unsupported browsers, show fallback with manual entry option
+
+### Health Goals Mapping
+The app will use the new values (`lose_weight`, `maintain`, `gain_weight`, `build_muscle`). Old values in the database (`light_eating`, `active_lifestyle`) will still be valid but may not render correctly in the UI until the user updates their goal.
+
+---
+
+## Testing Recommendations
+
+After implementation:
+1. Test health goals save/update with all 6 values
+2. Test search navigation from home page
+3. Test QR scanning on supported browsers
+4. Verify only the admin-configured navigation app appears
+5. Test rider invitation flow end-to-end
+6. Verify affiliated riders only see their vendor's orders
+7. Confirm earnings are hidden for affiliated riders
