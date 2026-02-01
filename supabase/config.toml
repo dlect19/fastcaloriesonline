@@ -83,3 +83,6 @@ verify_jwt = false
 
 [functions.process-refund]
 verify_jwt = false
+
+[functions.verify-wallet-funding]
+verify_jwt = false
