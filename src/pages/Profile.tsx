@@ -3,13 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { BottomNav } from '@/components/home/BottomNav';
 import { ProfileHeader } from '@/components/profile/ProfileHeader';
 import { ProfileForm } from '@/components/profile/ProfileForm';
 import { CalorieGoalCard } from '@/components/profile/CalorieGoalCard';
 import { OrderHistoryCard } from '@/components/profile/OrderHistoryCard';
 import { AddressesCard } from '@/components/profile/AddressesCard';
-import { Leaf, ArrowLeft } from 'lucide-react';
+import { Leaf, ArrowLeft, Receipt, ChevronRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Tables } from '@/integrations/supabase/types';
 
@@ -130,6 +131,27 @@ export default function Profile() {
         />
 
         <OrderHistoryCard userId={user.id} />
+
+        {/* Transaction History Link */}
+        <Card 
+          className="border-0 shadow-soft cursor-pointer hover:bg-muted/50 transition-colors"
+          onClick={() => navigate('/profile/transactions')}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <Receipt className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <p className="font-medium">Transaction History</p>
+                  <p className="text-sm text-muted-foreground">View all your transactions</p>
+                </div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-muted-foreground" />
+            </div>
+          </CardContent>
+        </Card>
 
         <AddressesCard
           addresses={addresses}
