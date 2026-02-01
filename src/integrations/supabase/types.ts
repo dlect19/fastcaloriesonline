@@ -1788,6 +1788,7 @@ export type Database = {
           created_at: string
           eligible_balance: number | null
           id: string
+          is_disabled: boolean | null
           paystack_recipient_code: string | null
           pending_balance: number | null
           pending_payouts: number | null
@@ -1811,6 +1812,7 @@ export type Database = {
           created_at?: string
           eligible_balance?: number | null
           id?: string
+          is_disabled?: boolean | null
           paystack_recipient_code?: string | null
           pending_balance?: number | null
           pending_payouts?: number | null
@@ -1834,6 +1836,7 @@ export type Database = {
           created_at?: string
           eligible_balance?: number | null
           id?: string
+          is_disabled?: boolean | null
           paystack_recipient_code?: string | null
           pending_balance?: number | null
           pending_payouts?: number | null

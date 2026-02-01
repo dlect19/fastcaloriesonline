@@ -48,15 +48,15 @@ serve(async (req: Request) => {
       );
     }
 
-    // Check if wallet is disabled
+    // Check if wallet exists and is not disabled
     const { data: wallet, error: walletError } = await supabaseAdmin
       .from("wallets")
       .select("id, is_disabled")
       .eq("user_id", user.id)
       .eq("wallet_type", "customer")
-      .single();
+      .maybeSingle();
 
-    if (walletError && walletError.code !== "PGRST116") {
+    if (walletError) {
       console.error("Error fetching wallet:", walletError);
       return new Response(
         JSON.stringify({ error: "Failed to check wallet status" }),
@@ -64,7 +64,8 @@ serve(async (req: Request) => {
       );
     }
 
-    if (wallet?.is_disabled) {
+    // If wallet doesn't exist, that's okay - it will be created when funded
+    if (wallet?.is_disabled === true) {
       return new Response(
         JSON.stringify({ error: "Your wallet has been disabled. Please contact support." }),
         { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } }
