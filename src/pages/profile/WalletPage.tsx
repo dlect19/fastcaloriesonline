@@ -16,7 +16,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function WalletPage() {
   const { user, loading: authLoading } = useAuth();
-  const { wallet, balance, loading: walletLoading, isDisabled, hasDVA, dvaDetails, profileComplete, refetch } = useCustomerWallet();
+  const { wallet, balance, loading: walletLoading, isDisabled, hasDVA, dvaDetails, profileComplete, isTestMode, refetch } = useCustomerWallet();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -179,31 +179,39 @@ export default function WalletPage() {
                   <div>
                     <p className="font-medium">Virtual Account</p>
                     <p className="text-sm text-muted-foreground">
-                      {profileComplete 
-                        ? 'Get a bank account to fund wallet' 
-                        : 'Complete profile to enable'}
+                      {isTestMode 
+                        ? 'Only available in production mode'
+                        : profileComplete 
+                          ? 'Get a bank account to fund wallet' 
+                          : 'Complete profile to enable'}
                     </p>
                   </div>
                 </div>
-                <Button
-                  variant={profileComplete ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => {
-                    if (profileComplete) {
-                      setDvaDialogOpen(true);
-                    } else {
-                      navigate('/profile');
-                    }
-                  }}
-                  disabled={isDisabled}
-                >
-                  {profileComplete ? 'Get Account' : (
-                    <>
-                      <User className="w-4 h-4 mr-1" />
-                      Update Profile
-                    </>
-                  )}
-                </Button>
+                {isTestMode ? (
+                  <Button variant="outline" size="sm" disabled>
+                    Test Mode
+                  </Button>
+                ) : (
+                  <Button
+                    variant={profileComplete ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => {
+                      if (profileComplete) {
+                        setDvaDialogOpen(true);
+                      } else {
+                        navigate('/profile');
+                      }
+                    }}
+                    disabled={isDisabled}
+                  >
+                    {profileComplete ? 'Get Account' : (
+                      <>
+                        <User className="w-4 h-4 mr-1" />
+                        Update Profile
+                      </>
+                    )}
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
