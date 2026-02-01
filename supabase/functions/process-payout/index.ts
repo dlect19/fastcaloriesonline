@@ -219,10 +219,10 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Get recipient code
-    const recipientCode = payoutRequest.recipient_code || payoutRequest.paystack_recipients?.recipient_code;
+    // Get recipient code - check multiple sources
+    let finalRecipientCode = payoutRequest.recipient_code || payoutRequest.paystack_recipients?.recipient_code;
     
-    if (!recipientCode) {
+    if (!finalRecipientCode) {
       // Try to get from wallet
       const { data: wallet } = await supabase
         .from("wallets")
@@ -230,15 +230,17 @@ const handler = async (req: Request): Promise<Response> => {
         .eq("id", payoutRequest.wallet_id)
         .single();
 
-      if (!wallet?.paystack_recipient_code) {
-        return new Response(
-          JSON.stringify({ success: false, error: "No recipient code found" }),
-          { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
-        );
+      if (wallet?.paystack_recipient_code) {
+        finalRecipientCode = wallet.paystack_recipient_code;
       }
     }
 
-    const finalRecipientCode = recipientCode || payoutRequest.paystack_recipients?.recipient_code;
+    if (!finalRecipientCode) {
+      return new Response(
+        JSON.stringify({ success: false, error: "No recipient code found. Please add bank details first." }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
 
     console.log("Initiating Paystack transfer (PRODUCTION):", {
       amount: payoutRequest.amount,
