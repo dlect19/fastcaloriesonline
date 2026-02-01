@@ -1,140 +1,96 @@
 
 
-# Vendor Payout Integration Plan
+# Fix: Sync Rider Affiliation to vendor_riders Table
 
-## Problem Analysis
-
-The platform currently has **two separate tables** for withdrawal requests:
-
-1. **`payout_requests`** - Used by **riders**, integrated with admin approval and Paystack transfer processing
-2. **`withdrawal_requests`** - Used by **vendors**, NOT integrated with admin panel or Paystack processing
-
-Currently, 2 vendor withdrawal requests are pending in `withdrawal_requests` but are invisible to admins and cannot be processed.
-
----
+## Problem Identified
+The rider `diptvnetwork@gmail.com` is affiliated with Dlect food via the legacy `rider_profiles.affiliated_vendor_id` column, but the `vendor_riders` table (which the revenue trigger uses) has no corresponding entry.
 
 ## Solution Overview
-
-Unify the vendor withdrawal flow to use the same `payout_requests` table and admin approval workflow as riders. This involves:
-
-1. Updating the vendor withdrawal page to submit to `payout_requests`
-2. Ensuring the admin payout dashboard shows both rider AND vendor requests (already does since both use same table)
-3. The `process-payout` edge function already handles both user types
+We need to ensure affiliated riders appear in the `vendor_riders` table so:
+1. They show up on the vendor's "My Riders" page
+2. The revenue trigger correctly routes their earnings to the vendor
 
 ---
 
-## Technical Changes
+## Implementation Steps
 
-### 1. Update Vendor Withdraw Page
-
-**File:** `src/pages/vendor/VendorWithdraw.tsx`
-
-Changes needed:
-
-- Replace `withdrawal_requests` table with `payout_requests` table in the submit function
-- Update the fetch for withdrawal history to use `payout_requests`
-- Match the data structure used by riders (same columns)
-
-**Current Code (line ~317-327):**
-```typescript
-const { error } = await supabase
-  .from('withdrawal_requests')  // Wrong table
-  .insert({
-    wallet_id: wallet!.id,
-    user_id: user?.id,
-    amount,
-    bank_name: wallet!.bank_name,
-    bank_account_number: wallet!.bank_account_number,
-    bank_account_name: wallet!.bank_account_name || '',
-    user_type: 'vendor',
-  });
-```
-
-**Updated Code:**
-```typescript
-const { error } = await supabase
-  .from('payout_requests')  // Correct table
-  .insert({
-    wallet_id: wallet!.id,
-    user_id: user?.id,
-    amount,
-    bank_name: wallet!.bank_name,
-    bank_account_number: wallet!.bank_account_number,
-    bank_account_name: wallet!.bank_account_name || '',
-    user_type: 'vendor',
-    status: 'pending',  // Explicit status
-  });
-```
-
-**Current fetch (line ~167-174):**
-```typescript
-const { data: withdrawalData } = await supabase
-  .from('withdrawal_requests')
-  .select('*')
-  .eq('wallet_id', walletData.id)
-  .order('requested_at', { ascending: false })
-  .limit(20);
-```
-
-**Updated fetch:**
-```typescript
-const { data: payoutData } = await supabase
-  .from('payout_requests')
-  .select('*')
-  .eq('wallet_id', walletData.id)
-  .order('created_at', { ascending: false })
-  .limit(20);
-
-// Map to expected format
-setWithdrawals((payoutData || []).map(p => ({
-  id: p.id,
-  amount: p.amount,
-  status: p.status || 'pending',
-  requested_at: p.created_at,
-  processed_at: p.processed_at,
-  notes: p.failure_reason,
-})));
-```
-
----
-
-### 2. Migrate Existing Vendor Requests (Optional Data Migration)
-
-There are 2 pending vendor withdrawals in the old table. After implementation, you can run a one-time SQL migration to move them:
+### Step 1: Database - Add Missing vendor_riders Entry
+Create a record in `vendor_riders` to link this rider to Dlect food.
 
 ```sql
-INSERT INTO payout_requests (wallet_id, user_id, user_type, amount, status, bank_name, bank_account_number, bank_account_name, created_at)
-SELECT wallet_id, user_id, user_type, amount, status, bank_name, bank_account_number, bank_account_name, requested_at
-FROM withdrawal_requests
-WHERE status = 'pending';
+INSERT INTO vendor_riders (
+  vendor_id,
+  rider_profile_id,
+  invite_code,
+  is_active
+) VALUES (
+  'dab934e5-6938-4969-8de1-27683a745755',  -- Dlect food
+  '00f0de4b-b417-4f0a-9d97-ec9f24606722',  -- diptvnetwork rider profile
+  'LEGACY',                                  -- Mark as legacy affiliation
+  true
+);
 ```
 
+### Step 2: Database - Create Sync Trigger (Prevent Future Issues)
+Create a trigger that automatically creates a `vendor_riders` entry whenever `affiliated_vendor_id` is set on a rider profile.
+
+```sql
+CREATE OR REPLACE FUNCTION sync_rider_affiliation()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- When affiliated_vendor_id is set, ensure vendor_riders entry exists
+  IF NEW.affiliated_vendor_id IS NOT NULL THEN
+    INSERT INTO vendor_riders (vendor_id, rider_profile_id, invite_code, is_active)
+    VALUES (NEW.affiliated_vendor_id, NEW.id, 'AUTO_SYNC', true)
+    ON CONFLICT DO NOTHING;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER on_rider_affiliation_change
+  AFTER INSERT OR UPDATE OF affiliated_vendor_id ON rider_profiles
+  FOR EACH ROW
+  EXECUTE FUNCTION sync_rider_affiliation();
+```
+
+### Step 3: Update VendorRiders Page Query
+Modify the query to also check `rider_profiles.affiliated_vendor_id` as a fallback, and display user names properly.
+
+**File: `src/pages/vendor/VendorRiders.tsx`**
+- Update the rider fetch query to join with `profiles` table to get rider names
+- Add fallback to check `rider_profiles.affiliated_vendor_id` for legacy affiliations
+
+### Step 4: Update VendorRiderCard Component
+Ensure the card displays rider information correctly including:
+- Rider name (from profiles table)
+- Verification status
+- Online/offline status
+- Performance stats
+
 ---
 
-## Verification Checklist
+## Technical Details
 
-After implementation:
-- Vendors can submit withdrawal requests
-- Requests appear in Admin Payouts page under "Pending"
-- Admin can Approve/Reject vendor payouts
-- Admin can Retry failed vendor payouts
-- Success emails are sent to vendors when payout completes
+### Database Changes
+1. **One-time data fix**: Insert missing `vendor_riders` record for diptvnetwork
+2. **New trigger**: Auto-sync `rider_profiles.affiliated_vendor_id` → `vendor_riders` table
 
----
-
-## Files to Modify
-
+### Frontend Changes
 | File | Change |
 |------|--------|
-| `src/pages/vendor/VendorWithdraw.tsx` | Switch from `withdrawal_requests` to `payout_requests` table |
+| `src/pages/vendor/VendorRiders.tsx` | Join with profiles to get rider names, improve data fetching |
+| `src/components/vendor/VendorRiderCard.tsx` | Already updated - verify it displays correctly |
+
+### RLS Considerations
+- Existing policies on `vendor_riders` allow vendors to manage their own riders
+- No new RLS changes needed
 
 ---
 
-## Summary
-
-This is a simple but critical fix that unifies the payout workflow. Both riders and vendors will:
-1. Submit withdrawal requests to `payout_requests` table
-2. Appear in the unified Admin Payouts dashboard
-3. Be processed through the same `process-payout` edge function
-4. Receive success/failure email notifications
+## Expected Result After Fix
+When you visit `/vendor/riders` as Dlect food owner:
+- You'll see diptvnetwork@gmail.com listed as an affiliated rider
+- Their stats (orders, completed deliveries, your revenue share) will display
+- Future orders delivered by this rider will credit 80% to vendor wallet
 
