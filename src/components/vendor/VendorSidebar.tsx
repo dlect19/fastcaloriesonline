@@ -71,8 +71,8 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [] }
           <Menu className="w-5 h-5" />
         </Button>
         <div className="flex items-center gap-2 ml-3">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-            <Store className="w-4 h-4 text-primary-foreground" />
+          <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
+            <Store className="w-5 h-5 text-primary-foreground" />
           </div>
           <span className="font-semibold text-sm truncate">{vendorName}</span>
         </div>
@@ -91,8 +91,8 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [] }
         <div className="h-16 flex items-center justify-between px-4 border-b border-border">
           {!collapsed && (
             <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-                <Store className="w-5 h-5 text-primary-foreground" />
+              <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center">
+                <Store className="w-6 h-6 text-primary-foreground" />
               </div>
               <div className="min-w-0">
                 <p className="font-semibold text-sm truncate">{vendorName}</p>
