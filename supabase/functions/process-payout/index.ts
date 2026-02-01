@@ -332,6 +332,10 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Transfer initiated successfully:", paystackData.data.transfer_code);
 
+    // Check transfer status - if immediately successful, send success email
+    const transferStatus = paystackData.data.status;
+    const emailStatus = transferStatus === 'success' ? 'success' : 'processing';
+
     // Send withdrawal receipt email (fire and forget)
     try {
       await fetch(`${SUPABASE_URL}/functions/v1/send-withdrawal-receipt`, {
@@ -340,11 +344,22 @@ const handler = async (req: Request): Promise<Response> => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
         },
-        body: JSON.stringify({ payoutRequestId: payoutRequest.id, status: 'processing' }),
+        body: JSON.stringify({ payoutRequestId: payoutRequest.id, status: emailStatus }),
       });
-      console.log('Withdrawal receipt email triggered');
+      console.log(`Withdrawal receipt email triggered with status: ${emailStatus}`);
     } catch (emailErr) {
       console.error('Failed to trigger withdrawal receipt:', emailErr);
+    }
+
+    // If transfer is immediately successful, update the payout request status
+    if (transferStatus === 'success') {
+      await supabase
+        .from('payout_requests')
+        .update({
+          status: 'completed',
+          processed_at: new Date().toISOString(),
+        })
+        .eq('id', payoutRequest.id);
     }
 
     return new Response(
@@ -353,8 +368,10 @@ const handler = async (req: Request): Promise<Response> => {
         data: {
           transfer_code: paystackData.data.transfer_code,
           reference: payoutRequest.paystack_reference,
-          status: "processing",
-          message: "Transfer initiated. You will be notified once completed.",
+          status: transferStatus === 'success' ? 'completed' : 'processing',
+          message: transferStatus === 'success' 
+            ? "Transfer completed successfully. Email notification sent." 
+            : "Transfer initiated. You will be notified once completed.",
           environment: "production",
         }
       }),

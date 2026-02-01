@@ -35,7 +35,16 @@ interface PayoutRequest {
   processed_at: string | null;
   failure_reason: string | null;
   paystack_reference: string | null;
+  retry_count: number | null;
 }
+
+const isRetryableFailure = (reason: string | null): boolean => {
+  if (!reason) return false;
+  const lowerReason = reason.toLowerCase();
+  return lowerReason.includes('balance') || 
+         lowerReason.includes('insufficient') || 
+         lowerReason.includes('not enough');
+};
 
 const statusConfig: Record<string, { label: string; color: string; icon: typeof Clock }> = {
   pending: { label: 'Pending', color: 'bg-warning/10 text-warning', icon: Clock },
@@ -52,7 +61,7 @@ export default function AdminPayouts() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState<string | null>(null);
   const [selectedPayout, setSelectedPayout] = useState<PayoutRequest | null>(null);
-  const [dialogAction, setDialogAction] = useState<'approve' | 'reject' | null>(null);
+  const [dialogAction, setDialogAction] = useState<'approve' | 'reject' | 'retry' | null>(null);
 
   useEffect(() => {
     if (!authLoading && !role) {
@@ -107,6 +116,50 @@ export default function AdminPayouts() {
         description: error.message,
         variant: 'destructive'
       });
+    } finally {
+      setProcessing(null);
+      setSelectedPayout(null);
+      setDialogAction(null);
+    }
+  };
+
+  const handleRetry = async () => {
+    if (!selectedPayout) return;
+    
+    setProcessing(selectedPayout.id);
+    try {
+      // Reset status to pending and increment retry count
+      const { error: updateError } = await supabase
+        .from('payout_requests')
+        .update({ 
+          status: 'pending',
+          failure_reason: null,
+          retry_count: (selectedPayout.retry_count || 0) + 1
+        })
+        .eq('id', selectedPayout.id);
+
+      if (updateError) throw updateError;
+
+      // Now process the payout
+      const { data, error } = await supabase.functions.invoke('process-payout', {
+        body: { payout_request_id: selectedPayout.id }
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast({ title: '✅ Payout retry successful! Email sent to user.' });
+        fetchPayouts();
+      } else {
+        throw new Error(data?.error || 'Failed to process payout');
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Retry failed',
+        description: error.message,
+        variant: 'destructive'
+      });
+      fetchPayouts(); // Refresh to show updated status
     } finally {
       setProcessing(null);
       setSelectedPayout(null);
@@ -199,6 +252,9 @@ export default function AdminPayouts() {
             {payout.failure_reason && (
               <div className="pt-2 border-t">
                 <p className="text-destructive text-xs">{payout.failure_reason}</p>
+                {payout.retry_count && payout.retry_count > 0 && (
+                  <p className="text-muted-foreground text-xs mt-1">Retry attempts: {payout.retry_count}</p>
+                )}
               </div>
             )}
             {payout.paystack_reference && (
@@ -237,6 +293,28 @@ export default function AdminPayouts() {
                 disabled={processing === payout.id}
               >
                 Reject
+              </Button>
+            </div>
+          )}
+
+          {payout.status === 'failed' && isRetryableFailure(payout.failure_reason) && (
+            <div className="mt-4">
+              <Button 
+                size="sm" 
+                variant="outline"
+                className="w-full"
+                onClick={() => {
+                  setSelectedPayout(payout);
+                  setDialogAction('retry');
+                }}
+                disabled={processing === payout.id}
+              >
+                {processing === payout.id ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                ) : (
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                )}
+                Retry Payout
               </Button>
             </div>
           )}
@@ -423,6 +501,27 @@ export default function AdminPayouts() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleReject} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Reject Payout
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={dialogAction === 'retry'} onOpenChange={() => setDialogAction(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Retry Payout?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will retry the transfer of ₦{Number(selectedPayout?.amount || 0).toLocaleString()} to {selectedPayout?.bank_account_name}'s account. 
+              Make sure your Paystack balance is sufficient before retrying.
+              {selectedPayout?.retry_count && selectedPayout.retry_count > 0 && (
+                <span className="block mt-2 text-warning">This payout has been retried {selectedPayout.retry_count} time(s) already.</span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRetry}>
+              Retry Transfer
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
