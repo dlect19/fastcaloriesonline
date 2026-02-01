@@ -152,8 +152,7 @@ export default function VendorEarnings() {
         const eligibleBalance = isTestMode 
           ? Number(walletData.test_eligible_balance) || 0 
           : Number(walletData.eligible_balance) || 0;
-        // Total earned from transactions for test mode
-        const totalEarned = isTestMode ? 0 : Number(walletData.total_earned) || 0;
+        const totalEarned = Number(walletData.total_earned) || 0;
         setWallet({
           id: walletData.id,
           balance: balance,
@@ -390,36 +389,36 @@ export default function VendorEarnings() {
             </Card>
           </div>
 
-          {/* Rider Delivery Revenue Card */}
-          {riderDeliveryRevenue > 0 && (
-            <Card className="border-0 shadow-soft bg-gradient-to-br from-accent/5 to-accent/10">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-accent/20 flex items-center justify-center">
-                      <Bike className="w-6 h-6 text-accent" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Rider Delivery Revenue</p>
-                      <p className="text-2xl font-bold text-foreground">
-                        {formatCurrency(riderDeliveryRevenue)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Earnings from affiliated riders (included in Available Balance)
-                      </p>
-                    </div>
+          {/* Rider Delivery Revenue Card - Always show for vendors with affiliated riders */}
+          <Card className="border-0 shadow-soft bg-gradient-to-br from-accent/5 to-accent/10">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-accent/20 flex items-center justify-center">
+                    <Bike className="w-6 h-6 text-accent" />
                   </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => navigate('/vendor/riders')}
-                  >
-                    View Riders
-                  </Button>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Rider Delivery Revenue</p>
+                    <p className="text-2xl font-bold text-foreground">
+                      {formatCurrency(riderDeliveryRevenue)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {riderDeliveryRevenue > 0 
+                        ? 'Earnings from affiliated riders (included in Available Balance)'
+                        : 'Earnings from your affiliated riders will appear here'}
+                    </p>
+                  </div>
                 </div>
-              </CardContent>
-            </Card>
-          )}
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => navigate('/vendor/riders')}
+                >
+                  View Riders
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
           {(wallet?.pending_payouts || 0) > 0 && (
             <Card className="border-0 shadow-soft bg-primary/5">
