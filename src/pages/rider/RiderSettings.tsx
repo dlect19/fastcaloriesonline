@@ -50,6 +50,10 @@ export default function RiderSettings() {
   const [preferredState, setPreferredState] = useState('');
   const [workRadius, setWorkRadius] = useState(10);
   const [locatingGPS, setLocatingGPS] = useState(false);
+  
+  // NIN state
+  const [ninNumber, setNinNumber] = useState('');
+  const [savingNin, setSavingNin] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -264,6 +268,46 @@ export default function RiderSettings() {
     setRiderProfile((prev: any) => ({ ...prev, is_email_verified: true }));
     setShowEmailVerification(false);
     toast({ title: 'Email verified successfully!' });
+  };
+
+  const validateNIN = (nin: string) => {
+    return /^\d{11}$/.test(nin);
+  };
+
+  const handleSubmitNin = async () => {
+    if (!validateNIN(ninNumber)) {
+      toast({
+        title: 'Invalid NIN',
+        description: 'Please enter a valid 11-digit National Identification Number',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSavingNin(true);
+    try {
+      const { error } = await supabase
+        .from('rider_profiles')
+        .update({
+          nin_number: ninNumber,
+          nin_submitted_at: new Date().toISOString(),
+        })
+        .eq('user_id', userId);
+
+      if (error) throw error;
+
+      setRiderProfile((prev: any) => ({ 
+        ...prev, 
+        nin_number: ninNumber,
+        nin_submitted_at: new Date().toISOString(),
+      }));
+      toast({ title: 'NIN submitted successfully!', description: 'Your NIN will be verified by admin.' });
+    } catch (error: any) {
+      console.error('Error submitting NIN:', error);
+      toast({ title: 'Failed to submit NIN', description: error.message, variant: 'destructive' });
+    } finally {
+      setSavingNin(false);
+    }
   };
 
   if (loading) {
@@ -528,7 +572,44 @@ export default function RiderSettings() {
                       : 'Not submitted - Required to receive orders'}
                 </p>
               </div>
+              {riderProfile?.nin_verified && (
+                <CheckCircle className="w-5 h-5 text-calorie-low" />
+              )}
             </div>
+
+            {/* NIN Submission Form - Show only if not submitted */}
+            {!riderProfile?.nin_number && (
+              <div className="mt-4 p-4 border rounded-lg bg-muted/30 space-y-3">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 mt-0.5 text-amber-500 flex-shrink-0" />
+                  <p className="text-sm text-muted-foreground">
+                    Your NIN is required for security verification. It will be verified by our admin team before you can start receiving deliveries.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="nin-number">National Identification Number (NIN)</Label>
+                  <Input
+                    id="nin-number"
+                    value={ninNumber}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\D/g, '').slice(0, 11);
+                      setNinNumber(value);
+                    }}
+                    placeholder="Enter 11-digit NIN"
+                    maxLength={11}
+                  />
+                </div>
+                <Button 
+                  onClick={handleSubmitNin} 
+                  disabled={savingNin || ninNumber.length !== 11}
+                  size="sm"
+                  className="w-full"
+                >
+                  {savingNin ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
+                  Submit NIN for Verification
+                </Button>
+              </div>
+            )}
 
             {/* Account Verification */}
             <div className="flex items-center gap-3">
