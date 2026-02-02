@@ -15,6 +15,7 @@ interface DeliveryCompany {
   commission_rate: number;
   is_verified: boolean;
   is_active: boolean;
+  is_email_verified: boolean;
   bank_account_number: string | null;
   bank_code: string | null;
   bank_name: string | null;
@@ -28,6 +29,7 @@ interface UseDeliveryCompanyResult {
   loading: boolean;
   isOwner: boolean;
   isVerified: boolean;
+  isEmailVerified: boolean;
   refetch: () => Promise<void>;
 }
 
@@ -83,12 +85,14 @@ export function useDeliveryCompany(): UseDeliveryCompanyResult {
 
   const isOwner = company?.user_id === user?.id;
   const isVerified = company?.is_verified ?? false;
+  const isEmailVerified = company?.is_email_verified ?? false;
 
   return {
     company,
     loading,
     isOwner,
     isVerified,
+    isEmailVerified,
     refetch: fetchCompany,
   };
 }
