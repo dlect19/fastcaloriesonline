@@ -219,13 +219,16 @@ serve(async (req: Request) => {
       });
     }
 
-    // Check algorithm controls for high-value discounts
-    const { data: revenueCap } = await supabaseAdmin
+    // Get maximum discount cap (should not exceed platform commission)
+    const { data: maxDiscountSetting } = await supabaseAdmin
       .from("platform_settings")
       .select("value")
-      .eq("key", "promo_daily_revenue_cap_percent")
+      .eq("key", "spin_max_discount_percent")
       .single();
 
+    const maxDiscountPercent = parseFloat(maxDiscountSetting?.value || "20");
+
+    // Check algorithm controls for high-value discounts
     const { data: winnerLimit } = await supabaseAdmin
       .from("platform_settings")
       .select("value")
@@ -244,19 +247,37 @@ serve(async (req: Request) => {
     const segments = wheelConfig.spin_wheel_segments as any[];
     let eligibleSegments = [...segments];
 
-    // Filter out high discounts if limits are reached
+    // REVENUE PROTECTION: Filter out segments that exceed the max discount cap
+    // This ensures the platform never gives a discount higher than the commission it earns
+    eligibleSegments = eligibleSegments.filter((s: any) => {
+      // Always allow "Try Again" and 0% segments
+      if (s.is_try_again || s.discount_percentage === 0) {
+        return true;
+      }
+      // Only allow discounts up to the max cap
+      return s.discount_percentage <= maxDiscountPercent;
+    });
+
+    // Filter out high discounts if daily winner limits are reached
     if (todayStats) {
       const maxWinners = parseInt(winnerLimit?.value || "200");
       if (todayStats.high_discount_winners >= maxWinners) {
-        // Remove segments with 30%+ discount
-        eligibleSegments = segments.filter((s: any) => s.discount_percentage < 30);
+        // Remove segments with 30%+ discount (or whatever is close to cap)
+        eligibleSegments = eligibleSegments.filter((s: any) => s.discount_percentage < 30);
       }
     }
 
-    // If all high-value segments removed and we're left with nothing, use all
+    // If all high-value segments removed and we're left with nothing, use 0% and Try Again only
+    if (eligibleSegments.length === 0) {
+      eligibleSegments = segments.filter((s: any) => s.is_try_again || s.discount_percentage === 0);
+    }
+    
+    // Absolute fallback - if still nothing, use original segments (shouldn't happen)
     if (eligibleSegments.length === 0) {
       eligibleSegments = segments;
     }
+    
+    console.log(`Revenue protection: maxCap=${maxDiscountPercent}%, eligible segments=${eligibleSegments.length}`);
 
     // Calculate total weight
     const totalWeight = eligibleSegments.reduce((sum: number, s: any) => sum + Number(s.probability_weight), 0);
