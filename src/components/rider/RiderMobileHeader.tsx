@@ -14,7 +14,7 @@ export function RiderMobileHeader({ isOnline, onToggleOnline }: RiderMobileHeade
     <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border md:hidden">
       <div className="flex items-center justify-between p-4">
         <div className="flex items-center gap-3">
-          <img src={fastCaloriesLogo} alt="Fast Calories" className="w-10 h-10 object-contain" />
+          <img src={fastCaloriesLogo} alt="Fast Calories" className="w-12 h-12 object-contain" />
           <div>
             <h1 className="font-bold text-foreground text-sm">Fast Calories</h1>
             <p className="text-[10px] text-muted-foreground">Rider Portal</p>

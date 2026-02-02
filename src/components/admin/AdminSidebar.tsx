@@ -40,7 +40,7 @@ export function AdminSidebar() {
       {/* Logo Header */}
       <div className="p-6 border-b border-border">
         <div className="flex items-center gap-3">
-          <img src={fastCaloriesLogo} alt="Fast Calories" className="w-12 h-12 object-contain" />
+          <img src={fastCaloriesLogo} alt="Fast Calories" className="w-14 h-14 object-contain" />
           <div>
             <h1 className="font-bold text-foreground">Fast Calories</h1>
             <p className="text-xs text-muted-foreground">Admin Portal</p>

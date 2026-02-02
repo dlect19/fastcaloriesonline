@@ -252,7 +252,7 @@ export default function DeliveryCompanyAuth() {
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
             <div className="relative">
-              <img src={fastCaloriesLogo} alt="Fast Calories" className="w-16 h-16 object-contain" />
+              <img src={fastCaloriesLogo} alt="Fast Calories" className="w-20 h-20 object-contain" />
               <div className="absolute -bottom-1 -right-1 bg-primary rounded-full p-1">
                 <Truck className="w-4 h-4 text-primary-foreground" />
               </div>
