@@ -6,6 +6,8 @@ import { useTakeawayPacks } from '@/hooks/useTakeawayPacks';
 import { usePromoCode } from '@/hooks/usePromoCode';
 import { useDeliveryFee } from '@/hooks/useDeliveryFee';
 import { useCustomerWallet } from '@/hooks/useCustomerWallet';
+import { useSpinWheel } from '@/hooks/useSpinWheel';
+import { usePlatformPromos } from '@/hooks/usePlatformPromos';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { BottomNav } from '@/components/home/BottomNav';
@@ -15,6 +17,7 @@ import { AddressSelector } from '@/components/cart/AddressSelector';
 import { TakeawayPackDisplay } from '@/components/cart/TakeawayPackDisplay';
 import { PromoCodeInput } from '@/components/cart/PromoCodeInput';
 import { PaymentMethodSelector, PaymentMethod } from '@/components/cart/PaymentMethodSelector';
+import { ActiveDiscountSelector } from '@/components/cart/ActiveDiscountSelector';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { ArrowLeft, ShoppingBag, Leaf, Loader2, AlertTriangle, Store } from 'lucide-react';
@@ -37,6 +40,8 @@ export default function Cart() {
   const { getApplicablePacks } = useTakeawayPacks(vendorId);
   const { appliedPromo, incrementUsage } = usePromoCode();
   const { balance: walletBalance, isDisabled: isWalletDisabled, payWithWallet } = useCustomerWallet();
+  const { activeDiscounts, getBestDiscount, useDiscount } = useSpinWheel();
+  const { eligibility, getBestPlatformPromo, markFirstOrderUsed } = usePlatformPromos();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -49,6 +54,8 @@ export default function Cart() {
   const [vendorLocation, setVendorLocation] = useState<VendorLocation>({ latitude: null, longitude: null, address: null });
   const [deliveryType, setDeliveryType] = useState<DeliveryType>('delivery');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
+  const [selectedDiscountType, setSelectedDiscountType] = useState<'none' | 'promo' | 'spin' | 'platform'>('none');
+  const [selectedSpinDiscountId, setSelectedSpinDiscountId] = useState<string | null>(null);
 
   // Fetch vendor location for delivery fee calculation
   useEffect(() => {
