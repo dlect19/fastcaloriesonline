@@ -363,6 +363,107 @@ export type Database = {
         }
         Relationships: []
       }
+      delivery_companies: {
+        Row: {
+          address: string | null
+          bank_account_number: string | null
+          bank_code: string | null
+          bank_name: string | null
+          city: string | null
+          commission_rate: number
+          created_at: string
+          email: string | null
+          id: string
+          is_active: boolean
+          is_verified: boolean
+          logo_url: string | null
+          name: string
+          paystack_recipient_code: string | null
+          phone: string | null
+          state: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          address?: string | null
+          bank_account_number?: string | null
+          bank_code?: string | null
+          bank_name?: string | null
+          city?: string | null
+          commission_rate?: number
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          is_verified?: boolean
+          logo_url?: string | null
+          name: string
+          paystack_recipient_code?: string | null
+          phone?: string | null
+          state?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          address?: string | null
+          bank_account_number?: string | null
+          bank_code?: string | null
+          bank_name?: string | null
+          city?: string | null
+          commission_rate?: number
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          is_verified?: boolean
+          logo_url?: string | null
+          name?: string
+          paystack_recipient_code?: string | null
+          phone?: string | null
+          state?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      delivery_company_staff: {
+        Row: {
+          created_at: string
+          delivery_company_id: string
+          id: string
+          is_active: boolean
+          role: Database["public"]["Enums"]["delivery_company_staff_role"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          delivery_company_id: string
+          id?: string
+          is_active?: boolean
+          role?: Database["public"]["Enums"]["delivery_company_staff_role"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          delivery_company_id?: string
+          id?: string
+          is_active?: boolean
+          role?: Database["public"]["Enums"]["delivery_company_staff_role"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "delivery_company_staff_delivery_company_id_fkey"
+            columns: ["delivery_company_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       drug_reminders: {
         Row: {
           created_at: string
@@ -1411,6 +1512,7 @@ export type Database = {
           created_at: string
           current_latitude: number | null
           current_longitude: number | null
+          delivery_company_id: string | null
           id: string
           id_document_url: string | null
           is_email_verified: boolean | null
@@ -1437,6 +1539,7 @@ export type Database = {
           created_at?: string
           current_latitude?: number | null
           current_longitude?: number | null
+          delivery_company_id?: string | null
           id?: string
           id_document_url?: string | null
           is_email_verified?: boolean | null
@@ -1463,6 +1566,7 @@ export type Database = {
           created_at?: string
           current_latitude?: number | null
           current_longitude?: number | null
+          delivery_company_id?: string | null
           id?: string
           id_document_url?: string | null
           is_email_verified?: boolean | null
@@ -1490,6 +1594,13 @@ export type Database = {
             columns: ["affiliated_vendor_id"]
             isOneToOne: false
             referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rider_profiles_delivery_company_id_fkey"
+            columns: ["delivery_company_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_companies"
             referencedColumns: ["id"]
           },
         ]
@@ -2302,6 +2413,10 @@ export type Database = {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["admin_staff_role"]
       }
+      get_delivery_company_staff_role: {
+        Args: { _company_id: string; _user_id: string }
+        Returns: Database["public"]["Enums"]["delivery_company_staff_role"]
+      }
       get_platform_environment: { Args: never; Returns: string }
       get_vendor_staff_role: {
         Args: { _user_id: string; _vendor_id: string }
@@ -2319,16 +2434,25 @@ export type Database = {
         Args: { _user_id: string; _vendor_id: string }
         Returns: boolean
       }
+      owns_delivery_company: {
+        Args: { _company_id: string; _user_id: string }
+        Returns: boolean
+      }
       owns_vendor: {
         Args: { _user_id: string; _vendor_id: string }
         Returns: boolean
       }
       release_pending_vendor_earnings: { Args: never; Returns: number }
+      rider_belongs_to_company: {
+        Args: { _rider_user_id: string }
+        Returns: string
+      }
     }
     Enums: {
       admin_staff_role: "super_admin" | "admin" | "support" | "analyst"
-      app_role: "customer" | "vendor" | "rider" | "admin"
+      app_role: "customer" | "vendor" | "rider" | "admin" | "delivery_company"
       calorie_class: "carbs" | "protein" | "fats" | "fiber"
+      delivery_company_staff_role: "owner" | "manager" | "dispatcher"
       order_status:
         | "pending"
         | "confirmed"
@@ -2468,8 +2592,9 @@ export const Constants = {
   public: {
     Enums: {
       admin_staff_role: ["super_admin", "admin", "support", "analyst"],
-      app_role: ["customer", "vendor", "rider", "admin"],
+      app_role: ["customer", "vendor", "rider", "admin", "delivery_company"],
       calorie_class: ["carbs", "protein", "fats", "fiber"],
+      delivery_company_staff_role: ["owner", "manager", "dispatcher"],
       order_status: [
         "pending",
         "confirmed",
