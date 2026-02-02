@@ -55,11 +55,20 @@ import AdminNutrition from "./pages/admin/AdminNutrition";
 import AdminPayouts from "./pages/admin/AdminPayouts";
 import AdminCustomerWallets from "./pages/admin/AdminCustomerWallets";
 import AdminWalletFunding from "./pages/admin/AdminWalletFunding";
+import AdminDeliveryCompanies from "./pages/admin/AdminDeliveryCompanies";
 import Install from "./pages/Install";
 import Rewards from "./pages/Rewards";
 import TransactionHistoryPage from "./pages/profile/TransactionHistoryPage";
 import WalletPage from "./pages/profile/WalletPage";
 import NotFound from "./pages/NotFound";
+import DeliveryCompanyAuth from "./pages/delivery/DeliveryCompanyAuth";
+import DeliveryDashboard from "./pages/delivery/DeliveryDashboard";
+import DeliveryOrders from "./pages/delivery/DeliveryOrders";
+import DeliveryRiders from "./pages/delivery/DeliveryRiders";
+import DeliveryEarnings from "./pages/delivery/DeliveryEarnings";
+import DeliveryWithdraw from "./pages/delivery/DeliveryWithdraw";
+import DeliverySettings from "./pages/delivery/DeliverySettings";
+import DeliveryRiderJoin from "./pages/delivery/DeliveryRiderJoin";
 
 const queryClient = new QueryClient();
 
@@ -128,6 +137,16 @@ const App = () => (
               <Route path="/admin/payouts" element={<AdminPayouts />} />
               <Route path="/admin/customer-wallets" element={<AdminCustomerWallets />} />
               <Route path="/admin/wallet-funding" element={<AdminWalletFunding />} />
+              <Route path="/admin/delivery-companies" element={<AdminDeliveryCompanies />} />
+              {/* Delivery Company Portal Routes */}
+              <Route path="/delivery/auth" element={<DeliveryCompanyAuth />} />
+              <Route path="/delivery/dashboard" element={<DeliveryDashboard />} />
+              <Route path="/delivery/orders" element={<DeliveryOrders />} />
+              <Route path="/delivery/riders" element={<DeliveryRiders />} />
+              <Route path="/delivery/earnings" element={<DeliveryEarnings />} />
+              <Route path="/delivery/withdraw" element={<DeliveryWithdraw />} />
+              <Route path="/delivery/settings" element={<DeliverySettings />} />
+              <Route path="/delivery/rider/join/:companyId" element={<DeliveryRiderJoin />} />
               {/* Install Page */}
               <Route path="/install" element={<Install />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
