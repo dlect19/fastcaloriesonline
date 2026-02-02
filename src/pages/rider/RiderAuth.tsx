@@ -189,6 +189,34 @@ export default function RiderAuth() {
               .eq('user_id', signInData.user.id);
 
             if (existingRoles?.some(r => r.role === 'rider')) {
+              // If the rider role already exists, still persist the NIN they entered.
+              // This commonly happens for riders created via invitations who later try to "Sign Up".
+              const { data: existingRiderProfile, error: existingRiderProfileError } = await supabase
+                .from('rider_profiles')
+                .select('id, nin_number')
+                .eq('user_id', signInData.user.id)
+                .maybeSingle();
+
+              if (existingRiderProfileError) {
+                console.error('Error checking rider profile:', existingRiderProfileError);
+              }
+
+              if (!existingRiderProfile) {
+                await supabase.from('rider_profiles').insert({
+                  user_id: signInData.user.id,
+                  nin_number: ninNumber,
+                  nin_submitted_at: new Date().toISOString(),
+                });
+              } else if (!existingRiderProfile.nin_number) {
+                await supabase
+                  .from('rider_profiles')
+                  .update({
+                    nin_number: ninNumber,
+                    nin_submitted_at: new Date().toISOString(),
+                  })
+                  .eq('user_id', signInData.user.id);
+              }
+
               toast({ title: 'Welcome back!' });
               navigate(redirectUrl || '/rider/dashboard');
               return;

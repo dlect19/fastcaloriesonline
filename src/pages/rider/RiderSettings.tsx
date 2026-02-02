@@ -56,6 +56,13 @@ export default function RiderSettings() {
   const [savingNin, setSavingNin] = useState(false);
 
   useEffect(() => {
+    // Prefill input if we already have a submitted NIN (e.g. under review)
+    if (riderProfile?.nin_number) {
+      setNinNumber(riderProfile.nin_number);
+    }
+  }, [riderProfile?.nin_number]);
+
+  useEffect(() => {
     checkAuth();
     const savedFloatMode = localStorage.getItem('rider_float_mode');
     setFloatModeEnabled(savedFloatMode === 'true');
@@ -350,6 +357,52 @@ export default function RiderSettings() {
         </Alert>
       )}
 
+      {/* NIN Submission (always visible when missing) */}
+      {!riderProfile?.nin_number && (
+        <div className="max-w-2xl mb-4 md:mb-6">
+          <Card className="border-destructive/30 bg-destructive/5">
+            <CardHeader className="p-4 md:p-6">
+              <CardTitle className="text-lg md:text-xl flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5" />
+                Submit your NIN
+              </CardTitle>
+              <CardDescription>
+                Required for security verification before you can receive delivery requests.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 p-4 md:p-6 pt-0">
+              <div className="space-y-2">
+                <Label htmlFor="nin-number-top">National Identification Number (NIN)</Label>
+                <Input
+                  id="nin-number-top"
+                  inputMode="numeric"
+                  value={ninNumber}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, '').slice(0, 11);
+                    setNinNumber(value);
+                  }}
+                  placeholder="Enter 11-digit NIN"
+                  maxLength={11}
+                />
+              </div>
+
+              <Button
+                onClick={handleSubmitNin}
+                disabled={savingNin || ninNumber.length !== 11}
+                className="w-full"
+              >
+                {savingNin ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                ) : (
+                  <ShieldCheck className="w-4 h-4 mr-2" />
+                )}
+                Submit NIN for Verification
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       <div className="max-w-2xl space-y-4 md:space-y-6">
         {/* Personal Information */}
         <Card>
@@ -578,38 +631,7 @@ export default function RiderSettings() {
             </div>
 
             {/* NIN Submission Form - Show only if not submitted */}
-            {!riderProfile?.nin_number && (
-              <div className="mt-4 p-4 border rounded-lg bg-muted/30 space-y-3">
-                <div className="flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 mt-0.5 text-amber-500 flex-shrink-0" />
-                  <p className="text-sm text-muted-foreground">
-                    Your NIN is required for security verification. It will be verified by our admin team before you can start receiving deliveries.
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="nin-number">National Identification Number (NIN)</Label>
-                  <Input
-                    id="nin-number"
-                    value={ninNumber}
-                    onChange={(e) => {
-                      const value = e.target.value.replace(/\D/g, '').slice(0, 11);
-                      setNinNumber(value);
-                    }}
-                    placeholder="Enter 11-digit NIN"
-                    maxLength={11}
-                  />
-                </div>
-                <Button 
-                  onClick={handleSubmitNin} 
-                  disabled={savingNin || ninNumber.length !== 11}
-                  size="sm"
-                  className="w-full"
-                >
-                  {savingNin ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
-                  Submit NIN for Verification
-                </Button>
-              </div>
-            )}
+            {/* NIN submission happens in the dedicated card above (kept out of this list for clarity) */}
 
             {/* Account Verification */}
             <div className="flex items-center gap-3">
