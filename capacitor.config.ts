@@ -1,0 +1,13 @@
+import type { CapacitorConfig } from '@capacitor/cli';
+
+const config: CapacitorConfig = {
+  appId: 'app.lovable.35bd9daf0ce94743a361ec2d45be6932',
+  appName: 'fastcaloriesonline',
+  webDir: 'dist',
+  server: {
+    url: 'https://35bd9daf-0ce9-4743-a361-ec2d45be6932.lovableproject.com?forceHideBadge=true',
+    cleartext: true
+  }
+};
+
+export default config;
