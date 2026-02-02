@@ -1520,6 +1520,7 @@ export type Database = {
         Row: {
           color: string | null
           created_at: string | null
+          daily_winner_limit: number | null
           discount_percentage: number
           id: string
           is_try_again: boolean | null
@@ -1531,6 +1532,7 @@ export type Database = {
         Insert: {
           color?: string | null
           created_at?: string | null
+          daily_winner_limit?: number | null
           discount_percentage?: number
           id?: string
           is_try_again?: boolean | null
@@ -1542,6 +1544,7 @@ export type Database = {
         Update: {
           color?: string | null
           created_at?: string | null
+          daily_winner_limit?: number | null
           discount_percentage?: number
           id?: string
           is_try_again?: boolean | null

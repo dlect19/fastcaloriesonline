@@ -258,11 +258,45 @@ serve(async (req: Request) => {
       return s.discount_percentage <= maxDiscountPercent;
     });
 
-    // Filter out high discounts if daily winner limits are reached
+    // PER-SEGMENT DAILY WINNER LIMITS: Check how many people have won each segment today
+    const segmentIds = eligibleSegments.map((s: any) => s.id);
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    
+    const { data: todayWins } = await supabaseAdmin
+      .from("spin_results")
+      .select("segment_id")
+      .in("segment_id", segmentIds)
+      .gte("created_at", todayStart.toISOString());
+
+    // Count wins per segment
+    const segmentWinCounts: Record<string, number> = {};
+    (todayWins || []).forEach((win: any) => {
+      if (win.segment_id) {
+        segmentWinCounts[win.segment_id] = (segmentWinCounts[win.segment_id] || 0) + 1;
+      }
+    });
+
+    // Filter out segments that have reached their daily winner limit
+    eligibleSegments = eligibleSegments.filter((s: any) => {
+      // If no limit set (NULL), allow unlimited winners
+      if (s.daily_winner_limit === null || s.daily_winner_limit === undefined) {
+        return true;
+      }
+      // Check if segment has reached its limit
+      const currentWins = segmentWinCounts[s.id] || 0;
+      const hasCapacity = currentWins < s.daily_winner_limit;
+      if (!hasCapacity) {
+        console.log(`Segment "${s.segment_label}" reached daily limit (${currentWins}/${s.daily_winner_limit})`);
+      }
+      return hasCapacity;
+    });
+
+    // Filter out high discounts if global daily winner limits are reached
     if (todayStats) {
       const maxWinners = parseInt(winnerLimit?.value || "200");
       if (todayStats.high_discount_winners >= maxWinners) {
-        // Remove segments with 30%+ discount (or whatever is close to cap)
+        // Remove segments with 30%+ discount
         eligibleSegments = eligibleSegments.filter((s: any) => s.discount_percentage < 30);
       }
     }
@@ -277,7 +311,7 @@ serve(async (req: Request) => {
       eligibleSegments = segments;
     }
     
-    console.log(`Revenue protection: maxCap=${maxDiscountPercent}%, eligible segments=${eligibleSegments.length}`);
+    console.log(`Revenue protection: maxCap=${maxDiscountPercent}%, eligible segments=${eligibleSegments.length}, segment wins today:`, segmentWinCounts);
 
     // Calculate total weight
     const totalWeight = eligibleSegments.reduce((sum: number, s: any) => sum + Number(s.probability_weight), 0);
