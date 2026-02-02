@@ -90,6 +90,19 @@ export default function RiderAuth() {
         return;
       }
 
+      // Ensure rider_profile exists (fix for users who have rider role but no profile)
+      const { data: existingProfile } = await supabase
+        .from('rider_profiles')
+        .select('id')
+        .eq('user_id', data.user.id)
+        .maybeSingle();
+
+      if (!existingProfile) {
+        await supabase.from('rider_profiles').insert({
+          user_id: data.user.id,
+        });
+      }
+
       toast({ title: 'Welcome back!' });
       // Redirect to invite link if present, otherwise dashboard
       navigate(redirectUrl || '/rider/dashboard');
