@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 
 export default function DeliveryRiderJoin() {
+  // Route: /delivery/rider/join/:companyId
   const { companyId } = useParams<{ companyId: string }>();
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
