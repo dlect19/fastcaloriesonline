@@ -497,6 +497,62 @@ export type Database = {
           },
         ]
       }
+      order_financials: {
+        Row: {
+          company_revenue: number
+          created_at: string | null
+          environment: string | null
+          id: string
+          menu_price: number
+          order_id: string
+          promo_discount_amount: number
+          promo_source: string | null
+          promo_type: string | null
+          revenue_status: string
+          vendor_commission_amount: number
+          vendor_commission_percentage: number
+          vendor_payout: number
+        }
+        Insert: {
+          company_revenue: number
+          created_at?: string | null
+          environment?: string | null
+          id?: string
+          menu_price: number
+          order_id: string
+          promo_discount_amount?: number
+          promo_source?: string | null
+          promo_type?: string | null
+          revenue_status?: string
+          vendor_commission_amount: number
+          vendor_commission_percentage: number
+          vendor_payout: number
+        }
+        Update: {
+          company_revenue?: number
+          created_at?: string | null
+          environment?: string | null
+          id?: string
+          menu_price?: number
+          order_id?: string
+          promo_discount_amount?: number
+          promo_source?: string | null
+          promo_type?: string | null
+          revenue_status?: string
+          vendor_commission_amount?: number
+          vendor_commission_percentage?: number
+          vendor_payout?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_financials_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_items: {
         Row: {
           calories: number | null
@@ -611,6 +667,7 @@ export type Database = {
           environment: string | null
           estimated_delivery_at: string | null
           id: string
+          menu_subtotal: number | null
           order_number: string
           payment_method: string | null
           payment_reference: string | null
@@ -641,6 +698,7 @@ export type Database = {
           environment?: string | null
           estimated_delivery_at?: string | null
           id?: string
+          menu_subtotal?: number | null
           order_number: string
           payment_method?: string | null
           payment_reference?: string | null
@@ -671,6 +729,7 @@ export type Database = {
           environment?: string | null
           estimated_delivery_at?: string | null
           id?: string
+          menu_subtotal?: number | null
           order_number?: string
           payment_method?: string | null
           payment_reference?: string | null

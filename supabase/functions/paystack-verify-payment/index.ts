@@ -157,6 +157,26 @@ serve(async (req) => {
 
     console.log(`Order ${orderNumber} payment confirmed`);
 
+    // Log promo usage if discount was applied (Platform Absorbs Loss accounting)
+    if (orderData.discount && Number(orderData.discount) > 0) {
+      const menuSubtotal = Number(orderData.menu_subtotal) || (Number(orderData.subtotal) + Number(orderData.discount));
+      const discountPercentage = (Number(orderData.discount) / menuSubtotal) * 100;
+      
+      await supabaseClient.from("promo_usage_log").insert({
+        order_id: orderId,
+        user_id: orderData.user_id,
+        promo_type: orderData.promo_code?.startsWith("SPIN-") ? "spin" 
+          : orderData.promo_code ? "promo_code" 
+          : "platform_promo",
+        promo_source: orderData.promo_code?.startsWith("SPIN-") ? "spin_wheel" : "manual",
+        discount_percentage: discountPercentage,
+        discount_amount: Number(orderData.discount),
+        platform_cost: Number(orderData.discount),
+        environment: orderData.environment || "production",
+      });
+      console.log(`Logged promo usage: ${discountPercentage.toFixed(1)}% = ₦${orderData.discount}`);
+    }
+
     // Send payment receipt email (fire and forget)
     try {
       await fetch(`${supabaseUrl}/functions/v1/send-payment-receipt`, {
