@@ -375,6 +375,7 @@ export type Database = {
           email: string | null
           id: string
           is_active: boolean
+          is_email_verified: boolean | null
           is_verified: boolean
           logo_url: string | null
           name: string
@@ -395,6 +396,7 @@ export type Database = {
           email?: string | null
           id?: string
           is_active?: boolean
+          is_email_verified?: boolean | null
           is_verified?: boolean
           logo_url?: string | null
           name: string
@@ -415,6 +417,7 @@ export type Database = {
           email?: string | null
           id?: string
           is_active?: boolean
+          is_email_verified?: boolean | null
           is_verified?: boolean
           logo_url?: string | null
           name?: string
@@ -2427,6 +2430,10 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      is_delivery_company_email_verified: {
+        Args: { _company_id: string }
         Returns: boolean
       }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }

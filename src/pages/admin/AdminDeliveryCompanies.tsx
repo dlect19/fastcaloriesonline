@@ -21,6 +21,7 @@ interface DeliveryCompany {
   commission_rate: number;
   is_verified: boolean;
   is_active: boolean;
+  is_email_verified: boolean;
   created_at: string;
   rider_count?: number;
 }
@@ -188,7 +189,12 @@ export default function AdminDeliveryCompanies() {
                           {company.is_verified ? (
                             <Badge className="bg-success/20 text-success">Verified</Badge>
                           ) : (
-                            <Badge variant="secondary">Pending</Badge>
+                            <Badge variant="secondary">Pending Admin Verification</Badge>
+                          )}
+                          {company.is_email_verified ? (
+                            <Badge className="bg-primary/20 text-primary">Email Verified</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-warning border-warning">Email Not Verified</Badge>
                           )}
                           {!company.is_active && (
                             <Badge variant="destructive">Suspended</Badge>

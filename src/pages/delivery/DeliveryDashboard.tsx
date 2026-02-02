@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DeliverySidebar } from '@/components/delivery/DeliverySidebar';
+import { DeliveryEmailVerification } from '@/components/delivery/DeliveryEmailVerification';
 import { useAuth } from '@/hooks/useAuth';
 import { useDeliveryCompany } from '@/hooks/useDeliveryCompany';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
@@ -24,7 +25,7 @@ interface DashboardStats {
 export default function DeliveryDashboard() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const { company, loading: companyLoading, isVerified } = useDeliveryCompany();
+  const { company, loading: companyLoading, isVerified, isEmailVerified, refetch } = useDeliveryCompany();
   const { isTestMode } = useEnvironmentConfig();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
@@ -210,13 +211,24 @@ export default function DeliveryDashboard() {
             <p className="text-muted-foreground">Welcome back, {company.name}</p>
           </div>
 
-          {/* Verification Warning */}
+          {/* Email Verification */}
+          {company.email && (
+            <DeliveryEmailVerification
+              companyId={company.id}
+              email={company.email}
+              userId={company.user_id}
+              isVerified={isEmailVerified}
+              onVerified={refetch}
+            />
+          )}
+
+          {/* Admin Verification Warning */}
           {!isVerified && (
             <Card className="border-warning bg-warning/10">
               <CardContent className="flex items-center gap-3 py-4">
                 <AlertTriangle className="w-5 h-5 text-warning" />
                 <div>
-                  <p className="font-medium text-warning">Company Pending Verification</p>
+                  <p className="font-medium text-warning">Company Pending Admin Verification</p>
                   <p className="text-sm text-muted-foreground">
                     Your company is being reviewed by our team. You can still manage riders, but deliveries won't be assigned until verification is complete.
                   </p>
