@@ -17,6 +17,9 @@ import Favorites from "./pages/Favorites";
 import VerifyEmail from "./pages/VerifyEmail";
 import VerificationPending from "./pages/VerificationPending";
 import PaymentCallback from "./pages/PaymentCallback";
+import VendorLanding from "./pages/VendorLanding";
+import RiderLanding from "./pages/RiderLanding";
+import DeliveryCompanyLanding from "./pages/DeliveryCompanyLanding";
 import VendorAuth from "./pages/vendor/VendorAuth";
 import VendorDashboard from "./pages/vendor/VendorDashboard";
 import VendorMenu from "./pages/vendor/VendorMenu";
@@ -96,6 +99,10 @@ const App = () => (
               <Route path="/profile/transactions" element={<TransactionHistoryPage />} />
               <Route path="/profile/wallet" element={<WalletPage />} />
               <Route path="/rewards" element={<Rewards />} />
+              {/* Landing Pages */}
+              <Route path="/become-vendor" element={<VendorLanding />} />
+              <Route path="/become-rider" element={<RiderLanding />} />
+              <Route path="/become-partner" element={<DeliveryCompanyLanding />} />
               {/* Vendor Portal Routes */}
               <Route path="/vendor/auth" element={<VendorAuth />} />
               <Route path="/vendor/dashboard" element={<VendorDashboard />} />
