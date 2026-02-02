@@ -91,14 +91,30 @@ export default function DeliveryRiderJoin() {
         return;
       }
 
-      // Check if already in another delivery company
+      // Check if rider profile exists, create if not
       const { data: riderProfile } = await supabase
         .from('rider_profiles')
-        .select('delivery_company_id, affiliated_vendor_id')
+        .select('id, delivery_company_id, affiliated_vendor_id')
         .eq('user_id', user.id)
         .maybeSingle();
 
-      if (riderProfile?.delivery_company_id && riderProfile.delivery_company_id !== companyId) {
+      if (!riderProfile) {
+        // Create rider profile with delivery company
+        const { error: createError } = await supabase
+          .from('rider_profiles')
+          .insert({
+            user_id: user.id,
+            delivery_company_id: companyId,
+          });
+
+        if (createError) throw createError;
+
+        setJoined(true);
+        toast({ title: 'Successfully joined!', description: `You are now part of ${company?.name}` });
+        return;
+      }
+
+      if (riderProfile.delivery_company_id && riderProfile.delivery_company_id !== companyId) {
         toast({
           title: 'Already in a company',
           description: 'You are already affiliated with another delivery company.',
