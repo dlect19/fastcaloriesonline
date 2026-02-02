@@ -321,7 +321,7 @@ export default function VendorAuth() {
         <div className="w-full max-w-md">
           {/* Mobile Logo */}
           <div className="flex items-center gap-2 mb-8 lg:hidden">
-            <img src={fastCaloriesLogo} alt="Fast Calories" className="h-10 w-auto" />
+            <img src={fastCaloriesLogo} alt="Fast Calories" className="h-14 w-auto" />
           </div>
 
           <div className="mb-8">

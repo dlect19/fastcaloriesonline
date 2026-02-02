@@ -304,7 +304,7 @@ export default function RiderAuth() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <img src={fastCaloriesLogo} alt="Fast Calories" className="w-16 h-16 object-contain" />
+            <img src={fastCaloriesLogo} alt="Fast Calories" className="w-20 h-20 object-contain" />
           </div>
           <CardTitle className="text-2xl">Rider Portal</CardTitle>
           <CardDescription>
