@@ -278,11 +278,23 @@ export default function RiderDashboard() {
       {!riderProfile?.is_verified && (
         <Card className="mb-4 md:mb-6 border-calorie-medium">
           <CardContent className="p-3 md:p-4">
-            <p className="text-calorie-medium font-medium text-sm md:text-base">
-              ⚠️ Your account is pending verification. 
-              {!riderProfile?.nin_number && ' Please submit your NIN to complete registration.'}
-              {riderProfile?.nin_number && !riderProfile?.nin_verified && ' Your NIN is under review.'}
-            </p>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <p className="text-calorie-medium font-medium text-sm md:text-base">
+                ⚠️ Your account is pending verification. 
+                {!riderProfile?.nin_number && ' Please submit your NIN to complete registration.'}
+                {riderProfile?.nin_number && !riderProfile?.nin_verified && ' Your NIN is under review.'}
+              </p>
+              {!riderProfile?.nin_number && (
+                <Button 
+                  size="sm" 
+                  onClick={() => navigate('/rider/settings')}
+                  className="whitespace-nowrap"
+                >
+                  Submit NIN
+                  <ArrowRight className="w-4 h-4 ml-1" />
+                </Button>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}
