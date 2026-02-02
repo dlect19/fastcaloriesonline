@@ -20,7 +20,7 @@ export default function DeliveryCompanyLanding() {
         {/* Header */}
         <header className="relative z-10 flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
-            <img src={fastCaloriesLogo} alt="Fast Calories" className="h-10 w-auto" />
+            <img src={fastCaloriesLogo} alt="Fast Calories" className="h-14 w-auto" />
           </div>
           <Button
             onClick={() => navigate('/delivery/auth')}
@@ -163,10 +163,10 @@ export default function DeliveryCompanyLanding() {
         </section>
 
         {/* Floating decorations */}
-        <div className="absolute top-20 right-8 text-4xl animate-bounce opacity-60 hidden sm:block">🚚</div>
-        <div className="absolute top-40 left-12 text-3xl animate-bounce opacity-50 hidden sm:block" style={{ animationDelay: '0.5s' }}>📊</div>
-        <div className="absolute bottom-40 right-20 text-3xl animate-bounce opacity-50 hidden sm:block" style={{ animationDelay: '1s' }}>🤝</div>
-        <div className="absolute bottom-60 left-8 text-4xl animate-bounce opacity-60 hidden sm:block" style={{ animationDelay: '0.7s' }}>💼</div>
+        <div className="absolute top-20 right-4 sm:right-8 text-2xl sm:text-4xl animate-bounce opacity-60">🚚</div>
+        <div className="absolute top-40 left-4 sm:left-12 text-xl sm:text-3xl animate-bounce opacity-50" style={{ animationDelay: '0.5s' }}>📊</div>
+        <div className="absolute bottom-40 right-4 sm:right-20 text-xl sm:text-3xl animate-bounce opacity-50" style={{ animationDelay: '1s' }}>🤝</div>
+        <div className="absolute bottom-60 left-4 sm:left-8 text-2xl sm:text-4xl animate-bounce opacity-60" style={{ animationDelay: '0.7s' }}>💼</div>
 
         {/* Bottom CTA */}
         <div className="relative z-10 gradient-primary py-6 px-6">
