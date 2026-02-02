@@ -130,13 +130,69 @@ export default function DeliveryCompanyAuth() {
       });
 
       if (error) {
+        // If user already exists, try to sign them in and add the role
         if (error.message.includes('already registered') || error.message.includes('already exists')) {
-          toast({
-            title: 'Account exists',
-            description: 'An account with this email already exists. Please login.',
-            variant: 'destructive',
+          // Try to sign in with the provided credentials
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+            email: signupEmail,
+            password: signupPassword,
           });
-          return;
+
+          if (signInError) {
+            toast({
+              title: 'Account exists',
+              description: 'An account with this email exists. Please login with your existing password or use "Forgot Password" to reset it.',
+              variant: 'destructive',
+            });
+            return;
+          }
+
+          if (signInData.user) {
+            // Check if already a delivery company
+            const { data: existingRoles } = await supabase
+              .from('user_roles')
+              .select('role')
+              .eq('user_id', signInData.user.id);
+
+            if (existingRoles?.some(r => r.role === 'delivery_company')) {
+              toast({
+                title: 'Already registered',
+                description: 'Your company is already registered. Redirecting to dashboard.',
+              });
+              navigate('/delivery/dashboard');
+              return;
+            }
+
+            // Add delivery_company role to existing user
+            await supabase.from('user_roles').insert({
+              user_id: signInData.user.id,
+              role: 'delivery_company',
+            });
+
+            // Create delivery company record
+            await supabase.from('delivery_companies').insert({
+              user_id: signInData.user.id,
+              name: companyName,
+              email: signupEmail,
+              phone,
+              city,
+              state,
+              address,
+            });
+
+            // Update profile
+            await supabase.from('profiles').update({ 
+              phone, 
+              full_name: ownerName 
+            }).eq('user_id', signInData.user.id);
+
+            toast({
+              title: 'Company registered!',
+              description: 'Your delivery company has been created and linked to your existing account. Pending admin verification.',
+            });
+            navigate('/delivery/dashboard');
+            return;
+          }
         }
         throw error;
       }
