@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Wallet, ArrowUpRight, Building2, CreditCard, Settings, Loader2, ShieldCheck, FlaskConical, AlertTriangle } from 'lucide-react';
+import { Wallet, ArrowUpRight, Building2, CreditCard, Settings, Loader2, ShieldCheck, FlaskConical, AlertTriangle, Lock, Package } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,7 @@ import { BankAccountForm } from '@/components/BankAccountForm';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
+import { useRiderRestrictions } from '@/hooks/useRiderRestrictions';
 
 interface WalletData {
   id: string;
@@ -49,6 +50,7 @@ export default function RiderWithdraw() {
   const { isTestMode } = useEnvironmentConfig();
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(false);
+  const [riderProfile, setRiderProfile] = useState<any>(null);
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
@@ -74,9 +76,33 @@ export default function RiderWithdraw() {
   const [autoWithdrawThreshold, setAutoWithdrawThreshold] = useState('5000');
   const [autoWithdrawDay, setAutoWithdrawDay] = useState('1');
 
+  // Rider restrictions
+  const [affiliatedVendorName, setAffiliatedVendorName] = useState<string | null>(null);
+  const [deliveryCompanyName, setDeliveryCompanyName] = useState<string | null>(null);
+  const { isAffiliated, affiliatedVendorId, isDeliveryCompanyRider, deliveryCompanyId, canWithdraw } = useRiderRestrictions(riderProfile);
+
   useEffect(() => {
     checkAuth();
   }, []);
+
+  useEffect(() => {
+    if (affiliatedVendorId) {
+      fetchVendorName(affiliatedVendorId);
+    }
+    if (deliveryCompanyId) {
+      fetchDeliveryCompanyName(deliveryCompanyId);
+    }
+  }, [affiliatedVendorId, deliveryCompanyId]);
+
+  const fetchVendorName = async (vendorId: string) => {
+    const { data } = await supabase.from('vendors').select('name').eq('id', vendorId).single();
+    if (data) setAffiliatedVendorName(data.name);
+  };
+
+  const fetchDeliveryCompanyName = async (companyId: string) => {
+    const { data } = await supabase.from('delivery_companies').select('name').eq('id', companyId).single();
+    if (data) setDeliveryCompanyName(data.name);
+  };
 
   const checkAuth = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -87,10 +113,11 @@ export default function RiderWithdraw() {
 
     const { data: profile } = await supabase
       .from('rider_profiles')
-      .select('is_online')
+      .select('*')
       .eq('user_id', user.id)
       .maybeSingle();
 
+    setRiderProfile(profile);
     setIsOnline(profile?.is_online || false);
     setUserEmail(user.email || '');
     await fetchData(user.id);
@@ -350,6 +377,40 @@ export default function RiderWithdraw() {
     }
   };
 
+  // If rider is affiliated (vendor or delivery company), show restricted view
+  if (isAffiliated || isDeliveryCompanyRider) {
+    const managerName = isDeliveryCompanyRider ? deliveryCompanyName : affiliatedVendorName;
+    const managerType = isDeliveryCompanyRider ? 'delivery company' : 'vendor';
+    
+    return (
+      <RiderLayout isOnline={isOnline} onToggleOnline={toggleOnline} canViewEarnings={false}>
+        <div className="mb-6 md:mb-8">
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground">Withdraw</h1>
+          <p className="text-muted-foreground text-sm md:text-base">
+            Rider for {managerName}
+          </p>
+        </div>
+
+        <Card className="mb-6">
+          <CardContent className="p-8 text-center">
+            <Lock className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+            <h2 className="text-xl font-bold mb-2">Withdrawals Not Available</h2>
+            <p className="text-muted-foreground mb-4">
+              As a dedicated rider for {managerName}, withdrawals are managed directly by the {managerType}.
+            </p>
+            <p className="text-sm text-muted-foreground mb-6">
+              Please contact {managerName} for any questions about your payments.
+            </p>
+            <Button variant="outline" onClick={() => navigate('/rider/orders')}>
+              <Package className="w-4 h-4 mr-2" />
+              View My Deliveries
+            </Button>
+          </CardContent>
+        </Card>
+      </RiderLayout>
+    );
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -359,7 +420,7 @@ export default function RiderWithdraw() {
   }
 
   return (
-    <RiderLayout isOnline={isOnline} onToggleOnline={toggleOnline}>
+    <RiderLayout isOnline={isOnline} onToggleOnline={toggleOnline} canViewEarnings={true}>
       <div className="mb-6 md:mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-foreground">Withdraw Funds</h1>

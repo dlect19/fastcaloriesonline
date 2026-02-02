@@ -39,7 +39,7 @@ export default function RiderDashboard() {
   const [affiliatedVendorName, setAffiliatedVendorName] = useState<string | null>(null);
 
   // Use rider restrictions hook
-  const { isAffiliated, affiliatedVendorId, canViewEarnings } = useRiderRestrictions(riderProfile);
+  const { isAffiliated, affiliatedVendorId, isDeliveryCompanyRider, deliveryCompanyId, canViewEarnings } = useRiderRestrictions(riderProfile);
 
   useEffect(() => {
     checkAuth();
@@ -48,20 +48,26 @@ export default function RiderDashboard() {
     setFloatModeEnabled(savedFloatMode === 'true');
   }, []);
 
-  // Fetch affiliated vendor name
+  // Fetch affiliated vendor/company name
   useEffect(() => {
     if (affiliatedVendorId) {
       fetchVendorName(affiliatedVendorId);
     }
-  }, [affiliatedVendorId]);
+    if (deliveryCompanyId) {
+      fetchDeliveryCompanyName(deliveryCompanyId);
+    }
+  }, [affiliatedVendorId, deliveryCompanyId]);
+
+  const [deliveryCompanyName, setDeliveryCompanyName] = useState<string | null>(null);
 
   const fetchVendorName = async (vendorId: string) => {
-    const { data } = await supabase
-      .from('vendors')
-      .select('name')
-      .eq('id', vendorId)
-      .single();
+    const { data } = await supabase.from('vendors').select('name').eq('id', vendorId).single();
     if (data) setAffiliatedVendorName(data.name);
+  };
+
+  const fetchDeliveryCompanyName = async (companyId: string) => {
+    const { data } = await supabase.from('delivery_companies').select('name').eq('id', companyId).single();
+    if (data) setDeliveryCompanyName(data.name);
   };
 
   // Subscribe to realtime order updates
@@ -244,23 +250,26 @@ export default function RiderDashboard() {
     : 'Not set';
 
   return (
-    <RiderLayout isOnline={isOnline} onToggleOnline={toggleOnline}>
+    <RiderLayout isOnline={isOnline} onToggleOnline={toggleOnline} canViewEarnings={canViewEarnings}>
       <div className="mb-6 md:mb-8">
         <h1 className="text-2xl md:text-3xl font-bold text-foreground">Dashboard</h1>
         <p className="text-muted-foreground text-sm md:text-base">
-          {isAffiliated && affiliatedVendorName 
-            ? `Rider for ${affiliatedVendorName}` 
-            : 'Welcome back, rider!'}
+          {isDeliveryCompanyRider && deliveryCompanyName 
+            ? `Rider for ${deliveryCompanyName}` 
+            : (isAffiliated && affiliatedVendorName 
+              ? `Rider for ${affiliatedVendorName}` 
+              : 'Welcome back, rider!')}
         </p>
       </div>
 
       {/* Affiliated Rider Notice */}
-      {isAffiliated && (
+      {(isAffiliated || isDeliveryCompanyRider) && (
         <Card className="mb-4 md:mb-6 border-primary/30 bg-primary/5">
           <CardContent className="p-3 md:p-4">
             <p className="text-primary font-medium text-sm md:text-base flex items-center gap-2">
               <Lock className="w-4 h-4" />
-              You're a dedicated rider for {affiliatedVendorName}. You'll only see orders from this vendor.
+              You're a dedicated rider for {isDeliveryCompanyRider ? deliveryCompanyName : affiliatedVendorName}. 
+              {isDeliveryCompanyRider ? ' Your earnings are managed by your company.' : " You'll only see orders from this vendor."}
             </p>
           </CardContent>
         </Card>

@@ -1,24 +1,28 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, Package, DollarSign, ArrowUpRight, Settings, Power } from 'lucide-react';
+import { Home, Package, DollarSign, Settings, Power } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
-
-const navItems = [
-  { id: 'dashboard', icon: Home, label: 'Home', path: '/rider/dashboard' },
-  { id: 'orders', icon: Package, label: 'My Orders', path: '/rider/orders' },
-  { id: 'available', icon: Package, label: 'Available', path: '/rider/available' },
-  { id: 'earnings', icon: DollarSign, label: 'Earnings', path: '/rider/earnings' },
-  { id: 'settings', icon: Settings, label: 'Settings', path: '/rider/settings' },
-];
 
 interface RiderBottomNavProps {
   isOnline?: boolean;
   onToggleOnline?: (online: boolean) => void;
+  canViewEarnings?: boolean;
 }
 
-export function RiderBottomNav({ isOnline = false, onToggleOnline }: RiderBottomNavProps) {
+export function RiderBottomNav({ isOnline = false, onToggleOnline, canViewEarnings = true }: RiderBottomNavProps) {
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Build nav items based on permissions
+  const navItems = [
+    { id: 'dashboard', icon: Home, label: 'Home', path: '/rider/dashboard' },
+    { id: 'orders', icon: Package, label: 'My Orders', path: '/rider/orders' },
+    { id: 'available', icon: Package, label: 'Available', path: '/rider/available' },
+    ...(canViewEarnings ? [
+      { id: 'earnings', icon: DollarSign, label: 'Earnings', path: '/rider/earnings' },
+    ] : []),
+    { id: 'settings', icon: Settings, label: 'Settings', path: '/rider/settings' },
+  ];
 
   const currentTab = navItems.find(item => item.path === location.pathname)?.id || 'dashboard';
 

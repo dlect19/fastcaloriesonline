@@ -7,24 +7,28 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 
-const menuItems = [
-  { icon: Home, label: 'Dashboard', path: '/rider/dashboard' },
-  { icon: Package, label: 'My Deliveries', path: '/rider/orders' },
-  { icon: Package, label: 'Available Orders', path: '/rider/available' },
-  { icon: DollarSign, label: 'Earnings', path: '/rider/earnings' },
-  { icon: ArrowUpRight, label: 'Withdraw', path: '/rider/withdraw' },
-  { icon: Settings, label: 'Settings', path: '/rider/settings' },
-];
-
 interface RiderSidebarProps {
   isOnline?: boolean;
   onToggleOnline?: (online: boolean) => void;
+  canViewEarnings?: boolean;
 }
 
-export function RiderSidebar({ isOnline = false, onToggleOnline }: RiderSidebarProps) {
+export function RiderSidebar({ isOnline = false, onToggleOnline, canViewEarnings = true }: RiderSidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  // Build menu items based on permissions
+  const menuItems = [
+    { icon: Home, label: 'Dashboard', path: '/rider/dashboard' },
+    { icon: Package, label: 'My Deliveries', path: '/rider/orders' },
+    { icon: Package, label: 'Available Orders', path: '/rider/available' },
+    ...(canViewEarnings ? [
+      { icon: DollarSign, label: 'Earnings', path: '/rider/earnings' },
+      { icon: ArrowUpRight, label: 'Withdraw', path: '/rider/withdraw' },
+    ] : []),
+    { icon: Settings, label: 'Settings', path: '/rider/settings' },
+  ];
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
