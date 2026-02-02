@@ -153,16 +153,34 @@ serve(async (req: Request) => {
       notes: `Payment for order #${order.order_number}`,
     });
 
-    // Update order payment status
+    // Update order payment status and set status to confirmed
     await supabaseAdmin
       .from("orders")
       .update({
         payment_status: "paid",
+        status: "confirmed",
         payment_method: "wallet",
         payment_reference: reference,
         environment,
       })
       .eq("id", orderId);
+
+    // Log promo usage if discount was applied
+    if (Number(order.discount) > 0) {
+      const menuSubtotal = Number(order.menu_subtotal) || (Number(order.subtotal) + Number(order.discount));
+      const discountPercentage = (Number(order.discount) / menuSubtotal) * 100;
+      
+      await supabaseAdmin.from("promo_usage_log").insert({
+        order_id: orderId,
+        user_id: user.id,
+        promo_type: order.promo_code?.startsWith("SPIN-") ? "spin" : "promo_code",
+        promo_source: order.promo_code?.startsWith("SPIN-") ? "spin_wheel" : "manual",
+        discount_percentage: discountPercentage,
+        discount_amount: Number(order.discount),
+        platform_cost: Number(order.discount),
+        environment,
+      });
+    }
 
     // The database triggers (credit_vendor_on_payment, credit_rider_on_assignment) 
     // will handle vendor/rider/platform splits automatically

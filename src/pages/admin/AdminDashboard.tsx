@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { PromoImpactCard } from '@/components/admin/PromoImpactCard';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Package, Store, Bike, Users, DollarSign, TrendingUp, Loader2, Wallet, ArrowDownToLine, ArrowUpFromLine, PiggyBank, Percent, Receipt, Truck, CreditCard } from 'lucide-react';
 
@@ -389,6 +390,12 @@ export default function AdminDashboard() {
               </CardContent>
             </Card>
           </div>
+        </section>
+
+        {/* Promo Impact Analysis */}
+        <section>
+          <h2 className="text-lg font-semibold text-foreground mb-4">Promo Impact Analysis</h2>
+          <PromoImpactCard days={30} />
         </section>
 
         {/* Quick Actions */}
