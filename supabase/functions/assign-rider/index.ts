@@ -95,9 +95,10 @@ Deno.serve(async (req) => {
 
       // Fetch online riders with work preferences
       // Include verified riders who are online and have email verified
+      // This includes platform riders AND delivery company riders
       const { data: riders } = await supabase
         .from('rider_profiles')
-        .select('id, user_id, current_latitude, current_longitude, affiliated_vendor_id, preferred_latitude, preferred_longitude, work_radius_km, nin_number, nin_verified, is_email_verified')
+        .select('id, user_id, current_latitude, current_longitude, affiliated_vendor_id, delivery_company_id, preferred_latitude, preferred_longitude, work_radius_km, nin_number, nin_verified, is_email_verified')
         .eq('is_online', true)
         .eq('is_verified', true)
         .eq('is_email_verified', true);
@@ -149,10 +150,14 @@ Deno.serve(async (req) => {
           const isAffiliatedViaColumn = rider.affiliated_vendor_id === order.vendor_id;
           const isAffiliated = isAffiliatedViaTable || isAffiliatedViaColumn;
           
+          // Delivery company riders are also eligible - they're treated like platform riders
+          const isDeliveryCompanyRider = !!rider.delivery_company_id;
+          
           return {
             ...rider,
             distance,
             isAffiliated,
+            isDeliveryCompanyRider,
             withinWorkRadius,
           };
         })
@@ -176,7 +181,8 @@ Deno.serve(async (req) => {
       // Get the user_id of the nearest rider
       assignedRiderId = ridersWithDistance[0].user_id;
       const isAffiliated = ridersWithDistance[0].isAffiliated;
-      console.log(`Auto-assigned ${isAffiliated ? 'affiliated ' : ''}rider: ${assignedRiderId} (${ridersWithDistance[0].distance.toFixed(2)}km away)`);
+      const isDeliveryCompanyRider = ridersWithDistance[0].isDeliveryCompanyRider;
+      console.log(`Auto-assigned ${isAffiliated ? 'affiliated ' : ''}${isDeliveryCompanyRider ? 'delivery company ' : ''}rider: ${assignedRiderId} (${ridersWithDistance[0].distance.toFixed(2)}km away)`);
     }
 
     // Update order with assigned rider

@@ -8,9 +8,10 @@ interface RiderLayoutProps {
   children: ReactNode;
   isOnline: boolean;
   onToggleOnline: (online: boolean) => void;
+  canViewEarnings?: boolean;
 }
 
-export function RiderLayout({ children, isOnline, onToggleOnline }: RiderLayoutProps) {
+export function RiderLayout({ children, isOnline, onToggleOnline, canViewEarnings = true }: RiderLayoutProps) {
   const isMobile = useIsMobile();
 
   if (isMobile) {
@@ -20,14 +21,14 @@ export function RiderLayout({ children, isOnline, onToggleOnline }: RiderLayoutP
         <main className="flex-1 p-4 pb-36">
           {children}
         </main>
-        <RiderBottomNav isOnline={isOnline} onToggleOnline={onToggleOnline} />
+        <RiderBottomNav isOnline={isOnline} onToggleOnline={onToggleOnline} canViewEarnings={canViewEarnings} />
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-background flex">
-      <RiderSidebar isOnline={isOnline} onToggleOnline={onToggleOnline} />
+      <RiderSidebar isOnline={isOnline} onToggleOnline={onToggleOnline} canViewEarnings={canViewEarnings} />
       <main className="flex-1 p-8">
         {children}
       </main>

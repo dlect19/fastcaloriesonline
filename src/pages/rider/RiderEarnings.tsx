@@ -25,9 +25,10 @@ export default function RiderEarnings() {
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
   const [affiliatedVendorName, setAffiliatedVendorName] = useState<string | null>(null);
+  const [deliveryCompanyName, setDeliveryCompanyName] = useState<string | null>(null);
 
   // Use rider restrictions hook
-  const { isAffiliated, affiliatedVendorId, canViewEarnings } = useRiderRestrictions(riderProfile);
+  const { isAffiliated, affiliatedVendorId, isDeliveryCompanyRider, deliveryCompanyId, canViewEarnings } = useRiderRestrictions(riderProfile);
 
   useEffect(() => {
     checkAuth();
@@ -38,7 +39,10 @@ export default function RiderEarnings() {
     if (affiliatedVendorId) {
       fetchVendorName(affiliatedVendorId);
     }
-  }, [affiliatedVendorId]);
+    if (deliveryCompanyId) {
+      fetchDeliveryCompanyName(deliveryCompanyId);
+    }
+  }, [affiliatedVendorId, deliveryCompanyId]);
 
   const fetchVendorName = async (vendorId: string) => {
     const { data } = await supabase
@@ -47,6 +51,15 @@ export default function RiderEarnings() {
       .eq('id', vendorId)
       .single();
     if (data) setAffiliatedVendorName(data.name);
+  };
+
+  const fetchDeliveryCompanyName = async (companyId: string) => {
+    const { data } = await supabase
+      .from('delivery_companies')
+      .select('name')
+      .eq('id', companyId)
+      .single();
+    if (data) setDeliveryCompanyName(data.name);
   };
 
   const checkAuth = async () => {
@@ -140,14 +153,17 @@ export default function RiderEarnings() {
     );
   }
 
-  // If rider is affiliated, show restricted view
-  if (isAffiliated) {
+  // If rider is affiliated (vendor or delivery company), show restricted view
+  if (isAffiliated || isDeliveryCompanyRider) {
+    const managerName = isDeliveryCompanyRider ? deliveryCompanyName : affiliatedVendorName;
+    const managerType = isDeliveryCompanyRider ? 'delivery company' : 'vendor';
+    
     return (
-      <RiderLayout isOnline={isOnline} onToggleOnline={toggleOnline}>
+      <RiderLayout isOnline={isOnline} onToggleOnline={toggleOnline} canViewEarnings={false}>
         <div className="mb-6 md:mb-8">
           <h1 className="text-2xl md:text-3xl font-bold text-foreground">Deliveries</h1>
           <p className="text-muted-foreground text-sm md:text-base">
-            Rider for {affiliatedVendorName}
+            Rider for {managerName}
           </p>
         </div>
 
@@ -156,10 +172,10 @@ export default function RiderEarnings() {
             <Lock className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
             <h2 className="text-xl font-bold mb-2">Earnings Not Available</h2>
             <p className="text-muted-foreground mb-4">
-              As a dedicated rider for {affiliatedVendorName}, your earnings are managed directly by the vendor.
+              As a dedicated rider for {managerName}, your earnings are managed directly by the {managerType}.
             </p>
             <p className="text-sm text-muted-foreground mb-6">
-              Please contact {affiliatedVendorName} for any questions about your compensation.
+              Please contact {managerName} for any questions about your compensation.
             </p>
             <Button variant="outline" onClick={() => navigate('/rider/orders')}>
               <Package className="w-4 h-4 mr-2" />
@@ -183,7 +199,7 @@ export default function RiderEarnings() {
     : (Number(wallet?.total_earned) || 0);
 
   return (
-    <RiderLayout isOnline={isOnline} onToggleOnline={toggleOnline}>
+    <RiderLayout isOnline={isOnline} onToggleOnline={toggleOnline} canViewEarnings={true}>
       <div className="mb-6 md:mb-8">
         <div className="flex items-center gap-2">
           <h1 className="text-2xl md:text-3xl font-bold text-foreground">Earnings</h1>
