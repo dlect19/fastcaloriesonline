@@ -404,6 +404,40 @@ export default function Cart() {
             {/* Promo Code */}
             <PromoCodeInput subtotal={subtotal} vendorId={vendorId || undefined} onDiscountApplied={handlePromoApplied} />
 
+            {/* Active Discount Selector - Spin Rewards, Platform Promos, Promo Codes */}
+            <ActiveDiscountSelector
+              activeSpinDiscounts={activeDiscounts}
+              platformPromo={getBestPlatformPromo()}
+              hasPromoCode={!!appliedPromoCode && selectedDiscountType !== 'spin' && selectedDiscountType !== 'platform'}
+              promoCodeDiscount={promoDiscount}
+              subtotal={subtotal}
+              selectedType={selectedDiscountType}
+              selectedSpinId={selectedSpinDiscountId}
+              onSelect={(type, spinId) => {
+                setSelectedDiscountType(type);
+                if (type === 'spin' && spinId) {
+                  setSelectedSpinDiscountId(spinId);
+                  // Calculate spin discount
+                  const spinDiscount = activeDiscounts.find(d => d.id === spinId);
+                  if (spinDiscount) {
+                    setPromoDiscount(Math.round((subtotal * spinDiscount.discount_percentage) / 100));
+                  }
+                } else if (type === 'platform') {
+                  const platformPromo = getBestPlatformPromo();
+                  if (platformPromo) {
+                    setPromoDiscount(Math.round((subtotal * platformPromo.discount) / 100));
+                  }
+                  setSelectedSpinDiscountId(null);
+                } else if (type === 'promo') {
+                  // Keep existing promo code discount
+                  setSelectedSpinDiscountId(null);
+                } else {
+                  setPromoDiscount(0);
+                  setSelectedSpinDiscountId(null);
+                }
+              }}
+            />
+
             {/* Payment Method Selector */}
             <PaymentMethodSelector
               walletBalance={walletBalance}
