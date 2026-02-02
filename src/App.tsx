@@ -45,6 +45,7 @@ import AdminOrders from "./pages/admin/AdminOrders";
 import AdminVendors from "./pages/admin/AdminVendors";
 import AdminRiders from "./pages/admin/AdminRiders";
 import AdminPromos from "./pages/admin/AdminPromos";
+import AdminRewards from "./pages/admin/AdminRewards";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminStaff from "./pages/admin/AdminStaff";
 import AdminStaffJoin from "./pages/admin/AdminStaffJoin";
@@ -55,6 +56,7 @@ import AdminPayouts from "./pages/admin/AdminPayouts";
 import AdminCustomerWallets from "./pages/admin/AdminCustomerWallets";
 import AdminWalletFunding from "./pages/admin/AdminWalletFunding";
 import Install from "./pages/Install";
+import Rewards from "./pages/Rewards";
 import TransactionHistoryPage from "./pages/profile/TransactionHistoryPage";
 import WalletPage from "./pages/profile/WalletPage";
 import NotFound from "./pages/NotFound";
@@ -84,6 +86,7 @@ const App = () => (
               <Route path="/payment-callback" element={<PaymentCallback />} />
               <Route path="/profile/transactions" element={<TransactionHistoryPage />} />
               <Route path="/profile/wallet" element={<WalletPage />} />
+              <Route path="/rewards" element={<Rewards />} />
               {/* Vendor Portal Routes */}
               <Route path="/vendor/auth" element={<VendorAuth />} />
               <Route path="/vendor/dashboard" element={<VendorDashboard />} />
@@ -115,6 +118,7 @@ const App = () => (
               <Route path="/admin/vendors" element={<AdminVendors />} />
               <Route path="/admin/riders" element={<AdminRiders />} />
               <Route path="/admin/promos" element={<AdminPromos />} />
+              <Route path="/admin/rewards" element={<AdminRewards />} />
               <Route path="/admin/users" element={<AdminUsers />} />
               <Route path="/admin/staff" element={<AdminStaff />} />
               <Route path="/admin/staff/join/:code" element={<AdminStaffJoin />} />

@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, Package, Store, Bike, Ticket, Users, Settings, LogOut, Image, Activity, Banknote, Wallet, ArrowDownLeft } from 'lucide-react';
+import { Home, Package, Store, Bike, Ticket, Users, Settings, LogOut, Image, Activity, Banknote, Wallet, ArrowDownLeft, Gift } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -16,6 +16,7 @@ const menuItems = [
   { icon: ArrowDownLeft, label: 'Wallet Funding', path: '/admin/wallet-funding' },
   { icon: Activity, label: 'Nutrition', path: '/admin/nutrition' },
   { icon: Ticket, label: 'Promo Codes', path: '/admin/promos' },
+  { icon: Gift, label: 'Rewards & Spins', path: '/admin/rewards' },
   { icon: Image, label: 'Carousel', path: '/admin/advertisements' },
   { icon: Users, label: 'Users', path: '/admin/users' },
   { icon: Users, label: 'Admin Staff', path: '/admin/staff' },

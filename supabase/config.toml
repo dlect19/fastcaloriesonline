@@ -101,3 +101,6 @@ verify_jwt = false
 
 [functions.process-dva-funding]
 verify_jwt = false
+
+[functions.process-spin]
+verify_jwt = false

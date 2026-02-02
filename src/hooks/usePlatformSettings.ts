@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface PlatformSettings {
@@ -16,11 +16,7 @@ export function usePlatformSettings() {
   });
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchSettings();
-  }, []);
-
-  const fetchSettings = async () => {
+  const fetchSettings = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('platform_settings')
@@ -44,7 +40,27 @@ export function usePlatformSettings() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  return { settings, loading, refetch: fetchSettings };
+  const updateSetting = useCallback(async (key: string, value: string) => {
+    try {
+      const { error } = await supabase
+        .from('platform_settings')
+        .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+
+      if (error) throw error;
+
+      setSettings(prev => ({ ...prev, [key]: value }));
+      return true;
+    } catch (error) {
+      console.error('Error updating setting:', error);
+      return false;
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSettings();
+  }, [fetchSettings]);
+
+  return { settings, loading, refetch: fetchSettings, updateSetting };
 }
