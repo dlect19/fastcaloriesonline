@@ -16,6 +16,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { geocodeAndUpdateVendor } from '@/lib/geocoding';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Vendor = Tables<'vendors'>;
@@ -232,6 +233,21 @@ export default function VendorSettings() {
       if (error) throw error;
 
       toast({ title: 'Settings saved successfully' });
+      
+      // Geocode vendor location in background for delivery fee calculation
+      geocodeAndUpdateVendor(vendor.id, formData.address, formData.city, formData.state)
+        .then((result) => {
+          if (result) {
+            toast({ 
+              title: 'Location Updated',
+              description: 'Your business location has been geocoded for accurate delivery fees.',
+            });
+          }
+        })
+        .catch((err) => {
+          console.error('Vendor geocoding failed:', err);
+        });
+      
       fetchData();
     } catch (error: any) {
       toast({
