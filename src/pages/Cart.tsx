@@ -9,7 +9,7 @@ import { useCustomerWallet } from '@/hooks/useCustomerWallet';
 import { useSpinWheel } from '@/hooks/useSpinWheel';
 import { usePlatformPromos } from '@/hooks/usePlatformPromos';
 import { supabase } from '@/integrations/supabase/client';
-import { geocodeAndUpdateAddress } from '@/lib/geocoding';
+import { geocodeAddressWithSuggestions, updateAddressCoordinates, GeocodeSuggestion } from '@/lib/geocoding';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { BottomNav } from '@/components/home/BottomNav';
@@ -22,7 +22,7 @@ import { PaymentMethodSelector, PaymentMethod } from '@/components/cart/PaymentM
 import { ActiveDiscountSelector } from '@/components/cart/ActiveDiscountSelector';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { ArrowLeft, ShoppingBag, Leaf, Loader2, AlertTriangle, Store, Phone, MapPin } from 'lucide-react';
+import { ArrowLeft, ShoppingBag, Leaf, Loader2, AlertTriangle, Store, Phone, MapPin, Navigation } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Tables } from '@/integrations/supabase/types';
 
@@ -60,6 +60,8 @@ export default function Cart() {
   const [selectedSpinDiscountId, setSelectedSpinDiscountId] = useState<string | null>(null);
   const [receiverPhone, setReceiverPhone] = useState<string>('');
   const [geocodingAddress, setGeocodingAddress] = useState(false);
+  const [locationSuggestions, setLocationSuggestions] = useState<GeocodeSuggestion[]>([]);
+  const [selectingSuggestion, setSelectingSuggestion] = useState(false);
 
   // Fetch vendor location for delivery fee calculation
   useEffect(() => {
@@ -132,20 +134,21 @@ export default function Cart() {
         (!selectedAddress.latitude || !selectedAddress.longitude)
       ) {
         setGeocodingAddress(true);
+        setLocationSuggestions([]); // Clear previous suggestions
         toast({
           title: 'Calculating Distance...',
           description: 'Getting delivery address coordinates',
         });
 
-        const result = await geocodeAndUpdateAddress(
-          selectedAddress.id,
+        const { result, suggestions } = await geocodeAddressWithSuggestions(
           selectedAddress.address_line,
           selectedAddress.city,
           selectedAddress.state
         );
 
         if (result) {
-          // Update local state with coordinates
+          // Update database and local state with coordinates
+          await updateAddressCoordinates(selectedAddress.id, result.latitude, result.longitude);
           setSelectedAddress({
             ...selectedAddress,
             latitude: result.latitude,
@@ -155,10 +158,17 @@ export default function Cart() {
             title: 'Distance Calculated',
             description: 'Delivery fee updated based on your address.',
           });
+        } else if (suggestions.length > 0) {
+          // Show suggestions for user to pick from
+          setLocationSuggestions(suggestions);
+          toast({
+            title: 'Select Nearby Location',
+            description: 'Pick a nearby location or use GPS to set your coordinates.',
+          });
         } else {
           toast({
             title: 'Location Not Found',
-            description: 'Could not calculate distance. Base delivery fee applied.',
+            description: 'Use the GPS icon to capture your exact location.',
             variant: 'destructive',
           });
         }
@@ -168,6 +178,34 @@ export default function Cart() {
 
     geocodeIfNeeded();
   }, [selectedAddress?.id, deliveryType]);
+
+  // Handle selecting a location suggestion
+  const handleSelectSuggestion = async (suggestion: GeocodeSuggestion) => {
+    if (!selectedAddress) return;
+    
+    setSelectingSuggestion(true);
+    try {
+      await updateAddressCoordinates(selectedAddress.id, suggestion.latitude, suggestion.longitude);
+      setSelectedAddress({
+        ...selectedAddress,
+        latitude: suggestion.latitude,
+        longitude: suggestion.longitude,
+      });
+      setLocationSuggestions([]);
+      toast({
+        title: 'Location Set',
+        description: `Set to: ${suggestion.display_name}`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to set location',
+        variant: 'destructive',
+      });
+    } finally {
+      setSelectingSuggestion(false);
+    }
+  };
 
   // Calculate applicable takeaway packs
   const applicablePacks = useMemo(() => {
@@ -529,13 +567,49 @@ export default function Cart() {
                   </div>
                 )}
 
-                {/* ⚠️ Missing GPS warning – block checkout until fixed */}
+                {/* ⚠️ Missing GPS warning with suggestions – block checkout until fixed */}
                 {!geocodingAddress && addressMissingCoords && (
-                  <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-lg">
-                    <AlertTriangle className="w-4 h-4" />
-                    <span>
-                      We couldn't find your address. <strong>Tap the navigation icon</strong> next to your address to capture your GPS location so we can calculate accurate delivery fees.
-                    </span>
+                  <div className="space-y-3">
+                    {/* Warning message */}
+                    <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-lg">
+                      <AlertTriangle className="w-4 h-4 shrink-0" />
+                      <span>
+                        We couldn't find your exact address. Select a nearby location below or <strong>tap the navigation icon</strong> to capture your GPS.
+                      </span>
+                    </div>
+                    
+                    {/* Location suggestions */}
+                    {locationSuggestions.length > 0 && (
+                      <div className="bg-secondary/50 rounded-lg border border-border p-3 space-y-2">
+                        <p className="text-sm font-medium text-foreground flex items-center gap-2">
+                          <Navigation className="w-4 h-4 text-primary" />
+                          Select a nearby location:
+                        </p>
+                        <div className="space-y-2">
+                          {locationSuggestions.map((suggestion, index) => (
+                            <button
+                              key={index}
+                              onClick={() => handleSelectSuggestion(suggestion)}
+                              disabled={selectingSuggestion}
+                              className="w-full text-left p-2 rounded-md bg-background hover:bg-primary/10 border border-border transition-colors disabled:opacity-50"
+                            >
+                              <p className="text-sm font-medium text-foreground truncate">
+                                {suggestion.name || suggestion.display_name.split(',')[0]}
+                              </p>
+                              <p className="text-xs text-muted-foreground truncate">
+                                {suggestion.display_name}
+                              </p>
+                            </button>
+                          ))}
+                        </div>
+                        {selectingSuggestion && (
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            Setting location...
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 
