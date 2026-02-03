@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clock, CheckCircle, XCircle, Package, ChevronDown, ChevronUp, ShoppingBag, Store } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, Package, ChevronDown, ChevronUp, ShoppingBag, Store, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -21,6 +21,7 @@ import { AccessDenied } from '@/components/vendor/AccessDenied';
 import { OrderRiderInfo } from '@/components/vendor/OrderRiderInfo';
 import { SelfPickupVerifyDialog } from '@/components/vendor/SelfPickupVerifyDialog';
 import { SoundEnableBanner } from '@/components/shared/SoundEnableBanner';
+import { DispatchStatus } from '@/components/vendor/DispatchStatus';
 import { useAuth } from '@/hooks/useAuth';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
 import { useToast } from '@/hooks/use-toast';
@@ -40,6 +41,8 @@ const statusFlow: OrderStatus[] = [
   'confirmed',
   'preparing',
   'ready_for_pickup',
+  'searching_for_rider',
+  'assigned',
   'picked_up',
   'on_the_way',
   'delivered',
@@ -50,6 +53,8 @@ const statusConfig: Record<string, { label: string; color: string; icon: typeof 
   confirmed: { label: 'Confirmed', color: 'bg-info/10 text-info', icon: CheckCircle },
   preparing: { label: 'Preparing', color: 'bg-primary/10 text-primary', icon: Clock },
   ready_for_pickup: { label: 'Ready', color: 'bg-accent/10 text-accent', icon: Package },
+  searching_for_rider: { label: 'Finding Rider', color: 'bg-warning/10 text-warning', icon: Search },
+  assigned: { label: 'Rider Assigned', color: 'bg-info/10 text-info', icon: CheckCircle },
   picked_up: { label: 'Picked Up', color: 'bg-info/10 text-info', icon: Package },
   on_the_way: { label: 'On the Way', color: 'bg-primary/10 text-primary', icon: Package },
   delivered: { label: 'Delivered', color: 'bg-success/10 text-success', icon: CheckCircle },
@@ -226,26 +231,35 @@ export default function VendorOrders() {
       // Stop notification sound when vendor confirms/updates an order
       stopRepeating();
 
-      // Automatically assign a rider when order becomes ready for pickup
+      // Dispatch order to riders when order becomes ready for pickup
       if (newStatus === 'ready_for_pickup') {
         try {
-          const { data, error: assignError } = await supabase.functions.invoke('assign-rider', {
+          const { data, error: dispatchError } = await supabase.functions.invoke('dispatch-order', {
             body: { orderId }
           });
           
-          if (assignError) {
-            console.error('Error assigning rider:', assignError);
-          } else if (data?.success) {
-            toast({ title: 'Rider assigned to order!' });
-          } else if (data?.error) {
+          if (dispatchError) {
+            console.error('Error dispatching order:', dispatchError);
             toast({ 
-              title: 'No riders available', 
-              description: data.error,
-              variant: 'destructive' 
+              title: 'Dispatch started', 
+              description: 'Searching for nearby riders...',
             });
+          } else if (data?.success) {
+            if (data.eligibleRiderCount > 0) {
+              toast({ 
+                title: '🔔 Dispatching to riders', 
+                description: `Notifying ${data.eligibleRiderCount} nearby riders`,
+              });
+            } else {
+              toast({ 
+                title: 'Searching for riders', 
+                description: 'No riders online yet. Will retry automatically.',
+                variant: 'destructive',
+              });
+            }
           }
-        } catch (assignErr) {
-          console.error('Failed to call assign-rider:', assignErr);
+        } catch (dispatchErr) {
+          console.error('Failed to call dispatch-order:', dispatchErr);
         }
       }
 
@@ -272,7 +286,7 @@ export default function VendorOrders() {
   };
 
   const activeOrders = orders.filter((o) =>
-    ['pending', 'confirmed', 'preparing', 'ready_for_pickup'].includes(o.status)
+    ['pending', 'confirmed', 'preparing', 'ready_for_pickup', 'searching_for_rider', 'assigned'].includes(o.status)
   );
   const completedOrders = orders.filter((o) =>
     ['delivered', 'cancelled', 'picked_up', 'on_the_way'].includes(o.status)
@@ -505,8 +519,21 @@ export default function VendorOrders() {
           </div>
         </div>
 
+        {/* Dispatch Status - Show when searching for rider */}
+        {order.delivery_type !== 'self_pickup' && 
+         ['ready_for_pickup', 'searching_for_rider'].includes(order.status) && 
+         !order.rider_id && (
+          <div className="px-4 pb-4">
+            <DispatchStatus 
+              orderId={order.id} 
+              orderNumber={order.order_number}
+              onRiderAssigned={fetchData}
+            />
+          </div>
+        )}
+
         {/* Rider Info - Only for delivery orders */}
-        {order.delivery_type !== 'self_pickup' && order.rider_id && ['ready_for_pickup', 'picked_up', 'on_the_way', 'delivered'].includes(order.status) && (
+        {order.delivery_type !== 'self_pickup' && order.rider_id && ['assigned', 'ready_for_pickup', 'picked_up', 'on_the_way', 'delivered'].includes(order.status) && (
           <div className="px-4 pb-4">
             <OrderRiderInfo riderId={order.rider_id} orderStatus={order.status} />
           </div>
