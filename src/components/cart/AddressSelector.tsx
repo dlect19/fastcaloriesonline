@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { geocodeAndUpdateAddress } from '@/lib/geocoding';
+import { useGeolocation } from '@/hooks/useGeolocation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Skeleton } from '@/components/ui/skeleton';
-import { MapPin, Plus, Home, Briefcase, ChevronRight, Loader2 } from 'lucide-react';
+import { MapPin, Plus, Home, Briefcase, ChevronRight, Loader2, Navigation, CheckCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Tables } from '@/integrations/supabase/types';
 
@@ -38,15 +39,110 @@ export function AddressSelector({
   onAddressAdded,
 }: AddressSelectorProps) {
   const { toast } = useToast();
+  const { latitude: geoLat, longitude: geoLon, getCurrentPosition, loading: geoLoading, error: geoError } = useGeolocation();
   const [isOpen, setIsOpen] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [gpsLocation, setGpsLocation] = useState<{ lat: number; lon: number } | null>(null);
+  const [updatingGps, setUpdatingGps] = useState<string | null>(null);
+  const [pendingGpsUpdate, setPendingGpsUpdate] = useState<string | null>(null);
+  const [waitingForGps, setWaitingForGps] = useState<'new' | null>(null);
   const [formData, setFormData] = useState({
     label: 'Home',
     address_line: '',
     city: '',
     state: '',
   });
+
+  // Handle GPS location updates for new address
+  useEffect(() => {
+    if (waitingForGps === 'new' && geoLat && geoLon && !geoLoading) {
+      setGpsLocation({ lat: geoLat, lon: geoLon });
+      setWaitingForGps(null);
+      toast({
+        title: 'Location Captured',
+        description: 'GPS coordinates saved. Now fill in the address details.',
+      });
+    }
+    if (waitingForGps === 'new' && geoError && !geoLoading) {
+      setWaitingForGps(null);
+      toast({
+        title: 'Location Error',
+        description: geoError,
+        variant: 'destructive',
+      });
+    }
+  }, [geoLat, geoLon, geoLoading, geoError, waitingForGps, toast]);
+
+  // Handle GPS location updates for existing address
+  useEffect(() => {
+    const updateAddress = async () => {
+      if (pendingGpsUpdate && geoLat && geoLon && !geoLoading) {
+        const addressId = pendingGpsUpdate;
+        setPendingGpsUpdate(null);
+
+        try {
+          const { error } = await supabase
+            .from('addresses')
+            .update({
+              latitude: geoLat,
+              longitude: geoLon,
+            })
+            .eq('id', addressId);
+
+          if (error) throw error;
+
+          // Update local state
+          const updatedAddress = addresses.find(a => a.id === addressId);
+          if (updatedAddress && selectedAddress?.id === addressId) {
+            onSelect({
+              ...updatedAddress,
+              latitude: geoLat,
+              longitude: geoLon,
+            });
+          }
+          
+          onAddressAdded(); // Refresh addresses list
+          
+          toast({
+            title: 'Location Updated',
+            description: 'GPS coordinates saved for accurate delivery fee.',
+          });
+        } catch (error) {
+          toast({
+            title: 'Error',
+            description: 'Failed to update location',
+            variant: 'destructive',
+          });
+        } finally {
+          setUpdatingGps(null);
+        }
+      }
+      if (pendingGpsUpdate && geoError && !geoLoading) {
+        setPendingGpsUpdate(null);
+        setUpdatingGps(null);
+        toast({
+          title: 'Location Error',
+          description: geoError,
+          variant: 'destructive',
+        });
+      }
+    };
+    updateAddress();
+  }, [geoLat, geoLon, geoLoading, geoError, pendingGpsUpdate, addresses, selectedAddress, onSelect, onAddressAdded, toast]);
+
+  // Get GPS location for new address
+  const handleGetGpsLocation = () => {
+    setWaitingForGps('new');
+    getCurrentPosition();
+  };
+
+  // Update existing address with GPS coordinates
+  const handleUpdateAddressGps = (addressId: string) => {
+    setUpdatingGps(addressId);
+    setPendingGpsUpdate(addressId);
+    getCurrentPosition();
+  };
 
   const handleAddAddress = async () => {
     if (!formData.address_line.trim() || !formData.city.trim() || !formData.state.trim()) {
@@ -60,16 +156,24 @@ export function AddressSelector({
 
     setSaving(true);
     try {
+      const insertData: any = {
+        user_id: userId,
+        label: formData.label,
+        address_line: formData.address_line.trim(),
+        city: formData.city.trim(),
+        state: formData.state.trim(),
+        is_default: addresses.length === 0,
+      };
+
+      // Include GPS coordinates if captured
+      if (gpsLocation) {
+        insertData.latitude = gpsLocation.lat;
+        insertData.longitude = gpsLocation.lon;
+      }
+
       const { data, error } = await supabase
         .from('addresses')
-        .insert({
-          user_id: userId,
-          label: formData.label,
-          address_line: formData.address_line.trim(),
-          city: formData.city.trim(),
-          state: formData.state.trim(),
-          is_default: addresses.length === 0,
-        })
+        .insert(insertData)
         .select()
         .single();
 
@@ -77,31 +181,35 @@ export function AddressSelector({
 
       toast({
         title: 'Success',
-        description: 'Address added successfully. Calculating location...',
+        description: gpsLocation 
+          ? 'Address added with precise location!' 
+          : 'Address added. Calculating location...',
       });
       setIsAddOpen(false);
       setFormData({ label: 'Home', address_line: '', city: '', state: '' });
+      setGpsLocation(null);
       onAddressAdded();
       
       // Auto-select the new address
       if (data) {
         onSelect(data);
         
-        // Geocode in background and update with coordinates
-        geocodeAndUpdateAddress(data.id, data.address_line, data.city, data.state)
-          .then((result) => {
-            if (result) {
-              // Update the selected address with coordinates for immediate delivery fee calculation
-              onSelect({ ...data, latitude: result.latitude, longitude: result.longitude });
-              toast({
-                title: 'Location Found',
-                description: 'Delivery fee calculated based on distance.',
-              });
-            }
-          })
-          .catch((err) => {
-            console.error('Geocoding failed:', err);
-          });
+        // Only geocode if GPS wasn't provided
+        if (!gpsLocation) {
+          geocodeAndUpdateAddress(data.id, data.address_line, data.city, data.state)
+            .then((result) => {
+              if (result) {
+                onSelect({ ...data, latitude: result.latitude, longitude: result.longitude });
+                toast({
+                  title: 'Location Found',
+                  description: 'Delivery fee calculated based on distance.',
+                });
+              }
+            })
+            .catch((err) => {
+              console.error('Geocoding failed:', err);
+            });
+        }
       }
     } catch (error) {
       console.error('Error adding address:', error);
@@ -152,6 +260,36 @@ export function AddressSelector({
                 <DialogTitle>Add New Address</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 pt-4">
+                {/* GPS Location Button */}
+                <div className="p-3 rounded-lg bg-secondary/50 border border-border">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Navigation className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-medium">Use GPS Location</span>
+                    </div>
+                    {gpsLocation ? (
+                      <div className="flex items-center gap-1 text-green-600">
+                        <CheckCircle className="w-4 h-4" />
+                        <span className="text-xs">Captured</span>
+                      </div>
+                    ) : (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={handleGetGpsLocation}
+                        disabled={geoLoading || waitingForGps === 'new'}
+                      >
+                        {(geoLoading || waitingForGps === 'new') && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
+                        Get Location
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    For accurate delivery fee calculation
+                  </p>
+                </div>
+
                 <div className="space-y-2">
                   <Label>Label</Label>
                   <div className="flex gap-2">
@@ -251,24 +389,49 @@ export function AddressSelector({
                 className="space-y-3 pt-4"
               >
                 {addresses.map((address) => (
-                  <label
+                  <div
                     key={address.id}
-                    className="flex items-start gap-3 p-3 rounded-lg border border-border hover:border-primary/50 cursor-pointer transition-colors"
+                    className="flex items-start gap-3 p-3 rounded-lg border border-border hover:border-primary/50 transition-colors"
                   >
-                    <RadioGroupItem value={address.id} className="mt-1" />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        {labelIcons[address.label] || <MapPin className="w-4 h-4" />}
-                        <span className="font-medium text-foreground">{address.label}</span>
+                    <label className="flex items-start gap-3 flex-1 cursor-pointer">
+                      <RadioGroupItem value={address.id} className="mt-1" />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          {labelIcons[address.label] || <MapPin className="w-4 h-4" />}
+                          <span className="font-medium text-foreground">{address.label}</span>
+                          {address.latitude && address.longitude && (
+                            <CheckCircle className="w-3 h-3 text-green-600" />
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {address.address_line}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {address.city}, {address.state}
+                        </p>
                       </div>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {address.address_line}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {address.city}, {address.state}
-                      </p>
-                    </div>
-                  </label>
+                    </label>
+                    {/* GPS update button for addresses without coordinates */}
+                    {(!address.latitude || !address.longitude) && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleUpdateAddressGps(address.id);
+                        }}
+                        disabled={updatingGps === address.id}
+                        className="shrink-0"
+                      >
+                        {updatingGps === address.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Navigation className="w-4 h-4" />
+                        )}
+                      </Button>
+                    )}
+                  </div>
                 ))}
               </RadioGroup>
               
@@ -284,6 +447,36 @@ export function AddressSelector({
                     <DialogTitle>Add New Address</DialogTitle>
                   </DialogHeader>
                   <div className="space-y-4 pt-4">
+                    {/* GPS Location Button */}
+                    <div className="p-3 rounded-lg bg-secondary/50 border border-border">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Navigation className="w-4 h-4 text-primary" />
+                          <span className="text-sm font-medium">Use GPS Location</span>
+                        </div>
+                        {gpsLocation ? (
+                          <div className="flex items-center gap-1 text-green-600">
+                            <CheckCircle className="w-4 h-4" />
+                            <span className="text-xs">Captured</span>
+                          </div>
+                        ) : (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={handleGetGpsLocation}
+                            disabled={geoLoading || waitingForGps === 'new'}
+                          >
+                            {(geoLoading || waitingForGps === 'new') && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
+                            Get Location
+                          </Button>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        For accurate delivery fee calculation
+                      </p>
+                    </div>
+
                     <div className="space-y-2">
                       <Label>Label</Label>
                       <div className="flex gap-2">
