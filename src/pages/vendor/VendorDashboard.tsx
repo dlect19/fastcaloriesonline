@@ -10,6 +10,7 @@ import {
   Package,
   Clock,
   UtensilsCrossed,
+  Bike,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +20,7 @@ import { VendorSidebar } from '@/components/vendor/VendorSidebar';
 import { AccessDenied } from '@/components/vendor/AccessDenied';
 import { useAuth } from '@/hooks/useAuth';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
+import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 import { useToast } from '@/hooks/use-toast';
 import { useVendorNotificationSound } from '@/hooks/useVendorNotificationSound';
 import { supabase } from '@/integrations/supabase/client';
@@ -31,10 +33,12 @@ export default function VendorDashboard() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { isTestMode } = useEnvironmentConfig();
   const { playNotification } = useVendorNotificationSound();
   const [vendor, setVendor] = useState<Vendor | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [walletData, setWalletData] = useState<any>(null);
   const [stats, setStats] = useState({
     todayOrders: 0,
     todayRevenue: 0,
@@ -129,6 +133,16 @@ export default function VendorDashboard() {
           .limit(5);
 
         setOrders(ordersData || []);
+
+        // Fetch vendor wallet for revenue pools
+        const { data: wallet } = await supabase
+          .from('wallets')
+          .select('*')
+          .eq('user_id', vendorData.user_id)
+          .eq('wallet_type', 'vendor')
+          .maybeSingle();
+        
+        setWalletData(wallet);
 
         // Calculate stats
         const today = new Date().toISOString().split('T')[0];
@@ -293,6 +307,77 @@ export default function VendorDashboard() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Revenue Pools - Menu & Rider Revenue */}
+          {hasPermission('view_earnings') && walletData && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card className="border-0 shadow-soft">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-success/10 flex items-center justify-center">
+                      <UtensilsCrossed className="w-5 h-5 text-success" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-foreground">Menu Sales Revenue</p>
+                      <p className="text-xs text-muted-foreground">Earnings from food orders</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Available</p>
+                      <p className="text-xl font-bold text-success">
+                        {formatCurrency(
+                          isTestMode 
+                            ? Number(walletData.test_menu_earnings_balance || 0)
+                            : Number(walletData.menu_earnings_balance || 0)
+                        )}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Pending (24hr hold)</p>
+                      <p className="text-xl font-bold text-warning">
+                        {formatCurrency(
+                          isTestMode 
+                            ? Number(walletData.test_menu_earnings_pending || 0)
+                            : Number(walletData.menu_earnings_pending || 0)
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-0 shadow-soft">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                      <Bike className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-foreground">Rider Delivery Revenue</p>
+                      <p className="text-xs text-muted-foreground">Earnings from affiliated riders</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Available</p>
+                      <p className="text-xl font-bold text-primary">
+                        {formatCurrency(
+                          isTestMode 
+                            ? Number(walletData.test_rider_revenue_balance || 0)
+                            : Number(walletData.rider_revenue_balance || 0)
+                        )}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">No Hold Period</p>
+                      <p className="text-sm text-muted-foreground">Available immediately</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
 
           {/* Recent Orders */}
           <Card className="border-0 shadow-soft">
