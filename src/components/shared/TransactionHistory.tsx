@@ -74,13 +74,15 @@ export function TransactionHistory({
   const getCategoryLabel = (category: string) => {
     const labels: Record<string, string> = {
       wallet_funding: 'Wallet Funding',
-      dva_funding: 'Wallet Funding', // Legacy label
+      dva_funding: 'Wallet Funding',
       admin_credit: 'Admin Credit',
       admin_debit: 'Admin Debit',
-      vendor_share: 'Order Earnings',
+      vendor_share: 'Menu Sales Earnings',
+      vendor_rider_share: 'Rider Delivery Revenue',
       rider_share: 'Delivery Earnings',
       platform_commission: 'Platform Commission',
       delivery_commission: 'Delivery Commission',
+      delivery_company_share: 'Delivery Company Revenue',
       service_fee: 'Service Fee',
       withdrawal: 'Withdrawal',
       refund: 'Refund',

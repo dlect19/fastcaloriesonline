@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Wallet, ArrowUpRight, Building2, CreditCard, Clock, Settings, AlertCircle, Loader2, ShieldCheck, FlaskConical, AlertTriangle } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Wallet, ArrowUpRight, Building2, CreditCard, Clock, Settings, AlertCircle, Loader2, ShieldCheck, FlaskConical, AlertTriangle, Bike, UtensilsCrossed } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,7 +36,13 @@ interface WalletData {
   auto_withdraw: boolean;
   auto_withdraw_threshold: number;
   auto_withdraw_day: number;
+  // Separated revenue pools
+  menu_earnings_balance: number;
+  menu_earnings_pending: number;
+  rider_revenue_balance: number;
 }
+
+type WithdrawalSource = 'menu_earnings' | 'rider_revenue';
 
 interface WithdrawalRequest {
   id: string;
@@ -45,6 +51,7 @@ interface WithdrawalRequest {
   requested_at: string;
   processed_at: string | null;
   notes: string | null;
+  withdrawal_source: string;
 }
 
 interface RecipientData {
@@ -54,18 +61,21 @@ interface RecipientData {
 export default function VendorWithdraw() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const { isTestMode } = useEnvironmentConfig();
   const [vendor, setVendor] = useState<Vendor | null>(null);
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
-  const [eligibleBalance, setEligibleBalance] = useState(0);
   const [loading, setLoading] = useState(true);
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
   const [bankDialogOpen, setBankDialogOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  
+  // Withdrawal source selection
+  const [withdrawalSource, setWithdrawalSource] = useState<WithdrawalSource>('menu_earnings');
   
   // OTP verification state
   const [otpStep, setOtpStep] = useState<'amount' | 'otp'>('amount');
@@ -84,6 +94,14 @@ export default function VendorWithdraw() {
   const [autoWithdrawDay, setAutoWithdrawDay] = useState('1');
 
   const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendor?.id || null);
+  
+  // Initialize withdrawal source from URL params
+  useEffect(() => {
+    const sourceParam = searchParams.get('source');
+    if (sourceParam === 'rider_revenue' || sourceParam === 'menu_earnings') {
+      setWithdrawalSource(sourceParam);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -144,17 +162,26 @@ export default function VendorWithdraw() {
         const pendingBal = isTestMode 
           ? Number(walletData.test_pending_balance) || 0 
           : Number(walletData.pending_balance) || 0;
-        const eligibleBal = isTestMode 
-          ? Number(walletData.test_eligible_balance) || 0 
-          : Number(walletData.eligible_balance) || 0;
+        
+        // Separate revenue pools
+        const menuEarningsBalance = isTestMode
+          ? Number(walletData.test_menu_earnings_balance) || 0
+          : Number(walletData.menu_earnings_balance) || 0;
+        const menuEarningsPending = isTestMode
+          ? Number(walletData.test_menu_earnings_pending) || 0
+          : Number(walletData.menu_earnings_pending) || 0;
+        const riderRevenueBalance = isTestMode
+          ? Number(walletData.test_rider_revenue_balance) || 0
+          : Number(walletData.rider_revenue_balance) || 0;
         
         setWallet({
           ...walletData,
           balance: balance,
           pending_balance: pendingBal,
+          menu_earnings_balance: menuEarningsBalance,
+          menu_earnings_pending: menuEarningsPending,
+          rider_revenue_balance: riderRevenueBalance,
         } as WalletData);
-        // Set eligible balance from wallet
-        setEligibleBalance(eligibleBal);
         
         setBankName(walletData.bank_name || '');
         setAccountNumber(walletData.bank_account_number || '');
@@ -171,7 +198,7 @@ export default function VendorWithdraw() {
           .order('created_at', { ascending: false })
           .limit(20);
 
-        // Map to expected format
+        // Map to expected format with withdrawal_source tag
         setWithdrawals((payoutData || []).map(p => ({
           id: p.id,
           amount: Number(p.amount),
@@ -179,6 +206,7 @@ export default function VendorWithdraw() {
           requested_at: p.created_at || '',
           processed_at: p.processed_at,
           notes: p.failure_reason,
+          withdrawal_source: (p as any).withdrawal_source || 'menu_earnings',
         })));
 
         // Fetch recipient environment info
@@ -265,8 +293,13 @@ export default function VendorWithdraw() {
       return;
     }
 
-    if (amount > eligibleBalance) {
-      toast({ title: 'Amount exceeds eligible balance', variant: 'destructive' });
+    // Get the correct eligible balance based on source
+    const sourceBalance = withdrawalSource === 'rider_revenue' 
+      ? (wallet?.rider_revenue_balance || 0)
+      : (wallet?.menu_earnings_balance || 0);
+
+    if (amount > sourceBalance) {
+      toast({ title: `Amount exceeds ${withdrawalSource === 'rider_revenue' ? 'rider revenue' : 'menu earnings'} balance`, variant: 'destructive' });
       return;
     }
 
@@ -321,7 +354,7 @@ export default function VendorWithdraw() {
         throw new Error('Invalid or expired OTP');
       }
 
-      // Process withdrawal - insert into unified payout_requests table
+      // Process withdrawal - insert into unified payout_requests table with source tag
       const { error } = await supabase
         .from('payout_requests')
         .insert({
@@ -333,6 +366,7 @@ export default function VendorWithdraw() {
           bank_account_name: wallet!.bank_account_name || '',
           user_type: 'vendor',
           status: 'pending',
+          withdrawal_source: withdrawalSource, // Tag the source
         });
 
       if (error) throw error;
@@ -538,33 +572,91 @@ export default function VendorWithdraw() {
             </CardContent>
           </Card>
 
-          {/* Balance Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="border-0 shadow-soft">
+          {/* Revenue Pool Selection Cards */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Menu Sales Revenue */}
+            <Card 
+              className={`border-2 cursor-pointer transition-all ${
+                withdrawalSource === 'menu_earnings' 
+                  ? 'border-primary bg-primary/5' 
+                  : 'border-transparent hover:border-muted-foreground/30'
+              }`}
+              onClick={() => setWithdrawalSource('menu_earnings')}
+            >
               <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Eligible Balance</p>
-                    <p className="text-2xl font-bold text-foreground">{formatCurrency(eligibleBalance)}</p>
-                    <p className="text-xs text-muted-foreground">Available to withdraw</p>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
+                    <UtensilsCrossed className="w-6 h-6 text-primary" />
                   </div>
-                  <div className="w-12 h-12 rounded-xl bg-success/10 flex items-center justify-center">
-                    <Wallet className="w-6 h-6 text-success" />
+                  <div>
+                    <h3 className="font-semibold text-foreground">Menu Sales Revenue</h3>
+                    <p className="text-xs text-muted-foreground">Earnings from food orders</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Available</p>
+                    <p className="text-xl font-bold text-success">
+                      {formatCurrency(wallet?.menu_earnings_balance || 0)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Pending</p>
+                    <p className="text-xl font-bold text-warning">
+                      {formatCurrency(wallet?.menu_earnings_pending || 0)}
+                    </p>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
+            {/* Rider Delivery Revenue */}
+            <Card 
+              className={`border-2 cursor-pointer transition-all ${
+                withdrawalSource === 'rider_revenue' 
+                  ? 'border-accent bg-accent/5' 
+                  : 'border-transparent hover:border-muted-foreground/30'
+              }`}
+              onClick={() => setWithdrawalSource('rider_revenue')}
+            >
+              <CardContent className="p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 rounded-xl bg-accent/20 flex items-center justify-center">
+                    <Bike className="w-6 h-6 text-accent" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-foreground">Rider Delivery Revenue</h3>
+                    <p className="text-xs text-muted-foreground">Earnings from affiliated riders</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Available</p>
+                    <p className="text-xl font-bold text-success">
+                      {formatCurrency(wallet?.rider_revenue_balance || 0)}
+                    </p>
+                  </div>
+                  <div className="flex flex-col justify-center">
+                    <p className="text-sm text-muted-foreground">No Hold Period</p>
+                    <p className="text-xs text-muted-foreground">Available immediately</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Combined Stats */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Card className="border-0 shadow-soft">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Pending Balance</p>
+                    <p className="text-sm text-muted-foreground">Total Pending</p>
                     <p className="text-2xl font-bold text-foreground">{formatCurrency(wallet?.pending_balance || 0)}</p>
-                    <p className="text-xs text-muted-foreground">Awaiting settlement</p>
+                    <p className="text-xs text-muted-foreground">Menu sales (24hr hold)</p>
                   </div>
-                  <div className="w-12 h-12 rounded-xl bg-yellow-500/10 flex items-center justify-center">
-                    <Clock className="w-6 h-6 text-yellow-500" />
+                  <div className="w-12 h-12 rounded-xl bg-warning/10 flex items-center justify-center">
+                    <Clock className="w-6 h-6 text-warning" />
                   </div>
                 </div>
               </CardContent>
@@ -606,7 +698,7 @@ export default function VendorWithdraw() {
             <DialogTrigger asChild>
               <Button size="lg" className="gap-2">
                 <ArrowUpRight className="w-5 h-5" />
-                Request Withdrawal
+                Withdraw {withdrawalSource === 'rider_revenue' ? 'Rider Revenue' : 'Menu Earnings'}
               </Button>
             </DialogTrigger>
             <DialogContent>
@@ -617,13 +709,29 @@ export default function VendorWithdraw() {
                 </DialogTitle>
                 <DialogDescription>
                   {otpStep === 'amount' 
-                    ? 'Withdraw funds to your bank account' 
+                    ? `Withdraw ${withdrawalSource === 'rider_revenue' ? 'rider delivery revenue' : 'menu sales earnings'} to your bank account` 
                     : 'Enter the 6-digit code sent to your email'}
                 </DialogDescription>
               </DialogHeader>
               
               {otpStep === 'amount' ? (
                 <div className="space-y-4">
+                  {/* Source Badge */}
+                  <div className={`p-3 rounded-lg flex items-center gap-2 ${
+                    withdrawalSource === 'rider_revenue' 
+                      ? 'bg-accent/10' 
+                      : 'bg-primary/10'
+                  }`}>
+                    {withdrawalSource === 'rider_revenue' ? (
+                      <Bike className="w-5 h-5 text-accent" />
+                    ) : (
+                      <UtensilsCrossed className="w-5 h-5 text-primary" />
+                    )}
+                    <span className="font-medium">
+                      {withdrawalSource === 'rider_revenue' ? 'Rider Delivery Revenue' : 'Menu Sales Revenue'}
+                    </span>
+                  </div>
+
                   {wallet?.bank_name ? (
                     <div className="p-4 bg-muted rounded-lg">
                       <p className="text-sm text-muted-foreground">Withdrawing to:</p>
@@ -631,8 +739,8 @@ export default function VendorWithdraw() {
                       <p className="text-sm">{wallet.bank_account_number} - {wallet.bank_account_name}</p>
                     </div>
                   ) : (
-                    <div className="p-4 bg-yellow-50 rounded-lg text-center">
-                      <p className="text-sm text-yellow-700">Please add bank details first</p>
+                    <div className="p-4 bg-warning/10 rounded-lg text-center">
+                      <p className="text-sm text-warning">Please add bank details first</p>
                       <Button variant="outline" size="sm" className="mt-2" onClick={() => setBankDialogOpen(true)}>
                         Add Bank Details
                       </Button>
@@ -646,10 +754,16 @@ export default function VendorWithdraw() {
                       value={withdrawAmount}
                       onChange={(e) => setWithdrawAmount(e.target.value)}
                       placeholder="Enter amount"
-                      max={eligibleBalance}
+                      max={withdrawalSource === 'rider_revenue' 
+                        ? wallet?.rider_revenue_balance || 0 
+                        : wallet?.menu_earnings_balance || 0}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Eligible balance: {formatCurrency(eligibleBalance)}
+                      Available: {formatCurrency(
+                        withdrawalSource === 'rider_revenue' 
+                          ? wallet?.rider_revenue_balance || 0 
+                          : wallet?.menu_earnings_balance || 0
+                      )}
                     </p>
                   </div>
 
@@ -740,11 +854,24 @@ export default function VendorWithdraw() {
                       key={withdrawal.id}
                       className="flex items-center justify-between p-4 rounded-xl bg-muted/50"
                     >
-                      <div>
-                        <p className="font-medium text-foreground">{formatCurrency(withdrawal.amount)}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {new Date(withdrawal.requested_at).toLocaleDateString('en-NG', { dateStyle: 'medium' })}
-                        </p>
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                          withdrawal.withdrawal_source === 'rider_revenue' 
+                            ? 'bg-accent/10' 
+                            : 'bg-primary/10'
+                        }`}>
+                          {withdrawal.withdrawal_source === 'rider_revenue' ? (
+                            <Bike className="w-5 h-5 text-accent" />
+                          ) : (
+                            <UtensilsCrossed className="w-5 h-5 text-primary" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-medium text-foreground">{formatCurrency(withdrawal.amount)}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {withdrawal.withdrawal_source === 'rider_revenue' ? 'Rider Revenue' : 'Menu Earnings'} • {new Date(withdrawal.requested_at).toLocaleDateString('en-NG', { dateStyle: 'medium' })}
+                          </p>
+                        </div>
                       </div>
                       <Badge className={getStatusColor(withdrawal.status)}>
                         {withdrawal.status}

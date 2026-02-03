@@ -1078,6 +1078,7 @@ export type Database = {
           user_id: string
           user_type: string
           wallet_id: string
+          withdrawal_source: string | null
         }
         Insert: {
           amount: number
@@ -1097,6 +1098,7 @@ export type Database = {
           user_id: string
           user_type: string
           wallet_id: string
+          withdrawal_source?: string | null
         }
         Update: {
           amount?: number
@@ -1116,6 +1118,7 @@ export type Database = {
           user_id?: string
           user_type?: string
           wallet_id?: string
+          withdrawal_source?: string | null
         }
         Relationships: [
           {
@@ -2437,14 +2440,20 @@ export type Database = {
           eligible_balance: number | null
           id: string
           is_disabled: boolean | null
+          menu_earnings_balance: number | null
+          menu_earnings_pending: number | null
           paystack_customer_code: string | null
           paystack_customer_id: number | null
           paystack_recipient_code: string | null
           pending_balance: number | null
           pending_payouts: number | null
+          rider_revenue_balance: number | null
           test_balance: number | null
           test_eligible_balance: number | null
+          test_menu_earnings_balance: number | null
+          test_menu_earnings_pending: number | null
           test_pending_balance: number | null
+          test_rider_revenue_balance: number | null
           total_earned: number | null
           total_withdrawn: number | null
           updated_at: string
@@ -2468,14 +2477,20 @@ export type Database = {
           eligible_balance?: number | null
           id?: string
           is_disabled?: boolean | null
+          menu_earnings_balance?: number | null
+          menu_earnings_pending?: number | null
           paystack_customer_code?: string | null
           paystack_customer_id?: number | null
           paystack_recipient_code?: string | null
           pending_balance?: number | null
           pending_payouts?: number | null
+          rider_revenue_balance?: number | null
           test_balance?: number | null
           test_eligible_balance?: number | null
+          test_menu_earnings_balance?: number | null
+          test_menu_earnings_pending?: number | null
           test_pending_balance?: number | null
+          test_rider_revenue_balance?: number | null
           total_earned?: number | null
           total_withdrawn?: number | null
           updated_at?: string
@@ -2499,14 +2514,20 @@ export type Database = {
           eligible_balance?: number | null
           id?: string
           is_disabled?: boolean | null
+          menu_earnings_balance?: number | null
+          menu_earnings_pending?: number | null
           paystack_customer_code?: string | null
           paystack_customer_id?: number | null
           paystack_recipient_code?: string | null
           pending_balance?: number | null
           pending_payouts?: number | null
+          rider_revenue_balance?: number | null
           test_balance?: number | null
           test_eligible_balance?: number | null
+          test_menu_earnings_balance?: number | null
+          test_menu_earnings_pending?: number | null
           test_pending_balance?: number | null
+          test_rider_revenue_balance?: number | null
           total_earned?: number | null
           total_withdrawn?: number | null
           updated_at?: string
