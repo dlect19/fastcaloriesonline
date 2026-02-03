@@ -4,6 +4,7 @@ import { Clock, CheckCircle, XCircle, Package, ChevronDown, ChevronUp, ShoppingB
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   DropdownMenu,
@@ -497,18 +498,26 @@ export default function VendorOrders() {
         {/* Manual Rider Assignment - Show when order is ready but no rider yet */}
         {order.delivery_type !== 'self_pickup' && 
          order.status === 'ready_for_pickup' && 
-         !order.rider_id && 
-         vendor?.latitude && 
-         vendor?.longitude && (
+         !order.rider_id && (
           <div className="px-4 pb-4">
-            <ManualRiderAssignment 
-              orderId={order.id}
-              orderNumber={order.order_number}
-              vendorId={order.vendor_id}
-              vendorLat={vendor.latitude}
-              vendorLng={vendor.longitude}
-              onAssigned={fetchData}
-            />
+            {vendor?.latitude && vendor?.longitude ? (
+              <ManualRiderAssignment 
+                orderId={order.id}
+                orderNumber={order.order_number}
+                vendorId={order.vendor_id}
+                vendorLat={vendor.latitude}
+                vendorLng={vendor.longitude}
+                onAssigned={fetchData}
+              />
+            ) : (
+              <Card className="border-warning/30 bg-warning/5">
+                <CardContent className="py-4">
+                  <p className="text-sm text-warning">
+                    ⚠️ Set your store location in Settings to assign riders
+                  </p>
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
 
