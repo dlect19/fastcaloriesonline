@@ -936,6 +936,7 @@ export type Database = {
           id: string
           menu_subtotal: number | null
           order_number: string
+          packaging_fee: number | null
           payment_method: string | null
           payment_reference: string | null
           payment_status: string | null
@@ -967,6 +968,7 @@ export type Database = {
           id?: string
           menu_subtotal?: number | null
           order_number: string
+          packaging_fee?: number | null
           payment_method?: string | null
           payment_reference?: string | null
           payment_status?: string | null
@@ -998,6 +1000,7 @@ export type Database = {
           id?: string
           menu_subtotal?: number | null
           order_number?: string
+          packaging_fee?: number | null
           payment_method?: string | null
           payment_reference?: string | null
           payment_status?: string | null

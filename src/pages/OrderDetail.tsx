@@ -434,6 +434,12 @@ export default function OrderDetail() {
                 <span>Subtotal</span>
                 <span>₦{Number(order.subtotal).toLocaleString()}</span>
               </div>
+              {Number(order.packaging_fee || 0) > 0 && (
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Takeaway Pack</span>
+                  <span>₦{Number(order.packaging_fee).toLocaleString()}</span>
+                </div>
+              )}
               <div className="flex justify-between text-muted-foreground">
                 <span>Delivery Fee</span>
                 <span>₦{Number(order.delivery_fee || 0).toLocaleString()}</span>
