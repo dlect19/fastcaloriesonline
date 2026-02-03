@@ -215,7 +215,43 @@ export function DispatchStatus({ orderId, orderNumber, onRiderAssigned }: Dispat
     );
   }
 
-  // Status: Pending (searching)
+  // Status: Pending (searching) - check if countdown expired
+  const isExpired = timeLeft !== null && timeLeft <= 0;
+
+  if (isExpired) {
+    return (
+      <Card className="border-orange-500 bg-orange-50 dark:bg-orange-950/20">
+        <CardContent className="py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-orange-700 dark:text-orange-400">
+              <AlertCircle className="h-5 w-5" />
+              <div>
+                <p className="font-medium">Search timed out</p>
+                <p className="text-sm text-muted-foreground">
+                  {offerCount > 0 ? `${offerCount} riders notified, none accepted` : 'No riders responded in time'}
+                </p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleRetryDispatch}
+              disabled={retrying}
+            >
+              {retrying ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-2" />
+              )}
+              Search Again
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Status: Pending (actively searching)
   return (
     <Card className="border-primary/50 bg-primary/5">
       <CardContent className="py-4">
