@@ -1,155 +1,142 @@
 
-# Fix: Address Coordinate Mismatch and GPS-First Enforcement
+# Upgrade Geocoding: Add Photon API for Better Nigerian Address Coverage
 
-## Problem Analysis
-
-### Root Cause
-The user's "Home" address (Ketu, 20.6km from vendor) has the **exact same GPS coordinates** as the vendor in Ayobo:
-- **Vendor (Dlect food)**: `6.575631, 3.203979` (Ayobo)  
-- **Customer "Home" address**: `6.575631, 3.203979` (stored for Ketu)
-
-This happens because:
-1. The "Refresh GPS" button captures the **device's current location** at the moment it's clicked
-2. If the customer was physically at the vendor's location (e.g., testing the app) when they clicked "Refresh GPS", it saved the vendor's coordinates instead of their actual home location
-3. The system then calculates distance as 0km because both points are identical
-
-### Why Text-Based Geocoding Fails
-OpenStreetMap/Nominatim has limited coverage of informal Nigerian addresses:
-- "ikosi ketu" → Not found
-- "2/4jamiu balogun ikosi ketu" → Not found  
+## Current Problem
+The current Nominatim-based geocoding fails for most informal Nigerian addresses:
+- "Ikosi Ketu" → Not found
 - "Ishefun busstop Megida Ayobo" → Not found
 
-This forces reliance on GPS capture, but GPS captures **current location**, not the address location.
+This forces customers to manually capture GPS, which can lead to errors (like capturing coordinates while at vendor location instead of home).
 
----
+## Solution: Add Photon as Primary Geocoding Provider
 
-## Solution: GPS-First with Validation
+**Photon** (https://photon.komoot.io) is a free, open-source geocoder built on OpenStreetMap data with:
+- **Fuzzy matching** - handles typos and informal names
+- **Better Nigerian coverage** - found "Ikosi Ketu" and "Isefun Road Ayobo" that Nominatim missed
+- **No API key required** - fair use policy, no signup needed
 
-### Strategy
-1. **Require GPS capture at the delivery location** - Users must be at their delivery address when capturing GPS
-2. **Improve geocoding fallbacks** - Try multiple search strategies before giving up
-3. **Add mismatch detection** - Warn if captured GPS is suspiciously close to vendor
+### Test Results Showing Photon's Superiority
+
+| Address | Nominatim | Photon |
+|---------|-----------|--------|
+| "Ikosi Ketu Lagos" | Not found | `6.600556, 3.383611` (Kosofe) |
+| "Ketu Lagos" | Not found | `6.5825691, 3.4076019` (Agboyi Ketu) |
+| "Ishefun Ayobo Lagos" | Not found | `6.578731, 3.207013` (Alimosho) |
 
 ---
 
 ## Implementation Plan
 
-### 1. Improve Geocoding Edge Function
+### 1. Update Geocode Edge Function
 **File:** `supabase/functions/geocode-address/index.ts`
 
-Add fallback search strategies:
-- Try original query first
-- If no results, retry without city (just address + state + country)
-- If still no results, retry with just the neighborhood/area name
-- Add Lagos bounding box to improve accuracy for Nigerian addresses
+Add Photon as the **primary geocoder**, with Nominatim as fallback:
 
-```text
-+-------------------+
-|  Original Query   |
-| "address, city,   |
-|  state, country"  |
-+---------+---------+
+**Geocoding Flow:**
+```
+User Address
+     |
+     v
++--------------------+
+|   Try Photon API   |
+| (fuzzy matching,   |
+|  better coverage)  |
++---------+----------+
           |
           v (no results)
-+-------------------+
-| Fallback 1: Skip  |
-| city parameter    |
-| "address, state,  |
-|  country"         |
-+---------+---------+
-          |
-          v (no results)
-+-------------------+
-| Fallback 2: Area  |
-| name only with    |
-| bounding box      |
-+---------+---------+
++--------------------+
+| Fallback: Nominatim|
+| (current 5-strategy|
+|  approach)         |
++---------+----------+
           |
           v
-     Return result
-     or null
+   Return coordinates
+   or "not found"
 ```
 
-### 2. Add GPS Capture Warning
-**File:** `src/components/cart/AddressSelector.tsx`
+**Photon API Format:**
+```typescript
+// Photon query
+const photonUrl = `https://photon.komoot.io/api?q=${encodeURIComponent(query)}&limit=3`;
 
-When user clicks "Refresh GPS", show a confirmation dialog explaining they must be at their delivery location:
+// Response format
+{
+  "features": [{
+    "properties": { "name": "Ikosi", "city": "...", "state": "Lagos State", "county": "Kosofe" },
+    "geometry": { "coordinates": [longitude, latitude] }
+  }]
+}
+```
 
-- Display: "Are you at [Address Label] right now?"
-- Subtext: "GPS will capture your current location. Please only continue if you are physically at this delivery address."
-- Buttons: "Yes, I'm Here" / "Cancel"
+### 2. Filter Results by Location Bias
+To avoid getting results from the wrong "Ketu" (there are multiple in Nigeria), add Lagos location bias:
 
-This prevents accidental captures when user is at wrong location.
+```typescript
+// Bias toward Lagos coordinates (6.5, 3.4)
+const photonUrl = `https://photon.komoot.io/api?q=${query}&lat=6.5&lon=3.4&limit=3`;
+```
 
-### 3. Add Coordinate Sanity Check
-**File:** `src/pages/Cart.tsx`
-
-Detect when customer coordinates are suspiciously close to vendor:
-- If distance < 0.5km AND address city differs from vendor city → flag as potential mismatch
-- Show warning: "Your saved GPS location appears to be near the restaurant, not your delivery address. Please update your GPS location."
-
-### 4. Block Order Until Coordinates Verified
-**File:** `src/pages/Cart.tsx`
-
-The current implementation already blocks checkout if coordinates are missing. Enhance it to also block when mismatch is detected.
-
-### 5. Clear Stale Coordinates for Affected User
-**Database:** One-time fix
-
-Clear the incorrect coordinates from the "Home" address so user can re-capture correctly.
+### 3. Pick Best Result from Multiple Candidates
+Photon returns multiple results ranked by relevance. Select the one closest to Lagos center or with matching state/county.
 
 ---
 
 ## Technical Details
 
 ### Edge Function Changes
-```typescript
-// Fallback search strategies for Nigerian addresses
-const searchStrategies = [
-  `${address}, ${city}, ${state}, ${country}`,           // Original
-  `${address}, ${state}, ${country}`,                     // Skip city
-  `${address.split(' ').slice(-2).join(' ')}, ${state}`, // Last 2 words (area name)
-];
 
-// Add Lagos bounding box for more accurate results
-const lagosViewbox = '3.0,6.3,3.6,6.7'; // lon1,lat1,lon2,lat2
-```
-
-### GPS Confirmation Dialog
 ```typescript
-// Before capturing GPS for existing address
-const handleUpdateAddressGps = (addressId: string) => {
-  const address = addresses.find(a => a.id === addressId);
-  // Show confirmation dialog
-  setGpsConfirmDialog({
-    open: true,
-    addressId,
-    addressLabel: address?.label || 'this address',
+// New function to try Photon geocoding
+async function tryPhotonGeocode(query: string): Promise<GeocodeResult | null> {
+  const encodedQuery = encodeURIComponent(query);
+  // Bias toward Lagos center for Nigerian addresses
+  const url = `https://photon.komoot.io/api?q=${encodedQuery}&lat=6.5&lon=3.4&limit=5`;
+  
+  const response = await fetch(url, {
+    headers: { 'User-Agent': 'FastCalories/1.0' }
   });
-};
-
-// Only capture after user confirms
-const confirmGpsCapture = () => {
-  setUpdatingGps(gpsConfirmDialog.addressId);
-  setPendingGpsUpdate(gpsConfirmDialog.addressId);
-  getCurrentPosition();
-  setGpsConfirmDialog({ open: false, addressId: null, addressLabel: '' });
-};
+  
+  if (!response.ok) return null;
+  
+  const data = await response.json();
+  if (!data.features || data.features.length === 0) return null;
+  
+  // Find best match - prefer results in Lagos State
+  const lagosResult = data.features.find(f => 
+    f.properties.state?.toLowerCase().includes('lagos')
+  );
+  const result = lagosResult || data.features[0];
+  
+  return {
+    latitude: result.geometry.coordinates[1], // Note: [lon, lat] order
+    longitude: result.geometry.coordinates[0],
+    display_name: [
+      result.properties.name,
+      result.properties.city || result.properties.county,
+      result.properties.state
+    ].filter(Boolean).join(', '),
+    confidence: 0.8,
+    city: result.properties.city || result.properties.county || '',
+    state: result.properties.state || '',
+  };
+}
 ```
 
-### Coordinate Mismatch Detection
+### Updated Main Flow
+
 ```typescript
-// In Cart.tsx
-const coordinateMismatch = useMemo(() => {
-  if (!hasCoordinates || distanceKm === null || distanceKm > 0.5) return false;
-  
-  // Distance is very small - check if cities differ
-  const vendorCity = vendorLocation.address?.toLowerCase() || '';
-  const customerCity = selectedAddress?.city?.toLowerCase() || '';
-  
-  // If vendor is in "Ayobo" and customer says "Ketu", but distance is 0km - mismatch!
-  return !vendorCity.includes(customerCity) && !customerCity.includes(vendorCity);
-}, [hasCoordinates, distanceKm, vendorLocation, selectedAddress]);
+// In Deno.serve handler:
+
+// Step 1: Try Photon first (better for informal Nigerian addresses)
+const photonResult = await tryPhotonGeocode(fullQuery);
+if (photonResult) {
+  console.log(`Photon found: ${photonResult.display_name}`);
+  return Response.json(photonResult, { headers: corsHeaders });
+}
+
+// Step 2: Fall back to Nominatim with multiple strategies
+// ... existing 5-strategy Nominatim code ...
 ```
 
 ---
@@ -158,21 +145,30 @@ const coordinateMismatch = useMemo(() => {
 
 | File | Changes |
 |------|---------|
-| `supabase/functions/geocode-address/index.ts` | Add fallback search strategies, Lagos bounding box |
-| `src/components/cart/AddressSelector.tsx` | Add GPS capture confirmation dialog |
-| `src/pages/Cart.tsx` | Add coordinate mismatch detection and warning |
-| Database | Clear stale coordinates from affected address |
+| `supabase/functions/geocode-address/index.ts` | Add Photon as primary geocoder, keep Nominatim as fallback |
 
 ---
 
-## User Flow After Implementation
+## Expected Improvements
 
-1. Customer adds address with text (e.g., "Ikosi Ketu")
-2. System tries geocoding with multiple fallback strategies
-3. If geocoding fails → GPS capture required before checkout
-4. When customer clicks GPS button → confirmation dialog appears
-5. Customer confirms they are at delivery address → GPS captured
-6. If captured coordinates are near vendor but address is far → mismatch warning shown
-7. Order blocked until proper coordinates are set
+After this change:
+- "Ikosi Ketu" → Will find `6.600556, 3.383611` via Photon
+- "Ishefun Ayobo" → Will find `6.578731, 3.207013` via Photon  
+- Customers will more often get automatic coordinates without needing GPS capture
+- Fewer "Address not found" errors
+- More accurate delivery fee calculations from the start
 
-This ensures FastCalories never loses money due to undercharged delivery fees from incorrect coordinates.
+---
+
+## Fallback Strategy
+
+```
+1. Photon with Lagos bias (NEW - primary)
+2. Photon without bias (NEW - secondary)  
+3. Nominatim full query (existing)
+4. Nominatim without city (existing)
+5. Nominatim area name only (existing)
+6. GPS capture required (last resort)
+```
+
+This layered approach maximizes the chance of finding coordinates automatically while maintaining full backward compatibility.
