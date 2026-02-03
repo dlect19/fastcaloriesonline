@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, useAnimation } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Gift, Loader2, Sparkles, Lock, Wallet, RotateCcw } from 'lucide-react';
 import { useSpinWheel } from '@/hooks/useSpinWheel';
 import { useCustomerWallet } from '@/hooks/useCustomerWallet';
+import { usePlatformSettings } from '@/hooks/usePlatformSettings';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
@@ -14,35 +15,51 @@ interface SpinWheelProps {
   onSpinComplete?: (result: { discount_percentage: number; is_try_again: boolean }) => void;
 }
 
-// Unified segments for all wheels
-const UNIFIED_SEGMENTS = [
-  { id: 'unified-0', segment_label: '0%', discount_percentage: 0, is_try_again: false, color: '#6B7280' },
-  { id: 'unified-1', segment_label: '2%', discount_percentage: 2, is_try_again: false, color: '#10B981' },
-  { id: 'unified-2', segment_label: '5%', discount_percentage: 5, is_try_again: false, color: '#3B82F6' },
-  { id: 'unified-3', segment_label: '8%', discount_percentage: 8, is_try_again: false, color: '#8B5CF6' },
-  { id: 'unified-4', segment_label: '10%', discount_percentage: 10, is_try_again: false, color: '#F59E0B' },
-  { id: 'unified-5', segment_label: 'Try Again', discount_percentage: 0, is_try_again: true, color: '#EF4444' },
-];
+interface Segment {
+  id: string;
+  segment_label: string;
+  discount_percentage: number;
+  is_try_again: boolean;
+  color: string;
+}
 
-// Spins per tier
-const SPINS_PER_TIER: Record<string, number> = {
-  free: 1,
-  tier1: 1,
-  tier2: 3,
-  tier3: 6,
-};
-
-const TIER_COSTS: Record<string, number> = {
-  free: 0,
-  tier1: 100,
-  tier2: 200,
-  tier3: 500,
-};
+// Parse segments from platform settings
+function parseSegmentsFromSettings(
+  discountsStr: string,
+  colorsStr: string
+): Segment[] {
+  const discounts = discountsStr.split(',').map(d => parseInt(d.trim()));
+  const colors = colorsStr.split(',').map(c => c.trim());
+  
+  const segments: Segment[] = [];
+  
+  for (let i = 0; i < discounts.length; i++) {
+    segments.push({
+      id: `seg-${i}`,
+      segment_label: `${discounts[i]}%`,
+      discount_percentage: discounts[i],
+      is_try_again: false,
+      color: colors[i] || '#6B7280',
+    });
+  }
+  
+  // Add Try Again
+  segments.push({
+    id: `seg-tryagain`,
+    segment_label: 'Try Again',
+    discount_percentage: 0,
+    is_try_again: true,
+    color: colors[discounts.length] || '#EF4444',
+  });
+  
+  return segments;
+}
 
 export function SpinWheel({ wheelType, onSpinComplete }: SpinWheelProps) {
   const { toast } = useToast();
   const { canFreeSpin, hasTryAgain, spin, loading, spinEnabled, refreshDiscounts } = useSpinWheel();
   const { wallet, isTestMode, refetch: refetchWallet } = useCustomerWallet();
+  const { settings } = usePlatformSettings();
   const controls = useAnimation();
   const [isSpinning, setIsSpinning] = useState(false);
   const [result, setResult] = useState<{ label: string; color: string; discount: number } | null>(null);
@@ -51,9 +68,29 @@ export function SpinWheel({ wheelType, onSpinComplete }: SpinWheelProps) {
   const [packPurchased, setPackPurchased] = useState(false);
   const wheelRef = useRef<HTMLDivElement>(null);
 
-  const segments = UNIFIED_SEGMENTS;
-  const cost = TIER_COSTS[wheelType];
-  const totalSpins = SPINS_PER_TIER[wheelType];
+  // Parse segments from settings
+  const segments = parseSegmentsFromSettings(
+    settings?.spin_segment_discounts || '0,2,5,8,10',
+    settings?.spin_segment_colors || '#6B7280,#10B981,#3B82F6,#8B5CF6,#F59E0B,#EF4444'
+  );
+
+  // Get tier settings
+  const tierSpins: Record<string, number> = {
+    free: 1,
+    tier1: parseInt(settings?.spin_tier1_spins || '1'),
+    tier2: parseInt(settings?.spin_tier2_spins || '3'),
+    tier3: parseInt(settings?.spin_tier3_spins || '6'),
+  };
+
+  const tierCosts: Record<string, number> = {
+    free: 0,
+    tier1: 100,
+    tier2: 200,
+    tier3: 500,
+  };
+
+  const cost = tierCosts[wheelType];
+  const totalSpins = tierSpins[wheelType];
 
   const balance = isTestMode 
     ? Number(wallet?.test_balance) || 0 
@@ -177,9 +214,9 @@ export function SpinWheel({ wheelType, onSpinComplete }: SpinWheelProps) {
 
   const tierLabels: Record<string, string> = {
     free: 'Free Daily Spin',
-    tier1: 'Bronze (₦100) - 1 Spin',
-    tier2: 'Silver (₦200) - 3 Spins',
-    tier3: 'Gold (₦500) - 6 Spins',
+    tier1: `Bronze (₦100) - ${totalSpins} Spin${totalSpins > 1 ? 's' : ''}`,
+    tier2: `Silver (₦200) - ${totalSpins} Spin${totalSpins > 1 ? 's' : ''}`,
+    tier3: `Gold (₦500) - ${totalSpins} Spin${totalSpins > 1 ? 's' : ''}`,
   };
 
   const hasRemainingSpins = packPurchased && currentSpinIndex < totalSpins;

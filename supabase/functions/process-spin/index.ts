@@ -11,26 +11,51 @@ const corsHeaders = {
 
 interface SpinRequest {
   wheelType: 'free' | 'tier1' | 'tier2' | 'tier3';
-  spinIndex?: number; // Which spin within a multi-spin pack (0-indexed)
+  spinIndex?: number;
 }
 
-// Unified segments for all wheels: 0%, 2%, 5%, 8%, 10%, Try Again
-const UNIFIED_SEGMENTS = [
-  { label: '0%', discount: 0, is_try_again: false, color: '#6B7280', weight: 25 },
-  { label: '2%', discount: 2, is_try_again: false, color: '#10B981', weight: 25 },
-  { label: '5%', discount: 5, is_try_again: false, color: '#3B82F6', weight: 20 },
-  { label: '8%', discount: 8, is_try_again: false, color: '#8B5CF6', weight: 15 },
-  { label: '10%', discount: 10, is_try_again: false, color: '#F59E0B', weight: 10 },
-  { label: 'Try Again', discount: 0, is_try_again: true, color: '#EF4444', weight: 5 },
-];
+interface SpinSegment {
+  label: string;
+  discount: number;
+  is_try_again: boolean;
+  color: string;
+  weight: number;
+}
 
-// Spins per tier: Bronze=1, Silver=3, Gold=6
-const SPINS_PER_TIER: Record<string, number> = {
-  free: 1,
-  tier1: 1,  // Bronze ₦100 = 1 spin
-  tier2: 3,  // Silver ₦200 = 3 spins
-  tier3: 6,  // Gold ₦500 = 6 spins
-};
+// Parse settings from database into segments
+function parseSegmentsFromSettings(
+  discountsStr: string,
+  weightsStr: string,
+  colorsStr: string
+): SpinSegment[] {
+  const discounts = discountsStr.split(',').map(d => parseInt(d.trim()));
+  const weights = weightsStr.split(',').map(w => parseInt(w.trim()));
+  const colors = colorsStr.split(',').map(c => c.trim());
+  
+  const segments: SpinSegment[] = [];
+  
+  // Add discount segments
+  for (let i = 0; i < discounts.length; i++) {
+    segments.push({
+      label: `${discounts[i]}%`,
+      discount: discounts[i],
+      is_try_again: false,
+      color: colors[i] || '#6B7280',
+      weight: weights[i] || 10,
+    });
+  }
+  
+  // Add Try Again as last segment
+  segments.push({
+    label: 'Try Again',
+    discount: 0,
+    is_try_again: true,
+    color: colors[discounts.length] || '#EF4444',
+    weight: weights[discounts.length] || 5,
+  });
+  
+  return segments;
+}
 
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -47,7 +72,6 @@ serve(async (req: Request) => {
       );
     }
 
-    // Get user from auth header
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
@@ -60,7 +84,6 @@ serve(async (req: Request) => {
       auth: { autoRefreshToken: false, persistSession: false }
     });
 
-    // Get user from token
     const token = authHeader.replace("Bearer ", "");
     const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
 
@@ -71,46 +94,60 @@ serve(async (req: Request) => {
       );
     }
 
-    // Get platform environment
-    const { data: envSetting } = await supabaseAdmin
+    // Fetch all relevant settings in one query
+    const { data: settingsData } = await supabaseAdmin
       .from("platform_settings")
-      .select("value")
-      .eq("key", "platform_environment")
-      .single();
+      .select("key, value")
+      .in("key", [
+        "platform_environment",
+        "spin_free_enabled",
+        "spin_paid_enabled",
+        "spin_discount_expiry_hours",
+        "spin_max_discount_percent",
+        "spin_segment_discounts",
+        "spin_segment_weights",
+        "spin_segment_colors",
+        "spin_tier1_spins",
+        "spin_tier2_spins",
+        "spin_tier3_spins",
+      ]);
 
-    const environment = envSetting?.value || "development";
+    const settings: Record<string, string> = {};
+    (settingsData || []).forEach((s: { key: string; value: string }) => {
+      settings[s.key] = s.value;
+    });
+
+    const environment = settings.platform_environment || "development";
     const isTestMode = environment === "development";
+    const expiryHours = parseInt(settings.spin_discount_expiry_hours || "24");
+    const maxDiscountPercent = parseFloat(settings.spin_max_discount_percent || "10");
 
-    // Get spin settings
-    const { data: spinFreeEnabled } = await supabaseAdmin
-      .from("platform_settings")
-      .select("value")
-      .eq("key", "spin_free_enabled")
-      .single();
+    // Parse spins per tier from settings
+    const spinsPerTier: Record<string, number> = {
+      free: 1,
+      tier1: parseInt(settings.spin_tier1_spins || "1"),
+      tier2: parseInt(settings.spin_tier2_spins || "3"),
+      tier3: parseInt(settings.spin_tier3_spins || "6"),
+    };
 
-    const { data: spinPaidEnabled } = await supabaseAdmin
-      .from("platform_settings")
-      .select("value")
-      .eq("key", "spin_paid_enabled")
-      .single();
+    // Parse segments from settings
+    const segmentsFromDb = parseSegmentsFromSettings(
+      settings.spin_segment_discounts || "0,2,5,8,10",
+      settings.spin_segment_weights || "25,25,20,15,10,5",
+      settings.spin_segment_colors || "#6B7280,#10B981,#3B82F6,#8B5CF6,#F59E0B,#EF4444"
+    );
 
-    const { data: expiryHoursSetting } = await supabaseAdmin
-      .from("platform_settings")
-      .select("value")
-      .eq("key", "spin_discount_expiry_hours")
-      .single();
-
-    const expiryHours = parseInt(expiryHoursSetting?.value || "24");
+    console.log(`Loaded ${segmentsFromDb.length} segments from settings:`, segmentsFromDb.map(s => s.label));
 
     // Check if spins are enabled
-    if (wheelType === 'free' && spinFreeEnabled?.value !== 'true') {
+    if (wheelType === 'free' && settings.spin_free_enabled !== 'true') {
       return new Response(
         JSON.stringify({ error: "Free spins are currently disabled" }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    if (wheelType !== 'free' && spinPaidEnabled?.value !== 'true') {
+    if (wheelType !== 'free' && settings.spin_paid_enabled !== 'true') {
       return new Response(
         JSON.stringify({ error: "Paid spins are currently disabled" }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
@@ -118,11 +155,10 @@ serve(async (req: Request) => {
     }
 
     const today = new Date().toISOString().split('T')[0];
-    const totalSpinsInPack = SPINS_PER_TIER[wheelType];
+    const totalSpinsInPack = spinsPerTier[wheelType];
 
     // Handle free spin logic
     if (wheelType === 'free') {
-      // Check daily usage
       const { data: dailyUsage } = await supabaseAdmin
         .from("daily_spin_usage")
         .select("*")
@@ -131,16 +167,13 @@ serve(async (req: Request) => {
         .single();
 
       if (dailyUsage) {
-        // Check if user has used both spins (normal + try again)
         if (dailyUsage.free_spins_used >= 1 && dailyUsage.try_again_used) {
           return new Response(
             JSON.stringify({ error: "You've used your free spin for today. Come back tomorrow!" }),
             { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
           );
         }
-        // If they used 1 spin but haven't used try again, they must have gotten "Try Again"
         if (dailyUsage.free_spins_used >= 1 && !dailyUsage.try_again_used) {
-          // Check if their last spin was a "Try Again"
           const { data: lastSpin } = await supabaseAdmin
             .from("spin_results")
             .select("*")
@@ -162,7 +195,6 @@ serve(async (req: Request) => {
 
     // Handle paid spin - deduct from wallet only on first spin of a pack
     if (wheelType !== 'free' && spinIndex === 0) {
-      // Get wheel config for cost
       const { data: wheelConfig } = await supabaseAdmin
         .from("spin_wheel_config")
         .select("cost")
@@ -172,7 +204,6 @@ serve(async (req: Request) => {
 
       const cost = Number(wheelConfig?.cost || 0);
       
-      // Get customer wallet
       const { data: wallet, error: walletError } = await supabaseAdmin
         .from("wallets")
         .select("*")
@@ -202,7 +233,6 @@ serve(async (req: Request) => {
         );
       }
 
-      // Deduct from wallet
       const newBalance = currentBalance - cost;
       
       if (isTestMode) {
@@ -217,7 +247,6 @@ serve(async (req: Request) => {
           .eq("id", wallet.id);
       }
 
-      // Log transaction
       await supabaseAdmin.from("wallet_transactions").insert({
         wallet_id: wallet.id,
         wallet_type: "customer",
@@ -232,34 +261,20 @@ serve(async (req: Request) => {
       });
     }
 
-    // Get maximum discount cap
-    const { data: maxDiscountSetting } = await supabaseAdmin
-      .from("platform_settings")
-      .select("value")
-      .eq("key", "spin_max_discount_percent")
-      .single();
-
-    const maxDiscountPercent = parseFloat(maxDiscountSetting?.value || "20");
-
-    // Use unified segments for all wheels
-    let eligibleSegments = UNIFIED_SEGMENTS.filter(s => {
-      // Always allow "Try Again" and 0% segments
-      if (s.is_try_again || s.discount === 0) {
-        return true;
-      }
-      // Only allow discounts up to the max cap
+    // Filter segments by max discount cap
+    let eligibleSegments = segmentsFromDb.filter(s => {
+      if (s.is_try_again || s.discount === 0) return true;
       return s.discount <= maxDiscountPercent;
     });
 
-    // Fallback
     if (eligibleSegments.length === 0) {
-      eligibleSegments = UNIFIED_SEGMENTS;
+      eligibleSegments = segmentsFromDb;
     }
 
-    // Calculate total weight
+    console.log(`Revenue protection: maxCap=${maxDiscountPercent}%, eligible segments=${eligibleSegments.length}`);
+
+    // Calculate total weight and perform weighted random selection
     const totalWeight = eligibleSegments.reduce((sum, s) => sum + s.weight, 0);
-    
-    // Random selection
     let random = Math.random() * totalWeight;
     let selectedSegment = eligibleSegments[0];
     
@@ -281,7 +296,7 @@ serve(async (req: Request) => {
       .insert({
         user_id: user.id,
         wheel_type: wheelType,
-        segment_id: null, // No segment ID for unified segments
+        segment_id: null,
         discount_percentage: selectedSegment.discount,
         is_try_again: selectedSegment.is_try_again,
         is_used: false,
@@ -308,7 +323,6 @@ serve(async (req: Request) => {
         .single();
 
       if (existingUsage) {
-        // This is a "Try Again" follow-up spin
         await supabaseAdmin
           .from("daily_spin_usage")
           .update({ try_again_used: true })
@@ -325,8 +339,8 @@ serve(async (req: Request) => {
       }
     }
 
-    // Calculate segment index in unified segments for animation
-    const segmentIndex = UNIFIED_SEGMENTS.findIndex(s => 
+    // Find segment index for animation
+    const segmentIndex = segmentsFromDb.findIndex(s => 
       s.label === selectedSegment.label && s.is_try_again === selectedSegment.is_try_again
     );
 
@@ -349,7 +363,7 @@ serve(async (req: Request) => {
           totalSpins: totalSpinsInPack,
           remainingSpins: totalSpinsInPack - (spinIndex + 1),
         },
-        segments: UNIFIED_SEGMENTS.map((s, i) => ({
+        segments: segmentsFromDb.map((s, i) => ({
           id: `unified-${i}`,
           segment_label: s.label,
           discount_percentage: s.discount,
