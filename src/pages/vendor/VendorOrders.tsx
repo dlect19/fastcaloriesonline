@@ -521,7 +521,7 @@ export default function VendorOrders() {
           </div>
         </div>
 
-        {/* Dispatch Status - Show when searching for rider */}
+        {/* Dispatch Status - Show ONLY when actively searching for rider (no rider assigned yet) */}
         {order.delivery_type !== 'self_pickup' && 
          ['ready_for_pickup', 'searching_for_rider'].includes(order.status) && 
          !order.rider_id && (
@@ -534,8 +534,8 @@ export default function VendorOrders() {
           </div>
         )}
 
-        {/* Rider Info - Only for delivery orders */}
-        {order.delivery_type !== 'self_pickup' && order.rider_id && ['assigned', 'ready_for_pickup', 'picked_up', 'on_the_way', 'delivered'].includes(order.status) && (
+        {/* Rider Info - Show when a rider is assigned (any status after assignment) */}
+        {order.delivery_type !== 'self_pickup' && order.rider_id && (
           <div className="px-4 pb-4">
             <OrderRiderInfo riderId={order.rider_id} orderStatus={order.status} />
           </div>

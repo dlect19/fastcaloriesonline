@@ -182,11 +182,13 @@ export function RiderFloatingWidget({ isOnline, onToggleOnline }: RiderFloatingW
             </div>
 
             <div className="flex gap-2">
+              {/* Map button - opens in dropdown to avoid redirect issues */}
               <MapOptionsMenu 
                 address={activeOrder.delivery_address_text || ''} 
                 variant="outline"
                 size="sm"
                 className="flex-1 text-xs h-8"
+                label="Navigate"
               />
               {getNextStatus(activeOrder.status) && (
                 <Button 
