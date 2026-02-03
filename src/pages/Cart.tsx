@@ -729,7 +729,7 @@ export default function Cart() {
             <Button 
               className="w-full h-14 text-base font-semibold shadow-button"
               onClick={handlePlaceOrder}
-              disabled={placingOrder || (deliveryType === 'delivery' && !selectedAddress)}
+              disabled={placingOrder || (deliveryType === 'delivery' && (!selectedAddress || addressMissingCoords || coordinateMismatch || geocodingAddress))}
             >
               {placingOrder ? (
                 <>
