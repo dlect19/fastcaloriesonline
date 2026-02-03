@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -10,12 +10,21 @@ interface PromoCodeInputProps {
   subtotal: number;
   vendorId?: string;
   onDiscountApplied: (discount: number, promoCode: string | null) => void;
+  disabled?: boolean;
 }
 
-export function PromoCodeInput({ subtotal, vendorId, onDiscountApplied }: PromoCodeInputProps) {
+export function PromoCodeInput({ subtotal, vendorId, onDiscountApplied, disabled }: PromoCodeInputProps) {
   const { toast } = useToast();
   const { loading, appliedPromo, applyPromo, clearPromo } = usePromoCode();
   const [code, setCode] = useState('');
+  
+  // Clear local state when disabled changes to true (e.g., when another discount is selected)
+  useEffect(() => {
+    if (disabled && appliedPromo) {
+      clearPromo();
+      setCode('');
+    }
+  }, [disabled, appliedPromo, clearPromo]);
 
   const handleApply = async () => {
     const result = await applyPromo(code, subtotal, vendorId);
@@ -35,7 +44,7 @@ export function PromoCodeInput({ subtotal, vendorId, onDiscountApplied }: PromoC
     toast({ title: 'Promo code removed' });
   };
 
-  if (appliedPromo) {
+  if (appliedPromo && !disabled) {
     return (
       <Card className="border-calorie-low/50 bg-calorie-low/5">
         <CardContent className="p-4">
@@ -65,7 +74,7 @@ export function PromoCodeInput({ subtotal, vendorId, onDiscountApplied }: PromoC
   }
 
   return (
-    <Card>
+    <Card className={disabled ? 'opacity-50' : ''}>
       <CardContent className="p-4">
         <div className="flex items-center gap-2">
           <Ticket className="w-5 h-5 text-muted-foreground" />
@@ -77,11 +86,17 @@ export function PromoCodeInput({ subtotal, vendorId, onDiscountApplied }: PromoC
             value={code}
             onChange={(e) => setCode(e.target.value.toUpperCase())}
             className="flex-1"
+            disabled={disabled}
           />
-          <Button onClick={handleApply} disabled={loading || !code.trim()}>
+          <Button onClick={handleApply} disabled={loading || !code.trim() || disabled}>
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Apply'}
           </Button>
         </div>
+        {disabled && (
+          <p className="text-xs text-muted-foreground mt-2">
+            Remove current discount to enter a promo code
+          </p>
+        )}
       </CardContent>
     </Card>
   );

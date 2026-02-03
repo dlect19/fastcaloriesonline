@@ -40,7 +40,7 @@ export default function Cart() {
   const { user, loading: authLoading } = useAuth();
   const { items, vendorId, vendorName, subtotal, totalCalories, clearCart } = useCart();
   const { getApplicablePacks } = useTakeawayPacks(vendorId);
-  const { appliedPromo, incrementUsage } = usePromoCode();
+  const { appliedPromo, incrementUsage, clearPromo: clearPromoHook, resetAfterOrder } = usePromoCode();
   const { balance: walletBalance, isDisabled: isWalletDisabled, payWithWallet } = useCustomerWallet();
   const { activeDiscounts, getBestDiscount, useDiscount } = useSpinWheel();
   const { eligibility, getBestPlatformPromo, markFirstOrderUsed } = usePlatformPromos();
@@ -396,10 +396,15 @@ export default function Cart() {
           meal_type: 'order',
         });
 
-      // Increment promo code usage if one was applied
+      // Increment promo code usage if one was applied and clear the promo state
       if (appliedPromo?.id) {
         await incrementUsage(appliedPromo.id);
       }
+      
+      // Clear promo state after order is placed (prevents showing after usage)
+      resetAfterOrder();
+      setPromoDiscount(0);
+      setAppliedPromoCode(null);
 
       // Process payment based on method
       if (paymentMethod === 'wallet') {
@@ -662,7 +667,12 @@ export default function Cart() {
             )}
 
             {/* Promo Code */}
-            <PromoCodeInput subtotal={subtotal} vendorId={vendorId || undefined} onDiscountApplied={handlePromoApplied} />
+            <PromoCodeInput 
+              subtotal={subtotal} 
+              vendorId={vendorId || undefined} 
+              onDiscountApplied={handlePromoApplied} 
+              disabled={selectedDiscountType === 'spin' || selectedDiscountType === 'platform'}
+            />
 
             {/* Active Discount Selector - Spin Rewards, Platform Promos, Promo Codes */}
             <ActiveDiscountSelector
