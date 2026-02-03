@@ -8,10 +8,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { DollarSign, TrendingUp, Wallet, ArrowUpRight, Loader2, FlaskConical, Lock, Package } from 'lucide-react';
+import { DollarSign, TrendingUp, Wallet, ArrowUpRight, Loader2, FlaskConical, Lock, Package, Calendar } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 import { useRiderRestrictions } from '@/hooks/useRiderRestrictions';
+import { DateRangeFilter, DateRange } from '@/components/shared/DateRangeFilter';
 
 export default function RiderEarnings() {
   const navigate = useNavigate();
@@ -26,13 +27,14 @@ export default function RiderEarnings() {
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
   const [affiliatedVendorName, setAffiliatedVendorName] = useState<string | null>(null);
   const [deliveryCompanyName, setDeliveryCompanyName] = useState<string | null>(null);
+  const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
 
   // Use rider restrictions hook
   const { isAffiliated, affiliatedVendorId, isDeliveryCompanyRider, deliveryCompanyId, canViewEarnings } = useRiderRestrictions(riderProfile);
 
   useEffect(() => {
     checkAuth();
-  }, []);
+  }, [dateRange]);
 
   // Fetch affiliated vendor name
   useEffect(() => {
@@ -111,12 +113,24 @@ export default function RiderEarnings() {
       setWallet(walletData);
 
       if (walletData) {
-        const { data: txns } = await supabase
+        let txQuery = supabase
           .from('wallet_transactions')
           .select('*')
           .eq('wallet_id', walletData.id)
           .order('created_at', { ascending: false })
-          .limit(20);
+          .limit(100);
+
+        // Apply date range filter
+        if (dateRange.from) {
+          txQuery = txQuery.gte('created_at', dateRange.from.toISOString());
+        }
+        if (dateRange.to) {
+          const endOfToDate = new Date(dateRange.to);
+          endOfToDate.setHours(23, 59, 59, 999);
+          txQuery = txQuery.lte('created_at', endOfToDate.toISOString());
+        }
+
+        const { data: txns } = await txQuery;
 
         setTransactions(txns || []);
       }
@@ -268,7 +282,16 @@ export default function RiderEarnings() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg md:text-xl">Transaction History</CardTitle>
+          <div className="flex flex-col gap-4">
+            <CardTitle className="text-lg md:text-xl flex items-center gap-2">
+              <Calendar className="w-5 h-5" />
+              Transaction History
+            </CardTitle>
+            <DateRangeFilter 
+              dateRange={dateRange} 
+              onDateRangeChange={setDateRange}
+            />
+          </div>
         </CardHeader>
         <CardContent>
           {transactions.length === 0 ? (

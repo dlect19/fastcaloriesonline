@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 import { ArrowDownLeft, ArrowUpRight, Calendar, Filter, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
+import { DateRangeFilter, DateRange } from './DateRangeFilter';
 
 interface Transaction {
   id: string;
@@ -24,17 +24,26 @@ interface TransactionHistoryProps {
   title?: string;
   showFilters?: boolean;
   limit?: number;
+  externalDateRange?: DateRange;
+  onDateRangeChange?: (range: DateRange) => void;
 }
 
 export function TransactionHistory({ 
   walletId, 
   title = "Transaction History",
   showFilters = true,
-  limit = 50 
+  limit = 50,
+  externalDateRange,
+  onDateRangeChange 
 }: TransactionHistoryProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'credit' | 'debit'>('all');
+  const [internalDateRange, setInternalDateRange] = useState<DateRange>({ from: undefined, to: undefined });
+  
+  // Use external date range if provided, otherwise use internal state
+  const dateRange = externalDateRange ?? internalDateRange;
+  const handleDateRangeChange = onDateRangeChange ?? setInternalDateRange;
 
   useEffect(() => {
     if (walletId) {
@@ -42,7 +51,7 @@ export function TransactionHistory({
     } else {
       setLoading(false);
     }
-  }, [walletId, filter]);
+  }, [walletId, filter, dateRange]);
 
   const fetchTransactions = async () => {
     if (!walletId) return;
@@ -58,6 +67,17 @@ export function TransactionHistory({
 
       if (filter !== 'all') {
         query = query.eq('transaction_type', filter);
+      }
+
+      // Apply date range filter
+      if (dateRange.from) {
+        query = query.gte('created_at', dateRange.from.toISOString());
+      }
+      if (dateRange.to) {
+        // End of day for the "to" date
+        const endOfToDate = new Date(dateRange.to);
+        endOfToDate.setHours(23, 59, 59, 999);
+        query = query.lte('created_at', endOfToDate.toISOString());
       }
 
       const { data, error } = await query;
@@ -131,15 +151,19 @@ export function TransactionHistory({
   return (
     <Card className="border-0 shadow-soft">
       <CardHeader>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex flex-col gap-4">
           <CardTitle className="text-lg flex items-center gap-2">
             <Calendar className="w-5 h-5" />
             {title}
           </CardTitle>
           {showFilters && (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <DateRangeFilter 
+                dateRange={dateRange} 
+                onDateRangeChange={handleDateRangeChange} 
+              />
               <Select value={filter} onValueChange={(v) => setFilter(v as any)}>
-                <SelectTrigger className="w-[140px]">
+                <SelectTrigger className="w-[120px]">
                   <Filter className="w-4 h-4 mr-2" />
                   <SelectValue />
                 </SelectTrigger>

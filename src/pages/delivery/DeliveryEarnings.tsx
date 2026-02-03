@@ -7,6 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { DeliverySidebar } from '@/components/delivery/DeliverySidebar';
 import { TransactionHistory } from '@/components/shared/TransactionHistory';
+import { DateRangeFilter, DateRange } from '@/components/shared/DateRangeFilter';
 import { useAuth } from '@/hooks/useAuth';
 import { useDeliveryCompany } from '@/hooks/useDeliveryCompany';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
@@ -32,6 +33,7 @@ export default function DeliveryEarnings() {
   const [stats, setStats] = useState<EarningsStats | null>(null);
   const [walletId, setWalletId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -314,19 +316,30 @@ export default function DeliveryEarnings() {
           </Card>
 
           {/* Transaction History */}
-          {walletId && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Transaction History</CardTitle>
-                <CardDescription>All credits and debits</CardDescription>
-              </CardHeader>
-              <CardContent>
-              <TransactionHistory 
-                walletId={walletId} 
-              />
-              </CardContent>
-            </Card>
-          )}
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col gap-4">
+                <div>
+                  <CardTitle>Transaction History</CardTitle>
+                  <CardDescription>All credits and debits</CardDescription>
+                </div>
+                <DateRangeFilter 
+                  dateRange={dateRange} 
+                  onDateRangeChange={setDateRange}
+                />
+              </div>
+            </CardHeader>
+            <CardContent>
+              {walletId && (
+                <TransactionHistory 
+                  walletId={walletId}
+                  showFilters={false}
+                  externalDateRange={dateRange}
+                  onDateRangeChange={setDateRange}
+                />
+              )}
+            </CardContent>
+          </Card>
         </div>
       </main>
     </div>
