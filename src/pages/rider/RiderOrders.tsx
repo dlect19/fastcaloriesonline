@@ -226,6 +226,11 @@ export default function RiderOrders() {
 
   const getNextStatus = (currentStatus: string) => {
     const flow: Record<string, string> = {
+      // Vendor-affiliated riders may see these statuses
+      confirmed: 'preparing',
+      preparing: 'ready_for_pickup',
+      assigned: 'picked_up', // Direct assignment status
+      searching_for_rider: 'picked_up', // Dispatch system status
       ready_for_pickup: 'picked_up',
       picked_up: 'on_the_way',
       on_the_way: 'delivered',
@@ -235,6 +240,10 @@ export default function RiderOrders() {
 
   const getStatusBadge = (status: string) => {
     const colors: Record<string, string> = {
+      confirmed: 'bg-calorie-medium text-white',
+      preparing: 'bg-yellow-500 text-white',
+      assigned: 'bg-primary text-white',
+      searching_for_rider: 'bg-primary text-white',
       ready_for_pickup: 'bg-calorie-medium text-white',
       picked_up: 'bg-blue-500 text-white',
       on_the_way: 'bg-purple-500 text-white',
