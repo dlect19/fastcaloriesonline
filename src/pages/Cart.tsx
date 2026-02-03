@@ -682,6 +682,8 @@ export default function Cart() {
                   if (spinDiscount) {
                     setPromoDiscount(Math.round((subtotal * spinDiscount.discount_percentage) / 100));
                   }
+                  // Force wallet payment for spin discounts
+                  setPaymentMethod('wallet');
                 } else if (type === 'platform') {
                   const platformPromo = getBestPlatformPromo();
                   if (platformPromo) {
@@ -703,8 +705,15 @@ export default function Cart() {
               walletBalance={walletBalance}
               orderTotal={total}
               selectedMethod={paymentMethod}
-              onMethodChange={setPaymentMethod}
+              onMethodChange={(method) => {
+                // Prevent changing from wallet if spin discount is selected
+                if (selectedDiscountType === 'spin' && method !== 'wallet') {
+                  return;
+                }
+                setPaymentMethod(method);
+              }}
               isWalletDisabled={isWalletDisabled}
+              lockedToWallet={selectedDiscountType === 'spin'}
             />
 
             {/* Order Summary */}
