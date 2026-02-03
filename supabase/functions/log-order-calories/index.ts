@@ -103,6 +103,19 @@ serve(async (req: Request) => {
       }
     }
 
+    // Determine meal type based on current hour
+    const currentHour = new Date().getHours();
+    let mealType = "lunch"; // default
+    if (currentHour >= 5 && currentHour < 11) {
+      mealType = "breakfast";
+    } else if (currentHour >= 11 && currentHour < 16) {
+      mealType = "lunch";
+    } else if (currentHour >= 16 && currentHour < 21) {
+      mealType = "dinner";
+    } else {
+      mealType = "snack";
+    }
+
     // Insert calorie log
     const { error: logError } = await supabaseAdmin
       .from("calorie_logs")
@@ -113,7 +126,7 @@ serve(async (req: Request) => {
         carbs_grams: totalCarbs,
         protein_grams: totalProtein,
         fats_grams: totalFats,
-        meal_type: "order",
+        meal_type: mealType,
         log_date: new Date().toISOString().split("T")[0],
       });
 
