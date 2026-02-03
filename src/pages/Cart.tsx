@@ -472,6 +472,16 @@ export default function Cart() {
                   </div>
                 )}
 
+                {/* Distance info for transparency */}
+                {hasCoordinates && distanceKm !== null && !geocodingAddress && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground bg-secondary/50 p-3 rounded-lg">
+                    <MapPin className="w-4 h-4 text-primary" />
+                    <span>
+                      Distance: <strong>{distanceKm.toFixed(1)} km</strong> • Delivery fee: <strong>₦{deliveryFee.toLocaleString()}</strong>
+                    </span>
+                  </div>
+                )}
+
                 {/* Out of range warning */}
                 {isOutOfRange && selectedAddress && (
                   <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-lg">
