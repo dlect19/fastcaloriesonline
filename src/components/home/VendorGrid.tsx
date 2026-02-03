@@ -95,24 +95,39 @@ const mockVendors = [
 interface VendorGridProps {
   title?: string;
   category?: string;
+  /** External location override - when provided, uses this instead of device GPS */
+  externalLat?: number | null;
+  externalLon?: number | null;
 }
 
-export function VendorGrid({ title = 'Nearby Vendors', category = 'all' }: VendorGridProps) {
+export function VendorGrid({ 
+  title = 'Nearby Vendors', 
+  category = 'all',
+  externalLat,
+  externalLon,
+}: VendorGridProps) {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
   const [useMock, setUseMock] = useState(false);
   
-  const { latitude, longitude, loading: geoLoading, error: geoError, getCurrentPosition } = useGeolocation();
+  const { latitude: gpsLat, longitude: gpsLon, loading: geoLoading, error: geoError, getCurrentPosition } = useGeolocation();
   const { settings } = useDeliverySettings();
+
+  // Use external location if provided, otherwise fall back to GPS
+  const latitude = externalLat ?? gpsLat;
+  const longitude = externalLon ?? gpsLon;
+  const hasExternalLocation = externalLat !== undefined && externalLat !== null;
 
   useEffect(() => {
     fetchVendors();
   }, []);
 
-  // Request location on mount
+  // Request location on mount only if no external location
   useEffect(() => {
-    getCurrentPosition();
-  }, []);
+    if (!hasExternalLocation) {
+      getCurrentPosition();
+    }
+  }, [hasExternalLocation]);
 
   const fetchVendors = async () => {
     try {
@@ -232,7 +247,7 @@ export function VendorGrid({ title = 'Nearby Vendors', category = 'all' }: Vendo
             </span>
           )}
         </div>
-        {!latitude && !geoLoading && (
+        {!latitude && !geoLoading && !hasExternalLocation && (
           <Button
             variant="ghost"
             size="sm"
