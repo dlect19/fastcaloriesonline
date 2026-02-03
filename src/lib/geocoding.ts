@@ -6,42 +6,73 @@ interface GeocodeResult {
   display_name: string;
 }
 
+export interface GeocodeSuggestion {
+  latitude: number;
+  longitude: number;
+  display_name: string;
+  name: string;
+  city?: string;
+  state?: string;
+}
+
+interface GeocodeResponse {
+  result: GeocodeResult | null;
+  suggestions: GeocodeSuggestion[];
+}
+
 /**
- * Geocode an address using the edge function (which uses Nominatim/OSM)
+ * Geocode an address using the edge function (which uses Photon + Nominatim)
+ * Returns both the result (if found) and suggestions (if not found or partial match)
+ */
+export async function geocodeAddressWithSuggestions(
+  address: string,
+  city?: string,
+  state?: string
+): Promise<GeocodeResponse> {
+  try {
+    const { data, error } = await supabase.functions.invoke('geocode-address', {
+      body: { address, city, state, country: 'Nigeria' },
+    });
+
+    if (error) {
+      console.warn('Geocoding unavailable:', error);
+      return { result: null, suggestions: [] };
+    }
+
+    // Check if we got a successful result
+    if (data && !data.error && data.latitude && data.longitude) {
+      return {
+        result: {
+          latitude: data.latitude,
+          longitude: data.longitude,
+          display_name: data.display_name,
+        },
+        suggestions: data.suggestions || [],
+      };
+    }
+
+    // No exact match - return suggestions if available
+    return {
+      result: null,
+      suggestions: data?.suggestions || [],
+    };
+  } catch (error) {
+    console.error('Geocoding failed:', error);
+    return { result: null, suggestions: [] };
+  }
+}
+
+/**
+ * Geocode an address using the edge function (which uses Photon + Nominatim)
+ * Simple version that just returns coordinates or null
  */
 export async function geocodeAddress(
   address: string,
   city?: string,
   state?: string
 ): Promise<GeocodeResult | null> {
-  try {
-    const { data, error } = await supabase.functions.invoke('geocode-address', {
-      body: { address, city, state, country: 'Nigeria' },
-    });
-
-    // "not found" is a normal outcome for many informal/landmark addresses.
-    // Treat it as a non-fatal null result (no console.error to avoid blank-screen error overlays).
-    const notFound =
-      data?.error === 'Address not found' ||
-      data?.error === 'Location not found' ||
-      data?.error === 'Address is required for forward geocoding';
-
-    if (error || !data || data.error) {
-      if (!notFound) {
-        console.warn('Geocoding unavailable:', error || data?.error);
-      }
-      return null;
-    }
-
-    return {
-      latitude: data.latitude,
-      longitude: data.longitude,
-      display_name: data.display_name,
-    };
-  } catch (error) {
-    console.error('Geocoding failed:', error);
-    return null;
-  }
+  const { result } = await geocodeAddressWithSuggestions(address, city, state);
+  return result;
 }
 
 /**
@@ -86,22 +117,38 @@ export async function updateVendorCoordinates(
   }
 }
 
+interface GeocodeAndUpdateResult extends GeocodeResult {
+  suggestions?: GeocodeSuggestion[];
+}
+
 /**
  * Geocode and update an address automatically
+ * Returns result with suggestions if exact match not found
  */
 export async function geocodeAndUpdateAddress(
   addressId: string,
   addressLine: string,
   city: string,
   state: string
-): Promise<GeocodeResult | null> {
-  const result = await geocodeAddress(addressLine, city, state);
+): Promise<GeocodeAndUpdateResult | null> {
+  const { result, suggestions } = await geocodeAddressWithSuggestions(addressLine, city, state);
   
   if (result) {
     await updateAddressCoordinates(addressId, result.latitude, result.longitude);
+    return result;
   }
   
-  return result;
+  // Return null but with suggestions attached for the caller to handle
+  if (suggestions.length > 0) {
+    return {
+      latitude: 0,
+      longitude: 0,
+      display_name: '',
+      suggestions,
+    } as GeocodeAndUpdateResult;
+  }
+  
+  return null;
 }
 
 /**
