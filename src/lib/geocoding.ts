@@ -19,8 +19,17 @@ export async function geocodeAddress(
       body: { address, city, state, country: 'Nigeria' },
     });
 
+    // "not found" is a normal outcome for many informal/landmark addresses.
+    // Treat it as a non-fatal null result (no console.error to avoid blank-screen error overlays).
+    const notFound =
+      data?.error === 'Address not found' ||
+      data?.error === 'Location not found' ||
+      data?.error === 'Address is required for forward geocoding';
+
     if (error || !data || data.error) {
-      console.error('Geocoding error:', error || data?.error);
+      if (!notFound) {
+        console.warn('Geocoding unavailable:', error || data?.error);
+      }
       return null;
     }
 
