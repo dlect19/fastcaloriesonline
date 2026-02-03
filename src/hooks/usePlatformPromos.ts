@@ -64,24 +64,33 @@ export function usePlatformPromos() {
 
     setLoading(true);
     try {
-      // Get user's order stats
-      const { data: stats } = await supabase
+      // Get user's order stats - use maybeSingle to handle no record case
+      const { data: stats, error } = await supabase
         .from('user_order_stats')
         .select('*')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
-      const completedOrders = stats?.completed_orders || 0;
-      const firstOrderUsed = stats?.first_order_promo_used || false;
+      // If error or no stats, treat as new user
+      const completedOrders = stats?.completed_orders ?? 0;
+      const firstOrderUsed = stats?.first_order_promo_used ?? false;
 
       let firstOrderDiscount: number | null = null;
       let loyaltyDiscount: number | null = null;
       let nextLoyaltyAt: number | null = null;
 
       // First order discount eligibility
+      // Only eligible if: setting enabled, no completed orders, and promo not already used
       if (settings.firstOrderEnabled && completedOrders === 0 && !firstOrderUsed) {
         firstOrderDiscount = settings.firstOrderPercent;
       }
+      // Debug logging for troubleshooting
+      console.log('[PlatformPromos] Eligibility check:', {
+        completedOrders,
+        firstOrderUsed,
+        firstOrderEnabled: settings.firstOrderEnabled,
+        firstOrderDiscount,
+      });
 
       // Loyalty discount eligibility (every 10th order)
       if (settings.loyaltyEnabled) {
