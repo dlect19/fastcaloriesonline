@@ -1,8 +1,7 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers':
+    'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
 interface GeocodeRequest {
@@ -51,7 +50,8 @@ Deno.serve(async (req) => {
         console.error(`Nominatim reverse API error: ${response.status}`);
         return new Response(
           JSON.stringify({ error: 'Reverse geocoding service unavailable' }),
-          { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          // IMPORTANT: return 200 to avoid client-side crashes on non-2xx
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
@@ -61,7 +61,8 @@ Deno.serve(async (req) => {
         console.log(`No results found for coordinates: ${latitude}, ${longitude}`);
         return new Response(
           JSON.stringify({ error: 'Location not found' }),
-          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          // IMPORTANT: return 200 to avoid client-side crashes on non-2xx
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
@@ -88,7 +89,8 @@ Deno.serve(async (req) => {
     if (!address) {
       return new Response(
         JSON.stringify({ error: 'Address is required for forward geocoding' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        // IMPORTANT: return 200 to avoid client-side crashes on non-2xx
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -117,7 +119,8 @@ Deno.serve(async (req) => {
       console.error(`Nominatim API error: ${response.status}`);
       return new Response(
         JSON.stringify({ error: 'Geocoding service unavailable' }),
-        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        // IMPORTANT: return 200 to avoid client-side crashes on non-2xx
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -127,7 +130,8 @@ Deno.serve(async (req) => {
       console.log(`No results found for: ${query}`);
       return new Response(
         JSON.stringify({ error: 'Address not found', query }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        // IMPORTANT: return 200 to avoid client-side crashes on non-2xx
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -153,7 +157,8 @@ Deno.serve(async (req) => {
     console.error('Geocoding error:', error);
     return new Response(
       JSON.stringify({ error: 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      // IMPORTANT: return 200 to avoid client-side crashes on non-2xx
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
