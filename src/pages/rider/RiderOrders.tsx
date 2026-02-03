@@ -212,6 +212,16 @@ export default function RiderOrders() {
         })
         .eq('id', pendingDeliveryOrder.id);
 
+      // Log calories for the customer on delivery
+      try {
+        await supabase.functions.invoke('log-order-calories', {
+          body: { orderId: pendingDeliveryOrder.id }
+        });
+      } catch (calorieError) {
+        console.error('Failed to log calories:', calorieError);
+        // Don't block delivery for calorie logging errors
+      }
+
       toast({ title: '✅ Order delivered successfully!' });
       setConfirmDialogOpen(false);
       setPendingDeliveryOrder(null);

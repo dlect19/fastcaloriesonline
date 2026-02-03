@@ -60,6 +60,16 @@ export function SelfPickupVerifyDialog({
 
       if (error) throw error;
 
+      // Log calories for the customer on delivery
+      try {
+        await supabase.functions.invoke('log-order-calories', {
+          body: { orderId }
+        });
+      } catch (calorieError) {
+        console.error('Failed to log calories:', calorieError);
+        // Don't block pickup completion for calorie logging errors
+      }
+
       setVerified(true);
       toast({ title: 'Order completed!', description: 'Customer has picked up their order.' });
       
