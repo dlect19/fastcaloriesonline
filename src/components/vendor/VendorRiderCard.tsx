@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Bike, Circle, Star, Package, TrendingUp, ChevronDown, ChevronUp, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Bike, Circle, Star, Package, TrendingUp, ChevronDown, ChevronUp, AlertCircle, CheckCircle2, Phone, Mail, MapPin } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,8 +17,12 @@ interface VendorRider {
     total_deliveries: number | null;
     vehicle_type: string | null;
     user_id: string;
+    preferred_city: string | null;
+    preferred_state: string | null;
   };
   user_name?: string;
+  user_phone?: string | null;
+  user_email?: string | null;
 }
 
 interface VendorRiderCardProps {
@@ -103,7 +107,7 @@ export function VendorRiderCard({ rider, vendorId, onToggleStatus }: VendorRider
               </Badge>
               )}
             </div>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
             <span>{rider.rider_profile?.vehicle_type || 'Vehicle not set'}</span>
             <span>•</span>
             <span>{rider.rider_profile?.total_deliveries || 0} total trips</span>
@@ -116,7 +120,37 @@ export function VendorRiderCard({ rider, vendorId, onToggleStatus }: VendorRider
                 </span>
               </>
             )}
-            </div>
+          </div>
+          
+          {/* Contact Details */}
+          <div className="flex flex-wrap items-center gap-3 mt-2 text-sm">
+            {rider.user_phone && (
+              <a 
+                href={`tel:${rider.user_phone}`} 
+                className="flex items-center gap-1 text-primary hover:underline"
+              >
+                <Phone className="w-3.5 h-3.5" />
+                {rider.user_phone}
+              </a>
+            )}
+            {rider.user_email && (
+              <a 
+                href={`mailto:${rider.user_email}`} 
+                className="flex items-center gap-1 text-primary hover:underline"
+              >
+                <Mail className="w-3.5 h-3.5" />
+                {rider.user_email}
+              </a>
+            )}
+            {(rider.rider_profile?.preferred_city || rider.rider_profile?.preferred_state) && (
+              <span className="flex items-center gap-1 text-muted-foreground">
+                <MapPin className="w-3.5 h-3.5" />
+                {[rider.rider_profile?.preferred_city, rider.rider_profile?.preferred_state]
+                  .filter(Boolean)
+                  .join(', ')}
+              </span>
+            )}
+          </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
