@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Store, Mail, Phone, MapPin, Save, Camera, ImageIcon, Loader2, Megaphone, Bike, Users, Building2, Heart, QrCode } from 'lucide-react';
+import { Store, Mail, Phone, MapPin, Save, Camera, ImageIcon, Loader2, Megaphone, Bike, Users, Building2, Heart, QrCode, Navigation, CheckCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,7 @@ import { AccessDenied } from '@/components/vendor/AccessDenied';
 import { MarketingBanner } from '@/components/vendor/MarketingBanner';
 import { useAuth } from '@/hooks/useAuth';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
+import { useGeolocation } from '@/hooks/useGeolocation';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { geocodeAndUpdateVendor } from '@/lib/geocoding';
@@ -35,7 +36,8 @@ export default function VendorSettings() {
   const bannerInputRef = useRef<HTMLInputElement>(null);
 
   const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendor?.id || null);
-
+  const { latitude: geoLat, longitude: geoLon, loading: geoLoading, error: geoError, getCurrentPosition } = useGeolocation();
+  const [gettingLocation, setGettingLocation] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -444,6 +446,61 @@ export default function VendorSettings() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* GPS Location Button */}
+              <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-foreground">Precise GPS Location</p>
+                    <p className="text-sm text-muted-foreground">
+                      {vendor?.latitude && vendor?.longitude 
+                        ? `📍 Saved: ${vendor.latitude.toFixed(4)}, ${vendor.longitude.toFixed(4)}`
+                        : 'Set your exact location for accurate delivery distances'}
+                    </p>
+                  </div>
+                  {vendor?.latitude && vendor?.longitude && (
+                    <CheckCircle className="w-5 h-5 text-calorie-low shrink-0" />
+                  )}
+                </div>
+                <Button
+                  variant={vendor?.latitude ? "outline" : "default"}
+                  size="sm"
+                  className="gap-2"
+                  onClick={async () => {
+                    setGettingLocation(true);
+                    getCurrentPosition();
+                  }}
+                  disabled={geoLoading || gettingLocation}
+                >
+                  {(geoLoading || gettingLocation) ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Navigation className="w-4 h-4" />
+                  )}
+                  {vendor?.latitude ? 'Update My Location' : 'Use My Current Location'}
+                </Button>
+                {geoError && (
+                  <p className="text-xs text-destructive">{geoError}</p>
+                )}
+              </div>
+
+              {/* Auto-save GPS when obtained */}
+              {gettingLocation && geoLat && geoLon && (
+                <GpsAutoSave 
+                  vendorId={vendor?.id || ''} 
+                  lat={geoLat} 
+                  lon={geoLon} 
+                  onComplete={() => {
+                    setGettingLocation(false);
+                    toast({ title: 'Location Updated', description: 'Your precise GPS location has been saved.' });
+                    fetchData();
+                  }}
+                  onError={(err) => {
+                    setGettingLocation(false);
+                    toast({ title: 'Error', description: err, variant: 'destructive' });
+                  }}
+                />
+              )}
+
               <div className="space-y-2">
                 <Label htmlFor="address">Street Address</Label>
                 <Input
@@ -688,4 +745,42 @@ export default function VendorSettings() {
       </main>
     </div>
   );
+}
+
+// Helper component to auto-save GPS coordinates when obtained
+function GpsAutoSave({ 
+  vendorId, 
+  lat, 
+  lon, 
+  onComplete, 
+  onError 
+}: { 
+  vendorId: string; 
+  lat: number; 
+  lon: number; 
+  onComplete: () => void; 
+  onError: (msg: string) => void;
+}) {
+  useEffect(() => {
+    if (!vendorId || !lat || !lon) return;
+    
+    const saveLocation = async () => {
+      try {
+        const { error } = await supabase
+          .from('vendors')
+          .update({ latitude: lat, longitude: lon })
+          .eq('id', vendorId);
+        
+        if (error) throw error;
+        onComplete();
+      } catch (err) {
+        console.error('Failed to save GPS:', err);
+        onError('Failed to save location');
+      }
+    };
+    
+    saveLocation();
+  }, [vendorId, lat, lon, onComplete, onError]);
+
+  return null;
 }
