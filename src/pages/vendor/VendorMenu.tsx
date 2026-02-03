@@ -567,8 +567,19 @@ export default function VendorMenu() {
                               if (!imagePreview) return;
                               setEstimatingCalories(true);
                               try {
+                                // Convert blob URL to base64 data URL
+                                const response = await fetch(imagePreview);
+                                const blob = await response.blob();
+                                const reader = new FileReader();
+                                const base64Promise = new Promise<string>((resolve, reject) => {
+                                  reader.onloadend = () => resolve(reader.result as string);
+                                  reader.onerror = reject;
+                                  reader.readAsDataURL(blob);
+                                });
+                                const base64Image = await base64Promise;
+                                
                                 const { data, error } = await supabase.functions.invoke('estimate-calories-from-image', {
-                                  body: { imageUrl: imagePreview }
+                                  body: { imageUrl: base64Image }
                                 });
                                 if (error) throw error;
                                 if (data?.success) {
