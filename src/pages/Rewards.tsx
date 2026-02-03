@@ -138,15 +138,15 @@ export default function Rewards() {
           <CardContent>
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList className="w-full grid grid-cols-4 mb-6">
-                <TabsTrigger value="free" className="relative">
+                <TabsTrigger value="free" className="relative text-xs sm:text-sm">
                   Free
                   {canFreeSpin && (
                     <span className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full" />
                   )}
                 </TabsTrigger>
-                <TabsTrigger value="tier1">₦100</TabsTrigger>
-                <TabsTrigger value="tier2">₦200</TabsTrigger>
-                <TabsTrigger value="tier3">₦500</TabsTrigger>
+                <TabsTrigger value="tier1" className="text-xs sm:text-sm">₦100 (1)</TabsTrigger>
+                <TabsTrigger value="tier2" className="text-xs sm:text-sm">₦200 (3)</TabsTrigger>
+                <TabsTrigger value="tier3" className="text-xs sm:text-sm">₦500 (6)</TabsTrigger>
               </TabsList>
 
               <TabsContent value="free" className="mt-0">
@@ -204,14 +204,18 @@ export default function Rewards() {
             </div>
             <div className="flex gap-3">
               <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">2</div>
-              <p>Purchase premium spins from your <strong>wallet balance</strong> for higher discount chances.</p>
+              <p>Purchase spin packs: <strong>Bronze (₦100) = 1 spin</strong>, <strong>Silver (₦200) = 3 spins</strong>, <strong>Gold (₦500) = 6 spins</strong>.</p>
             </div>
             <div className="flex gap-3">
               <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">3</div>
-              <p>Discounts are valid for <strong>24 hours</strong> and apply to your next order.</p>
+              <p>All wheels have the same segments: <strong>0%, 2%, 5%, 8%, 10%, Try Again</strong>.</p>
             </div>
             <div className="flex gap-3">
               <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">4</div>
+              <p>Discounts are valid for <strong>24 hours</strong> and can only be used with <strong>wallet payment</strong>.</p>
+            </div>
+            <div className="flex gap-3">
+              <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">5</div>
               <p>Only <strong>one discount</strong> can be used per order (no stacking).</p>
             </div>
           </CardContent>

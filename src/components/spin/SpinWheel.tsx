@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { motion, useAnimation } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Gift, Loader2, Sparkles, Lock, Wallet } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Gift, Loader2, Sparkles, Lock, Wallet, RotateCcw } from 'lucide-react';
 import { useSpinWheel } from '@/hooks/useSpinWheel';
 import { useCustomerWallet } from '@/hooks/useCustomerWallet';
 import { useToast } from '@/hooks/use-toast';
@@ -13,31 +14,63 @@ interface SpinWheelProps {
   onSpinComplete?: (result: { discount_percentage: number; is_try_again: boolean }) => void;
 }
 
+// Unified segments for all wheels
+const UNIFIED_SEGMENTS = [
+  { id: 'unified-0', segment_label: '0%', discount_percentage: 0, is_try_again: false, color: '#6B7280' },
+  { id: 'unified-1', segment_label: '2%', discount_percentage: 2, is_try_again: false, color: '#10B981' },
+  { id: 'unified-2', segment_label: '5%', discount_percentage: 5, is_try_again: false, color: '#3B82F6' },
+  { id: 'unified-3', segment_label: '8%', discount_percentage: 8, is_try_again: false, color: '#8B5CF6' },
+  { id: 'unified-4', segment_label: '10%', discount_percentage: 10, is_try_again: false, color: '#F59E0B' },
+  { id: 'unified-5', segment_label: 'Try Again', discount_percentage: 0, is_try_again: true, color: '#EF4444' },
+];
+
+// Spins per tier
+const SPINS_PER_TIER: Record<string, number> = {
+  free: 1,
+  tier1: 1,
+  tier2: 3,
+  tier3: 6,
+};
+
+const TIER_COSTS: Record<string, number> = {
+  free: 0,
+  tier1: 100,
+  tier2: 200,
+  tier3: 500,
+};
+
 export function SpinWheel({ wheelType, onSpinComplete }: SpinWheelProps) {
   const { toast } = useToast();
-  const { wheelsConfig, canFreeSpin, hasTryAgain, spin, loading, spinEnabled } = useSpinWheel();
-  const { wallet, isTestMode } = useCustomerWallet();
+  const { canFreeSpin, hasTryAgain, spin, loading, spinEnabled, refreshDiscounts } = useSpinWheel();
+  const { wallet, isTestMode, refetch: refetchWallet } = useCustomerWallet();
   const controls = useAnimation();
   const [isSpinning, setIsSpinning] = useState(false);
   const [result, setResult] = useState<{ label: string; color: string; discount: number } | null>(null);
+  const [currentSpinIndex, setCurrentSpinIndex] = useState(0);
+  const [spinResults, setSpinResults] = useState<Array<{ label: string; discount: number }>>([]);
+  const [packPurchased, setPackPurchased] = useState(false);
   const wheelRef = useRef<HTMLDivElement>(null);
 
-  const wheelConfig = wheelsConfig.find(w => w.wheel_type === wheelType);
-  const segments = wheelConfig?.segments || [];
-  const cost = wheelConfig?.cost || 0;
+  const segments = UNIFIED_SEGMENTS;
+  const cost = TIER_COSTS[wheelType];
+  const totalSpins = SPINS_PER_TIER[wheelType];
 
   const balance = isTestMode 
     ? Number(wallet?.test_balance) || 0 
     : Number(wallet?.balance) || 0;
 
-  const canSpin = wheelType === 'free' 
+  const canStartNewPack = wheelType === 'free' 
     ? canFreeSpin && spinEnabled.free
     : balance >= cost && spinEnabled.paid;
+
+  const canSpin = packPurchased 
+    ? currentSpinIndex < totalSpins 
+    : canStartNewPack;
 
   const handleSpin = async () => {
     if (isSpinning || loading) return;
 
-    if (wheelType === 'free' && !canFreeSpin) {
+    if (wheelType === 'free' && !canFreeSpin && !hasTryAgain) {
       toast({ 
         title: "No spins available", 
         description: "Come back tomorrow for your free spin!", 
@@ -46,10 +79,10 @@ export function SpinWheel({ wheelType, onSpinComplete }: SpinWheelProps) {
       return;
     }
 
-    if (wheelType !== 'free' && balance < cost) {
+    if (wheelType !== 'free' && !packPurchased && balance < cost) {
       toast({ 
         title: "Insufficient balance", 
-        description: `You need ₦${cost} for this spin`,
+        description: `You need ₦${cost} for this spin pack`,
         variant: "destructive" 
       });
       return;
@@ -58,11 +91,17 @@ export function SpinWheel({ wheelType, onSpinComplete }: SpinWheelProps) {
     setIsSpinning(true);
     setResult(null);
 
-    const spinResult = await spin(wheelType);
+    const spinResult = await spin(wheelType, currentSpinIndex);
     
     if (!spinResult) {
       setIsSpinning(false);
       return;
+    }
+
+    // Mark pack as purchased after first successful spin
+    if (!packPurchased && wheelType !== 'free') {
+      setPackPurchased(true);
+      refetchWallet();
     }
 
     // Calculate rotation
@@ -86,7 +125,17 @@ export function SpinWheel({ wheelType, onSpinComplete }: SpinWheelProps) {
       discount: spinResult.discount_percentage,
     });
 
+    // Add to results array
+    setSpinResults(prev => [...prev, {
+      label: spinResult.segment_label,
+      discount: spinResult.discount_percentage,
+    }]);
+
     setIsSpinning(false);
+
+    // Increment spin index
+    const nextSpinIndex = currentSpinIndex + 1;
+    setCurrentSpinIndex(nextSpinIndex);
 
     if (spinResult.is_try_again) {
       toast({
@@ -101,7 +150,9 @@ export function SpinWheel({ wheelType, onSpinComplete }: SpinWheelProps) {
     } else {
       toast({
         title: "Better luck next time!",
-        description: "Keep trying for a discount!",
+        description: nextSpinIndex < totalSpins 
+          ? `${totalSpins - nextSpinIndex} spins remaining!`
+          : "Keep trying for a discount!",
       });
     }
 
@@ -109,24 +160,30 @@ export function SpinWheel({ wheelType, onSpinComplete }: SpinWheelProps) {
       discount_percentage: spinResult.discount_percentage,
       is_try_again: spinResult.is_try_again,
     });
+
+    // Refresh discounts after all spins complete
+    if (nextSpinIndex >= totalSpins) {
+      refreshDiscounts();
+    }
   };
 
-  if (!wheelConfig || segments.length === 0) {
-    return (
-      <Card className="bg-muted/50">
-        <CardContent className="p-8 text-center">
-          <p className="text-muted-foreground">Spin wheel not available</p>
-        </CardContent>
-      </Card>
-    );
-  }
+  const handleNewPack = () => {
+    setCurrentSpinIndex(0);
+    setSpinResults([]);
+    setPackPurchased(false);
+    setResult(null);
+    controls.set({ rotate: 0 });
+  };
 
   const tierLabels: Record<string, string> = {
     free: 'Free Daily Spin',
-    tier1: 'Bronze Wheel (₦100)',
-    tier2: 'Silver Wheel (₦200)',
-    tier3: 'Gold Wheel (₦500)',
+    tier1: 'Bronze (₦100) - 1 Spin',
+    tier2: 'Silver (₦200) - 3 Spins',
+    tier3: 'Gold (₦500) - 6 Spins',
   };
+
+  const hasRemainingSpins = packPurchased && currentSpinIndex < totalSpins;
+  const packComplete = packPurchased && currentSpinIndex >= totalSpins;
 
   return (
     <div className="flex flex-col items-center gap-6">
@@ -141,12 +198,48 @@ export function SpinWheel({ wheelType, onSpinComplete }: SpinWheelProps) {
             ✨ Bonus spin available!
           </p>
         )}
-        {wheelType !== 'free' && (
+        {wheelType !== 'free' && !packPurchased && (
           <p className="text-sm text-muted-foreground mt-1">
-            Win up to {Math.max(...segments.map(s => s.discount_percentage))}% off!
+            Segments: 0%, 2%, 5%, 8%, 10%, Try Again
           </p>
         )}
       </div>
+
+      {/* Spin Progress for multi-spin packs */}
+      {wheelType !== 'free' && (packPurchased || spinResults.length > 0) && (
+        <div className="w-full max-w-xs">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-foreground">
+              Spins: {currentSpinIndex}/{totalSpins}
+            </span>
+            {hasRemainingSpins && (
+              <Badge variant="secondary" className="animate-pulse">
+                {totalSpins - currentSpinIndex} left
+              </Badge>
+            )}
+          </div>
+          <div className="w-full h-2 bg-secondary rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-primary transition-all duration-300"
+              style={{ width: `${(currentSpinIndex / totalSpins) * 100}%` }}
+            />
+          </div>
+          {/* Show results so far */}
+          {spinResults.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-2 justify-center">
+              {spinResults.map((r, i) => (
+                <Badge 
+                  key={i} 
+                  variant={r.discount > 0 ? 'default' : 'secondary'}
+                  className="text-xs"
+                >
+                  {r.label}
+                </Badge>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Wheel Container */}
       <div className="relative w-72 h-72 md:w-80 md:h-80">
@@ -227,36 +320,55 @@ export function SpinWheel({ wheelType, onSpinComplete }: SpinWheelProps) {
                   Applied to your next order!
                 </p>
               )}
+              {hasRemainingSpins && (
+                <p className="text-xs text-primary mt-2">
+                  {totalSpins - currentSpinIndex} spins remaining
+                </p>
+              )}
             </div>
           </motion.div>
         )}
       </div>
 
-      {/* Spin Button */}
-      <Button
-        size="lg"
-        onClick={handleSpin}
-        disabled={isSpinning || loading || !canSpin}
-        className={cn(
-          "w-48 h-14 text-lg font-bold",
-          wheelType !== 'free' && "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600"
-        )}
-      >
-        {isSpinning || loading ? (
-          <Loader2 className="w-5 h-5 animate-spin mr-2" />
-        ) : !canSpin ? (
-          <Lock className="w-5 h-5 mr-2" />
-        ) : (
-          <Gift className="w-5 h-5 mr-2" />
-        )}
-        {isSpinning ? 'Spinning...' : !canSpin 
-          ? (wheelType === 'free' ? 'No Spins Left' : 'Insufficient Balance') 
-          : 'SPIN!'
-        }
-      </Button>
+      {/* Spin Button or New Pack Button */}
+      {packComplete ? (
+        <Button
+          size="lg"
+          variant="outline"
+          onClick={handleNewPack}
+          className="w-48 h-14 text-lg font-bold"
+        >
+          <RotateCcw className="w-5 h-5 mr-2" />
+          New Pack
+        </Button>
+      ) : (
+        <Button
+          size="lg"
+          onClick={handleSpin}
+          disabled={isSpinning || loading || !canSpin}
+          className={cn(
+            "w-48 h-14 text-lg font-bold",
+            wheelType !== 'free' && "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600"
+          )}
+        >
+          {isSpinning || loading ? (
+            <Loader2 className="w-5 h-5 animate-spin mr-2" />
+          ) : !canSpin ? (
+            <Lock className="w-5 h-5 mr-2" />
+          ) : (
+            <Gift className="w-5 h-5 mr-2" />
+          )}
+          {isSpinning ? 'Spinning...' : !canSpin 
+            ? (wheelType === 'free' ? 'No Spins Left' : 'Insufficient Balance') 
+            : hasRemainingSpins 
+              ? `SPIN (${totalSpins - currentSpinIndex} left)` 
+              : 'SPIN!'
+          }
+        </Button>
+      )}
 
       {/* Balance Info for paid wheels */}
-      {wheelType !== 'free' && (
+      {wheelType !== 'free' && !packPurchased && (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Wallet className="w-4 h-4" />
           <span>Balance: ₦{balance.toLocaleString()}</span>

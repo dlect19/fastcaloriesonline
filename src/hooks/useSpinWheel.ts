@@ -193,7 +193,7 @@ export function useSpinWheel() {
   }, []);
 
   // Perform a spin
-  const spin = useCallback(async (wheelType: 'free' | 'tier1' | 'tier2' | 'tier3'): Promise<SpinResult | null> => {
+  const spin = useCallback(async (wheelType: 'free' | 'tier1' | 'tier2' | 'tier3', spinIndex: number = 0): Promise<SpinResult | null> => {
     if (!user) {
       toast({ title: 'Please log in to spin', variant: 'destructive' });
       return null;
@@ -202,7 +202,7 @@ export function useSpinWheel() {
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('process-spin', {
-        body: { wheelType },
+        body: { wheelType, spinIndex },
       });
 
       if (error) throw error;

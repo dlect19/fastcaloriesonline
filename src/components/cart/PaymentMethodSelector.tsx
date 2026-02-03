@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Wallet, CreditCard, AlertCircle } from 'lucide-react';
+import { Wallet, CreditCard, AlertCircle, Lock, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export type PaymentMethod = 'wallet' | 'card' | 'split';
@@ -13,6 +13,7 @@ interface PaymentMethodSelectorProps {
   selectedMethod: PaymentMethod;
   onMethodChange: (method: PaymentMethod) => void;
   isWalletDisabled?: boolean;
+  lockedToWallet?: boolean; // When spin discount is applied
 }
 
 export function PaymentMethodSelector({
@@ -21,6 +22,7 @@ export function PaymentMethodSelector({
   selectedMethod,
   onMethodChange,
   isWalletDisabled = false,
+  lockedToWallet = false,
 }: PaymentMethodSelectorProps) {
   const canPayWithWallet = walletBalance >= orderTotal && !isWalletDisabled;
   const canPayPartially = walletBalance > 0 && walletBalance < orderTotal && !isWalletDisabled;
@@ -30,12 +32,30 @@ export function PaymentMethodSelector({
     <Card className="border-0 shadow-soft">
       <CardContent className="p-4 space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold">Payment Method</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="font-semibold">Payment Method</h3>
+            {lockedToWallet && (
+              <span className="flex items-center gap-1 text-xs text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+                <Sparkles className="w-3 h-3" />
+                Spin Discount
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-1 text-sm text-muted-foreground">
             <Wallet className="w-4 h-4" />
             <span>₦{walletBalance.toLocaleString()}</span>
           </div>
         </div>
+
+        {/* Locked to Wallet Notice */}
+        {lockedToWallet && (
+          <div className="flex items-start gap-2 p-3 bg-primary/10 rounded-lg">
+            <Lock className="w-4 h-4 text-primary mt-0.5" />
+            <p className="text-xs text-primary">
+              Spin discounts require wallet payment. Fund your wallet to complete this order.
+            </p>
+          </div>
+        )}
 
         <RadioGroup
           value={selectedMethod}
@@ -93,13 +113,17 @@ export function PaymentMethodSelector({
               "flex items-center space-x-3 p-3 rounded-lg border transition-colors",
               selectedMethod === 'card' 
                 ? "border-primary bg-primary/5" 
-                : "border-border hover:bg-muted/50"
+                : "border-border hover:bg-muted/50",
+              lockedToWallet && "opacity-50 cursor-not-allowed"
             )}
           >
-            <RadioGroupItem value="card" id="card" />
+            <RadioGroupItem value="card" id="card" disabled={lockedToWallet} />
             <Label 
               htmlFor="card" 
-              className="flex-1 flex items-center justify-between cursor-pointer"
+              className={cn(
+                "flex-1 flex items-center justify-between cursor-pointer",
+                lockedToWallet && "cursor-not-allowed"
+              )}
             >
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center">
@@ -107,17 +131,21 @@ export function PaymentMethodSelector({
                 </div>
                 <div>
                   <p className="font-medium text-sm">Pay with Card</p>
-                  <p className="text-xs text-muted-foreground">Card, Bank Transfer, USSD</p>
+                  <p className="text-xs text-muted-foreground">
+                    {lockedToWallet ? 'Not available with spin discount' : 'Card, Bank Transfer, USSD'}
+                  </p>
                 </div>
               </div>
-              <span className="text-sm font-medium">
-                ₦{orderTotal.toLocaleString()}
-              </span>
+              {!lockedToWallet && (
+                <span className="text-sm font-medium">
+                  ₦{orderTotal.toLocaleString()}
+                </span>
+              )}
             </Label>
           </div>
 
           {/* Split Payment */}
-          {canPayPartially && (
+          {canPayPartially && !lockedToWallet && (
             <div
               className={cn(
                 "flex items-center space-x-3 p-3 rounded-lg border transition-colors",
