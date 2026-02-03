@@ -1,112 +1,178 @@
 
+# Fix: Address Coordinate Mismatch and GPS-First Enforcement
 
-# Dynamic Delivery Fee Fix
+## Problem Analysis
 
-## Problem Summary
-The delivery fee is always showing ₦500 because the distance-based calculation requires coordinates (latitude/longitude) for both the vendor and customer address, but **no coordinates are being saved** when:
-1. Customers add delivery addresses
-2. Vendors save their business location
+### Root Cause
+The user's "Home" address (Ketu, 20.6km from vendor) has the **exact same GPS coordinates** as the vendor in Ayobo:
+- **Vendor (Dlect food)**: `6.575631, 3.203979` (Ayobo)  
+- **Customer "Home" address**: `6.575631, 3.203979` (stored for Ketu)
 
-The geocoding utilities exist (`src/lib/geocoding.ts`) but are never called when saving addresses.
+This happens because:
+1. The "Refresh GPS" button captures the **device's current location** at the moment it's clicked
+2. If the customer was physically at the vendor's location (e.g., testing the app) when they clicked "Refresh GPS", it saved the vendor's coordinates instead of their actual home location
+3. The system then calculates distance as 0km because both points are identical
 
-## Current Data State
-- **Customer Addresses**: All addresses have `latitude: null, longitude: null`
-- **Vendors**: 4 out of 5 vendors have no coordinates stored
-- **Platform Settings**: Correctly configured with base fee ₦500, 3km base distance, ₦100/km extra
+### Why Text-Based Geocoding Fails
+OpenStreetMap/Nominatim has limited coverage of informal Nigerian addresses:
+- "ikosi ketu" → Not found
+- "2/4jamiu balogun ikosi ketu" → Not found  
+- "Ishefun busstop Megida Ayobo" → Not found
 
-## Technical Solution
+This forces reliance on GPS capture, but GPS captures **current location**, not the address location.
 
-### 1. Auto-Geocode Customer Addresses
-Update the address creation flow in **two components** to automatically geocode addresses after saving:
+---
 
-**Files to modify:**
-- `src/components/cart/AddressSelector.tsx`
-- `src/components/profile/AddressesCard.tsx`
+## Solution: GPS-First with Validation
 
-**Changes:**
-- Import `geocodeAndUpdateAddress` from `@/lib/geocoding`
-- After successfully inserting an address, call the geocoding function
-- Show a loading indicator while geocoding
-- Display the calculated distance in the cart for transparency
+### Strategy
+1. **Require GPS capture at the delivery location** - Users must be at their delivery address when capturing GPS
+2. **Improve geocoding fallbacks** - Try multiple search strategies before giving up
+3. **Add mismatch detection** - Warn if captured GPS is suspiciously close to vendor
 
-### 2. Auto-Geocode Vendor Locations
-Update vendor settings to automatically geocode when the address is saved:
+---
 
-**File to modify:**
-- `src/pages/vendor/VendorSettings.tsx`
+## Implementation Plan
 
-**Changes:**
-- Import `geocodeAndUpdateVendor` from `@/lib/geocoding`
-- After successfully updating vendor info, geocode the address
-- Store the resulting coordinates in the vendors table
+### 1. Improve Geocoding Edge Function
+**File:** `supabase/functions/geocode-address/index.ts`
 
-### 3. Add Distance Display in Cart
-Show the calculated distance and delivery fee breakdown in the Order Summary:
+Add fallback search strategies:
+- Try original query first
+- If no results, retry without city (just address + state + country)
+- If still no results, retry with just the neighborhood/area name
+- Add Lagos bounding box to improve accuracy for Nigerian addresses
 
-**File to modify:**
-- `src/components/cart/OrderSummary.tsx`
-
-**Changes:**
-- Accept optional `distanceKm` prop
-- Display distance when available (e.g., "2.5 km away")
-- Add visual indicator when coordinates are missing
-
-### 4. Backfill Existing Data (Optional Manual Step)
-For existing addresses and vendors without coordinates, provide a way to re-geocode:
-- Vendors can trigger geocoding by re-saving their settings
-- Customers can re-add addresses or the system can show a prompt to update
-
-## Implementation Details
-
-### AddressSelector.tsx Changes
-```typescript
-import { geocodeAndUpdateAddress } from '@/lib/geocoding';
-
-// After successful insert:
-if (data) {
-  // Geocode in background
-  geocodeAndUpdateAddress(data.id, formData.address_line, formData.city, formData.state)
-    .then((result) => {
-      if (result) {
-        // Update the local state with coordinates
-        onSelect({ ...data, latitude: result.latitude, longitude: result.longitude });
-      }
-    });
-}
+```text
++-------------------+
+|  Original Query   |
+| "address, city,   |
+|  state, country"  |
++---------+---------+
+          |
+          v (no results)
++-------------------+
+| Fallback 1: Skip  |
+| city parameter    |
+| "address, state,  |
+|  country"         |
++---------+---------+
+          |
+          v (no results)
++-------------------+
+| Fallback 2: Area  |
+| name only with    |
+| bounding box      |
++---------+---------+
+          |
+          v
+     Return result
+     or null
 ```
 
-### VendorSettings.tsx Changes
-```typescript
-import { geocodeAndUpdateVendor } from '@/lib/geocoding';
+### 2. Add GPS Capture Warning
+**File:** `src/components/cart/AddressSelector.tsx`
 
-// In handleSave, after successful update:
-if (!error) {
-  geocodeAndUpdateVendor(vendor.id, formData.address, formData.city, formData.state);
-}
+When user clicks "Refresh GPS", show a confirmation dialog explaining they must be at their delivery location:
+
+- Display: "Are you at [Address Label] right now?"
+- Subtext: "GPS will capture your current location. Please only continue if you are physically at this delivery address."
+- Buttons: "Yes, I'm Here" / "Cancel"
+
+This prevents accidental captures when user is at wrong location.
+
+### 3. Add Coordinate Sanity Check
+**File:** `src/pages/Cart.tsx`
+
+Detect when customer coordinates are suspiciously close to vendor:
+- If distance < 0.5km AND address city differs from vendor city → flag as potential mismatch
+- Show warning: "Your saved GPS location appears to be near the restaurant, not your delivery address. Please update your GPS location."
+
+### 4. Block Order Until Coordinates Verified
+**File:** `src/pages/Cart.tsx`
+
+The current implementation already blocks checkout if coordinates are missing. Enhance it to also block when mismatch is detected.
+
+### 5. Clear Stale Coordinates for Affected User
+**Database:** One-time fix
+
+Clear the incorrect coordinates from the "Home" address so user can re-capture correctly.
+
+---
+
+## Technical Details
+
+### Edge Function Changes
+```typescript
+// Fallback search strategies for Nigerian addresses
+const searchStrategies = [
+  `${address}, ${city}, ${state}, ${country}`,           // Original
+  `${address}, ${state}, ${country}`,                     // Skip city
+  `${address.split(' ').slice(-2).join(' ')}, ${state}`, // Last 2 words (area name)
+];
+
+// Add Lagos bounding box for more accurate results
+const lagosViewbox = '3.0,6.3,3.6,6.7'; // lon1,lat1,lon2,lat2
 ```
 
-### OrderSummary.tsx Enhancement
+### GPS Confirmation Dialog
 ```typescript
-// Add distance display
-{distanceKm !== null && distanceKm !== undefined && (
-  <div className="flex justify-between text-muted-foreground text-sm">
-    <span>Distance</span>
-    <span>{distanceKm.toFixed(1)} km</span>
-  </div>
-)}
+// Before capturing GPS for existing address
+const handleUpdateAddressGps = (addressId: string) => {
+  const address = addresses.find(a => a.id === addressId);
+  // Show confirmation dialog
+  setGpsConfirmDialog({
+    open: true,
+    addressId,
+    addressLabel: address?.label || 'this address',
+  });
+};
+
+// Only capture after user confirms
+const confirmGpsCapture = () => {
+  setUpdatingGps(gpsConfirmDialog.addressId);
+  setPendingGpsUpdate(gpsConfirmDialog.addressId);
+  getCurrentPosition();
+  setGpsConfirmDialog({ open: false, addressId: null, addressLabel: '' });
+};
 ```
 
-## Expected Outcome
-- New addresses will automatically get coordinates via OpenStreetMap geocoding
-- Vendor locations will be geocoded when settings are saved
-- Delivery fees will be calculated as: **₦500 base + ₦100 per km beyond 3km**
-- Example: 5km distance = ₦500 + (5-3) × ₦100 = ₦700
-- Example: 2km distance = ₦500 (base fee applies)
+### Coordinate Mismatch Detection
+```typescript
+// In Cart.tsx
+const coordinateMismatch = useMemo(() => {
+  if (!hasCoordinates || distanceKm === null || distanceKm > 0.5) return false;
+  
+  // Distance is very small - check if cities differ
+  const vendorCity = vendorLocation.address?.toLowerCase() || '';
+  const customerCity = selectedAddress?.city?.toLowerCase() || '';
+  
+  // If vendor is in "Ayobo" and customer says "Ketu", but distance is 0km - mismatch!
+  return !vendorCity.includes(customerCity) && !customerCity.includes(vendorCity);
+}, [hasCoordinates, distanceKm, vendorLocation, selectedAddress]);
+```
+
+---
 
 ## Files to Modify
-1. `src/components/cart/AddressSelector.tsx` - Geocode new addresses
-2. `src/components/profile/AddressesCard.tsx` - Geocode new addresses
-3. `src/pages/vendor/VendorSettings.tsx` - Geocode vendor location on save
-4. `src/components/cart/OrderSummary.tsx` - Display distance info
-5. `src/pages/Cart.tsx` - Pass distance to OrderSummary
 
+| File | Changes |
+|------|---------|
+| `supabase/functions/geocode-address/index.ts` | Add fallback search strategies, Lagos bounding box |
+| `src/components/cart/AddressSelector.tsx` | Add GPS capture confirmation dialog |
+| `src/pages/Cart.tsx` | Add coordinate mismatch detection and warning |
+| Database | Clear stale coordinates from affected address |
+
+---
+
+## User Flow After Implementation
+
+1. Customer adds address with text (e.g., "Ikosi Ketu")
+2. System tries geocoding with multiple fallback strategies
+3. If geocoding fails → GPS capture required before checkout
+4. When customer clicks GPS button → confirmation dialog appears
+5. Customer confirms they are at delivery address → GPS captured
+6. If captured coordinates are near vendor but address is far → mismatch warning shown
+7. Order blocked until proper coordinates are set
+
+This ensures FastCalories never loses money due to undercharged delivery fees from incorrect coordinates.
