@@ -7,6 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { VendorSidebar } from '@/components/vendor/VendorSidebar';
 import { AccessDenied } from '@/components/vendor/AccessDenied';
+import { DateRangeFilter, DateRange } from '@/components/shared/DateRangeFilter';
 import { useAuth } from '@/hooks/useAuth';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
@@ -54,6 +55,7 @@ export default function VendorEarnings() {
   const [wallet, setWallet] = useState<VendorWallet | null>(null);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendor?.id || null);
 
   useEffect(() => {
@@ -64,7 +66,7 @@ export default function VendorEarnings() {
     if (user) {
       fetchData();
     }
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading, navigate, dateRange]);
 
   const fetchData = async () => {
     try {
@@ -185,13 +187,25 @@ export default function VendorEarnings() {
           rider_revenue_balance: riderRevenueBalance,
         });
 
-        // Get recent transactions - filter by environment in test mode
-        const { data: txData } = await supabase
+        // Get recent transactions - filter by environment in test mode and date range
+        let txQuery = supabase
           .from('wallet_transactions')
           .select('*')
           .eq('wallet_id', walletData.id)
           .order('created_at', { ascending: false })
-          .limit(20);
+          .limit(100);
+
+        // Apply date range filter
+        if (dateRange.from) {
+          txQuery = txQuery.gte('created_at', dateRange.from.toISOString());
+        }
+        if (dateRange.to) {
+          const endOfToDate = new Date(dateRange.to);
+          endOfToDate.setHours(23, 59, 59, 999);
+          txQuery = txQuery.lte('created_at', endOfToDate.toISOString());
+        }
+
+        const { data: txData } = await txQuery;
 
         if (txData) {
           setTransactions(txData.map(tx => ({
@@ -527,10 +541,16 @@ export default function VendorEarnings() {
           {/* Transaction History */}
           <Card className="border-0 shadow-soft">
             <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Calendar className="w-5 h-5" />
-                Transaction History
-              </CardTitle>
+              <div className="flex flex-col gap-4">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Calendar className="w-5 h-5" />
+                  Transaction History
+                </CardTitle>
+                <DateRangeFilter 
+                  dateRange={dateRange} 
+                  onDateRangeChange={setDateRange}
+                />
+              </div>
             </CardHeader>
             <CardContent>
               {transactions.length === 0 ? (

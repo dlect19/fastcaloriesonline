@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
+import { DateRangeFilter, DateRange } from '@/components/shared/DateRangeFilter';
 import { Search, Wallet, ArrowDownLeft, Filter, Loader2, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -40,6 +41,7 @@ export default function AdminWalletFunding() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'pending' | 'failed'>('all');
+  const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
 
   useEffect(() => {
     if (!permLoading && !isAdmin) {
@@ -51,20 +53,32 @@ export default function AdminWalletFunding() {
     if (isAdmin) {
       fetchFundingTransactions();
     }
-  }, [isAdmin]);
+  }, [isAdmin, dateRange]);
 
   const fetchFundingTransactions = async () => {
     try {
       setLoading(true);
       
       // Fetch all wallet funding transactions (includes DVA and card funding)
-      const { data: txData, error: txError } = await supabase
+      let query = supabase
         .from('wallet_transactions')
         .select('*')
         .in('category', ['wallet_funding', 'dva_funding', 'admin_credit'])
         .eq('transaction_type', 'credit')
         .order('created_at', { ascending: false })
         .limit(200);
+
+      // Apply date range filter
+      if (dateRange.from) {
+        query = query.gte('created_at', dateRange.from.toISOString());
+      }
+      if (dateRange.to) {
+        const endOfToDate = new Date(dateRange.to);
+        endOfToDate.setHours(23, 59, 59, 999);
+        query = query.lte('created_at', endOfToDate.toISOString());
+      }
+
+      const { data: txData, error: txError } = await query;
 
       if (txError) throw txError;
 
@@ -238,8 +252,8 @@ export default function AdminWalletFunding() {
           </div>
 
           {/* Filters */}
-          <div className="flex gap-4">
-            <div className="relative flex-1">
+          <div className="flex flex-wrap gap-4">
+            <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 placeholder="Search by name, phone, reference..."
@@ -248,6 +262,10 @@ export default function AdminWalletFunding() {
                 className="pl-10"
               />
             </div>
+            <DateRangeFilter 
+              dateRange={dateRange} 
+              onDateRangeChange={setDateRange}
+            />
             <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
               <SelectTrigger className="w-[150px]">
                 <SelectValue placeholder="Status" />
