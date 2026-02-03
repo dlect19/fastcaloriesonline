@@ -55,8 +55,12 @@ export function MapOptionsMenu({
 
   const hasCoords = latitude != null && longitude != null;
 
-  // Get the admin-configured default navigation app
-  const defaultProvider = (settings.default_navigation_app as MapProvider) || 'google';
+  // Get the admin-configured default navigation app - validate it's a known provider
+  const configuredProvider = settings.default_navigation_app as string;
+  const validProviders: MapProvider[] = ['google', 'osm', 'bing', 'here'];
+  const defaultProvider: MapProvider = validProviders.includes(configuredProvider as MapProvider) 
+    ? (configuredProvider as MapProvider) 
+    : 'google';
 
   const {
     googleMapsUrl,
