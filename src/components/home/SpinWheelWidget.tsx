@@ -1,20 +1,24 @@
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Gift, ChevronRight, Sparkles } from 'lucide-react';
 import { useSpinWheel } from '@/hooks/useSpinWheel';
+import { usePlatformSettings } from '@/hooks/usePlatformSettings';
 import { useAuth } from '@/hooks/useAuth';
 
 export function SpinWheelWidget() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { canFreeSpin, activeDiscounts, spinEnabled } = useSpinWheel();
+  const { settings } = usePlatformSettings();
 
   if (!spinEnabled.free && !spinEnabled.paid) return null;
 
   const hasDiscount = activeDiscounts.length > 0;
   const bestDiscount = activeDiscounts[0];
+  
+  // Get max discount from settings
+  const maxDiscount = parseInt(settings?.spin_max_discount_percent || '10');
 
   return (
     <Card 
@@ -46,21 +50,21 @@ export function SpinWheelWidget() {
                     </span>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Use on your next order
+                    Use on your next order (wallet only)
                   </p>
                 </>
               ) : canFreeSpin ? (
                 <>
                   <p className="font-bold text-foreground">Free Spin Available!</p>
                   <p className="text-sm text-muted-foreground">
-                    Win up to 15% off
+                    Win up to {maxDiscount}% off
                   </p>
                 </>
               ) : (
                 <>
                   <p className="font-bold text-foreground">Spin & Win</p>
                   <p className="text-sm text-muted-foreground">
-                    Try premium wheels for bigger discounts
+                    Multiple spins per pack!
                   </p>
                 </>
               )}

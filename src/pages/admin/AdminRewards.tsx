@@ -67,8 +67,16 @@ export default function AdminRewards() {
     spinFreeEnabled: true,
     spinPaidEnabled: true,
     expiryHours: '24',
-    revenueCap: '8',
+    revenueCap: '10',
     winnerLimit: '200',
+    // New unified segment settings
+    segmentDiscounts: '0,2,5,8,10',
+    segmentWeights: '25,25,20,15,10,5',
+    segmentColors: '#6B7280,#10B981,#3B82F6,#8B5CF6,#F59E0B,#EF4444',
+    // Spins per tier
+    tier1Spins: '1',
+    tier2Spins: '3',
+    tier3Spins: '6',
   });
 
   // Fetch wheel configurations
@@ -137,8 +145,16 @@ export default function AdminRewards() {
         spinFreeEnabled: settings.spin_free_enabled === 'true',
         spinPaidEnabled: settings.spin_paid_enabled === 'true',
         expiryHours: settings.spin_discount_expiry_hours || '24',
-        revenueCap: settings.promo_daily_revenue_cap_percent || '8',
+        revenueCap: settings.spin_max_discount_percent || '10',
         winnerLimit: settings.promo_daily_winner_limit || '200',
+        // Unified segment settings
+        segmentDiscounts: settings.spin_segment_discounts || '0,2,5,8,10',
+        segmentWeights: settings.spin_segment_weights || '25,25,20,15,10,5',
+        segmentColors: settings.spin_segment_colors || '#6B7280,#10B981,#3B82F6,#8B5CF6,#F59E0B,#EF4444',
+        // Spins per tier
+        tier1Spins: settings.spin_tier1_spins || '1',
+        tier2Spins: settings.spin_tier2_spins || '3',
+        tier3Spins: settings.spin_tier3_spins || '6',
       });
     }
   }, [settings]);
@@ -160,8 +176,16 @@ export default function AdminRewards() {
         updateSetting('spin_free_enabled', String(localSettings.spinFreeEnabled)),
         updateSetting('spin_paid_enabled', String(localSettings.spinPaidEnabled)),
         updateSetting('spin_discount_expiry_hours', localSettings.expiryHours),
-        updateSetting('promo_daily_revenue_cap_percent', localSettings.revenueCap),
+        updateSetting('spin_max_discount_percent', localSettings.revenueCap),
         updateSetting('promo_daily_winner_limit', localSettings.winnerLimit),
+        // Unified segment settings
+        updateSetting('spin_segment_discounts', localSettings.segmentDiscounts),
+        updateSetting('spin_segment_weights', localSettings.segmentWeights),
+        updateSetting('spin_segment_colors', localSettings.segmentColors),
+        // Spins per tier
+        updateSetting('spin_tier1_spins', localSettings.tier1Spins),
+        updateSetting('spin_tier2_spins', localSettings.tier2Spins),
+        updateSetting('spin_tier3_spins', localSettings.tier3Spins),
       ]);
 
       toast({ title: 'Settings saved successfully' });
@@ -424,9 +448,9 @@ export default function AdminRewards() {
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2 p-4 border rounded-lg">
-                      <Label className="font-semibold">Revenue Protection Cap</Label>
+                      <Label className="font-semibold">Max Discount Cap</Label>
                       <p className="text-sm text-muted-foreground">
-                        Maximum % of daily revenue that can be given as promo discounts
+                        Maximum discount percentage from spin wheel
                       </p>
                       <div className="flex items-center gap-2">
                         <Input
@@ -451,6 +475,134 @@ export default function AdminRewards() {
                           className="w-24"
                         />
                         <span className="text-muted-foreground">users</span>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Unified Segment Configuration */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Spin Wheel Segments (Unified)</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <p className="text-sm text-muted-foreground">
+                    Configure the discount segments that appear on ALL spin wheels. The last weight is for "Try Again".
+                  </p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="space-y-2">
+                      <Label className="font-semibold">Discount Percentages</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Comma-separated (e.g., 0,2,5,8,10)
+                      </p>
+                      <Input
+                        value={localSettings.segmentDiscounts}
+                        onChange={(e) => setLocalSettings(s => ({ ...s, segmentDiscounts: e.target.value }))}
+                        placeholder="0,2,5,8,10"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="font-semibold">Probability Weights</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Comma-separated, +1 for Try Again
+                      </p>
+                      <Input
+                        value={localSettings.segmentWeights}
+                        onChange={(e) => setLocalSettings(s => ({ ...s, segmentWeights: e.target.value }))}
+                        placeholder="25,25,20,15,10,5"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="font-semibold">Segment Colors</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Comma-separated hex colors
+                      </p>
+                      <Input
+                        value={localSettings.segmentColors}
+                        onChange={(e) => setLocalSettings(s => ({ ...s, segmentColors: e.target.value }))}
+                        placeholder="#6B7280,#10B981,..."
+                      />
+                    </div>
+                  </div>
+
+                  {/* Preview */}
+                  <div className="border rounded-lg p-4 bg-muted/50">
+                    <Label className="font-semibold mb-3 block">Segment Preview</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {localSettings.segmentDiscounts.split(',').map((d, i) => {
+                        const colors = localSettings.segmentColors.split(',');
+                        const weights = localSettings.segmentWeights.split(',');
+                        return (
+                          <div 
+                            key={i}
+                            className="px-3 py-1 rounded-full text-white text-sm font-medium"
+                            style={{ backgroundColor: colors[i]?.trim() || '#6B7280' }}
+                          >
+                            {d.trim()}% (w:{weights[i]?.trim() || '?'})
+                          </div>
+                        );
+                      })}
+                      <div 
+                        className="px-3 py-1 rounded-full text-white text-sm font-medium"
+                        style={{ backgroundColor: localSettings.segmentColors.split(',').slice(-1)[0]?.trim() || '#EF4444' }}
+                      >
+                        Try Again (w:{localSettings.segmentWeights.split(',').slice(-1)[0]?.trim() || '?'})
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Spins Per Tier */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Spins Per Tier</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <p className="text-sm text-muted-foreground">
+                    Configure how many spins each paid tier provides.
+                  </p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="space-y-2 p-4 border rounded-lg">
+                      <Label className="font-semibold">Bronze Wheel (₦100)</Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          value={localSettings.tier1Spins}
+                          onChange={(e) => setLocalSettings(s => ({ ...s, tier1Spins: e.target.value }))}
+                          className="w-20"
+                          min="1"
+                        />
+                        <span className="text-muted-foreground">spins</span>
+                      </div>
+                    </div>
+                    <div className="space-y-2 p-4 border rounded-lg">
+                      <Label className="font-semibold">Silver Wheel (₦200)</Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          value={localSettings.tier2Spins}
+                          onChange={(e) => setLocalSettings(s => ({ ...s, tier2Spins: e.target.value }))}
+                          className="w-20"
+                          min="1"
+                        />
+                        <span className="text-muted-foreground">spins</span>
+                      </div>
+                    </div>
+                    <div className="space-y-2 p-4 border rounded-lg">
+                      <Label className="font-semibold">Gold Wheel (₦500)</Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          value={localSettings.tier3Spins}
+                          onChange={(e) => setLocalSettings(s => ({ ...s, tier3Spins: e.target.value }))}
+                          className="w-20"
+                          min="1"
+                        />
+                        <span className="text-muted-foreground">spins</span>
                       </div>
                     </div>
                   </div>

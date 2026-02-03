@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SpinWheel } from '@/components/spin/SpinWheel';
 import { useSpinWheel } from '@/hooks/useSpinWheel';
 import { usePlatformPromos } from '@/hooks/usePlatformPromos';
+import { usePlatformSettings } from '@/hooks/usePlatformSettings';
 import { useAuth } from '@/hooks/useAuth';
 import { Gift, Sparkles, Clock, ArrowLeft, Trophy, Star, Percent, Wallet } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
@@ -15,8 +16,15 @@ export default function Rewards() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { activeDiscounts, canFreeSpin, hasTryAgain, spinEnabled } = useSpinWheel();
-  const { eligibility, settings } = usePlatformPromos();
+  const { eligibility, settings: promoSettings } = usePlatformPromos();
+  const { settings } = usePlatformSettings();
   const [activeTab, setActiveTab] = useState('free');
+
+  // Get spins per tier from settings
+  const tier1Spins = parseInt(settings?.spin_tier1_spins || '1');
+  const tier2Spins = parseInt(settings?.spin_tier2_spins || '3');
+  const tier3Spins = parseInt(settings?.spin_tier3_spins || '6');
+  const segmentDiscounts = settings?.spin_segment_discounts || '0,2,5,8,10';
 
   if (!user) {
     return (
@@ -144,9 +152,9 @@ export default function Rewards() {
                     <span className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full" />
                   )}
                 </TabsTrigger>
-                <TabsTrigger value="tier1" className="text-xs sm:text-sm">₦100 (1)</TabsTrigger>
-                <TabsTrigger value="tier2" className="text-xs sm:text-sm">₦200 (3)</TabsTrigger>
-                <TabsTrigger value="tier3" className="text-xs sm:text-sm">₦500 (6)</TabsTrigger>
+                <TabsTrigger value="tier1" className="text-xs sm:text-sm">₦100 ({tier1Spins})</TabsTrigger>
+                <TabsTrigger value="tier2" className="text-xs sm:text-sm">₦200 ({tier2Spins})</TabsTrigger>
+                <TabsTrigger value="tier3" className="text-xs sm:text-sm">₦500 ({tier3Spins})</TabsTrigger>
               </TabsList>
 
               <TabsContent value="free" className="mt-0">
@@ -204,11 +212,11 @@ export default function Rewards() {
             </div>
             <div className="flex gap-3">
               <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">2</div>
-              <p>Purchase spin packs: <strong>Bronze (₦100) = 1 spin</strong>, <strong>Silver (₦200) = 3 spins</strong>, <strong>Gold (₦500) = 6 spins</strong>.</p>
+              <p>Purchase spin packs: <strong>Bronze (₦100) = {tier1Spins} spin{tier1Spins > 1 ? 's' : ''}</strong>, <strong>Silver (₦200) = {tier2Spins} spins</strong>, <strong>Gold (₦500) = {tier3Spins} spins</strong>.</p>
             </div>
             <div className="flex gap-3">
               <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">3</div>
-              <p>All wheels have the same segments: <strong>0%, 2%, 5%, 8%, 10%, Try Again</strong>.</p>
+              <p>All wheels have the same segments: <strong>{segmentDiscounts}%, Try Again</strong>.</p>
             </div>
             <div className="flex gap-3">
               <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">4</div>
