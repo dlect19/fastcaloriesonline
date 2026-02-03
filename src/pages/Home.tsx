@@ -10,20 +10,36 @@ import { CartButton } from '@/components/cart/CartButton';
 import { ActionHints } from '@/components/home/ActionHints';
 import { AIMealRecommendation } from '@/components/home/AIMealRecommendation';
 import { SpinWheelWidget } from '@/components/home/SpinWheelWidget';
+import { LocationSearch } from '@/components/home/LocationSearch';
 import { Button } from '@/components/ui/button';
 import { LogOut, Flame, Star, ChevronRight, Sparkles, Heart, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 
+interface DeliveryLocation {
+  lat: number | null;
+  lon: number | null;
+  label: string;
+}
+
 export default function Home() {
   const { user, signOut, loading } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [activeTab, setActiveTab] = useState('home');
+  const [deliveryLocation, setDeliveryLocation] = useState<DeliveryLocation | null>(null);
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
     await signOut();
     navigate('/auth');
+  };
+
+  const handleLocationSelect = (lat: number, lon: number, label: string) => {
+    setDeliveryLocation({ lat, lon, label });
+  };
+
+  const handleClearLocation = () => {
+    setDeliveryLocation(null);
   };
 
   if (loading) {
@@ -234,11 +250,22 @@ export default function Home() {
         {/* Promo Banner */}
         <PromoBanner />
 
+        {/* Location Search - Order for any address */}
+        <LocationSearch
+          onLocationSelect={handleLocationSelect}
+          currentLocation={deliveryLocation}
+          onClearLocation={handleClearLocation}
+        />
+
         {/* Category Pills */}
         <CategoryPills onSelect={setSelectedCategory} />
 
         {/* Vendors Grid */}
-        <VendorGrid category={selectedCategory} />
+        <VendorGrid 
+          category={selectedCategory}
+          externalLat={deliveryLocation?.lat}
+          externalLon={deliveryLocation?.lon}
+        />
       </main>
 
       <CartButton />
