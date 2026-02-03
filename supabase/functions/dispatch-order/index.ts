@@ -87,14 +87,15 @@ async function findEligibleRiders(
   
   const vendorRiderProfileIds = (vendorRiders || []).map((vr: any) => vr.rider_profile_id);
   
-  // Fetch online, verified riders with email verified
+  // Fetch online, verified riders with email verified and NIN verified
+  // Note: We check nin_verified=true instead of nin_number presence (admin can verify without storing NIN)
   const { data: riders, error } = await supabase
     .from('rider_profiles')
-    .select('id, user_id, current_latitude, current_longitude, preferred_latitude, preferred_longitude, work_radius_km, affiliated_vendor_id, delivery_company_id, nin_number')
+    .select('id, user_id, current_latitude, current_longitude, preferred_latitude, preferred_longitude, work_radius_km, affiliated_vendor_id, delivery_company_id, nin_verified')
     .eq('is_online', true)
     .eq('is_verified', true)
     .eq('is_email_verified', true)
-    .not('nin_number', 'is', null);
+    .eq('nin_verified', true);
   
   if (error || !riders) {
     console.error('Error fetching riders:', error);
