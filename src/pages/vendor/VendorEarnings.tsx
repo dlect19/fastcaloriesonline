@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TrendingUp, Wallet, ArrowUpRight, ArrowDownRight, Calendar, Clock, AlertCircle, FlaskConical, Bike } from 'lucide-react';
+import { TrendingUp, Wallet, ArrowUpRight, ArrowDownRight, Calendar, Clock, AlertCircle, FlaskConical, Bike, UtensilsCrossed } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -28,6 +28,10 @@ interface VendorWallet {
   bank_name: string | null;
   bank_account_number: string | null;
   bank_account_name: string | null;
+  // Separate revenue pools
+  menu_earnings_balance: number;
+  menu_earnings_pending: number;
+  rider_revenue_balance: number;
 }
 
 interface WalletTransaction {
@@ -153,6 +157,18 @@ export default function VendorEarnings() {
           ? Number(walletData.test_eligible_balance) || 0 
           : Number(walletData.eligible_balance) || 0;
         const totalEarned = Number(walletData.total_earned) || 0;
+        
+        // Separate revenue pools
+        const menuEarningsBalance = isTestMode
+          ? Number(walletData.test_menu_earnings_balance) || 0
+          : Number(walletData.menu_earnings_balance) || 0;
+        const menuEarningsPending = isTestMode
+          ? Number(walletData.test_menu_earnings_pending) || 0
+          : Number(walletData.menu_earnings_pending) || 0;
+        const riderRevenueBalance = isTestMode
+          ? Number(walletData.test_rider_revenue_balance) || 0
+          : Number(walletData.rider_revenue_balance) || 0;
+
         setWallet({
           id: walletData.id,
           balance: balance,
@@ -164,6 +180,9 @@ export default function VendorEarnings() {
           bank_name: walletData.bank_name,
           bank_account_number: walletData.bank_account_number,
           bank_account_name: walletData.bank_account_name,
+          menu_earnings_balance: menuEarningsBalance,
+          menu_earnings_pending: menuEarningsPending,
+          rider_revenue_balance: riderRevenueBalance,
         });
 
         // Get recent transactions - filter by environment in test mode
@@ -310,18 +329,113 @@ export default function VendorEarnings() {
             </div>
           )}
 
-          {/* Stats Grid */}
+          {/* Revenue Breakdown - Separated Pools */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Menu Sales Revenue */}
+            <Card className="border-0 shadow-soft bg-gradient-to-br from-primary/5 to-primary/10">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
+                    <UtensilsCrossed className="w-6 h-6 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-foreground">Menu Sales Revenue</h3>
+                    <p className="text-xs text-muted-foreground">Earnings from food orders</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Available</p>
+                    <p className="text-xl font-bold text-success">
+                      {formatCurrency(wallet?.menu_earnings_balance || 0)}
+                    </p>
+                    <p className="text-xs text-success">Ready to withdraw</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Pending</p>
+                    <p className="text-xl font-bold text-warning">
+                      {formatCurrency(wallet?.menu_earnings_pending || 0)}
+                    </p>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Clock className="w-3 h-3" /> 24hr hold
+                    </p>
+                  </div>
+                </div>
+                {hasPermission('request_withdrawal') && (wallet?.menu_earnings_balance || 0) > 0 && (
+                  <Button 
+                    variant="default" 
+                    size="sm" 
+                    className="mt-4 w-full"
+                    onClick={() => navigate('/vendor/withdraw?source=menu_earnings')}
+                  >
+                    <ArrowUpRight className="w-4 h-4 mr-1" />
+                    Withdraw Menu Earnings
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Rider Delivery Revenue */}
+            <Card className="border-0 shadow-soft bg-gradient-to-br from-accent/5 to-accent/10">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 rounded-xl bg-accent/20 flex items-center justify-center">
+                    <Bike className="w-6 h-6 text-accent" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-foreground">Rider Delivery Revenue</h3>
+                    <p className="text-xs text-muted-foreground">Earnings from affiliated riders</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Available</p>
+                    <p className="text-xl font-bold text-success">
+                      {formatCurrency(wallet?.rider_revenue_balance || 0)}
+                    </p>
+                    <p className="text-xs text-success">Ready to withdraw</p>
+                  </div>
+                  <div className="flex flex-col justify-center">
+                    <p className="text-sm text-muted-foreground">No Hold Period</p>
+                    <p className="text-xs text-muted-foreground">Available immediately</p>
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-4">
+                  {hasPermission('request_withdrawal') && (wallet?.rider_revenue_balance || 0) > 0 && (
+                    <Button 
+                      variant="default" 
+                      size="sm" 
+                      className="flex-1"
+                      onClick={() => navigate('/vendor/withdraw?source=rider_revenue')}
+                    >
+                      <ArrowUpRight className="w-4 h-4 mr-1" />
+                      Withdraw Rider Revenue
+                    </Button>
+                  )}
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => navigate('/vendor/riders')}
+                  >
+                    View Riders
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Combined Stats Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Available Balance */}
+            {/* Total Available Balance */}
             <Card className="border-0 shadow-soft">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Available Balance</p>
+                    <p className="text-sm text-muted-foreground">Total Available</p>
                     <p className="text-2xl font-bold text-foreground">
                       {formatCurrency(wallet?.eligible_balance || 0)}
                     </p>
-                    <p className="text-xs text-success">Ready to withdraw</p>
+                    <p className="text-xs text-success">All sources combined</p>
                   </div>
                   <div className="w-12 h-12 rounded-xl bg-success/10 flex items-center justify-center">
                     <Wallet className="w-6 h-6 text-success" />
@@ -330,17 +444,17 @@ export default function VendorEarnings() {
               </CardContent>
             </Card>
 
-            {/* Pending Balance */}
+            {/* Total Pending Balance */}
             <Card className="border-0 shadow-soft">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Pending Balance</p>
+                    <p className="text-sm text-muted-foreground">Total Pending</p>
                     <p className="text-2xl font-bold text-foreground">
                       {formatCurrency(wallet?.pending_balance || 0)}
                     </p>
                     <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Clock className="w-3 h-3" /> 24hr hold
+                      <Clock className="w-3 h-3" /> Menu sales only
                     </p>
                   </div>
                   <div className="w-12 h-12 rounded-xl bg-warning/10 flex items-center justify-center">
@@ -388,37 +502,6 @@ export default function VendorEarnings() {
               </CardContent>
             </Card>
           </div>
-
-          {/* Rider Delivery Revenue Card - Always show for vendors with affiliated riders */}
-          <Card className="border-0 shadow-soft bg-gradient-to-br from-accent/5 to-accent/10">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-accent/20 flex items-center justify-center">
-                    <Bike className="w-6 h-6 text-accent" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Rider Delivery Revenue</p>
-                    <p className="text-2xl font-bold text-foreground">
-                      {formatCurrency(riderDeliveryRevenue)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {riderDeliveryRevenue > 0 
-                        ? 'Earnings from affiliated riders (included in Available Balance)'
-                        : 'Earnings from your affiliated riders will appear here'}
-                    </p>
-                  </div>
-                </div>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => navigate('/vendor/riders')}
-                >
-                  View Riders
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
 
           {(wallet?.pending_payouts || 0) > 0 && (
             <Card className="border-0 shadow-soft bg-primary/5">
