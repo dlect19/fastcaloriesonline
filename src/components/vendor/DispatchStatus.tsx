@@ -2,14 +2,18 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, Search, RefreshCw, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Loader2, Search, RefreshCw, AlertCircle, CheckCircle2, Users } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 
 interface DispatchStatusProps {
   orderId: string;
   orderNumber: string;
+  vendorId?: string;
+  vendorLat?: number;
+  vendorLng?: number;
   onRiderAssigned?: () => void;
+  onShowManualAssign?: () => void;
 }
 
 interface DispatchRequest {
@@ -23,7 +27,7 @@ interface DispatchRequest {
   created_at: string;
 }
 
-export function DispatchStatus({ orderId, orderNumber, onRiderAssigned }: DispatchStatusProps) {
+export function DispatchStatus({ orderId, orderNumber, vendorId, vendorLat, vendorLng, onRiderAssigned, onShowManualAssign }: DispatchStatusProps) {
   const [dispatch, setDispatch] = useState<DispatchRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [retrying, setRetrying] = useState(false);
@@ -219,12 +223,12 @@ export function DispatchStatus({ orderId, orderNumber, onRiderAssigned }: Dispat
   if (dispatch.status === 'no_riders' || dispatch.status === 'expired') {
     return (
       <Card className="border-orange-500 bg-orange-50 dark:bg-orange-950/20">
-        <CardContent className="py-4">
+        <CardContent className="py-4 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-orange-700 dark:text-orange-400">
               <AlertCircle className="h-5 w-5" />
               <div>
-                <p className="font-medium">No riders available</p>
+                <p className="font-medium">No platform riders available</p>
                 <p className="text-sm text-muted-foreground">
                   Searched within {dispatch.search_radius_km}km
                 </p>
@@ -244,6 +248,24 @@ export function DispatchStatus({ orderId, orderNumber, onRiderAssigned }: Dispat
               Retry
             </Button>
           </div>
+          
+          {/* Manual assignment option */}
+          {onShowManualAssign && (
+            <div className="pt-2 border-t border-orange-200 dark:border-orange-800">
+              <p className="text-xs text-muted-foreground mb-2">
+                Your affiliated riders might be available:
+              </p>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={onShowManualAssign}
+                className="w-full"
+              >
+                <Users className="h-4 w-4 mr-2" />
+                Assign Your Rider Manually
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     );
@@ -255,7 +277,7 @@ export function DispatchStatus({ orderId, orderNumber, onRiderAssigned }: Dispat
   if (isExpired) {
     return (
       <Card className="border-orange-500 bg-orange-50 dark:bg-orange-950/20">
-        <CardContent className="py-4">
+        <CardContent className="py-4 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-orange-700 dark:text-orange-400">
               <AlertCircle className="h-5 w-5" />
@@ -280,6 +302,24 @@ export function DispatchStatus({ orderId, orderNumber, onRiderAssigned }: Dispat
               Search Again
             </Button>
           </div>
+          
+          {/* Manual assignment option */}
+          {onShowManualAssign && (
+            <div className="pt-2 border-t border-orange-200 dark:border-orange-800">
+              <p className="text-xs text-muted-foreground mb-2">
+                Your affiliated riders might be available:
+              </p>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={onShowManualAssign}
+                className="w-full"
+              >
+                <Users className="h-4 w-4 mr-2" />
+                Assign Your Rider Manually
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     );
