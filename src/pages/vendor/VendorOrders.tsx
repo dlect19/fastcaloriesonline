@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clock, CheckCircle, XCircle, Package, ChevronDown, ChevronUp, ShoppingBag, Store, Search } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, Package, ChevronDown, ChevronUp, ShoppingBag, Store, Search, Bike } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -24,6 +24,7 @@ import { SelfPickupVerifyDialog } from '@/components/vendor/SelfPickupVerifyDial
 import { SoundEnableBanner } from '@/components/shared/SoundEnableBanner';
 import { DispatchStatus } from '@/components/vendor/DispatchStatus';
 import { ManualRiderAssignment } from '@/components/vendor/ManualRiderAssignment';
+import { RiderAssignmentDialog } from '@/components/vendor/RiderAssignmentDialog';
 import { CancelOrderDialog } from '@/components/vendor/CancelOrderDialog';
 import { useAuth } from '@/hooks/useAuth';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
@@ -80,6 +81,7 @@ export default function VendorOrders() {
   const [selfPickupDialog, setSelfPickupDialog] = useState<{ open: boolean; order: OrderWithItems | null }>({ open: false, order: null });
   const [cancelDialog, setCancelDialog] = useState<{ open: boolean; order: OrderWithItems | null }>({ open: false, order: null });
   const [showManualAssignForOrder, setShowManualAssignForOrder] = useState<string | null>(null);
+  const [riderAssignDialog, setRiderAssignDialog] = useState<{ open: boolean; order: OrderWithItems | null }>({ open: false, order: null });
 
   const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendor?.id || null);
 
@@ -333,10 +335,27 @@ export default function VendorOrders() {
               <p className="font-semibold text-foreground">{order.order_number}</p>
               <p className="text-sm text-muted-foreground">{formatDate(order.created_at)}</p>
             </div>
-            <Badge className={`${status.color} border-0`}>
-              <StatusIcon className="w-3 h-3 mr-1" />
-              {status.label}
-            </Badge>
+            <div className="flex items-center gap-2">
+              {/* Always-visible rider action for ready/searching orders */}
+              {order.delivery_type !== 'self_pickup' &&
+                !order.rider_id &&
+                (order.status === 'ready_for_pickup' || order.status === 'searching_for_rider') && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="gap-1"
+                    onClick={() => setRiderAssignDialog({ open: true, order })}
+                  >
+                    <Bike className="w-4 h-4" />
+                    Assign / Dispatch
+                  </Button>
+                )}
+
+              <Badge className={`${status.color} border-0`}>
+                <StatusIcon className="w-3 h-3 mr-1" />
+                {status.label}
+              </Badge>
+            </div>
           </div>
 
           {/* Order Items Preview */}
@@ -664,6 +683,18 @@ export default function VendorOrders() {
               }}
             />
           )}
+
+          {/* Rider assignment / dispatch dialog (failsafe UI so actions never “disappear”) */}
+          <RiderAssignmentDialog
+            open={riderAssignDialog.open}
+            onOpenChange={(open) => setRiderAssignDialog((prev) => ({ ...prev, open }))}
+            order={riderAssignDialog.order}
+            vendor={vendor}
+            onAssigned={() => {
+              fetchData();
+              setRiderAssignDialog({ open: false, order: null });
+            }}
+          />
         </div>
       </main>
     </div>
