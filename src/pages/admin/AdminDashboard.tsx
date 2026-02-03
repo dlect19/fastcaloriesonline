@@ -4,7 +4,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
 import { PromoImpactCard } from '@/components/admin/PromoImpactCard';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Package, Store, Bike, Users, DollarSign, TrendingUp, Loader2, Wallet, ArrowDownToLine, ArrowUpFromLine, PiggyBank, Percent, Receipt, Truck, CreditCard } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Package, Store, Bike, Users, DollarSign, TrendingUp, Loader2, Wallet, ArrowDownToLine, ArrowUpFromLine, PiggyBank, Percent, Receipt, Truck, CreditCard, FlaskConical, Globe } from 'lucide-react';
+import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 
 interface FinancialStats {
   grossRevenue: number;
@@ -29,6 +31,7 @@ interface PlatformStats {
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
+  const { effectiveEnvironment, isTestMode, loading: envLoading } = useEnvironmentConfig();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<PlatformStats>({
     totalOrders: 0,
@@ -55,6 +58,14 @@ export default function AdminDashboard() {
     checkAuth();
   }, []);
 
+  // Refetch data when environment changes
+  useEffect(() => {
+    if (!envLoading && effectiveEnvironment) {
+      fetchStats();
+      fetchFinancialStats();
+    }
+  }, [effectiveEnvironment, envLoading]);
+
   const checkAuth = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
@@ -77,10 +88,12 @@ export default function AdminDashboard() {
 
   const fetchStats = async () => {
     try {
+      const envFilter = isTestMode ? 'development' : 'production';
+      
       const [ordersRes, vendorsRes, ridersRes, usersRes, pendingVendorsRes] = await Promise.all([
-        supabase.from('orders').select('id', { count: 'exact' }),
-        supabase.from('vendors').select('id', { count: 'exact' }).eq('is_verified', true),
-        supabase.from('rider_profiles').select('id', { count: 'exact' }).eq('is_verified', true),
+        supabase.from('orders').select('id', { count: 'exact' }).eq('environment', envFilter),
+        supabase.from('vendors').select('id', { count: 'exact' }).eq('is_verified', true).eq('is_test_store', isTestMode),
+        supabase.from('rider_profiles').select('id', { count: 'exact' }).eq('is_verified', true).eq('is_test_rider', isTestMode),
         supabase.from('profiles').select('id', { count: 'exact' }),
         supabase.from('vendors').select('id', { count: 'exact' }).eq('is_verified', false),
       ]);
@@ -99,6 +112,8 @@ export default function AdminDashboard() {
 
   const fetchFinancialStats = async () => {
     try {
+      const envFilter = isTestMode ? 'development' : 'production';
+      
       // Fetch rider share percentage from settings
       const { data: settings } = await supabase
         .from('platform_settings')
@@ -109,31 +124,32 @@ export default function AdminDashboard() {
       const riderSharePercent = riderShare ? parseFloat(riderShare.value) : 80;
       setRiderSharePct(riderSharePercent);
 
-      // Fetch platform wallet
+      // Fetch platform wallet - use test_balance in development mode
       const { data: platformWallet } = await supabase
         .from('platform_wallet')
-        .select('balance, total_earned, total_paid_out')
+        .select('balance, test_balance, total_earned, total_paid_out')
         .maybeSingle();
 
-      // Fetch orders with vendor info for commission calculation
+      // Fetch orders filtered by environment
       const { data: orders } = await supabase
         .from('orders')
-        .select('total, subtotal, delivery_fee, service_fee, vendor_id');
+        .select('total, subtotal, delivery_fee, service_fee, vendor_id')
+        .eq('environment', envFilter);
 
       // Fetch vendor commission rates
       const { data: vendors } = await supabase
         .from('vendors')
         .select('id, commission_rate');
 
-      // Fetch payout requests
+      // Fetch payout requests (note: payouts don't have environment column, filter by related data)
       const { data: payouts } = await supabase
         .from('payout_requests')
         .select('amount, status');
 
-      // Fetch wallet balances
+      // Fetch wallet balances - use test balances in development mode
       const { data: wallets } = await supabase
         .from('wallets')
-        .select('wallet_type, eligible_balance, pending_balance');
+        .select('wallet_type, eligible_balance, pending_balance, test_eligible_balance, test_pending_balance');
 
       // Calculate financial metrics
       let grossRevenue = 0;
@@ -159,9 +175,15 @@ export default function AdminDashboard() {
       const totalPayouts = payouts?.filter(p => p.status === 'completed').reduce((sum, p) => sum + Number(p.amount), 0) || 0;
       const pendingPayouts = payouts?.filter(p => p.status === 'pending').reduce((sum, p) => sum + Number(p.amount), 0) || 0;
 
-      // Calculate wallet balances by type
-      const vendorBalances = wallets?.filter(w => w.wallet_type === 'vendor').reduce((sum, w) => sum + (Number(w.eligible_balance) || 0), 0) || 0;
-      const riderBalances = wallets?.filter(w => w.wallet_type === 'rider').reduce((sum, w) => sum + (Number(w.eligible_balance) || 0), 0) || 0;
+      // Calculate wallet balances by type - use test or production balances based on environment
+      const balanceField = isTestMode ? 'test_eligible_balance' : 'eligible_balance';
+      const vendorBalances = wallets?.filter(w => w.wallet_type === 'vendor').reduce((sum, w) => sum + (Number(w[balanceField]) || 0), 0) || 0;
+      const riderBalances = wallets?.filter(w => w.wallet_type === 'rider').reduce((sum, w) => sum + (Number(w[balanceField]) || 0), 0) || 0;
+
+      // Use test_balance or balance based on environment
+      const platformBalance = isTestMode 
+        ? Number(platformWallet?.test_balance) || 0 
+        : Number(platformWallet?.balance) || 0;
 
       setFinancialStats({
         grossRevenue,
@@ -172,8 +194,8 @@ export default function AdminDashboard() {
         pendingPayouts,
         vendorBalances,
         riderBalances,
-        platformBalance: Number(platformWallet?.balance) || 0,
-        totalEarned: Number(platformWallet?.total_earned) || 0,
+        platformBalance,
+        totalEarned: isTestMode ? platformBalance : Number(platformWallet?.total_earned) || 0,
       });
     } catch (error) {
       console.error('Error fetching financial stats:', error);
@@ -198,8 +220,32 @@ export default function AdminDashboard() {
       
       <main className="flex-1 p-8 space-y-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground">Admin Dashboard</h1>
-          <p className="text-muted-foreground">Financial overview and platform management</p>
+          <div className="flex items-center gap-3 mb-2">
+            <h1 className="text-3xl font-bold text-foreground">Admin Dashboard</h1>
+            <Badge 
+              variant="outline" 
+              className={isTestMode 
+                ? "bg-yellow-500/10 text-yellow-600 border-yellow-500/30" 
+                : "bg-green-500/10 text-green-600 border-green-500/30"
+              }
+            >
+              {isTestMode ? (
+                <>
+                  <FlaskConical className="w-3 h-3 mr-1" />
+                  Development Mode
+                </>
+              ) : (
+                <>
+                  <Globe className="w-3 h-3 mr-1" />
+                  Production Mode
+                </>
+              )}
+            </Badge>
+          </div>
+          <p className="text-muted-foreground">
+            Financial overview and platform management
+            {isTestMode && " • Showing test data only"}
+          </p>
         </div>
 
         {/* Platform Overview */}
@@ -395,7 +441,7 @@ export default function AdminDashboard() {
         {/* Promo Impact Analysis */}
         <section>
           <h2 className="text-lg font-semibold text-foreground mb-4">Promo Impact Analysis</h2>
-          <PromoImpactCard days={30} />
+          <PromoImpactCard environment={isTestMode ? 'development' : 'production'} days={30} />
         </section>
 
         {/* Quick Actions */}
