@@ -192,6 +192,9 @@ export default function Cart() {
     }
   };
 
+  // Derived flag: address missing precise GPS coordinates
+  const addressMissingCoords = deliveryType === 'delivery' && selectedAddress && (!selectedAddress.latitude || !selectedAddress.longitude);
+
   const handlePlaceOrder = async () => {
     if (!user || !vendorId || items.length === 0) return;
 
@@ -199,6 +202,16 @@ export default function Cart() {
       toast({
         title: 'No delivery address',
         description: 'Please select or add a delivery address',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Block checkout if address has no GPS (geocoding failed) – user must capture manually
+    if (addressMissingCoords) {
+      toast({
+        title: 'GPS Location Required',
+        description: 'Tap the navigation icon next to your address to capture your exact location for accurate delivery fee.',
         variant: 'destructive',
       });
       return;
@@ -469,6 +482,16 @@ export default function Cart() {
                   <div className="flex items-center gap-2 text-sm text-muted-foreground bg-secondary/50 p-3 rounded-lg">
                     <Loader2 className="w-4 h-4 animate-spin" />
                     <span>Calculating delivery distance...</span>
+                  </div>
+                )}
+
+                {/* ⚠️ Missing GPS warning – block checkout until fixed */}
+                {!geocodingAddress && addressMissingCoords && (
+                  <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-lg">
+                    <AlertTriangle className="w-4 h-4" />
+                    <span>
+                      We couldn't find your address. <strong>Tap the navigation icon</strong> next to your address to capture your GPS location so we can calculate accurate delivery fees.
+                    </span>
                   </div>
                 )}
 
