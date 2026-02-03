@@ -49,9 +49,41 @@ export default function OrderDetail() {
     }
     if (id) {
       fetchOrder();
-      subscribeToOrder();
     }
   }, [id, user, authLoading]);
+
+  // Separate effect for realtime subscription
+  useEffect(() => {
+    if (!id) return;
+
+    const channel = supabase
+      .channel(`order-detail-${id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'orders',
+          filter: `id=eq.${id}`,
+        },
+        (payload) => {
+          console.log('Order update received:', payload.new);
+          setOrder((prev: any) => ({ ...prev, ...payload.new }));
+          
+          // Refresh order items if status changed to delivered
+          if (payload.new.status === 'delivered' && payload.old?.status !== 'delivered') {
+            fetchOrder();
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('Subscription status:', status);
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [id]);
 
   const fetchOrder = async () => {
     try {
@@ -85,28 +117,6 @@ export default function OrderDetail() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const subscribeToOrder = () => {
-    const channel = supabase
-      .channel(`order-${id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'orders',
-          filter: `id=eq.${id}`,
-        },
-        (payload) => {
-          setOrder((prev: any) => ({ ...prev, ...payload.new }));
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   };
 
   const getOrderStatuses = () => {
