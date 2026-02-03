@@ -19,6 +19,7 @@ interface VendorRider {
     user_id: string;
     preferred_city: string | null;
     preferred_state: string | null;
+    email: string | null;
   };
   user_name?: string;
   user_phone?: string | null;

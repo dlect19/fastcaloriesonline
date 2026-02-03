@@ -30,6 +30,7 @@ interface VendorRider {
     user_id: string;
     preferred_city: string | null;
     preferred_state: string | null;
+    email: string | null;
   };
   user_name?: string;
   user_phone?: string | null;
@@ -110,13 +111,14 @@ export default function VendorRiders() {
               vehicle_type,
               user_id,
               preferred_city,
-              preferred_state
+              preferred_state,
+              email
             )
           `)
           .eq('vendor_id', vendorData.id)
           .order('created_at', { ascending: false });
 
-        // Get profile names, phone, and email for each rider
+        // Get profile names and phone for each rider
         const ridersWithDetails = await Promise.all(
           (ridersData || []).map(async (rider: any) => {
             if (rider.rider_profile?.user_id) {
@@ -126,22 +128,11 @@ export default function VendorRiders() {
                 .eq('user_id', rider.rider_profile.user_id)
                 .maybeSingle();
               
-              // Get email from auth user metadata via edge function or stored email
-              // For now, we'll try to get it from the rider's email_verification_otps if available
-              const { data: emailData } = await supabase
-                .from('email_verification_otps')
-                .select('email')
-                .eq('user_id', rider.rider_profile.user_id)
-                .eq('platform', 'rider')
-                .order('created_at', { ascending: false })
-                .limit(1)
-                .maybeSingle();
-              
               return { 
                 ...rider, 
                 user_name: profile?.full_name || 'Unknown Rider',
                 user_phone: profile?.phone || null,
-                user_email: emailData?.email || null
+                user_email: rider.rider_profile?.email || null
               };
             }
             return { ...rider, user_name: 'Unknown Rider', user_phone: null, user_email: null };
