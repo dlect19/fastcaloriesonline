@@ -22,6 +22,7 @@ import { OrderRiderInfo } from '@/components/vendor/OrderRiderInfo';
 import { SelfPickupVerifyDialog } from '@/components/vendor/SelfPickupVerifyDialog';
 import { SoundEnableBanner } from '@/components/shared/SoundEnableBanner';
 import { DispatchStatus } from '@/components/vendor/DispatchStatus';
+import { ManualRiderAssignment } from '@/components/vendor/ManualRiderAssignment';
 import { CancelOrderDialog } from '@/components/vendor/CancelOrderDialog';
 import { useAuth } from '@/hooks/useAuth';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
@@ -233,37 +234,8 @@ export default function VendorOrders() {
       // Stop notification sound when vendor confirms/updates an order
       stopRepeating();
 
-      // Dispatch order to riders when order becomes ready for pickup
-      if (newStatus === 'ready_for_pickup') {
-        try {
-          const { data, error: dispatchError } = await supabase.functions.invoke('dispatch-order', {
-            body: { orderId }
-          });
-          
-          if (dispatchError) {
-            console.error('Error dispatching order:', dispatchError);
-            toast({ 
-              title: 'Dispatch started', 
-              description: 'Searching for nearby riders...',
-            });
-          } else if (data?.success) {
-            if (data.eligibleRiderCount > 0) {
-              toast({ 
-                title: '🔔 Dispatching to riders', 
-                description: `Notifying ${data.eligibleRiderCount} nearby riders`,
-              });
-            } else {
-              toast({ 
-                title: 'Searching for riders', 
-                description: 'No riders online yet. Will retry automatically.',
-                variant: 'destructive',
-              });
-            }
-          }
-        } catch (dispatchErr) {
-          console.error('Failed to call dispatch-order:', dispatchErr);
-        }
-      }
+      // Note: When order becomes ready_for_pickup, vendor now manually assigns riders
+      // No automatic dispatch - vendor uses ManualRiderAssignment component
 
       toast({ title: `Order updated to ${statusConfig[newStatus].label}` });
       fetchData();
@@ -521,9 +493,27 @@ export default function VendorOrders() {
           </div>
         </div>
 
-        {/* Dispatch Status - Show ONLY when actively searching for rider (no rider assigned yet) */}
+        {/* Manual Rider Assignment - Show when order is ready but no rider yet */}
         {order.delivery_type !== 'self_pickup' && 
-         ['ready_for_pickup', 'searching_for_rider'].includes(order.status) && 
+         order.status === 'ready_for_pickup' && 
+         !order.rider_id && 
+         vendor?.latitude && 
+         vendor?.longitude && (
+          <div className="px-4 pb-4">
+            <ManualRiderAssignment 
+              orderId={order.id}
+              orderNumber={order.order_number}
+              vendorId={order.vendor_id}
+              vendorLat={vendor.latitude}
+              vendorLng={vendor.longitude}
+              onAssigned={fetchData}
+            />
+          </div>
+        )}
+
+        {/* Dispatch Status - Show when actively searching for platform rider */}
+        {order.delivery_type !== 'self_pickup' && 
+         order.status === 'searching_for_rider' && 
          !order.rider_id && (
           <div className="px-4 pb-4">
             <DispatchStatus 
