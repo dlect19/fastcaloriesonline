@@ -467,6 +467,169 @@ export type Database = {
           },
         ]
       }
+      dispatch_offers: {
+        Row: {
+          created_at: string | null
+          customer_address: string | null
+          delivery_fee: number
+          dispatch_request_id: string
+          distance_km: number
+          estimated_delivery_minutes: number | null
+          estimated_pickup_minutes: number | null
+          expires_at: string
+          id: string
+          priority_tier: string
+          responded_at: string | null
+          rider_profile_id: string
+          rider_share: number
+          rider_user_id: string
+          status: string | null
+          vendor_address: string | null
+          vendor_name: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          customer_address?: string | null
+          delivery_fee: number
+          dispatch_request_id: string
+          distance_km: number
+          estimated_delivery_minutes?: number | null
+          estimated_pickup_minutes?: number | null
+          expires_at: string
+          id?: string
+          priority_tier: string
+          responded_at?: string | null
+          rider_profile_id: string
+          rider_share: number
+          rider_user_id: string
+          status?: string | null
+          vendor_address?: string | null
+          vendor_name?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          customer_address?: string | null
+          delivery_fee?: number
+          dispatch_request_id?: string
+          distance_km?: number
+          estimated_delivery_minutes?: number | null
+          estimated_pickup_minutes?: number | null
+          expires_at?: string
+          id?: string
+          priority_tier?: string
+          responded_at?: string | null
+          rider_profile_id?: string
+          rider_share?: number
+          rider_user_id?: string
+          status?: string | null
+          vendor_address?: string | null
+          vendor_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dispatch_offers_dispatch_request_id_fkey"
+            columns: ["dispatch_request_id"]
+            isOneToOne: false
+            referencedRelation: "dispatch_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dispatch_offers_rider_profile_id_fkey"
+            columns: ["rider_profile_id"]
+            isOneToOne: false
+            referencedRelation: "rider_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dispatch_requests: {
+        Row: {
+          accepted_at: string | null
+          accepted_by_rider_id: string | null
+          accepted_by_rider_profile_id: string | null
+          created_at: string | null
+          customer_latitude: number | null
+          customer_longitude: number | null
+          delivery_fee: number
+          environment: string | null
+          expires_at: string
+          id: string
+          max_retries: number | null
+          order_id: string
+          priority_tier: string | null
+          retry_count: number | null
+          search_radius_km: number | null
+          status: string | null
+          vendor_id: string
+          vendor_latitude: number
+          vendor_longitude: number
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_by_rider_id?: string | null
+          accepted_by_rider_profile_id?: string | null
+          created_at?: string | null
+          customer_latitude?: number | null
+          customer_longitude?: number | null
+          delivery_fee?: number
+          environment?: string | null
+          expires_at: string
+          id?: string
+          max_retries?: number | null
+          order_id: string
+          priority_tier?: string | null
+          retry_count?: number | null
+          search_radius_km?: number | null
+          status?: string | null
+          vendor_id: string
+          vendor_latitude: number
+          vendor_longitude: number
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_by_rider_id?: string | null
+          accepted_by_rider_profile_id?: string | null
+          created_at?: string | null
+          customer_latitude?: number | null
+          customer_longitude?: number | null
+          delivery_fee?: number
+          environment?: string | null
+          expires_at?: string
+          id?: string
+          max_retries?: number | null
+          order_id?: string
+          priority_tier?: string | null
+          retry_count?: number | null
+          search_radius_km?: number | null
+          status?: string | null
+          vendor_id?: string
+          vendor_latitude?: number
+          vendor_longitude?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dispatch_requests_accepted_by_rider_profile_id_fkey"
+            columns: ["accepted_by_rider_profile_id"]
+            isOneToOne: false
+            referencedRelation: "rider_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dispatch_requests_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dispatch_requests_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       drug_reminders: {
         Row: {
           created_at: string
@@ -2465,6 +2628,8 @@ export type Database = {
         | "confirmed"
         | "preparing"
         | "ready_for_pickup"
+        | "searching_for_rider"
+        | "assigned"
         | "picked_up"
         | "on_the_way"
         | "delivered"
@@ -2607,6 +2772,8 @@ export const Constants = {
         "confirmed",
         "preparing",
         "ready_for_pickup",
+        "searching_for_rider",
+        "assigned",
         "picked_up",
         "on_the_way",
         "delivered",
