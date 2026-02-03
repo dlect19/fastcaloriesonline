@@ -583,6 +583,16 @@ export default function VendorMenu() {
                                 });
                                 if (error) throw error;
                                 if (data?.success) {
+                                  // Map AI food_classes to CalorieClass type
+                                  const validFoodClasses = (data.food_classes || []).filter(
+                                    (c: string) => ['carbs', 'protein', 'fats', 'fiber'].includes(c)
+                                  ) as CalorieClass[];
+                                  
+                                  // Map AI nutrient_tags to NutrientTag type
+                                  const validNutrientTags = (data.nutrient_tags || []).filter(
+                                    (t: string) => ['water-rich', 'vitamin-rich', 'mineral-rich'].includes(t)
+                                  ) as NutrientTag[];
+                                  
                                   setFormData(prev => ({
                                     ...prev,
                                     calories: data.calories?.toString() || prev.calories,
@@ -590,8 +600,20 @@ export default function VendorMenu() {
                                     carbs_grams: data.carbs_grams?.toString() || prev.carbs_grams,
                                     fats_grams: data.fats_grams?.toString() || prev.fats_grams,
                                     fiber_grams: data.fiber_grams?.toString() || prev.fiber_grams,
+                                    calorie_classes: validFoodClasses.length > 0 ? validFoodClasses : prev.calorie_classes,
+                                    nutrient_tags: validNutrientTags.length > 0 ? validNutrientTags : prev.nutrient_tags,
                                   }));
-                                  toast({ title: 'AI estimation complete', description: 'Nutritional values have been filled in. Please review and adjust if needed.' });
+                                  
+                                  const detectedItems = [];
+                                  if (validFoodClasses.length > 0) detectedItems.push(`Food classes: ${validFoodClasses.join(', ')}`);
+                                  if (validNutrientTags.length > 0) detectedItems.push(`Nutrient tags: ${validNutrientTags.join(', ')}`);
+                                  
+                                  toast({ 
+                                    title: 'AI estimation complete', 
+                                    description: detectedItems.length > 0 
+                                      ? `${detectedItems.join('. ')}. Please review and adjust if needed.`
+                                      : 'Nutritional values have been filled in. Please review and adjust if needed.' 
+                                  });
                                 } else {
                                   throw new Error(data?.error || 'Failed to estimate');
                                 }

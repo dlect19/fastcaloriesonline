@@ -13,6 +13,8 @@ interface NutritionEstimate {
   fiber_grams: number;
   confidence: 'high' | 'medium' | 'low';
   food_items: string[];
+  food_classes: ('carbs' | 'protein' | 'fats' | 'fiber')[];
+  nutrient_tags: ('water-rich' | 'vitamin-rich' | 'mineral-rich')[];
 }
 
 serve(async (req) => {
@@ -45,6 +47,8 @@ When given a food image, analyze it carefully and provide:
 4. Fats (grams)
 5. Fiber (grams)
 6. List of detected food items
+7. Food classes - classify by dominant macros: 'carbs' (rice, bread, pasta, yam, fufu), 'protein' (meat, fish, eggs, beans), 'fats' (fried foods, oils, nuts), 'fiber' (vegetables, fruits). A food can have multiple classes.
+8. Nutrient tags - identify if food is: 'water-rich' (soups, fruits, vegetables with high water), 'vitamin-rich' (fruits, vegetables, liver), 'mineral-rich' (leafy greens, nuts, fish)
 
 Base your estimates on typical serving sizes visible in the image.
 If the image is not a food item, return zeros with low confidence.
@@ -110,9 +114,19 @@ Consider portion sizes visible in the image.`;
                     type: 'array',
                     items: { type: 'string' },
                     description: 'List of identified food items in the image'
+                  },
+                  food_classes: {
+                    type: 'array',
+                    items: { type: 'string', enum: ['carbs', 'protein', 'fats', 'fiber'] },
+                    description: 'Dominant macro categories the food belongs to'
+                  },
+                  nutrient_tags: {
+                    type: 'array',
+                    items: { type: 'string', enum: ['water-rich', 'vitamin-rich', 'mineral-rich'] },
+                    description: 'Nutritional characteristics of the food'
                   }
                 },
-                required: ['calories', 'protein_grams', 'carbs_grams', 'fats_grams', 'fiber_grams', 'confidence', 'food_items'],
+                required: ['calories', 'protein_grams', 'carbs_grams', 'fats_grams', 'fiber_grams', 'confidence', 'food_items', 'food_classes', 'nutrient_tags'],
                 additionalProperties: false
               }
             }
@@ -160,7 +174,9 @@ Consider portion sizes visible in the image.`;
       fats: nutritionData.fats_grams,
       fiber: nutritionData.fiber_grams,
       confidence: nutritionData.confidence,
-      items: nutritionData.food_items
+      items: nutritionData.food_items,
+      food_classes: nutritionData.food_classes,
+      nutrient_tags: nutritionData.nutrient_tags
     });
 
     return new Response(
