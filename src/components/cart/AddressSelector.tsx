@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { geocodeAndUpdateAddress } from '@/lib/geocoding';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -76,7 +77,7 @@ export function AddressSelector({
 
       toast({
         title: 'Success',
-        description: 'Address added successfully',
+        description: 'Address added successfully. Calculating location...',
       });
       setIsAddOpen(false);
       setFormData({ label: 'Home', address_line: '', city: '', state: '' });
@@ -85,6 +86,22 @@ export function AddressSelector({
       // Auto-select the new address
       if (data) {
         onSelect(data);
+        
+        // Geocode in background and update with coordinates
+        geocodeAndUpdateAddress(data.id, data.address_line, data.city, data.state)
+          .then((result) => {
+            if (result) {
+              // Update the selected address with coordinates for immediate delivery fee calculation
+              onSelect({ ...data, latitude: result.latitude, longitude: result.longitude });
+              toast({
+                title: 'Location Found',
+                description: 'Delivery fee calculated based on distance.',
+              });
+            }
+          })
+          .catch((err) => {
+            console.error('Geocoding failed:', err);
+          });
       }
     } catch (error) {
       console.error('Error adding address:', error);

@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Flame, Receipt } from 'lucide-react';
+import { Flame, Receipt, Navigation } from 'lucide-react';
 
 interface OrderSummaryProps {
   subtotal: number;
@@ -10,6 +10,7 @@ interface OrderSummaryProps {
   totalCalories: number;
   packagingFee?: number;
   discount?: number;
+  distanceKm?: number | null;
 }
 
 export function OrderSummary({ 
@@ -20,6 +21,7 @@ export function OrderSummary({
   totalCalories,
   packagingFee = 0,
   discount = 0,
+  distanceKm,
 }: OrderSummaryProps) {
   const getCalorieLevel = (calories: number) => {
     if (calories <= 500) return { label: 'Low', color: 'text-calorie-low bg-calorie-low/10' };
@@ -67,7 +69,15 @@ export function OrderSummary({
             </div>
           )}
           <div className="flex justify-between text-muted-foreground">
-            <span>Delivery Fee</span>
+            <div className="flex items-center gap-1">
+              <span>Delivery Fee</span>
+              {distanceKm !== null && distanceKm !== undefined && distanceKm > 0 && (
+                <span className="text-xs text-primary flex items-center gap-0.5">
+                  <Navigation className="w-3 h-3" />
+                  {distanceKm.toFixed(1)} km
+                </span>
+              )}
+            </div>
             <span>₦{deliveryFee.toLocaleString()}</span>
           </div>
           <div className="flex justify-between text-muted-foreground">

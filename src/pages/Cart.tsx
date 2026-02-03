@@ -463,6 +463,7 @@ export default function Cart() {
               totalCalories={totalCalories}
               packagingFee={packagingFee}
               discount={promoDiscount}
+              distanceKm={deliveryType === 'delivery' ? distanceKm : null}
             />
           </>
         )}

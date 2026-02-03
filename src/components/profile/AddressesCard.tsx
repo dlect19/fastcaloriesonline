@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { geocodeAndUpdateAddress } from '@/lib/geocoding';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -47,7 +48,7 @@ export function AddressesCard({ addresses, userId, onUpdate }: AddressesCardProp
 
     setSaving(true);
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('addresses')
         .insert({
           user_id: userId,
@@ -56,17 +57,38 @@ export function AddressesCard({ addresses, userId, onUpdate }: AddressesCardProp
           city: formData.city.trim(),
           state: formData.state.trim(),
           is_default: addresses.length === 0,
-        });
+        })
+        .select()
+        .single();
 
       if (error) throw error;
 
       toast({
         title: 'Success',
-        description: 'Address added successfully',
+        description: 'Address added. Finding location...',
       });
+      
+      // Geocode in background
+      if (data) {
+        geocodeAndUpdateAddress(data.id, formData.address_line.trim(), formData.city.trim(), formData.state.trim())
+          .then((result) => {
+            if (result) {
+              toast({
+                title: 'Location Found',
+                description: 'Your address location has been saved.',
+              });
+            }
+            onUpdate();
+          })
+          .catch(() => {
+            onUpdate();
+          });
+      } else {
+        onUpdate();
+      }
+      
       setIsOpen(false);
       setFormData({ label: 'Home', address_line: '', city: '', state: '' });
-      onUpdate();
     } catch (error) {
       console.error('Error adding address:', error);
       toast({
