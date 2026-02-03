@@ -124,7 +124,12 @@ export default function VendorDashboard() {
       setVendor(vendorData);
 
       if (vendorData) {
-        // Fetch recent orders
+        // Get today's date range in local timezone
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+        const tomorrowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
+
+        // Fetch recent orders for display (limit 5)
         const { data: ordersData } = await supabase
           .from('orders')
           .select('*')
@@ -133,6 +138,22 @@ export default function VendorDashboard() {
           .limit(5);
 
         setOrders(ordersData || []);
+
+        // Fetch TODAY's paid orders (separate query, no limit)
+        const { data: todayPaidOrders } = await supabase
+          .from('orders')
+          .select('id, subtotal, menu_subtotal')
+          .eq('vendor_id', vendorData.id)
+          .eq('payment_status', 'paid')
+          .gte('created_at', todayStart)
+          .lt('created_at', tomorrowStart);
+
+        // Count pending orders (all, not just recent 5)
+        const { count: pendingCount } = await supabase
+          .from('orders')
+          .select('id', { count: 'exact', head: true })
+          .eq('vendor_id', vendorData.id)
+          .in('status', ['pending', 'confirmed', 'preparing']);
 
         // Fetch vendor wallet for revenue pools
         const { data: wallet } = await supabase
@@ -144,19 +165,16 @@ export default function VendorDashboard() {
         
         setWalletData(wallet);
 
-        // Calculate stats
-        const today = new Date().toISOString().split('T')[0];
-        const todayOrders = ordersData?.filter(
-          (o) => o.created_at.startsWith(today)
-        ) || [];
-        const pendingOrders = ordersData?.filter(
-          (o) => ['pending', 'confirmed', 'preparing'].includes(o.status)
-        ) || [];
+        // Calculate stats from actual paid orders today
+        const todayRevenue = (todayPaidOrders || []).reduce(
+          (sum, o) => sum + Number(o.menu_subtotal || o.subtotal || 0), 
+          0
+        );
 
         setStats({
-          todayOrders: todayOrders.length,
-          todayRevenue: todayOrders.reduce((sum, o) => sum + Number(o.subtotal), 0),
-          pendingOrders: pendingOrders.length,
+          todayOrders: todayPaidOrders?.length || 0,
+          todayRevenue: todayRevenue,
+          pendingOrders: pendingCount || 0,
           avgRating: vendorData.rating || 0,
         });
       }
