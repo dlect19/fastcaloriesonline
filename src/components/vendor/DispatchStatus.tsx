@@ -120,9 +120,31 @@ export function DispatchStatus({ orderId, orderNumber, onRiderAssigned }: Dispat
         throw new Error(response.error.message);
       }
 
+      // Refetch the dispatch data to get the new expires_at and restart countdown
+      const { data: newDispatch } = await supabase
+        .from('dispatch_requests')
+        .select('*')
+        .eq('order_id', orderId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (newDispatch) {
+        setDispatch(newDispatch as unknown as DispatchRequest);
+        
+        // Fetch new offer count
+        const { count } = await supabase
+          .from('dispatch_offers')
+          .select('*', { count: 'exact', head: true })
+          .eq('dispatch_request_id', newDispatch.id)
+          .eq('status', 'pending');
+        
+        setOfferCount(count || 0);
+      }
+
       toast({
         title: 'Dispatch Restarted',
-        description: `Searching for riders within ${response.data?.eligibleRiderCount || 0} available`,
+        description: `Searching for ${response.data?.eligibleRiderCount || 0} available riders`,
       });
     } catch (error: any) {
       toast({
