@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { MapPin, Plus, Home, Briefcase, Star, Trash2, Loader2 } from 'lucide-react';
+import { MapPin, Plus, Home, Briefcase, Star, Trash2, Loader2, Pencil } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Tables } from '@/integrations/supabase/types';
 
@@ -29,6 +29,7 @@ export function AddressesCard({ addresses, userId, onUpdate }: AddressesCardProp
   const [isOpen, setIsOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [editingAddress, setEditingAddress] = useState<Address | null>(null);
   const [formData, setFormData] = useState({
     label: 'Home',
     address_line: '',
@@ -36,7 +37,35 @@ export function AddressesCard({ addresses, userId, onUpdate }: AddressesCardProp
     state: '',
   });
 
-  const handleAddAddress = async () => {
+  const resetForm = () => {
+    setFormData({ label: 'Home', address_line: '', city: '', state: '' });
+    setEditingAddress(null);
+  };
+
+  const openAddDialog = () => {
+    resetForm();
+    setIsOpen(true);
+  };
+
+  const openEditDialog = (address: Address) => {
+    setEditingAddress(address);
+    setFormData({
+      label: address.label,
+      address_line: address.address_line,
+      city: address.city,
+      state: address.state,
+    });
+    setIsOpen(true);
+  };
+
+  const handleCloseDialog = (open: boolean) => {
+    if (!open) {
+      resetForm();
+    }
+    setIsOpen(open);
+  };
+
+  const handleSaveAddress = async () => {
     if (!formData.address_line.trim() || !formData.city.trim() || !formData.state.trim()) {
       toast({
         title: 'Error',
@@ -48,34 +77,40 @@ export function AddressesCard({ addresses, userId, onUpdate }: AddressesCardProp
 
     setSaving(true);
     try {
-      const { data, error } = await supabase
-        .from('addresses')
-        .insert({
-          user_id: userId,
-          label: formData.label,
-          address_line: formData.address_line.trim(),
-          city: formData.city.trim(),
-          state: formData.state.trim(),
-          is_default: addresses.length === 0,
-        })
-        .select()
-        .single();
+      if (editingAddress) {
+        // Update existing address
+        const { error } = await supabase
+          .from('addresses')
+          .update({
+            label: formData.label,
+            address_line: formData.address_line.trim(),
+            city: formData.city.trim(),
+            state: formData.state.trim(),
+            // Clear coordinates so they get re-geocoded
+            latitude: null,
+            longitude: null,
+          })
+          .eq('id', editingAddress.id);
 
-      if (error) throw error;
+        if (error) throw error;
 
-      toast({
-        title: 'Success',
-        description: 'Address added. Finding location...',
-      });
-      
-      // Geocode in background
-      if (data) {
-        geocodeAndUpdateAddress(data.id, formData.address_line.trim(), formData.city.trim(), formData.state.trim())
+        toast({
+          title: 'Success',
+          description: 'Address updated. Finding location...',
+        });
+
+        // Re-geocode the updated address
+        geocodeAndUpdateAddress(
+          editingAddress.id,
+          formData.address_line.trim(),
+          formData.city.trim(),
+          formData.state.trim()
+        )
           .then((result) => {
             if (result) {
               toast({
                 title: 'Location Found',
-                description: 'Your address location has been saved.',
+                description: 'Your address location has been updated.',
               });
             }
             onUpdate();
@@ -84,16 +119,59 @@ export function AddressesCard({ addresses, userId, onUpdate }: AddressesCardProp
             onUpdate();
           });
       } else {
-        onUpdate();
+        // Add new address
+        const { data, error } = await supabase
+          .from('addresses')
+          .insert({
+            user_id: userId,
+            label: formData.label,
+            address_line: formData.address_line.trim(),
+            city: formData.city.trim(),
+            state: formData.state.trim(),
+            is_default: addresses.length === 0,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        toast({
+          title: 'Success',
+          description: 'Address added. Finding location...',
+        });
+
+        // Geocode in background
+        if (data) {
+          geocodeAndUpdateAddress(
+            data.id,
+            formData.address_line.trim(),
+            formData.city.trim(),
+            formData.state.trim()
+          )
+            .then((result) => {
+              if (result) {
+                toast({
+                  title: 'Location Found',
+                  description: 'Your address location has been saved.',
+                });
+              }
+              onUpdate();
+            })
+            .catch(() => {
+              onUpdate();
+            });
+        } else {
+          onUpdate();
+        }
       }
-      
+
       setIsOpen(false);
-      setFormData({ label: 'Home', address_line: '', city: '', state: '' });
+      resetForm();
     } catch (error) {
-      console.error('Error adding address:', error);
+      console.error('Error saving address:', error);
       toast({
         title: 'Error',
-        description: 'Failed to add address',
+        description: editingAddress ? 'Failed to update address' : 'Failed to add address',
         variant: 'destructive',
       });
     } finally {
@@ -166,16 +244,16 @@ export function AddressesCard({ addresses, userId, onUpdate }: AddressesCardProp
           <MapPin className="w-5 h-5 text-primary" />
           Saved Addresses
         </CardTitle>
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <Dialog open={isOpen} onOpenChange={handleCloseDialog}>
           <DialogTrigger asChild>
-            <Button variant="ghost" size="sm" className="gap-1">
+            <Button variant="ghost" size="sm" className="gap-1" onClick={openAddDialog}>
               <Plus className="w-4 h-4" />
               Add
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Add New Address</DialogTitle>
+              <DialogTitle>{editingAddress ? 'Edit Address' : 'Add New Address'}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-4">
               <div className="space-y-2">
@@ -228,9 +306,9 @@ export function AddressesCard({ addresses, userId, onUpdate }: AddressesCardProp
                 </div>
               </div>
 
-              <Button className="w-full" onClick={handleAddAddress} disabled={saving}>
+              <Button className="w-full" onClick={handleSaveAddress} disabled={saving}>
                 {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Add Address
+                {editingAddress ? 'Update Address' : 'Add Address'}
               </Button>
             </div>
           </DialogContent>
@@ -275,6 +353,14 @@ export function AddressesCard({ addresses, userId, onUpdate }: AddressesCardProp
                 </div>
 
                 <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-primary"
+                    onClick={() => openEditDialog(address)}
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
                   {!address.is_default && (
                     <Button
                       variant="ghost"
