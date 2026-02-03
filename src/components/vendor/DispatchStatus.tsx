@@ -90,8 +90,9 @@ export function DispatchStatus({ orderId, orderNumber, onRiderAssigned }: Dispat
     };
   }, [orderId, orderNumber, onRiderAssigned]);
 
-  // Update countdown timer
+  // Update countdown timer - only run when dispatch is pending
   useEffect(() => {
+    // Stop timer if dispatch doesn't exist or is no longer pending
     if (!dispatch || dispatch.status !== 'pending') {
       setTimeLeft(null);
       return;
@@ -106,8 +107,10 @@ export function DispatchStatus({ orderId, orderNumber, onRiderAssigned }: Dispat
 
     updateTimer();
     const interval = setInterval(updateTimer, 1000);
+    
+    // Cleanup interval on unmount or when dispatch status changes
     return () => clearInterval(interval);
-  }, [dispatch]);
+  }, [dispatch, dispatch?.status]);
 
   const handleRetryDispatch = async () => {
     setRetrying(true);
