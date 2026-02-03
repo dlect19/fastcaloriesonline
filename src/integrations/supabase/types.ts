@@ -1679,6 +1679,7 @@ export type Database = {
           current_latitude: number | null
           current_longitude: number | null
           delivery_company_id: string | null
+          email: string | null
           id: string
           id_document_url: string | null
           is_email_verified: boolean | null
@@ -1706,6 +1707,7 @@ export type Database = {
           current_latitude?: number | null
           current_longitude?: number | null
           delivery_company_id?: string | null
+          email?: string | null
           id?: string
           id_document_url?: string | null
           is_email_verified?: boolean | null
@@ -1733,6 +1735,7 @@ export type Database = {
           current_latitude?: number | null
           current_longitude?: number | null
           delivery_company_id?: string | null
+          email?: string | null
           id?: string
           id_document_url?: string | null
           is_email_verified?: boolean | null

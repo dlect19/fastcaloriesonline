@@ -100,7 +100,21 @@ export default function RiderAuth() {
       if (!existingProfile) {
         await supabase.from('rider_profiles').insert({
           user_id: data.user.id,
+          email: loginEmail,
         });
+      } else {
+        // Update email if missing
+        const { data: profile } = await supabase
+          .from('rider_profiles')
+          .select('email')
+          .eq('user_id', data.user.id)
+          .maybeSingle();
+        
+        if (!profile?.email) {
+          await supabase.from('rider_profiles')
+            .update({ email: loginEmail })
+            .eq('user_id', data.user.id);
+        }
       }
 
       toast({ title: 'Welcome back!' });
@@ -193,7 +207,7 @@ export default function RiderAuth() {
               // This commonly happens for riders created via invitations who later try to "Sign Up".
               const { data: existingRiderProfile, error: existingRiderProfileError } = await supabase
                 .from('rider_profiles')
-                .select('id, nin_number')
+                .select('id, nin_number, email')
                 .eq('user_id', signInData.user.id)
                 .maybeSingle();
 
@@ -206,6 +220,7 @@ export default function RiderAuth() {
                   user_id: signInData.user.id,
                   nin_number: ninNumber,
                   nin_submitted_at: new Date().toISOString(),
+                  email: signupEmail,
                 });
               } else if (!existingRiderProfile.nin_number) {
                 await supabase
@@ -213,7 +228,14 @@ export default function RiderAuth() {
                   .update({
                     nin_number: ninNumber,
                     nin_submitted_at: new Date().toISOString(),
+                    email: signupEmail,
                   })
+                  .eq('user_id', signInData.user.id);
+              } else if (!existingRiderProfile.email) {
+                // Update email if missing
+                await supabase
+                  .from('rider_profiles')
+                  .update({ email: signupEmail })
                   .eq('user_id', signInData.user.id);
               }
 
@@ -252,12 +274,14 @@ export default function RiderAuth() {
                 vehicle_plate: vehiclePlate,
                 nin_number: ninNumber,
                 nin_submitted_at: new Date().toISOString(),
+                email: signupEmail,
               });
             } else {
-              // Update existing profile with NIN
+              // Update existing profile with NIN and email
               await supabase.from('rider_profiles').update({
                 nin_number: ninNumber,
                 nin_submitted_at: new Date().toISOString(),
+                email: signupEmail,
               }).eq('user_id', signInData.user.id);
             }
 
@@ -287,13 +311,14 @@ export default function RiderAuth() {
           console.error('Error adding rider role:', roleError);
         }
 
-        // Create rider profile with NIN
+        // Create rider profile with NIN and email
         await supabase.from('rider_profiles').insert({
           user_id: data.user.id,
           vehicle_type: vehicleType,
           vehicle_plate: vehiclePlate,
           nin_number: ninNumber,
           nin_submitted_at: new Date().toISOString(),
+          email: signupEmail,
         });
 
         // Create rider wallet with correct type
