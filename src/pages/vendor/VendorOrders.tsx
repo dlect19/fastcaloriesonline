@@ -78,6 +78,7 @@ export default function VendorOrders() {
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
   const [selfPickupDialog, setSelfPickupDialog] = useState<{ open: boolean; order: OrderWithItems | null }>({ open: false, order: null });
   const [cancelDialog, setCancelDialog] = useState<{ open: boolean; order: OrderWithItems | null }>({ open: false, order: null });
+  const [showManualAssignForOrder, setShowManualAssignForOrder] = useState<string | null>(null);
 
   const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendor?.id || null);
 
@@ -514,12 +515,39 @@ export default function VendorOrders() {
         {/* Dispatch Status - Show when actively searching for platform rider */}
         {order.delivery_type !== 'self_pickup' && 
          order.status === 'searching_for_rider' && 
-         !order.rider_id && (
+         !order.rider_id && 
+         showManualAssignForOrder !== order.id && (
           <div className="px-4 pb-4">
             <DispatchStatus 
               orderId={order.id} 
               orderNumber={order.order_number}
+              vendorId={order.vendor_id}
+              vendorLat={vendor?.latitude}
+              vendorLng={vendor?.longitude}
               onRiderAssigned={fetchData}
+              onShowManualAssign={() => setShowManualAssignForOrder(order.id)}
+            />
+          </div>
+        )}
+
+        {/* Manual Rider Assignment - Show when vendor clicks "Assign Manually" from dispatch status */}
+        {order.delivery_type !== 'self_pickup' && 
+         order.status === 'searching_for_rider' && 
+         !order.rider_id && 
+         showManualAssignForOrder === order.id &&
+         vendor?.latitude && 
+         vendor?.longitude && (
+          <div className="px-4 pb-4">
+            <ManualRiderAssignment 
+              orderId={order.id}
+              orderNumber={order.order_number}
+              vendorId={order.vendor_id}
+              vendorLat={vendor.latitude}
+              vendorLng={vendor.longitude}
+              onAssigned={() => {
+                setShowManualAssignForOrder(null);
+                fetchData();
+              }}
             />
           </div>
         )}
