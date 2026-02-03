@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { geocodeAndUpdateAddress } from '@/lib/geocoding';
+import { geocodeAddressWithSuggestions, updateAddressCoordinates, type GeocodeSuggestion } from '@/lib/geocoding';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { MapPin, Plus, Home, Briefcase, Star, Trash2, Loader2, Pencil } from 'lucide-react';
+import { MapPin, Plus, Home, Briefcase, Star, Trash2, Loader2, Pencil, Navigation } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Tables } from '@/integrations/supabase/types';
 
@@ -30,6 +30,9 @@ export function AddressesCard({ addresses, userId, onUpdate }: AddressesCardProp
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [editingAddress, setEditingAddress] = useState<Address | null>(null);
+  const [suggestions, setSuggestions] = useState<GeocodeSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [pendingAddressId, setPendingAddressId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     label: 'Home',
     address_line: '',
@@ -40,6 +43,9 @@ export function AddressesCard({ addresses, userId, onUpdate }: AddressesCardProp
   const resetForm = () => {
     setFormData({ label: 'Home', address_line: '', city: '', state: '' });
     setEditingAddress(null);
+    setSuggestions([]);
+    setShowSuggestions(false);
+    setPendingAddressId(null);
   };
 
   const openAddDialog = () => {
@@ -55,6 +61,8 @@ export function AddressesCard({ addresses, userId, onUpdate }: AddressesCardProp
       city: address.city,
       state: address.state,
     });
+    setSuggestions([]);
+    setShowSuggestions(false);
     setIsOpen(true);
   };
 
@@ -63,6 +71,37 @@ export function AddressesCard({ addresses, userId, onUpdate }: AddressesCardProp
       resetForm();
     }
     setIsOpen(open);
+  };
+
+  const handleSelectSuggestion = async (suggestion: GeocodeSuggestion) => {
+    if (!pendingAddressId) return;
+    
+    setSaving(true);
+    try {
+      // Update the address with the selected suggestion's coordinates
+      await updateAddressCoordinates(pendingAddressId, suggestion.latitude, suggestion.longitude);
+      
+      toast({
+        title: 'Location Set',
+        description: `Using: ${suggestion.display_name}`,
+      });
+      
+      setShowSuggestions(false);
+      setSuggestions([]);
+      setPendingAddressId(null);
+      setIsOpen(false);
+      resetForm();
+      onUpdate();
+    } catch (error) {
+      console.error('Error setting location:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to set location',
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleSaveAddress = async () => {
@@ -77,6 +116,8 @@ export function AddressesCard({ addresses, userId, onUpdate }: AddressesCardProp
 
     setSaving(true);
     try {
+      let addressId: string;
+      
       if (editingAddress) {
         // Update existing address
         const { error } = await supabase
@@ -86,38 +127,13 @@ export function AddressesCard({ addresses, userId, onUpdate }: AddressesCardProp
             address_line: formData.address_line.trim(),
             city: formData.city.trim(),
             state: formData.state.trim(),
-            // Clear coordinates so they get re-geocoded
             latitude: null,
             longitude: null,
           })
           .eq('id', editingAddress.id);
 
         if (error) throw error;
-
-        toast({
-          title: 'Success',
-          description: 'Address updated. Finding location...',
-        });
-
-        // Re-geocode the updated address
-        geocodeAndUpdateAddress(
-          editingAddress.id,
-          formData.address_line.trim(),
-          formData.city.trim(),
-          formData.state.trim()
-        )
-          .then((result) => {
-            if (result) {
-              toast({
-                title: 'Location Found',
-                description: 'Your address location has been updated.',
-              });
-            }
-            onUpdate();
-          })
-          .catch(() => {
-            onUpdate();
-          });
+        addressId = editingAddress.id;
       } else {
         // Add new address
         const { data, error } = await supabase
@@ -134,39 +150,50 @@ export function AddressesCard({ addresses, userId, onUpdate }: AddressesCardProp
           .single();
 
         if (error) throw error;
-
-        toast({
-          title: 'Success',
-          description: 'Address added. Finding location...',
-        });
-
-        // Geocode in background
-        if (data) {
-          geocodeAndUpdateAddress(
-            data.id,
-            formData.address_line.trim(),
-            formData.city.trim(),
-            formData.state.trim()
-          )
-            .then((result) => {
-              if (result) {
-                toast({
-                  title: 'Location Found',
-                  description: 'Your address location has been saved.',
-                });
-              }
-              onUpdate();
-            })
-            .catch(() => {
-              onUpdate();
-            });
-        } else {
-          onUpdate();
-        }
+        addressId = data.id;
       }
 
-      setIsOpen(false);
-      resetForm();
+      // Try to geocode the address
+      const { result, suggestions: geocodeSuggestions } = await geocodeAddressWithSuggestions(
+        formData.address_line.trim(),
+        formData.city.trim(),
+        formData.state.trim()
+      );
+
+      if (result) {
+        // Exact match found - update coordinates
+        await updateAddressCoordinates(addressId, result.latitude, result.longitude);
+        
+        toast({
+          title: 'Success',
+          description: 'Address saved with location!',
+        });
+        
+        setIsOpen(false);
+        resetForm();
+        onUpdate();
+      } else if (geocodeSuggestions.length > 0) {
+        // No exact match - show suggestions
+        setPendingAddressId(addressId);
+        setSuggestions(geocodeSuggestions);
+        setShowSuggestions(true);
+        
+        toast({
+          title: 'Address Saved',
+          description: 'Please select a nearby location to set coordinates.',
+        });
+        onUpdate();
+      } else {
+        // No suggestions either - address saved without coordinates
+        toast({
+          title: 'Address Saved',
+          description: 'Location not found. You can set GPS manually later.',
+        });
+        
+        setIsOpen(false);
+        resetForm();
+        onUpdate();
+      }
     } catch (error) {
       console.error('Error saving address:', error);
       toast({
@@ -208,13 +235,11 @@ export function AddressesCard({ addresses, userId, onUpdate }: AddressesCardProp
 
   const handleSetDefault = async (addressId: string) => {
     try {
-      // First, unset all defaults
       await supabase
         .from('addresses')
         .update({ is_default: false })
         .eq('user_id', userId);
 
-      // Then set the new default
       const { error } = await supabase
         .from('addresses')
         .update({ is_default: true })
@@ -251,66 +276,116 @@ export function AddressesCard({ addresses, userId, onUpdate }: AddressesCardProp
               Add
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>{editingAddress ? 'Edit Address' : 'Add New Address'}</DialogTitle>
+              <DialogTitle>
+                {showSuggestions 
+                  ? 'Select Nearby Location' 
+                  : editingAddress 
+                    ? 'Edit Address' 
+                    : 'Add New Address'}
+              </DialogTitle>
             </DialogHeader>
-            <div className="space-y-4 pt-4">
-              <div className="space-y-2">
-                <Label>Label</Label>
-                <div className="flex gap-2">
-                  {['Home', 'Work', 'Other'].map((label) => (
-                    <Button
-                      key={label}
-                      type="button"
-                      variant={formData.label === label ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setFormData({ ...formData, label })}
-                      className="flex-1 gap-2"
+            
+            {showSuggestions ? (
+              <div className="space-y-3 pt-4">
+                <p className="text-sm text-muted-foreground">
+                  We couldn't find the exact address. Did you mean one of these nearby locations?
+                </p>
+                <div className="space-y-2">
+                  {suggestions.map((suggestion, index) => (
+                    <button
+                      key={index}
+                      onClick={() => handleSelectSuggestion(suggestion)}
+                      disabled={saving}
+                      className="w-full flex items-start gap-3 p-3 rounded-lg border border-border hover:border-primary/50 hover:bg-secondary/50 transition-colors text-left"
                     >
-                      {labelIcons[label]}
-                      {label}
-                    </Button>
+                      <Navigation className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-foreground text-sm">{suggestion.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {suggestion.display_name}
+                        </p>
+                        {suggestion.city && (
+                          <p className="text-xs text-muted-foreground">
+                            {suggestion.city}{suggestion.state ? `, ${suggestion.state}` : ''}
+                          </p>
+                        )}
+                      </div>
+                    </button>
                   ))}
                 </div>
+                <Button 
+                  variant="outline" 
+                  className="w-full" 
+                  onClick={() => {
+                    setShowSuggestions(false);
+                    setSuggestions([]);
+                    setIsOpen(false);
+                    resetForm();
+                  }}
+                >
+                  Skip - I'll set GPS manually
+                </Button>
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="address_line">Street Address *</Label>
-                <Input
-                  id="address_line"
-                  value={formData.address_line}
-                  onChange={(e) => setFormData({ ...formData, address_line: e.target.value })}
-                  placeholder="123 Main Street, Lekki"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
+            ) : (
+              <div className="space-y-4 pt-4">
                 <div className="space-y-2">
-                  <Label htmlFor="city">City *</Label>
+                  <Label>Label</Label>
+                  <div className="flex gap-2">
+                    {['Home', 'Work', 'Other'].map((label) => (
+                      <Button
+                        key={label}
+                        type="button"
+                        variant={formData.label === label ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setFormData({ ...formData, label })}
+                        className="flex-1 gap-2"
+                      >
+                        {labelIcons[label]}
+                        {label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="address_line">Street Address *</Label>
                   <Input
-                    id="city"
-                    value={formData.city}
-                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                    placeholder="Lagos"
+                    id="address_line"
+                    value={formData.address_line}
+                    onChange={(e) => setFormData({ ...formData, address_line: e.target.value })}
+                    placeholder="e.g. 2 Jamiu Balogun, Ikosi Ketu"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="state">State *</Label>
-                  <Input
-                    id="state"
-                    value={formData.state}
-                    onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                    placeholder="Lagos"
-                  />
-                </div>
-              </div>
 
-              <Button className="w-full" onClick={handleSaveAddress} disabled={saving}>
-                {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                {editingAddress ? 'Update Address' : 'Add Address'}
-              </Button>
-            </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="city">City *</Label>
+                    <Input
+                      id="city"
+                      value={formData.city}
+                      onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                      placeholder="Ikeja"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="state">State *</Label>
+                    <Input
+                      id="state"
+                      value={formData.state}
+                      onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                      placeholder="Lagos"
+                    />
+                  </div>
+                </div>
+
+                <Button className="w-full" onClick={handleSaveAddress} disabled={saving}>
+                  {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  {editingAddress ? 'Update Address' : 'Add Address'}
+                </Button>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
       </CardHeader>

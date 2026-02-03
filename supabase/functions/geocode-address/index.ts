@@ -23,6 +23,15 @@ interface GeocodeResult {
   state?: string;
 }
 
+interface GeocodeSuggestion {
+  latitude: number;
+  longitude: number;
+  display_name: string;
+  name: string;
+  city?: string;
+  state?: string;
+}
+
 // Lagos center coordinates for location bias
 const LAGOS_CENTER = { lat: 6.5, lon: 3.4 };
 const LAGOS_VIEWBOX = '3.0,6.3,3.6,6.7';
@@ -50,7 +59,6 @@ function scorePhotonResult(feature: PhotonFeature, originalAddress: string): num
   const addressLower = originalAddress.toLowerCase();
   const addressWords = addressLower.split(/[\s,]+/).filter(w => w.length > 2);
   
-  // Check if key address words appear in result properties
   const propsText = [
     props.name, props.street, props.city, props.county, 
     props.locality, props.district
@@ -62,12 +70,10 @@ function scorePhotonResult(feature: PhotonFeature, originalAddress: string): num
     }
   }
   
-  // Bonus for Lagos state match
   if (props.state?.toLowerCase().includes('lagos')) {
     score += 5;
   }
   
-  // Bonus for Nigeria match
   if (props.country?.toLowerCase().includes('nigeria')) {
     score += 3;
   }
@@ -75,12 +81,39 @@ function scorePhotonResult(feature: PhotonFeature, originalAddress: string): num
   return score;
 }
 
-async function tryPhotonGeocode(query: string, originalAddress: string, useBias: boolean = true): Promise<GeocodeResult | null> {
+function photonFeatureToSuggestion(feature: PhotonFeature): GeocodeSuggestion {
+  const longitude = feature.geometry.coordinates[0];
+  const latitude = feature.geometry.coordinates[1];
+  const city = feature.properties.city || feature.properties.county || feature.properties.locality || feature.properties.district || '';
+  const state = feature.properties.state || '';
+  
+  const displayName = [
+    feature.properties.name,
+    feature.properties.street,
+    city,
+    state
+  ].filter(Boolean).join(', ');
+  
+  return {
+    latitude,
+    longitude,
+    display_name: displayName,
+    name: feature.properties.name || feature.properties.street || city,
+    city,
+    state,
+  };
+}
+
+interface PhotonResult {
+  result: GeocodeResult | null;
+  suggestions: GeocodeSuggestion[];
+}
+
+async function tryPhotonGeocode(query: string, originalAddress: string, useBias: boolean = true): Promise<PhotonResult> {
   try {
     const encodedQuery = encodeURIComponent(query);
     let url = `https://photon.komoot.io/api?q=${encodedQuery}&limit=10`;
     
-    // Add Lagos location bias for more accurate Nigerian results
     if (useBias) {
       url += `&lat=${LAGOS_CENTER.lat}&lon=${LAGOS_CENTER.lon}`;
     }
@@ -93,14 +126,14 @@ async function tryPhotonGeocode(query: string, originalAddress: string, useBias:
     
     if (!response.ok) {
       console.error(`Photon API error: ${response.status}`);
-      return null;
+      return { result: null, suggestions: [] };
     }
     
     const data = await response.json();
     
     if (!data.features || data.features.length === 0) {
       console.log('Photon: No results found');
-      return null;
+      return { result: null, suggestions: [] };
     }
     
     // Filter to Lagos State results first
@@ -108,21 +141,25 @@ async function tryPhotonGeocode(query: string, originalAddress: string, useBias:
       f.properties.state?.toLowerCase().includes('lagos')
     );
     
-    // Score each result based on how well it matches the original address
+    // Score each result
     const candidates = (lagosResults.length > 0 ? lagosResults : data.features) as PhotonFeature[];
     const scoredResults = candidates.map((f: PhotonFeature) => ({
       feature: f,
       score: scorePhotonResult(f, originalAddress)
     }));
     
-    // Sort by score descending
     scoredResults.sort((a, b) => b.score - a.score);
     
-    // Take best match, but require minimum score to avoid false positives
+    // Generate suggestions from top results (for when exact match fails)
+    const suggestions = scoredResults
+      .slice(0, 5)
+      .map(sr => photonFeatureToSuggestion(sr.feature));
+    
+    // Take best match, but require minimum score
     const bestMatch = scoredResults[0];
     if (bestMatch.score < 5) {
-      console.log(`Photon: Best match score too low (${bestMatch.score}), skipping`);
-      return null;
+      console.log(`Photon: Best match score too low (${bestMatch.score}), returning suggestions instead`);
+      return { result: null, suggestions };
     }
     
     const result = bestMatch.feature;
@@ -142,16 +179,19 @@ async function tryPhotonGeocode(query: string, originalAddress: string, useBias:
     console.log(`Photon found (score ${bestMatch.score}): ${displayName} at ${latitude}, ${longitude}`);
     
     return {
-      latitude,
-      longitude,
-      display_name: displayName,
-      confidence: Math.min(0.5 + (bestMatch.score / 40), 0.95),
-      city,
-      state,
+      result: {
+        latitude,
+        longitude,
+        display_name: displayName,
+        confidence: Math.min(0.5 + (bestMatch.score / 40), 0.95),
+        city,
+        state,
+      },
+      suggestions
     };
   } catch (error) {
     console.error('Photon geocoding error:', error);
-    return null;
+    return { result: null, suggestions: [] };
   }
 }
 
@@ -310,22 +350,22 @@ Deno.serve(async (req) => {
 
     console.log(`Forward geocoding: address="${address}", city="${city}", state="${state}"`);
 
-    // Build query variations - try simpler queries first for Photon (less noise = better fuzzy match)
+    // Build query variations
     const photonQueries = [
-      // Try address + Lagos only (Photon handles fuzzy matching well)
       `${address} Lagos`,
-      // Try address + state + country
       [address, state, country].filter(Boolean).join(' '),
-      // Try full query with city
       [address, city, state, country].filter(Boolean).join(' '),
     ];
     
-    // Remove duplicate queries
     const uniqueQueries = [...new Set(photonQueries)];
+    
+    // Collect all suggestions across attempts
+    let allSuggestions: GeocodeSuggestion[] = [];
 
     // Strategy 1-3: Try Photon with different query formulations
     for (const query of uniqueQueries) {
-      const result = await tryPhotonGeocode(query, address, true);
+      const { result, suggestions } = await tryPhotonGeocode(query, address, true);
+      allSuggestions = [...allSuggestions, ...suggestions];
       if (result) {
         return new Response(
           JSON.stringify(result),
@@ -336,7 +376,8 @@ Deno.serve(async (req) => {
 
     // Strategy 4: Try Photon without Lagos bias
     for (const query of uniqueQueries) {
-      const result = await tryPhotonGeocode(query, address, false);
+      const { result, suggestions } = await tryPhotonGeocode(query, address, false);
+      allSuggestions = [...allSuggestions, ...suggestions];
       if (result) {
         return new Response(
           JSON.stringify(result),
@@ -344,8 +385,37 @@ Deno.serve(async (req) => {
         );
       }
     }
+    
+    // Strategy 5: If no suggestions yet, try extracting just neighborhood/area names
+    // This helps when the full address is too specific (e.g., "2 jamiu balogun ikosi ketu")
+    if (allSuggestions.length === 0) {
+      const words = address.toLowerCase().split(/[\s,]+/).filter(w => w.length > 2);
+      
+      // Try last 2-3 words (often the neighborhood name like "ikosi ketu")
+      const areaQueries = [];
+      if (words.length >= 2) {
+        areaQueries.push(words.slice(-2).join(' ') + ' Lagos');
+      }
+      if (words.length >= 3) {
+        areaQueries.push(words.slice(-3).join(' ') + ' Lagos');
+      }
+      // Also try just the area name without street numbers
+      const areaOnly = words.filter(w => !/^\d+/.test(w)).join(' ');
+      if (areaOnly && areaOnly !== address.toLowerCase()) {
+        areaQueries.push(areaOnly + ' Lagos');
+      }
+      
+      console.log(`Trying area-only queries for suggestions: ${areaQueries.join(', ')}`);
+      
+      for (const query of areaQueries) {
+        const { result, suggestions } = await tryPhotonGeocode(query, address, true);
+        allSuggestions = [...allSuggestions, ...suggestions];
+        // Don't return result here - these are fallback suggestions, not exact matches
+        if (suggestions.length > 0) break;
+      }
+    }
 
-    // Strategy 5: Fall back to Nominatim with multiple strategies
+    // Strategy 5: Fall back to Nominatim
     const nominatimResult = await geocodeWithNominatim(address, city || '', state || '', country);
     if (nominatimResult) {
       return new Response(
@@ -354,12 +424,23 @@ Deno.serve(async (req) => {
       );
     }
 
-    // No results found
-    console.log('All geocoding strategies exhausted - no results found');
+    // Deduplicate suggestions by coordinates (round to 4 decimals)
+    const seenCoords = new Set<string>();
+    const uniqueSuggestions = allSuggestions.filter(s => {
+      const key = `${s.latitude.toFixed(4)},${s.longitude.toFixed(4)}`;
+      if (seenCoords.has(key)) return false;
+      seenCoords.add(key);
+      return true;
+    }).slice(0, 5);
+
+    // No exact match found - return suggestions if available
+    console.log(`No exact match found. Returning ${uniqueSuggestions.length} suggestions.`);
+    
     return new Response(
       JSON.stringify({ 
         error: 'Address not found', 
         query: address,
+        suggestions: uniqueSuggestions,
         strategies_tried: 'photon_multiple_queries, nominatim_5_strategies'
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
