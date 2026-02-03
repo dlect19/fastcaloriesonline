@@ -198,5 +198,10 @@ export function usePromoCode() {
     applyPromo,
     clearPromo,
     incrementUsage,
+    // Utility to clear state after successful order
+    resetAfterOrder: useCallback(() => {
+      setAppliedPromo(null);
+      setDiscount(0);
+    }, []),
   };
 }

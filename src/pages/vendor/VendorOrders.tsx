@@ -22,6 +22,7 @@ import { OrderRiderInfo } from '@/components/vendor/OrderRiderInfo';
 import { SelfPickupVerifyDialog } from '@/components/vendor/SelfPickupVerifyDialog';
 import { SoundEnableBanner } from '@/components/shared/SoundEnableBanner';
 import { DispatchStatus } from '@/components/vendor/DispatchStatus';
+import { CancelOrderDialog } from '@/components/vendor/CancelOrderDialog';
 import { useAuth } from '@/hooks/useAuth';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
 import { useToast } from '@/hooks/use-toast';
@@ -75,6 +76,7 @@ export default function VendorOrders() {
   const [activeTab, setActiveTab] = useState('active');
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
   const [selfPickupDialog, setSelfPickupDialog] = useState<{ open: boolean; order: OrderWithItems | null }>({ open: false, order: null });
+  const [cancelDialog, setCancelDialog] = useState<{ open: boolean; order: OrderWithItems | null }>({ open: false, order: null });
 
   const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendor?.id || null);
 
@@ -482,7 +484,7 @@ export default function VendorOrders() {
                   )}
                   <DropdownMenuItem
                     className="text-destructive"
-                    onClick={() => updateOrderStatus(order.id, 'cancelled')}
+                    onClick={() => setCancelDialog({ open: true, order })}
                   >
                     Cancel Order
                   </DropdownMenuItem>
@@ -509,7 +511,7 @@ export default function VendorOrders() {
                   )}
                   <DropdownMenuItem
                     className="text-destructive"
-                    onClick={() => updateOrderStatus(order.id, 'cancelled')}
+                    onClick={() => setCancelDialog({ open: true, order })}
                   >
                     Cancel Order
                   </DropdownMenuItem>
@@ -617,6 +619,21 @@ export default function VendorOrders() {
               onVerified={() => {
                 fetchData();
                 setSelfPickupDialog({ open: false, order: null });
+              }}
+            />
+          )}
+
+          {/* Cancel Order Dialog */}
+          {cancelDialog.order && (
+            <CancelOrderDialog
+              open={cancelDialog.open}
+              onOpenChange={(open) => setCancelDialog({ ...cancelDialog, open })}
+              orderId={cancelDialog.order.id}
+              orderNumber={cancelDialog.order.order_number}
+              orderTotal={Number(cancelDialog.order.total)}
+              onCancelled={() => {
+                fetchData();
+                setCancelDialog({ open: false, order: null });
               }}
             />
           )}
