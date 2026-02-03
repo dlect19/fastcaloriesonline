@@ -7,6 +7,7 @@ const corsHeaders = {
 
 interface DispatchOrderRequest {
   orderId: string;
+  publicOnly?: boolean; // If true, only dispatch to platform riders (skip vendor/company)
 }
 
 interface EligibleRider {
@@ -160,7 +161,7 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { orderId }: DispatchOrderRequest = await req.json();
+    const { orderId, publicOnly }: DispatchOrderRequest = await req.json();
 
     if (!orderId) {
       return new Response(
@@ -261,35 +262,14 @@ Deno.serve(async (req) => {
     // Get dispatch settings
     const settings = await getDispatchSettings(supabase);
     
-    // Determine initial priority tier
-    const initialTier = settings.enablePriorityTiers ? 'vendor_riders' : 'platform_riders';
+    // If publicOnly is true, ONLY dispatch to platform riders (skip vendor/company tiers)
+    // This is used when vendor manually dispatches publicly
+    let eligibleRiders: EligibleRider[] = [];
+    let currentTier: string;
     
-    // Find eligible riders for the initial tier
-    let eligibleRiders = await findEligibleRiders(
-      supabase,
-      order.vendor_id,
-      vendor.latitude,
-      vendor.longitude,
-      settings.initialRadiusKm,
-      settings.enablePriorityTiers ? initialTier : 'all'
-    );
-
-    // If no vendor riders and priority tiers enabled, try delivery company riders
-    if (eligibleRiders.length === 0 && settings.enablePriorityTiers) {
-      console.log('No vendor riders found, trying delivery company riders');
-      eligibleRiders = await findEligibleRiders(
-        supabase,
-        order.vendor_id,
-        vendor.latitude,
-        vendor.longitude,
-        settings.initialRadiusKm,
-        'delivery_company_riders'
-      );
-    }
-
-    // If still no riders, try platform riders
-    if (eligibleRiders.length === 0 && settings.enablePriorityTiers) {
-      console.log('No delivery company riders found, trying platform riders');
+    if (publicOnly) {
+      console.log('Public dispatch requested - only searching platform riders');
+      currentTier = 'platform_riders';
       eligibleRiders = await findEligibleRiders(
         supabase,
         order.vendor_id,
@@ -298,17 +278,18 @@ Deno.serve(async (req) => {
         settings.initialRadiusKm,
         'platform_riders'
       );
-    }
-
-    // If no priority tiers, get all riders
-    if (!settings.enablePriorityTiers && eligibleRiders.length === 0) {
+    } else {
+      // Default behavior: Only dispatch to platform riders automatically
+      // Vendor/company riders must be manually assigned by vendor
+      console.log('Auto-dispatch - searching platform riders only (vendor/company require manual assignment)');
+      currentTier = 'platform_riders';
       eligibleRiders = await findEligibleRiders(
         supabase,
         order.vendor_id,
         vendor.latitude,
         vendor.longitude,
         settings.initialRadiusKm,
-        'all'
+        'platform_riders'
       );
     }
 
@@ -321,7 +302,6 @@ Deno.serve(async (req) => {
 
     // Create dispatch request
     const expiresAt = new Date(Date.now() + settings.acceptanceTimeoutSeconds * 1000);
-    const currentTier = eligibleRiders.length > 0 ? eligibleRiders[0].priority_tier : initialTier;
 
     const { data: dispatchRequest, error: dispatchError } = await supabase
       .from('dispatch_requests')

@@ -64,7 +64,8 @@ Deno.serve(async (req) => {
 
     let assignedRiderId = riderId;
 
-    // If no rider specified, find nearest available rider
+    // If no rider specified, find nearest available PLATFORM rider only
+    // Vendor/company riders must be manually assigned by vendor
     if (!assignedRiderId) {
       const vendorData = order.vendors as any;
       if (!vendorData?.latitude || !vendorData?.longitude) {
@@ -83,7 +84,25 @@ Deno.serve(async (req) => {
 
       const searchRadius = parseFloat(riderSettings?.value || '5');
 
-      // Get vendor's affiliated riders from vendor_riders table
+      // Fetch online platform riders only (not affiliated with vendor or company)
+      // Vendor/company riders require manual assignment
+      const { data: riders } = await supabase
+        .from('rider_profiles')
+        .select('id, user_id, current_latitude, current_longitude, affiliated_vendor_id, delivery_company_id, preferred_latitude, preferred_longitude, work_radius_km, nin_number, nin_verified, is_email_verified')
+        .eq('is_online', true)
+        .eq('is_verified', true)
+        .eq('is_email_verified', true)
+        .is('affiliated_vendor_id', null)
+        .is('delivery_company_id', null);
+
+      if (!riders || riders.length === 0) {
+        return new Response(
+          JSON.stringify({ error: 'No available platform riders', success: false }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Also exclude riders in vendor_riders table
       const { data: vendorRiders } = await supabase
         .from('vendor_riders')
         .select('rider_profile_id')
@@ -91,26 +110,8 @@ Deno.serve(async (req) => {
         .eq('is_active', true);
 
       const vendorRiderProfileIds = (vendorRiders || []).map(vr => vr.rider_profile_id);
-      console.log(`Found ${vendorRiderProfileIds.length} affiliated riders for vendor ${order.vendor_id}`);
 
-      // Fetch online riders with work preferences
-      // Include verified riders who are online and have email verified
-      // This includes platform riders AND delivery company riders
-      const { data: riders } = await supabase
-        .from('rider_profiles')
-        .select('id, user_id, current_latitude, current_longitude, affiliated_vendor_id, delivery_company_id, preferred_latitude, preferred_longitude, work_radius_km, nin_number, nin_verified, is_email_verified')
-        .eq('is_online', true)
-        .eq('is_verified', true)
-        .eq('is_email_verified', true);
-
-      if (!riders || riders.length === 0) {
-        return new Response(
-          JSON.stringify({ error: 'No available riders', success: false }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      // Calculate distances and find nearest
+      // Calculate distances and find nearest platform rider
       const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
         const R = 6371;
         const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -127,7 +128,12 @@ Deno.serve(async (req) => {
           // Must have either current location or preferred location
           const hasCurrentLocation = rider.current_latitude && rider.current_longitude;
           const hasPreferredLocation = rider.preferred_latitude && rider.preferred_longitude;
-          return hasCurrentLocation || hasPreferredLocation;
+          if (!hasCurrentLocation && !hasPreferredLocation) return false;
+          
+          // Exclude riders in vendor_riders table
+          if (vendorRiderProfileIds.includes(rider.id)) return false;
+          
+          return true;
         })
         .map(rider => {
           // Use current location if available, otherwise use preferred location
@@ -145,44 +151,25 @@ Deno.serve(async (req) => {
           const riderWorkRadius = rider.work_radius_km || searchRadius;
           const withinWorkRadius = distance <= riderWorkRadius;
           
-          // Check if rider is affiliated via vendor_riders table OR affiliated_vendor_id
-          const isAffiliatedViaTable = vendorRiderProfileIds.includes(rider.id);
-          const isAffiliatedViaColumn = rider.affiliated_vendor_id === order.vendor_id;
-          const isAffiliated = isAffiliatedViaTable || isAffiliatedViaColumn;
-          
-          // Delivery company riders are also eligible - they're treated like platform riders
-          const isDeliveryCompanyRider = !!rider.delivery_company_id;
-          
           return {
             ...rider,
             distance,
-            isAffiliated,
-            isDeliveryCompanyRider,
             withinWorkRadius,
           };
         })
         .filter(r => r.distance <= searchRadius && r.withinWorkRadius)
-        .sort((a, b) => {
-          // Prioritize vendor's own riders if configured
-          if (vendorData.own_rider_priority) {
-            if (a.isAffiliated && !b.isAffiliated) return -1;
-            if (!a.isAffiliated && b.isAffiliated) return 1;
-          }
-          return a.distance - b.distance;
-        });
+        .sort((a, b) => a.distance - b.distance);
 
       if (ridersWithDistance.length === 0) {
         return new Response(
-          JSON.stringify({ error: 'No riders within delivery radius', success: false }),
+          JSON.stringify({ error: 'No platform riders within delivery radius', success: false }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      // Get the user_id of the nearest rider
+      // Get the user_id of the nearest platform rider
       assignedRiderId = ridersWithDistance[0].user_id;
-      const isAffiliated = ridersWithDistance[0].isAffiliated;
-      const isDeliveryCompanyRider = ridersWithDistance[0].isDeliveryCompanyRider;
-      console.log(`Auto-assigned ${isAffiliated ? 'affiliated ' : ''}${isDeliveryCompanyRider ? 'delivery company ' : ''}rider: ${assignedRiderId} (${ridersWithDistance[0].distance.toFixed(2)}km away)`);
+      console.log(`Auto-assigned platform rider: ${assignedRiderId} (${ridersWithDistance[0].distance.toFixed(2)}km away)`);
     }
 
     // Update order with assigned rider
