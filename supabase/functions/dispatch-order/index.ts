@@ -223,23 +223,31 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Check for existing active dispatch request
-    const { data: existingDispatch } = await supabase
+    // Check for existing dispatch requests and expire/clean them before creating new one
+    const { data: existingDispatches } = await supabase
       .from('dispatch_requests')
       .select('id, status')
-      .eq('order_id', orderId)
-      .in('status', ['pending'])
-      .single();
+      .eq('order_id', orderId);
 
-    if (existingDispatch) {
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          dispatchRequestId: existingDispatch.id,
-          message: 'Dispatch already in progress' 
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // If there's a pending dispatch, expire it before creating a new one
+    if (existingDispatches && existingDispatches.length > 0) {
+      for (const existingDispatch of existingDispatches) {
+        // Expire old dispatch offers
+        await supabase
+          .from('dispatch_offers')
+          .update({ status: 'expired' })
+          .eq('dispatch_request_id', existingDispatch.id)
+          .eq('status', 'pending');
+        
+        // Mark old dispatch request as expired if pending/no_riders
+        if (['pending', 'no_riders'].includes(existingDispatch.status)) {
+          await supabase
+            .from('dispatch_requests')
+            .update({ status: 'expired' })
+            .eq('id', existingDispatch.id);
+        }
+      }
+      console.log(`Expired ${existingDispatches.length} old dispatch request(s)`);
     }
 
     const vendor = order.vendors as any;

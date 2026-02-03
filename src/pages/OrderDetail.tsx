@@ -8,9 +8,10 @@ import { BottomNav } from '@/components/home/BottomNav';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { RiderReviewForm } from '@/components/order/RiderReviewForm';
 import { RiderInfoCard } from '@/components/order/RiderInfoCard';
-import { ArrowLeft, Package, Check, Truck, MapPin, Phone, Loader2, Store, Clock, Bike, ShieldCheck, Star } from 'lucide-react';
-import { format } from 'date-fns';
+import { ArrowLeft, Package, Check, Truck, MapPin, Phone, Loader2, Store, Clock, Bike, ShieldCheck, Star, CreditCard, AlertTriangle } from 'lucide-react';
+import { format, differenceInMinutes } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 const DELIVERY_ORDER_STATUSES = [
   { key: 'pending', label: 'Order Placed', icon: Package },
@@ -34,10 +35,12 @@ export default function OrderDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
+  const { toast } = useToast();
   const [order, setOrder] = useState<any>(null);
   const [orderItems, setOrderItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasReviewed, setHasReviewed] = useState(false);
+  const [processingPayment, setProcessingPayment] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -118,6 +121,43 @@ export default function OrderDetail() {
     return index >= 0 ? index : 0;
   };
 
+  // Check if order is eligible for payment (pending payment within 30 min)
+  const isPaymentPending = order?.payment_status === 'pending' && order?.status === 'pending';
+  const minutesSinceCreation = order ? differenceInMinutes(new Date(), new Date(order.created_at)) : 0;
+  const canPay = isPaymentPending && minutesSinceCreation < 30;
+  const timeToPayMinutes = 30 - minutesSinceCreation;
+
+  const handlePayNow = async () => {
+    if (!order || processingPayment) return;
+    
+    setProcessingPayment(true);
+    try {
+      const callbackUrl = `${window.location.origin}/payment-callback`;
+      const { data: paymentData, error: paymentError } = await supabase.functions.invoke(
+        'paystack-initialize-payment',
+        {
+          body: { orderId: order.id, callbackUrl },
+        }
+      );
+
+      if (paymentError || !paymentData?.authorization_url) {
+        throw new Error(paymentData?.error || 'Could not initialize payment');
+      }
+
+      // Redirect to Paystack checkout
+      window.location.href = paymentData.authorization_url;
+    } catch (error: any) {
+      console.error('Payment error:', error);
+      toast({
+        title: 'Payment Error',
+        description: error.message || 'Failed to initialize payment. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setProcessingPayment(false);
+    }
+  };
+
   if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -154,6 +194,47 @@ export default function OrderDetail() {
       </header>
 
       <main className="container py-6 space-y-6">
+        {/* Payment Pending Alert with Pay Now button */}
+        {canPay && (
+          <Alert className="border-warning bg-warning/10">
+            <AlertTriangle className="h-5 w-5 text-warning" />
+            <AlertTitle className="text-warning">Payment Pending</AlertTitle>
+            <AlertDescription className="space-y-3">
+              <p className="text-muted-foreground">
+                Complete payment within <span className="font-bold">{timeToPayMinutes} minutes</span> to avoid cancellation.
+              </p>
+              <Button 
+                onClick={handlePayNow} 
+                disabled={processingPayment}
+                className="w-full"
+              >
+                {processingPayment ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <CreditCard className="mr-2 h-4 w-4" />
+                    Pay Now - ₦{Number(order.total).toLocaleString()}
+                  </>
+                )}
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Expired pending payment warning */}
+        {isPaymentPending && !canPay && (
+          <Alert className="border-destructive bg-destructive/10">
+            <AlertTriangle className="h-5 w-5 text-destructive" />
+            <AlertTitle className="text-destructive">Payment Window Expired</AlertTitle>
+            <AlertDescription>
+              This order will be cancelled shortly as payment was not completed within 30 minutes.
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Status Tracker */}
         <Card>
           <CardHeader>

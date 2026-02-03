@@ -120,6 +120,9 @@ export function DispatchStatus({ orderId, orderNumber, onRiderAssigned }: Dispat
         throw new Error(response.error.message);
       }
 
+      // Short delay to allow DB to update
+      await new Promise(resolve => setTimeout(resolve, 500));
+
       // Refetch the dispatch data to get the new expires_at and restart countdown
       const { data: newDispatch } = await supabase
         .from('dispatch_requests')
@@ -132,7 +135,13 @@ export function DispatchStatus({ orderId, orderNumber, onRiderAssigned }: Dispat
       if (newDispatch) {
         setDispatch(newDispatch as unknown as DispatchRequest);
         
-        // Fetch new offer count
+        // Immediately recalculate time left with new expires_at
+        const expiresAt = new Date(newDispatch.expires_at).getTime();
+        const now = Date.now();
+        const remaining = Math.max(0, Math.floor((expiresAt - now) / 1000));
+        setTimeLeft(remaining);
+        
+        // Fetch new offer count for the NEW dispatch request
         const { count } = await supabase
           .from('dispatch_offers')
           .select('*', { count: 'exact', head: true })
