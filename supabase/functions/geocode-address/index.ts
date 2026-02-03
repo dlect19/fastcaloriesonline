@@ -24,6 +24,41 @@ interface GeocodeResult {
   state?: string;
 }
 
+// Lagos bounding box for more accurate Nigerian address results
+const LAGOS_VIEWBOX = '3.0,6.3,3.6,6.7'; // lon1,lat1,lon2,lat2
+
+// Extract last N words from address (typically area names like "Ikosi Ketu")
+function extractAreaName(address: string, wordCount: number = 2): string {
+  const words = address.trim().split(/\s+/);
+  return words.slice(-wordCount).join(' ');
+}
+
+// Try geocoding with a specific query
+async function tryGeocode(query: string, useViewbox: boolean = false): Promise<any[]> {
+  const encodedQuery = encodeURIComponent(query);
+  let url = `https://nominatim.openstreetmap.org/search?q=${encodedQuery}&format=json&limit=1&addressdetails=1`;
+  
+  if (useViewbox) {
+    url += `&viewbox=${LAGOS_VIEWBOX}&bounded=1`;
+  }
+  
+  console.log(`Trying geocode query: ${query}${useViewbox ? ' (with viewbox)' : ''}`);
+  
+  const response = await fetch(url, {
+    headers: {
+      'User-Agent': 'FastCalories/1.0 (Food Delivery App)',
+      'Accept': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    console.error(`Nominatim API error: ${response.status}`);
+    return [];
+  }
+
+  return await response.json();
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -94,42 +129,59 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Build full address query
-    const queryParts = [address];
-    if (city) queryParts.push(city);
-    if (state) queryParts.push(state);
-    queryParts.push(country);
+    console.log(`Forward geocoding: address="${address}", city="${city}", state="${state}"`);
+
+    // Build search strategies - try multiple approaches for Nigerian addresses
+    const searchStrategies: Array<{ query: string; useViewbox: boolean }> = [];
     
-    const query = queryParts.join(', ');
-    const encodedQuery = encodeURIComponent(query);
-
-    console.log(`Geocoding address: ${query}`);
-
-    // Use Nominatim (OpenStreetMap) for geocoding - free and no API key needed
-    const nominatimUrl = `https://nominatim.openstreetmap.org/search?q=${encodedQuery}&format=json&limit=1&addressdetails=1`;
+    // Strategy 1: Full query with city
+    const fullQuery = [address, city, state, country].filter(Boolean).join(', ');
+    searchStrategies.push({ query: fullQuery, useViewbox: false });
     
-    const response = await fetch(nominatimUrl, {
-      headers: {
-        'User-Agent': 'FastCalories/1.0 (Food Delivery App)',
-        'Accept': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      console.error(`Nominatim API error: ${response.status}`);
-      return new Response(
-        JSON.stringify({ error: 'Geocoding service unavailable' }),
-        // IMPORTANT: return 200 to avoid client-side crashes on non-2xx
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // Strategy 2: Skip city (informal addresses often have wrong city)
+    const noCityQuery = [address, state, country].filter(Boolean).join(', ');
+    if (city && noCityQuery !== fullQuery) {
+      searchStrategies.push({ query: noCityQuery, useViewbox: false });
+    }
+    
+    // Strategy 3: Area name only with Lagos viewbox
+    const areaName = extractAreaName(address, 2);
+    if (areaName && areaName !== address) {
+      searchStrategies.push({ query: `${areaName}, Lagos, Nigeria`, useViewbox: true });
+    }
+    
+    // Strategy 4: Try area name with state
+    if (areaName && state) {
+      searchStrategies.push({ query: `${areaName}, ${state}, Nigeria`, useViewbox: false });
+    }
+    
+    // Strategy 5: Last 3 words (for longer area names like "Ikosi Ketu Lagos")
+    const longerAreaName = extractAreaName(address, 3);
+    if (longerAreaName && longerAreaName !== areaName && longerAreaName !== address) {
+      searchStrategies.push({ query: `${longerAreaName}, Nigeria`, useViewbox: true });
     }
 
-    const results = await response.json();
+    // Try each strategy until we get a result
+    let results: any[] = [];
+    let successfulQuery = '';
+    
+    for (const strategy of searchStrategies) {
+      results = await tryGeocode(strategy.query, strategy.useViewbox);
+      if (results && results.length > 0) {
+        successfulQuery = strategy.query;
+        console.log(`Found result with strategy: ${strategy.query}`);
+        break;
+      }
+    }
 
     if (!results || results.length === 0) {
-      console.log(`No results found for: ${query}`);
+      console.log(`No results found after trying ${searchStrategies.length} strategies`);
       return new Response(
-        JSON.stringify({ error: 'Address not found', query }),
+        JSON.stringify({ 
+          error: 'Address not found', 
+          query: fullQuery,
+          strategies_tried: searchStrategies.length 
+        }),
         // IMPORTANT: return 200 to avoid client-side crashes on non-2xx
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -146,7 +198,7 @@ Deno.serve(async (req) => {
       state: addressDetails.state || '',
     };
 
-    console.log(`Geocoded successfully: ${geocodeResult.latitude}, ${geocodeResult.longitude}`);
+    console.log(`Geocoded successfully with "${successfulQuery}": ${geocodeResult.latitude}, ${geocodeResult.longitude}`);
 
     return new Response(
       JSON.stringify(geocodeResult),
