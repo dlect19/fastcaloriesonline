@@ -110,6 +110,16 @@ export default function VendorOrders() {
             });
           }
           
+          // Notify when order is cancelled by customer
+          if (payload.eventType === 'UPDATE' && newOrder.status === 'cancelled' && oldOrder.status !== 'cancelled') {
+            stopRepeating(); // Stop any notification sound
+            toast({
+              title: '❌ Order Cancelled',
+              description: `Order #${newOrder.order_number} has been cancelled${newOrder.cancellation_reason ? `: ${newOrder.cancellation_reason}` : ''}`,
+              variant: 'destructive',
+            });
+          }
+          
           // Notify when rider is assigned and stop notification sound
           if (payload.eventType === 'UPDATE' && newOrder.rider_id && !oldOrder.rider_id) {
             stopRepeating(); // Stop notification sound when rider accepts order
