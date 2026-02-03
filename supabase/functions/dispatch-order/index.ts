@@ -224,31 +224,28 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Check for existing dispatch requests and expire/clean them before creating new one
+    // Check for existing dispatch requests and DELETE them before creating new one
+    // (unique constraint on order_id requires deletion, not just status update)
     const { data: existingDispatches } = await supabase
       .from('dispatch_requests')
       .select('id, status')
       .eq('order_id', orderId);
 
-    // If there's a pending dispatch, expire it before creating a new one
     if (existingDispatches && existingDispatches.length > 0) {
       for (const existingDispatch of existingDispatches) {
-        // Expire old dispatch offers
+        // Delete old dispatch offers first (foreign key constraint)
         await supabase
           .from('dispatch_offers')
-          .update({ status: 'expired' })
-          .eq('dispatch_request_id', existingDispatch.id)
-          .eq('status', 'pending');
+          .delete()
+          .eq('dispatch_request_id', existingDispatch.id);
         
-        // Mark old dispatch request as expired if pending/no_riders
-        if (['pending', 'no_riders'].includes(existingDispatch.status)) {
-          await supabase
-            .from('dispatch_requests')
-            .update({ status: 'expired' })
-            .eq('id', existingDispatch.id);
-        }
+        // Delete old dispatch request
+        await supabase
+          .from('dispatch_requests')
+          .delete()
+          .eq('id', existingDispatch.id);
       }
-      console.log(`Expired ${existingDispatches.length} old dispatch request(s)`);
+      console.log(`Deleted ${existingDispatches.length} old dispatch request(s)`);
     }
 
     const vendor = order.vendors as any;
