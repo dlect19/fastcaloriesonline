@@ -1,340 +1,282 @@
 
-# Rider Dispatch & Acceptance-Based Assignment System
 
-## Overview
+# Transparent Earnings, Commission & Withdrawable Balance System
 
-This plan implements a fair, proximity-based rider dispatch system where orders are only assigned after explicit rider acceptance, preventing automatic/incorrect rider assignments.
+## Executive Summary
 
-## Current System Analysis
+This plan implements a comprehensive financial transparency system across all platform roles (Vendors, Riders, Delivery Companies, and Admin). The goal is to ensure every user understands how their money is calculated, increase trust, minimize disputes, and provide clear company profit visibility.
 
-The existing system has several limitations:
-- **Auto-Assignment**: When vendor marks order `ready_for_pickup`, the `assign-rider` edge function automatically assigns the nearest rider
-- **No Rider Choice**: Riders have no opportunity to review/accept orders before assignment
-- **Race Conditions**: Multiple riders claiming same order can cause conflicts
-- **No Dispatch Status**: Vendor has no visibility into "searching for rider" state
-- **No Timeout/Retry**: If no rider is found, no retry mechanism exists
+## Current State Analysis
 
-## New System Architecture
+The platform already has a solid financial foundation:
+- **order_financials** table tracks per-order breakdowns (menu_price, commission, promo_discount, vendor_payout, company_revenue, revenue_status)
+- **wallet_transactions** ledger tracks all credits/debits by category (vendor_share, rider_share, platform_commission, promo_cost, service_fee, etc.)
+- **wallets** table has separated pools for vendors (menu_earnings_balance, rider_revenue_balance)
+- **PromoImpactCard** component already shows admin-level promo analysis
+- Withdrawal flows are role-restricted with OTP verification
 
+### What's Missing
+
+1. **Vendor/Rider/Delivery Company dashboards** don't show explicit commission deduction breakdown
+2. **No "Gross vs Net" visual breakdown** on earnings pages
+3. **Admin dashboard** lacks consolidated profit/loss calculation with promo impact
+4. **No company withdrawable balance** concept for admin
+5. **Earnings explanation cards** exist but need enhancement for transparency
+
+---
+
+## Implementation Phases
+
+### Phase 1: Vendor Transparent Earnings Dashboard
+
+**Files to modify:**
+- `src/pages/vendor/VendorEarnings.tsx`
+
+**Changes:**
+1. Add new "Earnings Breakdown" card showing:
+   - Gross Order Value (menu_subtotal from orders)
+   - Company Commission Deducted (commission_rate % of gross)
+   - Net Vendor Revenue (what they actually receive)
+   - Visual formula: `Net = Gross - Commission`
+
+2. Create transparent transaction summary:
 ```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           DISPATCH FLOW DIAGRAM                              │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  VENDOR                    SYSTEM                         RIDERS             │
-│    │                         │                              │                │
-│    │  Mark Ready             │                              │                │
-│    ├────────────────────────>│                              │                │
-│    │                         │  Create dispatch_requests    │                │
-│    │                         │  Status: searching_for_rider │                │
-│    │                         ├─────────────────────────────>│                │
-│    │                         │  Broadcast to eligible       │                │
-│    │  "Searching..."         │  riders within radius        │                │
-│    │<────────────────────────┤                              │                │
-│    │                         │                   Accept?    │                │
-│    │                         │<─────────────────────────────┤                │
-│    │                         │  First accept wins           │                │
-│    │                         │  (atomic transaction)        │                │
-│    │  "Rider Assigned!"      │                              │                │
-│    │<────────────────────────┤                              │                │
-│    │                         │  Notify rejected riders      │                │
-│    │                         ├─────────────────────────────>│                │
-│    │                         │  "Order already taken"       │                │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
+Per order example:
+  Order Total: ₦5,000 (menu items)
+  Commission (15%): -₦750
+  Your Earnings: ₦4,250
 ```
+
+3. Add "Understanding Your Earnings" collapsible section explaining:
+   - Commission is calculated on menu price only
+   - Delivery fees go to riders (if affiliated rider, to vendor)
+   - Service fees are company income (not deducted from vendor)
+   - Promo discounts are absorbed by company (never deducted from vendor)
+
+**Data Source:** 
+- Query `order_financials` for historical commission breakdown
+- Join with orders to get per-order visibility
 
 ---
 
-## Technical Implementation
+### Phase 2: Rider Transparent Earnings Dashboard
 
-### Phase 1: Database Schema Changes
+**Files to modify:**
+- `src/pages/rider/RiderEarnings.tsx`
 
-#### 1.1 Add New Order Status
-```sql
-ALTER TYPE order_status ADD VALUE 'searching_for_rider' AFTER 'ready_for_pickup';
-```
+**Changes:**
+1. Add earnings breakdown for platform riders showing:
+   - Gross Delivery Fees Collected
+   - Platform Commission (20% default)
+   - Net Rider Earnings
 
-#### 1.2 Create Dispatch Requests Table
-```sql
-CREATE TABLE dispatch_requests (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  order_id UUID REFERENCES orders(id) ON DELETE CASCADE NOT NULL,
-  vendor_id UUID REFERENCES vendors(id) NOT NULL,
-  
-  -- Status tracking
-  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'expired', 'cancelled')),
-  
-  -- Location data (cached from order)
-  vendor_latitude NUMERIC NOT NULL,
-  vendor_longitude NUMERIC NOT NULL,
-  customer_latitude NUMERIC,
-  customer_longitude NUMERIC,
-  
-  -- Dispatch configuration
-  search_radius_km NUMERIC DEFAULT 5,
-  priority_tier TEXT DEFAULT 'vendor_riders', -- Current priority tier being dispatched
-  
-  -- Timing
-  created_at TIMESTAMPTZ DEFAULT now(),
-  expires_at TIMESTAMPTZ NOT NULL,
-  accepted_at TIMESTAMPTZ,
-  
-  -- Assignment result
-  accepted_by_rider_id UUID REFERENCES auth.users(id),
-  accepted_by_rider_profile_id UUID REFERENCES rider_profiles(id),
-  
-  -- Retry tracking
-  retry_count INTEGER DEFAULT 0,
-  max_retries INTEGER DEFAULT 3,
-  
-  UNIQUE(order_id) -- One active dispatch per order
-);
-```
-
-#### 1.3 Create Dispatch Offers Table (tracks individual rider broadcasts)
-```sql
-CREATE TABLE dispatch_offers (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  dispatch_request_id UUID REFERENCES dispatch_requests(id) ON DELETE CASCADE NOT NULL,
-  rider_user_id UUID REFERENCES auth.users(id) NOT NULL,
-  rider_profile_id UUID REFERENCES rider_profiles(id) NOT NULL,
-  
-  -- Offer details
-  distance_km NUMERIC NOT NULL,
-  delivery_fee NUMERIC NOT NULL,
-  rider_share NUMERIC NOT NULL,
-  priority_tier TEXT NOT NULL, -- 'vendor_riders', 'delivery_company_riders', 'platform_riders'
-  
-  -- Status
-  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'declined', 'expired', 'superseded')),
-  
-  -- Timestamps
-  created_at TIMESTAMPTZ DEFAULT now(),
-  expires_at TIMESTAMPTZ NOT NULL,
-  responded_at TIMESTAMPTZ,
-  
-  -- Prevent duplicate offers
-  UNIQUE(dispatch_request_id, rider_user_id)
-);
-```
-
-#### 1.4 Add Admin Configuration Keys
-```sql
-INSERT INTO platform_settings (key, value, description) VALUES
-  ('dispatch_acceptance_timeout_seconds', '60', 'Time riders have to accept a dispatch offer'),
-  ('dispatch_max_retries', '3', 'Maximum retry attempts before marking dispatch failed'),
-  ('dispatch_retry_radius_expansion_km', '2', 'How much to expand search radius on retry'),
-  ('dispatch_enable_priority_tiers', 'true', 'Enable tiered dispatch (vendor > company > platform)'),
-  ('dispatch_priority_tier_timeout_seconds', '30', 'Time to wait per priority tier before expanding');
-```
-
----
-
-### Phase 2: Edge Functions
-
-#### 2.1 `dispatch-order` - Main Dispatch Controller
-**Purpose**: Called when vendor marks order ready; creates dispatch request and broadcasts to eligible riders.
-
-**Flow**:
-1. Validate order (exists, no rider, delivery type)
-2. Fetch eligible riders using priority tiers:
-   - Tier 1: Vendor's own riders (from `vendor_riders` table)
-   - Tier 2: Delivery company riders
-   - Tier 3: Platform riders
-3. Create `dispatch_request` record
-4. Create `dispatch_offers` for all eligible riders in current tier
-5. Update order status to `searching_for_rider`
-6. Return dispatch request ID
-
-#### 2.2 `accept-dispatch` - Rider Acceptance Handler
-**Purpose**: Handles rider accepting a dispatch offer with atomic locking.
-
-**Flow**:
-1. Validate offer exists and is pending
-2. Check dispatch request still active
-3. **Atomic Transaction**:
-   - Lock dispatch request row
-   - Verify not already accepted
-   - Mark offer as accepted
-   - Mark dispatch request as accepted
-   - Update order with rider assignment
-   - Mark all other offers as superseded
-4. Trigger notification to vendor
-5. Return success/failure
-
-#### 2.3 `decline-dispatch` - Rider Decline Handler
-**Purpose**: Handles rider declining an offer.
-
-**Flow**:
-1. Mark offer as declined
-2. Check if all offers in current tier declined
-3. If yes, escalate to next tier or retry with expanded radius
-
-#### 2.4 `process-dispatch-timeout` - Scheduled Timeout Handler
-**Purpose**: Handles expired dispatch offers and retries.
-
-**Flow**:
-1. Find expired offers
-2. Mark as expired
-3. Check if dispatch request should retry
-4. If retries remain, expand radius and re-broadcast
-5. If max retries exceeded, mark dispatch failed and notify vendor
-
----
-
-### Phase 3: Frontend Updates
-
-#### 3.1 Vendor Orders Page Changes
-- Add new status display: "Searching for Rider..." with spinner
-- Show countdown timer for dispatch timeout
-- Show retry count/status
-- Display "No riders available" message with retry button
-
-#### 3.2 Rider Available Orders Page Refactor
-- Replace current polling with real-time dispatch offers subscription
-- Show dispatch offer card with:
-  - Vendor name and location
-  - Customer delivery location
-  - Distance (km)
-  - Delivery fee (rider's share only)
-  - Countdown timer for acceptance
-- Add Accept/Decline buttons with loading states
-- Handle "Order already taken" notification
-
-#### 3.3 Rider Dashboard Updates
-- Show active dispatch offers count
-- Real-time badge for new offers
-
----
-
-### Phase 4: Real-time Subscriptions
-
-#### 4.1 Vendor Subscription
-```typescript
-supabase.channel('dispatch-status')
-  .on('postgres_changes', {
-    event: '*',
-    schema: 'public',
-    table: 'dispatch_requests',
-    filter: `vendor_id=eq.${vendorId}`
-  }, handleDispatchUpdate)
-  .subscribe()
-```
-
-#### 4.2 Rider Subscription
-```typescript
-supabase.channel('rider-offers')
-  .on('postgres_changes', {
-    event: '*',
-    schema: 'public',
-    table: 'dispatch_offers',
-    filter: `rider_user_id=eq.${userId}`
-  }, handleOfferUpdate)
-  .subscribe()
-```
-
----
-
-### Phase 5: Admin Controls
-
-Add to Admin Settings page:
-- **Dispatch Timeout**: Configurable acceptance window (30-120 seconds)
-- **Priority Tiers Toggle**: Enable/disable tiered dispatch
-- **Retry Settings**: Max retries, radius expansion per retry
-- **Tier Timeout**: Time to wait per priority tier
-
----
-
-## Priority Tier Logic
-
+2. Display per-delivery breakdown in transaction history:
 ```text
-TIER 1: Vendor Riders
-├── Query: vendor_riders WHERE vendor_id = order.vendor_id AND is_active = true
-├── Wait: dispatch_priority_tier_timeout_seconds
-└── If no accepts: Escalate to Tier 2
-
-TIER 2: Delivery Company Riders  
-├── Query: rider_profiles WHERE delivery_company_id IS NOT NULL
-├── Wait: dispatch_priority_tier_timeout_seconds
-└── If no accepts: Escalate to Tier 3
-
-TIER 3: Platform Riders
-├── Query: rider_profiles WHERE affiliated_vendor_id IS NULL AND delivery_company_id IS NULL
-├── Wait: remaining time until dispatch_acceptance_timeout_seconds
-└── If no accepts: Retry or fail
+Delivery Fee: ₦1,500
+Platform Share (20%): -₦300
+Your Earnings: ₦1,200
 ```
+
+3. Note: Affiliated riders already see "Earnings managed by [Vendor/Company]" - no changes needed there.
+
+**Data Source:**
+- Calculate from wallet_transactions where category = 'rider_share'
+- Cross-reference with delivery_commission entries for the same order
 
 ---
 
-## Race Condition Prevention
+### Phase 3: Delivery Company Transparent Earnings
 
-The `accept-dispatch` function uses PostgreSQL advisory locks:
+**Files to modify:**
+- `src/pages/delivery/DeliveryEarnings.tsx`
 
-```sql
--- Atomic acceptance
-BEGIN;
-  -- Lock the dispatch request row
-  SELECT * FROM dispatch_requests 
-  WHERE id = $dispatch_id 
-  FOR UPDATE SKIP LOCKED;
-  
-  -- Check not already accepted
-  IF status != 'pending' THEN
-    ROLLBACK; -- Already taken
-  END IF;
-  
-  -- Update offer, request, and order atomically
-  UPDATE dispatch_offers SET status = 'accepted', responded_at = now() WHERE id = $offer_id;
-  UPDATE dispatch_requests SET status = 'accepted', accepted_by_rider_id = $rider_id WHERE id = $dispatch_id;
-  UPDATE orders SET rider_id = $rider_id, status = 'assigned' WHERE id = $order_id;
-  UPDATE dispatch_offers SET status = 'superseded' WHERE dispatch_request_id = $dispatch_id AND id != $offer_id;
-COMMIT;
-```
+**Changes:**
+1. Already shows commission rate, but add explicit breakdown:
+   - Total Delivery Revenue Collected
+   - Platform Commission Deducted
+   - Net Company Revenue
+
+2. Add "How Earnings Work" section enhancement with numbers.
+
+**Data Source:**
+- Query wallet_transactions where category = 'delivery_company_share'
+- Cross-reference platform's delivery_commission for same orders
 
 ---
 
-## ETA Prediction
+### Phase 4: Enhanced Admin Financial Dashboard
 
-Add ETA calculation to dispatch offers:
+**Files to modify:**
+- `src/pages/admin/AdminDashboard.tsx`
+- Create new component: `src/components/admin/CompanyProfitCard.tsx`
+
+**Changes:**
+
+1. **Create new CompanyProfitCard component** displaying:
+```text
+Revenue Sources:
+  + Vendor Commissions: ₦X
+  + Delivery Commissions: ₦X
+  + Service Fees: ₦X
+  
+Expenses:
+  - Promo Bonuses Paid: ₦X
+  
+Net Company Profit: ₦X
+Company Withdrawable Balance: ₦X
+```
+
+2. **Add Company Profit Formula visualization:**
+```text
+Company Profit = (Vendor Commission + Delivery Commission + Service Fees) - Promo Bonuses
+```
+
+3. **Show breakdown by revenue stream:**
+   - From Vendors (commission %)
+   - From Delivery (platform's delivery share)
+   - From Customers (service fees)
+   - Promo Marketing Expense (what company paid in discounts)
+
+4. **Company Withdrawable Balance** = Platform Wallet Balance - Pending Payouts
+
+**Data Source:**
+- `platform_wallet` for current balance
+- `wallet_transactions` aggregated by category for:
+  - platform_commission (vendor commissions)
+  - delivery_commission (delivery share)
+  - service_fee (from customers)
+  - promo_cost (debit transactions)
+
+---
+
+### Phase 5: Reusable Earnings Breakdown Component
+
+**Create new file:**
+- `src/components/shared/EarningsBreakdownCard.tsx`
+
+**Purpose:** Standardized component showing:
+- Gross Amount
+- Deductions with labels
+- Net Amount
+- Visual progress bar or pie chart
+
+**Props:**
 ```typescript
-const estimatedPickupMinutes = Math.ceil((distanceKm / 25) * 60); // 25 km/h average
-const estimatedDeliveryMinutes = estimatedPickupMinutes + Math.ceil((customerDistanceKm / 25) * 60);
+interface EarningsBreakdownProps {
+  grossAmount: number;
+  deductions: Array<{ label: string; amount: number; percentage?: number }>;
+  netAmount: number;
+  title?: string;
+  period?: string;
+}
 ```
 
 ---
 
-## Files to Create/Modify
+### Phase 6: Transaction History Enhancement
 
-### New Files
-| File | Purpose |
-|------|---------|
-| `supabase/functions/dispatch-order/index.ts` | Main dispatch controller |
-| `supabase/functions/accept-dispatch/index.ts` | Rider acceptance handler |
-| `supabase/functions/decline-dispatch/index.ts` | Rider decline handler |
-| `supabase/functions/process-dispatch-timeout/index.ts` | Timeout processor |
-| `src/hooks/useDispatchOffers.ts` | Rider dispatch offers hook |
-| `src/components/rider/DispatchOfferCard.tsx` | Dispatch offer UI component |
-| `src/components/vendor/DispatchStatus.tsx` | Vendor dispatch status display |
+**Files to modify:**
+- `src/components/shared/TransactionHistory.tsx`
 
-### Modified Files
-| File | Changes |
-|------|---------|
-| `src/pages/vendor/VendorOrders.tsx` | Add dispatch status UI, remove auto-assign call |
-| `src/pages/rider/RiderAvailableOrders.tsx` | Refactor to dispatch-based system |
-| `src/pages/rider/RiderDashboard.tsx` | Add dispatch offers alert |
-| `src/pages/admin/AdminSettings.tsx` | Add dispatch configuration section |
-| `supabase/functions/assign-rider/index.ts` | Keep for manual override but deprecate auto-assign |
+**Changes:**
+1. For each transaction, show commission context where applicable
+2. Add visual indicators for:
+   - Credits (green, arrow up)
+   - Debits (red, arrow down)
+   - Commission deductions (gray, percentage icon)
+
+3. Group transactions by type for summary view
 
 ---
 
-## Summary
+## Technical Implementation Details
 
-This implementation transforms the rider assignment from an automatic nearest-rider system to a fair acceptance-based dispatch system where:
+### Database Changes Required
 
-1. Vendors see clear "searching for rider" status
-2. Riders receive dispatch offers they can accept/decline
-3. Priority tiers ensure vendor riders get first opportunity
-4. Race conditions are prevented with atomic database transactions
-5. Admins can configure all dispatch parameters
-6. Failed dispatches retry automatically with expanding radius
+No new tables needed - existing schema is sufficient:
+- `order_financials` - already tracks all commission/promo data
+- `wallet_transactions` - already has all transaction categories
+- `platform_wallet` - already tracks platform balance
+
+### Query Patterns
+
+**Vendor Gross/Net Calculation:**
+```sql
+SELECT 
+  SUM(menu_price) as gross_revenue,
+  SUM(vendor_commission_amount) as total_commission,
+  SUM(vendor_payout) as net_revenue
+FROM order_financials
+WHERE order_id IN (SELECT id FROM orders WHERE vendor_id = ?)
+AND environment = ?;
+```
+
+**Admin Company Profit:**
+```sql
+SELECT 
+  SUM(CASE WHEN category = 'platform_commission' THEN amount ELSE 0 END) as vendor_commissions,
+  SUM(CASE WHEN category = 'delivery_commission' THEN amount ELSE 0 END) as delivery_commissions,
+  SUM(CASE WHEN category = 'service_fee' THEN amount ELSE 0 END) as service_fees,
+  SUM(CASE WHEN category = 'promo_cost' THEN amount ELSE 0 END) as promo_expenses
+FROM wallet_transactions
+WHERE wallet_type = 'platform'
+AND environment = ?;
+```
+
+---
+
+## UI/UX Design Principles
+
+1. **Transparency First**: Every number should be explainable
+2. **Visual Hierarchy**: Gross > Deductions > Net (top to bottom)
+3. **Color Coding**: 
+   - Green for income/credits
+   - Red for expenses/debits
+   - Gray for neutral info
+4. **Tooltips**: Explain each line item on hover
+5. **Collapsible Details**: Allow deep-dive without overwhelming
+
+---
+
+## Security Considerations
+
+1. **Withdrawal Restrictions Already Enforced:**
+   - Vendors can only withdraw from their eligible_balance
+   - Riders can only withdraw from their eligible_balance
+   - No cross-wallet access via RLS
+
+2. **No New Security Risks:**
+   - Displaying breakdown data doesn't expose new attack vectors
+   - All data already accessible to respective roles
+
+3. **Audit Trail:**
+   - All transactions logged in wallet_transactions
+   - order_financials provides per-order audit
+
+---
+
+## File Change Summary
+
+| File | Action | Description |
+|------|--------|-------------|
+| `src/pages/vendor/VendorEarnings.tsx` | Modify | Add gross/net breakdown cards |
+| `src/pages/rider/RiderEarnings.tsx` | Modify | Add earnings breakdown for platform riders |
+| `src/pages/delivery/DeliveryEarnings.tsx` | Modify | Enhance earnings explanation |
+| `src/pages/admin/AdminDashboard.tsx` | Modify | Add company profit section |
+| `src/components/admin/CompanyProfitCard.tsx` | Create | New component for admin profit view |
+| `src/components/shared/EarningsBreakdownCard.tsx` | Create | Reusable breakdown component |
+| `src/components/shared/TransactionHistory.tsx` | Modify | Add commission context to transactions |
+
+---
+
+## Expected Outcomes
+
+After implementation:
+- Every role sees exactly how their money is calculated
+- Vendors understand: "I get menu price minus X% commission"
+- Riders understand: "I get 80% of delivery fee"
+- Delivery companies understand: "We get delivery fee minus platform share"
+- Admin sees: "Company profit = commissions + fees - promo costs"
+- Trust increases, disputes decrease
+- Platform is audit-ready and investor-presentable
+
