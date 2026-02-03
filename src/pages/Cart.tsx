@@ -401,10 +401,16 @@ export default function Cart() {
         await incrementUsage(appliedPromo.id);
       }
       
+      // Mark first-order promo as used if platform promo was selected
+      if (selectedDiscountType === 'platform' && eligibility.firstOrderDiscount) {
+        await markFirstOrderUsed();
+      }
+      
       // Clear promo state after order is placed (prevents showing after usage)
       resetAfterOrder();
       setPromoDiscount(0);
       setAppliedPromoCode(null);
+      setSelectedDiscountType('none');
 
       // Process payment based on method
       if (paymentMethod === 'wallet') {
