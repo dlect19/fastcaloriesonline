@@ -28,8 +28,12 @@ interface VendorRider {
     total_deliveries: number | null;
     vehicle_type: string | null;
     user_id: string;
+    preferred_city: string | null;
+    preferred_state: string | null;
   };
   user_name?: string;
+  user_phone?: string | null;
+  user_email?: string | null;
 }
 
 interface RiderInvite {
@@ -104,28 +108,47 @@ export default function VendorRiders() {
               rating,
               total_deliveries,
               vehicle_type,
-              user_id
+              user_id,
+              preferred_city,
+              preferred_state
             )
           `)
           .eq('vendor_id', vendorData.id)
           .order('created_at', { ascending: false });
 
-        // Get profile names for each rider
-        const ridersWithNames = await Promise.all(
+        // Get profile names, phone, and email for each rider
+        const ridersWithDetails = await Promise.all(
           (ridersData || []).map(async (rider: any) => {
             if (rider.rider_profile?.user_id) {
               const { data: profile } = await supabase
                 .from('profiles')
-                .select('full_name')
+                .select('full_name, phone')
                 .eq('user_id', rider.rider_profile.user_id)
                 .maybeSingle();
-              return { ...rider, user_name: profile?.full_name || 'Unknown Rider' };
+              
+              // Get email from auth user metadata via edge function or stored email
+              // For now, we'll try to get it from the rider's email_verification_otps if available
+              const { data: emailData } = await supabase
+                .from('email_verification_otps')
+                .select('email')
+                .eq('user_id', rider.rider_profile.user_id)
+                .eq('platform', 'rider')
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              
+              return { 
+                ...rider, 
+                user_name: profile?.full_name || 'Unknown Rider',
+                user_phone: profile?.phone || null,
+                user_email: emailData?.email || null
+              };
             }
-            return { ...rider, user_name: 'Unknown Rider' };
+            return { ...rider, user_name: 'Unknown Rider', user_phone: null, user_email: null };
           })
         );
 
-        setRiders(ridersWithNames);
+        setRiders(ridersWithDetails);
 
         // Fetch pending invites
         const { data: invitesData } = await supabase
@@ -139,7 +162,7 @@ export default function VendorRiders() {
 
         // Calculate total delivery revenue from affiliated riders
         // Get all completed orders by affiliated riders for this vendor
-        const riderUserIds = ridersWithNames
+        const riderUserIds = ridersWithDetails
           .map((r: VendorRider) => r.rider_profile?.user_id)
           .filter(Boolean);
 
