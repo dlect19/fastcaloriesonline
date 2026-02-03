@@ -11,6 +11,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MapPin, Plus, Home, Briefcase, ChevronRight, Loader2, Navigation, CheckCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { GpsConfirmDialog } from './GpsConfirmDialog';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Address = Tables<'addresses'>;
@@ -53,6 +54,13 @@ export function AddressSelector({
     city: '',
     state: '',
   });
+  
+  // GPS confirmation dialog state
+  const [gpsConfirmDialog, setGpsConfirmDialog] = useState<{
+    open: boolean;
+    addressId: string | null;
+    addressLabel: string;
+  }>({ open: false, addressId: null, addressLabel: '' });
 
   // Handle GPS location updates for new address
   useEffect(() => {
@@ -137,11 +145,28 @@ export function AddressSelector({
     getCurrentPosition();
   };
 
-  // Update existing address with GPS coordinates
+  // Show confirmation dialog before updating GPS for existing address
   const handleUpdateAddressGps = (addressId: string) => {
-    setUpdatingGps(addressId);
-    setPendingGpsUpdate(addressId);
-    getCurrentPosition();
+    const address = addresses.find(a => a.id === addressId);
+    setGpsConfirmDialog({
+      open: true,
+      addressId,
+      addressLabel: address?.label || 'this address',
+    });
+  };
+
+  // Actually capture GPS after user confirms they are at the location
+  const confirmGpsCapture = () => {
+    if (gpsConfirmDialog.addressId) {
+      setUpdatingGps(gpsConfirmDialog.addressId);
+      setPendingGpsUpdate(gpsConfirmDialog.addressId);
+      getCurrentPosition();
+    }
+    setGpsConfirmDialog({ open: false, addressId: null, addressLabel: '' });
+  };
+
+  const cancelGpsCapture = () => {
+    setGpsConfirmDialog({ open: false, addressId: null, addressLabel: '' });
   };
 
   const handleAddAddress = async () => {
@@ -537,6 +562,14 @@ export function AddressSelector({
           </Dialog>
         )}
       </CardContent>
+      
+      {/* GPS Capture Confirmation Dialog */}
+      <GpsConfirmDialog
+        open={gpsConfirmDialog.open}
+        addressLabel={gpsConfirmDialog.addressLabel}
+        onConfirm={confirmGpsCapture}
+        onCancel={cancelGpsCapture}
+      />
     </Card>
   );
 }

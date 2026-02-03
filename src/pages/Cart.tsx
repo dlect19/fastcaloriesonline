@@ -91,6 +91,38 @@ export default function Cart() {
   
   const deliveryFee = deliveryType === 'self_pickup' ? 0 : calculatedDeliveryFee;
 
+  // Detect coordinate mismatch - GPS captured at wrong location (e.g., at vendor instead of home)
+  const coordinateMismatch = useMemo(() => {
+    // Only check if we have coordinates and distance is calculated
+    if (!hasCoordinates || distanceKm === null) return false;
+    
+    // If distance is very small (<0.5km) but cities appear different, flag as suspicious
+    if (distanceKm > 0.5) return false;
+    
+    const vendorAddr = vendorLocation.address?.toLowerCase() || '';
+    const customerCity = selectedAddress?.city?.toLowerCase() || '';
+    const customerAddrLine = selectedAddress?.address_line?.toLowerCase() || '';
+    
+    // Check if customer's address text suggests a different area than where GPS shows
+    // This catches cases where GPS was captured while at the vendor's location
+    const customerArea = `${customerAddrLine} ${customerCity}`;
+    
+    // If vendor address and customer address share key words, it's probably fine
+    if (!vendorAddr || !customerArea) return false;
+    
+    // Extract key area identifiers (last 2-3 words often indicate neighborhood)
+    const vendorWords = vendorAddr.split(/[\s,]+/).filter(w => w.length > 2);
+    const customerWords = customerArea.split(/[\s,]+/).filter(w => w.length > 2);
+    
+    // If any key words match, assume it's the same area
+    const hasCommonArea = vendorWords.some(vw => 
+      customerWords.some(cw => vw.includes(cw) || cw.includes(vw))
+    );
+    
+    // Distance is ~0 but no common area words = likely GPS captured at wrong place
+    return !hasCommonArea;
+  }, [hasCoordinates, distanceKm, vendorLocation.address, selectedAddress?.city, selectedAddress?.address_line]);
+
   // Auto-geocode selected address if it doesn't have coordinates
   useEffect(() => {
     const geocodeIfNeeded = async () => {
@@ -193,7 +225,9 @@ export default function Cart() {
   };
 
   // Derived flag: address missing precise GPS coordinates
+  // Derived flag: address missing precise GPS coordinates or has mismatched GPS
   const addressMissingCoords = deliveryType === 'delivery' && selectedAddress && (!selectedAddress.latitude || !selectedAddress.longitude);
+  const addressHasIssue = addressMissingCoords || (deliveryType === 'delivery' && coordinateMismatch);
 
   const handlePlaceOrder = async () => {
     if (!user || !vendorId || items.length === 0) return;
@@ -212,6 +246,16 @@ export default function Cart() {
       toast({
         title: 'GPS Location Required',
         description: 'Tap the navigation icon next to your address to capture your exact location for accurate delivery fee.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Block checkout if GPS coordinates seem wrong (captured at vendor location)
+    if (coordinateMismatch) {
+      toast({
+        title: 'GPS Location Mismatch',
+        description: 'Your saved GPS appears to be at the restaurant location, not your delivery address. Please update your GPS while at your actual delivery location.',
         variant: 'destructive',
       });
       return;
@@ -491,6 +535,16 @@ export default function Cart() {
                     <AlertTriangle className="w-4 h-4" />
                     <span>
                       We couldn't find your address. <strong>Tap the navigation icon</strong> next to your address to capture your GPS location so we can calculate accurate delivery fees.
+                    </span>
+                  </div>
+                )}
+
+                {/* ⚠️ Coordinate mismatch warning – GPS captured at wrong location */}
+                {!geocodingAddress && !addressMissingCoords && coordinateMismatch && (
+                  <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-lg">
+                    <AlertTriangle className="w-4 h-4" />
+                    <span>
+                      Your saved GPS location appears to be near the restaurant, not your delivery address. <strong>Tap the navigation icon</strong> while at your actual delivery location to update.
                     </span>
                   </div>
                 )}
