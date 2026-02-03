@@ -236,19 +236,22 @@ export default function VendorSettings() {
 
       toast({ title: 'Settings saved successfully' });
       
-      // Geocode vendor location in background for delivery fee calculation
-      geocodeAndUpdateVendor(vendor.id, formData.address, formData.city, formData.state)
-        .then((result) => {
-          if (result) {
-            toast({ 
-              title: 'Location Updated',
-              description: 'Your business location has been geocoded for accurate delivery fees.',
-            });
-          }
-        })
-        .catch((err) => {
-          console.error('Vendor geocoding failed:', err);
-        });
+      // Only geocode if vendor doesn't already have GPS coordinates
+      // GPS coordinates are more accurate than text-based geocoding
+      if (!vendor.latitude || !vendor.longitude) {
+        geocodeAndUpdateVendor(vendor.id, formData.address, formData.city, formData.state)
+          .then((result) => {
+            if (result) {
+              toast({ 
+                title: 'Location Updated',
+                description: 'Your business location has been geocoded for accurate delivery fees.',
+              });
+            }
+          })
+          .catch((err) => {
+            console.error('Vendor geocoding failed:', err);
+          });
+      }
       
       fetchData();
     } catch (error: any) {
