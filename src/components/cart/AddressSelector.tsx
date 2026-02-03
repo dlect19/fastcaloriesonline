@@ -411,26 +411,25 @@ export function AddressSelector({
                         </p>
                       </div>
                     </label>
-                    {/* GPS update button for addresses without coordinates */}
-                    {(!address.latitude || !address.longitude) && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleUpdateAddressGps(address.id);
-                        }}
-                        disabled={updatingGps === address.id}
-                        className="shrink-0"
-                      >
-                        {updatingGps === address.id ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Navigation className="w-4 h-4" />
-                        )}
-                      </Button>
-                    )}
+                    {/* GPS update/refresh button - always show so users can fix wrong coordinates */}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleUpdateAddressGps(address.id);
+                      }}
+                      disabled={updatingGps === address.id}
+                      className="shrink-0"
+                      title={address.latitude ? "Refresh GPS location" : "Set GPS location"}
+                    >
+                      {updatingGps === address.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Navigation className="w-4 h-4" />
+                      )}
+                    </Button>
                   </div>
                 ))}
               </RadioGroup>
