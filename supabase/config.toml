@@ -113,3 +113,9 @@ verify_jwt = false
 
 [functions.decline-dispatch]
 verify_jwt = false
+
+[functions.get-nearby-vendors]
+verify_jwt = false
+
+[functions.log-order-calories]
+verify_jwt = false
