@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import { DeliverySidebar } from '@/components/delivery/DeliverySidebar';
 import { TransactionHistory } from '@/components/shared/TransactionHistory';
 import { DateRangeFilter, DateRange } from '@/components/shared/DateRangeFilter';
+import { EarningsBreakdownCard } from '@/components/shared/EarningsBreakdownCard';
+import { EarningsExplanation } from '@/components/shared/EarningsExplanation';
 import { useAuth } from '@/hooks/useAuth';
 import { useDeliveryCompany } from '@/hooks/useDeliveryCompany';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
@@ -23,6 +25,8 @@ interface EarningsStats {
   monthEarnings: number;
   totalDeliveries: number;
   commissionRate: number;
+  grossDeliveryFees: number;
+  platformCommission: number;
 }
 
 export default function DeliveryEarnings() {
@@ -106,11 +110,13 @@ export default function DeliveryEarnings() {
         let weekEarnings = 0;
         let monthEarnings = 0;
         let totalDeliveries = 0;
+        let companyShare = 0;
 
         transactions?.forEach((tx) => {
           const txDate = new Date(tx.created_at);
           const amount = Number(tx.amount);
           totalDeliveries++;
+          companyShare += amount;
 
           if (txDate >= today) {
             todayEarnings += amount;
@@ -123,6 +129,11 @@ export default function DeliveryEarnings() {
           }
         });
 
+        // Calculate gross (company share / (1 - commission rate))
+        const commissionRateDecimal = company.commission_rate / 100;
+        const grossDeliveryFees = companyShare / (1 - commissionRateDecimal);
+        const platformCommission = grossDeliveryFees * commissionRateDecimal;
+
         setStats({
           totalEarned,
           availableBalance,
@@ -133,6 +144,8 @@ export default function DeliveryEarnings() {
           monthEarnings,
           totalDeliveries,
           commissionRate: company.commission_rate,
+          grossDeliveryFees,
+          platformCommission,
         });
       }
     } catch (error) {
@@ -231,6 +244,24 @@ export default function DeliveryEarnings() {
             </Card>
           </div>
 
+          {/* Earnings Breakdown - New Transparency Feature */}
+          {stats && stats.grossDeliveryFees > 0 && (
+            <EarningsBreakdownCard
+              grossAmount={stats.grossDeliveryFees}
+              deductions={[
+                {
+                  label: 'Platform Commission',
+                  amount: stats.platformCommission,
+                  percentage: stats.commissionRate,
+                  description: `Fast Calories retains ${stats.commissionRate}% of delivery fees as platform commission.`,
+                },
+              ]}
+              netAmount={stats.totalEarned}
+              title="Delivery Revenue Breakdown"
+              period="All Time"
+            />
+          )}
+
           {/* Time-based Earnings */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card>
@@ -275,6 +306,12 @@ export default function DeliveryEarnings() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Understanding Your Earnings */}
+          <EarningsExplanation 
+            userType="delivery_company" 
+            commissionRate={stats?.commissionRate || 20} 
+          />
 
           {/* Revenue Breakdown Info */}
           <Card>
