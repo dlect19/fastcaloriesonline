@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState } from "react";
 import { useNavigate } from 'react-router-dom';
 import { Store, Mail, Lock, User, Phone, MapPin, Eye, EyeOff, Link2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
