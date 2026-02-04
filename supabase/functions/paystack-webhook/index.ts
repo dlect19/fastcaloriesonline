@@ -502,15 +502,33 @@ async function handleTransferSuccess(supabase: SupabaseClient, data: any, enviro
     return;
   }
 
-  // Find the payout request
-  const { data: payoutRequest, error } = await supabase
+  // Find the payout request - try by reference first, then by transfer_code as fallback
+  let payoutRequest = null;
+  
+  const { data: byRef } = await supabase
     .from("payout_requests")
     .select("*")
     .eq("paystack_reference", reference)
     .single();
+  
+  if (byRef) {
+    payoutRequest = byRef;
+  } else if (transferCode) {
+    // Fallback: find by transfer code (for older requests without reference)
+    const { data: byTransfer } = await supabase
+      .from("payout_requests")
+      .select("*")
+      .eq("paystack_transfer_code", transferCode)
+      .single();
+    
+    if (byTransfer) {
+      payoutRequest = byTransfer;
+      console.log("Found payout request by transfer code (fallback):", transferCode);
+    }
+  }
 
-  if (error || !payoutRequest) {
-    console.error("Payout request not found for reference:", reference);
+  if (!payoutRequest) {
+    console.error("Payout request not found for reference:", reference, "or transfer code:", transferCode);
     return;
   }
 
