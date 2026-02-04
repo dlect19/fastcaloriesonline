@@ -18,6 +18,11 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: "autoUpdate",
+      // Important: avoid service worker caching during development previews,
+      // which can lead to mixed old/new bundles and invalid hook call errors.
+      devOptions: {
+        enabled: false,
+      },
       includeAssets: ["favicon.ico", "images/fast-calories-logo.png"],
       manifest: {
         name: "Fast Calories - Eat Smart, Live Healthy",
@@ -69,5 +74,8 @@ export default defineConfig(({ mode }) => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+    // Prevent duplicate React copies in the dependency graph.
+    // Duplicate React => hooks dispatcher is null => "Cannot read properties of null (reading 'useState')".
+    dedupe: ["react", "react-dom"],
   },
 }));
