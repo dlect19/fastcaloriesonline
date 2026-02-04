@@ -116,6 +116,17 @@ const handler = async (req: Request): Promise<Response> => {
         );
       }
 
+      // Generate reference if not present (for admin-triggered payouts)
+      if (!data.paystack_reference) {
+        data.paystack_reference = `PAY-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+        
+        // Update the payout request with the generated reference
+        await supabase
+          .from("payout_requests")
+          .update({ paystack_reference: data.paystack_reference })
+          .eq("id", payout_request_id);
+      }
+
       payoutRequest = data;
     } else if (amount) {
       // Create new payout request
@@ -321,11 +332,12 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Update payout request with transfer code
+    // Update payout request with transfer code AND reference (critical for webhook matching)
     await supabase
       .from("payout_requests")
       .update({
         paystack_transfer_code: paystackData.data.transfer_code,
+        paystack_reference: payoutRequest.paystack_reference, // Ensure reference is saved
         status: "processing",
       })
       .eq("id", payoutRequest.id);
