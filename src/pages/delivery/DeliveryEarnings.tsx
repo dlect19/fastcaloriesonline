@@ -27,6 +27,7 @@ interface EarningsStats {
   commissionRate: number;
   grossDeliveryFees: number;
   platformCommission: number;
+  netEarnings: number;
 }
 
 export default function DeliveryEarnings() {
@@ -146,6 +147,7 @@ export default function DeliveryEarnings() {
           commissionRate: company.commission_rate,
           grossDeliveryFees,
           platformCommission,
+          netEarnings: companyShare, // This is what the company actually earned after commission
         });
       }
     } catch (error) {
@@ -256,7 +258,7 @@ export default function DeliveryEarnings() {
                   description: `Fast Calories retains ${stats.commissionRate}% of delivery fees as platform commission.`,
                 },
               ]}
-              netAmount={stats.totalEarned}
+              netAmount={stats.netEarnings}
               title="Delivery Revenue Breakdown"
               period="All Time"
             />
