@@ -8,11 +8,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { DollarSign, TrendingUp, Wallet, ArrowUpRight, Loader2, FlaskConical, Lock, Package, Calendar } from 'lucide-react';
+import { DollarSign, TrendingUp, Wallet, ArrowUpRight, Loader2, FlaskConical, Lock, Package, Calendar, Percent } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 import { useRiderRestrictions } from '@/hooks/useRiderRestrictions';
 import { DateRangeFilter, DateRange } from '@/components/shared/DateRangeFilter';
+import { EarningsBreakdownCard } from '@/components/shared/EarningsBreakdownCard';
+import { EarningsExplanation } from '@/components/shared/EarningsExplanation';
 
 export default function RiderEarnings() {
   const navigate = useNavigate();
@@ -212,6 +214,12 @@ export default function RiderEarnings() {
     ? transactions.filter(t => t.transaction_type === 'credit').reduce((sum, t) => sum + Number(t.amount), 0)
     : (Number(wallet?.total_earned) || 0);
 
+  // Calculate gross delivery fees (rider earnings / 0.8 = gross, since rider gets 80%)
+  const riderShareTransactions = transactions.filter(t => t.category === 'rider_share' && t.transaction_type === 'credit');
+  const grossDeliveryFees = riderShareTransactions.reduce((sum, t) => sum + (Number(t.amount) / 0.8), 0);
+  const platformCommission = grossDeliveryFees * 0.2;
+  const netRiderEarnings = grossDeliveryFees - platformCommission;
+
   return (
     <RiderLayout isOnline={isOnline} onToggleOnline={toggleOnline} canViewEarnings={true}>
       <div className="mb-6 md:mb-8">
@@ -225,6 +233,34 @@ export default function RiderEarnings() {
           )}
         </div>
         <p className="text-muted-foreground text-sm md:text-base">Track your income and withdrawals</p>
+      </div>
+
+      {/* Earnings Breakdown - New Transparency Feature */}
+      {grossDeliveryFees > 0 && (
+        <div className="mb-6">
+          <EarningsBreakdownCard
+            grossAmount={grossDeliveryFees}
+            deductions={[
+              {
+                label: 'Platform Commission',
+                amount: platformCommission,
+                percentage: 20,
+                description: 'Platform retains 20% of delivery fees. You receive 80%.',
+              },
+            ]}
+            netAmount={netRiderEarnings}
+            title="Delivery Earnings Breakdown"
+            period={dateRange.from || dateRange.to 
+              ? `${dateRange.from?.toLocaleDateString() || 'Start'} - ${dateRange.to?.toLocaleDateString() || 'Now'}`
+              : 'All Time'
+            }
+          />
+        </div>
+      )}
+
+      {/* Understanding Your Earnings */}
+      <div className="mb-6">
+        <EarningsExplanation userType="rider" commissionRate={20} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-6 md:mb-8">

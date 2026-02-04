@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { ArrowDownLeft, ArrowUpRight, Calendar, Filter, Loader2 } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Calendar, Filter, Loader2, Percent, Info } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { supabase } from '@/integrations/supabase/client';
 import { DateRangeFilter, DateRange } from './DateRangeFilter';
 
@@ -109,8 +110,23 @@ export function TransactionHistory({
       adjustment: 'Adjustment',
       payment: 'Payment',
       order_payment: 'Order Payment',
+      promo_cost: 'Promo Discount Cost',
     };
     return labels[category] || category.replace(/_/g, ' ');
+  };
+
+  // Get commission context for transaction categories
+  const getCommissionContext = (category: string): string | null => {
+    const contexts: Record<string, string> = {
+      vendor_share: 'Net earnings after platform commission deduction',
+      rider_share: '80% of delivery fee (platform retains 20%)',
+      delivery_company_share: 'Net delivery revenue after platform commission',
+      platform_commission: 'Commission from vendor sales',
+      delivery_commission: 'Platform share of delivery fees',
+      service_fee: '100% company income from customers',
+      promo_cost: 'Promotional discount absorbed by platform',
+    };
+    return contexts[category] || null;
   };
 
   const getStatusBadge = (status: string) => {
@@ -225,9 +241,23 @@ export function TransactionHistory({
                     )}
                   </div>
                   <div className="min-w-0">
-                    <p className="font-medium text-foreground truncate">
-                      {getCategoryLabel(tx.category)}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-foreground truncate">
+                        {getCategoryLabel(tx.category)}
+                      </p>
+                      {getCommissionContext(tx.category) && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <Info className="w-3.5 h-3.5 text-muted-foreground" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="max-w-xs text-xs">{getCommissionContext(tx.category)}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                    </div>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <span>
                         {new Date(tx.created_at).toLocaleDateString('en-NG', {

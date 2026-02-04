@@ -8,9 +8,12 @@ import { Badge } from '@/components/ui/badge';
 import { VendorSidebar } from '@/components/vendor/VendorSidebar';
 import { AccessDenied } from '@/components/vendor/AccessDenied';
 import { DateRangeFilter, DateRange } from '@/components/shared/DateRangeFilter';
+import { EarningsBreakdownCard } from '@/components/shared/EarningsBreakdownCard';
+import { EarningsExplanation } from '@/components/shared/EarningsExplanation';
 import { useAuth } from '@/hooks/useAuth';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
+import { useOrderFinancials } from '@/hooks/useOrderFinancials';
 import { supabase } from '@/integrations/supabase/client';
 interface Vendor {
   id: string;
@@ -57,6 +60,13 @@ export default function VendorEarnings() {
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendor?.id || null);
+  
+  // Fetch order financials for breakdown
+  const { data: financialBreakdown, loading: financialsLoading } = useOrderFinancials({
+    vendorId: vendor?.id,
+    environment: isTestMode ? 'development' : 'production',
+    dateRange,
+  });
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -342,6 +352,33 @@ export default function VendorEarnings() {
               </div>
             </div>
           )}
+
+          {/* Earnings Breakdown Card - New Transparency Feature */}
+          {financialBreakdown && financialBreakdown.totalOrders > 0 && (
+            <EarningsBreakdownCard
+              grossAmount={financialBreakdown.grossRevenue}
+              deductions={[
+                {
+                  label: 'Platform Commission',
+                  amount: financialBreakdown.totalCommission,
+                  percentage: financialBreakdown.commissionRate,
+                  description: 'Commission calculated on menu price only. Delivery fees and service fees are not included.',
+                },
+              ]}
+              netAmount={financialBreakdown.netRevenue}
+              title="Earnings Breakdown"
+              period={dateRange.from || dateRange.to 
+                ? `${dateRange.from?.toLocaleDateString() || 'Start'} - ${dateRange.to?.toLocaleDateString() || 'Now'}`
+                : 'All Time'
+              }
+            />
+          )}
+
+          {/* Understanding Your Earnings */}
+          <EarningsExplanation 
+            userType="vendor" 
+            commissionRate={commissionRate} 
+          />
 
           {/* Revenue Breakdown - Separated Pools */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

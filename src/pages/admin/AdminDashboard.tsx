@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
 import { PromoImpactCard } from '@/components/admin/PromoImpactCard';
+import { CompanyProfitCard } from '@/components/admin/CompanyProfitCard';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Package, Store, Bike, Users, DollarSign, TrendingUp, Loader2, Wallet, ArrowDownToLine, ArrowUpFromLine, PiggyBank, Percent, Receipt, Truck, CreditCard, FlaskConical, Globe } from 'lucide-react';
@@ -436,6 +437,12 @@ export default function AdminDashboard() {
               </CardContent>
             </Card>
           </div>
+        </section>
+
+        {/* Company Profit & Loss - New Transparency Feature */}
+        <section>
+          <h2 className="text-lg font-semibold text-foreground mb-4">Company Profit & Loss</h2>
+          <CompanyProfitCard environment={isTestMode ? 'development' : 'production'} />
         </section>
 
         {/* Promo Impact Analysis */}

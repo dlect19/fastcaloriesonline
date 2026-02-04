@@ -257,15 +257,17 @@ AND environment = ?;
 
 ## File Change Summary
 
-| File | Action | Description |
-|------|--------|-------------|
-| `src/pages/vendor/VendorEarnings.tsx` | Modify | Add gross/net breakdown cards |
-| `src/pages/rider/RiderEarnings.tsx` | Modify | Add earnings breakdown for platform riders |
-| `src/pages/delivery/DeliveryEarnings.tsx` | Modify | Enhance earnings explanation |
-| `src/pages/admin/AdminDashboard.tsx` | Modify | Add company profit section |
-| `src/components/admin/CompanyProfitCard.tsx` | Create | New component for admin profit view |
-| `src/components/shared/EarningsBreakdownCard.tsx` | Create | Reusable breakdown component |
-| `src/components/shared/TransactionHistory.tsx` | Modify | Add commission context to transactions |
+| File | Action | Status | Description |
+|------|--------|--------|-------------|
+| `src/pages/vendor/VendorEarnings.tsx` | Modify | ✅ Done | Added gross/net breakdown cards |
+| `src/pages/rider/RiderEarnings.tsx` | Modify | ✅ Done | Added earnings breakdown for platform riders |
+| `src/pages/delivery/DeliveryEarnings.tsx` | Modify | ✅ Done | Enhanced earnings explanation |
+| `src/pages/admin/AdminDashboard.tsx` | Modify | ✅ Done | Added company profit section |
+| `src/components/admin/CompanyProfitCard.tsx` | Create | ✅ Done | New component for admin profit view |
+| `src/components/shared/EarningsBreakdownCard.tsx` | Create | ✅ Done | Reusable breakdown component |
+| `src/components/shared/EarningsExplanation.tsx` | Create | ✅ Done | Collapsible earnings education |
+| `src/components/shared/TransactionHistory.tsx` | Modify | ✅ Done | Added commission context to transactions |
+| `src/hooks/useOrderFinancials.ts` | Create | ✅ Done | Hook for vendor financial data |
 
 ---
 
