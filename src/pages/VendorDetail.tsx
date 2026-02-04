@@ -9,9 +9,12 @@ import { ProductCard } from '@/components/vendor/ProductCard';
 import { ComboCard } from '@/components/vendor/ComboCard';
 import { CartButton } from '@/components/cart/CartButton';
 import { BottomNav } from '@/components/home/BottomNav';
+import { VendorAccessDenied } from '@/components/vendor/VendorAccessDenied';
 import { ArrowLeft, Leaf, Search, Package, Heart } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
+import { useGeolocation } from '@/hooks/useGeolocation';
+import { checkVendorAccess, VendorWithDistance } from '@/hooks/useLocationBasedVendors';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Vendor = Tables<'vendors'>;
@@ -38,6 +41,8 @@ interface Combo {
   items: ComboItem[];
 }
 
+type AccessDeniedReason = 'outside_radius' | 'location_required' | 'vendor_not_found' | 'vendor_location_unavailable';
+
 export default function VendorDetail() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
@@ -45,7 +50,18 @@ export default function VendorDetail() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const [vendor, setVendor] = useState<Vendor | null>(null);
+  // Location state
+  const { latitude, longitude, loading: geoLoading, getCurrentPosition } = useGeolocation();
+
+  // Access control state
+  const [accessChecked, setAccessChecked] = useState(false);
+  const [accessDenied, setAccessDenied] = useState(false);
+  const [accessDeniedReason, setAccessDeniedReason] = useState<AccessDeniedReason>('location_required');
+  const [accessDistance, setAccessDistance] = useState<number | undefined>();
+  const [accessMaxRadius, setAccessMaxRadius] = useState<number | undefined>();
+
+  // Vendor data state
+  const [vendor, setVendor] = useState<VendorWithDistance | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [combos, setCombos] = useState<Combo[]>([]);
   const [categories, setCategories] = useState<ProductCategory[]>([]);
@@ -55,37 +71,70 @@ export default function VendorDetail() {
   const [isFavorite, setIsFavorite] = useState(false);
   const [togglingFavorite, setTogglingFavorite] = useState(false);
 
+  // Check vendor access when location is available
   useEffect(() => {
-    if (id) {
-      fetchVendorData();
-      if (user) {
-        checkFavoriteStatus();
-        // Handle ?action=favorite from QR code
-        const action = searchParams.get('action');
-        if (action === 'favorite') {
-          handleToggleFavorite(true);
-          // Remove the query param after handling
-          navigate(`/vendor/${id}`, { replace: true });
-        }
-      }
-    }
-  }, [id, user, searchParams]);
-
-  const fetchVendorData = async () => {
     if (!id) return;
+    
+    // Wait for geolocation to finish loading
+    if (geoLoading) return;
+
+    // If no location, show location required screen
+    if (latitude === null || longitude === null) {
+      setAccessDenied(true);
+      setAccessDeniedReason('location_required');
+      setAccessChecked(true);
+      setLoading(false);
+      return;
+    }
+
+    // Check access with backend
+    checkAccess();
+  }, [id, latitude, longitude, geoLoading]);
+
+  const checkAccess = async () => {
+    if (!id || latitude === null || longitude === null) return;
 
     setLoading(true);
+    const result = await checkVendorAccess(id, latitude, longitude);
+
+    if (!result.success) {
+      setAccessDenied(true);
+      
+      // Map error codes to reasons
+      switch (result.error) {
+        case 'vendor_outside_radius':
+          setAccessDeniedReason('outside_radius');
+          setAccessDistance(result.distance);
+          setAccessMaxRadius(result.max_radius);
+          break;
+        case 'vendor_not_found':
+          setAccessDeniedReason('vendor_not_found');
+          break;
+        case 'vendor_location_unavailable':
+          setAccessDeniedReason('vendor_location_unavailable');
+          break;
+        default:
+          setAccessDeniedReason('location_required');
+      }
+      
+      setAccessChecked(true);
+      setLoading(false);
+      return;
+    }
+
+    // Access granted - set vendor and fetch remaining data
+    setVendor(result.vendor);
+    setAccessDenied(false);
+    setAccessChecked(true);
+    
+    // Fetch products, categories, combos
+    await fetchVendorProducts();
+  };
+
+  const fetchVendorProducts = async () => {
+    if (!id) return;
+
     try {
-      // Fetch vendor
-      const { data: vendorData, error: vendorError } = await supabase
-        .from('vendors')
-        .select('*')
-        .eq('id', id)
-        .maybeSingle();
-
-      if (vendorError) throw vendorError;
-      setVendor(vendorData);
-
       // Fetch categories
       const { data: categoryData, error: categoryError } = await supabase
         .from('product_categories')
@@ -136,11 +185,29 @@ export default function VendorDetail() {
 
       setCombos(combosWithItems);
     } catch (error) {
-      console.error('Error fetching vendor:', error);
+      console.error('Error fetching vendor products:', error);
     } finally {
       setLoading(false);
     }
   };
+
+  // Check favorite status
+  useEffect(() => {
+    if (user && id && !accessDenied) {
+      checkFavoriteStatus();
+      // Handle ?action=favorite from QR code
+      const action = searchParams.get('action');
+      if (action === 'favorite') {
+        handleToggleFavorite(true);
+        navigate(`/vendor/${id}`, { replace: true });
+      }
+    }
+  }, [user, id, accessDenied, searchParams]);
+
+  // Request location on mount
+  useEffect(() => {
+    getCurrentPosition();
+  }, []);
 
   const checkFavoriteStatus = async () => {
     if (!user || !id) return;
@@ -177,6 +244,14 @@ export default function VendorDetail() {
     }
   };
 
+  const handleRequestLocation = () => {
+    getCurrentPosition();
+    // Reset states to re-trigger access check
+    setAccessChecked(false);
+    setAccessDenied(false);
+    setLoading(true);
+  };
+
   const filteredProducts = products.filter(product => {
     const matchesCategory = selectedCategory === 'all' || product.category_id === selectedCategory;
     const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -184,28 +259,39 @@ export default function VendorDetail() {
     return matchesCategory && matchesSearch;
   });
 
-  if (loading) {
+  // Loading state
+  if (loading || geoLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center animate-pulse-soft">
             <Leaf className="w-9 h-9 text-primary-foreground" />
           </div>
-          <p className="text-muted-foreground">Loading menu...</p>
+          <p className="text-muted-foreground">
+            {geoLoading ? 'Getting your location...' : 'Loading menu...'}
+          </p>
         </div>
       </div>
     );
   }
 
+  // Access denied state
+  if (accessDenied) {
+    return (
+      <VendorAccessDenied
+        reason={accessDeniedReason}
+        distance={accessDistance}
+        maxRadius={accessMaxRadius}
+        onRequestLocation={handleRequestLocation}
+        locationLoading={geoLoading}
+      />
+    );
+  }
+
+  // Vendor not found after access check
   if (!vendor) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-xl font-bold text-foreground mb-2">Vendor not found</h2>
-          <p className="text-muted-foreground mb-4">This vendor may no longer be available</p>
-          <Button onClick={() => navigate('/')}>Go Home</Button>
-        </div>
-      </div>
+      <VendorAccessDenied reason="vendor_not_found" />
     );
   }
 
