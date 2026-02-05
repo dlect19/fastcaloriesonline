@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Check, X, Loader2, FlaskConical, ShieldCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { VendorCoordinateEditor } from '@/components/admin/VendorCoordinateEditor';
 
 export default function AdminVendors() {
   const navigate = useNavigate();
@@ -181,6 +182,7 @@ export default function AdminVendors() {
                         <p className="text-sm text-muted-foreground">{vendor.category} • {vendor.city}</p>
                       </div>
                       <div className="flex items-center gap-4">
+                        <VendorCoordinateEditor vendor={vendor} onUpdate={fetchVendors} />
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-muted-foreground">Test Store</span>
                           <Switch
