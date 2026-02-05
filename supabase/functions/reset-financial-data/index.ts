@@ -75,7 +75,20 @@
  
      console.log(`Resetting financial data for environment: ${environment}`);
  
-    // 1. Delete wallet_transactions for environment
+    // 1. Delete orders for environment
+    const { data: deletedOrders, error: ordersError } = await serviceClient
+      .from('orders')
+      .delete()
+      .eq('environment', environment)
+      .select('id');
+
+    if (ordersError) {
+      console.error('Error deleting orders:', ordersError);
+      throw ordersError;
+    }
+    console.log(`Deleted ${deletedOrders?.length || 0} orders`);
+
+    // 2. Delete wallet_transactions for environment
      const { data: deletedTx, error: txError } = await serviceClient
        .from('wallet_transactions')
        .delete()
@@ -88,7 +101,7 @@
      }
      console.log(`Deleted ${deletedTx?.length || 0} wallet transactions`);
  
-    // 2. Delete order_financials for environment
+    // 3. Delete order_financials for environment
      const { data: deletedFinancials, error: financialsError } = await serviceClient
        .from('order_financials')
        .delete()
@@ -101,7 +114,7 @@
      }
      console.log(`Deleted ${deletedFinancials?.length || 0} order financials`);
  
-    // 3. Delete payout_requests - filter by recipient environment
+    // 4. Delete payout_requests - filter by recipient environment
      const { data: recipients } = await serviceClient
        .from('paystack_recipients')
        .select('id')
@@ -124,7 +137,7 @@
      }
      console.log(`Deleted ${deletedPayoutsCount} payout requests`);
  
-    // 4. Delete promo_usage_log for environment
+    // 5. Delete promo_usage_log for environment
      const { data: deletedPromoLog, error: promoLogError } = await serviceClient
        .from('promo_usage_log')
        .delete()
@@ -136,7 +149,7 @@
      }
      console.log(`Deleted ${deletedPromoLog?.length || 0} promo usage logs`);
  
-    // 5. Delete daily_promo_stats for environment
+    // 6. Delete daily_promo_stats for environment
      const { data: deletedStats, error: statsError } = await serviceClient
        .from('daily_promo_stats')
        .delete()
@@ -155,6 +168,7 @@
        entity_type: 'platform',
        details: {
          environment,
+          deleted_orders: deletedOrders?.length || 0,
          deleted_transactions: deletedTx?.length || 0,
          deleted_financials: deletedFinancials?.length || 0,
          deleted_payouts: deletedPayoutsCount,
@@ -167,6 +181,7 @@
        JSON.stringify({
          success: true,
          environment,
+          deletedOrders: deletedOrders?.length || 0,
          deletedTransactions: deletedTx?.length || 0,
          deletedFinancials: deletedFinancials?.length || 0,
          deletedPayouts: deletedPayoutsCount,

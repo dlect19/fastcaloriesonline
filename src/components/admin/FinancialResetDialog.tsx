@@ -44,7 +44,7 @@
        if (error) throw error;
  
        toast.success(`${selectedEnvironment === 'development' ? 'Development' : 'Production'} financial data reset successfully`, {
-         description: `Cleared ${data?.deletedTransactions || 0} transactions, ${data?.deletedFinancials || 0} order financials, ${data?.deletedPayouts || 0} payouts`,
+          description: `Cleared ${data?.deletedOrders || 0} orders, ${data?.deletedTransactions || 0} transactions, ${data?.deletedPayouts || 0} payouts`,
        });
  
        setOpen(false);
