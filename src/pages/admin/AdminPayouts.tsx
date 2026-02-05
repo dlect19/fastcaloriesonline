@@ -20,6 +20,7 @@ import { Banknote, Clock, CheckCircle, XCircle, Loader2, RefreshCw, User } from 
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAdminPermissions } from '@/hooks/useAdminPermissions';
+import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 import { format } from 'date-fns';
 
 interface PayoutRequest {
@@ -57,6 +58,7 @@ export default function AdminPayouts() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { role, loading: authLoading } = useAdminPermissions();
+  const { isTestMode, effectiveEnvironment, loading: envLoading } = useEnvironmentConfig();
   const [payouts, setPayouts] = useState<PayoutRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState<string | null>(null);
@@ -68,20 +70,62 @@ export default function AdminPayouts() {
       navigate('/admin/auth');
       return;
     }
-    if (role) {
+    if (role && !envLoading) {
       fetchPayouts();
     }
-  }, [role, authLoading, navigate]);
+  }, [role, authLoading, envLoading, effectiveEnvironment, navigate]);
 
   const fetchPayouts = async () => {
     try {
+      // Fetch payouts and filter by wallet environment
       const { data, error } = await supabase
         .from('payout_requests')
-        .select('*')
+        .select('*, wallets!inner(id)')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setPayouts(data || []);
+      
+      // Filter payouts by checking wallet transactions environment
+      // or by checking the wallet's test vs live balance usage
+      // For now, fetch wallet_transactions to determine environment
+      const payoutIds = data?.map(p => p.id) || [];
+      
+      if (payoutIds.length === 0) {
+        setPayouts([]);
+        return;
+      }
+      
+      // Get wallet IDs and check their transaction environments
+      const walletIds = [...new Set(data?.map(p => p.wallet_id) || [])];
+      
+      // Check withdrawal source to determine environment
+      // Payouts from test balances are test mode, payouts from live balances are production
+      const envFilter = isTestMode ? 'development' : 'production';
+      
+      // Get recent wallet transactions to identify environment per wallet
+      const { data: recentTx } = await supabase
+        .from('wallet_transactions')
+        .select('wallet_id, environment')
+        .in('wallet_id', walletIds)
+        .eq('category', 'withdrawal')
+        .order('created_at', { ascending: false });
+      
+      // Build map of wallet to most recent withdrawal environment
+      const walletEnvMap = new Map<string, string>();
+      recentTx?.forEach(tx => {
+        if (!walletEnvMap.has(tx.wallet_id) && tx.environment) {
+          walletEnvMap.set(tx.wallet_id, tx.environment);
+        }
+      });
+      
+      // Filter payouts based on environment
+      // If we can't determine environment, show in both modes
+      const filteredPayouts = data?.filter(p => {
+        const env = walletEnvMap.get(p.wallet_id);
+        return !env || env === envFilter;
+      }) || [];
+      
+      setPayouts(filteredPayouts);
     } catch (error) {
       console.error('Error fetching payouts:', error);
       toast({
@@ -346,7 +390,7 @@ export default function AdminPayouts() {
     );
   };
 
-  if (authLoading || loading) {
+  if (authLoading || loading || envLoading) {
     return (
       <div className="min-h-screen bg-background flex">
         <AdminSidebar />
@@ -375,11 +419,25 @@ export default function AdminPayouts() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-foreground">Payout Management</h1>
-              <p className="text-muted-foreground">Approve or reject withdrawal requests</p>
+              <p className="text-muted-foreground">
+                Approve or reject withdrawal requests
+                {isTestMode && " • Showing test mode payouts only"}
+              </p>
             </div>
-            <Button variant="outline" size="icon" onClick={fetchPayouts}>
-              <RefreshCw className="w-4 h-4" />
-            </Button>
+            <div className="flex items-center gap-2">
+              <Badge 
+                variant="outline" 
+                className={isTestMode 
+                  ? "bg-yellow-500/10 text-yellow-600 border-yellow-500/30" 
+                  : "bg-green-500/10 text-green-600 border-green-500/30"
+                }
+              >
+                {isTestMode ? 'Test Mode' : 'Live Mode'}
+              </Badge>
+              <Button variant="outline" size="icon" onClick={fetchPayouts}>
+                <RefreshCw className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
 
           {/* Summary Cards */}

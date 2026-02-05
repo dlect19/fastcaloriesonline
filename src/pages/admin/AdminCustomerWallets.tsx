@@ -466,7 +466,10 @@ export default function AdminCustomerWallets() {
             </DialogDescription>
           </DialogHeader>
           {selectedWallet && (
-            <TransactionHistory walletId={selectedWallet.id} />
+          <TransactionHistory 
+            walletId={selectedWallet.id} 
+            environment={isTestMode ? 'development' : 'production'}
+          />
           )}
         </DialogContent>
       </Dialog>

@@ -10,10 +10,12 @@ import { Switch } from '@/components/ui/switch';
 import { Check, X, Loader2, FlaskConical, ShieldCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { VendorCoordinateEditor } from '@/components/admin/VendorCoordinateEditor';
+import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 
 export default function AdminVendors() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { isTestMode } = useEnvironmentConfig();
   const [loading, setLoading] = useState(true);
   const [vendors, setVendors] = useState<any[]>([]);
   const [pendingVendors, setPendingVendors] = useState<any[]>([]);
@@ -144,8 +146,22 @@ export default function AdminVendors() {
       
       <main className="flex-1 p-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground">Vendors</h1>
-          <p className="text-muted-foreground">Manage platform vendors</p>
+          <div className="flex items-center gap-3 mb-2">
+            <h1 className="text-3xl font-bold text-foreground">Vendors</h1>
+            <Badge 
+              variant="outline" 
+              className={isTestMode 
+                ? "bg-yellow-500/10 text-yellow-600 border-yellow-500/30" 
+                : "bg-green-500/10 text-green-600 border-green-500/30"
+              }
+            >
+              {isTestMode ? 'Test Mode' : 'Live Mode'}
+            </Badge>
+          </div>
+          <p className="text-muted-foreground">
+            Manage platform vendors
+            {isTestMode && " • Showing test stores"}
+          </p>
         </div>
 
         <Tabs defaultValue="approved">

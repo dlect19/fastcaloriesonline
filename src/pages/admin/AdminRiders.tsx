@@ -9,10 +9,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Check, X, Loader2, ShieldCheck, Mail, AlertCircle, FlaskConical } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 
 export default function AdminRiders() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { isTestMode } = useEnvironmentConfig();
   const [loading, setLoading] = useState(true);
   const [riders, setRiders] = useState<any[]>([]);
   const [pendingRiders, setPendingRiders] = useState<any[]>([]);
@@ -131,8 +133,22 @@ export default function AdminRiders() {
       
       <main className="flex-1 p-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground">Riders</h1>
-          <p className="text-muted-foreground">Manage delivery riders and verify NIN</p>
+          <div className="flex items-center gap-3 mb-2">
+            <h1 className="text-3xl font-bold text-foreground">Riders</h1>
+            <Badge 
+              variant="outline" 
+              className={isTestMode 
+                ? "bg-yellow-500/10 text-yellow-600 border-yellow-500/30" 
+                : "bg-green-500/10 text-green-600 border-green-500/30"
+              }
+            >
+              {isTestMode ? 'Test Mode' : 'Live Mode'}
+            </Badge>
+          </div>
+          <p className="text-muted-foreground">
+            Manage delivery riders and verify NIN
+            {isTestMode && " • Showing test riders"}
+          </p>
         </div>
 
         <Tabs defaultValue="pending">
