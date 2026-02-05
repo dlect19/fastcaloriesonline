@@ -27,6 +27,7 @@ interface TransactionHistoryProps {
   limit?: number;
   externalDateRange?: DateRange;
   onDateRangeChange?: (range: DateRange) => void;
+  environment?: 'development' | 'production' | null;
 }
 
 export function TransactionHistory({ 
@@ -35,7 +36,8 @@ export function TransactionHistory({
   showFilters = true,
   limit = 50,
   externalDateRange,
-  onDateRangeChange 
+  onDateRangeChange,
+  environment = null
 }: TransactionHistoryProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,7 +54,7 @@ export function TransactionHistory({
     } else {
       setLoading(false);
     }
-  }, [walletId, filter, dateRange]);
+  }, [walletId, filter, dateRange, environment]);
 
   const fetchTransactions = async () => {
     if (!walletId) return;
@@ -68,6 +70,11 @@ export function TransactionHistory({
 
       if (filter !== 'all') {
         query = query.eq('transaction_type', filter);
+      }
+
+      // Apply environment filter if provided
+      if (environment) {
+        query = query.eq('environment', environment);
       }
 
       // Apply date range filter

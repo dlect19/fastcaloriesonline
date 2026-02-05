@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 
 interface DeliveryCompany {
   id: string;
@@ -28,6 +29,7 @@ interface DeliveryCompany {
 
 export default function AdminDeliveryCompanies() {
   const { toast } = useToast();
+  const { isTestMode } = useEnvironmentConfig();
   const [companies, setCompanies] = useState<DeliveryCompany[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -156,8 +158,22 @@ export default function AdminDeliveryCompanies() {
       <main className="lg:ml-64">
         <div className="p-6 space-y-6">
           <div>
-            <h1 className="text-2xl font-bold">Delivery Companies</h1>
-            <p className="text-muted-foreground">Manage logistics partners</p>
+            <div className="flex items-center gap-3 mb-2">
+              <h1 className="text-2xl font-bold">Delivery Companies</h1>
+              <Badge 
+                variant="outline" 
+                className={isTestMode 
+                  ? "bg-yellow-500/10 text-yellow-600 border-yellow-500/30" 
+                  : "bg-green-500/10 text-green-600 border-green-500/30"
+                }
+              >
+                {isTestMode ? 'Test Mode' : 'Live Mode'}
+              </Badge>
+            </div>
+            <p className="text-muted-foreground">
+              Manage logistics partners
+              {isTestMode && " • Showing test environment data"}
+            </p>
           </div>
 
           <div className="relative max-w-md">
