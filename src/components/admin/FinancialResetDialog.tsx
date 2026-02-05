@@ -80,7 +80,7 @@
              Reset Financial Data
            </DialogTitle>
            <DialogDescription>
-             This will permanently delete all transaction history, order financials, payout requests, and promo stats for the selected environment. Wallet balances will NOT be affected.
+              This will permanently delete transaction history, order financials, payout requests, and promo stats for the selected environment. Wallet balances and orders are NOT affected.
            </DialogDescription>
          </DialogHeader>
  
@@ -131,20 +131,17 @@
  
            {/* What will be deleted */}
            <div className="space-y-2">
-            <Label className="text-destructive">What will be reset/deleted:</Label>
-            <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside mb-3">
-              <li><strong>All wallet balances</strong> reset to ₦0</li>
-              <li><strong>Platform wallet balance</strong> reset to ₦0</li>
-              <li><strong>All orders</strong> permanently deleted</li>
-              <li>All wallet transactions deleted</li>
-              <li>Order financial records deleted</li>
-              <li>Payout requests deleted</li>
-              <li>Promo usage logs deleted</li>
-              <li>Daily promo stats deleted</li>
-             </ul>
-            <p className="text-xs text-destructive font-medium">
-              ⚠️ This is a COMPLETE reset. All financial data will be permanently erased.
-            </p>
+              <Label className="text-destructive">What will be deleted:</Label>
+              <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside mb-3">
+                <li>All wallet transactions</li>
+                <li>Order financial records</li>
+                <li>Payout requests</li>
+                <li>Promo usage logs</li>
+                <li>Daily promo stats</li>
+              </ul>
+              <p className="text-xs text-success font-medium">
+                ✓ Wallet balances and orders are preserved.
+              </p>
            </div>
  
            {/* Confirmation Input */}
