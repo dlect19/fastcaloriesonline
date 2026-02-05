@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
 import { PromoImpactCard } from '@/components/admin/PromoImpactCard';
 import { CompanyProfitCard } from '@/components/admin/CompanyProfitCard';
+ import { FinancialResetDialog } from '@/components/admin/FinancialResetDialog';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Package, Store, Bike, Users, DollarSign, TrendingUp, Loader2, Wallet, ArrowDownToLine, ArrowUpFromLine, PiggyBank, Percent, Receipt, Truck, CreditCard, FlaskConical, Globe } from 'lucide-react';
@@ -86,6 +87,11 @@ export default function AdminDashboard() {
 
     await Promise.all([fetchStats(), fetchFinancialStats()]);
   };
+ 
+   const handleResetComplete = () => {
+     fetchStats();
+     fetchFinancialStats();
+   };
 
   const fetchStats = async () => {
     try {
@@ -485,6 +491,7 @@ export default function AdminDashboard() {
               <DollarSign className="w-8 h-8 mx-auto mb-2 text-primary" />
               <p className="text-sm font-medium">Promo Codes</p>
             </button>
+           <FinancialResetDialog onResetComplete={handleResetComplete} />
           </CardContent>
         </Card>
       </main>
