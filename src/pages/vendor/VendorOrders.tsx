@@ -38,7 +38,13 @@ type OrderItem = Tables<'order_items'>;
 type OrderStatus = Database['public']['Enums']['order_status'];
 type Vendor = Tables<'vendors'>;
 
-type OrderWithItems = Order & { items: OrderItem[] };
+type OrderWithItems = Order & { 
+  items: OrderItem[];
+  customer?: {
+    full_name: string | null;
+    phone: string | null;
+  } | null;
+};
 
 const statusFlow: OrderStatus[] = [
   'pending',
@@ -208,11 +214,25 @@ export default function VendorOrders() {
             .select('*')
             .in('order_id', orderIds);
 
-          // Map items to their orders
-          const ordersWithItems: OrderWithItems[] = ordersData.map(order => ({
-            ...order,
-            items: (itemsData || []).filter(item => item.order_id === order.id)
-          }));
+          // Fetch customer profiles for all unique user_ids
+          const userIds = [...new Set(ordersData.map(o => o.user_id).filter(Boolean))] as string[];
+          const { data: profilesData } = await supabase
+            .from('profiles')
+            .select('user_id, full_name, phone')
+            .in('user_id', userIds);
+
+          // Map items and customer profiles to their orders
+          const ordersWithItems: OrderWithItems[] = ordersData.map(order => {
+            const customerProfile = profilesData?.find(p => p.user_id === order.user_id);
+            return {
+              ...order,
+              items: (itemsData || []).filter(item => item.order_id === order.id),
+              customer: customerProfile ? {
+                full_name: customerProfile.full_name,
+                phone: customerProfile.phone
+              } : null
+            };
+          });
 
           setOrders(ordersWithItems);
         } else {
@@ -332,7 +352,15 @@ export default function VendorOrders() {
         <div className="p-4">
           <div className="flex items-start justify-between mb-3">
             <div>
-              <p className="font-semibold text-foreground">{order.order_number}</p>
+              <p className="font-semibold text-foreground">
+                {order.order_number}
+                {order.customer?.full_name && (
+                  <span className="text-muted-foreground font-normal"> • {order.customer.full_name}</span>
+                )}
+              </p>
+              {order.customer?.phone && (
+                <p className="text-xs text-primary font-medium">{order.customer.phone}</p>
+              )}
               <p className="text-sm text-muted-foreground">{formatDate(order.created_at)}</p>
             </div>
             <div className="flex items-center gap-2">
