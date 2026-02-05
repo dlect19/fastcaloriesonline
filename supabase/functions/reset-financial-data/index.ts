@@ -75,7 +75,73 @@
  
      console.log(`Resetting financial data for environment: ${environment}`);
  
-     // 1. Delete wallet_transactions for environment
+    // 1. Reset wallet balance fields based on environment
+    if (environment === 'development') {
+      // Reset test balance fields for all wallets
+      const { error: walletResetError } = await serviceClient
+        .from('wallets')
+        .update({
+          test_balance: 0,
+          test_pending_balance: 0,
+          test_eligible_balance: 0,
+          test_menu_earnings_balance: 0,
+          test_menu_earnings_pending: 0,
+          test_rider_revenue_balance: 0,
+        })
+        .gte('id', '00000000-0000-0000-0000-000000000000'); // Update all rows
+      
+      if (walletResetError) {
+        console.error('Error resetting wallet test balances:', walletResetError);
+      }
+      console.log('Reset all wallet test balances to 0');
+      
+      // Reset platform_wallet test_balance
+      const { error: platformResetError } = await serviceClient
+        .from('platform_wallet')
+        .update({ test_balance: 0 })
+        .gte('id', '00000000-0000-0000-0000-000000000000');
+      
+      if (platformResetError) {
+        console.error('Error resetting platform wallet test balance:', platformResetError);
+      }
+      console.log('Reset platform wallet test_balance to 0');
+    } else {
+      // Reset production balance fields for all wallets
+      const { error: walletResetError } = await serviceClient
+        .from('wallets')
+        .update({
+          balance: 0,
+          pending_balance: 0,
+          eligible_balance: 0,
+          total_earned: 0,
+          menu_earnings_balance: 0,
+          menu_earnings_pending: 0,
+          rider_revenue_balance: 0,
+        })
+        .gte('id', '00000000-0000-0000-0000-000000000000');
+      
+      if (walletResetError) {
+        console.error('Error resetting wallet production balances:', walletResetError);
+      }
+      console.log('Reset all wallet production balances to 0');
+      
+      // Reset platform_wallet production balances
+      const { error: platformResetError } = await serviceClient
+        .from('platform_wallet')
+        .update({ 
+          balance: 0,
+          total_earned: 0,
+          total_paid_out: 0,
+        })
+        .gte('id', '00000000-0000-0000-0000-000000000000');
+      
+      if (platformResetError) {
+        console.error('Error resetting platform wallet production balance:', platformResetError);
+      }
+      console.log('Reset platform wallet production balances to 0');
+    }
+
+    // 2. Delete wallet_transactions for environment
      const { data: deletedTx, error: txError } = await serviceClient
        .from('wallet_transactions')
        .delete()
@@ -88,7 +154,7 @@
      }
      console.log(`Deleted ${deletedTx?.length || 0} wallet transactions`);
  
-     // 2. Delete order_financials for environment
+    // 3. Delete order_financials for environment
      const { data: deletedFinancials, error: financialsError } = await serviceClient
        .from('order_financials')
        .delete()
@@ -101,16 +167,7 @@
      }
      console.log(`Deleted ${deletedFinancials?.length || 0} order financials`);
  
-     // 3. Delete payout_requests - filter by wallet environment
-     // First get wallets for the environment
-     const balanceField = environment === 'development' ? 'test_balance' : 'balance';
-     const { data: wallets } = await serviceClient
-       .from('wallets')
-       .select('id');
- 
-     // Get payout requests and filter by checking if they're test or prod
-     // Payout requests don't have environment column, so we delete based on admin choice
-     // For safety, we check created_in_environment of the recipient
+    // 4. Delete payout_requests - filter by recipient environment
      const { data: recipients } = await serviceClient
        .from('paystack_recipients')
        .select('id')
@@ -133,7 +190,7 @@
      }
      console.log(`Deleted ${deletedPayoutsCount} payout requests`);
  
-     // 4. Delete promo_usage_log for environment
+    // 5. Delete promo_usage_log for environment
      const { data: deletedPromoLog, error: promoLogError } = await serviceClient
        .from('promo_usage_log')
        .delete()
@@ -145,7 +202,7 @@
      }
      console.log(`Deleted ${deletedPromoLog?.length || 0} promo usage logs`);
  
-     // 5. Delete daily_promo_stats for environment
+    // 6. Delete daily_promo_stats for environment
      const { data: deletedStats, error: statsError } = await serviceClient
        .from('daily_promo_stats')
        .delete()
@@ -157,6 +214,20 @@
      }
      console.log(`Deleted ${deletedStats?.length || 0} daily promo stats`);
  
+    // 7. Reset order financial fields for the environment (subtotal, delivery_fee, etc. to 0 would break data)
+    // Instead, we reset payment_status to allow re-testing but keep order structure
+    // Actually - we should delete orders for clean slate testing
+    const { data: deletedOrders, error: ordersError } = await serviceClient
+      .from('orders')
+      .delete()
+      .eq('environment', environment)
+      .select('id');
+    
+    if (ordersError) {
+      console.error('Error deleting orders:', ordersError);
+    }
+    console.log(`Deleted ${deletedOrders?.length || 0} orders`);
+
      // Log the action
      await serviceClient.from('activity_logs').insert({
        user_id: user.id,
@@ -164,6 +235,9 @@
        entity_type: 'platform',
        details: {
          environment,
+        wallet_balances_reset: true,
+        platform_wallet_reset: true,
+        deleted_orders: deletedOrders?.length || 0,
          deleted_transactions: deletedTx?.length || 0,
          deleted_financials: deletedFinancials?.length || 0,
          deleted_payouts: deletedPayoutsCount,
@@ -176,6 +250,9 @@
        JSON.stringify({
          success: true,
          environment,
+        walletBalancesReset: true,
+        platformWalletReset: true,
+        deletedOrders: deletedOrders?.length || 0,
          deletedTransactions: deletedTx?.length || 0,
          deletedFinancials: deletedFinancials?.length || 0,
          deletedPayouts: deletedPayoutsCount,
