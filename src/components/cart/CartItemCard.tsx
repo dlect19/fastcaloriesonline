@@ -1,6 +1,6 @@
 import { useCart, CartItem } from '@/hooks/useCart';
 import { Button } from '@/components/ui/button';
-import { Minus, Plus, Trash2, Flame } from 'lucide-react';
+import { Minus, Plus, Trash2, Flame, Settings2 } from 'lucide-react';
 
 interface CartItemCardProps {
   item: CartItem;
@@ -31,6 +31,16 @@ export function CartItemCard({ item }: CartItemCardProps) {
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-foreground truncate">{item.productName}</h3>
           
+          {/* Add-ons display */}
+          {item.addons && item.addons.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1 mt-1">
+              <Settings2 className="w-3 h-3 text-primary shrink-0" />
+              <span className="text-xs text-muted-foreground">
+                {item.addons.map(a => a.itemName).join(', ')}
+              </span>
+            </div>
+          )}
+          
           {/* Calories */}
           <div className="flex items-center gap-1 mt-1">
             <Flame className="w-3.5 h-3.5 text-calorie-medium" />
@@ -42,6 +52,11 @@ export function CartItemCard({ item }: CartItemCardProps) {
           {/* Price */}
           <p className="font-bold text-foreground mt-2">
             ₦{(item.price * item.quantity).toLocaleString()}
+            {item.addons && item.addons.length > 0 && (
+              <span className="text-xs font-normal text-muted-foreground ml-1">
+                (incl. add-ons)
+              </span>
+            )}
           </p>
         </div>
 

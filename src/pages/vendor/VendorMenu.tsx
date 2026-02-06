@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit2, Trash2, Search, Flame, Wheat, Drumstick, Droplets, Leaf, Droplet, Apple, Gem, ImagePlus, X, Loader2, Sparkles } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, Flame, Wheat, Drumstick, Droplets, Leaf, Droplet, Apple, Gem, ImagePlus, X, Loader2, Sparkles, Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +19,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { VendorSidebar } from '@/components/vendor/VendorSidebar';
 import { AccessDenied } from '@/components/vendor/AccessDenied';
 import { ComboManagement } from '@/components/vendor/ComboManagement';
+import { AddonGroupManager } from '@/components/vendor/AddonGroupManager';
 import { TakeawayPackManagement } from '@/components/vendor/TakeawayPackManagement';
 import { useAuth } from '@/hooks/useAuth';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
@@ -911,87 +912,96 @@ export default function VendorMenu() {
               {filteredProducts.map((product) => (
                 <div
                   key={product.id}
-                  className="bg-card rounded-xl p-4 border border-border flex items-center gap-4"
+                  className="bg-card rounded-xl border border-border overflow-hidden"
                 >
-                  {product.image_url ? (
-                    <img
-                      src={product.image_url}
-                      alt={product.name}
-                      className="w-16 h-16 rounded-lg object-cover"
-                    />
-                  ) : (
-                    <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center text-2xl">
-                      {labels.defaultEmoji}
+                  <div className="p-4 flex items-center gap-4">
+                    {product.image_url ? (
+                      <img
+                        src={product.image_url}
+                        alt={product.name}
+                        className="w-16 h-16 rounded-lg object-cover"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center text-2xl">
+                        {labels.defaultEmoji}
+                      </div>
+                    )}
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-semibold text-foreground truncate">{product.name}</h3>
+                        {!product.is_available && (
+                          <Badge variant="secondary" className="text-xs">Unavailable</Badge>
+                        )}
+                        {/* Food class badges */}
+                        {product.calorie_classes && (product.calorie_classes as string[]).length > 0 && (
+                          <div className="flex gap-1">
+                            {(product.calorie_classes as string[]).map((cls) => (
+                              <Badge key={cls} variant="outline" className="text-xs py-0 px-1.5">
+                                {cls === 'carbs' && <Wheat className="w-3 h-3" />}
+                                {cls === 'protein' && <Drumstick className="w-3 h-3" />}
+                                {cls === 'fats' && <Droplets className="w-3 h-3" />}
+                                {cls === 'fiber' && <Leaf className="w-3 h-3" />}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-sm text-muted-foreground line-clamp-1">
+                        {product.description || 'No description'}
+                      </p>
+                      <div className="flex items-center gap-3 mt-1 flex-wrap">
+                        <span className="font-bold text-primary">
+                          ₦{product.price.toLocaleString()}
+                        </span>
+                        {product.calories && (
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Flame className="w-3 h-3" />
+                            {product.calories} cal
+                          </span>
+                        )}
+                        {/* Macro breakdown */}
+                        {(product.carbs_grams || product.protein_grams || product.fats_grams) && (
+                          <span className="text-xs text-muted-foreground">
+                            {product.carbs_grams && `C: ${product.carbs_grams}g`}
+                            {product.carbs_grams && product.protein_grams && ' | '}
+                            {product.protein_grams && `P: ${product.protein_grams}g`}
+                            {(product.carbs_grams || product.protein_grams) && product.fats_grams && ' | '}
+                            {product.fats_grams && `F: ${product.fats_grams}g`}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={product.is_available ?? true}
+                        onCheckedChange={() => toggleAvailability(product)}
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleEdit(product)}
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => handleDelete(product.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Add-on Manager for each product */}
+                  {vendor && (
+                    <div className="px-4 pb-4 border-t border-border pt-3">
+                      <AddonGroupManager productId={product.id} vendorId={vendor.id} />
                     </div>
                   )}
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-semibold text-foreground truncate">{product.name}</h3>
-                      {!product.is_available && (
-                        <Badge variant="secondary" className="text-xs">Unavailable</Badge>
-                      )}
-                      {/* Food class badges */}
-                      {product.calorie_classes && (product.calorie_classes as string[]).length > 0 && (
-                        <div className="flex gap-1">
-                          {(product.calorie_classes as string[]).map((cls) => (
-                            <Badge key={cls} variant="outline" className="text-xs py-0 px-1.5">
-                              {cls === 'carbs' && <Wheat className="w-3 h-3" />}
-                              {cls === 'protein' && <Drumstick className="w-3 h-3" />}
-                              {cls === 'fats' && <Droplets className="w-3 h-3" />}
-                              {cls === 'fiber' && <Leaf className="w-3 h-3" />}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    <p className="text-sm text-muted-foreground line-clamp-1">
-                      {product.description || 'No description'}
-                    </p>
-                    <div className="flex items-center gap-3 mt-1 flex-wrap">
-                      <span className="font-bold text-primary">
-                        ₦{product.price.toLocaleString()}
-                      </span>
-                      {product.calories && (
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Flame className="w-3 h-3" />
-                          {product.calories} cal
-                        </span>
-                      )}
-                      {/* Macro breakdown */}
-                      {(product.carbs_grams || product.protein_grams || product.fats_grams) && (
-                        <span className="text-xs text-muted-foreground">
-                          {product.carbs_grams && `C: ${product.carbs_grams}g`}
-                          {product.carbs_grams && product.protein_grams && ' | '}
-                          {product.protein_grams && `P: ${product.protein_grams}g`}
-                          {(product.carbs_grams || product.protein_grams) && product.fats_grams && ' | '}
-                          {product.fats_grams && `F: ${product.fats_grams}g`}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      checked={product.is_available ?? true}
-                      onCheckedChange={() => toggleAvailability(product)}
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleEdit(product)}
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-destructive hover:text-destructive"
-                      onClick={() => handleDelete(product.id)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
                 </div>
               ))}
             </div>

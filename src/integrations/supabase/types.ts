@@ -47,6 +47,104 @@ export type Database = {
         }
         Relationships: []
       }
+      addon_groups: {
+        Row: {
+          created_at: string
+          id: string
+          is_required: boolean
+          max_selections: number | null
+          min_selections: number | null
+          name: string
+          product_id: string
+          selection_type: string
+          sort_order: number | null
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_required?: boolean
+          max_selections?: number | null
+          min_selections?: number | null
+          name: string
+          product_id: string
+          selection_type?: string
+          sort_order?: number | null
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_required?: boolean
+          max_selections?: number | null
+          min_selections?: number | null
+          name?: string
+          product_id?: string
+          selection_type?: string
+          sort_order?: number | null
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "addon_groups_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "addon_groups_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      addon_items: {
+        Row: {
+          additional_price: number
+          addon_group_id: string
+          calories: number | null
+          created_at: string
+          id: string
+          is_available: boolean
+          name: string
+          sort_order: number | null
+        }
+        Insert: {
+          additional_price?: number
+          addon_group_id: string
+          calories?: number | null
+          created_at?: string
+          id?: string
+          is_available?: boolean
+          name: string
+          sort_order?: number | null
+        }
+        Update: {
+          additional_price?: number
+          addon_group_id?: string
+          calories?: number | null
+          created_at?: string
+          id?: string
+          is_available?: boolean
+          name?: string
+          sort_order?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "addon_items_addon_group_id_fkey"
+            columns: ["addon_group_id"]
+            isOneToOne: false
+            referencedRelation: "addon_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       addresses: {
         Row: {
           address_line: string
@@ -816,6 +914,44 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_item_addons: {
+        Row: {
+          additional_price: number
+          addon_group_name: string
+          addon_item_name: string
+          calories: number | null
+          created_at: string
+          id: string
+          order_item_id: string
+        }
+        Insert: {
+          additional_price?: number
+          addon_group_name: string
+          addon_item_name: string
+          calories?: number | null
+          created_at?: string
+          id?: string
+          order_item_id: string
+        }
+        Update: {
+          additional_price?: number
+          addon_group_name?: string
+          addon_item_name?: string
+          calories?: number | null
+          created_at?: string
+          id?: string
+          order_item_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_item_addons_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
             referencedColumns: ["id"]
           },
         ]
