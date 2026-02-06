@@ -421,6 +421,9 @@ export default function OrderDetail() {
               <div key={item.id} className="flex justify-between">
                 <div>
                   <p className="font-medium">{item.quantity}x {item.product_name}</p>
+                  {item.special_instructions && !item.special_instructions.startsWith('Takeaway') && (
+                    <p className="text-xs text-primary/80 mt-0.5">🛠 {item.special_instructions}</p>
+                  )}
                   {item.calories > 0 && (
                     <p className="text-sm text-muted-foreground">{item.calories} kcal</p>
                   )}

@@ -413,8 +413,8 @@ export default function VendorOrders() {
                           {item.quantity}x {item.product_name}
                         </p>
                         {item.special_instructions && (
-                          <p className="text-xs text-muted-foreground italic mt-0.5">
-                            Note: {item.special_instructions}
+                          <p className="text-xs text-primary/80 mt-0.5">
+                            🛠 {item.special_instructions}
                           </p>
                         )}
                         {item.calories && item.calories > 0 && (

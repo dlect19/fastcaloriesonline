@@ -1,5 +1,12 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
+export interface CartAddon {
+  groupName: string;
+  itemName: string;
+  price: number;
+  calories: number;
+}
+
 export interface CartItem {
   id: string;
   productId: string;
@@ -10,6 +17,8 @@ export interface CartItem {
   quantity: number;
   calories: number;
   imageUrl?: string;
+  addons?: CartAddon[];
+  addonsDescription?: string;
 }
 
 interface CartContextType {
@@ -65,8 +74,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Check if item already exists
-    const existingIndex = items.findIndex(i => i.productId === item.productId);
+    // Check if same item with same addons already exists
+    const addonsKey = item.addons ? JSON.stringify(item.addons.map(a => `${a.groupName}:${a.itemName}`).sort()) : '';
+    const existingIndex = items.findIndex(i => {
+      const existingAddonsKey = i.addons ? JSON.stringify(i.addons.map(a => `${a.groupName}:${a.itemName}`).sort()) : '';
+      return i.productId === item.productId && existingAddonsKey === addonsKey;
+    });
     
     if (existingIndex >= 0) {
       setItems(items.map((i, idx) => 

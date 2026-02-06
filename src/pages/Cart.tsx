@@ -365,6 +365,7 @@ export default function Cart() {
         unit_price: item.price,
         total_price: item.price * item.quantity,
         calories: item.calories * item.quantity,
+        special_instructions: item.addonsDescription || null,
       }));
 
       // Add takeaway packs as order items
@@ -381,11 +382,44 @@ export default function Cart() {
 
       const allOrderItems = [...orderItems, ...packItems];
 
-      const { error: itemsError } = await supabase
+      const { data: insertedItems, error: itemsError } = await supabase
         .from('order_items')
-        .insert(allOrderItems);
+        .insert(allOrderItems)
+        .select();
 
       if (itemsError) throw itemsError;
+
+      // Save add-on details for each order item
+      if (insertedItems) {
+        const addonRecords: Array<{
+          order_item_id: string;
+          addon_group_name: string;
+          addon_item_name: string;
+          additional_price: number;
+          calories: number;
+        }> = [];
+
+        items.forEach((cartItem, index) => {
+          if (cartItem.addons && cartItem.addons.length > 0) {
+            const orderItem = insertedItems[index];
+            if (orderItem) {
+              cartItem.addons.forEach(addon => {
+                addonRecords.push({
+                  order_item_id: orderItem.id,
+                  addon_group_name: addon.groupName,
+                  addon_item_name: addon.itemName,
+                  additional_price: addon.price,
+                  calories: addon.calories,
+                });
+              });
+            }
+          }
+        });
+
+        if (addonRecords.length > 0) {
+          await supabase.from('order_item_addons').insert(addonRecords);
+        }
+      }
 
       // Log calories
       await supabase
