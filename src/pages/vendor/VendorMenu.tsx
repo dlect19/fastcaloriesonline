@@ -502,16 +502,17 @@ export default function VendorMenu() {
               <h1 className="text-2xl font-bold text-foreground">{labels.pageTitle}</h1>
               <p className="text-muted-foreground">{products.length} {labels.itemPlural}</p>
             </div>
-            <Dialog open={dialogOpen} onOpenChange={(open) => {
-              setDialogOpen(open);
-              if (!open) resetForm();
+            <Button className="gap-2" onClick={() => setDialogOpen(true)}>
+              <Plus className="w-4 h-4" />
+              {labels.addButton}
+            </Button>
+          </div>
+
+          {/* Product Add/Edit Dialog - only mount when open to avoid Radix compose-refs infinite loop */}
+          {dialogOpen && (
+            <Dialog open onOpenChange={(open) => {
+              if (!open) { setDialogOpen(false); resetForm(); }
             }}>
-              <DialogTrigger asChild>
-                <Button className="gap-2">
-                  <Plus className="w-4 h-4" />
-                  {labels.addButton}
-                </Button>
-              </DialogTrigger>
               <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>
@@ -896,7 +897,7 @@ export default function VendorMenu() {
                 </form>
               </DialogContent>
             </Dialog>
-          </div>
+          )}
 
           {/* Search */}
           <div className="relative max-w-md">
