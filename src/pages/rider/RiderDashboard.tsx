@@ -6,7 +6,7 @@ import { RiderFloatingWidget } from '@/components/rider/RiderFloatingWidget';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Package, DollarSign, Star, TrendingUp, Loader2, MapPin, Settings, Navigation, Bell, ArrowRight, Lock } from 'lucide-react';
+import { Package, DollarSign, Star, TrendingUp, Loader2, MapPin, Settings, Navigation, Bell, ArrowRight, Lock, Bike } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useRiderRestrictions } from '@/hooks/useRiderRestrictions';
 
@@ -31,6 +31,8 @@ export default function RiderDashboard() {
   const [stats, setStats] = useState({
     todayDeliveries: 0,
     todayEarnings: 0,
+    inTransitOrders: 0,
+    inTransitEarnings: 0,
     totalDeliveries: 0,
     rating: 0,
   });
@@ -138,7 +140,7 @@ export default function RiderDashboard() {
         await fetchAvailableOrdersCount(profile);
       }
 
-      // Get today's deliveries - only show earnings for platform riders
+      // Get today's DELIVERED orders only (completed earnings)
       const today = new Date().toISOString().split('T')[0];
       const { data: todayOrders } = await supabase
         .from('orders')
@@ -147,12 +149,25 @@ export default function RiderDashboard() {
         .eq('status', 'delivered')
         .gte('delivered_at', today);
 
+      // Get today's IN-TRANSIT orders (assigned but not yet delivered or cancelled)
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const { data: inTransitOrders } = await supabase
+        .from('orders')
+        .select('id, total')
+        .eq('rider_id', userId)
+        .in('status', ['confirmed', 'preparing', 'ready_for_pickup', 'picked_up', 'on_the_way'])
+        .gte('created_at', todayStart.toISOString());
+
       if (todayOrders) {
         const todayEarnings = todayOrders.reduce((sum, o) => sum + (Number(o.total) * 0.1), 0);
+        const inTransitEarnings = (inTransitOrders || []).reduce((sum, o) => sum + (Number(o.total) * 0.1), 0);
         setStats(prev => ({
           ...prev,
           todayDeliveries: todayOrders.length,
           todayEarnings,
+          inTransitOrders: inTransitOrders?.length || 0,
+          inTransitEarnings,
         }));
       }
     } catch (error) {
@@ -309,7 +324,7 @@ export default function RiderDashboard() {
         </Card>
       )}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6 mb-6 md:mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-6 mb-6 md:mb-8">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Today's Deliveries</CardTitle>
@@ -328,7 +343,8 @@ export default function RiderDashboard() {
               <DollarSign className="w-4 h-4 text-muted-foreground hidden md:block" />
             </CardHeader>
             <CardContent>
-              <div className="text-xl md:text-2xl font-bold">₦{stats.todayEarnings.toLocaleString()}</div>
+              <div className="text-xl md:text-2xl font-bold text-success">₦{stats.todayEarnings.toLocaleString()}</div>
+              <p className="text-xs text-success mt-1">Completed</p>
             </CardContent>
           </Card>
         ) : (
@@ -339,6 +355,20 @@ export default function RiderDashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-xl md:text-2xl font-bold">{availableOrderCount}</div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Under Delivery card */}
+        {canViewEarnings && (
+          <Card className="border-l-4 border-l-warning">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Under Delivery</CardTitle>
+              <Bike className="w-4 h-4 text-warning hidden md:block" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl md:text-2xl font-bold text-warning">₦{stats.inTransitEarnings.toLocaleString()}</div>
+              <p className="text-xs text-warning mt-1">{stats.inTransitOrders} in transit</p>
             </CardContent>
           </Card>
         )}

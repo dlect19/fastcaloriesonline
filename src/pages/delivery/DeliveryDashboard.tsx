@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Package, Users, Wallet, TrendingUp, Clock, CheckCircle2, AlertTriangle, Truck } from 'lucide-react';
+import { Package, Users, Wallet, TrendingUp, Clock, CheckCircle2, AlertTriangle, Truck, Bike } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -20,6 +20,8 @@ interface DashboardStats {
   walletBalance: number;
   pendingBalance: number;
   todayEarnings: number;
+  inTransitEarnings: number;
+  inTransitOrders: number;
 }
 
 export default function DeliveryDashboard() {
@@ -110,20 +112,59 @@ export default function DeliveryDashboard() {
         ? Number(walletData?.test_balance) || 0
         : Number(walletData?.balance) || 0;
 
-      // Get today's earnings from transactions
+      // Get today's earnings - ONLY from delivered orders
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
       let todayEarnings = 0;
-      if (walletData) {
-        const { data: todayTx } = await supabase
-          .from('wallet_transactions')
-          .select('amount')
-          .eq('wallet_id', walletData.id)
-          .eq('category', 'delivery_company_share')
+      let inTransitEarnings = 0;
+      let inTransitOrderCount = 0;
+
+      if (walletData && riderUserIds.length > 0) {
+        // Get today's DELIVERED order IDs by company riders
+        const { data: todayDeliveredOrders } = await supabase
+          .from('orders')
+          .select('id')
+          .in('rider_id', riderUserIds)
+          .eq('status', 'delivered')
+          .gte('delivered_at', today.toISOString());
+
+        const deliveredOrderIds = todayDeliveredOrders?.map(o => o.id) || [];
+
+        // Only sum earnings from delivered orders
+        if (deliveredOrderIds.length > 0) {
+          const { data: deliveredTx } = await supabase
+            .from('wallet_transactions')
+            .select('amount')
+            .eq('wallet_id', walletData.id)
+            .eq('category', 'delivery_company_share')
+            .in('order_id', deliveredOrderIds);
+
+          todayEarnings = deliveredTx?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
+        }
+
+        // Get today's IN-TRANSIT order IDs by company riders
+        const { data: todayInTransitOrders } = await supabase
+          .from('orders')
+          .select('id')
+          .in('rider_id', riderUserIds)
+          .in('status', ['confirmed', 'preparing', 'ready_for_pickup', 'picked_up', 'on_the_way'])
           .gte('created_at', today.toISOString());
 
-        todayEarnings = todayTx?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
+        const inTransitOrderIds = todayInTransitOrders?.map(o => o.id) || [];
+        inTransitOrderCount = inTransitOrderIds.length;
+
+        // Sum in-transit earnings
+        if (inTransitOrderIds.length > 0) {
+          const { data: inTransitTx } = await supabase
+            .from('wallet_transactions')
+            .select('amount')
+            .eq('wallet_id', walletData.id)
+            .eq('category', 'delivery_company_share')
+            .in('order_id', inTransitOrderIds);
+
+          inTransitEarnings = inTransitTx?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
+        }
       }
 
       setStats({
@@ -135,6 +176,8 @@ export default function DeliveryDashboard() {
         walletBalance,
         pendingBalance: 0,
         todayEarnings,
+        inTransitEarnings,
+        inTransitOrders: inTransitOrderCount,
       });
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -294,7 +337,7 @@ export default function DeliveryDashboard() {
           </div>
 
           {/* Secondary Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card>
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
@@ -312,9 +355,23 @@ export default function DeliveryDashboard() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Today's Earnings</p>
-                    <p className="text-3xl font-bold text-primary">{formatCurrency(stats?.todayEarnings || 0)}</p>
+                    <p className="text-3xl font-bold text-success">{formatCurrency(stats?.todayEarnings || 0)}</p>
+                    <p className="text-xs text-success mt-1">Completed deliveries</p>
                   </div>
-                  <TrendingUp className="w-10 h-10 text-primary/30" />
+                  <TrendingUp className="w-10 h-10 text-success/30" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-l-4 border-l-warning">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Under Delivery</p>
+                    <p className="text-3xl font-bold text-warning">{formatCurrency(stats?.inTransitEarnings || 0)}</p>
+                    <p className="text-xs text-warning mt-1">{stats?.inTransitOrders || 0} order{(stats?.inTransitOrders || 0) !== 1 ? 's' : ''} in transit</p>
+                  </div>
+                  <Bike className="w-10 h-10 text-warning/30" />
                 </div>
               </CardContent>
             </Card>
