@@ -222,8 +222,8 @@ export function ComboManagement({ vendor, products, onRefresh }: ComboManagement
     }
 
     const comboPrice = parseFloat(formData.combo_price);
-    if (comboPrice >= originalPrice) {
-      toast({ title: 'Invalid combo price', description: 'Combo price must be less than the total of individual items', variant: 'destructive' });
+    if (!comboPrice || comboPrice <= 0) {
+      toast({ title: 'Invalid combo price', description: 'Please enter a valid combo price', variant: 'destructive' });
       return;
     }
 
@@ -467,8 +467,19 @@ export function ComboManagement({ vendor, products, onRefresh }: ComboManagement
               {/* Price Summary */}
               {selectedProducts.length > 0 && (
                 <div className="bg-secondary rounded-lg p-4 space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Original Total:</span>
+                  <div className="text-sm font-medium text-foreground mb-2">Selected Items:</div>
+                  {selectedProducts.map(({ productId, quantity }) => {
+                    const product = products.find(p => p.id === productId);
+                    if (!product) return null;
+                    return (
+                      <div key={productId} className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">{quantity}x {product.name}</span>
+                        <span className="text-muted-foreground">₦{(product.price * quantity).toLocaleString()}</span>
+                      </div>
+                    );
+                  })}
+                  <div className="border-t border-border pt-2 flex justify-between text-sm">
+                    <span className="text-muted-foreground">Total if bought separately:</span>
                     <span className="line-through text-muted-foreground">₦{originalPrice.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between text-sm">
@@ -478,14 +489,14 @@ export function ComboManagement({ vendor, products, onRefresh }: ComboManagement
                       {calculateTotalCalories()} kcal
                     </span>
                   </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="combo-price">Combo Price (₦) *</Label>
+                  <div className="space-y-1 pt-2">
+                    <Label htmlFor="combo-price">Your Combo Price (₦) *</Label>
                     <Input
                       id="combo-price"
                       type="number"
                       value={formData.combo_price}
                       onChange={(e) => setFormData({ ...formData, combo_price: e.target.value })}
-                      placeholder={`Less than ${originalPrice.toLocaleString()}`}
+                      placeholder="Set your combo price"
                       required
                       min="0"
                     />

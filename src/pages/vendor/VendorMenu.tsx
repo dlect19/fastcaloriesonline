@@ -110,11 +110,15 @@ export default function VendorMenu() {
   const [estimatingCalories, setEstimatingCalories] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Add-on dialog state
+  const [addonDialogProductId, setAddonDialogProductId] = useState<string | null>(null);
+
   // Form state
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     price: '',
+    discount_price: '',
     serving_unit: 'per plate' as ServingUnit,
     calories: '',
     protein_grams: '',
@@ -304,11 +308,14 @@ export default function VendorMenu() {
         ? parseInt(formData.calories) 
         : (calculatedCalories > 0 ? calculatedCalories : null);
 
+      const discountPrice = formData.discount_price ? parseFloat(formData.discount_price) : null;
+
       const productData = {
         vendor_id: vendor.id,
         name: formData.name,
         description: formData.description || null,
         price: parseFloat(formData.price),
+        discount_price: discountPrice && discountPrice < parseFloat(formData.price) ? discountPrice : null,
         serving_unit: vendor.category === 'restaurant' ? formData.serving_unit : null,
         calories: finalCalories,
         protein_grams: formData.protein_grams ? parseFloat(formData.protein_grams) : null,
@@ -356,6 +363,7 @@ export default function VendorMenu() {
       name: product.name,
       description: product.description || '',
       price: product.price.toString(),
+      discount_price: (product as any).discount_price?.toString() || '',
       serving_unit: (product.serving_unit as ServingUnit) || 'per plate',
       calories: product.calories?.toString() || '',
       protein_grams: product.protein_grams?.toString() || '',
@@ -424,6 +432,7 @@ export default function VendorMenu() {
       name: '',
       description: '',
       price: '',
+      discount_price: '',
       serving_unit: 'per plate',
       calories: '',
       protein_grams: '',
@@ -659,25 +668,42 @@ export default function VendorMenu() {
                       />
                     </div>
 
-                    {/* Serving Unit - Only show for restaurants */}
-                    {vendor?.category === 'restaurant' && (
-                      <div className="space-y-2">
-                        <Label htmlFor="serving_unit">Serving Unit</Label>
-                        <select
-                          id="serving_unit"
-                          value={formData.serving_unit}
-                          onChange={(e) => setFormData({ ...formData, serving_unit: e.target.value as ServingUnit })}
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                        >
-                          {servingUnitOptions.map(option => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
+                    <div className="space-y-2">
+                      <Label htmlFor="discount_price">Discount Price (₦)</Label>
+                      <Input
+                        id="discount_price"
+                        type="number"
+                        value={formData.discount_price}
+                        onChange={(e) => setFormData({ ...formData, discount_price: e.target.value })}
+                        placeholder="Optional"
+                        min="0"
+                      />
+                      {formData.discount_price && formData.price && parseFloat(formData.discount_price) < parseFloat(formData.price) && (
+                        <p className="text-xs text-calorie-low font-medium">
+                          {Math.round(((parseFloat(formData.price) - parseFloat(formData.discount_price)) / parseFloat(formData.price)) * 100)}% off
+                        </p>
+                      )}
+                    </div>
                   </div>
+
+                  {/* Serving Unit - Only show for restaurants */}
+                  {vendor?.category === 'restaurant' && (
+                    <div className="space-y-2">
+                      <Label htmlFor="serving_unit">Serving Unit</Label>
+                      <select
+                        id="serving_unit"
+                        value={formData.serving_unit}
+                        onChange={(e) => setFormData({ ...formData, serving_unit: e.target.value as ServingUnit })}
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      >
+                        {servingUnitOptions.map(option => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
                   {/* Food Classes - Only show for restaurants */}
                   {vendor?.category === 'restaurant' && (
@@ -951,9 +977,20 @@ export default function VendorMenu() {
                         {product.description || 'No description'}
                       </p>
                       <div className="flex items-center gap-3 mt-1 flex-wrap">
-                        <span className="font-bold text-primary">
-                          ₦{product.price.toLocaleString()}
-                        </span>
+                      {(product as any).discount_price && (product as any).discount_price < product.price ? (
+                          <>
+                            <span className="font-bold text-primary">
+                              ₦{(product as any).discount_price.toLocaleString()}
+                            </span>
+                            <span className="text-xs text-muted-foreground line-through">
+                              ₦{product.price.toLocaleString()}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="font-bold text-primary">
+                            ₦{product.price.toLocaleString()}
+                          </span>
+                        )}
                         {product.calories && (
                           <span className="text-xs text-muted-foreground flex items-center gap-1">
                             <Flame className="w-3 h-3" />
@@ -979,6 +1016,15 @@ export default function VendorMenu() {
                         onCheckedChange={() => toggleAvailability(product)}
                       />
                       <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1 text-xs"
+                        onClick={() => setAddonDialogProductId(product.id)}
+                      >
+                        <Settings2 className="w-3.5 h-3.5" />
+                        Add-ons
+                      </Button>
+                      <Button
                         variant="ghost"
                         size="icon"
                         onClick={() => handleEdit(product)}
@@ -995,16 +1041,26 @@ export default function VendorMenu() {
                       </Button>
                     </div>
                   </div>
-
-                  {/* Add-on Manager for each product */}
-                  {vendor && (
-                    <div className="px-4 pb-4 border-t border-border pt-3">
-                      <AddonGroupManager productId={product.id} vendorId={vendor.id} />
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
+          )}
+
+          {/* Add-on Management Dialog */}
+          {vendor && (
+            <Dialog open={!!addonDialogProductId} onOpenChange={(open) => { if (!open) setAddonDialogProductId(null); }}>
+              <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Settings2 className="w-5 h-5 text-primary" />
+                    Manage Add-Ons
+                  </DialogTitle>
+                </DialogHeader>
+                {addonDialogProductId && (
+                  <AddonGroupManager productId={addonDialogProductId} vendorId={vendor.id} />
+                )}
+              </DialogContent>
+            </Dialog>
           )}
         </div>
       </main>

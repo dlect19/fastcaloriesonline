@@ -33,7 +33,7 @@ export function ProductCard({ product, vendor }: ProductCardProps) {
       >
         <div className="flex gap-3 p-3">
           {/* Image */}
-          <div className="w-24 h-24 rounded-lg bg-secondary overflow-hidden shrink-0">
+          <div className="w-24 h-24 rounded-lg bg-secondary overflow-hidden shrink-0 relative">
             {product.image_url ? (
               <img
                 src={product.image_url}
@@ -43,6 +43,12 @@ export function ProductCard({ product, vendor }: ProductCardProps) {
             ) : (
               <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/20 to-primary/5">
                 <span className="text-3xl">🍽️</span>
+              </div>
+            )}
+            {/* Discount Badge */}
+            {(product as any).discount_price && (product as any).discount_price < product.price && (
+              <div className="absolute top-0 left-0 bg-destructive text-destructive-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-br-lg">
+                {Math.round(((product.price - (product as any).discount_price) / product.price) * 100)}% OFF
               </div>
             )}
           </div>
@@ -60,9 +66,20 @@ export function ProductCard({ product, vendor }: ProductCardProps) {
             <div className="mt-auto pt-2 flex items-center justify-between">
               {/* Price with serving unit */}
               <div className="flex flex-col">
-                <span className="font-bold text-foreground">
-                  ₦{product.price.toLocaleString()}
-                </span>
+                {(product as any).discount_price && (product as any).discount_price < product.price ? (
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-foreground">
+                      ₦{(product as any).discount_price.toLocaleString()}
+                    </span>
+                    <span className="text-xs text-muted-foreground line-through">
+                      ₦{product.price.toLocaleString()}
+                    </span>
+                  </div>
+                ) : (
+                  <span className="font-bold text-foreground">
+                    ₦{product.price.toLocaleString()}
+                  </span>
+                )}
                 {product.serving_unit && (
                   <span className="text-xs text-muted-foreground">
                     {product.serving_unit}
