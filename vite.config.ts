@@ -70,28 +70,12 @@ export default defineConfig(({ mode }) => ({
     }),
   ].filter(Boolean),
   optimizeDeps: {
-    // Force Vite to re-bundle deps so the patched compose-refs is picked up.
+    // Force re-bundling to pick up the downgraded react-compose-refs v1.0.1
     force: true,
-    esbuildOptions: {
-      // Use esbuild's native alias to redirect react-compose-refs to our
-      // React 18-safe patch during dependency pre-bundling.  This is more
-      // reliable than onResolve/onLoad plugins which can silently fail.
-      alias: {
-        "@radix-ui/react-compose-refs": path.resolve(
-          __dirname,
-          "src/lib/radix-compose-refs-patch.ts",
-        ),
-      },
-    },
   },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-      // Alias for Vite's own module resolution (dev server, SSR, etc.)
-      "@radix-ui/react-compose-refs": path.resolve(
-        __dirname,
-        "src/lib/radix-compose-refs-patch.ts",
-      ),
     },
     // Prevent duplicate React copies in the dependency graph.
     dedupe: ["react", "react-dom"],
