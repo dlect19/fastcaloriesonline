@@ -10,11 +10,12 @@ import { useToast } from '@/hooks/use-toast';
 interface FundWalletDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  callbackUrl?: string; // Override callback URL (e.g., for cart flow)
 }
 
 const PRESET_AMOUNTS = [1000, 2000, 5000, 10000];
 
-export function FundWalletDialog({ open, onOpenChange }: FundWalletDialogProps) {
+export function FundWalletDialog({ open, onOpenChange, callbackUrl }: FundWalletDialogProps) {
   const { initializeFunding } = useCustomerWallet();
   const { toast } = useToast();
   const [amount, setAmount] = useState<number | ''>('');
@@ -36,8 +37,8 @@ export function FundWalletDialog({ open, onOpenChange }: FundWalletDialogProps) 
 
     setLoading(true);
     try {
-      const callbackUrl = `${window.location.origin}/profile/wallet?funding=success`;
-      const result = await initializeFunding(amount, callbackUrl);
+      const url = callbackUrl || `${window.location.origin}/profile/wallet?funding=success`;
+      const result = await initializeFunding(amount, url);
 
       if (result.authorization_url) {
         window.location.href = result.authorization_url;
