@@ -433,6 +433,17 @@ export function ComboManagement({ vendor, products, onRefresh }: ComboManagement
                         onClick={() => toggleProduct(product.id)}
                       >
                         <Checkbox checked={!!isSelected} onCheckedChange={() => toggleProduct(product.id)} />
+                        {product.image_url ? (
+                          <img
+                            src={product.image_url}
+                            alt={product.name}
+                            className="w-10 h-10 rounded-md object-cover shrink-0"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-md bg-secondary flex items-center justify-center shrink-0">
+                            <ImagePlus className="w-4 h-4 text-muted-foreground" />
+                          </div>
+                        )}
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">{product.name}</p>
                           <p className="text-xs text-muted-foreground">₦{product.price.toLocaleString()}</p>
