@@ -32,10 +32,7 @@ const DialogContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
 >(({ className, children, ...props }, ref) => (
   <DialogPortal>
-    {/* Plain backdrop div instead of DialogPrimitive.Overlay to avoid
-        the double-Presence compose-refs infinite loop in React 18.
-        All dialogs use conditional mounting so exit animations aren't needed. */}
-    <div className="fixed inset-0 z-50 bg-black/80" />
+    <DialogOverlay />
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
