@@ -5,6 +5,7 @@ export interface CartAddon {
   itemName: string;
   price: number;
   calories: number;
+  imageUrl?: string;
 }
 
 export interface CartItem {

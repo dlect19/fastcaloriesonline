@@ -454,7 +454,10 @@ export default function OrderDetail() {
                   <div className="ml-4 mt-1 space-y-0.5 border-l-2 border-primary/30 pl-3 mb-2">
                     {orderItemAddons[item.id].map((addon: any) => (
                       <div key={addon.id} className="flex justify-between items-center text-xs">
-                        <span className="text-muted-foreground">
+                        <span className="text-muted-foreground flex items-center gap-1.5">
+                          {addon.image_url && (
+                            <img src={addon.image_url} alt={addon.addon_item_name} className="w-6 h-6 rounded object-cover shrink-0" />
+                          )}
                           + {addon.addon_item_name}
                           {addon.calories > 0 && <span className="ml-1">({addon.calories} cal)</span>}
                         </span>

@@ -33,11 +33,16 @@ export function CartItemCard({ item }: CartItemCardProps) {
           
           {/* Add-ons display */}
           {item.addons && item.addons.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1 mt-1">
+            <div className="flex flex-wrap items-center gap-1.5 mt-1">
               <Settings2 className="w-3 h-3 text-primary shrink-0" />
-              <span className="text-xs text-muted-foreground">
-                {item.addons.map(a => a.itemName).join(', ')}
-              </span>
+              {item.addons.map((a, i) => (
+                <span key={i} className="text-xs text-muted-foreground flex items-center gap-1">
+                  {a.imageUrl && (
+                    <img src={a.imageUrl} alt={a.itemName} className="w-5 h-5 rounded object-cover shrink-0" />
+                  )}
+                  {a.itemName}{i < item.addons!.length - 1 ? ',' : ''}
+                </span>
+              ))}
             </div>
           )}
           

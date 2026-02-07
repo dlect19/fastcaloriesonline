@@ -26,6 +26,7 @@ interface AddonItem {
   calories: number;
   is_available: boolean;
   sort_order: number;
+  image_url?: string | null;
 }
 
 interface AddonGroup {
@@ -43,6 +44,7 @@ export interface SelectedAddon {
   itemName: string;
   price: number;
   calories: number;
+  imageUrl?: string;
 }
 
 interface ProductCustomizationDialogProps {
@@ -100,6 +102,22 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
             .eq('is_available', true)
             .order('sort_order');
 
+          // Fetch linked product images for addon items that have linked_product_id
+          const linkedProductIds = (itemsData || [])
+            .map(i => i.linked_product_id)
+            .filter(Boolean) as string[];
+
+          let productImages: Record<string, string> = {};
+          if (linkedProductIds.length > 0) {
+            const { data: productsData } = await supabase
+              .from('products')
+              .select('id, image_url')
+              .in('id', linkedProductIds);
+            (productsData || []).forEach(p => {
+              if (p.image_url) productImages[p.id] = p.image_url;
+            });
+          }
+
           const groups: AddonGroup[] = groupsData.map(g => ({
             ...g,
             min_selections: g.min_selections ?? 0,
@@ -112,6 +130,7 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
                 calories: i.calories ?? 0,
                 is_available: i.is_available ?? true,
                 sort_order: i.sort_order ?? 0,
+                image_url: i.linked_product_id ? productImages[i.linked_product_id] || null : null,
               })),
           }));
 
@@ -205,6 +224,7 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
               itemName: item.name,
               price: item.additional_price,
               calories: item.calories,
+              imageUrl: item.image_url || undefined,
             });
           }
         }
@@ -255,7 +275,13 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
       quantity,
       calories: (product.calories || 0) + totalAddonCalories,
       imageUrl: product.image_url || undefined,
-      addons: addonsList.length > 0 ? addonsList : undefined,
+      addons: addonsList.length > 0 ? addonsList.map(a => ({
+        groupName: a.groupName,
+        itemName: a.itemName,
+        price: a.price,
+        calories: a.calories,
+        imageUrl: a.imageUrl,
+      })) : undefined,
       addonsDescription,
     });
 
@@ -385,6 +411,9 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
                         >
                           <div className="flex items-center gap-3">
                             <RadioGroupItem value={item.id} />
+                            {item.image_url && (
+                              <img src={item.image_url} alt={item.name} className="w-8 h-8 rounded-md object-cover shrink-0" />
+                            )}
                             <span className="text-sm font-medium">{item.name}</span>
                           </div>
                           <span className={cn(
@@ -415,6 +444,9 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
                                 checked={isChecked}
                                 onCheckedChange={(checked) => handleMultiSelect(group.id, item.id, !!checked)}
                               />
+                              {item.image_url && (
+                                <img src={item.image_url} alt={item.name} className="w-8 h-8 rounded-md object-cover shrink-0" />
+                              )}
                               <span className="text-sm font-medium">{item.name}</span>
                             </div>
                             <span className={cn(
