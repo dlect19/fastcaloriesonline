@@ -3,6 +3,59 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
+import type { Plugin } from "vite";
+
+/**
+ * Vite plugin that patches @radix-ui/react-compose-refs v1.1.2 code at
+ * serve-time.  The v1.1.2 `setRef` does `return ref(value)` which triggers
+ * infinite re-render loops in React 18 because callback refs that return
+ * values (state dispatchers) are re-invoked endlessly.
+ *
+ * This plugin rewrites the compose-refs code in pre-bundled chunks so that
+ * `setRef` never returns, and the cleanup-tracking logic is stripped.
+ */
+function patchComposeRefs(): Plugin {
+  return {
+    name: "patch-radix-compose-refs",
+    enforce: "pre",
+    transform(code, id) {
+      // Only process pre-bundled dep chunks and the compose-refs source
+      if (
+        !id.includes("react-compose-refs") &&
+        !id.includes(".vite/deps/")
+      ) {
+        return null;
+      }
+
+      // Quick check: does this module contain the buggy pattern?
+      if (!code.includes("return ref(value)")) {
+        return null;
+      }
+
+      // Replace the entire compose-refs module code with a React 18-safe version.
+      // We target the specific function patterns from v1.1.2.
+      let patched = code;
+
+      // Fix setRef: remove the `return` so the ref callback result isn't forwarded
+      patched = patched.replace(
+        /function setRef\(ref,\s*value\)\s*\{[\s\S]*?if\s*\(typeof ref === "function"\)\s*\{\s*return ref\(value\);/g,
+        'function setRef(ref, value) {\n  if (typeof ref === "function") {\n    ref(value);'
+      );
+
+      // Replace the composeRefs function that uses cleanup tracking with a simple version
+      patched = patched.replace(
+        /function composeRefs\(\.\.\.refs\)\s*\{[\s\S]*?let hasCleanup[\s\S]*?return[\s\S]*?\}\s*;\s*\}\s*;?\s*\}/g,
+        'function composeRefs(...refs) {\n    return (node) => {\n      refs.forEach((ref) => setRef(ref, node));\n    };\n  }'
+      );
+
+      if (patched !== code) {
+        return { code: patched, map: null };
+      }
+
+      return null;
+    },
+  };
+}
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -14,6 +67,7 @@ export default defineConfig(({ mode }) => ({
     },
   },
   plugins: [
+    patchComposeRefs(),
     react(),
     mode === "development" && componentTagger(),
     VitePWA({
@@ -70,14 +124,12 @@ export default defineConfig(({ mode }) => ({
     }),
   ].filter(Boolean),
   optimizeDeps: {
-    // Force re-bundling to pick up the downgraded react-compose-refs v1.0.1
     force: true,
   },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
-    // Prevent duplicate React copies in the dependency graph.
     dedupe: ["react", "react-dom"],
   },
 }));
