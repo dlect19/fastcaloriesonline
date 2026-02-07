@@ -4,6 +4,11 @@ import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
 
+const safeComposeRefsPath = path.resolve(
+  __dirname,
+  "./src/lib/safe-compose-refs.ts"
+);
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   server: {
@@ -71,18 +76,31 @@ export default defineConfig(({ mode }) => ({
   ].filter(Boolean),
   optimizeDeps: {
     force: true,
+    esbuildOptions: {
+      // Intercept @radix-ui/react-compose-refs during Vite's dependency
+      // pre-bundling (esbuild phase). This ensures that even when other
+      // Radix packages import compose-refs internally, esbuild resolves
+      // it to our safe local implementation.
+      plugins: [
+        {
+          name: "redirect-compose-refs",
+          setup(build) {
+            build.onResolve(
+              { filter: /^@radix-ui\/react-compose-refs$/ },
+              () => ({
+                path: safeComposeRefsPath,
+              })
+            );
+          },
+        },
+      ],
+    },
   },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-      // Redirect ALL imports of @radix-ui/react-compose-refs (including
-      // nested copies inside other Radix packages) to our React 18-safe
-      // local implementation. This works at the resolution level, before
-      // Vite pre-bundles anything, so it catches every copy reliably.
-      "@radix-ui/react-compose-refs": path.resolve(
-        __dirname,
-        "./src/lib/safe-compose-refs.ts"
-      ),
+      // Also alias for non-pre-bundled contexts (SSR, production build)
+      "@radix-ui/react-compose-refs": safeComposeRefsPath,
     },
     dedupe: ["react", "react-dom"],
   },
