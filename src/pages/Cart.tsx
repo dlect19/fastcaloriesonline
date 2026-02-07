@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useCart } from '@/hooks/useCart';
@@ -64,19 +64,63 @@ export default function Cart() {
   const [selectingSuggestion, setSelectingSuggestion] = useState(false);
   const [showFundDialog, setShowFundDialog] = useState(false);
 
-  // Check if user returned from successful wallet funding
+  const [verifyingFunding, setVerifyingFunding] = useState(false);
+  const verificationAttempted = useRef(false);
+
+  // Check if user returned from successful wallet funding - verify with backend
   useEffect(() => {
-    if (searchParams.get('funded') === 'true') {
-      refetchWallet();
-      toast({
-        title: 'Wallet Funded!',
-        description: 'Your wallet has been topped up. You can now complete your order.',
-      });
+    const verifyFunding = async () => {
+      const reference = searchParams.get('trxref') || searchParams.get('reference');
+      const isFunded = searchParams.get('funded') === 'true';
+
+      if ((!reference && !isFunded) || verificationAttempted.current) return;
+
+      verificationAttempted.current = true;
+
+      if (reference) {
+        setVerifyingFunding(true);
+        try {
+          const { data, error } = await supabase.functions.invoke('verify-wallet-funding', {
+            body: { reference },
+          });
+
+          if (error) throw error;
+
+          if (data?.success) {
+            toast({
+              title: 'Wallet Funded!',
+              description: data.message || 'Your wallet has been credited. You can now complete your order.',
+            });
+          } else if (data?.message === 'Already processed') {
+            toast({
+              title: 'Wallet Ready',
+              description: 'Your wallet has been topped up. Complete your order below.',
+            });
+          }
+        } catch (error) {
+          console.error('Error verifying wallet funding:', error);
+          toast({
+            title: 'Verification Issue',
+            description: 'Could not verify funding. Please check your wallet balance.',
+            variant: 'destructive',
+          });
+        } finally {
+          setVerifyingFunding(false);
+        }
+      }
+
+      // Always refetch wallet to get latest balance
+      await refetchWallet();
+
       // Clean up the URL
-      searchParams.delete('funded');
-      setSearchParams(searchParams, { replace: true });
+      const newParams = new URLSearchParams();
+      setSearchParams(newParams, { replace: true });
+    };
+
+    if (user && !authLoading) {
+      verifyFunding();
     }
-  }, []);
+  }, [user, authLoading]);
 
   // Fetch vendor location for delivery fee calculation
   useEffect(() => {
@@ -781,7 +825,7 @@ export default function Cart() {
             <Button 
               className="w-full h-14 text-base font-semibold shadow-button"
               onClick={handlePlaceOrder}
-              disabled={placingOrder || isWalletDisabled || (deliveryType === 'delivery' && (!selectedAddress || addressMissingCoords || coordinateMismatch || geocodingAddress))}
+              disabled={placingOrder || verifyingFunding || isWalletDisabled || (deliveryType === 'delivery' && (!selectedAddress || addressMissingCoords || coordinateMismatch || geocodingAddress))}
             >
               {placingOrder ? (
                 <>
