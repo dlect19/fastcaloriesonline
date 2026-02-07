@@ -353,13 +353,15 @@ export function ComboManagement({ vendor, products, onRefresh }: ComboManagement
           <h2 className="text-lg font-semibold text-foreground">{labels.plural}</h2>
           <Badge variant="secondary">{combos.length}</Badge>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
-          <DialogTrigger asChild>
-            <Button size="sm" className="gap-2">
-              <Plus className="w-4 h-4" />
-              {labels.add}
-            </Button>
-          </DialogTrigger>
+        <Button size="sm" className="gap-2" onClick={() => setDialogOpen(true)}>
+          <Plus className="w-4 h-4" />
+          {labels.add}
+        </Button>
+      </div>
+
+      {/* Combo Dialog - only mount when open to avoid Radix compose-refs infinite loop */}
+      {dialogOpen && (
+        <Dialog open onOpenChange={(open) => { if (!open) { setDialogOpen(false); resetForm(); } }}>
           <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingCombo ? `Edit ${labels.singular}` : labels.add}</DialogTitle>
@@ -533,7 +535,7 @@ export function ComboManagement({ vendor, products, onRefresh }: ComboManagement
             </form>
           </DialogContent>
         </Dialog>
-      </div>
+      )}
 
       {/* Combos List */}
       {loading ? (
