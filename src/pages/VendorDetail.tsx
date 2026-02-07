@@ -145,12 +145,13 @@ export default function VendorDetail() {
       if (categoryError) throw categoryError;
       setCategories(categoryData || []);
 
-      // Fetch products
+      // Fetch products (exclude addon meals from customer listing)
       const { data: productData, error: productError } = await supabase
         .from('products')
         .select('*')
         .eq('vendor_id', id)
         .eq('is_available', true)
+        .neq('meal_type', 'addon')
         .order('name');
 
       if (productError) throw productError;

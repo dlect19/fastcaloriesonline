@@ -38,6 +38,7 @@ export default function OrderDetail() {
   const { toast } = useToast();
   const [order, setOrder] = useState<any>(null);
   const [orderItems, setOrderItems] = useState<any[]>([]);
+  const [orderItemAddons, setOrderItemAddons] = useState<Record<string, any[]>>({});
   const [loading, setLoading] = useState(true);
   const [hasReviewed, setHasReviewed] = useState(false);
   const [processingPayment, setProcessingPayment] = useState(false);
@@ -101,6 +102,23 @@ export default function OrderDetail() {
         .eq('order_id', id);
 
       setOrderItems(items || []);
+
+      // Fetch addons for all order items
+      if (items && items.length > 0) {
+        const itemIds = items.map(i => i.id);
+        const { data: addonsData } = await supabase
+          .from('order_item_addons')
+          .select('*')
+          .in('order_item_id', itemIds);
+
+        // Group addons by order_item_id
+        const addonsMap: Record<string, any[]> = {};
+        (addonsData || []).forEach(addon => {
+          if (!addonsMap[addon.order_item_id]) addonsMap[addon.order_item_id] = [];
+          addonsMap[addon.order_item_id].push(addon);
+        });
+        setOrderItemAddons(addonsMap);
+      }
 
       // Check if user has already reviewed this order
       if (orderData?.status === 'delivered') {
@@ -418,17 +436,35 @@ export default function OrderDetail() {
           </CardHeader>
           <CardContent className="space-y-4">
             {orderItems.map((item) => (
-              <div key={item.id} className="flex justify-between">
-                <div>
-                  <p className="font-medium">{item.quantity}x {item.product_name}</p>
-                  {item.special_instructions && !item.special_instructions.startsWith('Takeaway') && (
-                    <p className="text-xs text-primary/80 mt-0.5">🛠 {item.special_instructions}</p>
-                  )}
-                  {item.calories > 0 && (
-                    <p className="text-sm text-muted-foreground">{item.calories} kcal</p>
-                  )}
+              <div key={item.id}>
+                <div className="flex justify-between">
+                  <div>
+                    <p className="font-medium">{item.quantity}x {item.product_name}</p>
+                    {item.special_instructions && !item.special_instructions.startsWith('Takeaway') && (
+                      <p className="text-xs text-primary/80 mt-0.5">🛠 {item.special_instructions}</p>
+                    )}
+                    {item.calories > 0 && (
+                      <p className="text-sm text-muted-foreground">{item.calories} kcal</p>
+                    )}
+                  </div>
+                  <p className="font-medium">₦{Number(item.total_price).toLocaleString()}</p>
                 </div>
-                <p className="font-medium">₦{Number(item.total_price).toLocaleString()}</p>
+                {/* Order item addons */}
+                {orderItemAddons[item.id] && orderItemAddons[item.id].length > 0 && (
+                  <div className="ml-4 mt-1 space-y-0.5 border-l-2 border-primary/30 pl-3 mb-2">
+                    {orderItemAddons[item.id].map((addon: any) => (
+                      <div key={addon.id} className="flex justify-between items-center text-xs">
+                        <span className="text-muted-foreground">
+                          + {addon.addon_item_name}
+                          {addon.calories > 0 && <span className="ml-1">({addon.calories} cal)</span>}
+                        </span>
+                        {addon.additional_price > 0 && (
+                          <span className="text-primary font-medium">+₦{Number(addon.additional_price).toLocaleString()}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
 
