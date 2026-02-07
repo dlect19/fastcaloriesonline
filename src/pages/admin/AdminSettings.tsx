@@ -10,7 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { MapPin, Bike, DollarSign, Settings2, Save, Loader2, CreditCard, Navigation } from 'lucide-react';
+import { MapPin, Bike, DollarSign, Settings2, Save, Loader2, CreditCard, Navigation, Clock, Store } from 'lucide-react';
 import { EnvironmentSwitch } from '@/components/admin/EnvironmentSwitch';
 import { AdminTestModeToggle } from '@/components/admin/AdminTestModeToggle';
 import { PaystackBalanceCard } from '@/components/admin/PaystackBalanceCard';
@@ -41,8 +41,13 @@ export default function AdminSettings() {
     { key: 'default_vendor_commission_rate', label: 'Vendor Commission Rate', unit: '%', icon: DollarSign, description: 'Platform commission on vendor orders' },
     { key: 'default_rider_share_percentage', label: 'Rider Share', unit: '%', icon: Bike, description: 'Rider share of delivery fee' },
     { key: 'min_withdrawal_amount', label: 'Min Withdrawal', unit: '₦', icon: DollarSign, description: 'Minimum amount for withdrawals' },
-    { key: 'vendor_earnings_hold_hours', label: 'Vendor Hold Period', unit: 'hrs', icon: Settings2, description: 'Hours to hold vendor earnings before eligible' },
     { key: 'rider_earnings_hold_hours', label: 'Rider Hold Period', unit: 'hrs', icon: Settings2, description: 'Hours to hold rider earnings before eligible' },
+  ];
+
+  const settlementSettingsConfig = [
+    { key: 'settlement_hours_restaurant', label: '🍽️ Restaurant', unit: 'hrs', icon: Clock, description: 'Settlement hold for restaurant vendors', defaultVal: '0' },
+    { key: 'settlement_hours_pharmacy', label: '💊 Pharmacy', unit: 'hrs', icon: Clock, description: 'Settlement hold for pharmacy vendors', defaultVal: '12' },
+    { key: 'settlement_hours_market', label: '🛒 Market', unit: 'hrs', icon: Clock, description: 'Settlement hold for market vendors', defaultVal: '24' },
   ];
 
   const navigationApps = [
@@ -108,7 +113,7 @@ export default function AdminSettings() {
     setSaving(true);
     try {
       // Update each setting
-      const allConfigs = [...deliverySettingsConfig, ...financialSettingsConfig];
+      const allConfigs = [...deliverySettingsConfig, ...financialSettingsConfig, ...settlementSettingsConfig];
       for (const config of allConfigs) {
         const value = settings[config.key];
         if (value !== undefined) {
@@ -358,10 +363,76 @@ export default function AdminSettings() {
                     Riders receive <span className="text-primary font-medium">{settings['default_rider_share_percentage'] || '80'}%</span> of delivery fees
                   </p>
                   <p className="text-sm text-muted-foreground mt-2">
-                    Vendor earnings become available after <span className="text-primary font-medium">{settings['vendor_earnings_hold_hours'] || '24'} hours</span>
+                    Rider earnings become available <span className="text-primary font-medium">immediately</span> (hold: {settings['rider_earnings_hold_hours'] || '0'} hours)
+                  </p>
+                </div>
+
+                <div className="flex justify-end">
+                  <Button onClick={handleSave} disabled={saving}>
+                    {saving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4 mr-2" />
+                        Save Settings
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Category-Based Settlement Periods */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Store className="w-5 h-5 text-primary" />
+                  Vendor Settlement Periods
+                </CardTitle>
+                <CardDescription>
+                  Set how long to hold vendor earnings before release, based on vendor category. Use 0 for immediate settlement.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid gap-4 sm:grid-cols-3">
+                  {settlementSettingsConfig.map((config) => (
+                    <div key={config.key} className="space-y-2">
+                      <Label htmlFor={config.key} className="flex items-center gap-2 text-base">
+                        {config.label}
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          id={config.key}
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={settings[config.key] ?? config.defaultVal}
+                          onChange={(e) => handleSettingChange(config.key, e.target.value)}
+                          className="pr-12"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                          hrs
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{config.description}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Settlement Preview */}
+                <div className="p-4 bg-secondary rounded-lg">
+                  <h4 className="text-sm font-medium text-foreground mb-2">Settlement Schedule</h4>
+                  <p className="text-sm text-muted-foreground">
+                    🍽️ Restaurant vendors: <span className="text-primary font-medium">{settings['settlement_hours_restaurant'] === '0' ? 'Immediate' : `${settings['settlement_hours_restaurant'] || '0'} hours`}</span>
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Rider earnings become available <span className="text-primary font-medium">immediately</span> (hold: {settings['rider_earnings_hold_hours'] || '0'} hours)
+                    💊 Pharmacy vendors: <span className="text-primary font-medium">{settings['settlement_hours_pharmacy'] === '0' ? 'Immediate' : `${settings['settlement_hours_pharmacy'] || '12'} hours`}</span>
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    🛒 Market vendors: <span className="text-primary font-medium">{settings['settlement_hours_market'] === '0' ? 'Immediate' : `${settings['settlement_hours_market'] || '24'} hours`}</span>
                   </p>
                 </div>
 
