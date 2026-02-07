@@ -6,50 +6,60 @@ import { VitePWA } from "vite-plugin-pwa";
 import type { Plugin } from "vite";
 
 /**
- * Vite plugin that patches @radix-ui/react-compose-refs v1.1.2 code at
- * serve-time.  The v1.1.2 `setRef` does `return ref(value)` which triggers
- * infinite re-render loops in React 18 because callback refs that return
- * values (state dispatchers) are re-invoked endlessly.
- *
- * This plugin rewrites the compose-refs code in pre-bundled chunks so that
- * `setRef` never returns, and the cleanup-tracking logic is stripped.
+ * React 18-safe replacement for @radix-ui/react-compose-refs v1.1.2.
+ * Strips `return ref(value)` and cleanup-tracking to prevent infinite
+ * setState loops in React 18.
+ */
+const SAFE_COMPOSE_REFS = `
+import * as React from "react";
+function setRef(ref, value) {
+  if (typeof ref === "function") {
+    ref(value);
+  } else if (ref !== null && ref !== void 0) {
+    ref.current = value;
+  }
+}
+function composeRefs(...refs) {
+  return (node) => {
+    refs.forEach((ref) => setRef(ref, node));
+  };
+}
+function useComposedRefs(...refs) {
+  return React.useCallback(composeRefs(...refs), refs);
+}
+export { composeRefs, useComposedRefs };
+`;
+
+/**
+ * Vite/Rollup plugin that replaces every instance of
+ * @radix-ui/react-compose-refs (including nested copies inside other
+ * Radix packages) with a React 18-safe version.  Works during both
+ * dev-serve (Vite transform) and production build (Rollup transform).
  */
 function patchComposeRefs(): Plugin {
   return {
     name: "patch-radix-compose-refs",
     enforce: "pre",
     transform(code, id) {
-      // Only process pre-bundled dep chunks and the compose-refs source
-      if (
-        !id.includes("react-compose-refs") &&
-        !id.includes(".vite/deps/")
-      ) {
-        return null;
+      // Match any path that resolves to react-compose-refs dist files,
+      // including nested node_modules copies like:
+      //   node_modules/@radix-ui/react-presence/node_modules/@radix-ui/react-compose-refs/dist/index.mjs
+      //   node_modules/@radix-ui/react-slot/node_modules/@radix-ui/react-compose-refs/dist/index.mjs
+      //   node_modules/@radix-ui/react-compose-refs/dist/index.mjs
+      if (id.includes("react-compose-refs") && (id.endsWith(".mjs") || id.endsWith(".js"))) {
+        return { code: SAFE_COMPOSE_REFS, map: null };
       }
 
-      // Quick check: does this module contain the buggy pattern?
-      if (!code.includes("return ref(value)")) {
-        return null;
-      }
-
-      // Replace the entire compose-refs module code with a React 18-safe version.
-      // We target the specific function patterns from v1.1.2.
-      let patched = code;
-
-      // Fix setRef: remove the `return` so the ref callback result isn't forwarded
-      patched = patched.replace(
-        /function setRef\(ref,\s*value\)\s*\{[\s\S]*?if\s*\(typeof ref === "function"\)\s*\{\s*return ref\(value\);/g,
-        'function setRef(ref, value) {\n  if (typeof ref === "function") {\n    ref(value);'
-      );
-
-      // Replace the composeRefs function that uses cleanup tracking with a simple version
-      patched = patched.replace(
-        /function composeRefs\(\.\.\.refs\)\s*\{[\s\S]*?let hasCleanup[\s\S]*?return[\s\S]*?\}\s*;\s*\}\s*;?\s*\}/g,
-        'function composeRefs(...refs) {\n    return (node) => {\n      refs.forEach((ref) => setRef(ref, node));\n    };\n  }'
-      );
-
-      if (patched !== code) {
-        return { code: patched, map: null };
+      // Also patch pre-bundled Vite dep chunks that inline compose-refs code
+      if (id.includes(".vite/deps/") && code.includes("return ref(value)") && code.includes("composeRefs")) {
+        // Replace just the setRef return pattern in bundled chunks
+        const patched = code.replace(
+          /return ref\(value\)/g,
+          "ref(value)"
+        );
+        if (patched !== code) {
+          return { code: patched, map: null };
+        }
       }
 
       return null;
