@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, GripVertical, ChevronDown, ChevronUp, Settings2, Link2, Unlink } from 'lucide-react';
+import { Plus, Trash2, GripVertical, ChevronDown, ChevronUp, Settings2, Link2, Unlink, PackagePlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,8 +18,17 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import type { Tables } from '@/integrations/supabase/types';
+
+type Product = Tables<'products'>;
 
 interface AddonItem {
   id: string;
@@ -29,6 +38,7 @@ interface AddonItem {
   calories: number;
   is_available: boolean;
   sort_order: number;
+  linked_product_id: string | null;
 }
 
 interface AddonGroup {
@@ -56,9 +66,12 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
   const [loading, setLoading] = useState(true);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [savingGroup, setSavingGroup] = useState<string | null>(null);
+  const [addonProducts, setAddonProducts] = useState<Product[]>([]);
+  const [addonPickerGroupId, setAddonPickerGroupId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchGroups();
+    fetchAddonProducts();
   }, [productId, vendorId]);
 
   const fetchGroups = async () => {
@@ -99,6 +112,7 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
             calories: item.calories ?? 0,
             is_available: item.is_available ?? true,
             sort_order: item.sort_order ?? 0,
+            linked_product_id: (item as any).linked_product_id || null,
           })),
         }));
 
@@ -110,6 +124,20 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
       console.error('Error fetching addon groups:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAddonProducts = async () => {
+    try {
+      const { data } = await supabase
+        .from('products')
+        .select('*')
+        .eq('vendor_id', vendorId)
+        .eq('meal_type', 'addon')
+        .order('name');
+      setAddonProducts(data || []);
+    } catch (error) {
+      console.error('Error fetching addon products:', error);
     }
   };
 
@@ -225,9 +253,45 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
 
       setGroups(groups.map(g =>
         g.id === groupId
-          ? { ...g, items: [...g.items, { ...data, additional_price: 0, calories: 0, is_available: true, sort_order: data.sort_order ?? 0 }] }
+          ? { ...g, items: [...g.items, { ...data, additional_price: 0, calories: 0, is_available: true, sort_order: data.sort_order ?? 0, linked_product_id: null }] }
           : g
       ));
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    }
+  };
+
+  const addItemFromProduct = async (groupId: string, product: Product) => {
+    try {
+      const group = groups.find(g => g.id === groupId);
+      // Check if this product is already in the group
+      if (group?.items.some(i => i.linked_product_id === product.id)) {
+        toast({ title: 'Already added', description: `${product.name} is already in this group`, variant: 'destructive' });
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('addon_items')
+        .insert({
+          addon_group_id: groupId,
+          name: product.name,
+          additional_price: product.price,
+          calories: product.calories || 0,
+          is_available: product.is_available ?? true,
+          sort_order: group?.items.length || 0,
+          linked_product_id: product.id,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setGroups(groups.map(g =>
+        g.id === groupId
+          ? { ...g, items: [...g.items, { ...data, additional_price: Number(data.additional_price), calories: data.calories ?? 0, is_available: data.is_available ?? true, sort_order: data.sort_order ?? 0, linked_product_id: product.id }] }
+          : g
+      ));
+      toast({ title: `${product.name} added to group` });
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     }
@@ -312,10 +376,12 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
           onUpdateGroup={(updates) => updateGroup(group.id, updates)}
           onDeleteGroup={() => deleteGroup(group.id)}
           onAddItem={() => addItem(group.id)}
+          onAddFromAddonMeals={() => setAddonPickerGroupId(group.id)}
           onUpdateItem={(itemId, updates) => updateItem(group.id, itemId, updates)}
           onDeleteItem={(itemId) => deleteItem(group.id, itemId)}
           groups={groups}
           setGroups={setGroups}
+          hasAddonProducts={addonProducts.length > 0}
         />
       ))}
 
@@ -347,6 +413,57 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
           ))}
         </div>
       )}
+
+      {/* Add-On Meal Picker Dialog */}
+      {addonPickerGroupId && (
+        <Dialog open onOpenChange={(open) => { if (!open) setAddonPickerGroupId(null); }}>
+          <DialogContent className="max-w-sm max-h-[70vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <PackagePlus className="w-5 h-5 text-primary" />
+                Select Add-On Meal
+              </DialogTitle>
+            </DialogHeader>
+            {addonProducts.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">
+                No add-on meals created yet. Create them first in the "Add-On Meals" section above.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {addonProducts.filter(p => p.is_available).map(product => {
+                  const group = groups.find(g => g.id === addonPickerGroupId);
+                  const alreadyAdded = group?.items.some(i => i.linked_product_id === product.id);
+                  return (
+                    <button
+                      key={product.id}
+                      disabled={!!alreadyAdded}
+                      className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors text-left ${alreadyAdded ? 'opacity-50 border-border cursor-not-allowed' : 'border-border hover:border-primary/50 hover:bg-primary/5 cursor-pointer'}`}
+                      onClick={() => {
+                        addItemFromProduct(addonPickerGroupId!, product);
+                        setAddonPickerGroupId(null);
+                      }}
+                    >
+                      {product.image_url ? (
+                        <img src={product.image_url} alt={product.name} className="w-10 h-10 rounded-lg object-cover" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center text-sm">🍲</div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{product.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {product.price > 0 ? `₦${product.price.toLocaleString()}` : 'Free'}
+                          {product.calories ? ` • ${product.calories} cal` : ''}
+                        </p>
+                      </div>
+                      {alreadyAdded && <Badge variant="secondary" className="text-xs shrink-0">Added</Badge>}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
@@ -360,16 +477,18 @@ interface AddonGroupCardProps {
   onUpdateGroup: (updates: Partial<AddonGroup>) => void;
   onDeleteGroup: () => void;
   onAddItem: () => void;
+  onAddFromAddonMeals: () => void;
   onUpdateItem: (itemId: string, updates: Partial<AddonItem>) => void;
   onDeleteItem: (itemId: string) => void;
   groups: AddonGroup[];
   setGroups: React.Dispatch<React.SetStateAction<AddonGroup[]>>;
+  hasAddonProducts: boolean;
 }
 
 function AddonGroupCard({
   group, expanded, onToggleExpand, onToggleLink,
-  onUpdateGroup, onDeleteGroup, onAddItem, onUpdateItem, onDeleteItem,
-  groups, setGroups,
+  onUpdateGroup, onDeleteGroup, onAddItem, onAddFromAddonMeals, onUpdateItem, onDeleteItem,
+  groups, setGroups, hasAddonProducts,
 }: AddonGroupCardProps) {
   return (
     <Collapsible open={expanded} onOpenChange={onToggleExpand}>
@@ -506,6 +625,9 @@ function AddonGroupCard({
               <Label className="text-xs font-medium">Options</Label>
               {group.items.map((item) => (
                 <div key={item.id} className="flex items-center gap-2 bg-muted/50 rounded-lg p-2">
+                  {item.linked_product_id && (
+                    <Badge variant="secondary" className="text-[10px] shrink-0">Meal</Badge>
+                  )}
                   <Input
                     value={item.name}
                     onChange={(e) => {
@@ -518,6 +640,7 @@ function AddonGroupCard({
                     onBlur={() => onUpdateItem(item.id, { name: item.name })}
                     placeholder="Option name"
                     className="h-7 text-sm flex-1"
+                    readOnly={!!item.linked_product_id}
                   />
                   <div className="flex items-center gap-1">
                     <span className="text-xs text-muted-foreground">₦</span>
@@ -535,6 +658,7 @@ function AddonGroupCard({
                       onBlur={() => onUpdateItem(item.id, { additional_price: item.additional_price })}
                       className="h-7 text-sm w-20"
                       min="0"
+                      readOnly={!!item.linked_product_id}
                     />
                   </div>
                   <Switch
@@ -552,16 +676,30 @@ function AddonGroupCard({
                   </Button>
                 </div>
               ))}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="w-full gap-1 h-7 text-xs"
-                onClick={onAddItem}
-              >
-                <Plus className="w-3 h-3" />
-                Add Option
-              </Button>
+              <div className="flex gap-2">
+                {hasAddonProducts && (
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="sm"
+                    className="flex-1 gap-1 h-7 text-xs"
+                    onClick={onAddFromAddonMeals}
+                  >
+                    <PackagePlus className="w-3 h-3" />
+                    Add from Add-On Meals
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 gap-1 h-7 text-xs"
+                  onClick={onAddItem}
+                >
+                  <Plus className="w-3 h-3" />
+                  Add Manual Option
+                </Button>
+              </div>
             </div>
           </CardContent>
         </CollapsibleContent>

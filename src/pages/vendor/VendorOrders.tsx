@@ -38,8 +38,21 @@ type OrderItem = Tables<'order_items'>;
 type OrderStatus = Database['public']['Enums']['order_status'];
 type Vendor = Tables<'vendors'>;
 
+type OrderItemAddon = {
+  id: string;
+  order_item_id: string;
+  addon_group_name: string;
+  addon_item_name: string;
+  additional_price: number;
+  calories: number | null;
+};
+
+type OrderItemWithAddons = OrderItem & {
+  addons?: OrderItemAddon[];
+};
+
 type OrderWithItems = Order & { 
-  items: OrderItem[];
+  items: OrderItemWithAddons[];
   customer?: {
     full_name: string | null;
     phone: string | null;
@@ -214,6 +227,17 @@ export default function VendorOrders() {
             .select('*')
             .in('order_id', orderIds);
 
+          // Fetch order item addons for all items
+          const itemIds = (itemsData || []).map(i => i.id);
+          let addonsData: OrderItemAddon[] = [];
+          if (itemIds.length > 0) {
+            const { data: addonsResult } = await supabase
+              .from('order_item_addons')
+              .select('*')
+              .in('order_item_id', itemIds);
+            addonsData = (addonsResult || []) as OrderItemAddon[];
+          }
+
           // Fetch customer profiles for all unique user_ids
           const userIds = [...new Set(ordersData.map(o => o.user_id).filter(Boolean))] as string[];
           const { data: profilesData } = await supabase
@@ -221,12 +245,18 @@ export default function VendorOrders() {
             .select('user_id, full_name, phone')
             .in('user_id', userIds);
 
-          // Map items and customer profiles to their orders
+          // Map items, addons, and customer profiles to their orders
           const ordersWithItems: OrderWithItems[] = ordersData.map(order => {
             const customerProfile = profilesData?.find(p => p.user_id === order.user_id);
+            const orderItems: OrderItemWithAddons[] = (itemsData || [])
+              .filter(item => item.order_id === order.id)
+              .map(item => ({
+                ...item,
+                addons: addonsData.filter(a => a.order_item_id === item.id),
+              }));
             return {
               ...order,
-              items: (itemsData || []).filter(item => item.order_id === order.id),
+              items: orderItems,
               customer: customerProfile ? {
                 full_name: customerProfile.full_name,
                 phone: customerProfile.phone
@@ -407,23 +437,46 @@ export default function VendorOrders() {
               <div className="bg-muted/30 rounded-lg p-3 mb-3 space-y-2">
                 {order.items.length > 0 ? (
                   order.items.map((item) => (
-                    <div key={item.id} className="flex justify-between items-start text-sm">
-                      <div className="flex-1">
-                        <p className="font-medium text-foreground">
-                          {item.quantity}x {item.product_name}
-                        </p>
-                        {item.special_instructions && (
-                          <p className="text-xs text-primary/80 mt-0.5">
-                            🛠 {item.special_instructions}
+                    <div key={item.id} className="text-sm">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <p className="font-medium text-foreground">
+                            {item.quantity}x {item.product_name}
                           </p>
-                        )}
-                        {item.calories && item.calories > 0 && (
-                          <p className="text-xs text-muted-foreground">{item.calories} cal</p>
-                        )}
+                          {item.special_instructions && (
+                            <p className="text-xs text-primary/80 mt-0.5">
+                              🛠 {item.special_instructions}
+                            </p>
+                          )}
+                          {item.calories && item.calories > 0 && (
+                            <p className="text-xs text-muted-foreground">{item.calories} cal</p>
+                          )}
+                        </div>
+                        <p className="font-medium text-foreground">
+                          ₦{Number(item.total_price).toLocaleString()}
+                        </p>
                       </div>
-                      <p className="font-medium text-foreground">
-                        ₦{Number(item.total_price).toLocaleString()}
-                      </p>
+                      {/* ADD-ONS - Always visible for kitchen clarity */}
+                      {item.addons && item.addons.length > 0 && (
+                        <div className="ml-4 mt-1 space-y-0.5 border-l-2 border-primary/30 pl-3">
+                          <p className="text-xs font-semibold text-primary uppercase tracking-wide">Add-ons:</p>
+                          {item.addons.map((addon) => (
+                            <div key={addon.id} className="flex justify-between items-center text-xs">
+                              <span className="text-foreground">
+                                + {addon.addon_item_name}
+                                {addon.calories && addon.calories > 0 && (
+                                  <span className="text-muted-foreground ml-1">({addon.calories} cal)</span>
+                                )}
+                              </span>
+                              {addon.additional_price > 0 && (
+                                <span className="text-primary font-medium">
+                                  +₦{Number(addon.additional_price).toLocaleString()}
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))
                 ) : (

@@ -21,6 +21,7 @@ import { AccessDenied } from '@/components/vendor/AccessDenied';
 import { ComboManagement } from '@/components/vendor/ComboManagement';
 import { AddonGroupManager } from '@/components/vendor/AddonGroupManager';
 import { TakeawayPackManagement } from '@/components/vendor/TakeawayPackManagement';
+import { AddonMealsList } from '@/components/vendor/AddonMealsList';
 import { useAuth } from '@/hooks/useAuth';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
 import { useToast } from '@/hooks/use-toast';
@@ -455,7 +456,11 @@ export default function VendorMenu() {
     }));
   };
 
-  const filteredProducts = products.filter((p) =>
+  // Separate regular products from addon products
+  const regularProducts = products.filter(p => (p as any).meal_type !== 'addon');
+  const addonProducts = products.filter(p => (p as any).meal_type === 'addon');
+
+  const filteredProducts = regularProducts.filter((p) =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -910,10 +915,17 @@ export default function VendorMenu() {
             />
           </div>
 
+          {/* Add-On Meals Management Section */}
+          {vendor && (
+            <div className="bg-card rounded-xl border border-border p-4">
+              <AddonMealsList vendor={vendor} addonProducts={addonProducts} onRefresh={fetchData} />
+            </div>
+          )}
+
           {/* Combo Management Section */}
           {vendor && (
             <div className="bg-card rounded-xl border border-border p-4">
-              <ComboManagement vendor={vendor} products={products} onRefresh={fetchData} />
+              <ComboManagement vendor={vendor} products={regularProducts} onRefresh={fetchData} />
             </div>
           )}
 

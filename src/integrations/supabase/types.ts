@@ -112,6 +112,7 @@ export type Database = {
           created_at: string
           id: string
           is_available: boolean
+          linked_product_id: string | null
           name: string
           sort_order: number | null
         }
@@ -122,6 +123,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_available?: boolean
+          linked_product_id?: string | null
           name: string
           sort_order?: number | null
         }
@@ -132,6 +134,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_available?: boolean
+          linked_product_id?: string | null
           name?: string
           sort_order?: number | null
         }
@@ -141,6 +144,13 @@ export type Database = {
             columns: ["addon_group_id"]
             isOneToOne: false
             referencedRelation: "addon_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "addon_items_linked_product_id_fkey"
+            columns: ["linked_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
             referencedColumns: ["id"]
           },
         ]
@@ -1555,6 +1565,7 @@ export type Database = {
           id: string
           image_url: string | null
           is_available: boolean | null
+          meal_type: string
           name: string
           nutrient_tags: string[] | null
           price: number
@@ -1579,6 +1590,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_available?: boolean | null
+          meal_type?: string
           name: string
           nutrient_tags?: string[] | null
           price: number
@@ -1603,6 +1615,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_available?: boolean | null
+          meal_type?: string
           name?: string
           nutrient_tags?: string[] | null
           price?: number
