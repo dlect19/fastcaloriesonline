@@ -78,15 +78,20 @@ export default defineConfig(({ mode }) => ({
         {
           name: "patch-radix-compose-refs",
           setup(build) {
-            // Intercept the package during esbuild dep pre-bundling so every
-            // Radix primitive that imports compose-refs gets our React 18 patch.
-            build.onResolve(
-              { filter: /^@radix-ui\/react-compose-refs/ },
+            // Replace the CONTENT of compose-refs at load time so the fix
+            // is inlined into every pre-bundled Radix chunk.  onResolve
+            // redirects don't work reliably for .ts files in this context.
+            build.onLoad(
+              { filter: /react-compose-refs[\\/]dist[\\/]index\.mjs$/ },
               () => ({
-                path: path.resolve(
-                  __dirname,
-                  "src/lib/radix-compose-refs-patch.ts",
-                ),
+                contents: [
+                  'import{useCallback}from"react";',
+                  "function setRef(r,v){if(typeof r==='function'){r(v)}else if(r!=null){r.current=v}}",
+                  "function composeRefs(...refs){return(node)=>{refs.forEach(r=>setRef(r,node))}}",
+                  "function useComposedRefs(...refs){return useCallback(composeRefs(...refs),refs)}",
+                  "export{composeRefs,useComposedRefs};",
+                ].join("\n"),
+                loader: "js",
               }),
             );
           },
