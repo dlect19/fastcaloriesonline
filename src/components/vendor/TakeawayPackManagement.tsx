@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Pencil, Trash2, Package, Loader2, ImagePlus, Info } from 'lucide-react';
@@ -254,144 +254,146 @@ export function TakeawayPackManagement({ vendorId, userId }: TakeawayPackManagem
           <Package className="w-5 h-5 text-primary" />
           <h3 className="font-semibold text-foreground">Takeaway Packs</h3>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={(open) => {
-          setDialogOpen(open);
-          if (!open) resetForm();
-        }}>
-          <DialogTrigger asChild>
-            <Button size="sm">
-              <Plus className="w-4 h-4 mr-1" />
-              Add Pack
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>{editingPack ? 'Edit' : 'Add'} Takeaway Pack</DialogTitle>
-              <DialogDescription>
-                Configure packaging that will be auto-added to customer orders based on thresholds
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 pt-4">
-              {/* Image Upload */}
-              <div className="space-y-2">
-                <Label>Pack Image</Label>
-                <div className="flex items-center gap-4">
-                  {imageUrl ? (
-                    <img
-                      src={imageUrl}
-                      alt="Pack"
-                      className="w-20 h-20 rounded-lg object-cover border border-border"
-                    />
-                  ) : (
-                    <div className="w-20 h-20 rounded-lg bg-secondary flex items-center justify-center">
-                      <Package className="w-8 h-8 text-muted-foreground" />
+        <Button size="sm" onClick={() => setDialogOpen(true)}>
+          <Plus className="w-4 h-4 mr-1" />
+          Add Pack
+        </Button>
+        {dialogOpen && (
+          <Dialog open onOpenChange={(open) => {
+            if (!open) {
+              setDialogOpen(false);
+              resetForm();
+            }
+          }}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>{editingPack ? 'Edit' : 'Add'} Takeaway Pack</DialogTitle>
+                <DialogDescription>
+                  Configure packaging that will be auto-added to customer orders based on thresholds
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 pt-4">
+                {/* Image Upload */}
+                <div className="space-y-2">
+                  <Label>Pack Image</Label>
+                  <div className="flex items-center gap-4">
+                    {imageUrl ? (
+                      <img
+                        src={imageUrl}
+                        alt="Pack"
+                        className="w-20 h-20 rounded-lg object-cover border border-border"
+                      />
+                    ) : (
+                      <div className="w-20 h-20 rounded-lg bg-secondary flex items-center justify-center">
+                        <Package className="w-8 h-8 text-muted-foreground" />
+                      </div>
+                    )}
+                    <label className="cursor-pointer">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleImageUpload}
+                        disabled={uploadingImage}
+                      />
+                      <Button type="button" variant="outline" size="sm" asChild disabled={uploadingImage}>
+                        <span>
+                          {uploadingImage ? (
+                            <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                          ) : (
+                            <ImagePlus className="w-4 h-4 mr-1" />
+                          )}
+                          Upload
+                        </span>
+                      </Button>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Name */}
+                <div className="space-y-2">
+                  <Label htmlFor="name">Pack Name *</Label>
+                  <Input
+                    id="name"
+                    placeholder="e.g., Small Nylon, Paper Box, Food Warmer"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                </div>
+
+                {/* Description */}
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    placeholder="Optional description"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={2}
+                  />
+                </div>
+
+                {/* Price */}
+                <div className="space-y-2">
+                  <Label htmlFor="price">Price (₦) *</Label>
+                  <Input
+                    id="price"
+                    type="number"
+                    placeholder="0"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                  />
+                </div>
+
+                {/* Threshold Type */}
+                <div className="space-y-2">
+                  <Label>Auto-add when</Label>
+                  <Select value={thresholdType} onValueChange={(v) => setThresholdType(v as 'per_item' | 'total_items')}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-popover z-50">
+                      <SelectItem value="per_item">Any single item quantity ≥ threshold</SelectItem>
+                      <SelectItem value="total_items">Total order items ≥ threshold</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Threshold Value */}
+                <div className="space-y-2">
+                  <Label htmlFor="threshold">
+                    {thresholdType === 'per_item' ? 'Item Quantity Threshold' : 'Total Items Threshold'}
+                  </Label>
+                  <Input
+                    id="threshold"
+                    type="number"
+                    min="1"
+                    value={thresholdValue}
+                    onChange={(e) => setThresholdValue(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {thresholdType === 'per_item'
+                      ? `Pack added when any item has ${thresholdValue}+ quantity (e.g., ${thresholdValue} ${servingUnits[0] || 'per plate'})`
+                      : `Pack added when customer orders ${thresholdValue}+ total items`}
+                  </p>
+                  {thresholdType === 'per_item' && servingUnits.length > 0 && (
+                    <div className="flex items-center gap-1.5 mt-2">
+                      <Info className="w-3 h-3 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">
+                        Your products use: {servingUnitExamples}
+                      </span>
                     </div>
                   )}
-                  <label className="cursor-pointer">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleImageUpload}
-                      disabled={uploadingImage}
-                    />
-                    <Button type="button" variant="outline" size="sm" asChild disabled={uploadingImage}>
-                      <span>
-                        {uploadingImage ? (
-                          <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                        ) : (
-                          <ImagePlus className="w-4 h-4 mr-1" />
-                        )}
-                        Upload
-                      </span>
-                    </Button>
-                  </label>
                 </div>
-              </div>
 
-              {/* Name */}
-              <div className="space-y-2">
-                <Label htmlFor="name">Pack Name *</Label>
-                <Input
-                  id="name"
-                  placeholder="e.g., Small Nylon, Paper Box, Food Warmer"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                />
+                <Button onClick={handleSave} disabled={saving} className="w-full">
+                  {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  {editingPack ? 'Update Pack' : 'Add Pack'}
+                </Button>
               </div>
-
-              {/* Description */}
-              <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  placeholder="Optional description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={2}
-                />
-              </div>
-
-              {/* Price */}
-              <div className="space-y-2">
-                <Label htmlFor="price">Price (₦) *</Label>
-                <Input
-                  id="price"
-                  type="number"
-                  placeholder="0"
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                />
-              </div>
-
-              {/* Threshold Type */}
-              <div className="space-y-2">
-                <Label>Auto-add when</Label>
-                <Select value={thresholdType} onValueChange={(v) => setThresholdType(v as 'per_item' | 'total_items')}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-popover z-50">
-                    <SelectItem value="per_item">Any single item quantity ≥ threshold</SelectItem>
-                    <SelectItem value="total_items">Total order items ≥ threshold</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Threshold Value */}
-              <div className="space-y-2">
-                <Label htmlFor="threshold">
-                  {thresholdType === 'per_item' ? 'Item Quantity Threshold' : 'Total Items Threshold'}
-                </Label>
-                <Input
-                  id="threshold"
-                  type="number"
-                  min="1"
-                  value={thresholdValue}
-                  onChange={(e) => setThresholdValue(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {thresholdType === 'per_item'
-                    ? `Pack added when any item has ${thresholdValue}+ quantity (e.g., ${thresholdValue} ${servingUnits[0] || 'per plate'})`
-                    : `Pack added when customer orders ${thresholdValue}+ total items`}
-                </p>
-                {thresholdType === 'per_item' && servingUnits.length > 0 && (
-                  <div className="flex items-center gap-1.5 mt-2">
-                    <Info className="w-3 h-3 text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground">
-                      Your products use: {servingUnitExamples}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              <Button onClick={handleSave} disabled={saving} className="w-full">
-                {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                {editingPack ? 'Update Pack' : 'Add Pack'}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       {packs.length === 0 ? (
