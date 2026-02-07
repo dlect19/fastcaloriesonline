@@ -946,6 +946,7 @@ export type Database = {
           calories: number | null
           created_at: string
           id: string
+          image_url: string | null
           order_item_id: string
         }
         Insert: {
@@ -955,6 +956,7 @@ export type Database = {
           calories?: number | null
           created_at?: string
           id?: string
+          image_url?: string | null
           order_item_id: string
         }
         Update: {
@@ -964,6 +966,7 @@ export type Database = {
           calories?: number | null
           created_at?: string
           id?: string
+          image_url?: string | null
           order_item_id?: string
         }
         Relationships: [

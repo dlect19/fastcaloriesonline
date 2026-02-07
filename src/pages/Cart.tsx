@@ -437,6 +437,7 @@ export default function Cart() {
           addon_item_name: string;
           additional_price: number;
           calories: number;
+          image_url: string | null;
         }> = [];
 
         items.forEach((cartItem, index) => {
@@ -450,6 +451,7 @@ export default function Cart() {
                   addon_item_name: addon.itemName,
                   additional_price: addon.price,
                   calories: addon.calories,
+                  image_url: addon.imageUrl || null,
                 });
               });
             }

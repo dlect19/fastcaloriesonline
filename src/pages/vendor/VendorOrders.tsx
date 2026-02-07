@@ -45,6 +45,7 @@ type OrderItemAddon = {
   addon_item_name: string;
   additional_price: number;
   calories: number | null;
+  image_url: string | null;
 };
 
 type OrderItemWithAddons = OrderItem & {
@@ -462,7 +463,10 @@ export default function VendorOrders() {
                           <p className="text-xs font-semibold text-primary uppercase tracking-wide">Add-ons:</p>
                           {item.addons.map((addon) => (
                             <div key={addon.id} className="flex justify-between items-center text-xs">
-                              <span className="text-foreground">
+                              <span className="text-foreground flex items-center gap-1.5">
+                                {addon.image_url && (
+                                  <img src={addon.image_url} alt={addon.addon_item_name} className="w-6 h-6 rounded object-cover shrink-0" />
+                                )}
                                 + {addon.addon_item_name}
                                 {addon.calories && addon.calories > 0 && (
                                   <span className="text-muted-foreground ml-1">({addon.calories} cal)</span>
