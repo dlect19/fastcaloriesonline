@@ -42,6 +42,8 @@ export default function VendorDashboard() {
   const [stats, setStats] = useState({
     todayOrders: 0,
     todayRevenue: 0,
+    inTransitOrders: 0,
+    inTransitRevenue: 0,
     pendingOrders: 0,
     avgRating: 0,
   });
@@ -139,12 +141,23 @@ export default function VendorDashboard() {
 
         setOrders(ordersData || []);
 
-        // Fetch TODAY's paid orders (separate query, no limit)
-        const { data: todayPaidOrders } = await supabase
+        // Fetch TODAY's DELIVERED paid orders only (completed revenue)
+        const { data: todayDeliveredOrders } = await supabase
           .from('orders')
           .select('id, subtotal, menu_subtotal')
           .eq('vendor_id', vendorData.id)
           .eq('payment_status', 'paid')
+          .eq('status', 'delivered')
+          .gte('created_at', todayStart)
+          .lt('created_at', tomorrowStart);
+
+        // Fetch TODAY's IN-TRANSIT paid orders (paid but not yet delivered or cancelled)
+        const { data: todayInTransitOrders } = await supabase
+          .from('orders')
+          .select('id, subtotal, menu_subtotal')
+          .eq('vendor_id', vendorData.id)
+          .eq('payment_status', 'paid')
+          .in('status', ['confirmed', 'preparing', 'ready_for_pickup', 'picked_up', 'on_the_way'])
           .gte('created_at', todayStart)
           .lt('created_at', tomorrowStart);
 
@@ -165,15 +178,23 @@ export default function VendorDashboard() {
         
         setWalletData(wallet);
 
-        // Calculate stats from actual paid orders today
-        const todayRevenue = (todayPaidOrders || []).reduce(
+        // Calculate stats from delivered orders only
+        const todayRevenue = (todayDeliveredOrders || []).reduce(
+          (sum, o) => sum + Number(o.menu_subtotal || o.subtotal || 0), 
+          0
+        );
+
+        // Calculate in-transit revenue (paid but not yet delivered)
+        const inTransitRevenue = (todayInTransitOrders || []).reduce(
           (sum, o) => sum + Number(o.menu_subtotal || o.subtotal || 0), 
           0
         );
 
         setStats({
-          todayOrders: todayPaidOrders?.length || 0,
+          todayOrders: todayDeliveredOrders?.length || 0,
           todayRevenue: todayRevenue,
+          inTransitOrders: todayInTransitOrders?.length || 0,
+          inTransitRevenue: inTransitRevenue,
           pendingOrders: pendingCount || 0,
           avgRating: vendorData.rating || 0,
         });
@@ -264,12 +285,12 @@ export default function VendorDashboard() {
           </div>
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <Card className="border-0 shadow-soft">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Today's Orders</p>
+                    <p className="text-sm text-muted-foreground">Delivered Today</p>
                     <p className="text-3xl font-bold text-foreground">{stats.todayOrders}</p>
                   </div>
                   <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -287,9 +308,27 @@ export default function VendorDashboard() {
                     <p className="text-3xl font-bold text-foreground">
                       {hasPermission('view_earnings') ? formatCurrency(stats.todayRevenue) : '***'}
                     </p>
+                    <p className="text-xs text-success mt-1">Completed deliveries</p>
                   </div>
                   <div className="w-12 h-12 rounded-xl bg-success/10 flex items-center justify-center">
                     <TrendingUp className="w-6 h-6 text-success" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-soft border-l-4 border-l-warning">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Under Delivery</p>
+                    <p className="text-3xl font-bold text-foreground">
+                      {hasPermission('view_earnings') ? formatCurrency(stats.inTransitRevenue) : '***'}
+                    </p>
+                    <p className="text-xs text-warning mt-1">{stats.inTransitOrders} order{stats.inTransitOrders !== 1 ? 's' : ''} in transit</p>
+                  </div>
+                  <div className="w-12 h-12 rounded-xl bg-warning/10 flex items-center justify-center">
+                    <Bike className="w-6 h-6 text-warning" />
                   </div>
                 </div>
               </CardContent>
