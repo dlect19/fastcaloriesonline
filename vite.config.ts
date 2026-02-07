@@ -3,69 +3,6 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
-import type { Plugin } from "vite";
-
-/**
- * React 18-safe replacement for @radix-ui/react-compose-refs v1.1.2.
- * Strips `return ref(value)` and cleanup-tracking to prevent infinite
- * setState loops in React 18.
- */
-const SAFE_COMPOSE_REFS = `
-import * as React from "react";
-function setRef(ref, value) {
-  if (typeof ref === "function") {
-    ref(value);
-  } else if (ref !== null && ref !== void 0) {
-    ref.current = value;
-  }
-}
-function composeRefs(...refs) {
-  return (node) => {
-    refs.forEach((ref) => setRef(ref, node));
-  };
-}
-function useComposedRefs(...refs) {
-  return React.useCallback(composeRefs(...refs), refs);
-}
-export { composeRefs, useComposedRefs };
-`;
-
-/**
- * Vite/Rollup plugin that replaces every instance of
- * @radix-ui/react-compose-refs (including nested copies inside other
- * Radix packages) with a React 18-safe version.  Works during both
- * dev-serve (Vite transform) and production build (Rollup transform).
- */
-function patchComposeRefs(): Plugin {
-  return {
-    name: "patch-radix-compose-refs",
-    enforce: "pre",
-    transform(code, id) {
-      // Match any path that resolves to react-compose-refs dist files,
-      // including nested node_modules copies like:
-      //   node_modules/@radix-ui/react-presence/node_modules/@radix-ui/react-compose-refs/dist/index.mjs
-      //   node_modules/@radix-ui/react-slot/node_modules/@radix-ui/react-compose-refs/dist/index.mjs
-      //   node_modules/@radix-ui/react-compose-refs/dist/index.mjs
-      if (id.includes("react-compose-refs") && (id.endsWith(".mjs") || id.endsWith(".js"))) {
-        return { code: SAFE_COMPOSE_REFS, map: null };
-      }
-
-      // Also patch pre-bundled Vite dep chunks that inline compose-refs code
-      if (id.includes(".vite/deps/") && code.includes("return ref(value)") && code.includes("composeRefs")) {
-        // Replace just the setRef return pattern in bundled chunks
-        const patched = code.replace(
-          /return ref\(value\)/g,
-          "ref(value)"
-        );
-        if (patched !== code) {
-          return { code: patched, map: null };
-        }
-      }
-
-      return null;
-    },
-  };
-}
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -77,7 +14,6 @@ export default defineConfig(({ mode }) => ({
     },
   },
   plugins: [
-    patchComposeRefs(),
     react(),
     mode === "development" && componentTagger(),
     VitePWA({
@@ -139,6 +75,14 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // Redirect ALL imports of @radix-ui/react-compose-refs (including
+      // nested copies inside other Radix packages) to our React 18-safe
+      // local implementation. This works at the resolution level, before
+      // Vite pre-bundles anything, so it catches every copy reliably.
+      "@radix-ui/react-compose-refs": path.resolve(
+        __dirname,
+        "./src/lib/safe-compose-refs.ts"
+      ),
     },
     dedupe: ["react", "react-dom"],
   },
