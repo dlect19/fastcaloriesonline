@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -432,7 +431,14 @@ export function ComboManagement({ vendor, products, onRefresh }: ComboManagement
                         )}
                         onClick={() => toggleProduct(product.id)}
                       >
-                        <Checkbox checked={!!isSelected} onCheckedChange={() => toggleProduct(product.id)} />
+                        <div
+                          className={cn(
+                            'h-4 w-4 shrink-0 rounded-sm border border-primary flex items-center justify-center',
+                            isSelected ? 'bg-primary text-primary-foreground' : 'bg-background'
+                          )}
+                        >
+                          {isSelected && <Check className="h-3 w-3" />}
+                        </div>
                         {product.image_url ? (
                           <img
                             src={product.image_url}
