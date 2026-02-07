@@ -76,37 +76,49 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
   const fetchAddons = async () => {
     setLoadingAddons(true);
     try {
-      const { data: groupsData } = await supabase
-        .from('addon_groups')
-        .select('*')
-        .eq('product_id', product.id)
-        .order('sort_order');
+      // Fetch addon groups linked to this product via junction table
+      const { data: linkedData } = await supabase
+        .from('product_addon_groups')
+        .select('addon_group_id')
+        .eq('product_id', product.id);
 
-      if (groupsData && groupsData.length > 0) {
-        const groupIds = groupsData.map(g => g.id);
-        const { data: itemsData } = await supabase
-          .from('addon_items')
+      const linkedGroupIds = (linkedData || []).map(l => l.addon_group_id);
+
+      if (linkedGroupIds.length > 0) {
+        const { data: groupsData } = await supabase
+          .from('addon_groups')
           .select('*')
-          .in('addon_group_id', groupIds)
-          .eq('is_available', true)
+          .in('id', linkedGroupIds)
           .order('sort_order');
 
-        const groups: AddonGroup[] = groupsData.map(g => ({
-          ...g,
-          min_selections: g.min_selections ?? 0,
-          max_selections: g.max_selections,
-          items: (itemsData || [])
-            .filter(i => i.addon_group_id === g.id)
-            .map(i => ({
-              ...i,
-              additional_price: Number(i.additional_price),
-              calories: i.calories ?? 0,
-              is_available: i.is_available ?? true,
-              sort_order: i.sort_order ?? 0,
-            })),
-        }));
+        if (groupsData && groupsData.length > 0) {
+          const groupIds = groupsData.map(g => g.id);
+          const { data: itemsData } = await supabase
+            .from('addon_items')
+            .select('*')
+            .in('addon_group_id', groupIds)
+            .eq('is_available', true)
+            .order('sort_order');
 
-        setAddonGroups(groups.filter(g => g.items.length > 0));
+          const groups: AddonGroup[] = groupsData.map(g => ({
+            ...g,
+            min_selections: g.min_selections ?? 0,
+            max_selections: g.max_selections,
+            items: (itemsData || [])
+              .filter(i => i.addon_group_id === g.id)
+              .map(i => ({
+                ...i,
+                additional_price: Number(i.additional_price),
+                calories: i.calories ?? 0,
+                is_available: i.is_available ?? true,
+                sort_order: i.sort_order ?? 0,
+              })),
+          }));
+
+          setAddonGroups(groups.filter(g => g.items.length > 0));
+        } else {
+          setAddonGroups([]);
+        }
       } else {
         setAddonGroups([]);
       }
