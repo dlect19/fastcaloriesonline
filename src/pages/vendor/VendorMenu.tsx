@@ -1046,9 +1046,9 @@ export default function VendorMenu() {
             </div>
           )}
 
-          {/* Add-on Management Dialog */}
-          {vendor && (
-            <Dialog open={!!addonDialogProductId} onOpenChange={(open) => { if (!open) setAddonDialogProductId(null); }}>
+          {/* Add-on Management Dialog - only mount when open to avoid Radix compose-refs conflicts */}
+          {addonDialogProductId && vendor && (
+            <Dialog open onOpenChange={(open) => { if (!open) setAddonDialogProductId(null); }}>
               <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
@@ -1056,9 +1056,7 @@ export default function VendorMenu() {
                     Manage Add-Ons
                   </DialogTitle>
                 </DialogHeader>
-                {addonDialogProductId && (
-                  <AddonGroupManager productId={addonDialogProductId} vendorId={vendor.id} />
-                )}
+                <AddonGroupManager productId={addonDialogProductId} vendorId={vendor.id} />
               </DialogContent>
             </Dialog>
           )}
