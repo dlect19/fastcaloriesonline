@@ -70,32 +70,11 @@ export default defineConfig(({ mode }) => ({
       },
     }),
   ].filter(Boolean),
-  optimizeDeps: {
-    force: true,
-    esbuildOptions: {
-      plugins: [
-        {
-          name: "patch-radix-compose-refs",
-          setup(build) {
-            // Intercept @radix-ui/react-compose-refs during dep pre-bundling
-            // and redirect to our React 18-compatible patch.
-            build.onResolve(
-              { filter: /^@radix-ui\/react-compose-refs/ },
-              () => ({
-                path: path.resolve(__dirname, "src/lib/radix-compose-refs.ts"),
-              }),
-            );
-          },
-        },
-      ],
-    },
-  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-      // Also alias for any source-level imports (not just pre-bundled deps).
-      "@radix-ui/react-compose-refs": path.resolve(__dirname, "./src/lib/radix-compose-refs.ts"),
     },
+    // Prevent duplicate React copies in the dependency graph.
     dedupe: ["react", "react-dom"],
   },
 }));
