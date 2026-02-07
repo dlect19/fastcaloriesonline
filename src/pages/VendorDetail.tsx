@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { VendorHeader } from '@/components/vendor/VendorHeader';
 import { MenuCategoryTabs } from '@/components/vendor/MenuCategoryTabs';
+import { VendorReviewsSection } from '@/components/vendor/VendorReviewsSection';
 import { ProductCard } from '@/components/vendor/ProductCard';
 import { ComboCard } from '@/components/vendor/ComboCard';
 import { CartButton } from '@/components/cart/CartButton';
@@ -388,6 +389,11 @@ export default function VendorDetail() {
           </div>
         )}
       </main>
+
+      {/* Customer Reviews Section */}
+      <div className="container py-2 pb-6">
+        <VendorReviewsSection vendorId={id!} />
+      </div>
 
       <CartButton />
       <BottomNav />
