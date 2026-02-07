@@ -145,7 +145,10 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
     return total;
   }, [selectedAddons, addonGroups]);
 
-  const unitPrice = product.price + totalAddonPrice;
+  const effectivePrice = (product as any).discount_price && (product as any).discount_price < product.price
+    ? (product as any).discount_price
+    : product.price;
+  const unitPrice = effectivePrice + totalAddonPrice;
   const totalPrice = unitPrice * quantity;
   const totalCalories = ((product.calories || 0) + totalAddonCalories) * quantity;
 
@@ -430,9 +433,14 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
                 <span className="text-lg font-bold text-foreground">
                   ₦{totalPrice.toLocaleString()}
                 </span>
+                {effectivePrice < product.price && (
+                  <span className="text-xs text-destructive font-medium">
+                    Was ₦{product.price.toLocaleString()} • {Math.round(((product.price - effectivePrice) / product.price) * 100)}% off
+                  </span>
+                )}
                 {totalAddonPrice > 0 && (
                   <span className="text-xs text-muted-foreground">
-                    Base ₦{product.price.toLocaleString()} + Add-ons ₦{(totalAddonPrice).toLocaleString()} × {quantity}
+                    Base ₦{effectivePrice.toLocaleString()} + Add-ons ₦{(totalAddonPrice).toLocaleString()} × {quantity}
                   </span>
                 )}
                 {product.serving_unit && (

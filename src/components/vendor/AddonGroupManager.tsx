@@ -309,12 +309,48 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="single">Single Choice</SelectItem>
-                        <SelectItem value="multiple">Multiple Choice</SelectItem>
+                        <SelectItem value="single">Single Choice (pick one)</SelectItem>
+                        <SelectItem value="multiple">Multiple Choice (pick many)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
+
+                {/* Min/Max selections for multiple choice */}
+                {group.selection_type === 'multiple' && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Min Selections</Label>
+                      <Input
+                        type="number"
+                        value={group.min_selections}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value) || 0;
+                          setGroups(groups.map(g => g.id === group.id ? { ...g, min_selections: val } : g));
+                        }}
+                        onBlur={() => updateGroup(group.id, { min_selections: group.min_selections })}
+                        className="h-8 text-sm"
+                        min="0"
+                        placeholder="0"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Max Selections</Label>
+                      <Input
+                        type="number"
+                        value={group.max_selections ?? ''}
+                        onChange={(e) => {
+                          const val = e.target.value ? parseInt(e.target.value) : null;
+                          setGroups(groups.map(g => g.id === group.id ? { ...g, max_selections: val } : g));
+                        }}
+                        onBlur={() => updateGroup(group.id, { max_selections: group.max_selections })}
+                        className="h-8 text-sm"
+                        min="1"
+                        placeholder="No limit"
+                      />
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">

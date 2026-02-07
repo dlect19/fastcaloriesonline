@@ -1503,6 +1503,7 @@ export type Database = {
           category_id: string | null
           created_at: string
           description: string | null
+          discount_price: number | null
           fats_grams: number | null
           fiber_grams: number | null
           id: string
@@ -1526,6 +1527,7 @@ export type Database = {
           category_id?: string | null
           created_at?: string
           description?: string | null
+          discount_price?: number | null
           fats_grams?: number | null
           fiber_grams?: number | null
           id?: string
@@ -1549,6 +1551,7 @@ export type Database = {
           category_id?: string | null
           created_at?: string
           description?: string | null
+          discount_price?: number | null
           fats_grams?: number | null
           fiber_grams?: number | null
           id?: string
