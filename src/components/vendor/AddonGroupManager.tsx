@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, GripVertical, ChevronDown, ChevronUp, Settings2 } from 'lucide-react';
+import { Plus, Trash2, GripVertical, ChevronDown, ChevronUp, Settings2, Link2, Unlink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -33,7 +33,7 @@ interface AddonItem {
 
 interface AddonGroup {
   id: string;
-  product_id: string;
+  product_id: string | null;
   vendor_id: string;
   name: string;
   selection_type: string;
@@ -42,6 +42,7 @@ interface AddonGroup {
   max_selections: number | null;
   sort_order: number;
   items: AddonItem[];
+  linkedToProduct: boolean;
 }
 
 interface AddonGroupManagerProps {
@@ -58,17 +59,26 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
 
   useEffect(() => {
     fetchGroups();
-  }, [productId]);
+  }, [productId, vendorId]);
 
   const fetchGroups = async () => {
     try {
+      // Fetch ALL addon groups for this vendor (shared/global)
       const { data: groupsData, error: groupsError } = await supabase
         .from('addon_groups')
         .select('*')
-        .eq('product_id', productId)
+        .eq('vendor_id', vendorId)
         .order('sort_order');
 
       if (groupsError) throw groupsError;
+
+      // Fetch which groups are linked to this product
+      const { data: linkedData } = await supabase
+        .from('product_addon_groups')
+        .select('addon_group_id')
+        .eq('product_id', productId);
+
+      const linkedGroupIds = new Set((linkedData || []).map(l => l.addon_group_id));
 
       if (groupsData && groupsData.length > 0) {
         const groupIds = groupsData.map(g => g.id);
@@ -82,6 +92,7 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
           ...group,
           min_selections: group.min_selections ?? 0,
           max_selections: group.max_selections,
+          linkedToProduct: linkedGroupIds.has(group.id),
           items: (itemsData || []).filter(item => item.addon_group_id === group.id).map(item => ({
             ...item,
             additional_price: Number(item.additional_price),
@@ -102,12 +113,37 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
     }
   };
 
+  const toggleLinkToProduct = async (groupId: string, link: boolean) => {
+    try {
+      if (link) {
+        const { error } = await supabase
+          .from('product_addon_groups')
+          .insert({ product_id: productId, addon_group_id: groupId });
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('product_addon_groups')
+          .delete()
+          .eq('product_id', productId)
+          .eq('addon_group_id', groupId);
+        if (error) throw error;
+      }
+
+      setGroups(groups.map(g =>
+        g.id === groupId ? { ...g, linkedToProduct: link } : g
+      ));
+
+      toast({ title: link ? 'Add-on linked to this product' : 'Add-on unlinked from this product' });
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    }
+  };
+
   const addGroup = async () => {
     try {
       const { data, error } = await supabase
         .from('addon_groups')
         .insert({
-          product_id: productId,
           vendor_id: vendorId,
           name: 'New Add-on Group',
           selection_type: 'single',
@@ -119,10 +155,21 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
 
       if (error) throw error;
 
-      const newGroup: AddonGroup = { ...data, min_selections: 0, max_selections: null, items: [] };
+      // Auto-link to current product
+      await supabase
+        .from('product_addon_groups')
+        .insert({ product_id: productId, addon_group_id: data.id });
+
+      const newGroup: AddonGroup = {
+        ...data,
+        min_selections: 0,
+        max_selections: null,
+        items: [],
+        linkedToProduct: true,
+      };
       setGroups([...groups, newGroup]);
       setExpandedGroups(prev => new Set(prev).add(data.id));
-      toast({ title: 'Add-on group created' });
+      toast({ title: 'Add-on group created & linked' });
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     }
@@ -131,7 +178,7 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
   const updateGroup = async (groupId: string, updates: Partial<AddonGroup>) => {
     setSavingGroup(groupId);
     try {
-      const { items, ...dbUpdates } = updates as any;
+      const { items, linkedToProduct, ...dbUpdates } = updates as any;
       const { error } = await supabase
         .from('addon_groups')
         .update(dbUpdates)
@@ -232,6 +279,9 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
     return <div className="text-sm text-muted-foreground py-2">Loading add-ons...</div>;
   }
 
+  const linkedGroups = groups.filter(g => g.linkedToProduct);
+  const unlinkedGroups = groups.filter(g => !g.linkedToProduct);
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -241,204 +291,281 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
         </div>
         <Button type="button" variant="outline" size="sm" onClick={addGroup} className="gap-1">
           <Plus className="w-3 h-3" />
-          Add Group
+          New Group
         </Button>
       </div>
 
       {groups.length === 0 && (
         <p className="text-xs text-muted-foreground py-2">
-          No add-on groups yet. Add groups like "Sauces", "Extras", "Soups" to let customers customize.
+          No add-on groups yet. Create groups like "Sauces", "Extras", "Soups" to let customers customize.
         </p>
       )}
 
-      {groups.map((group) => (
-        <Collapsible
+      {/* Linked groups */}
+      {linkedGroups.map((group) => (
+        <AddonGroupCard
           key={group.id}
-          open={expandedGroups.has(group.id)}
-          onOpenChange={() => toggleExpanded(group.id)}
-        >
-          <Card className="border-border">
-            <CardHeader className="py-2 px-3">
-              <CollapsibleTrigger asChild>
-                <button className="w-full flex items-center justify-between text-left">
+          group={group}
+          expanded={expandedGroups.has(group.id)}
+          onToggleExpand={() => toggleExpanded(group.id)}
+          onToggleLink={() => toggleLinkToProduct(group.id, false)}
+          onUpdateGroup={(updates) => updateGroup(group.id, updates)}
+          onDeleteGroup={() => deleteGroup(group.id)}
+          onAddItem={() => addItem(group.id)}
+          onUpdateItem={(itemId, updates) => updateItem(group.id, itemId, updates)}
+          onDeleteItem={(itemId) => deleteItem(group.id, itemId)}
+          groups={groups}
+          setGroups={setGroups}
+        />
+      ))}
+
+      {/* Unlinked groups (available to link) */}
+      {unlinkedGroups.length > 0 && (
+        <div className="space-y-2 pt-2">
+          <p className="text-xs text-muted-foreground font-medium flex items-center gap-1">
+            <Unlink className="w-3 h-3" />
+            Other vendor add-on groups (tap to link)
+          </p>
+          {unlinkedGroups.map((group) => (
+            <Card key={group.id} className="border-dashed border-border opacity-70 hover:opacity-100 transition-opacity">
+              <CardHeader className="py-2 px-3">
+                <button
+                  className="w-full flex items-center justify-between text-left"
+                  onClick={() => toggleLinkToProduct(group.id, true)}
+                >
                   <div className="flex items-center gap-2">
-                    <GripVertical className="w-4 h-4 text-muted-foreground" />
-                    <CardTitle className="text-sm">
-                      {group.name || 'Unnamed Group'}
-                    </CardTitle>
-                    <Badge variant="outline" className="text-xs">
-                      {group.selection_type === 'single' ? 'Single' : 'Multiple'}
-                    </Badge>
-                    {group.is_required && (
-                      <Badge variant="default" className="text-xs">Required</Badge>
-                    )}
+                    <Link2 className="w-4 h-4 text-muted-foreground" />
+                    <CardTitle className="text-sm">{group.name || 'Unnamed Group'}</CardTitle>
                     <Badge variant="secondary" className="text-xs">
                       {group.items.length} option{group.items.length !== 1 ? 's' : ''}
                     </Badge>
                   </div>
-                  {expandedGroups.has(group.id) ? (
-                    <ChevronUp className="w-4 h-4 text-muted-foreground" />
-                  ) : (
-                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                  )}
+                  <Badge variant="outline" className="text-xs">+ Link</Badge>
                 </button>
-              </CollapsibleTrigger>
-            </CardHeader>
+              </CardHeader>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
-            <CollapsibleContent>
-              <CardContent className="px-3 pb-3 pt-0 space-y-3">
-                {/* Group Settings */}
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Group Name</Label>
-                    <Input
-                      value={group.name}
-                      onChange={(e) => setGroups(groups.map(g => g.id === group.id ? { ...g, name: e.target.value } : g))}
-                      onBlur={() => updateGroup(group.id, { name: group.name })}
-                      placeholder="e.g. Sauce Options"
-                      className="h-8 text-sm"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Selection Type</Label>
-                    <Select
-                      value={group.selection_type}
-                      onValueChange={(val) => updateGroup(group.id, { selection_type: val })}
-                    >
-                      <SelectTrigger className="h-8 text-sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="single">Single Choice (pick one)</SelectItem>
-                        <SelectItem value="multiple">Multiple Choice (pick many)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
+// Extracted card component for addon groups
+interface AddonGroupCardProps {
+  group: AddonGroup;
+  expanded: boolean;
+  onToggleExpand: () => void;
+  onToggleLink: () => void;
+  onUpdateGroup: (updates: Partial<AddonGroup>) => void;
+  onDeleteGroup: () => void;
+  onAddItem: () => void;
+  onUpdateItem: (itemId: string, updates: Partial<AddonItem>) => void;
+  onDeleteItem: (itemId: string) => void;
+  groups: AddonGroup[];
+  setGroups: React.Dispatch<React.SetStateAction<AddonGroup[]>>;
+}
 
-                {/* Min/Max selections for multiple choice */}
-                {group.selection_type === 'multiple' && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Min Selections</Label>
-                      <Input
-                        type="number"
-                        value={group.min_selections}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value) || 0;
-                          setGroups(groups.map(g => g.id === group.id ? { ...g, min_selections: val } : g));
-                        }}
-                        onBlur={() => updateGroup(group.id, { min_selections: group.min_selections })}
-                        className="h-8 text-sm"
-                        min="0"
-                        placeholder="0"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Max Selections</Label>
-                      <Input
-                        type="number"
-                        value={group.max_selections ?? ''}
-                        onChange={(e) => {
-                          const val = e.target.value ? parseInt(e.target.value) : null;
-                          setGroups(groups.map(g => g.id === group.id ? { ...g, max_selections: val } : g));
-                        }}
-                        onBlur={() => updateGroup(group.id, { max_selections: group.max_selections })}
-                        className="h-8 text-sm"
-                        min="1"
-                        placeholder="No limit"
-                      />
-                    </div>
-                  </div>
+function AddonGroupCard({
+  group, expanded, onToggleExpand, onToggleLink,
+  onUpdateGroup, onDeleteGroup, onAddItem, onUpdateItem, onDeleteItem,
+  groups, setGroups,
+}: AddonGroupCardProps) {
+  return (
+    <Collapsible open={expanded} onOpenChange={onToggleExpand}>
+      <Card className="border-border">
+        <CardHeader className="py-2 px-3">
+          <CollapsibleTrigger asChild>
+            <button className="w-full flex items-center justify-between text-left">
+              <div className="flex items-center gap-2">
+                <GripVertical className="w-4 h-4 text-muted-foreground" />
+                <CardTitle className="text-sm">
+                  {group.name || 'Unnamed Group'}
+                </CardTitle>
+                <Badge variant="outline" className="text-xs">
+                  {group.selection_type === 'single' ? 'Single' : 'Multiple'}
+                </Badge>
+                {group.is_required && (
+                  <Badge variant="default" className="text-xs">Required</Badge>
                 )}
+                <Badge variant="secondary" className="text-xs">
+                  {group.items.length} option{group.items.length !== 1 ? 's' : ''}
+                </Badge>
+              </div>
+              {expanded ? (
+                <ChevronUp className="w-4 h-4 text-muted-foreground" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+              )}
+            </button>
+          </CollapsibleTrigger>
+        </CardHeader>
 
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      checked={group.is_required}
-                      onCheckedChange={(val) => updateGroup(group.id, { is_required: val })}
+        <CollapsibleContent>
+          <CardContent className="px-3 pb-3 pt-0 space-y-3">
+            {/* Group Settings */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label className="text-xs">Group Name</Label>
+                <Input
+                  value={group.name}
+                  onChange={(e) => setGroups(groups.map(g => g.id === group.id ? { ...g, name: e.target.value } : g))}
+                  onBlur={() => onUpdateGroup({ name: group.name })}
+                  placeholder="e.g. Sauce Options"
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Selection Type</Label>
+                <Select
+                  value={group.selection_type}
+                  onValueChange={(val) => onUpdateGroup({ selection_type: val })}
+                >
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="single">Single Choice (pick one)</SelectItem>
+                    <SelectItem value="multiple">Multiple Choice (pick many)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Min/Max selections for multiple choice */}
+            {group.selection_type === 'multiple' && (
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Min Selections</Label>
+                  <Input
+                    type="number"
+                    value={group.min_selections}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value) || 0;
+                      setGroups(groups.map(g => g.id === group.id ? { ...g, min_selections: val } : g));
+                    }}
+                    onBlur={() => onUpdateGroup({ min_selections: group.min_selections })}
+                    className="h-8 text-sm"
+                    min="0"
+                    placeholder="0"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Max Selections</Label>
+                  <Input
+                    type="number"
+                    value={group.max_selections ?? ''}
+                    onChange={(e) => {
+                      const val = e.target.value ? parseInt(e.target.value) : null;
+                      setGroups(groups.map(g => g.id === group.id ? { ...g, max_selections: val } : g));
+                    }}
+                    onBlur={() => onUpdateGroup({ max_selections: group.max_selections })}
+                    className="h-8 text-sm"
+                    min="1"
+                    placeholder="No limit"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={group.is_required}
+                  onCheckedChange={(val) => onUpdateGroup({ is_required: val })}
+                />
+                <Label className="text-xs">Required</Label>
+              </div>
+              <div className="flex gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground h-7 text-xs"
+                  onClick={onToggleLink}
+                  title="Unlink from this product"
+                >
+                  <Unlink className="w-3 h-3 mr-1" />
+                  Unlink
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive h-7 text-xs"
+                  onClick={onDeleteGroup}
+                >
+                  <Trash2 className="w-3 h-3 mr-1" />
+                  Delete
+                </Button>
+              </div>
+            </div>
+
+            {/* Items */}
+            <div className="space-y-2">
+              <Label className="text-xs font-medium">Options</Label>
+              {group.items.map((item) => (
+                <div key={item.id} className="flex items-center gap-2 bg-muted/50 rounded-lg p-2">
+                  <Input
+                    value={item.name}
+                    onChange={(e) => {
+                      setGroups(groups.map(g =>
+                        g.id === group.id
+                          ? { ...g, items: g.items.map(i => i.id === item.id ? { ...i, name: e.target.value } : i) }
+                          : g
+                      ));
+                    }}
+                    onBlur={() => onUpdateItem(item.id, { name: item.name })}
+                    placeholder="Option name"
+                    className="h-7 text-sm flex-1"
+                  />
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-muted-foreground">₦</span>
+                    <Input
+                      type="number"
+                      value={item.additional_price}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0;
+                        setGroups(groups.map(g =>
+                          g.id === group.id
+                            ? { ...g, items: g.items.map(i => i.id === item.id ? { ...i, additional_price: val } : i) }
+                            : g
+                        ));
+                      }}
+                      onBlur={() => onUpdateItem(item.id, { additional_price: item.additional_price })}
+                      className="h-7 text-sm w-20"
+                      min="0"
                     />
-                    <Label className="text-xs">Required</Label>
                   </div>
+                  <Switch
+                    checked={item.is_available}
+                    onCheckedChange={(val) => onUpdateItem(item.id, { is_available: val })}
+                  />
                   <Button
                     type="button"
                     variant="ghost"
-                    size="sm"
-                    className="text-destructive h-7"
-                    onClick={() => deleteGroup(group.id)}
+                    size="icon"
+                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                    onClick={() => onDeleteItem(item.id)}
                   >
-                    <Trash2 className="w-3 h-3 mr-1" />
-                    Delete Group
+                    <Trash2 className="w-3 h-3" />
                   </Button>
                 </div>
-
-                {/* Items */}
-                <div className="space-y-2">
-                  <Label className="text-xs font-medium">Options</Label>
-                  {group.items.map((item) => (
-                    <div key={item.id} className="flex items-center gap-2 bg-muted/50 rounded-lg p-2">
-                      <Input
-                        value={item.name}
-                        onChange={(e) => {
-                          setGroups(groups.map(g =>
-                            g.id === group.id
-                              ? { ...g, items: g.items.map(i => i.id === item.id ? { ...i, name: e.target.value } : i) }
-                              : g
-                          ));
-                        }}
-                        onBlur={() => updateItem(group.id, item.id, { name: item.name })}
-                        placeholder="Option name"
-                        className="h-7 text-sm flex-1"
-                      />
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs text-muted-foreground">₦</span>
-                        <Input
-                          type="number"
-                          value={item.additional_price}
-                          onChange={(e) => {
-                            const val = parseFloat(e.target.value) || 0;
-                            setGroups(groups.map(g =>
-                              g.id === group.id
-                                ? { ...g, items: g.items.map(i => i.id === item.id ? { ...i, additional_price: val } : i) }
-                                : g
-                            ));
-                          }}
-                          onBlur={() => updateItem(group.id, item.id, { additional_price: item.additional_price })}
-                          className="h-7 text-sm w-20"
-                          min="0"
-                        />
-                      </div>
-                      <Switch
-                        checked={item.is_available}
-                        onCheckedChange={(val) => updateItem(group.id, item.id, { is_available: val })}
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                        onClick={() => deleteItem(group.id, item.id)}
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
-                    </div>
-                  ))}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="w-full gap-1 h-7 text-xs"
-                    onClick={() => addItem(group.id)}
-                  >
-                    <Plus className="w-3 h-3" />
-                    Add Option
-                  </Button>
-                </div>
-              </CardContent>
-            </CollapsibleContent>
-          </Card>
-        </Collapsible>
-      ))}
-    </div>
+              ))}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full gap-1 h-7 text-xs"
+                onClick={onAddItem}
+              >
+                <Plus className="w-3 h-3" />
+                Add Option
+              </Button>
+            </div>
+          </CardContent>
+        </CollapsibleContent>
+      </Card>
+    </Collapsible>
   );
 }
