@@ -73,6 +73,10 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // Patch @radix-ui/react-compose-refs to fix infinite loop in React 18.
+      // The original 1.1.2 returns ref(value) for React 19 cleanup refs,
+      // which causes infinite setState loops via nested Presence components.
+      "@radix-ui/react-compose-refs": path.resolve(__dirname, "./src/lib/radix-compose-refs.ts"),
     },
     // Prevent duplicate React copies in the dependency graph.
     // Duplicate React => hooks dispatcher is null => "Cannot read properties of null (reading 'useState')".
