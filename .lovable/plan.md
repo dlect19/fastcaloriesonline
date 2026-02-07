@@ -1,57 +1,71 @@
 
 
-# Fix: Infinite Loop Error + Combo UX Improvements
+## Fix: Permanently Resolve "Maximum update depth exceeded" Error
 
-## Problem
-The vendor menu page (`/vendor/menu`) crashes with a "Maximum update depth exceeded" error. The root cause is the **TakeawayPackManagement** component -- it's the **last remaining component** that still mounts its Dialog permanently in the DOM using the old `<Dialog open={dialogOpen}>` + `<DialogTrigger>` pattern. This triggers a known Radix UI bug where multiple Dialog `Presence` components conflict via `compose-refs`, creating an infinite re-render loop.
+### Problem
+The `@radix-ui/react-compose-refs` package (v1.1.2) contains React 19-specific code that is incompatible with React 18. Its `setRef` function does `return ref(value)`, which in React 18 causes an infinite re-render loop when callback refs return values (interpreted as state dispatches). This crashes the app with a blank screen whenever any Radix UI component (Dialog, Checkbox, Switch, etc.) is rendered -- which is why it breaks when opening the combo creation dialog.
 
-The combo creation interface also needs to show product images alongside names when selecting items for a combo.
+All previous attempts to patch this via Vite/esbuild plugins failed because the esbuild `onLoad` hook returned patched code without a `resolveDir`, causing esbuild to silently fall back to the original buggy code.
 
----
+### Solution: Two-Layer Fix
 
-## Plan
+We will apply the fix at **two levels** to guarantee it works regardless of build caching:
 
-### 1. Fix the crash in TakeawayPackManagement
-**File:** `src/components/vendor/TakeawayPackManagement.tsx`
+**Layer 1 -- Direct source file patching**
+Overwrite the actual package files in `node_modules/@radix-ui/react-compose-refs/dist/`:
+- `index.mjs` (ESM version)
+- `index.js` (CJS version)
 
-Apply the same "conditional mounting" pattern used in the other components:
-- Replace `<Dialog open={dialogOpen}>` + `<DialogTrigger>` with a plain `<Button>` that sets `dialogOpen = true`
-- Only render `{dialogOpen && (<Dialog open ...>)}` so the Dialog is completely unmounted from the DOM when closed
-- This eliminates the Radix compose-refs conflict that causes the infinite loop
+Both will be rewritten to remove the `return ref(value)` and strip the cleanup-tracking logic, making them React 18-safe.
 
-### 2. Show product images in combo product selection
-**File:** `src/components/vendor/ComboManagement.tsx`
+**Layer 2 -- Fixed esbuild plugin (safety net)**
+Update the esbuild plugin in `vite.config.ts` to add the missing `resolveDir` parameter, so that even if `node_modules` gets reinstalled, the build-time patch will work as a fallback.
 
-Update the product selection list inside the combo creation form:
-- Display each product's image (or a placeholder icon) next to its name in the selection list
-- Show the product price beside each item for easy reference
-- Keep the existing checkbox + quantity controls
+### Files to Change
 
----
+1. **`node_modules/@radix-ui/react-compose-refs/dist/index.mjs`** -- Overwrite with React 18-safe ESM version:
+   - Replace `return ref(value)` with `ref(value)` (no return)
+   - Remove cleanup-tracking logic from `composeRefs`
+   - Keep the same exports (`composeRefs`, `useComposedRefs`)
 
-## Technical Details
+2. **`node_modules/@radix-ui/react-compose-refs/dist/index.js`** -- Overwrite with React 18-safe CJS version:
+   - Same logic changes as the ESM version
+   - Keep CJS module format
 
-### TakeawayPackManagement fix (lines 257-266 to 394):
+3. **`vite.config.ts`** -- Fix the esbuild plugin:
+   - Add `resolveDir` pointing to the package's `dist/` directory so esbuild can resolve `react` imports
+   - Broaden the `onLoad` filter to match both `.mjs` and `.js` variants
+   - Keep `force: true` to ensure the patched files are picked up
 
+4. **`src/lib/radix-compose-refs-patch.ts`** -- Delete (no longer needed as a separate file since we are patching at source)
+
+5. **`vite.config.ts` resolve.alias** -- Remove the `@radix-ui/react-compose-refs` alias entry (no longer needed)
+
+### Technical Details
+
+The patched `setRef` function (both ESM and CJS):
 ```text
-Before (broken):
-  <Dialog open={dialogOpen} onOpenChange={...}>
-    <DialogTrigger asChild>
-      <Button>Add Pack</Button>
-    </DialogTrigger>
-    <DialogContent>...</DialogContent>
-  </Dialog>
-
-After (fixed):
-  <Button onClick={() => setDialogOpen(true)}>Add Pack</Button>
-  {dialogOpen && (
-    <Dialog open onOpenChange={(open) => { if (!open) { setDialogOpen(false); resetForm(); } }}>
-      <DialogContent>...</DialogContent>
-    </Dialog>
-  )}
+function setRef(ref, value) {
+  if (typeof ref === "function") {
+    ref(value);          // <-- no "return", prevents cleanup dispatch loop
+  } else if (ref !== null && ref !== undefined) {
+    ref.current = value;
+  }
+}
 ```
 
-### ComboManagement product selection (lines 424-466):
+The patched `composeRefs` function:
+```text
+function composeRefs(...refs) {
+  return (node) => {
+    refs.forEach((ref) => setRef(ref, node));
+  };
+  // No cleanup tracking -- React 18 does not support ref cleanup returns
+}
+```
 
-Update the product list items to include a small product image thumbnail (40x40px) next to the product name in each selection row, making it easier for vendors to identify products visually.
+### Why This Will Work
+- Directly overwriting the source files means every Radix package that imports from `@radix-ui/react-compose-refs` will get the fixed code, whether during pre-bundling or at runtime
+- The esbuild plugin acts as a safety net with the corrected `resolveDir` parameter
+- No more reliance on build-cache timing or alias resolution order
 
