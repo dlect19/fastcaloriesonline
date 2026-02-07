@@ -82,6 +82,7 @@ export default function VendorWithdraw() {
   const [otp, setOtp] = useState('');
   const [sendingOtp, setSendingOtp] = useState(false);
   const [recipientEnvironment, setRecipientEnvironment] = useState<string | null>(null);
+  const [settlementHours, setSettlementHours] = useState<number | null>(null);
 
   // Bank details form
   const [bankName, setBankName] = useState('');
@@ -218,6 +219,20 @@ export default function VendorWithdraw() {
           .maybeSingle();
         
         setRecipientEnvironment(recipientData?.created_in_environment || null);
+      }
+
+      // Fetch settlement hours based on vendor category
+      if (vendorData?.category) {
+        const categoryKey = `settlement_hours_${vendorData.category.toLowerCase()}`;
+        const { data: settlementData } = await supabase
+          .from('platform_settings')
+          .select('value')
+          .eq('key', categoryKey)
+          .maybeSingle();
+        
+        setSettlementHours(settlementData ? Number(settlementData.value) : 24);
+      } else {
+        setSettlementHours(24);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -558,19 +573,21 @@ export default function VendorWithdraw() {
             </Card>
           )}
 
-          {/* Dispute Notice */}
-          <Card className="border-yellow-200 bg-yellow-50">
-            <CardContent className="p-4 flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
-              <div>
-                <p className="font-medium text-yellow-800">24-Hour Settlement Period</p>
-                <p className="text-sm text-yellow-700">
-                  For dispute protection, withdrawals are only available for orders delivered 24+ hours ago. 
-                  This helps resolve any customer complaints or refund requests.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Dispute Notice - only show if settlement period > 0 */}
+          {settlementHours !== null && settlementHours > 0 && (
+            <Card className="border-yellow-200 bg-yellow-50">
+              <CardContent className="p-4 flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
+                <div>
+                  <p className="font-medium text-yellow-800">{settlementHours}-Hour Settlement Period</p>
+                  <p className="text-sm text-yellow-700">
+                    For dispute protection, withdrawals are only available for orders delivered {settlementHours}+ hours ago. 
+                    This helps resolve any customer complaints or refund requests.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Revenue Pool Selection Cards */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -653,7 +670,11 @@ export default function VendorWithdraw() {
                   <div>
                     <p className="text-sm text-muted-foreground">Total Pending</p>
                     <p className="text-2xl font-bold text-foreground">{formatCurrency(wallet?.pending_balance || 0)}</p>
-                    <p className="text-xs text-muted-foreground">Menu sales (24hr hold)</p>
+                    <p className="text-xs text-muted-foreground">
+                      {settlementHours !== null && settlementHours > 0 
+                        ? `Menu sales (${settlementHours}hr hold)` 
+                        : 'Menu sales (no hold)'}
+                    </p>
                   </div>
                   <div className="w-12 h-12 rounded-xl bg-warning/10 flex items-center justify-center">
                     <Clock className="w-6 h-6 text-warning" />
