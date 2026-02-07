@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useCart } from '@/hooks/useCart';
 import { useTakeawayPacks } from '@/hooks/useTakeawayPacks';
@@ -18,11 +18,11 @@ import { OrderSummary } from '@/components/cart/OrderSummary';
 import { AddressSelector } from '@/components/cart/AddressSelector';
 import { TakeawayPackDisplay } from '@/components/cart/TakeawayPackDisplay';
 import { PromoCodeInput } from '@/components/cart/PromoCodeInput';
-import { PaymentMethodSelector, PaymentMethod } from '@/components/cart/PaymentMethodSelector';
 import { ActiveDiscountSelector } from '@/components/cart/ActiveDiscountSelector';
+import { FundWalletDialog } from '@/components/profile/FundWalletDialog';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { ArrowLeft, ShoppingBag, Leaf, Loader2, AlertTriangle, Store, Phone, MapPin, Navigation } from 'lucide-react';
+import { ArrowLeft, ShoppingBag, Leaf, Loader2, AlertTriangle, Store, Phone, MapPin, Navigation, Wallet } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Tables } from '@/integrations/supabase/types';
 
@@ -41,10 +41,11 @@ export default function Cart() {
   const { items, vendorId, vendorName, subtotal, totalCalories, clearCart } = useCart();
   const { getApplicablePacks } = useTakeawayPacks(vendorId);
   const { appliedPromo, incrementUsage, clearPromo: clearPromoHook, resetAfterOrder } = usePromoCode();
-  const { balance: walletBalance, isDisabled: isWalletDisabled, payWithWallet } = useCustomerWallet();
+  const { balance: walletBalance, isDisabled: isWalletDisabled, hasDVA, dvaDetails, payWithWallet, refetch: refetchWallet } = useCustomerWallet();
   const { activeDiscounts, getBestDiscount, useDiscount } = useSpinWheel();
   const { eligibility, getBestPlatformPromo, markFirstOrderUsed } = usePlatformPromos();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
 
   const [addresses, setAddresses] = useState<Address[]>([]);
@@ -55,13 +56,27 @@ export default function Cart() {
   const [appliedPromoCode, setAppliedPromoCode] = useState<string | null>(null);
   const [vendorLocation, setVendorLocation] = useState<VendorLocation>({ latitude: null, longitude: null, address: null });
   const [deliveryType, setDeliveryType] = useState<DeliveryType>('delivery');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
   const [selectedDiscountType, setSelectedDiscountType] = useState<'none' | 'promo' | 'spin' | 'platform'>('none');
   const [selectedSpinDiscountId, setSelectedSpinDiscountId] = useState<string | null>(null);
   const [receiverPhone, setReceiverPhone] = useState<string>('');
   const [geocodingAddress, setGeocodingAddress] = useState(false);
   const [locationSuggestions, setLocationSuggestions] = useState<GeocodeSuggestion[]>([]);
   const [selectingSuggestion, setSelectingSuggestion] = useState(false);
+  const [showFundDialog, setShowFundDialog] = useState(false);
+
+  // Check if user returned from successful wallet funding
+  useEffect(() => {
+    if (searchParams.get('funded') === 'true') {
+      refetchWallet();
+      toast({
+        title: 'Wallet Funded!',
+        description: 'Your wallet has been topped up. You can now complete your order.',
+      });
+      // Clean up the URL
+      searchParams.delete('funded');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, []);
 
   // Fetch vendor location for delivery fee calculation
   useEffect(() => {
@@ -93,35 +108,24 @@ export default function Cart() {
   
   const deliveryFee = deliveryType === 'self_pickup' ? 0 : calculatedDeliveryFee;
 
-  // Detect coordinate mismatch - GPS captured at wrong location (e.g., at vendor instead of home)
+  // Detect coordinate mismatch
   const coordinateMismatch = useMemo(() => {
-    // Only check if we have coordinates and distance is calculated
     if (!hasCoordinates || distanceKm === null) return false;
-    
-    // If distance is very small (<0.5km) but cities appear different, flag as suspicious
     if (distanceKm > 0.5) return false;
     
     const vendorAddr = vendorLocation.address?.toLowerCase() || '';
     const customerCity = selectedAddress?.city?.toLowerCase() || '';
     const customerAddrLine = selectedAddress?.address_line?.toLowerCase() || '';
-    
-    // Check if customer's address text suggests a different area than where GPS shows
-    // This catches cases where GPS was captured while at the vendor's location
     const customerArea = `${customerAddrLine} ${customerCity}`;
     
-    // If vendor address and customer address share key words, it's probably fine
     if (!vendorAddr || !customerArea) return false;
     
-    // Extract key area identifiers (last 2-3 words often indicate neighborhood)
     const vendorWords = vendorAddr.split(/[\s,]+/).filter(w => w.length > 2);
     const customerWords = customerArea.split(/[\s,]+/).filter(w => w.length > 2);
-    
-    // If any key words match, assume it's the same area
     const hasCommonArea = vendorWords.some(vw => 
       customerWords.some(cw => vw.includes(cw) || cw.includes(vw))
     );
     
-    // Distance is ~0 but no common area words = likely GPS captured at wrong place
     return !hasCommonArea;
   }, [hasCoordinates, distanceKm, vendorLocation.address, selectedAddress?.city, selectedAddress?.address_line]);
 
@@ -134,7 +138,7 @@ export default function Cart() {
         (!selectedAddress.latitude || !selectedAddress.longitude)
       ) {
         setGeocodingAddress(true);
-        setLocationSuggestions([]); // Clear previous suggestions
+        setLocationSuggestions([]);
         toast({
           title: 'Calculating Distance...',
           description: 'Getting delivery address coordinates',
@@ -147,7 +151,6 @@ export default function Cart() {
         );
 
         if (result) {
-          // Update database and local state with coordinates
           await updateAddressCoordinates(selectedAddress.id, result.latitude, result.longitude);
           setSelectedAddress({
             ...selectedAddress,
@@ -159,7 +162,6 @@ export default function Cart() {
             description: 'Delivery fee updated based on your address.',
           });
         } else if (suggestions.length > 0) {
-          // Show suggestions for user to pick from
           setLocationSuggestions(suggestions);
           toast({
             title: 'Select Nearby Location',
@@ -179,7 +181,6 @@ export default function Cart() {
     geocodeIfNeeded();
   }, [selectedAddress?.id, deliveryType]);
 
-  // Handle selecting a location suggestion
   const handleSelectSuggestion = async (suggestion: GeocodeSuggestion) => {
     if (!selectedAddress) return;
     
@@ -218,6 +219,8 @@ export default function Cart() {
 
   const serviceFee = 100;
   const total = subtotal + deliveryFee + serviceFee + packagingFee - promoDiscount;
+  const insufficientBalance = walletBalance < total;
+  const shortfall = total - walletBalance;
 
   const handlePromoApplied = (discount: number, code: string | null) => {
     setPromoDiscount(discount);
@@ -250,7 +253,6 @@ export default function Cart() {
       
       setAddresses(data || []);
       
-      // Auto-select default or first address
       const defaultAddr = data?.find(a => a.is_default) || data?.[0];
       if (defaultAddr) {
         setSelectedAddress(defaultAddr);
@@ -262,8 +264,6 @@ export default function Cart() {
     }
   };
 
-  // Derived flag: address missing precise GPS coordinates
-  // Derived flag: address missing precise GPS coordinates or has mismatched GPS
   const addressMissingCoords = deliveryType === 'delivery' && selectedAddress && (!selectedAddress.latitude || !selectedAddress.longitude);
   const addressHasIssue = addressMissingCoords || (deliveryType === 'delivery' && coordinateMismatch);
 
@@ -279,7 +279,6 @@ export default function Cart() {
       return;
     }
 
-    // Block checkout if address has no GPS (geocoding failed) – user must capture manually
     if (addressMissingCoords) {
       toast({
         title: 'GPS Location Required',
@@ -289,7 +288,6 @@ export default function Cart() {
       return;
     }
 
-    // Block checkout if GPS coordinates seem wrong (captured at vendor location)
     if (coordinateMismatch) {
       toast({
         title: 'GPS Location Mismatch',
@@ -299,33 +297,32 @@ export default function Cart() {
       return;
     }
 
-    // Validate payment method
-    if (paymentMethod === 'wallet' && walletBalance < total) {
+    if (isWalletDisabled) {
       toast({
-        title: 'Insufficient Balance',
-        description: 'Your wallet balance is not enough for this order',
+        title: 'Wallet Disabled',
+        description: 'Your wallet has been disabled. Please contact support.',
         variant: 'destructive',
       });
       return;
     }
 
+    // Check wallet balance - if insufficient, prompt to fund
+    if (insufficientBalance) {
+      setShowFundDialog(true);
+      return;
+    }
+
     setPlacingOrder(true);
     try {
-      // Determine payment method for order
-      const orderPaymentMethod = paymentMethod === 'wallet' ? 'wallet' : 'paystack';
-      
-      // Determine promo type for order_financials tracking
       const promoType = selectedDiscountType === 'spin' ? 'spin' 
         : selectedDiscountType === 'platform' ? 'platform_promo'
         : selectedDiscountType === 'promo' ? 'promo_code' 
         : null;
 
-      // Build delivery instructions with receiver phone if provided
       const deliveryInstructions = receiverPhone.trim() 
         ? `Receiver Phone: ${receiverPhone.trim()}`
         : null;
 
-      // Create order with menu_subtotal for accurate commission calculation
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert({
@@ -333,10 +330,10 @@ export default function Cart() {
           promo_code: appliedPromoCode || (promoType === 'spin' ? `SPIN-${selectedSpinDiscountId}` : null),
           discount: promoDiscount,
           vendor_id: vendorId,
-          order_number: '', // Will be generated by trigger
-          menu_subtotal: subtotal, // Full menu price before discount
-          subtotal: subtotal + packagingFee - promoDiscount, // Subtotal includes packaging, minus discount
-          packaging_fee: packagingFee, // Store packaging fee separately
+          order_number: '',
+          menu_subtotal: subtotal,
+          subtotal: subtotal + packagingFee - promoDiscount,
+          packaging_fee: packagingFee,
           delivery_fee: deliveryFee,
           service_fee: serviceFee,
           total,
@@ -349,7 +346,7 @@ export default function Cart() {
           delivery_type: deliveryType,
           status: 'pending',
           payment_status: 'pending',
-          payment_method: orderPaymentMethod,
+          payment_method: 'wallet',
         })
         .select()
         .single();
@@ -368,10 +365,9 @@ export default function Cart() {
         special_instructions: item.addonsDescription || null,
       }));
 
-      // Add takeaway packs as order items
       const packItems = applicablePacks.map(pack => ({
         order_id: order.id,
-        product_id: null, // No product reference for packs
+        product_id: null,
         product_name: `📦 ${pack.name}`,
         quantity: 1,
         unit_price: pack.price,
@@ -431,68 +427,37 @@ export default function Cart() {
           meal_type: 'order',
         });
 
-      // Increment promo code usage if one was applied and clear the promo state
+      // Increment promo code usage
       if (appliedPromo?.id) {
         await incrementUsage(appliedPromo.id);
       }
       
-      // Mark first-order promo as used if platform promo was selected
       if (selectedDiscountType === 'platform' && eligibility.firstOrderDiscount) {
         await markFirstOrderUsed();
       }
       
-      // Clear promo state after order is placed (prevents showing after usage)
       resetAfterOrder();
       setPromoDiscount(0);
       setAppliedPromoCode(null);
       setSelectedDiscountType('none');
 
-      // Process payment based on method
-      if (paymentMethod === 'wallet') {
-        // Pay with wallet
-        try {
-          await payWithWallet(order.id);
-          clearCart();
-          toast({
-            title: 'Order Placed!',
-            description: 'Your order has been paid with wallet balance.',
-          });
-          navigate(`/orders/${order.id}`);
-        } catch (walletError) {
-          console.error('Wallet payment error:', walletError);
-          toast({
-            title: 'Payment Failed',
-            description: walletError instanceof Error ? walletError.message : 'Failed to process wallet payment',
-            variant: 'destructive',
-          });
-        }
-      } else {
-        // Pay with Paystack (card)
-        const callbackUrl = `${window.location.origin}/payment-callback`;
-        const { data: paymentData, error: paymentError } = await supabase.functions.invoke(
-          'paystack-initialize-payment',
-          {
-            body: { orderId: order.id, callbackUrl },
-          }
-        );
-
-        if (paymentError || !paymentData?.authorization_url) {
-          console.error('Payment initialization error:', paymentError || paymentData);
-          toast({
-            title: 'Payment Error',
-            description: 'Could not initialize payment. Please try again.',
-            variant: 'destructive',
-          });
-          return;
-        }
-
-        // Clear cart before redirecting
+      // Pay with wallet
+      try {
+        await payWithWallet(order.id);
         clearCart();
-
-        // Redirect to Paystack checkout
-        window.location.href = paymentData.authorization_url;
+        toast({
+          title: 'Order Placed!',
+          description: 'Your order has been paid with wallet balance.',
+        });
+        navigate(`/orders/${order.id}`);
+      } catch (walletError) {
+        console.error('Wallet payment error:', walletError);
+        toast({
+          title: 'Payment Failed',
+          description: walletError instanceof Error ? walletError.message : 'Failed to process wallet payment',
+          variant: 'destructive',
+        });
       }
-
     } catch (error) {
       console.error('Error placing order:', error);
       toast({
@@ -605,7 +570,6 @@ export default function Cart() {
                   onAddressAdded={fetchAddresses}
                 />
                 
-                {/* Geocoding indicator */}
                 {geocodingAddress && (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground bg-secondary/50 p-3 rounded-lg">
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -613,10 +577,8 @@ export default function Cart() {
                   </div>
                 )}
 
-                {/* ⚠️ Missing GPS warning with suggestions – block checkout until fixed */}
                 {!geocodingAddress && addressMissingCoords && (
                   <div className="space-y-3">
-                    {/* Warning message */}
                     <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-lg">
                       <AlertTriangle className="w-4 h-4 shrink-0" />
                       <span>
@@ -624,7 +586,6 @@ export default function Cart() {
                       </span>
                     </div>
                     
-                    {/* Location suggestions */}
                     {locationSuggestions.length > 0 && (
                       <div className="bg-secondary/50 rounded-lg border border-border p-3 space-y-2">
                         <p className="text-sm font-medium text-foreground flex items-center gap-2">
@@ -659,7 +620,6 @@ export default function Cart() {
                   </div>
                 )}
 
-                {/* ⚠️ Coordinate mismatch warning – GPS captured at wrong location */}
                 {!geocodingAddress && !addressMissingCoords && coordinateMismatch && (
                   <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-lg">
                     <AlertTriangle className="w-4 h-4" />
@@ -669,7 +629,6 @@ export default function Cart() {
                   </div>
                 )}
 
-                {/* Distance info for transparency */}
                 {hasCoordinates && distanceKm !== null && !geocodingAddress && (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground bg-secondary/50 p-3 rounded-lg">
                     <MapPin className="w-4 h-4 text-primary" />
@@ -679,7 +638,6 @@ export default function Cart() {
                   </div>
                 )}
 
-                {/* Out of range warning */}
                 {isOutOfRange && selectedAddress && (
                   <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-lg">
                     <AlertTriangle className="w-4 h-4" />
@@ -715,7 +673,7 @@ export default function Cart() {
               disabled={selectedDiscountType === 'spin' || selectedDiscountType === 'platform'}
             />
 
-            {/* Active Discount Selector - Spin Rewards, Platform Promos, Promo Codes */}
+            {/* Active Discount Selector */}
             <ActiveDiscountSelector
               activeSpinDiscounts={activeDiscounts}
               platformPromo={getBestPlatformPromo()}
@@ -728,13 +686,10 @@ export default function Cart() {
                 setSelectedDiscountType(type);
                 if (type === 'spin' && spinId) {
                   setSelectedSpinDiscountId(spinId);
-                  // Calculate spin discount
                   const spinDiscount = activeDiscounts.find(d => d.id === spinId);
                   if (spinDiscount) {
                     setPromoDiscount(Math.round((subtotal * spinDiscount.discount_percentage) / 100));
                   }
-                  // Force wallet payment for spin discounts
-                  setPaymentMethod('wallet');
                 } else if (type === 'platform') {
                   const platformPromo = getBestPlatformPromo();
                   if (platformPromo) {
@@ -742,7 +697,6 @@ export default function Cart() {
                   }
                   setSelectedSpinDiscountId(null);
                 } else if (type === 'promo') {
-                  // Keep existing promo code discount
                   setSelectedSpinDiscountId(null);
                 } else {
                   setPromoDiscount(0);
@@ -751,21 +705,59 @@ export default function Cart() {
               }}
             />
 
-            {/* Payment Method Selector */}
-            <PaymentMethodSelector
-              walletBalance={walletBalance}
-              orderTotal={total}
-              selectedMethod={paymentMethod}
-              onMethodChange={(method) => {
-                // Prevent changing from wallet if spin discount is selected
-                if (selectedDiscountType === 'spin' && method !== 'wallet') {
-                  return;
-                }
-                setPaymentMethod(method);
-              }}
-              isWalletDisabled={isWalletDisabled}
-              lockedToWallet={selectedDiscountType === 'spin'}
-            />
+            {/* Wallet Payment Info */}
+            <section className="bg-card rounded-xl border border-border p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Wallet className="w-5 h-5 text-primary" />
+                  <h3 className="font-semibold text-foreground">Payment</h3>
+                </div>
+                <div className="text-sm font-medium text-muted-foreground">
+                  Balance: ₦{walletBalance.toLocaleString()}
+                </div>
+              </div>
+              
+              {isWalletDisabled && (
+                <div className="flex items-center gap-2 p-3 bg-destructive/10 rounded-lg">
+                  <AlertTriangle className="w-4 h-4 text-destructive" />
+                  <p className="text-xs text-destructive">Your wallet has been disabled. Please contact support.</p>
+                </div>
+              )}
+
+              {!isWalletDisabled && insufficientBalance && items.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 p-3 bg-warning/10 rounded-lg">
+                    <AlertTriangle className="w-4 h-4 text-warning" />
+                    <p className="text-xs text-warning">
+                      You need ₦{shortfall.toLocaleString()} more to complete this order.
+                    </p>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    className="w-full gap-2" 
+                    onClick={() => setShowFundDialog(true)}
+                  >
+                    <Wallet className="w-4 h-4" />
+                    Fund Wallet (₦{shortfall.toLocaleString()} needed)
+                  </Button>
+                  {hasDVA && dvaDetails && (
+                    <div className="bg-secondary/50 rounded-lg p-3 space-y-1">
+                      <p className="text-xs font-medium text-foreground">Or transfer to your virtual account:</p>
+                      <p className="text-xs text-muted-foreground">Bank: {dvaDetails.bankName}</p>
+                      <p className="text-xs font-mono text-foreground">{dvaDetails.accountNumber}</p>
+                      <p className="text-xs text-muted-foreground">{dvaDetails.accountName}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {!isWalletDisabled && !insufficientBalance && items.length > 0 && (
+                <div className="flex items-center gap-2 p-3 bg-primary/10 rounded-lg">
+                  <Wallet className="w-4 h-4 text-primary" />
+                  <p className="text-xs text-primary">₦{total.toLocaleString()} will be deducted from your wallet</p>
+                </div>
+              )}
+            </section>
 
             {/* Order Summary */}
             <OrderSummary
@@ -789,21 +781,36 @@ export default function Cart() {
             <Button 
               className="w-full h-14 text-base font-semibold shadow-button"
               onClick={handlePlaceOrder}
-              disabled={placingOrder || (deliveryType === 'delivery' && (!selectedAddress || addressMissingCoords || coordinateMismatch || geocodingAddress))}
+              disabled={placingOrder || isWalletDisabled || (deliveryType === 'delivery' && (!selectedAddress || addressMissingCoords || coordinateMismatch || geocodingAddress))}
             >
               {placingOrder ? (
                 <>
                   <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  {paymentMethod === 'wallet' ? 'Processing Payment...' : 'Placing Order...'}
+                  Processing Payment...
+                </>
+              ) : insufficientBalance ? (
+                <>
+                  <Wallet className="w-5 h-5 mr-2" />
+                  Fund Wallet & Pay • ₦{total.toLocaleString()}
                 </>
               ) : (
                 <>
-                  {paymentMethod === 'wallet' ? 'Pay with Wallet' : 'Place Order'} • ₦{total.toLocaleString()}
+                  <Wallet className="w-5 h-5 mr-2" />
+                  Pay with Wallet • ₦{total.toLocaleString()}
                 </>
               )}
             </Button>
           </div>
         </div>
+      )}
+
+      {/* Fund Wallet Dialog */}
+      {showFundDialog && (
+        <FundWalletDialog 
+          open={showFundDialog} 
+          onOpenChange={setShowFundDialog}
+          callbackUrl={`${window.location.origin}/cart?funded=true`}
+        />
       )}
 
       <BottomNav />

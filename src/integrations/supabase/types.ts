@@ -320,22 +320,25 @@ export type Database = {
           combo_id: string
           created_at: string | null
           id: string
-          product_id: string
+          product_id: string | null
           quantity: number | null
+          takeaway_pack_id: string | null
         }
         Insert: {
           combo_id: string
           created_at?: string | null
           id?: string
-          product_id: string
+          product_id?: string | null
           quantity?: number | null
+          takeaway_pack_id?: string | null
         }
         Update: {
           combo_id?: string
           created_at?: string | null
           id?: string
-          product_id?: string
+          product_id?: string | null
           quantity?: number | null
+          takeaway_pack_id?: string | null
         }
         Relationships: [
           {
@@ -350,6 +353,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "combo_items_takeaway_pack_id_fkey"
+            columns: ["takeaway_pack_id"]
+            isOneToOne: false
+            referencedRelation: "takeaway_packs"
             referencedColumns: ["id"]
           },
         ]

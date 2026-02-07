@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Edit2, Trash2, Package, ImagePlus, X, Loader2, Check, Flame } from 'lucide-react';
+import { Plus, Edit2, Trash2, Package, ImagePlus, X, Loader2, Check, Flame, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -9,7 +9,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -20,6 +19,29 @@ import { cn } from '@/lib/utils';
 
 type Product = Tables<'products'>;
 type Vendor = Tables<'vendors'>;
+
+interface TakeawayPack {
+  id: string;
+  vendor_id: string;
+  name: string;
+  description: string | null;
+  image_url: string | null;
+  price: number;
+  is_active: boolean;
+}
+
+interface AddonGroup {
+  id: string;
+  name: string;
+  selection_type: string;
+  items: AddonItem[];
+}
+
+interface AddonItem {
+  id: string;
+  name: string;
+  additional_price: number;
+}
 
 interface Combo {
   id: string;
@@ -37,10 +59,17 @@ interface Combo {
 interface ComboItem {
   id: string;
   combo_id: string;
-  product_id: string;
+  product_id: string | null;
+  takeaway_pack_id: string | null;
   quantity: number;
   product?: Product;
+  takeawayPack?: TakeawayPack;
 }
+
+// Unified selectable item type
+type SelectableItem = 
+  | { type: 'product'; id: string; name: string; price: number; image_url: string | null; calories: number | null }
+  | { type: 'pack'; id: string; name: string; price: number; image_url: string | null };
 
 interface ComboManagementProps {
   vendor: Vendor;
@@ -62,9 +91,12 @@ const getComboLabels = (category: string) => {
 export function ComboManagement({ vendor, products, onRefresh }: ComboManagementProps) {
   const { toast } = useToast();
   const [combos, setCombos] = useState<(Combo & { items: ComboItem[] })[]>([]);
+  const [takeawayPacks, setTakeawayPacks] = useState<TakeawayPack[]>([]);
+  const [addonGroups, setAddonGroups] = useState<Record<string, AddonGroup[]>>({});
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCombo, setEditingCombo] = useState<Combo | null>(null);
+  const [expandedAddons, setExpandedAddons] = useState<Set<string>>(new Set());
   
   // Image upload
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -80,14 +112,93 @@ export function ComboManagement({ vendor, products, onRefresh }: ComboManagement
     is_available: true,
   });
   
-  // Selected products with quantities
-  const [selectedProducts, setSelectedProducts] = useState<{ productId: string; quantity: number }[]>([]);
+  // Selected items with quantities (products and packs)
+  const [selectedProducts, setSelectedProducts] = useState<{ itemId: string; itemType: 'product' | 'pack'; quantity: number }[]>([]);
   
   const labels = getComboLabels(vendor.category);
 
+  // Build unified selectable items list
+  const selectableItems: SelectableItem[] = [
+    ...products.filter(p => p.is_available).map(p => ({
+      type: 'product' as const,
+      id: p.id,
+      name: p.name,
+      price: p.price,
+      image_url: p.image_url,
+      calories: p.calories,
+    })),
+    ...takeawayPacks.filter(p => p.is_active).map(p => ({
+      type: 'pack' as const,
+      id: p.id,
+      name: p.name,
+      price: p.price,
+      image_url: p.image_url,
+    })),
+  ];
+
   useEffect(() => {
     fetchCombos();
+    fetchTakeawayPacks();
+    fetchAddonGroups();
   }, [vendor.id]);
+
+  const fetchTakeawayPacks = async () => {
+    const { data, error } = await supabase
+      .from('takeaway_packs')
+      .select('id, vendor_id, name, description, image_url, price, is_active')
+      .eq('vendor_id', vendor.id)
+      .eq('is_active', true);
+    if (!error && data) setTakeawayPacks(data);
+  };
+
+  const fetchAddonGroups = async () => {
+    // Fetch all addon groups for this vendor with their items
+    const { data: groups, error: groupsError } = await supabase
+      .from('addon_groups')
+      .select('id, name, selection_type')
+      .eq('vendor_id', vendor.id);
+
+    if (groupsError || !groups) return;
+
+    // Fetch items for all groups
+    const groupIds = groups.map(g => g.id);
+    if (groupIds.length === 0) return;
+
+    const { data: items } = await supabase
+      .from('addon_items')
+      .select('id, name, additional_price, addon_group_id')
+      .in('addon_group_id', groupIds)
+      .eq('is_available', true);
+
+    // Fetch product-addon-group links
+    const { data: links } = await supabase
+      .from('product_addon_groups')
+      .select('product_id, addon_group_id');
+
+    // Build a map: productId -> AddonGroup[]
+    const productAddonMap: Record<string, AddonGroup[]> = {};
+    
+    for (const link of (links || [])) {
+      const group = groups.find(g => g.id === link.addon_group_id);
+      if (!group) continue;
+      
+      const groupItems = (items || [])
+        .filter(i => (i as any).addon_group_id === link.addon_group_id)
+        .map(i => ({ id: i.id, name: i.name, additional_price: i.additional_price }));
+
+      if (!productAddonMap[link.product_id]) {
+        productAddonMap[link.product_id] = [];
+      }
+      productAddonMap[link.product_id].push({
+        id: group.id,
+        name: group.name,
+        selection_type: group.selection_type,
+        items: groupItems,
+      });
+    }
+
+    setAddonGroups(productAddonMap);
+  };
 
   const fetchCombos = async () => {
     setLoading(true);
@@ -108,12 +219,13 @@ export function ComboManagement({ vendor, products, onRefresh }: ComboManagement
             .select('*')
             .eq('combo_id', combo.id);
 
-          const itemsWithProducts = (itemsData || []).map((item) => ({
+          const itemsWithDetails = (itemsData || []).map((item: any) => ({
             ...item,
-            product: products.find((p) => p.id === item.product_id),
+            product: item.product_id ? products.find((p) => p.id === item.product_id) : undefined,
+            takeawayPack: item.takeaway_pack_id ? takeawayPacks.find((p) => p.id === item.takeaway_pack_id) : undefined,
           }));
 
-          return { ...combo, items: itemsWithProducts };
+          return { ...combo, items: itemsWithDetails };
         })
       );
 
@@ -126,16 +238,24 @@ export function ComboManagement({ vendor, products, onRefresh }: ComboManagement
   };
 
   const calculateOriginalPrice = () => {
-    return selectedProducts.reduce((sum, { productId, quantity }) => {
-      const product = products.find((p) => p.id === productId);
-      return sum + (product?.price || 0) * quantity;
+    return selectedProducts.reduce((sum, { itemId, itemType, quantity }) => {
+      if (itemType === 'product') {
+        const product = products.find((p) => p.id === itemId);
+        return sum + (product?.price || 0) * quantity;
+      } else {
+        const pack = takeawayPacks.find((p) => p.id === itemId);
+        return sum + (pack?.price || 0) * quantity;
+      }
     }, 0);
   };
 
   const calculateTotalCalories = () => {
-    return selectedProducts.reduce((sum, { productId, quantity }) => {
-      const product = products.find((p) => p.id === productId);
-      return sum + (product?.calories || 0) * quantity;
+    return selectedProducts.reduce((sum, { itemId, itemType, quantity }) => {
+      if (itemType === 'product') {
+        const product = products.find((p) => p.id === itemId);
+        return sum + (product?.calories || 0) * quantity;
+      }
+      return sum;
     }, 0);
   };
 
@@ -143,21 +263,30 @@ export function ComboManagement({ vendor, products, onRefresh }: ComboManagement
   const savings = originalPrice - (parseFloat(formData.combo_price) || 0);
   const savingsPercent = originalPrice > 0 ? Math.round((savings / originalPrice) * 100) : 0;
 
-  const toggleProduct = (productId: string) => {
+  const toggleItem = (itemId: string, itemType: 'product' | 'pack') => {
     setSelectedProducts((prev) => {
-      const exists = prev.find((p) => p.productId === productId);
+      const exists = prev.find((p) => p.itemId === itemId && p.itemType === itemType);
       if (exists) {
-        return prev.filter((p) => p.productId !== productId);
+        return prev.filter((p) => !(p.itemId === itemId && p.itemType === itemType));
       }
-      return [...prev, { productId, quantity: 1 }];
+      return [...prev, { itemId, itemType, quantity: 1 }];
     });
   };
 
-  const updateProductQuantity = (productId: string, quantity: number) => {
+  const updateItemQuantity = (itemId: string, itemType: 'product' | 'pack', quantity: number) => {
     if (quantity < 1) return;
     setSelectedProducts((prev) =>
-      prev.map((p) => (p.productId === productId ? { ...p, quantity } : p))
+      prev.map((p) => (p.itemId === itemId && p.itemType === itemType ? { ...p, quantity } : p))
     );
+  };
+
+  const toggleAddonExpanded = (productId: string) => {
+    setExpandedAddons(prev => {
+      const next = new Set(prev);
+      if (next.has(productId)) next.delete(productId);
+      else next.add(productId);
+      return next;
+    });
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -216,7 +345,7 @@ export function ComboManagement({ vendor, products, onRefresh }: ComboManagement
     e.preventDefault();
 
     if (selectedProducts.length < 2) {
-      toast({ title: 'Select at least 2 products', description: 'A combo must include multiple items', variant: 'destructive' });
+      toast({ title: 'Select at least 2 items', description: 'A combo must include multiple items', variant: 'destructive' });
       return;
     }
 
@@ -240,7 +369,6 @@ export function ComboManagement({ vendor, products, onRefresh }: ComboManagement
       };
 
       if (editingCombo) {
-        // Update combo
         const { error: comboError } = await supabase
           .from('combos')
           .update(comboData)
@@ -251,9 +379,10 @@ export function ComboManagement({ vendor, products, onRefresh }: ComboManagement
         // Delete existing items and re-insert
         await supabase.from('combo_items').delete().eq('combo_id', editingCombo.id);
 
-        const itemsToInsert = selectedProducts.map(({ productId, quantity }) => ({
+        const itemsToInsert = selectedProducts.map(({ itemId, itemType, quantity }) => ({
           combo_id: editingCombo.id,
-          product_id: productId,
+          product_id: itemType === 'product' ? itemId : null,
+          takeaway_pack_id: itemType === 'pack' ? itemId : null,
           quantity,
         }));
 
@@ -262,7 +391,6 @@ export function ComboManagement({ vendor, products, onRefresh }: ComboManagement
 
         toast({ title: `${labels.singular} updated successfully` });
       } else {
-        // Create new combo
         const { data: newCombo, error: comboError } = await supabase
           .from('combos')
           .insert(comboData)
@@ -271,10 +399,10 @@ export function ComboManagement({ vendor, products, onRefresh }: ComboManagement
 
         if (comboError) throw comboError;
 
-        // Insert combo items
-        const itemsToInsert = selectedProducts.map(({ productId, quantity }) => ({
+        const itemsToInsert = selectedProducts.map(({ itemId, itemType, quantity }) => ({
           combo_id: newCombo.id,
-          product_id: productId,
+          product_id: itemType === 'product' ? itemId : null,
+          takeaway_pack_id: itemType === 'pack' ? itemId : null,
           quantity,
         }));
 
@@ -301,7 +429,11 @@ export function ComboManagement({ vendor, products, onRefresh }: ComboManagement
       combo_price: combo.combo_price.toString(),
       is_available: combo.is_available ?? true,
     });
-    setSelectedProducts(combo.items.map((item) => ({ productId: item.product_id, quantity: item.quantity })));
+    setSelectedProducts(combo.items.map((item) => ({
+      itemId: item.product_id || item.takeaway_pack_id || '',
+      itemType: item.product_id ? 'product' as const : 'pack' as const,
+      quantity: item.quantity,
+    })));
     if (combo.image_url) setImagePreview(combo.image_url);
     setDialogOpen(true);
   };
@@ -340,7 +472,14 @@ export function ComboManagement({ vendor, products, onRefresh }: ComboManagement
     setSelectedProducts([]);
     setImageFile(null);
     setImagePreview(null);
+    setExpandedAddons(new Set());
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const getItemName = (item: ComboItem) => {
+    if (item.product) return item.product.name;
+    if (item.takeawayPack) return `📦 ${item.takeawayPack.name}`;
+    return 'Unknown';
   };
 
   return (
@@ -358,7 +497,7 @@ export function ComboManagement({ vendor, products, onRefresh }: ComboManagement
         </Button>
       </div>
 
-      {/* Combo Dialog - only mount when open to avoid Radix compose-refs infinite loop */}
+      {/* Combo Dialog */}
       {dialogOpen && (
         <Dialog open onOpenChange={(open) => { if (!open) { setDialogOpen(false); resetForm(); } }}>
           <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
@@ -415,71 +554,150 @@ export function ComboManagement({ vendor, products, onRefresh }: ComboManagement
                 )}
               </div>
 
-              {/* Product Selection */}
+              {/* Item Selection (Products + Takeaway Packs) */}
               <div className="space-y-2">
-                <Label>Select Products *</Label>
-                <p className="text-xs text-muted-foreground">Choose at least 2 products to bundle</p>
-                <div className="max-h-48 overflow-y-auto border border-border rounded-lg divide-y divide-border">
+                <Label>Select Items *</Label>
+                <p className="text-xs text-muted-foreground">Choose at least 2 items (menu items &amp; takeaway packs)</p>
+                <div className="max-h-64 overflow-y-auto border border-border rounded-lg divide-y divide-border">
+                  {/* Products Section */}
+                  {products.filter((p) => p.is_available).length > 0 && (
+                    <div className="px-3 py-1.5 bg-muted/30 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Menu Items
+                    </div>
+                  )}
                   {products.filter((p) => p.is_available).map((product) => {
-                    const isSelected = selectedProducts.find((sp) => sp.productId === product.id);
+                    const isSelected = selectedProducts.find((sp) => sp.itemId === product.id && sp.itemType === 'product');
+                    const productAddons = addonGroups[product.id] || [];
+                    const isAddonExpanded = expandedAddons.has(product.id);
+                    
                     return (
-                      <div
-                        key={product.id}
-                        className={cn(
-                          'flex items-center gap-3 p-3 cursor-pointer transition-colors',
-                          isSelected ? 'bg-primary/5' : 'hover:bg-muted/50'
-                        )}
-                        onClick={() => toggleProduct(product.id)}
-                      >
+                      <div key={`product-${product.id}`}>
                         <div
                           className={cn(
-                            'h-4 w-4 shrink-0 rounded-sm border border-primary flex items-center justify-center',
-                            isSelected ? 'bg-primary text-primary-foreground' : 'bg-background'
+                            'flex items-center gap-3 p-3 cursor-pointer transition-colors',
+                            isSelected ? 'bg-primary/5' : 'hover:bg-muted/50'
                           )}
+                          onClick={() => toggleItem(product.id, 'product')}
                         >
-                          {isSelected && <Check className="h-3 w-3" />}
-                        </div>
-                        {product.image_url ? (
-                          <img
-                            src={product.image_url}
-                            alt={product.name}
-                            className="w-10 h-10 rounded-md object-cover shrink-0"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded-md bg-secondary flex items-center justify-center shrink-0">
-                            <ImagePlus className="w-4 h-4 text-muted-foreground" />
+                          <div
+                            className={cn(
+                              'h-4 w-4 shrink-0 rounded-sm border border-primary flex items-center justify-center',
+                              isSelected ? 'bg-primary text-primary-foreground' : 'bg-background'
+                            )}
+                          >
+                            {isSelected && <Check className="h-3 w-3" />}
                           </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{product.name}</p>
-                          <p className="text-xs text-muted-foreground">₦{product.price.toLocaleString()}</p>
+                          {product.image_url ? (
+                            <img src={product.image_url} alt={product.name} className="w-10 h-10 rounded-md object-cover shrink-0" />
+                          ) : (
+                            <div className="w-10 h-10 rounded-md bg-secondary flex items-center justify-center shrink-0">
+                              <ImagePlus className="w-4 h-4 text-muted-foreground" />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{product.name}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-xs text-muted-foreground">₦{product.price.toLocaleString()}</p>
+                              {productAddons.length > 0 && (
+                                <Badge variant="outline" className="text-[10px] px-1 py-0">
+                                  {productAddons.length} addon{productAddons.length > 1 ? 's' : ''}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                          {isSelected && (
+                            <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                              <Button type="button" variant="outline" size="icon" className="h-7 w-7" onClick={() => updateItemQuantity(product.id, 'product', isSelected.quantity - 1)}>-</Button>
+                              <span className="w-6 text-center text-sm">{isSelected.quantity}</span>
+                              <Button type="button" variant="outline" size="icon" className="h-7 w-7" onClick={() => updateItemQuantity(product.id, 'product', isSelected.quantity + 1)}>+</Button>
+                            </div>
+                          )}
                         </div>
-                        {isSelected && (
-                          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                            <Button
+                        
+                        {/* Addon groups for selected product */}
+                        {isSelected && productAddons.length > 0 && (
+                          <div className="px-3 pb-3 bg-primary/5">
+                            <button
                               type="button"
-                              variant="outline"
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={() => updateProductQuantity(product.id, isSelected.quantity - 1)}
+                              className="flex items-center gap-1 text-xs text-primary font-medium py-1"
+                              onClick={(e) => { e.stopPropagation(); toggleAddonExpanded(product.id); }}
                             >
-                              -
-                            </Button>
-                            <span className="w-6 text-center text-sm">{isSelected.quantity}</span>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={() => updateProductQuantity(product.id, isSelected.quantity + 1)}
-                            >
-                              +
-                            </Button>
+                              {isAddonExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                              Available Add-ons ({productAddons.length})
+                            </button>
+                            {isAddonExpanded && (
+                              <div className="space-y-2 mt-1">
+                                {productAddons.map(group => (
+                                  <div key={group.id} className="bg-background rounded-md p-2">
+                                    <p className="text-xs font-medium text-foreground">{group.name} <span className="text-muted-foreground">({group.selection_type})</span></p>
+                                    <div className="flex flex-wrap gap-1 mt-1">
+                                      {group.items.map(item => (
+                                        <Badge key={item.id} variant="secondary" className="text-[10px]">
+                                          {item.name} {item.additional_price > 0 && `+₦${item.additional_price}`}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
                     );
                   })}
+                  
+                  {/* Takeaway Packs Section */}
+                  {takeawayPacks.filter(p => p.is_active).length > 0 && (
+                    <>
+                      <div className="px-3 py-1.5 bg-muted/30 text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                        <Package className="w-3 h-3" />
+                        Takeaway Packs
+                      </div>
+                      {takeawayPacks.filter(p => p.is_active).map((pack) => {
+                        const isSelected = selectedProducts.find((sp) => sp.itemId === pack.id && sp.itemType === 'pack');
+                        return (
+                          <div
+                            key={`pack-${pack.id}`}
+                            className={cn(
+                              'flex items-center gap-3 p-3 cursor-pointer transition-colors',
+                              isSelected ? 'bg-primary/5' : 'hover:bg-muted/50'
+                            )}
+                            onClick={() => toggleItem(pack.id, 'pack')}
+                          >
+                            <div
+                              className={cn(
+                                'h-4 w-4 shrink-0 rounded-sm border border-primary flex items-center justify-center',
+                                isSelected ? 'bg-primary text-primary-foreground' : 'bg-background'
+                              )}
+                            >
+                              {isSelected && <Check className="h-3 w-3" />}
+                            </div>
+                            {pack.image_url ? (
+                              <img src={pack.image_url} alt={pack.name} className="w-10 h-10 rounded-md object-cover shrink-0" />
+                            ) : (
+                              <div className="w-10 h-10 rounded-md bg-secondary flex items-center justify-center shrink-0">
+                                <Package className="w-4 h-4 text-muted-foreground" />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">📦 {pack.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {pack.price > 0 ? `₦${pack.price.toLocaleString()}` : 'Free'}
+                              </p>
+                            </div>
+                            {isSelected && (
+                              <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                <Button type="button" variant="outline" size="icon" className="h-7 w-7" onClick={() => updateItemQuantity(pack.id, 'pack', isSelected.quantity - 1)}>-</Button>
+                                <span className="w-6 text-center text-sm">{isSelected.quantity}</span>
+                                <Button type="button" variant="outline" size="icon" className="h-7 w-7" onClick={() => updateItemQuantity(pack.id, 'pack', isSelected.quantity + 1)}>+</Button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -487,13 +705,24 @@ export function ComboManagement({ vendor, products, onRefresh }: ComboManagement
               {selectedProducts.length > 0 && (
                 <div className="bg-secondary rounded-lg p-4 space-y-2">
                   <div className="text-sm font-medium text-foreground mb-2">Selected Items:</div>
-                  {selectedProducts.map(({ productId, quantity }) => {
-                    const product = products.find(p => p.id === productId);
-                    if (!product) return null;
+                  {selectedProducts.map(({ itemId, itemType, quantity }) => {
+                    let name = '';
+                    let price = 0;
+                    if (itemType === 'product') {
+                      const product = products.find(p => p.id === itemId);
+                      if (!product) return null;
+                      name = product.name;
+                      price = product.price;
+                    } else {
+                      const pack = takeawayPacks.find(p => p.id === itemId);
+                      if (!pack) return null;
+                      name = `📦 ${pack.name}`;
+                      price = pack.price;
+                    }
                     return (
-                      <div key={productId} className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">{quantity}x {product.name}</span>
-                        <span className="text-muted-foreground">₦{(product.price * quantity).toLocaleString()}</span>
+                      <div key={`${itemType}-${itemId}`} className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">{quantity}x {name}</span>
+                        <span className="text-muted-foreground">₦{(price * quantity).toLocaleString()}</span>
                       </div>
                     );
                   })}
@@ -584,7 +813,7 @@ export function ComboManagement({ vendor, products, onRefresh }: ComboManagement
                   </Badge>
                 </div>
                 <p className="text-sm text-muted-foreground line-clamp-1">
-                  {combo.items.map((item) => `${item.quantity}x ${item.product?.name || 'Unknown'}`).join(', ')}
+                  {combo.items.map((item) => `${item.quantity}x ${getItemName(item)}`).join(', ')}
                 </p>
                 <div className="flex items-center gap-3 mt-1">
                   <span className="font-bold text-primary">₦{combo.combo_price.toLocaleString()}</span>
