@@ -4,14 +4,6 @@ import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
 
-const PATCHED_COMPOSE_REFS = [
-  'import{useCallback}from"react";',
-  "function setRef(r,v){if(typeof r==='function'){r(v)}else if(r!=null){r.current=v}}",
-  "function composeRefs(...refs){return(node)=>{refs.forEach(r=>setRef(r,node))}}",
-  "function useComposedRefs(...refs){return useCallback(composeRefs(...refs),refs)}",
-  "export{composeRefs,useComposedRefs};",
-].join("\n");
-
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   server: {
@@ -78,59 +70,30 @@ export default defineConfig(({ mode }) => ({
     }),
   ].filter(Boolean),
   optimizeDeps: {
+    // Force Vite to re-bundle deps so the patched compose-refs is picked up.
     force: true,
     esbuildOptions: {
-      plugins: [
-        {
-          name: "patch-radix-compose-refs",
-          setup(build) {
-            // Intercept ALL imports that resolve to react-compose-refs and
-            // redirect them into a virtual namespace where we serve the
-            // patched React 18-safe code.  This guarantees esbuild never
-            // bundles the original v1.1.2 code into any chunk.
-            build.onResolve(
-              { filter: /react-compose-refs/ },
-              (args) => {
-                // Only intercept when another package is importing it
-                if (args.importer) {
-                  return {
-                    path: "radix-compose-refs-patched",
-                    namespace: "radix-compose-refs-patch",
-                  };
-                }
-                return undefined;
-              },
-            );
-
-            build.onLoad(
-              {
-                filter: /.*/,
-                namespace: "radix-compose-refs-patch",
-              },
-              () => ({
-                contents: PATCHED_COMPOSE_REFS,
-                loader: "js",
-                // resolveDir lets esbuild resolve `import ... from "react"`
-                resolveDir: path.resolve(
-                  __dirname,
-                  "node_modules/@radix-ui/react-compose-refs/dist",
-                ),
-              }),
-            );
-          },
-        },
-      ],
+      // Use esbuild's native alias to redirect react-compose-refs to our
+      // React 18-safe patch during dependency pre-bundling.  This is more
+      // reliable than onResolve/onLoad plugins which can silently fail.
+      alias: {
+        "@radix-ui/react-compose-refs": path.resolve(
+          __dirname,
+          "src/lib/radix-compose-refs-patch.ts",
+        ),
+      },
     },
   },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-      // Alias for any source-level / SSR imports outside the dep cache.
+      // Alias for Vite's own module resolution (dev server, SSR, etc.)
       "@radix-ui/react-compose-refs": path.resolve(
         __dirname,
         "src/lib/radix-compose-refs-patch.ts",
       ),
     },
+    // Prevent duplicate React copies in the dependency graph.
     dedupe: ["react", "react-dom"],
   },
 }));
