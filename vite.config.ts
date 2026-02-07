@@ -70,9 +70,38 @@ export default defineConfig(({ mode }) => ({
       },
     }),
   ].filter(Boolean),
+  optimizeDeps: {
+    // Force Vite to re-bundle deps so the patched compose-refs is picked up.
+    force: true,
+    esbuildOptions: {
+      plugins: [
+        {
+          name: "patch-radix-compose-refs",
+          setup(build) {
+            // Intercept the package during esbuild dep pre-bundling so every
+            // Radix primitive that imports compose-refs gets our React 18 patch.
+            build.onResolve(
+              { filter: /^@radix-ui\/react-compose-refs/ },
+              () => ({
+                path: path.resolve(
+                  __dirname,
+                  "src/lib/radix-compose-refs-patch.ts",
+                ),
+              }),
+            );
+          },
+        },
+      ],
+    },
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // Also alias for any source-level / SSR imports outside the dep cache.
+      "@radix-ui/react-compose-refs": path.resolve(
+        __dirname,
+        "src/lib/radix-compose-refs-patch.ts",
+      ),
     },
     // Prevent duplicate React copies in the dependency graph.
     dedupe: ["react", "react-dom"],
