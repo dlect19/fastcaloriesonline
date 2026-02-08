@@ -14,6 +14,7 @@ import {
   Menu,
   Ticket,
   Users,
+  MessageSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -39,6 +40,7 @@ const navItems: {
   { id: 'earnings', icon: Wallet, label: 'Earnings', path: '/vendor/earnings', permission: 'view_earnings' },
   { id: 'withdraw', icon: ArrowUpRight, label: 'Withdraw', path: '/vendor/withdraw', permission: 'request_withdrawal' },
   { id: 'hours', icon: Clock, label: 'Working Hours', path: '/vendor/hours', permission: 'edit_settings' },
+  { id: 'support', icon: MessageSquare, label: 'Support', path: '/vendor/support' },
   { id: 'settings', icon: Settings, label: 'Settings', path: '/vendor/settings', permission: 'edit_settings' },
 ];
 

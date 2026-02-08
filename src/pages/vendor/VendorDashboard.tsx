@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useProfileCompletion } from '@/hooks/useProfileCompletion';
 import {
   TrendingUp,
   ShoppingBag,
@@ -50,15 +51,21 @@ export default function VendorDashboard() {
 
   const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendor?.id || null);
 
+  const { isComplete: profileComplete, loading: profileLoading } = useProfileCompletion(user?.id);
+
   useEffect(() => {
     if (!authLoading && !user) {
       navigate('/vendor/auth');
       return;
     }
+    if (user && !profileLoading && !profileComplete) {
+      navigate('/profile-setup', { state: { returnTo: '/vendor/dashboard' } });
+      return;
+    }
     if (user) {
       fetchVendorData();
     }
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading, navigate, profileLoading, profileComplete]);
 
   // Subscribe to real-time order updates for notifications
   useEffect(() => {

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { useProfileCompletion } from '@/hooks/useProfileCompletion';
 import { RiderLayout } from '@/components/rider/RiderLayout';
 import { RiderFloatingWidget } from '@/components/rider/RiderFloatingWidget';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -96,6 +97,18 @@ export default function RiderDashboard() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       navigate('/rider/auth');
+      return;
+    }
+
+    // Check profile completion
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('full_name, phone')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (!profileData?.full_name?.trim() || !profileData?.phone?.trim()) {
+      navigate('/profile-setup', { state: { returnTo: '/rider/dashboard' } });
       return;
     }
 

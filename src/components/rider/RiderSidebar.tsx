@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, Package, DollarSign, ArrowUpRight, Settings, LogOut, Power } from 'lucide-react';
+import { Home, Package, DollarSign, ArrowUpRight, Settings, LogOut, Power, MessageSquare } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -27,6 +27,7 @@ export function RiderSidebar({ isOnline = false, onToggleOnline, canViewEarnings
       { icon: DollarSign, label: 'Earnings', path: '/rider/earnings' },
       { icon: ArrowUpRight, label: 'Withdraw', path: '/rider/withdraw' },
     ] : []),
+    { icon: MessageSquare, label: 'Support', path: '/rider/support' },
     { icon: Settings, label: 'Settings', path: '/rider/settings' },
   ];
 

@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useProfileCompletion } from '@/hooks/useProfileCompletion';
 import { Header } from '@/components/home/Header';
 import { CategoryPills } from '@/components/home/CategoryPills';
 import { PromoBanner } from '@/components/home/PromoBanner';
@@ -24,10 +25,18 @@ interface DeliveryLocation {
 
 export default function Home() {
   const { user, signOut, loading } = useAuth();
+  const { isComplete: profileComplete, loading: profileLoading } = useProfileCompletion(user?.id);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [activeTab, setActiveTab] = useState('home');
   const [deliveryLocation, setDeliveryLocation] = useState<DeliveryLocation | null>(null);
   const navigate = useNavigate();
+
+  // Redirect to profile setup if incomplete
+  useEffect(() => {
+    if (user && !profileLoading && !profileComplete) {
+      navigate('/profile-setup', { state: { returnTo: '/' } });
+    }
+  }, [user, profileLoading, profileComplete, navigate]);
 
   const handleSignOut = async () => {
     await signOut();
