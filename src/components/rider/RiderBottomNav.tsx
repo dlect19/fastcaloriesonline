@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, Package, DollarSign, Settings, Power } from 'lucide-react';
+import { Home, Package, DollarSign, Settings, Power, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
 
@@ -21,6 +21,7 @@ export function RiderBottomNav({ isOnline = false, onToggleOnline, canViewEarnin
     ...(canViewEarnings ? [
       { id: 'earnings', icon: DollarSign, label: 'Earnings', path: '/rider/earnings' },
     ] : []),
+    { id: 'support', icon: MessageSquare, label: 'Support', path: '/rider/support' },
     { id: 'settings', icon: Settings, label: 'Settings', path: '/rider/settings' },
   ];
 

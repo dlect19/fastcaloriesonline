@@ -7,6 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { DeliverySidebar } from '@/components/delivery/DeliverySidebar';
 import { DeliveryEmailVerification } from '@/components/delivery/DeliveryEmailVerification';
 import { useAuth } from '@/hooks/useAuth';
+import { useProfileCompletion } from '@/hooks/useProfileCompletion';
 import { useDeliveryCompany } from '@/hooks/useDeliveryCompany';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 import { supabase } from '@/integrations/supabase/client';
@@ -33,15 +34,21 @@ export default function DeliveryDashboard() {
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const { isComplete: profileComplete, loading: profileLoading } = useProfileCompletion(user?.id);
+
   useEffect(() => {
     if (!authLoading && !user) {
       navigate('/delivery/auth');
       return;
     }
+    if (user && !profileLoading && !profileComplete) {
+      navigate('/profile-setup', { state: { returnTo: '/delivery/dashboard' } });
+      return;
+    }
     if (company) {
       fetchDashboardData();
     }
-  }, [user, authLoading, company, navigate]);
+  }, [user, authLoading, company, navigate, profileLoading, profileComplete]);
 
   const fetchDashboardData = async () => {
     if (!company) return;

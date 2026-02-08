@@ -66,6 +66,8 @@ import Rewards from "./pages/Rewards";
 import TransactionHistoryPage from "./pages/profile/TransactionHistoryPage";
 import WalletPage from "./pages/profile/WalletPage";
 import NotFound from "./pages/NotFound";
+import ProfileSetup from "./pages/ProfileSetup";
+import CustomerSupport from "./pages/CustomerSupport";
 import DeliveryCompanyAuth from "./pages/delivery/DeliveryCompanyAuth";
 import DeliveryDashboard from "./pages/delivery/DeliveryDashboard";
 import DeliveryOrders from "./pages/delivery/DeliveryOrders";
@@ -74,6 +76,10 @@ import DeliveryEarnings from "./pages/delivery/DeliveryEarnings";
 import DeliveryWithdraw from "./pages/delivery/DeliveryWithdraw";
 import DeliverySettings from "./pages/delivery/DeliverySettings";
 import DeliveryRiderJoin from "./pages/delivery/DeliveryRiderJoin";
+import DeliverySupport from "./pages/delivery/DeliverySupport";
+import VendorSupport from "./pages/vendor/VendorSupport";
+import RiderSupport from "./pages/rider/RiderSupport";
+import AdminSupport from "./pages/admin/AdminSupport";
 
 const queryClient = new QueryClient();
 
@@ -101,6 +107,8 @@ const App = () => (
               <Route path="/profile/transactions" element={<TransactionHistoryPage />} />
               <Route path="/profile/wallet" element={<WalletPage />} />
               <Route path="/rewards" element={<Rewards />} />
+              <Route path="/profile-setup" element={<ProfileSetup />} />
+              <Route path="/support" element={<CustomerSupport />} />
               {/* Landing Pages */}
               <Route path="/become-vendor" element={<VendorLanding />} />
               <Route path="/become-rider" element={<RiderLanding />} />
@@ -120,6 +128,7 @@ const App = () => (
               <Route path="/vendor/staff" element={<VendorStaff />} />
               <Route path="/vendor/staff/join/:code" element={<VendorStaffJoin />} />
               <Route path="/vendor/staff-login/:vendorId?" element={<VendorStaffLogin />} />
+              <Route path="/vendor/support" element={<VendorSupport />} />
               {/* Rider Portal Routes */}
               <Route path="/rider/auth" element={<RiderAuth />} />
               <Route path="/rider/dashboard" element={<RiderDashboard />} />
@@ -129,6 +138,7 @@ const App = () => (
               <Route path="/rider/withdraw" element={<RiderWithdraw />} />
               <Route path="/rider/settings" element={<RiderSettings />} />
               <Route path="/rider/join/:code" element={<VendorRiderJoin />} />
+              <Route path="/rider/support" element={<RiderSupport />} />
               {/* Admin Portal Routes */}
               <Route path="/admin/auth" element={<AdminAuth />} />
               <Route path="/admin/dashboard" element={<AdminDashboard />} />
@@ -149,6 +159,7 @@ const App = () => (
               <Route path="/admin/delivery-companies" element={<AdminDeliveryCompanies />} />
               <Route path="/admin/customers" element={<AdminCustomers />} />
               <Route path="/admin/reviews" element={<AdminReviews />} />
+              <Route path="/admin/support" element={<AdminSupport />} />
               {/* Delivery Company Portal Routes */}
               <Route path="/delivery/auth" element={<DeliveryCompanyAuth />} />
               <Route path="/delivery/dashboard" element={<DeliveryDashboard />} />
@@ -158,6 +169,7 @@ const App = () => (
               <Route path="/delivery/withdraw" element={<DeliveryWithdraw />} />
               <Route path="/delivery/settings" element={<DeliverySettings />} />
               <Route path="/delivery/rider/join/:companyId" element={<DeliveryRiderJoin />} />
+              <Route path="/delivery/support" element={<DeliverySupport />} />
               {/* Install Page */}
               <Route path="/install" element={<Install />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

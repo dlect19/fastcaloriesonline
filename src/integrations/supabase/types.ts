@@ -2109,6 +2109,80 @@ export type Database = {
           },
         ]
       }
+      support_messages: {
+        Row: {
+          created_at: string
+          id: string
+          is_read: boolean
+          message: string
+          sender_id: string
+          sender_type: string
+          ticket_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message: string
+          sender_id: string
+          sender_type: string
+          ticket_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message?: string
+          sender_id?: string
+          sender_type?: string
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_messages_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "support_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_tickets: {
+        Row: {
+          assigned_admin_id: string | null
+          category: Database["public"]["Enums"]["support_category"]
+          created_at: string
+          id: string
+          status: Database["public"]["Enums"]["support_ticket_status"]
+          subject: string
+          updated_at: string
+          user_id: string
+          user_type: Database["public"]["Enums"]["support_user_type"]
+        }
+        Insert: {
+          assigned_admin_id?: string | null
+          category: Database["public"]["Enums"]["support_category"]
+          created_at?: string
+          id?: string
+          status?: Database["public"]["Enums"]["support_ticket_status"]
+          subject: string
+          updated_at?: string
+          user_id: string
+          user_type: Database["public"]["Enums"]["support_user_type"]
+        }
+        Update: {
+          assigned_admin_id?: string | null
+          category?: Database["public"]["Enums"]["support_category"]
+          created_at?: string
+          id?: string
+          status?: Database["public"]["Enums"]["support_ticket_status"]
+          subject?: string
+          updated_at?: string
+          user_id?: string
+          user_type?: Database["public"]["Enums"]["support_user_type"]
+        }
+        Relationships: []
+      }
       takeaway_packs: {
         Row: {
           created_at: string | null
@@ -2862,6 +2936,16 @@ export type Database = {
         | "on_the_way"
         | "delivered"
         | "cancelled"
+      support_category:
+        | "refund"
+        | "withdrawal"
+        | "order_issue"
+        | "account_issue"
+        | "payment"
+        | "delivery"
+        | "general"
+      support_ticket_status: "open" | "in_progress" | "resolved" | "closed"
+      support_user_type: "customer" | "vendor" | "rider" | "logistics"
       vendor_category: "restaurant" | "pharmacy" | "market"
       vendor_staff_role: "owner" | "manager" | "cashier" | "viewer"
     }
@@ -3007,6 +3091,17 @@ export const Constants = {
         "delivered",
         "cancelled",
       ],
+      support_category: [
+        "refund",
+        "withdrawal",
+        "order_issue",
+        "account_issue",
+        "payment",
+        "delivery",
+        "general",
+      ],
+      support_ticket_status: ["open", "in_progress", "resolved", "closed"],
+      support_user_type: ["customer", "vendor", "rider", "logistics"],
       vendor_category: ["restaurant", "pharmacy", "market"],
       vendor_staff_role: ["owner", "manager", "cashier", "viewer"],
     },
