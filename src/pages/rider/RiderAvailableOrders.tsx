@@ -252,6 +252,9 @@ export default function RiderAvailableOrders() {
             <p className="text-xs text-muted-foreground mt-3">
               You'll be notified when a restaurant needs a rider
             </p>
+            <p className="text-xs text-muted-foreground mt-2 italic">
+              Bad weather and busy hours earn you extra. You always see your full payout before accepting.
+            </p>
           </CardContent>
         </Card>
       ) : (

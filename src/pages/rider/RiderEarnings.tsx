@@ -8,13 +8,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { DollarSign, TrendingUp, Wallet, ArrowUpRight, Loader2, FlaskConical, Lock, Package, Calendar, Percent } from 'lucide-react';
+import { DollarSign, TrendingUp, Wallet, ArrowUpRight, Loader2, FlaskConical, Lock, Package, Calendar, Percent, Info } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 import { useRiderRestrictions } from '@/hooks/useRiderRestrictions';
 import { DateRangeFilter, DateRange } from '@/components/shared/DateRangeFilter';
 import { EarningsBreakdownCard } from '@/components/shared/EarningsBreakdownCard';
 import { EarningsExplanation } from '@/components/shared/EarningsExplanation';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 export default function RiderEarnings() {
   const navigate = useNavigate();
@@ -25,6 +26,7 @@ export default function RiderEarnings() {
   const [riderProfile, setRiderProfile] = useState<any>(null);
   const [wallet, setWallet] = useState<any>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
+  const [payoutDetails, setPayoutDetails] = useState<any[]>([]);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
   const [affiliatedVendorName, setAffiliatedVendorName] = useState<string | null>(null);
@@ -122,7 +124,6 @@ export default function RiderEarnings() {
           .order('created_at', { ascending: false })
           .limit(100);
 
-        // Apply date range filter
         if (dateRange.from) {
           txQuery = txQuery.gte('created_at', dateRange.from.toISOString());
         }
@@ -133,9 +134,28 @@ export default function RiderEarnings() {
         }
 
         const { data: txns } = await txQuery;
-
         setTransactions(txns || []);
       }
+
+      // Fetch payout details for this rider
+      let detailsQuery = supabase
+        .from('rider_payout_details')
+        .select('*')
+        .eq('rider_user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (dateRange.from) {
+        detailsQuery = detailsQuery.gte('created_at', dateRange.from.toISOString());
+      }
+      if (dateRange.to) {
+        const endOfToDate = new Date(dateRange.to);
+        endOfToDate.setHours(23, 59, 59, 999);
+        detailsQuery = detailsQuery.lte('created_at', endOfToDate.toISOString());
+      }
+
+      const { data: details } = await detailsQuery;
+      setPayoutDetails(details || []);
     } catch (error) {
       console.error('Error fetching earnings:', error);
     } finally {
@@ -214,11 +234,25 @@ export default function RiderEarnings() {
     ? transactions.filter(t => t.transaction_type === 'credit').reduce((sum, t) => sum + Number(t.amount), 0)
     : (Number(wallet?.total_earned) || 0);
 
-  // Calculate gross delivery fees (rider earnings / 0.8 = gross, since rider gets 80%)
+  // Calculate earnings from payout details if available, otherwise fallback
+  const totalPlatformFees = payoutDetails.reduce((sum, d) => sum + Number(d.platform_fee || 0), 0);
+  const totalDistanceBonus = payoutDetails.reduce((sum, d) => sum + Number(d.distance_bonus || 0), 0);
+  const totalSurgeBonus = payoutDetails.reduce((sum, d) => sum + Number(d.total_surge_bonus || 0), 0);
+  const totalSubsidies = payoutDetails.reduce((sum, d) => sum + Number(d.subsidy_amount || 0), 0);
+  const totalDeliveryFees = payoutDetails.reduce((sum, d) => sum + Number(d.delivery_fee || 0), 0);
+  const totalFinalPay = payoutDetails.reduce((sum, d) => sum + Number(d.final_rider_pay || 0), 0);
+
+  // Fallback to old calculation if no payout details exist
   const riderShareTransactions = transactions.filter(t => t.category === 'rider_share' && t.transaction_type === 'credit');
-  const grossDeliveryFees = riderShareTransactions.reduce((sum, t) => sum + (Number(t.amount) / 0.8), 0);
-  const platformCommission = grossDeliveryFees * 0.2;
-  const netRiderEarnings = grossDeliveryFees - platformCommission;
+  const grossDeliveryFees = payoutDetails.length > 0 
+    ? totalDeliveryFees
+    : riderShareTransactions.reduce((sum, t) => sum + (Number(t.amount) / 0.8), 0);
+  const platformCommission = payoutDetails.length > 0 
+    ? totalPlatformFees
+    : grossDeliveryFees * 0.2;
+  const netRiderEarnings = payoutDetails.length > 0
+    ? totalFinalPay
+    : grossDeliveryFees - platformCommission;
 
   return (
     <RiderLayout isOnline={isOnline} onToggleOnline={toggleOnline} canViewEarnings={true}>
@@ -242,11 +276,26 @@ export default function RiderEarnings() {
             grossAmount={grossDeliveryFees}
             deductions={[
               {
-                label: 'Platform Commission',
+                label: 'Platform Fee (capped)',
                 amount: platformCommission,
-                percentage: 20,
-                description: 'Platform retains 20% of delivery fees. You receive 80%.',
+                percentage: grossDeliveryFees > 0 ? Math.round((platformCommission / grossDeliveryFees) * 100) : 0,
+                description: 'Capped platform fee: min ₦300, max ₦700',
               },
+              ...(totalDistanceBonus > 0 ? [{
+                label: 'Distance Bonus',
+                amount: -totalDistanceBonus,
+                description: '₦100 per km beyond 4km threshold',
+              }] : []),
+              ...(totalSurgeBonus > 0 ? [{
+                label: 'Surge Bonuses',
+                amount: -totalSurgeBonus,
+                description: 'Time & weather surge bonuses',
+              }] : []),
+              ...(totalSubsidies > 0 ? [{
+                label: 'Minimum Guarantee Top-ups',
+                amount: -totalSubsidies,
+                description: 'Platform subsidy to ensure ₦900 minimum payout',
+              }] : []),
             ]}
             netAmount={netRiderEarnings}
             title="Delivery Earnings Breakdown"

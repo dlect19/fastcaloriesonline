@@ -14,6 +14,7 @@ import { MapPin, Bike, DollarSign, Settings2, Save, Loader2, CreditCard, Navigat
 import { EnvironmentSwitch } from '@/components/admin/EnvironmentSwitch';
 import { AdminTestModeToggle } from '@/components/admin/AdminTestModeToggle';
 import { PaystackBalanceCard } from '@/components/admin/PaystackBalanceCard';
+import { RiderPayoutSettings } from '@/components/admin/RiderPayoutSettings';
 
 interface DeliverySetting {
   key: string;
@@ -112,7 +113,7 @@ export default function AdminSettings() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Update each setting
+      // Update each setting - include all keys that have been set
       const allConfigs = [...deliverySettingsConfig, ...financialSettingsConfig, ...settlementSettingsConfig];
       for (const config of allConfigs) {
         const value = settings[config.key];
@@ -150,9 +151,31 @@ export default function AdminSettings() {
         }, { onConflict: 'key' });
       }
 
+      // Save all rider payout settings
+      const riderPayoutKeys = [
+        'rider_platform_fee_pct', 'rider_platform_fee_min', 'rider_platform_fee_max',
+        'rider_minimum_payout', 'rider_distance_bonus_threshold_km', 'rider_distance_bonus_rate',
+        'rider_surge_enabled', 'rider_time_surge_enabled', 'rider_weather_surge_enabled',
+        'rider_max_surge_cap', 'rider_time_surge_morning', 'rider_time_surge_afternoon',
+        'rider_time_surge_night', 'rider_weather_surge_clear', 'rider_weather_surge_rain',
+        'rider_weather_surge_storm', 'rider_weather_override',
+        'rider_morning_start_hour', 'rider_morning_end_hour',
+        'rider_afternoon_start_hour', 'rider_afternoon_end_hour',
+        'rider_night_start_hour', 'rider_night_end_hour',
+      ];
+      for (const key of riderPayoutKeys) {
+        if (settings[key] !== undefined) {
+          await supabase.from('platform_settings').upsert({
+            key,
+            value: settings[key],
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'key' });
+        }
+      }
+
       toast({
         title: 'Settings Saved',
-        description: 'Delivery settings have been updated successfully.',
+        description: 'All platform settings have been updated successfully.',
       });
     } catch (error) {
       console.error('Error saving settings:', error);
@@ -550,6 +573,14 @@ export default function AdminSettings() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Rider Payout Model */}
+            <RiderPayoutSettings
+              settings={settings}
+              onSettingChange={handleSettingChange}
+              onSave={handleSave}
+              saving={saving}
+            />
           </div>
         )}
       </main>
