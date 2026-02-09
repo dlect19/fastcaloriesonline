@@ -19,7 +19,6 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get the authorization header to identify the rider
     const authHeader = req.headers.get('authorization');
     if (!authHeader) {
       return new Response(
@@ -28,10 +27,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Verify the user
     const token = authHeader.replace('Bearer ', '');
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
+
     if (authError || !user) {
       return new Response(
         JSON.stringify({ error: 'Invalid authorization' }),
@@ -50,22 +48,15 @@ Deno.serve(async (req) => {
 
     console.log(`Rider ${user.id} attempting to accept offer ${offerId}`);
 
-    // Get the offer details
+    // Get the offer details including payout breakdown
     const { data: offer, error: offerError } = await supabase
       .from('dispatch_offers')
       .select(`
-        id,
-        dispatch_request_id,
-        rider_user_id,
-        rider_profile_id,
-        status,
-        expires_at,
-        dispatch_requests (
-          id,
-          order_id,
-          status,
-          vendor_id
-        )
+        id, dispatch_request_id, rider_user_id, rider_profile_id,
+        status, expires_at, delivery_fee, rider_share, distance_km,
+        platform_fee, distance_bonus, time_surge_bonus, weather_surge_bonus,
+        total_surge_bonus, subsidy_amount, weather_condition, time_period,
+        dispatch_requests (id, order_id, status, vendor_id)
       `)
       .eq('id', offerId)
       .single();
@@ -78,7 +69,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Verify the rider is the one who received this offer
     if (offer.rider_user_id !== user.id) {
       return new Response(
         JSON.stringify({ error: 'This offer is not assigned to you' }),
@@ -86,20 +76,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Check if offer is still pending
     if (offer.status !== 'pending') {
       return new Response(
-        JSON.stringify({ 
-          error: 'Offer is no longer available',
-          status: offer.status 
-        }),
+        JSON.stringify({ error: 'Offer is no longer available', status: offer.status }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Check if offer has expired
     if (new Date(offer.expires_at) < new Date()) {
-      // Mark as expired
       await supabase
         .from('dispatch_offers')
         .update({ status: 'expired', responded_at: new Date().toISOString() })
@@ -112,26 +96,20 @@ Deno.serve(async (req) => {
     }
 
     const dispatchRequest = offer.dispatch_requests as any;
-    
-    // Check if dispatch request is still pending
+
     if (dispatchRequest.status !== 'pending') {
-      // Mark this offer as superseded since someone else got it
       await supabase
         .from('dispatch_offers')
         .update({ status: 'superseded', responded_at: new Date().toISOString() })
         .eq('id', offerId);
 
       return new Response(
-        JSON.stringify({ 
-          error: 'Order already taken by another rider',
-          alreadyTaken: true 
-        }),
+        JSON.stringify({ error: 'Order already taken by another rider', alreadyTaken: true }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // ATOMIC ACCEPTANCE: Use a transaction to prevent race conditions
-    // First, try to update the dispatch request with a WHERE clause that checks status
+    // ATOMIC ACCEPTANCE
     const { data: updatedDispatch, error: dispatchUpdateError } = await supabase
       .from('dispatch_requests')
       .update({
@@ -141,25 +119,19 @@ Deno.serve(async (req) => {
         accepted_at: new Date().toISOString(),
       })
       .eq('id', dispatchRequest.id)
-      .eq('status', 'pending') // Only update if still pending (optimistic locking)
+      .eq('status', 'pending')
       .select()
       .single();
 
     if (dispatchUpdateError || !updatedDispatch) {
-      // Race condition: another rider accepted first
       console.log('Race condition detected, another rider accepted first');
-      
-      // Mark this offer as superseded
       await supabase
         .from('dispatch_offers')
         .update({ status: 'superseded', responded_at: new Date().toISOString() })
         .eq('id', offerId);
 
       return new Response(
-        JSON.stringify({ 
-          error: 'Order already taken by another rider',
-          alreadyTaken: true 
-        }),
+        JSON.stringify({ error: 'Order already taken by another rider', alreadyTaken: true }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -169,24 +141,18 @@ Deno.serve(async (req) => {
     // Update the offer as accepted
     await supabase
       .from('dispatch_offers')
-      .update({ 
-        status: 'accepted', 
-        responded_at: new Date().toISOString() 
-      })
+      .update({ status: 'accepted', responded_at: new Date().toISOString() })
       .eq('id', offerId);
 
-    // Mark all other offers for this dispatch as superseded
+    // Mark all other offers as superseded
     await supabase
       .from('dispatch_offers')
-      .update({ 
-        status: 'superseded', 
-        responded_at: new Date().toISOString() 
-      })
+      .update({ status: 'superseded', responded_at: new Date().toISOString() })
       .eq('dispatch_request_id', dispatchRequest.id)
       .neq('id', offerId);
 
-    // Update the order with the assigned rider
-    const { error: orderUpdateError } = await supabase
+    // Update the order with assigned rider
+    await supabase
       .from('orders')
       .update({
         rider_id: user.id,
@@ -195,18 +161,49 @@ Deno.serve(async (req) => {
       })
       .eq('id', dispatchRequest.order_id);
 
-    if (orderUpdateError) {
-      console.error('Error updating order:', orderUpdateError);
-      // Don't fail the whole request, the dispatch is already accepted
-    }
+    // Get the order environment
+    const { data: orderData } = await supabase
+      .from('orders')
+      .select('environment')
+      .eq('id', dispatchRequest.order_id)
+      .single();
 
-    console.log(`Order ${dispatchRequest.order_id} assigned to rider ${user.id}`);
+    // Record rider payout details for audit trail
+    await supabase.from('rider_payout_details').insert({
+      order_id: dispatchRequest.order_id,
+      rider_user_id: user.id,
+      delivery_fee: offer.delivery_fee || 0,
+      distance_km: offer.distance_km || 0,
+      platform_fee: offer.platform_fee || 0,
+      distance_bonus: offer.distance_bonus || 0,
+      time_surge_bonus: offer.time_surge_bonus || 0,
+      weather_surge_bonus: offer.weather_surge_bonus || 0,
+      total_surge_bonus: offer.total_surge_bonus || 0,
+      raw_rider_pay: (offer.rider_share || 0) - (offer.subsidy_amount || 0),
+      subsidy_amount: offer.subsidy_amount || 0,
+      final_rider_pay: offer.rider_share || 0,
+      weather_condition: offer.weather_condition || 'clear',
+      time_period: offer.time_period || 'morning',
+      environment: orderData?.environment || 'production',
+    });
+
+    console.log(`Order ${dispatchRequest.order_id} assigned to rider ${user.id}, payout: ₦${offer.rider_share}`);
 
     return new Response(
       JSON.stringify({
         success: true,
         orderId: dispatchRequest.order_id,
         message: 'Successfully accepted delivery',
+        payoutDetails: {
+          deliveryFee: offer.delivery_fee,
+          platformFee: offer.platform_fee,
+          distanceBonus: offer.distance_bonus,
+          timeSurgeBonus: offer.time_surge_bonus,
+          weatherSurgeBonus: offer.weather_surge_bonus,
+          totalSurgeBonus: offer.total_surge_bonus,
+          subsidyAmount: offer.subsidy_amount,
+          finalRiderPay: offer.rider_share,
+        },
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

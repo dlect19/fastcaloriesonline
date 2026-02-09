@@ -21,6 +21,15 @@ interface DispatchOffer {
   created_at: string;
   expires_at: string;
   responded_at: string | null;
+  // Hybrid payout breakdown fields
+  platform_fee: number | null;
+  distance_bonus: number | null;
+  time_surge_bonus: number | null;
+  weather_surge_bonus: number | null;
+  total_surge_bonus: number | null;
+  subsidy_amount: number | null;
+  weather_condition: string | null;
+  time_period: string | null;
 }
 
 export function useDispatchOffers() {

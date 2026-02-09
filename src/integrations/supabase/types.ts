@@ -591,57 +591,81 @@ export type Database = {
           customer_address: string | null
           delivery_fee: number
           dispatch_request_id: string
+          distance_bonus: number | null
           distance_km: number
           estimated_delivery_minutes: number | null
           estimated_pickup_minutes: number | null
           expires_at: string
           id: string
+          platform_fee: number | null
           priority_tier: string
           responded_at: string | null
           rider_profile_id: string
           rider_share: number
           rider_user_id: string
           status: string | null
+          subsidy_amount: number | null
+          time_period: string | null
+          time_surge_bonus: number | null
+          total_surge_bonus: number | null
           vendor_address: string | null
           vendor_name: string | null
+          weather_condition: string | null
+          weather_surge_bonus: number | null
         }
         Insert: {
           created_at?: string | null
           customer_address?: string | null
           delivery_fee: number
           dispatch_request_id: string
+          distance_bonus?: number | null
           distance_km: number
           estimated_delivery_minutes?: number | null
           estimated_pickup_minutes?: number | null
           expires_at: string
           id?: string
+          platform_fee?: number | null
           priority_tier: string
           responded_at?: string | null
           rider_profile_id: string
           rider_share: number
           rider_user_id: string
           status?: string | null
+          subsidy_amount?: number | null
+          time_period?: string | null
+          time_surge_bonus?: number | null
+          total_surge_bonus?: number | null
           vendor_address?: string | null
           vendor_name?: string | null
+          weather_condition?: string | null
+          weather_surge_bonus?: number | null
         }
         Update: {
           created_at?: string | null
           customer_address?: string | null
           delivery_fee?: number
           dispatch_request_id?: string
+          distance_bonus?: number | null
           distance_km?: number
           estimated_delivery_minutes?: number | null
           estimated_pickup_minutes?: number | null
           expires_at?: string
           id?: string
+          platform_fee?: number | null
           priority_tier?: string
           responded_at?: string | null
           rider_profile_id?: string
           rider_share?: number
           rider_user_id?: string
           status?: string | null
+          subsidy_amount?: number | null
+          time_period?: string | null
+          time_surge_bonus?: number | null
+          total_surge_bonus?: number | null
           vendor_address?: string | null
           vendor_name?: string | null
+          weather_condition?: string | null
+          weather_surge_bonus?: number | null
         }
         Relationships: [
           {
@@ -1875,6 +1899,74 @@ export type Database = {
             columns: ["vendor_id"]
             isOneToOne: false
             referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rider_payout_details: {
+        Row: {
+          created_at: string
+          delivery_fee: number
+          distance_bonus: number
+          distance_km: number
+          environment: string | null
+          final_rider_pay: number
+          id: string
+          order_id: string
+          platform_fee: number
+          raw_rider_pay: number
+          rider_user_id: string
+          subsidy_amount: number
+          time_period: string | null
+          time_surge_bonus: number
+          total_surge_bonus: number
+          weather_condition: string | null
+          weather_surge_bonus: number
+        }
+        Insert: {
+          created_at?: string
+          delivery_fee?: number
+          distance_bonus?: number
+          distance_km?: number
+          environment?: string | null
+          final_rider_pay?: number
+          id?: string
+          order_id: string
+          platform_fee?: number
+          raw_rider_pay?: number
+          rider_user_id: string
+          subsidy_amount?: number
+          time_period?: string | null
+          time_surge_bonus?: number
+          total_surge_bonus?: number
+          weather_condition?: string | null
+          weather_surge_bonus?: number
+        }
+        Update: {
+          created_at?: string
+          delivery_fee?: number
+          distance_bonus?: number
+          distance_km?: number
+          environment?: string | null
+          final_rider_pay?: number
+          id?: string
+          order_id?: string
+          platform_fee?: number
+          raw_rider_pay?: number
+          rider_user_id?: string
+          subsidy_amount?: number
+          time_period?: string | null
+          time_surge_bonus?: number
+          total_surge_bonus?: number
+          weather_condition?: string | null
+          weather_surge_bonus?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rider_payout_details_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
         ]
