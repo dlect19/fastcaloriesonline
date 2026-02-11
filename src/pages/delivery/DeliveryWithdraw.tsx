@@ -371,7 +371,7 @@ export default function DeliveryWithdraw() {
             <CardContent className="pt-6">
               <Dialog open={withdrawDialogOpen} onOpenChange={handleCloseWithdrawDialog}>
                 <DialogTrigger asChild>
-                  <Button className="w-full gap-2" size="lg" disabled={!wallet?.eligible_balance}>
+                  <Button className="w-full gap-2" size="lg" disabled={!wallet?.eligible_balance || wallet.eligible_balance <= 0}>
                     <ArrowUpRight className="w-5 h-5" />
                     Request Withdrawal
                   </Button>

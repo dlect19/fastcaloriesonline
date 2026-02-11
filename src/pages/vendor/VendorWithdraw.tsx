@@ -303,7 +303,7 @@ export default function VendorWithdraw() {
     }
   };
 
-  // Check if vendor has existing pending/processing withdrawal
+  // Track pending withdrawals for display, but don't block new ones
   const hasPendingWithdrawal = withdrawals.some(
     w => w.status === 'pending' || w.status === 'processing'
   );
@@ -312,16 +312,6 @@ export default function VendorWithdraw() {
     const amount = Number(withdrawAmount);
     if (!amount || amount <= 0) {
       toast({ title: 'Enter a valid amount', variant: 'destructive' });
-      return;
-    }
-
-    // CRITICAL: Prevent duplicate pending requests
-    if (hasPendingWithdrawal) {
-      toast({ 
-        title: 'Withdrawal already in progress', 
-        description: 'You cannot request another withdrawal while one is pending or processing.',
-        variant: 'destructive' 
-      });
       return;
     }
 
@@ -401,18 +391,6 @@ export default function VendorWithdraw() {
 
       if (amount > freshSourceBalance) {
         throw new Error('Insufficient balance. Your available balance may have changed.');
-      }
-
-      // Check for existing pending/processing requests (server-side check)
-      const { data: existingRequests } = await supabase
-        .from('payout_requests')
-        .select('id')
-        .eq('wallet_id', wallet!.id)
-        .in('status', ['pending', 'processing'])
-        .limit(1);
-
-      if (existingRequests && existingRequests.length > 0) {
-        throw new Error('You already have a pending or processing withdrawal request.');
       }
 
       // Process withdrawal - insert into unified payout_requests table with source tag
@@ -780,15 +758,15 @@ export default function VendorWithdraw() {
             </Card>
           </div>
 
-          {/* Pending Withdrawal Warning */}
+          {/* Pending Withdrawal Info */}
           {hasPendingWithdrawal && (
-            <Card className="border-warning bg-warning/10">
+            <Card className="border-blue-200 bg-blue-50/50">
               <CardContent className="p-4 flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-warning mt-0.5" />
+                <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5" />
                 <div>
-                  <p className="font-medium text-warning">Withdrawal In Progress</p>
-                  <p className="text-sm text-muted-foreground">
-                    You have a pending or processing withdrawal. You cannot submit another request until it is completed or rejected.
+                  <p className="font-medium text-blue-800">Withdrawal In Progress</p>
+                  <p className="text-sm text-blue-700">
+                    You have a pending or processing withdrawal. You can still submit additional requests if you have sufficient balance.
                   </p>
                 </div>
               </CardContent>
@@ -798,7 +776,7 @@ export default function VendorWithdraw() {
           {/* Withdraw Button */}
           <Dialog open={withdrawDialogOpen} onOpenChange={handleCloseWithdrawDialog}>
             <DialogTrigger asChild>
-              <Button size="lg" className="gap-2" disabled={hasPendingWithdrawal}>
+              <Button size="lg" className="gap-2">
                 <ArrowUpRight className="w-5 h-5" />
                 Withdraw {withdrawalSource === 'rider_revenue' ? 'Rider Revenue' : 'Menu Earnings'}
               </Button>

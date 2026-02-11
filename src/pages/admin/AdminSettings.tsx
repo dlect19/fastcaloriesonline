@@ -40,6 +40,7 @@ export default function AdminSettings() {
 
   const financialSettingsConfig = [
     { key: 'default_vendor_commission_rate', label: 'Vendor Commission Rate', unit: '%', icon: DollarSign, description: 'Platform commission on vendor orders' },
+    { key: 'default_delivery_company_commission_rate', label: 'Delivery Company Commission', unit: '%', icon: Bike, description: 'Platform commission on delivery company fees' },
     { key: 'default_rider_share_percentage', label: 'Rider Share', unit: '%', icon: Bike, description: 'Rider share of delivery fee' },
     { key: 'min_withdrawal_amount', label: 'Min Withdrawal', unit: '₦', icon: DollarSign, description: 'Minimum amount for withdrawals' },
     { key: 'rider_earnings_hold_hours', label: 'Rider Hold Period', unit: 'hrs', icon: Settings2, description: 'Hours to hold rider earnings before eligible' },
@@ -381,6 +382,9 @@ export default function AdminSettings() {
                   <h4 className="text-sm font-medium text-foreground mb-2">Commission Structure</h4>
                   <p className="text-sm text-muted-foreground">
                     Platform takes <span className="text-primary font-medium">{settings['default_vendor_commission_rate'] || '15'}%</span> from vendor orders
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Platform takes <span className="text-primary font-medium">{settings['default_delivery_company_commission_rate'] || '20'}%</span> from delivery company fees
                   </p>
                   <p className="text-sm text-muted-foreground">
                     Riders receive <span className="text-primary font-medium">{settings['default_rider_share_percentage'] || '80'}%</span> of delivery fees
