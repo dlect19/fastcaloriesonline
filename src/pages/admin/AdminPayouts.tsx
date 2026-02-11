@@ -4,6 +4,7 @@ import { AdminSidebar } from '@/components/admin/AdminSidebar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -16,11 +17,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Banknote, Clock, CheckCircle, XCircle, Loader2, RefreshCw, User } from 'lucide-react';
+import { Banknote, Clock, CheckCircle, XCircle, Loader2, RefreshCw, User, Search, Calendar } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAdminPermissions } from '@/hooks/useAdminPermissions';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
+import { DateRangeFilter, DateRange } from '@/components/shared/DateRangeFilter';
 import { format } from 'date-fns';
 
 interface PayoutRequest {
@@ -37,6 +39,8 @@ interface PayoutRequest {
   failure_reason: string | null;
   paystack_reference: string | null;
   retry_count: number | null;
+  withdrawal_source: string | null;
+  wallet_id: string;
 }
 
 const isRetryableFailure = (reason: string | null): boolean => {
@@ -64,6 +68,8 @@ export default function AdminPayouts() {
   const [processing, setProcessing] = useState<string | null>(null);
   const [selectedPayout, setSelectedPayout] = useState<PayoutRequest | null>(null);
   const [dialogAction, setDialogAction] = useState<'approve' | 'reject' | 'retry' | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
 
   useEffect(() => {
     if (!authLoading && !role) {
@@ -239,6 +245,7 @@ export default function AdminPayouts() {
     
     setProcessing(selectedPayout.id);
     try {
+      // Update payout request status
       const { error } = await supabase
         .from('payout_requests')
         .update({ 
@@ -250,7 +257,49 @@ export default function AdminPayouts() {
 
       if (error) throw error;
 
-      toast({ title: 'Payout rejected' });
+      // CRITICAL: Return funds to the vendor's source-specific pool
+      const { data: wallet } = await supabase
+        .from('wallets')
+        .select('*')
+        .eq('id', selectedPayout.wallet_id)
+        .single();
+
+      if (wallet) {
+        const amount = Number(selectedPayout.amount);
+        const source = selectedPayout.withdrawal_source || 'menu_earnings';
+        const updateFields: Record<string, number> = {};
+        
+        // Restore to the correct source pool
+        if (source === 'rider_revenue') {
+          updateFields.rider_revenue_balance = (Number(wallet.rider_revenue_balance) || 0) + amount;
+        } else {
+          updateFields.menu_earnings_balance = (Number(wallet.menu_earnings_balance) || 0) + amount;
+        }
+        
+        // Restore general balances
+        updateFields.eligible_balance = (Number(wallet.eligible_balance) || 0) + amount;
+        updateFields.balance = (Number(wallet.balance) || 0) + amount;
+        updateFields.pending_payouts = Math.max(0, (Number(wallet.pending_payouts) || 0) - amount);
+
+        await supabase
+          .from('wallets')
+          .update(updateFields)
+          .eq('id', wallet.id);
+
+        // Log the reversal transaction
+        await supabase.from('wallet_transactions').insert({
+          wallet_id: wallet.id,
+          wallet_type: 'vendor',
+          transaction_type: 'credit',
+          category: source === 'rider_revenue' ? 'vendor_rider_share' : 'vendor_share',
+          amount: amount,
+          status: 'completed',
+          environment: isTestMode ? 'development' : 'production',
+          notes: `Withdrawal rejected by admin - funds returned to ${source === 'rider_revenue' ? 'rider revenue' : 'menu earnings'}`,
+        });
+      }
+
+      toast({ title: 'Payout rejected and funds returned to vendor' });
       fetchPayouts();
     } catch (error: any) {
       toast({
@@ -265,10 +314,32 @@ export default function AdminPayouts() {
     }
   };
 
-  const pendingPayouts = payouts.filter(p => p.status === 'pending');
-  const processingPayouts = payouts.filter(p => p.status === 'processing');
-  const completedPayouts = payouts.filter(p => p.status === 'completed');
-  const failedPayouts = payouts.filter(p => p.status === 'failed');
+  // Apply search and date filters
+  const filteredPayouts = payouts.filter(p => {
+    // Search filter
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const matchesName = (p.bank_account_name || '').toLowerCase().includes(q);
+      const matchesBank = (p.bank_name || '').toLowerCase().includes(q);
+      const matchesRef = (p.paystack_reference || '').toLowerCase().includes(q);
+      if (!matchesName && !matchesBank && !matchesRef) return false;
+    }
+    // Date range filter
+    if (dateRange.from) {
+      if (new Date(p.created_at) < dateRange.from) return false;
+    }
+    if (dateRange.to) {
+      const endOfDay = new Date(dateRange.to);
+      endOfDay.setHours(23, 59, 59, 999);
+      if (new Date(p.created_at) > endOfDay) return false;
+    }
+    return true;
+  });
+
+  const pendingPayouts = filteredPayouts.filter(p => p.status === 'pending');
+  const processingPayouts = filteredPayouts.filter(p => p.status === 'processing');
+  const completedPayouts = filteredPayouts.filter(p => p.status === 'completed');
+  const failedPayouts = filteredPayouts.filter(p => p.status === 'failed');
 
   const renderPayoutCard = (payout: PayoutRequest) => {
     const status = statusConfig[payout.status] || statusConfig.pending;
@@ -285,6 +356,11 @@ export default function AdminPayouts() {
               <div>
                 <p className="font-medium text-foreground">{payout.bank_account_name || 'Unknown'}</p>
                 <p className="text-xs text-muted-foreground capitalize">{payout.user_type}</p>
+                {payout.withdrawal_source && (
+                  <Badge variant="outline" className="text-xs mt-0.5">
+                    {payout.withdrawal_source === 'rider_revenue' ? 'Rider Revenue' : 'Menu Earnings'}
+                  </Badge>
+                )}
               </div>
             </div>
             <Badge className={`${status.color} border-0`}>
@@ -438,6 +514,20 @@ export default function AdminPayouts() {
                 <RefreshCw className="w-4 h-4" />
               </Button>
             </div>
+          </div>
+
+          {/* Search & Date Filters */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative flex-1 min-w-[200px] max-w-xs">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search by name, bank, reference..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <DateRangeFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
           </div>
 
           {/* Summary Cards */}
