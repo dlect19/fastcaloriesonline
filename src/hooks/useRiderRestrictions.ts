@@ -21,17 +21,17 @@ export function useRiderRestrictions(riderProfile: RiderProfile | null): RiderRe
     const isAffiliated = !!riderProfile?.affiliated_vendor_id;
     const isDeliveryCompanyRider = !!riderProfile?.delivery_company_id;
     
-    // Riders affiliated with a vendor or delivery company cannot view earnings or withdraw
-    const isRestricted = isAffiliated || isDeliveryCompanyRider;
+    // Only delivery company riders are restricted (vendor-affiliated riders now get own wallet)
+    const isRestricted = isDeliveryCompanyRider;
     
     return {
       isAffiliated,
       affiliatedVendorId: riderProfile?.affiliated_vendor_id || null,
       isDeliveryCompanyRider,
       deliveryCompanyId: riderProfile?.delivery_company_id || null,
-      canViewEarnings: !isRestricted, // Only platform riders can see earnings
-      canViewAllOrders: !isRestricted, // Only platform riders see all orders
-      canWithdraw: !isRestricted, // Only platform riders can withdraw
+      canViewEarnings: !isRestricted, // Vendor-affiliated and platform riders can see earnings
+      canViewAllOrders: !isRestricted, // Vendor-affiliated and platform riders see all orders
+      canWithdraw: !isRestricted, // Vendor-affiliated and platform riders can withdraw
     };
   }, [riderProfile?.affiliated_vendor_id, riderProfile?.delivery_company_id]);
 }
