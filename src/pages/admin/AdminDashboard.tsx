@@ -5,6 +5,7 @@ import { AdminSidebar } from '@/components/admin/AdminSidebar';
 import { PromoImpactCard } from '@/components/admin/PromoImpactCard';
 import { CompanyProfitCard } from '@/components/admin/CompanyProfitCard';
 import { FinancialResetDialog } from '@/components/admin/FinancialResetDialog';
+import { FinancialPerformanceChart } from '@/components/admin/FinancialPerformanceChart';
 import { DateRangeFilter, DateRange } from '@/components/shared/DateRangeFilter';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -551,6 +552,12 @@ export default function AdminDashboard() {
         <section>
           <h2 className="text-lg font-semibold text-foreground mb-4">Company Profit & Loss</h2>
           <CompanyProfitCard environment={isTestMode ? 'development' : 'production'} />
+        </section>
+
+        {/* Financial Performance Chart */}
+        <section>
+          <h2 className="text-lg font-semibold text-foreground mb-4">Financial Performance</h2>
+          <FinancialPerformanceChart environment={isTestMode ? 'development' : 'production'} />
         </section>
 
         {/* Promo Impact Analysis */}

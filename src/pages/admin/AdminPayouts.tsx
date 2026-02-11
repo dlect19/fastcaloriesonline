@@ -67,7 +67,7 @@ export default function AdminPayouts() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState<string | null>(null);
   const [selectedPayout, setSelectedPayout] = useState<PayoutRequest | null>(null);
-  const [dialogAction, setDialogAction] = useState<'approve' | 'reject' | 'retry' | null>(null);
+  const [dialogAction, setDialogAction] = useState<'approve' | 'reject' | 'retry' | 'mark_completed' | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
 
@@ -192,6 +192,34 @@ export default function AdminPayouts() {
         variant: 'destructive'
       });
       fetchPayouts(); // Refresh to show updated status
+    } finally {
+      setProcessing(null);
+      setSelectedPayout(null);
+      setDialogAction(null);
+    }
+  };
+
+  const handleMarkCompleted = async () => {
+    if (!selectedPayout) return;
+    
+    setProcessing(selectedPayout.id);
+    try {
+      const { error } = await supabase
+        .from('payout_requests')
+        .update({ 
+          status: 'completed',
+          processed_at: new Date().toISOString(),
+          failure_reason: null,
+        })
+        .eq('id', selectedPayout.id);
+
+      if (error) throw error;
+
+      toast({ title: '✅ Payout marked as completed!' });
+      fetchPayouts();
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      toast({ title: 'Error updating payout', description: errorMessage, variant: 'destructive' });
     } finally {
       setProcessing(null);
       setSelectedPayout(null);
@@ -395,6 +423,28 @@ export default function AdminPayouts() {
                 disabled={processing === payout.id}
               >
                 Reject
+              </Button>
+            </div>
+          )}
+
+          {payout.status === 'processing' && (
+            <div className="mt-4">
+              <Button 
+                size="sm" 
+                variant="default"
+                className="w-full bg-success hover:bg-success/90"
+                onClick={() => {
+                  setSelectedPayout(payout);
+                  setDialogAction('mark_completed');
+                }}
+                disabled={processing === payout.id}
+              >
+                {processing === payout.id ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                ) : (
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                )}
+                Mark as Completed
               </Button>
             </div>
           )}
@@ -652,6 +702,24 @@ export default function AdminPayouts() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleRetry}>
               Retry Transfer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={dialogAction === 'mark_completed'} onOpenChange={() => setDialogAction(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mark as Completed?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will manually mark the payout of ₦{Number(selectedPayout?.amount || 0).toLocaleString()} to {selectedPayout?.bank_account_name} as completed. 
+              Only use this if you've confirmed the transfer was successful via your payment provider.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleMarkCompleted} className="bg-success hover:bg-success/90">
+              Confirm Completed
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

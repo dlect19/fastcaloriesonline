@@ -14,6 +14,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useDeliveryCompany } from '@/hooks/useDeliveryCompany';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 import { supabase } from '@/integrations/supabase/client';
+import { PerRiderBreakdown } from '@/components/delivery/PerRiderBreakdown';
 
 interface EarningsStats {
   totalEarned: number;
@@ -353,6 +354,14 @@ export default function DeliveryEarnings() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Per-Rider Breakdown */}
+          {company && (
+            <PerRiderBreakdown 
+              companyId={company.id} 
+              environment={isTestMode ? 'development' : 'production'} 
+            />
+          )}
 
           {/* Transaction History */}
           <Card>
