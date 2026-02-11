@@ -83,55 +83,14 @@ export default function AdminPayouts() {
 
   const fetchPayouts = async () => {
     try {
-      // Fetch payouts and filter by wallet environment
       const { data, error } = await supabase
         .from('payout_requests')
-        .select('*, wallets!inner(id)')
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       
-      // Filter payouts by checking wallet transactions environment
-      // or by checking the wallet's test vs live balance usage
-      // For now, fetch wallet_transactions to determine environment
-      const payoutIds = data?.map(p => p.id) || [];
-      
-      if (payoutIds.length === 0) {
-        setPayouts([]);
-        return;
-      }
-      
-      // Get wallet IDs and check their transaction environments
-      const walletIds = [...new Set(data?.map(p => p.wallet_id) || [])];
-      
-      // Check withdrawal source to determine environment
-      // Payouts from test balances are test mode, payouts from live balances are production
-      const envFilter = isTestMode ? 'development' : 'production';
-      
-      // Get recent wallet transactions to identify environment per wallet
-      const { data: recentTx } = await supabase
-        .from('wallet_transactions')
-        .select('wallet_id, environment')
-        .in('wallet_id', walletIds)
-        .eq('category', 'withdrawal')
-        .order('created_at', { ascending: false });
-      
-      // Build map of wallet to most recent withdrawal environment
-      const walletEnvMap = new Map<string, string>();
-      recentTx?.forEach(tx => {
-        if (!walletEnvMap.has(tx.wallet_id) && tx.environment) {
-          walletEnvMap.set(tx.wallet_id, tx.environment);
-        }
-      });
-      
-      // Filter payouts based on environment
-      // If we can't determine environment, show in both modes
-      const filteredPayouts = data?.filter(p => {
-        const env = walletEnvMap.get(p.wallet_id);
-        return !env || env === envFilter;
-      }) || [];
-      
-      setPayouts(filteredPayouts);
+      setPayouts(data || []);
     } catch (error) {
       console.error('Error fetching payouts:', error);
       toast({
