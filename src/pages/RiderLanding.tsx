@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { ChevronRight, Bike, Wallet, Clock, MapPin, Shield, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
+import fastCaloriesLogo from '@/assets/fast-calories-text-logo.png';
 
 export default function RiderLanding() {
   const navigate = useNavigate();
