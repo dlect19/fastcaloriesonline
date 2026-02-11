@@ -116,16 +116,13 @@ const handler = async (req: Request): Promise<Response> => {
         );
       }
 
-      // Generate reference if not present (for admin-triggered payouts)
-      if (!data.paystack_reference) {
-        data.paystack_reference = `PAY-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-        
-        // Update the payout request with the generated reference
-        await supabase
-          .from("payout_requests")
-          .update({ paystack_reference: data.paystack_reference })
-          .eq("id", payout_request_id);
-      }
+      // Always generate a fresh reference to avoid duplicate_transfer_reference errors on retries
+      data.paystack_reference = `PAY-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+      
+      await supabase
+        .from("payout_requests")
+        .update({ paystack_reference: data.paystack_reference })
+        .eq("id", payout_request_id);
 
       payoutRequest = data;
     } else if (amount) {
