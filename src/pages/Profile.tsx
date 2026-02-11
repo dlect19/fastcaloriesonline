@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useCustomerWallet } from '@/hooks/useCustomerWallet';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -10,7 +11,10 @@ import { ProfileForm } from '@/components/profile/ProfileForm';
 import { CalorieGoalCard } from '@/components/profile/CalorieGoalCard';
 import { OrderHistoryCard } from '@/components/profile/OrderHistoryCard';
 import { AddressesCard } from '@/components/profile/AddressesCard';
-import { Leaf, ArrowLeft, Receipt, ChevronRight, Wallet } from 'lucide-react';
+import { FundWalletDialog } from '@/components/profile/FundWalletDialog';
+import { VirtualAccountCard } from '@/components/profile/VirtualAccountCard';
+import { CreateDVADialog } from '@/components/profile/CreateDVADialog';
+import { Leaf, ArrowLeft, Receipt, ChevronRight, Wallet, Plus, Building2, User } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Tables } from '@/integrations/supabase/types';
 
@@ -19,6 +23,7 @@ type Address = Tables<'addresses'>;
 
 export default function Profile() {
   const { user, loading: authLoading, signOut } = useAuth();
+  const { balance, hasDVA, dvaDetails, profileComplete, isTestMode, refetch: refetchWallet, isDisabled } = useCustomerWallet();
   const navigate = useNavigate();
   const { toast } = useToast();
   
@@ -26,6 +31,8 @@ export default function Profile() {
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('profile');
+  const [fundDialogOpen, setFundDialogOpen] = useState(false);
+  const [dvaDialogOpen, setDvaDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -119,37 +126,82 @@ export default function Profile() {
           onSignOut={handleSignOut}
         />
 
-        <ProfileForm
-          user={user}
-          profile={profile}
-          onUpdate={fetchProfileData}
-        />
-
-        <CalorieGoalCard
-          profile={profile}
-          onUpdate={fetchProfileData}
-        />
-
-        <OrderHistoryCard userId={user.id} />
-
-        {/* Wallet Link */}
-        <Card 
-          className="border-0 shadow-soft cursor-pointer hover:bg-muted/50 transition-colors"
-          onClick={() => navigate('/profile/wallet')}
-        >
-          <CardContent className="p-4">
+        {/* Wallet Summary Card */}
+        <Card className="border-0 shadow-soft bg-gradient-to-br from-primary/10 to-primary/5">
+          <CardContent className="p-4 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center">
                   <Wallet className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <p className="font-medium">My Wallet</p>
-                  <p className="text-sm text-muted-foreground">View balance & add money</p>
+                  <p className="text-sm text-muted-foreground">Wallet Balance</p>
+                  <p className="text-2xl font-bold text-foreground">₦{balance.toLocaleString()}</p>
                 </div>
               </div>
-              <ChevronRight className="w-5 h-5 text-muted-foreground" />
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => setFundDialogOpen(true)}
+                  disabled={isDisabled}
+                  className="gap-1"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Money
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate('/profile/wallet')}
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
+
+            {/* Virtual Account Info */}
+            {hasDVA && dvaDetails ? (
+              <div className="border-t border-border/50 pt-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Building2 className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-xs font-medium text-muted-foreground">Virtual Account</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">{dvaDetails.bankName}</span>
+                  <span className="font-mono font-bold">{dvaDetails.accountNumber}</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">{dvaDetails.accountName}</p>
+              </div>
+            ) : !isTestMode && (
+              <div className="border-t border-border/50 pt-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">
+                      {profileComplete ? 'Get a virtual account' : 'Complete profile to enable'}
+                    </span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs h-7"
+                    onClick={() => {
+                      if (profileComplete) {
+                        setDvaDialogOpen(true);
+                      } else {
+                        // Scroll to profile form
+                        toast({ title: 'Update your full name (first & last) and phone number first' });
+                      }
+                    }}
+                    disabled={isDisabled}
+                  >
+                    {profileComplete ? 'Get Account' : (
+                      <><User className="w-3 h-3 mr-1" /> Update Profile</>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -180,6 +232,20 @@ export default function Profile() {
           onUpdate={fetchProfileData}
         />
       </main>
+
+      {/* Fund Wallet Dialog */}
+      <FundWalletDialog
+        open={fundDialogOpen}
+        onOpenChange={setFundDialogOpen}
+      />
+
+      {/* Create DVA Dialog */}
+      <CreateDVADialog
+        open={dvaDialogOpen}
+        onOpenChange={setDvaDialogOpen}
+        profileComplete={profileComplete}
+        onSuccess={refetchWallet}
+      />
 
       <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
     </div>
