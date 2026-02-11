@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { RiderLayout } from '@/components/rider/RiderLayout';
@@ -41,7 +41,7 @@ export default function RiderOrders() {
   const [confirmingDelivery, setConfirmingDelivery] = useState(false);
   const [reassignDialogOpen, setReassignDialogOpen] = useState(false);
   const [orderToReassign, setOrderToReassign] = useState<any>(null);
-  const previousOrderCount = useRef<number>(0);
+  
 
   // Use rider restrictions hook
   const { isAffiliated, canViewEarnings } = useRiderRestrictions(riderProfile);
@@ -74,7 +74,7 @@ export default function RiderOrders() {
               startRepeating();
               toast({
                 title: '🚚 New Delivery!',
-                description: `Order #${payload.new.order_number} has been assigned to you. Accept to stop notification.`,
+                description: `Order #${payload.new.order_number} has been assigned to you. Tap pickup to stop notification.`,
               });
             }
           }
@@ -87,6 +87,18 @@ export default function RiderOrders() {
       supabase.removeChannel(channel);
     };
   }, [userId, startRepeating, toast]);
+
+  // Auto-start sound if there are unactioned assigned orders on load
+  useEffect(() => {
+    if (!loading && activeOrders.length > 0) {
+      const hasNewAssignments = activeOrders.some(o => 
+        ['assigned', 'searching_for_rider', 'ready_for_pickup', 'confirmed'].includes(o.status)
+      );
+      if (hasNewAssignments) {
+        startRepeating();
+      }
+    }
+  }, [loading]);
 
   const checkAuth = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -119,16 +131,6 @@ export default function RiderOrders() {
         .eq('rider_id', user.id)
         .not('status', 'in', '("delivered","cancelled")')
         .order('created_at', { ascending: false });
-
-      // Check if there are new orders
-      if (active && active.length > previousOrderCount.current && previousOrderCount.current > 0) {
-        startRepeating();
-        toast({
-          title: '🚚 New Delivery!',
-          description: 'You have a new order assigned.',
-        });
-      }
-      previousOrderCount.current = active?.length || 0;
 
       // Completed orders
       const { data: completed } = await supabase
@@ -173,7 +175,15 @@ export default function RiderOrders() {
           ? '📦 Order picked up! Confirmation code sent to customer.' 
           : 'Status updated successfully' 
       });
-      fetchOrders();
+      await fetchOrders();
+      
+      // After action, check if there are still other unactioned orders - restart sound
+      const remainingNew = activeOrders.filter(o => 
+        o.id !== orderId && ['assigned', 'searching_for_rider', 'ready_for_pickup', 'confirmed'].includes(o.status)
+      );
+      if (remainingNew.length > 0) {
+        startRepeating();
+      }
     } catch (error) {
       console.error('Error updating order:', error);
       toast({ title: 'Failed to update status', variant: 'destructive' });
