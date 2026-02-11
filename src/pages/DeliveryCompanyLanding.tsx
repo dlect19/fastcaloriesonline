@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { ChevronRight, Building2, TrendingUp, Users, Truck, BarChart3, Shield } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
+import fastCaloriesLogo from '@/assets/fast-calories-text-logo.png';
 
 export default function DeliveryCompanyLanding() {
   const navigate = useNavigate();

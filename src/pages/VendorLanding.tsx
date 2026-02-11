@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { ChevronRight, Store, TrendingUp, Users, Clock, Shield, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
+import fastCaloriesLogo from '@/assets/fast-calories-text-logo.png';
 
 export default function VendorLanding() {
   const navigate = useNavigate();
