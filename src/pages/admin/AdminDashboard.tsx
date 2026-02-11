@@ -4,9 +4,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
 import { PromoImpactCard } from '@/components/admin/PromoImpactCard';
 import { CompanyProfitCard } from '@/components/admin/CompanyProfitCard';
- import { FinancialResetDialog } from '@/components/admin/FinancialResetDialog';
+import { FinancialResetDialog } from '@/components/admin/FinancialResetDialog';
+import { DateRangeFilter, DateRange } from '@/components/shared/DateRangeFilter';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Package, Store, Bike, Users, DollarSign, TrendingUp, Loader2, Wallet, ArrowDownToLine, ArrowUpFromLine, PiggyBank, Percent, Receipt, Truck, CreditCard, FlaskConical, Globe } from 'lucide-react';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 
@@ -31,10 +33,20 @@ interface PlatformStats {
   pendingVendors: number;
 }
 
+interface VendorBreakdown {
+  vendorId: string;
+  vendorName: string;
+  totalOrders: number;
+  grossRevenue: number;
+  commission: number;
+  netPayout: number;
+}
+
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const { effectiveEnvironment, isTestMode, loading: envLoading } = useEnvironmentConfig();
   const [loading, setLoading] = useState(true);
+  const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [stats, setStats] = useState<PlatformStats>({
     totalOrders: 0,
     totalVendors: 0,
@@ -54,6 +66,7 @@ export default function AdminDashboard() {
     platformBalance: 0,
     totalEarned: 0,
   });
+  const [vendorBreakdowns, setVendorBreakdowns] = useState<VendorBreakdown[]>([]);
   const [riderSharePct, setRiderSharePct] = useState(80);
 
   useEffect(() => {
@@ -67,6 +80,13 @@ export default function AdminDashboard() {
       fetchFinancialStats();
     }
   }, [effectiveEnvironment, envLoading]);
+
+  // Refetch when date range changes
+  useEffect(() => {
+    if (!envLoading && effectiveEnvironment) {
+      fetchFinancialStats();
+    }
+  }, [dateRange]);
 
   const checkAuth = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -88,10 +108,10 @@ export default function AdminDashboard() {
     await Promise.all([fetchStats(), fetchFinancialStats()]);
   };
  
-   const handleResetComplete = () => {
-     fetchStats();
-     fetchFinancialStats();
-   };
+  const handleResetComplete = () => {
+    fetchStats();
+    fetchFinancialStats();
+  };
 
   const fetchStats = async () => {
     try {
@@ -131,29 +151,41 @@ export default function AdminDashboard() {
       const riderSharePercent = riderShare ? parseFloat(riderShare.value) : 80;
       setRiderSharePct(riderSharePercent);
 
-      // Fetch platform wallet - use test_balance in development mode
+      // Fetch platform wallet
       const { data: platformWallet } = await supabase
         .from('platform_wallet')
         .select('balance, test_balance, total_earned, total_paid_out')
         .maybeSingle();
 
-      // Fetch orders filtered by environment
-      const { data: orders } = await supabase
+      // Fetch orders filtered by environment and date range
+      let orderQuery = supabase
         .from('orders')
         .select('total, subtotal, delivery_fee, service_fee, vendor_id')
-        .eq('environment', envFilter);
+        .eq('environment', envFilter)
+        .eq('payment_status', 'paid');
 
-      // Fetch vendor commission rates
+      if (dateRange.from) {
+        orderQuery = orderQuery.gte('created_at', dateRange.from.toISOString());
+      }
+      if (dateRange.to) {
+        const endDate = new Date(dateRange.to);
+        endDate.setHours(23, 59, 59, 999);
+        orderQuery = orderQuery.lte('created_at', endDate.toISOString());
+      }
+
+      const { data: orders } = await orderQuery;
+
+      // Fetch vendor commission rates and names
       const { data: vendors } = await supabase
         .from('vendors')
-        .select('id, commission_rate');
+        .select('id, name, commission_rate');
 
-      // Fetch payout requests (note: payouts don't have environment column, filter by related data)
+      // Fetch payout requests
       const { data: payouts } = await supabase
         .from('payout_requests')
         .select('amount, status');
 
-      // Fetch wallet balances - use test balances in development mode
+      // Fetch wallet balances
       const { data: wallets } = await supabase
         .from('wallets')
         .select('wallet_type, eligible_balance, pending_balance, test_eligible_balance, test_pending_balance');
@@ -164,30 +196,56 @@ export default function AdminDashboard() {
       let deliveryRevenue = 0;
       let serviceFees = 0;
 
+      // Per-vendor breakdown map
+      const vendorMap = new Map<string, VendorBreakdown>();
+
       orders?.forEach(order => {
         grossRevenue += Number(order.total) || 0;
         serviceFees += Number(order.service_fee) || 0;
         
-        // Calculate commission for this order
         const vendor = vendors?.find(v => v.id === order.vendor_id);
         const commissionRate = vendor?.commission_rate || 15;
-        platformCommission += (Number(order.subtotal) || 0) * (commissionRate / 100);
+        const orderSubtotal = Number(order.subtotal) || 0;
+        const commission = orderSubtotal * (commissionRate / 100);
+        platformCommission += commission;
         
-        // Calculate platform's share of delivery fee
         const deliveryFee = Number(order.delivery_fee) || 0;
         deliveryRevenue += deliveryFee * ((100 - riderSharePercent) / 100);
+
+        // Build per-vendor breakdown
+        if (order.vendor_id) {
+          const existing = vendorMap.get(order.vendor_id);
+          if (existing) {
+            existing.totalOrders += 1;
+            existing.grossRevenue += orderSubtotal;
+            existing.commission += commission;
+            existing.netPayout += orderSubtotal - commission;
+          } else {
+            vendorMap.set(order.vendor_id, {
+              vendorId: order.vendor_id,
+              vendorName: vendor?.name || 'Unknown Vendor',
+              totalOrders: 1,
+              grossRevenue: orderSubtotal,
+              commission: commission,
+              netPayout: orderSubtotal - commission,
+            });
+          }
+        }
       });
+
+      // Sort vendor breakdowns by gross revenue descending
+      const breakdowns = Array.from(vendorMap.values()).sort((a, b) => b.grossRevenue - a.grossRevenue);
+      setVendorBreakdowns(breakdowns);
 
       // Calculate payout totals
       const totalPayouts = payouts?.filter(p => p.status === 'completed').reduce((sum, p) => sum + Number(p.amount), 0) || 0;
       const pendingPayouts = payouts?.filter(p => p.status === 'pending').reduce((sum, p) => sum + Number(p.amount), 0) || 0;
 
-      // Calculate wallet balances by type - use test or production balances based on environment
+      // Calculate wallet balances by type
       const balanceField = isTestMode ? 'test_eligible_balance' : 'eligible_balance';
       const vendorBalances = wallets?.filter(w => w.wallet_type === 'vendor').reduce((sum, w) => sum + (Number(w[balanceField]) || 0), 0) || 0;
       const riderBalances = wallets?.filter(w => w.wallet_type === 'rider').reduce((sum, w) => sum + (Number(w[balanceField]) || 0), 0) || 0;
 
-      // Use test_balance or balance based on environment
       const platformBalance = isTestMode 
         ? Number(platformWallet?.test_balance) || 0 
         : Number(platformWallet?.balance) || 0;
@@ -254,6 +312,9 @@ export default function AdminDashboard() {
             {isTestMode && " • Showing test data only"}
           </p>
         </div>
+
+        {/* Date Range Filter */}
+        <DateRangeFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
 
         {/* Platform Overview */}
         <section>
@@ -354,6 +415,47 @@ export default function AdminDashboard() {
           </div>
         </section>
 
+        {/* Per-Vendor Breakdown */}
+        {vendorBreakdowns.length > 0 && (
+          <section>
+            <h2 className="text-lg font-semibold text-foreground mb-4">Per-Vendor Breakdown</h2>
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Vendor</TableHead>
+                      <TableHead className="text-right">Orders</TableHead>
+                      <TableHead className="text-right">Gross Revenue</TableHead>
+                      <TableHead className="text-right">Commission</TableHead>
+                      <TableHead className="text-right">Net Payout</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {vendorBreakdowns.map((v) => (
+                      <TableRow key={v.vendorId}>
+                        <TableCell className="font-medium">{v.vendorName}</TableCell>
+                        <TableCell className="text-right">{v.totalOrders}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(v.grossRevenue)}</TableCell>
+                        <TableCell className="text-right text-calorie-low">{formatCurrency(v.commission)}</TableCell>
+                        <TableCell className="text-right text-success">{formatCurrency(v.netPayout)}</TableCell>
+                      </TableRow>
+                    ))}
+                    {/* Totals Row */}
+                    <TableRow className="font-bold border-t-2">
+                      <TableCell>Total</TableCell>
+                      <TableCell className="text-right">{vendorBreakdowns.reduce((s, v) => s + v.totalOrders, 0)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(vendorBreakdowns.reduce((s, v) => s + v.grossRevenue, 0))}</TableCell>
+                      <TableCell className="text-right text-calorie-low">{formatCurrency(vendorBreakdowns.reduce((s, v) => s + v.commission, 0))}</TableCell>
+                      <TableCell className="text-right text-success">{formatCurrency(vendorBreakdowns.reduce((s, v) => s + v.netPayout, 0))}</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </section>
+        )}
+
         {/* Payouts & Balances */}
         <section>
           <h2 className="text-lg font-semibold text-foreground mb-4">Payouts & Balances</h2>
@@ -445,7 +547,7 @@ export default function AdminDashboard() {
           </div>
         </section>
 
-        {/* Company Profit & Loss - New Transparency Feature */}
+        {/* Company Profit & Loss */}
         <section>
           <h2 className="text-lg font-semibold text-foreground mb-4">Company Profit & Loss</h2>
           <CompanyProfitCard environment={isTestMode ? 'development' : 'production'} />

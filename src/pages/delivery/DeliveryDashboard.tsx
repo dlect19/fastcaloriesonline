@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DeliverySidebar } from '@/components/delivery/DeliverySidebar';
 import { DeliveryEmailVerification } from '@/components/delivery/DeliveryEmailVerification';
+import { DateRangeFilter, DateRange } from '@/components/shared/DateRangeFilter';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfileCompletion } from '@/hooks/useProfileCompletion';
 import { useDeliveryCompany } from '@/hooks/useDeliveryCompany';
@@ -33,6 +34,7 @@ export default function DeliveryDashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
 
   const { isComplete: profileComplete, loading: profileLoading } = useProfileCompletion(user?.id);
 
@@ -50,11 +52,41 @@ export default function DeliveryDashboard() {
     }
   }, [user, authLoading, company, navigate, profileLoading, profileComplete]);
 
+  // Refetch when date range changes
+  useEffect(() => {
+    if (company) {
+      fetchDashboardData();
+    }
+  }, [dateRange]);
+
+  const getDateRangeForQuery = () => {
+    if (dateRange.from) {
+      const start = dateRange.from.toISOString();
+      let end: string;
+      if (dateRange.to) {
+        const endDate = new Date(dateRange.to);
+        endDate.setHours(23, 59, 59, 999);
+        end = endDate.toISOString();
+      } else {
+        const endDate = new Date(dateRange.from);
+        endDate.setHours(23, 59, 59, 999);
+        end = endDate.toISOString();
+      }
+      return { start, end };
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return { start: today.toISOString(), end: tomorrow.toISOString() };
+  };
+
   const fetchDashboardData = async () => {
     if (!company) return;
 
     try {
-      // Get riders belonging to this company
+      const { start, end } = getDateRangeForQuery();
+
       const { data: companyRiders } = await supabase
         .from('rider_profiles')
         .select('id, user_id, is_online, is_verified')
@@ -63,30 +95,27 @@ export default function DeliveryDashboard() {
       const riderUserIds = companyRiders?.map(r => r.user_id) || [];
       const onlineRiders = companyRiders?.filter(r => r.is_online).length || 0;
 
-      // Get orders delivered by company riders
       let totalDeliveries = 0;
       let completedToday = 0;
       let activeDeliveries = 0;
 
       if (riderUserIds.length > 0) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        const { data: orders, count } = await supabase
+        const { count } = await supabase
           .from('orders')
           .select('*', { count: 'exact' })
           .in('rider_id', riderUserIds);
 
         totalDeliveries = count || 0;
 
-        const { data: todayOrders } = await supabase
+        const { data: filteredDeliveredOrders } = await supabase
           .from('orders')
           .select('*')
           .in('rider_id', riderUserIds)
           .eq('status', 'delivered')
-          .gte('delivered_at', today.toISOString());
+          .gte('delivered_at', start)
+          .lt('delivered_at', end);
 
-        completedToday = todayOrders?.length || 0;
+        completedToday = filteredDeliveredOrders?.length || 0;
 
         const { data: activeOrders } = await supabase
           .from('orders')
@@ -96,7 +125,6 @@ export default function DeliveryDashboard() {
 
         activeDeliveries = activeOrders?.length || 0;
 
-        // Get recent orders for display
         const { data: recent } = await supabase
           .from('orders')
           .select('*, vendors(name)')
@@ -107,7 +135,6 @@ export default function DeliveryDashboard() {
         setRecentOrders(recent || []);
       }
 
-      // Get wallet balance
       const { data: walletData } = await supabase
         .from('wallets')
         .select('*')
@@ -119,26 +146,21 @@ export default function DeliveryDashboard() {
         ? Number(walletData?.test_balance) || 0
         : Number(walletData?.balance) || 0;
 
-      // Get today's earnings - ONLY from delivered orders
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
       let todayEarnings = 0;
       let inTransitEarnings = 0;
       let inTransitOrderCount = 0;
 
       if (walletData && riderUserIds.length > 0) {
-        // Get today's DELIVERED order IDs by company riders
-        const { data: todayDeliveredOrders } = await supabase
+        const { data: deliveredOrders } = await supabase
           .from('orders')
           .select('id')
           .in('rider_id', riderUserIds)
           .eq('status', 'delivered')
-          .gte('delivered_at', today.toISOString());
+          .gte('delivered_at', start)
+          .lt('delivered_at', end);
 
-        const deliveredOrderIds = todayDeliveredOrders?.map(o => o.id) || [];
+        const deliveredOrderIds = deliveredOrders?.map(o => o.id) || [];
 
-        // Only sum earnings from delivered orders
         if (deliveredOrderIds.length > 0) {
           const { data: deliveredTx } = await supabase
             .from('wallet_transactions')
@@ -150,18 +172,17 @@ export default function DeliveryDashboard() {
           todayEarnings = deliveredTx?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
         }
 
-        // Get today's IN-TRANSIT order IDs by company riders
-        const { data: todayInTransitOrders } = await supabase
+        const { data: inTransitOrders } = await supabase
           .from('orders')
           .select('id')
           .in('rider_id', riderUserIds)
           .in('status', ['confirmed', 'preparing', 'ready_for_pickup', 'picked_up', 'on_the_way'])
-          .gte('created_at', today.toISOString());
+          .gte('created_at', start)
+          .lt('created_at', end);
 
-        const inTransitOrderIds = todayInTransitOrders?.map(o => o.id) || [];
+        const inTransitOrderIds = inTransitOrders?.map(o => o.id) || [];
         inTransitOrderCount = inTransitOrderIds.length;
 
-        // Sum in-transit earnings
         if (inTransitOrderIds.length > 0) {
           const { data: inTransitTx } = await supabase
             .from('wallet_transactions')
@@ -208,6 +229,11 @@ export default function DeliveryDashboard() {
     };
     const config = variants[status] || { variant: 'secondary', label: status };
     return <Badge variant={config.variant}>{config.label}</Badge>;
+  };
+
+  const getDateLabel = () => {
+    if (dateRange.from) return 'Filtered';
+    return "Today's";
   };
 
   if (authLoading || companyLoading || loading) {
@@ -287,6 +313,9 @@ export default function DeliveryDashboard() {
             </Card>
           )}
 
+          {/* Date Range Filter */}
+          <DateRangeFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
+
           {/* Stats Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card>
@@ -349,7 +378,7 @@ export default function DeliveryDashboard() {
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Completed Today</p>
+                    <p className="text-sm text-muted-foreground">Completed {getDateLabel() === "Today's" ? 'Today' : ''}</p>
                     <p className="text-3xl font-bold text-success">{stats?.completedToday || 0}</p>
                   </div>
                   <CheckCircle2 className="w-10 h-10 text-success/30" />
@@ -361,7 +390,7 @@ export default function DeliveryDashboard() {
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Today's Earnings</p>
+                    <p className="text-sm text-muted-foreground">{getDateLabel()} Earnings</p>
                     <p className="text-3xl font-bold text-success">{formatCurrency(stats?.todayEarnings || 0)}</p>
                     <p className="text-xs text-success mt-1">Completed deliveries</p>
                   </div>

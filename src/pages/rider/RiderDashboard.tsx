@@ -7,13 +7,14 @@ import { RiderFloatingWidget } from '@/components/rider/RiderFloatingWidget';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { DateRangeFilter, DateRange } from '@/components/shared/DateRangeFilter';
 import { Package, DollarSign, Star, TrendingUp, Loader2, MapPin, Settings, Navigation, Bell, ArrowRight, Lock, Bike } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useRiderRestrictions } from '@/hooks/useRiderRestrictions';
 
 // Haversine formula for distance calculation
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-  const R = 6371; // Earth's radius in km
+  const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
   const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
@@ -29,6 +30,7 @@ export default function RiderDashboard() {
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(false);
   const [floatModeEnabled, setFloatModeEnabled] = useState(false);
+  const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [stats, setStats] = useState({
     todayDeliveries: 0,
     todayEarnings: 0,
@@ -38,20 +40,18 @@ export default function RiderDashboard() {
     rating: 0,
   });
   const [riderProfile, setRiderProfile] = useState<any>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [availableOrderCount, setAvailableOrderCount] = useState(0);
   const [affiliatedVendorName, setAffiliatedVendorName] = useState<string | null>(null);
 
-  // Use rider restrictions hook
   const { isAffiliated, affiliatedVendorId, isDeliveryCompanyRider, deliveryCompanyId, canViewEarnings } = useRiderRestrictions(riderProfile);
 
   useEffect(() => {
     checkAuth();
-    // Load float mode preference
     const savedFloatMode = localStorage.getItem('rider_float_mode');
     setFloatModeEnabled(savedFloatMode === 'true');
   }, []);
 
-  // Fetch affiliated vendor/company name
   useEffect(() => {
     if (affiliatedVendorId) {
       fetchVendorName(affiliatedVendorId);
@@ -73,6 +73,13 @@ export default function RiderDashboard() {
     if (data) setDeliveryCompanyName(data.name);
   };
 
+  // Refetch stats when date range changes
+  useEffect(() => {
+    if (userId) {
+      fetchFilteredStats(userId);
+    }
+  }, [dateRange]);
+
   // Subscribe to realtime order updates
   useEffect(() => {
     if (!riderProfile) return;
@@ -93,6 +100,63 @@ export default function RiderDashboard() {
     };
   }, [riderProfile]);
 
+  const getDateRangeForQuery = () => {
+    if (dateRange.from) {
+      const start = dateRange.from.toISOString();
+      let end: string;
+      if (dateRange.to) {
+        const endDate = new Date(dateRange.to);
+        endDate.setHours(23, 59, 59, 999);
+        end = endDate.toISOString();
+      } else {
+        const endDate = new Date(dateRange.from);
+        endDate.setHours(23, 59, 59, 999);
+        end = endDate.toISOString();
+      }
+      return { start, end };
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return { start: today.toISOString(), end: tomorrow.toISOString() };
+  };
+
+  const fetchFilteredStats = async (uid: string) => {
+    try {
+      const { start, end } = getDateRangeForQuery();
+
+      const { data: deliveredOrders } = await supabase
+        .from('orders')
+        .select('id, total')
+        .eq('rider_id', uid)
+        .eq('status', 'delivered')
+        .gte('delivered_at', start)
+        .lt('delivered_at', end);
+
+      const { data: inTransitOrders } = await supabase
+        .from('orders')
+        .select('id, total')
+        .eq('rider_id', uid)
+        .in('status', ['confirmed', 'preparing', 'ready_for_pickup', 'picked_up', 'on_the_way'])
+        .gte('created_at', start)
+        .lt('created_at', end);
+
+      const todayEarnings = (deliveredOrders || []).reduce((sum, o) => sum + (Number(o.total) * 0.1), 0);
+      const inTransitEarnings = (inTransitOrders || []).reduce((sum, o) => sum + (Number(o.total) * 0.1), 0);
+
+      setStats(prev => ({
+        ...prev,
+        todayDeliveries: deliveredOrders?.length || 0,
+        todayEarnings,
+        inTransitOrders: inTransitOrders?.length || 0,
+        inTransitEarnings,
+      }));
+    } catch (error) {
+      console.error('Error fetching filtered stats:', error);
+    }
+  };
+
   const checkAuth = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
@@ -100,7 +164,6 @@ export default function RiderDashboard() {
       return;
     }
 
-    // Check profile completion
     const { data: profileData } = await supabase
       .from('profiles')
       .select('full_name, phone')
@@ -122,20 +185,19 @@ export default function RiderDashboard() {
       return;
     }
 
+    setUserId(user.id);
     await fetchRiderData(user.id);
   };
 
-  const fetchRiderData = async (userId: string) => {
+  const fetchRiderData = async (uid: string) => {
     try {
-      // Get rider profile
       const { data: profile } = await supabase
         .from('rider_profiles')
         .select('*')
-        .eq('user_id', userId)
+        .eq('user_id', uid)
         .maybeSingle();
 
       if (profile) {
-        // Check if this is first login / incomplete profile - force to settings
         if (!profile.vehicle_type) {
           navigate('/rider/settings?setup=true');
           return;
@@ -149,40 +211,11 @@ export default function RiderDashboard() {
           rating: profile.rating || 0,
         }));
 
-        // Fetch available orders count
         await fetchAvailableOrdersCount(profile);
       }
 
-      // Get today's DELIVERED orders only (completed earnings)
-      const today = new Date().toISOString().split('T')[0];
-      const { data: todayOrders } = await supabase
-        .from('orders')
-        .select('id, total')
-        .eq('rider_id', userId)
-        .eq('status', 'delivered')
-        .gte('delivered_at', today);
-
-      // Get today's IN-TRANSIT orders (assigned but not yet delivered or cancelled)
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
-      const { data: inTransitOrders } = await supabase
-        .from('orders')
-        .select('id, total')
-        .eq('rider_id', userId)
-        .in('status', ['confirmed', 'preparing', 'ready_for_pickup', 'picked_up', 'on_the_way'])
-        .gte('created_at', todayStart.toISOString());
-
-      if (todayOrders) {
-        const todayEarnings = todayOrders.reduce((sum, o) => sum + (Number(o.total) * 0.1), 0);
-        const inTransitEarnings = (inTransitOrders || []).reduce((sum, o) => sum + (Number(o.total) * 0.1), 0);
-        setStats(prev => ({
-          ...prev,
-          todayDeliveries: todayOrders.length,
-          todayEarnings,
-          inTransitOrders: inTransitOrders?.length || 0,
-          inTransitEarnings,
-        }));
-      }
+      // Fetch date-range stats
+      await fetchFilteredStats(uid);
     } catch (error) {
       console.error('Error fetching rider data:', error);
     } finally {
@@ -192,23 +225,19 @@ export default function RiderDashboard() {
 
   const fetchAvailableOrdersCount = async (profile: any) => {
     try {
-      // Build query - for affiliated riders, only count their vendor's orders
       let query = supabase
         .from('orders')
         .select('id, vendors(latitude, longitude)')
         .eq('status', 'ready_for_pickup')
         .is('rider_id', null);
 
-      // VENDOR-ONLY RESTRICTION
       if (profile.affiliated_vendor_id) {
         query = query.eq('vendor_id', profile.affiliated_vendor_id);
       }
 
       const { data: orders, error } = await query;
-
       if (error) throw error;
 
-      // Filter orders within rider's work radius
       const riderLat = profile.preferred_latitude || profile.current_latitude;
       const riderLng = profile.preferred_longitude || profile.current_longitude;
       const workRadius = profile.work_radius_km || 10;
@@ -221,9 +250,7 @@ export default function RiderDashboard() {
       const nearbyOrders = (orders || []).filter(order => {
         const vendorLat = (order.vendors as any)?.latitude;
         const vendorLng = (order.vendors as any)?.longitude;
-        
         if (!vendorLat || !vendorLng) return false;
-        
         const distance = calculateDistance(riderLat, riderLng, vendorLat, vendorLng);
         return distance <= workRadius;
       });
@@ -237,7 +264,6 @@ export default function RiderDashboard() {
   const toggleOnline = async (online: boolean) => {
     if (!riderProfile) return;
 
-    // Check if NIN is submitted and verified before going online
     if (online && (!riderProfile.nin_number || !riderProfile.is_verified)) {
       toast({
         title: 'Cannot go online',
@@ -276,6 +302,11 @@ export default function RiderDashboard() {
   const workLocationText = riderProfile?.preferred_city && riderProfile?.preferred_state
     ? `${riderProfile.preferred_city}, ${riderProfile.preferred_state}`
     : 'Not set';
+
+  const getDateLabel = () => {
+    if (dateRange.from) return 'Filtered';
+    return "Today's";
+  };
 
   return (
     <RiderLayout isOnline={isOnline} onToggleOnline={toggleOnline} canViewEarnings={canViewEarnings}>
@@ -337,10 +368,15 @@ export default function RiderDashboard() {
         </Card>
       )}
 
+      {/* Date Range Filter */}
+      <div className="mb-4 md:mb-6">
+        <DateRangeFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
+      </div>
+
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-6 mb-6 md:mb-8">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Today's Deliveries</CardTitle>
+            <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">{getDateLabel()} Deliveries</CardTitle>
             <Package className="w-4 h-4 text-muted-foreground hidden md:block" />
           </CardHeader>
           <CardContent>
@@ -348,11 +384,10 @@ export default function RiderDashboard() {
           </CardContent>
         </Card>
 
-        {/* Only show earnings for platform riders (not affiliated) */}
         {canViewEarnings ? (
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Today's Earnings</CardTitle>
+              <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">{getDateLabel()} Earnings</CardTitle>
               <DollarSign className="w-4 h-4 text-muted-foreground hidden md:block" />
             </CardHeader>
             <CardContent>
@@ -372,7 +407,6 @@ export default function RiderDashboard() {
           </Card>
         )}
 
-        {/* Under Delivery card */}
         {canViewEarnings && (
           <Card className="border-l-4 border-l-warning">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -452,56 +486,62 @@ export default function RiderDashboard() {
                   <p className="text-muted-foreground text-sm">
                     {isAffiliated 
                       ? `Orders from ${affiliatedVendorName}` 
-                      : 'Nearby delivery requests waiting for you'}
+                      : 'Near your work location'}
                   </p>
                 </div>
               </div>
-              <Button onClick={() => navigate('/rider/available')} className="gap-2">
-                View Orders
-                <ArrowRight className="w-4 h-4" />
+              <Button onClick={() => navigate('/rider/available-orders')}>
+                View <ArrowRight className="w-4 h-4 ml-1" />
               </Button>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {riderProfile?.is_verified && isOnline && availableOrderCount === 0 && (
-        <Card className="mb-6 md:mb-8">
-          <CardContent className="p-6 md:p-8 text-center">
-            <Package className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-            <p className="font-medium mb-2">
-              {isAffiliated 
-                ? `No orders from ${affiliatedVendorName}` 
-                : 'No available orders nearby'}
-            </p>
-            <p className="text-muted-foreground text-sm mb-4">
-              Stay online - new orders will appear when customers place them.
-            </p>
-            <Button variant="outline" onClick={() => navigate('/rider/available')}>
-              Check Available Orders
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {riderProfile?.is_verified && !isOnline && (
-        <Card className="mb-6 md:mb-8">
-          <CardContent className="p-6 md:p-8 text-center">
-            <Package className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-            <p className="font-medium mb-2">You're offline</p>
-            <p className="text-muted-foreground text-sm mb-4">
-              Go online to see and accept delivery requests.
-            </p>
-            <Button onClick={() => toggleOnline(true)}>
-              Go Online
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+      {/* Quick Actions */}
+      <div className="grid grid-cols-2 gap-3 md:gap-4">
+        <Button
+          variant="outline"
+          className="h-auto py-4 md:py-6 flex flex-col items-center gap-2"
+          onClick={() => navigate('/rider/available-orders')}
+        >
+          <Package className="w-5 md:w-6 h-5 md:h-6 text-primary" />
+          <span className="text-xs md:text-sm">Available Orders</span>
+        </Button>
+        <Button
+          variant="outline"
+          className="h-auto py-4 md:py-6 flex flex-col items-center gap-2"
+          onClick={() => navigate('/rider/orders')}
+        >
+          <TrendingUp className="w-5 md:w-6 h-5 md:h-6 text-primary" />
+          <span className="text-xs md:text-sm">My Orders</span>
+        </Button>
+        {canViewEarnings && (
+          <Button
+            variant="outline"
+            className="h-auto py-4 md:py-6 flex flex-col items-center gap-2"
+            onClick={() => navigate('/rider/earnings')}
+          >
+            <DollarSign className="w-5 md:w-6 h-5 md:h-6 text-primary" />
+            <span className="text-xs md:text-sm">Earnings</span>
+          </Button>
+        )}
+        <Button
+          variant="outline"
+          className="h-auto py-4 md:py-6 flex flex-col items-center gap-2"
+          onClick={() => navigate('/rider/settings')}
+        >
+          <Settings className="w-5 md:w-6 h-5 md:h-6 text-primary" />
+          <span className="text-xs md:text-sm">Settings</span>
+        </Button>
+      </div>
 
       {/* Floating Widget */}
-      {floatModeEnabled && (
-        <RiderFloatingWidget isOnline={isOnline} onToggleOnline={toggleOnline} />
+      {floatModeEnabled && riderProfile?.is_verified && isOnline && (
+        <RiderFloatingWidget
+          isOnline={isOnline}
+          onToggleOnline={toggleOnline}
+        />
       )}
     </RiderLayout>
   );
