@@ -6,6 +6,7 @@ import { PromoImpactCard } from '@/components/admin/PromoImpactCard';
 import { CompanyProfitCard } from '@/components/admin/CompanyProfitCard';
 import { FinancialResetDialog } from '@/components/admin/FinancialResetDialog';
 import { FinancialPerformanceChart } from '@/components/admin/FinancialPerformanceChart';
+import { AdminRiderBreakdown } from '@/components/admin/AdminRiderBreakdown';
 import { DateRangeFilter, DateRange } from '@/components/shared/DateRangeFilter';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -181,10 +182,21 @@ export default function AdminDashboard() {
         .from('vendors')
         .select('id, name, commission_rate');
 
-      // Fetch payout requests
-      const { data: payouts } = await supabase
+      // Fetch payout requests with date filter
+      let payoutQuery = supabase
         .from('payout_requests')
-        .select('amount, status');
+        .select('amount, status, created_at');
+
+      if (dateRange.from) {
+        payoutQuery = payoutQuery.gte('created_at', dateRange.from.toISOString());
+      }
+      if (dateRange.to) {
+        const endDate2 = new Date(dateRange.to);
+        endDate2.setHours(23, 59, 59, 999);
+        payoutQuery = payoutQuery.lte('created_at', endDate2.toISOString());
+      }
+
+      const { data: payouts } = await payoutQuery;
 
       // Fetch wallet balances
       const { data: wallets } = await supabase
@@ -456,6 +468,26 @@ export default function AdminDashboard() {
             </Card>
           </section>
         )}
+
+        {/* Per-Rider Breakdown (Platform Riders) */}
+        <section>
+          <h2 className="text-lg font-semibold text-foreground mb-4">Per-Rider Breakdown</h2>
+          <AdminRiderBreakdown 
+            environment={isTestMode ? 'development' : 'production'} 
+            dateRange={dateRange}
+            type="platform"
+          />
+        </section>
+
+        {/* Per-Logistics Rider Breakdown */}
+        <section>
+          <h2 className="text-lg font-semibold text-foreground mb-4">Per-Logistics Rider Breakdown</h2>
+          <AdminRiderBreakdown 
+            environment={isTestMode ? 'development' : 'production'} 
+            dateRange={dateRange}
+            type="logistics"
+          />
+        </section>
 
         {/* Payouts & Balances */}
         <section>
