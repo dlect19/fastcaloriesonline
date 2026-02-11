@@ -9,6 +9,7 @@ import { FinancialPerformanceChart } from '@/components/admin/FinancialPerforman
 import { AdminRiderBreakdown } from '@/components/admin/AdminRiderBreakdown';
 import { DateRangeFilter, DateRange } from '@/components/shared/DateRangeFilter';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Package, Store, Bike, Users, DollarSign, TrendingUp, Loader2, Wallet, ArrowDownToLine, ArrowUpFromLine, PiggyBank, Percent, Receipt, Truck, CreditCard, FlaskConical, Globe } from 'lucide-react';
@@ -428,65 +429,86 @@ export default function AdminDashboard() {
           </div>
         </section>
 
-        {/* Per-Vendor Breakdown */}
-        {vendorBreakdowns.length > 0 && (
-          <section>
-            <h2 className="text-lg font-semibold text-foreground mb-4">Per-Vendor Breakdown</h2>
-            <Card>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Vendor</TableHead>
-                      <TableHead className="text-right">Orders</TableHead>
-                      <TableHead className="text-right">Gross Revenue</TableHead>
-                      <TableHead className="text-right">Commission</TableHead>
-                      <TableHead className="text-right">Net Payout</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {vendorBreakdowns.map((v) => (
-                      <TableRow key={v.vendorId}>
-                        <TableCell className="font-medium">{v.vendorName}</TableCell>
-                        <TableCell className="text-right">{v.totalOrders}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(v.grossRevenue)}</TableCell>
-                        <TableCell className="text-right text-calorie-low">{formatCurrency(v.commission)}</TableCell>
-                        <TableCell className="text-right text-success">{formatCurrency(v.netPayout)}</TableCell>
-                      </TableRow>
-                    ))}
-                    {/* Totals Row */}
-                    <TableRow className="font-bold border-t-2">
-                      <TableCell>Total</TableCell>
-                      <TableCell className="text-right">{vendorBreakdowns.reduce((s, v) => s + v.totalOrders, 0)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(vendorBreakdowns.reduce((s, v) => s + v.grossRevenue, 0))}</TableCell>
-                      <TableCell className="text-right text-calorie-low">{formatCurrency(vendorBreakdowns.reduce((s, v) => s + v.commission, 0))}</TableCell>
-                      <TableCell className="text-right text-success">{formatCurrency(vendorBreakdowns.reduce((s, v) => s + v.netPayout, 0))}</TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </section>
-        )}
-
-        {/* Per-Rider Breakdown (Platform Riders) */}
+        {/* Breakdowns by Tab */}
         <section>
-          <h2 className="text-lg font-semibold text-foreground mb-4">Per-Rider Breakdown</h2>
-          <AdminRiderBreakdown 
-            environment={isTestMode ? 'development' : 'production'} 
-            dateRange={dateRange}
-            type="platform"
-          />
-        </section>
+          <h2 className="text-lg font-semibold text-foreground mb-4">Performance Breakdowns</h2>
+          <Tabs defaultValue="vendors" className="w-full">
+            <TabsList className="mb-4">
+              <TabsTrigger value="vendors" className="gap-2">
+                <Store className="w-4 h-4" />
+                Vendors
+              </TabsTrigger>
+              <TabsTrigger value="riders" className="gap-2">
+                <Bike className="w-4 h-4" />
+                Riders
+              </TabsTrigger>
+              <TabsTrigger value="logistics" className="gap-2">
+                <Truck className="w-4 h-4" />
+                Logistics Riders
+              </TabsTrigger>
+            </TabsList>
 
-        {/* Per-Logistics Rider Breakdown */}
-        <section>
-          <h2 className="text-lg font-semibold text-foreground mb-4">Per-Logistics Rider Breakdown</h2>
-          <AdminRiderBreakdown 
-            environment={isTestMode ? 'development' : 'production'} 
-            dateRange={dateRange}
-            type="logistics"
-          />
+            <TabsContent value="vendors">
+              {vendorBreakdowns.length > 0 ? (
+                <Card>
+                  <CardContent className="p-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Vendor</TableHead>
+                          <TableHead className="text-right">Orders</TableHead>
+                          <TableHead className="text-right">Gross Revenue</TableHead>
+                          <TableHead className="text-right">Commission</TableHead>
+                          <TableHead className="text-right">Net Payout</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {vendorBreakdowns.map((v) => (
+                          <TableRow key={v.vendorId}>
+                            <TableCell className="font-medium">{v.vendorName}</TableCell>
+                            <TableCell className="text-right">{v.totalOrders}</TableCell>
+                            <TableCell className="text-right">{formatCurrency(v.grossRevenue)}</TableCell>
+                            <TableCell className="text-right text-calorie-low">{formatCurrency(v.commission)}</TableCell>
+                            <TableCell className="text-right text-success">{formatCurrency(v.netPayout)}</TableCell>
+                          </TableRow>
+                        ))}
+                        <TableRow className="font-bold border-t-2">
+                          <TableCell>Total</TableCell>
+                          <TableCell className="text-right">{vendorBreakdowns.reduce((s, v) => s + v.totalOrders, 0)}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(vendorBreakdowns.reduce((s, v) => s + v.grossRevenue, 0))}</TableCell>
+                          <TableCell className="text-right text-calorie-low">{formatCurrency(vendorBreakdowns.reduce((s, v) => s + v.commission, 0))}</TableCell>
+                          <TableCell className="text-right text-success">{formatCurrency(vendorBreakdowns.reduce((s, v) => s + v.netPayout, 0))}</TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardContent className="p-8 text-center">
+                    <Store className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
+                    <p className="text-muted-foreground">No vendor data for this period</p>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            <TabsContent value="riders">
+              <AdminRiderBreakdown 
+                environment={isTestMode ? 'development' : 'production'} 
+                dateRange={dateRange}
+                type="platform"
+              />
+            </TabsContent>
+
+            <TabsContent value="logistics">
+              <AdminRiderBreakdown 
+                environment={isTestMode ? 'development' : 'production'} 
+                dateRange={dateRange}
+                type="logistics"
+              />
+            </TabsContent>
+          </Tabs>
         </section>
 
         {/* Payouts & Balances */}
