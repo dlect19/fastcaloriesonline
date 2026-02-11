@@ -138,13 +138,12 @@ export default function VendorOrders() {
             startRepeating();
             toast({
               title: '🔔 New Order!',
-              description: 'You have a new order to process. Accept to stop the notification.',
+              description: 'You have a new order to process.',
             });
           }
           
           // Notify when order is cancelled by customer
           if (payload.eventType === 'UPDATE' && newOrder.status === 'cancelled' && oldOrder.status !== 'cancelled') {
-            stopRepeating(); // Stop any notification sound
             toast({
               title: '❌ Order Cancelled',
               description: `Order #${newOrder.order_number} has been cancelled${newOrder.cancellation_reason ? `: ${newOrder.cancellation_reason}` : ''}`,
@@ -152,9 +151,8 @@ export default function VendorOrders() {
             });
           }
           
-          // Notify when rider is assigned and stop notification sound
+          // Notify when rider is assigned
           if (payload.eventType === 'UPDATE' && newOrder.rider_id && !oldOrder.rider_id) {
-            stopRepeating(); // Stop notification sound when rider accepts order
             toast({
               title: '🚴 Rider Assigned!',
               description: `A rider has been assigned to order #${newOrder.order_number}`,
@@ -178,6 +176,16 @@ export default function VendorOrders() {
       supabase.removeChannel(channel);
     };
   }, [vendor]);
+
+  // Auto-start sound if there are pending orders on page load
+  useEffect(() => {
+    if (!loading && orders.length > 0) {
+      const hasPending = orders.some(o => o.status === 'pending');
+      if (hasPending) {
+        startRepeating();
+      }
+    }
+  }, [loading]);
 
   const fetchData = async () => {
     try {
@@ -286,14 +294,17 @@ export default function VendorOrders() {
 
       if (error) throw error;
 
-      // Stop notification sound when vendor confirms/updates an order
+      // Stop notification sound when vendor acts on an order
       stopRepeating();
 
-      // Note: When order becomes ready_for_pickup, vendor now manually assigns riders
-      // No automatic dispatch - vendor uses ManualRiderAssignment component
-
       toast({ title: `Order updated to ${statusConfig[newStatus].label}` });
-      fetchData();
+      await fetchData();
+
+      // After action, check if there are still other pending orders - restart sound
+      const remainingPending = orders.filter(o => o.id !== orderId && o.status === 'pending');
+      if (remainingPending.length > 0) {
+        startRepeating();
+      }
     } catch (error: any) {
       toast({
         title: 'Error updating order',
