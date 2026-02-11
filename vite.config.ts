@@ -66,7 +66,7 @@ export default defineConfig(({ mode }) => ({
     react(),
     mode === "development" && componentTagger(),
     VitePWA({
-      registerType: "autoUpdate",
+      registerType: "prompt",
       devOptions: {
         enabled: false,
       },
@@ -102,6 +102,10 @@ export default defineConfig(({ mode }) => ({
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        navigateFallbackDenylist: [/^\/~oauth/],
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*supabase\.co\/.*/i,
