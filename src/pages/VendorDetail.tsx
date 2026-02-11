@@ -151,8 +151,8 @@ export default function VendorDetail() {
         .from('products')
         .select('*')
         .eq('vendor_id', id)
-        .eq('is_available', true)
         .neq('meal_type', 'addon')
+        .order('is_available', { ascending: false })
         .order('name');
 
       if (productError) throw productError;
