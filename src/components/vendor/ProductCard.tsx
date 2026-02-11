@@ -25,11 +25,19 @@ export function ProductCard({ product, vendor }: ProductCardProps) {
 
   const calorieLevel = getCalorieLevel(product.calories);
 
+  const isUnavailable = product.is_available === false;
+
   return (
     <>
       <button
-        onClick={() => setShowDetails(true)}
-        className="w-full text-left bg-card rounded-xl overflow-hidden border border-border shadow-soft hover:shadow-card transition-all group"
+        onClick={() => !isUnavailable && setShowDetails(true)}
+        disabled={isUnavailable}
+        className={cn(
+          "w-full text-left bg-card rounded-xl overflow-hidden border shadow-soft transition-all group",
+          isUnavailable
+            ? "opacity-50 border-border cursor-not-allowed grayscale"
+            : "border-border hover:shadow-card"
+        )}
       >
         <div className="flex gap-3 p-3">
           {/* Image */}
@@ -38,7 +46,10 @@ export function ProductCard({ product, vendor }: ProductCardProps) {
               <img
                 src={product.image_url}
                 alt={product.name}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                className={cn(
+                  "w-full h-full object-cover transition-transform duration-300",
+                  !isUnavailable && "group-hover:scale-105"
+                )}
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/20 to-primary/5">
@@ -46,9 +57,17 @@ export function ProductCard({ product, vendor }: ProductCardProps) {
               </div>
             )}
             {/* Discount Badge */}
-            {(product as any).discount_price && (product as any).discount_price < product.price && (
+            {!isUnavailable && (product as any).discount_price && (product as any).discount_price < product.price && (
               <div className="absolute top-0 left-0 bg-destructive text-destructive-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-br-lg">
                 {Math.round(((product.price - (product as any).discount_price) / product.price) * 100)}% OFF
+              </div>
+            )}
+            {/* Unavailable overlay */}
+            {isUnavailable && (
+              <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
+                <Badge variant="destructive" className="text-xs font-semibold">
+                  Unavailable
+                </Badge>
               </div>
             )}
           </div>
@@ -124,13 +143,15 @@ export function ProductCard({ product, vendor }: ProductCardProps) {
         </div>
       </button>
 
-      {/* Product Customization Dialog */}
-      <ProductCustomizationDialog
-        product={product}
-        vendor={vendor}
-        open={showDetails}
-        onOpenChange={setShowDetails}
-      />
+      {/* Product Customization Dialog - only for available products */}
+      {!isUnavailable && (
+        <ProductCustomizationDialog
+          product={product}
+          vendor={vendor}
+          open={showDetails}
+          onOpenChange={setShowDetails}
+        />
+      )}
     </>
   );
 }
