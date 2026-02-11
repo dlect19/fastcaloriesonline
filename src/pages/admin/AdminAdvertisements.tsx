@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Plus, Pencil, Trash2, GripVertical, Image, Loader2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, GripVertical, Image, Loader2, Eye } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Advertisement = Tables<'advertisements'>;
@@ -31,6 +31,7 @@ export default function AdminAdvertisements() {
   
   const [loading, setLoading] = useState(true);
   const [ads, setAds] = useState<Advertisement[]>([]);
+  const [previewIndex, setPreviewIndex] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingAd, setEditingAd] = useState<Advertisement | null>(null);
   const [saving, setSaving] = useState(false);
@@ -45,9 +46,19 @@ export default function AdminAdvertisements() {
     target_audience: 'all',
   });
 
+  const activeAds = ads.filter(ad => ad.is_active);
+
   useEffect(() => {
     checkAuth();
   }, []);
+
+  useEffect(() => {
+    if (activeAds.length <= 1) return;
+    const timer = setInterval(() => {
+      setPreviewIndex((prev) => (prev + 1) % activeAds.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [activeAds.length]);
 
   const checkAuth = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -334,6 +345,51 @@ export default function AdminAdvertisements() {
             </DialogContent>
           </Dialog>
         </div>
+
+        {/* Live Preview of Active Carousel */}
+        {!loading && activeAds.length > 0 && (
+          <Card className="mb-8">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Eye className="w-5 h-5 text-primary" />
+                Live Carousel Preview
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">This is what customers currently see on the home page</p>
+            </CardHeader>
+            <CardContent>
+              <div className="relative max-w-xl mx-auto">
+                <div className="overflow-hidden rounded-2xl">
+                  <div
+                    className="flex transition-transform duration-500 ease-out"
+                    style={{ transform: `translateX(-${previewIndex * 100}%)` }}
+                  >
+                    {activeAds.map((ad) => (
+                      <div
+                        key={ad.id}
+                        className={`min-w-full h-36 bg-gradient-to-r p-5 flex flex-col justify-center ${ad.image_url}`}
+                      >
+                        <h3 className="text-xl font-bold text-white mb-1">{ad.title}</h3>
+                        <p className="text-white/90 text-sm">{ad.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {activeAds.length > 1 && (
+                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+                    {activeAds.map((_, index) => (
+                      <button
+                        key={index}
+                        onClick={() => setPreviewIndex(index)}
+                        className={`w-2 h-2 rounded-full transition-all ${index === previewIndex ? 'bg-white w-6' : 'bg-white/50'}`}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+              <p className="text-center text-xs text-muted-foreground mt-3">{activeAds.length} active banner{activeAds.length !== 1 ? 's' : ''} running</p>
+            </CardContent>
+          </Card>
+        )}
 
         {loading ? (
           <div className="flex items-center justify-center py-12">
