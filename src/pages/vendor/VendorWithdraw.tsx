@@ -430,39 +430,7 @@ export default function VendorWithdraw() {
 
       if (error) throw error;
 
-      // CRITICAL: Deduct from source-specific pool immediately to prevent double-spending
-      const updateFields: Record<string, number> = {};
-      if (withdrawalSource === 'rider_revenue') {
-        if (isTestMode) {
-          updateFields.test_rider_revenue_balance = Math.max(0, (Number(freshWallet.test_rider_revenue_balance) || 0) - amount);
-          updateFields.test_eligible_balance = Math.max(0, (Number(freshWallet.test_eligible_balance) || 0) - amount);
-          updateFields.test_balance = Math.max(0, (Number(freshWallet.test_balance) || 0) - amount);
-        } else {
-          updateFields.rider_revenue_balance = Math.max(0, (Number(freshWallet.rider_revenue_balance) || 0) - amount);
-          updateFields.eligible_balance = Math.max(0, (Number(freshWallet.eligible_balance) || 0) - amount);
-          updateFields.balance = Math.max(0, (Number(freshWallet.balance) || 0) - amount);
-        }
-      } else {
-        if (isTestMode) {
-          updateFields.test_menu_earnings_balance = Math.max(0, (Number(freshWallet.test_menu_earnings_balance) || 0) - amount);
-          updateFields.test_eligible_balance = Math.max(0, (Number(freshWallet.test_eligible_balance) || 0) - amount);
-          updateFields.test_balance = Math.max(0, (Number(freshWallet.test_balance) || 0) - amount);
-        } else {
-          updateFields.menu_earnings_balance = Math.max(0, (Number(freshWallet.menu_earnings_balance) || 0) - amount);
-          updateFields.eligible_balance = Math.max(0, (Number(freshWallet.eligible_balance) || 0) - amount);
-          updateFields.balance = Math.max(0, (Number(freshWallet.balance) || 0) - amount);
-        }
-      }
-      updateFields.pending_payouts = (Number(freshWallet.pending_payouts) || 0) + amount;
-
-      const { error: walletUpdateError } = await supabase
-        .from('wallets')
-        .update(updateFields)
-        .eq('id', wallet!.id);
-
-      if (walletUpdateError) {
-        console.error('Failed to deduct wallet balance:', walletUpdateError);
-      }
+      // Balance deduction is now handled by database trigger (deduct_wallet_on_payout_request)
 
       toast({ title: 'Withdrawal request submitted', description: 'Your request is pending admin approval.' });
       setWithdrawDialogOpen(false);
