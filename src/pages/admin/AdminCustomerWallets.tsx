@@ -47,6 +47,7 @@ export default function AdminCustomerWallets() {
   const [adjustType, setAdjustType] = useState<'credit' | 'debit'>('credit');
   const [adjustAmount, setAdjustAmount] = useState('');
   const [adjustNotes, setAdjustNotes] = useState('');
+  const [adjustReference, setAdjustReference] = useState('');
   const [adjusting, setAdjusting] = useState(false);
 
   useEffect(() => {
@@ -208,7 +209,7 @@ export default function AdminCustomerWallets() {
           status: 'completed',
           environment: isTestMode ? 'development' : 'production',
           notes: adjustNotes,
-          metadata: { adjusted_by_admin: true },
+          metadata: { adjusted_by_admin: true, ...(adjustReference ? { payment_reference: adjustReference } : {}) },
         });
 
       if (txError) throw txError;
@@ -231,6 +232,7 @@ export default function AdminCustomerWallets() {
       setShowAdjustDialog(false);
       setAdjustAmount('');
       setAdjustNotes('');
+      setAdjustReference('');
     } catch (error) {
       console.error('Error adjusting balance:', error);
       toast({
@@ -522,6 +524,16 @@ export default function AdminCustomerWallets() {
                 onChange={(e) => setAdjustNotes(e.target.value)}
                 placeholder="Reason for this adjustment..."
                 rows={3}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="reference">Payment Reference (Optional)</Label>
+              <Input
+                id="reference"
+                value={adjustReference}
+                onChange={(e) => setAdjustReference(e.target.value)}
+                placeholder="e.g. Paystack ref, bank transfer ref..."
               />
             </div>
 
