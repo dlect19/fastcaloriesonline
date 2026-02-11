@@ -10,7 +10,7 @@ export function CartButton() {
   if (itemCount === 0) return null;
 
   return (
-    <div className="fixed bottom-20 left-0 right-0 px-4 z-40 safe-bottom">
+    <div className="fixed bottom-24 left-0 right-0 px-4 z-50 safe-bottom">
       <div className="container max-w-lg mx-auto">
         <Button
           className="w-full h-14 text-base font-semibold shadow-lg gap-3 gradient-primary border-0"
