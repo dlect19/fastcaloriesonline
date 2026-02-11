@@ -1252,6 +1252,7 @@ export type Database = {
           bank_account_number: string | null
           bank_name: string | null
           created_at: string | null
+          environment: string | null
           failure_reason: string | null
           id: string
           paystack_reference: string | null
@@ -1272,6 +1273,7 @@ export type Database = {
           bank_account_number?: string | null
           bank_name?: string | null
           created_at?: string | null
+          environment?: string | null
           failure_reason?: string | null
           id?: string
           paystack_reference?: string | null
@@ -1292,6 +1294,7 @@ export type Database = {
           bank_account_number?: string | null
           bank_name?: string | null
           created_at?: string | null
+          environment?: string | null
           failure_reason?: string | null
           id?: string
           paystack_reference?: string | null
