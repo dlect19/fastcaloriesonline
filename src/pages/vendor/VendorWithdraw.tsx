@@ -112,7 +112,7 @@ export default function VendorWithdraw() {
     if (user) {
       fetchData();
     }
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading, navigate, isTestMode]);
 
   const fetchData = async () => {
     try {

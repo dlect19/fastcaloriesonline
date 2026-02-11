@@ -76,7 +76,7 @@ export default function VendorEarnings() {
     if (user) {
       fetchData();
     }
-  }, [user, authLoading, navigate, dateRange]);
+  }, [user, authLoading, navigate, dateRange, isTestMode]);
 
   const fetchData = async () => {
     try {
