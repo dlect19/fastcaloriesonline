@@ -822,7 +822,7 @@ export default function Cart() {
 
       {/* Checkout Button */}
       {items.length > 0 && (
-        <div className="fixed bottom-16 left-0 right-0 bg-background border-t border-border p-4 safe-bottom z-40">
+        <div className="fixed bottom-20 left-0 right-0 bg-background border-t border-border p-4 safe-bottom z-50">
           <div className="container">
             <Button 
               className="w-full h-14 text-base font-semibold shadow-button"
