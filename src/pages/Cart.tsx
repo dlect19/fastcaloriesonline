@@ -816,39 +816,36 @@ export default function Cart() {
               discount={promoDiscount}
               distanceKm={deliveryType === 'delivery' ? distanceKm : null}
             />
+            {/* Checkout Button - inline */}
+            {items.length > 0 && (
+              <div className="pt-2 pb-4">
+                <Button 
+                  className="w-full h-14 text-base font-semibold shadow-button gradient-primary border-0"
+                  onClick={handlePlaceOrder}
+                  disabled={placingOrder || verifyingFunding || isWalletDisabled || (deliveryType === 'delivery' && (!selectedAddress || addressMissingCoords || coordinateMismatch || geocodingAddress))}
+                >
+                  {placingOrder ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Processing Payment...
+                    </>
+                  ) : insufficientBalance ? (
+                    <>
+                      <Wallet className="w-5 h-5 mr-2" />
+                      Fund Wallet & Pay • ₦{total.toLocaleString()}
+                    </>
+                  ) : (
+                    <>
+                      <Wallet className="w-5 h-5 mr-2" />
+                      Pay with Wallet • ₦{total.toLocaleString()}
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
           </>
         )}
       </main>
-
-      {/* Checkout Button */}
-      {items.length > 0 && (
-        <div className="fixed bottom-20 left-0 right-0 bg-background border-t border-border p-4 safe-bottom z-50">
-          <div className="container">
-            <Button 
-              className="w-full h-14 text-base font-semibold shadow-button"
-              onClick={handlePlaceOrder}
-              disabled={placingOrder || verifyingFunding || isWalletDisabled || (deliveryType === 'delivery' && (!selectedAddress || addressMissingCoords || coordinateMismatch || geocodingAddress))}
-            >
-              {placingOrder ? (
-                <>
-                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  Processing Payment...
-                </>
-              ) : insufficientBalance ? (
-                <>
-                  <Wallet className="w-5 h-5 mr-2" />
-                  Fund Wallet & Pay • ₦{total.toLocaleString()}
-                </>
-              ) : (
-                <>
-                  <Wallet className="w-5 h-5 mr-2" />
-                  Pay with Wallet • ₦{total.toLocaleString()}
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
-      )}
 
       {/* Fund Wallet Dialog */}
       {showFundDialog && (
