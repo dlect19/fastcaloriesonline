@@ -16,10 +16,10 @@ interface CalorieGoalCardProps {
 }
 
 const healthGoals = [
-  { value: 'lose_weight', label: 'Lose Weight', icon: '📉' },
-  { value: 'maintain', label: 'Maintain Weight', icon: '⚖️' },
-  { value: 'gain_weight', label: 'Gain Weight', icon: '📈' },
-  { value: 'build_muscle', label: 'Build Muscle', icon: '💪' },
+  { value: 'lose_weight', label: 'Lose Weight', icon: '📉', suggestedCalories: 1500 },
+  { value: 'maintain', label: 'Maintain Weight', icon: '⚖️', suggestedCalories: 2000 },
+  { value: 'gain_weight', label: 'Gain Weight', icon: '📈', suggestedCalories: 2500 },
+  { value: 'build_muscle', label: 'Build Muscle', icon: '💪', suggestedCalories: 2800 },
 ];
 
 export function CalorieGoalCard({ profile, onUpdate }: CalorieGoalCardProps) {
@@ -28,6 +28,12 @@ export function CalorieGoalCard({ profile, onUpdate }: CalorieGoalCardProps) {
   const [saving, setSaving] = useState(false);
   const [calorieTarget, setCalorieTarget] = useState(profile?.daily_calorie_target || 2000);
   const [healthGoal, setHealthGoal] = useState(profile?.health_goal || 'maintain');
+
+  const handleHealthGoalChange = (goal: string) => {
+    setHealthGoal(goal);
+    const suggested = healthGoals.find(g => g.value === goal)?.suggestedCalories;
+    if (suggested) setCalorieTarget(suggested);
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -131,7 +137,7 @@ export function CalorieGoalCard({ profile, onUpdate }: CalorieGoalCardProps) {
           <span className="text-sm font-medium text-foreground">Health Goal</span>
           
           {isEditing ? (
-            <Select value={healthGoal} onValueChange={setHealthGoal}>
+            <Select value={healthGoal} onValueChange={handleHealthGoalChange}>
               <SelectTrigger>
                 <SelectValue placeholder="Select your goal" />
               </SelectTrigger>
