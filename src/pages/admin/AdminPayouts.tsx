@@ -41,6 +41,7 @@ interface PayoutRequest {
   retry_count: number | null;
   withdrawal_source: string | null;
   wallet_id: string;
+  entity_name?: string;
 }
 
 const isRetryableFailure = (reason: string | null): boolean => {
@@ -90,7 +91,34 @@ export default function AdminPayouts() {
 
       if (error) throw error;
       
-      setPayouts(data || []);
+      const requests = data || [];
+      const userIds = [...new Set(requests.map(p => p.user_id))];
+      
+      if (userIds.length > 0) {
+        // Fetch vendor names, delivery company names, and profile names in parallel
+        const [vendorsRes, companiesRes, profilesRes] = await Promise.all([
+          supabase.from('vendors').select('user_id, name').in('user_id', userIds),
+          supabase.from('delivery_companies').select('user_id, name').in('user_id', userIds),
+          supabase.from('profiles').select('user_id, full_name').in('user_id', userIds),
+        ]);
+
+        const vendorMap = new Map((vendorsRes.data || []).map(v => [v.user_id, v.name]));
+        const companyMap = new Map((companiesRes.data || []).map(c => [c.user_id, c.name]));
+        const profileMap = new Map((profilesRes.data || []).map(p => [p.user_id, p.full_name]));
+
+        const enriched = requests.map(p => ({
+          ...p,
+          entity_name: 
+            (p.user_type === 'vendor' && vendorMap.get(p.user_id)) ||
+            (p.user_type === 'delivery_company' && companyMap.get(p.user_id)) ||
+            profileMap.get(p.user_id) ||
+            null,
+        }));
+        
+        setPayouts(enriched);
+      } else {
+        setPayouts(requests);
+      }
     } catch (error) {
       console.error('Error fetching payouts:', error);
       toast({
@@ -312,9 +340,10 @@ export default function AdminPayouts() {
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       const matchesName = (p.bank_account_name || '').toLowerCase().includes(q);
+      const matchesEntity = (p.entity_name || '').toLowerCase().includes(q);
       const matchesBank = (p.bank_name || '').toLowerCase().includes(q);
       const matchesRef = (p.paystack_reference || '').toLowerCase().includes(q);
-      if (!matchesName && !matchesBank && !matchesRef) return false;
+      if (!matchesName && !matchesEntity && !matchesBank && !matchesRef) return false;
     }
     // Date range filter
     if (dateRange.from) {
@@ -346,8 +375,8 @@ export default function AdminPayouts() {
                 <User className="w-5 h-5 text-primary" />
               </div>
               <div>
-                <p className="font-medium text-foreground">{payout.bank_account_name || 'Unknown'}</p>
-                <p className="text-xs text-muted-foreground capitalize">{payout.user_type}</p>
+                <p className="font-medium text-foreground">{payout.entity_name || payout.bank_account_name || 'Unknown'}</p>
+                <p className="text-xs text-muted-foreground capitalize">{payout.user_type}{payout.entity_name && payout.bank_account_name && payout.entity_name !== payout.bank_account_name ? ` · ${payout.bank_account_name}` : ''}</p>
                 {payout.withdrawal_source && (
                   <Badge variant="outline" className="text-xs mt-0.5">
                     {payout.withdrawal_source === 'rider_revenue' ? 'Rider Revenue' : 'Menu Earnings'}
