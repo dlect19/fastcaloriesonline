@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { VendorSidebar } from '@/components/vendor/VendorSidebar';
 import { AccessDenied } from '@/components/vendor/AccessDenied';
+import { DateRangeFilter, DateRange } from '@/components/shared/DateRangeFilter';
 import { useAuth } from '@/hooks/useAuth';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
@@ -40,6 +41,7 @@ export default function VendorDashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [walletData, setWalletData] = useState<any>(null);
+  const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [stats, setStats] = useState({
     todayOrders: 0,
     todayRevenue: 0,
@@ -67,6 +69,13 @@ export default function VendorDashboard() {
     }
   }, [user, authLoading, navigate, profileLoading, profileComplete]);
 
+  // Refetch stats when date range changes
+  useEffect(() => {
+    if (vendor) {
+      fetchFilteredStats(vendor);
+    }
+  }, [dateRange]);
+
   // Subscribe to real-time order updates for notifications
   useEffect(() => {
     if (!vendor) return;
@@ -82,7 +91,6 @@ export default function VendorDashboard() {
           filter: `vendor_id=eq.${vendor.id}`,
         },
         () => {
-          // Play notification sound for new orders
           playNotification();
           toast({
             title: '🔔 New Order!',
@@ -98,6 +106,71 @@ export default function VendorDashboard() {
     };
   }, [vendor, playNotification, toast]);
 
+  const getDateRangeForQuery = () => {
+    if (dateRange.from) {
+      const start = dateRange.from.toISOString();
+      let end: string;
+      if (dateRange.to) {
+        const endDate = new Date(dateRange.to);
+        endDate.setHours(23, 59, 59, 999);
+        end = endDate.toISOString();
+      } else {
+        const endDate = new Date(dateRange.from);
+        endDate.setHours(23, 59, 59, 999);
+        end = endDate.toISOString();
+      }
+      return { start, end };
+    }
+    // Default: today
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    const tomorrowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
+    return { start: todayStart, end: tomorrowStart };
+  };
+
+  const fetchFilteredStats = async (vendorData: Vendor) => {
+    try {
+      const { start, end } = getDateRangeForQuery();
+
+      // Fetch DELIVERED paid orders for the date range
+      const { data: deliveredOrders } = await supabase
+        .from('orders')
+        .select('id, subtotal, menu_subtotal')
+        .eq('vendor_id', vendorData.id)
+        .eq('payment_status', 'paid')
+        .eq('status', 'delivered')
+        .gte('created_at', start)
+        .lt('created_at', end);
+
+      // Fetch IN-TRANSIT paid orders for the date range
+      const { data: inTransitOrders } = await supabase
+        .from('orders')
+        .select('id, subtotal, menu_subtotal')
+        .eq('vendor_id', vendorData.id)
+        .eq('payment_status', 'paid')
+        .in('status', ['confirmed', 'preparing', 'ready_for_pickup', 'picked_up', 'on_the_way'])
+        .gte('created_at', start)
+        .lt('created_at', end);
+
+      const revenue = (deliveredOrders || []).reduce(
+        (sum, o) => sum + Number(o.menu_subtotal || o.subtotal || 0), 0
+      );
+      const inTransitRevenue = (inTransitOrders || []).reduce(
+        (sum, o) => sum + Number(o.menu_subtotal || o.subtotal || 0), 0
+      );
+
+      setStats(prev => ({
+        ...prev,
+        todayOrders: deliveredOrders?.length || 0,
+        todayRevenue: revenue,
+        inTransitOrders: inTransitOrders?.length || 0,
+        inTransitRevenue: inTransitRevenue,
+      }));
+    } catch (error) {
+      console.error('Error fetching filtered stats:', error);
+    }
+  };
+
   const fetchVendorData = async () => {
     try {
       // First check if user is a vendor owner
@@ -112,7 +185,6 @@ export default function VendorDashboard() {
       if (ownedVendor?.[0]) {
         vendorData = ownedVendor[0];
       } else {
-        // Check if user is staff of any vendor
         const { data: staffRecord } = await supabase
           .from('vendor_staff')
           .select('vendor_id')
@@ -133,11 +205,6 @@ export default function VendorDashboard() {
       setVendor(vendorData);
 
       if (vendorData) {
-        // Get today's date range in local timezone
-        const now = new Date();
-        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-        const tomorrowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
-
         // Fetch recent orders for display (limit 5)
         const { data: ordersData } = await supabase
           .from('orders')
@@ -147,26 +214,6 @@ export default function VendorDashboard() {
           .limit(5);
 
         setOrders(ordersData || []);
-
-        // Fetch TODAY's DELIVERED paid orders only (completed revenue)
-        const { data: todayDeliveredOrders } = await supabase
-          .from('orders')
-          .select('id, subtotal, menu_subtotal')
-          .eq('vendor_id', vendorData.id)
-          .eq('payment_status', 'paid')
-          .eq('status', 'delivered')
-          .gte('created_at', todayStart)
-          .lt('created_at', tomorrowStart);
-
-        // Fetch TODAY's IN-TRANSIT paid orders (paid but not yet delivered or cancelled)
-        const { data: todayInTransitOrders } = await supabase
-          .from('orders')
-          .select('id, subtotal, menu_subtotal')
-          .eq('vendor_id', vendorData.id)
-          .eq('payment_status', 'paid')
-          .in('status', ['confirmed', 'preparing', 'ready_for_pickup', 'picked_up', 'on_the_way'])
-          .gte('created_at', todayStart)
-          .lt('created_at', tomorrowStart);
 
         // Count pending orders (all, not just recent 5)
         const { count: pendingCount } = await supabase
@@ -185,26 +232,14 @@ export default function VendorDashboard() {
         
         setWalletData(wallet);
 
-        // Calculate stats from delivered orders only
-        const todayRevenue = (todayDeliveredOrders || []).reduce(
-          (sum, o) => sum + Number(o.menu_subtotal || o.subtotal || 0), 
-          0
-        );
-
-        // Calculate in-transit revenue (paid but not yet delivered)
-        const inTransitRevenue = (todayInTransitOrders || []).reduce(
-          (sum, o) => sum + Number(o.menu_subtotal || o.subtotal || 0), 
-          0
-        );
-
-        setStats({
-          todayOrders: todayDeliveredOrders?.length || 0,
-          todayRevenue: todayRevenue,
-          inTransitOrders: todayInTransitOrders?.length || 0,
-          inTransitRevenue: inTransitRevenue,
+        setStats(prev => ({
+          ...prev,
           pendingOrders: pendingCount || 0,
           avgRating: vendorData.rating || 0,
-        });
+        }));
+
+        // Fetch date-range-filtered stats
+        await fetchFilteredStats(vendorData);
       }
     } catch (error) {
       console.error('Error fetching vendor data:', error);
@@ -227,6 +262,11 @@ export default function VendorDashboard() {
       cancelled: 'bg-destructive/10 text-destructive',
     };
     return colors[status] || 'bg-muted text-muted-foreground';
+  };
+
+  const getDateLabel = () => {
+    if (dateRange.from) return 'Filtered';
+    return "Today's";
   };
 
   if (authLoading || loading || permLoading) {
@@ -291,13 +331,16 @@ export default function VendorDashboard() {
             )}
           </div>
 
+          {/* Date Range Filter */}
+          <DateRangeFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
+
           {/* Stats Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <Card className="border-0 shadow-soft">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Delivered Today</p>
+                    <p className="text-sm text-muted-foreground">Delivered {getDateLabel() === "Today's" ? 'Today' : ''}</p>
                     <p className="text-3xl font-bold text-foreground">{stats.todayOrders}</p>
                   </div>
                   <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -311,7 +354,7 @@ export default function VendorDashboard() {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Today's Revenue</p>
+                    <p className="text-sm text-muted-foreground">{getDateLabel()} Revenue</p>
                     <p className="text-3xl font-bold text-foreground">
                       {hasPermission('view_earnings') ? formatCurrency(stats.todayRevenue) : '***'}
                     </p>
@@ -494,7 +537,7 @@ export default function VendorDashboard() {
             </CardContent>
           </Card>
 
-          {/* Quick Actions - Only show actions user has permission for */}
+          {/* Quick Actions */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {hasPermission('manage_menu') && (
               <Button
