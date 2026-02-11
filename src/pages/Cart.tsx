@@ -553,7 +553,7 @@ export default function Cart() {
         </div>
       </header>
 
-      <main className="container py-6 space-y-6">
+      <main className="container py-6 pb-44 space-y-6">
         {items.length === 0 ? (
           <div className="text-center py-16">
             <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-secondary flex items-center justify-center">
