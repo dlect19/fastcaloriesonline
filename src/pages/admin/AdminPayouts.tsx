@@ -38,6 +38,7 @@ interface PayoutRequest {
   processed_at: string | null;
   failure_reason: string | null;
   paystack_reference: string | null;
+  paystack_transfer_code: string | null;
   retry_count: number | null;
   withdrawal_source: string | null;
   wallet_id: string;
@@ -71,6 +72,7 @@ export default function AdminPayouts() {
   const [dialogAction, setDialogAction] = useState<'approve' | 'reject' | 'retry' | 'mark_completed' | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
+  const [verifying, setVerifying] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && !role) {
@@ -82,7 +84,61 @@ export default function AdminPayouts() {
     }
   }, [role, authLoading, envLoading, effectiveEnvironment, navigate]);
 
-  const fetchPayouts = async () => {
+  // Auto-verify processing payouts on load
+  const autoVerifyProcessing = async (payoutsList: PayoutRequest[]) => {
+    const processingPayouts = payoutsList.filter(
+      p => p.status === 'processing' && (p.paystack_reference || p.paystack_transfer_code)
+    );
+    
+    if (processingPayouts.length === 0) return;
+
+    for (const payout of processingPayouts) {
+      try {
+        const { data } = await supabase.functions.invoke('verify-transfer-status', {
+          body: { payout_request_id: payout.id }
+        });
+        if (data?.success && data?.data?.updated) {
+          console.log(`Auto-verified payout ${payout.id}: ${data.data.new_status}`);
+        }
+      } catch (err) {
+        console.error('Auto-verify failed for', payout.id, err);
+      }
+    }
+    
+    // Refresh if any were updated
+    if (processingPayouts.length > 0) {
+      fetchPayouts(true);
+    }
+  };
+
+  const handleVerifyStatus = async (payout: PayoutRequest) => {
+    setVerifying(payout.id);
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-transfer-status', {
+        body: { payout_request_id: payout.id }
+      });
+
+      if (error) throw new Error(error.message);
+
+      if (data?.success) {
+        if (data.data.updated) {
+          toast({ title: `✅ Status updated to: ${data.data.new_status}` });
+          fetchPayouts(true);
+        } else {
+          toast({ title: `Transfer status: ${data.data.paystack_status}`, description: 'No update needed.' });
+        }
+      } else {
+        toast({ title: 'Verification failed', description: data?.error, variant: 'destructive' });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      toast({ title: 'Verification error', description: msg, variant: 'destructive' });
+    } finally {
+      setVerifying(null);
+    }
+  };
+
+  const fetchPayouts = async (skipAutoVerify = false) => {
     try {
       const { data, error } = await supabase
         .from('payout_requests')
@@ -116,6 +172,7 @@ export default function AdminPayouts() {
         }));
         
         setPayouts(enriched);
+        if (!skipAutoVerify) autoVerifyProcessing(enriched);
       } else {
         setPayouts(requests);
       }
@@ -462,23 +519,33 @@ export default function AdminPayouts() {
           )}
 
           {payout.status === 'processing' && (
-            <div className="mt-4">
+            <div className="mt-4 flex gap-2">
+              <Button 
+                size="sm" 
+                variant="outline"
+                className="flex-1"
+                onClick={() => handleVerifyStatus(payout)}
+                disabled={verifying === payout.id || processing === payout.id}
+              >
+                {verifying === payout.id ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                ) : (
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                )}
+                Verify Status
+              </Button>
               <Button 
                 size="sm" 
                 variant="default"
-                className="w-full bg-success hover:bg-success/90"
+                className="flex-1 bg-success hover:bg-success/90"
                 onClick={() => {
                   setSelectedPayout(payout);
                   setDialogAction('mark_completed');
                 }}
                 disabled={processing === payout.id}
               >
-                {processing === payout.id ? (
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                ) : (
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                )}
-                Mark as Completed
+                <CheckCircle className="w-4 h-4 mr-2" />
+                Mark Completed
               </Button>
             </div>
           )}
@@ -553,7 +620,7 @@ export default function AdminPayouts() {
               >
                 {isTestMode ? 'Test Mode' : 'Live Mode'}
               </Badge>
-              <Button variant="outline" size="icon" onClick={fetchPayouts}>
+              <Button variant="outline" size="icon" onClick={() => fetchPayouts()}>
                 <RefreshCw className="w-4 h-4" />
               </Button>
             </div>
