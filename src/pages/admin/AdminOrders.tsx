@@ -53,7 +53,25 @@ export default function AdminOrders() {
       }
 
       const { data } = await query;
-      setOrders(data || []);
+      
+      if (data && data.length > 0) {
+        // Fetch customer profiles for these orders
+        const userIds = [...new Set(data.map(o => o.user_id).filter(Boolean))];
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('user_id, full_name, phone')
+          .in('user_id', userIds);
+
+        const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
+        const enriched = data.map(order => ({
+          ...order,
+          customer_name: profileMap.get(order.user_id)?.full_name || 'N/A',
+          customer_phone: profileMap.get(order.user_id)?.phone || 'N/A',
+        }));
+        setOrders(enriched);
+      } else {
+        setOrders([]);
+      }
     } catch (error) {
       console.error('Error fetching orders:', error);
     } finally {
@@ -118,26 +136,30 @@ export default function AdminOrders() {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-3 px-4 font-medium">Order #</th>
-                    <th className="text-left py-3 px-4 font-medium">Vendor</th>
-                    <th className="text-left py-3 px-4 font-medium">Status</th>
-                    <th className="text-left py-3 px-4 font-medium">Total</th>
-                    <th className="text-left py-3 px-4 font-medium">Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {orders.map((order) => (
-                    <tr key={order.id} className="border-b hover:bg-secondary/50">
-                      <td className="py-3 px-4 font-medium">{order.order_number}</td>
-                      <td className="py-3 px-4">{order.vendors?.name}</td>
-                      <td className="py-3 px-4">{getStatusBadge(order.status)}</td>
-                      <td className="py-3 px-4">₦{Number(order.total).toLocaleString()}</td>
-                      <td className="py-3 px-4 text-muted-foreground">
-                        {format(new Date(order.created_at), 'PP')}
-                      </td>
-                    </tr>
-                  ))}
+                   <tr className="border-b">
+                     <th className="text-left py-3 px-4 font-medium">Order #</th>
+                     <th className="text-left py-3 px-4 font-medium">Customer</th>
+                     <th className="text-left py-3 px-4 font-medium">Phone</th>
+                     <th className="text-left py-3 px-4 font-medium">Vendor</th>
+                     <th className="text-left py-3 px-4 font-medium">Status</th>
+                     <th className="text-left py-3 px-4 font-medium">Total</th>
+                     <th className="text-left py-3 px-4 font-medium">Date</th>
+                   </tr>
+                 </thead>
+                 <tbody>
+                   {orders.map((order) => (
+                     <tr key={order.id} className="border-b hover:bg-secondary/50">
+                       <td className="py-3 px-4 font-medium">{order.order_number}</td>
+                       <td className="py-3 px-4">{order.customer_name}</td>
+                       <td className="py-3 px-4 text-muted-foreground">{order.customer_phone}</td>
+                       <td className="py-3 px-4">{order.vendors?.name}</td>
+                       <td className="py-3 px-4">{getStatusBadge(order.status)}</td>
+                       <td className="py-3 px-4">₦{Number(order.total).toLocaleString()}</td>
+                       <td className="py-3 px-4 text-muted-foreground">
+                         {format(new Date(order.created_at), 'PP')}
+                       </td>
+                     </tr>
+                   ))}
                 </tbody>
               </table>
             </div>
