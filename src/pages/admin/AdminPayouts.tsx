@@ -117,17 +117,22 @@ export default function AdminPayouts() {
       }
 
       if (data?.success) {
-        toast({ title: '✅ Payout approved and processed!' });
+        const isCompleted = data?.data?.status === 'completed';
+        toast({ 
+          title: isCompleted 
+            ? '✅ Payout completed successfully!' 
+            : '⏳ Payout approved and processing...',
+          description: data?.data?.message
+        });
         fetchPayouts();
       } else {
-        // Extract error message from response
         const errorMessage = data?.error || 'Failed to process payout';
         toast({
           title: 'Payout Failed',
           description: errorMessage,
           variant: 'destructive'
         });
-        fetchPayouts(); // Refresh to show updated status
+        fetchPayouts();
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
