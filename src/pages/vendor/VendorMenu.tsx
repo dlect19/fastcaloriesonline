@@ -951,14 +951,14 @@ export default function VendorMenu() {
               {filteredProducts.map((product) => (
                 <div
                   key={product.id}
-                  className="bg-card rounded-xl border border-border overflow-hidden"
+                  className={`bg-card rounded-xl border overflow-hidden ${!product.is_available ? 'opacity-60 border-destructive/40' : 'border-border'}`}
                 >
                   <div className="p-4 flex items-center gap-4">
                     {product.image_url ? (
                       <img
                         src={product.image_url}
                         alt={product.name}
-                        className="w-16 h-16 rounded-lg object-cover"
+                        className={`w-16 h-16 rounded-lg object-cover ${!product.is_available ? 'grayscale' : ''}`}
                       />
                     ) : (
                       <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center text-2xl">
@@ -970,7 +970,7 @@ export default function VendorMenu() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="font-semibold text-foreground truncate">{product.name}</h3>
                         {!product.is_available && (
-                          <Badge variant="secondary" className="text-xs">Unavailable</Badge>
+                          <Badge variant="destructive" className="text-xs">Unavailable</Badge>
                         )}
                         {/* Food class badges */}
                         {product.calorie_classes && (product.calorie_classes as string[]).length > 0 && (
