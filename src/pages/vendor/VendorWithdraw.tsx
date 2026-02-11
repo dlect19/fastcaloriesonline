@@ -301,10 +301,25 @@ export default function VendorWithdraw() {
     }
   };
 
+  // Check if vendor has existing pending/processing withdrawal
+  const hasPendingWithdrawal = withdrawals.some(
+    w => w.status === 'pending' || w.status === 'processing'
+  );
+
   const handleRequestOTP = async () => {
     const amount = Number(withdrawAmount);
     if (!amount || amount <= 0) {
       toast({ title: 'Enter a valid amount', variant: 'destructive' });
+      return;
+    }
+
+    // CRITICAL: Prevent duplicate pending requests
+    if (hasPendingWithdrawal) {
+      toast({ 
+        title: 'Withdrawal already in progress', 
+        description: 'You cannot request another withdrawal while one is pending or processing.',
+        variant: 'destructive' 
+      });
       return;
     }
 
@@ -369,6 +384,35 @@ export default function VendorWithdraw() {
         throw new Error('Invalid or expired OTP');
       }
 
+      // CRITICAL: Re-check balance server-side to prevent race conditions
+      const { data: freshWallet } = await supabase
+        .from('wallets')
+        .select('menu_earnings_balance, rider_revenue_balance, test_menu_earnings_balance, test_rider_revenue_balance, eligible_balance, test_eligible_balance, balance, test_balance, pending_payouts')
+        .eq('id', wallet!.id)
+        .single();
+
+      if (!freshWallet) throw new Error('Wallet not found');
+
+      const freshSourceBalance = withdrawalSource === 'rider_revenue'
+        ? (isTestMode ? Number(freshWallet.test_rider_revenue_balance) : Number(freshWallet.rider_revenue_balance)) || 0
+        : (isTestMode ? Number(freshWallet.test_menu_earnings_balance) : Number(freshWallet.menu_earnings_balance)) || 0;
+
+      if (amount > freshSourceBalance) {
+        throw new Error('Insufficient balance. Your available balance may have changed.');
+      }
+
+      // Check for existing pending/processing requests (server-side check)
+      const { data: existingRequests } = await supabase
+        .from('payout_requests')
+        .select('id')
+        .eq('wallet_id', wallet!.id)
+        .in('status', ['pending', 'processing'])
+        .limit(1);
+
+      if (existingRequests && existingRequests.length > 0) {
+        throw new Error('You already have a pending or processing withdrawal request.');
+      }
+
       // Process withdrawal - insert into unified payout_requests table with source tag
       const { error } = await supabase
         .from('payout_requests')
@@ -381,10 +425,44 @@ export default function VendorWithdraw() {
           bank_account_name: wallet!.bank_account_name || '',
           user_type: 'vendor',
           status: 'pending',
-          withdrawal_source: withdrawalSource, // Tag the source
+          withdrawal_source: withdrawalSource,
         });
 
       if (error) throw error;
+
+      // CRITICAL: Deduct from source-specific pool immediately to prevent double-spending
+      const updateFields: Record<string, number> = {};
+      if (withdrawalSource === 'rider_revenue') {
+        if (isTestMode) {
+          updateFields.test_rider_revenue_balance = Math.max(0, (Number(freshWallet.test_rider_revenue_balance) || 0) - amount);
+          updateFields.test_eligible_balance = Math.max(0, (Number(freshWallet.test_eligible_balance) || 0) - amount);
+          updateFields.test_balance = Math.max(0, (Number(freshWallet.test_balance) || 0) - amount);
+        } else {
+          updateFields.rider_revenue_balance = Math.max(0, (Number(freshWallet.rider_revenue_balance) || 0) - amount);
+          updateFields.eligible_balance = Math.max(0, (Number(freshWallet.eligible_balance) || 0) - amount);
+          updateFields.balance = Math.max(0, (Number(freshWallet.balance) || 0) - amount);
+        }
+      } else {
+        if (isTestMode) {
+          updateFields.test_menu_earnings_balance = Math.max(0, (Number(freshWallet.test_menu_earnings_balance) || 0) - amount);
+          updateFields.test_eligible_balance = Math.max(0, (Number(freshWallet.test_eligible_balance) || 0) - amount);
+          updateFields.test_balance = Math.max(0, (Number(freshWallet.test_balance) || 0) - amount);
+        } else {
+          updateFields.menu_earnings_balance = Math.max(0, (Number(freshWallet.menu_earnings_balance) || 0) - amount);
+          updateFields.eligible_balance = Math.max(0, (Number(freshWallet.eligible_balance) || 0) - amount);
+          updateFields.balance = Math.max(0, (Number(freshWallet.balance) || 0) - amount);
+        }
+      }
+      updateFields.pending_payouts = (Number(freshWallet.pending_payouts) || 0) + amount;
+
+      const { error: walletUpdateError } = await supabase
+        .from('wallets')
+        .update(updateFields)
+        .eq('id', wallet!.id);
+
+      if (walletUpdateError) {
+        console.error('Failed to deduct wallet balance:', walletUpdateError);
+      }
 
       toast({ title: 'Withdrawal request submitted', description: 'Your request is pending admin approval.' });
       setWithdrawDialogOpen(false);
@@ -714,10 +792,25 @@ export default function VendorWithdraw() {
             </Card>
           </div>
 
+          {/* Pending Withdrawal Warning */}
+          {hasPendingWithdrawal && (
+            <Card className="border-warning bg-warning/10">
+              <CardContent className="p-4 flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-warning mt-0.5" />
+                <div>
+                  <p className="font-medium text-warning">Withdrawal In Progress</p>
+                  <p className="text-sm text-muted-foreground">
+                    You have a pending or processing withdrawal. You cannot submit another request until it is completed or rejected.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Withdraw Button */}
           <Dialog open={withdrawDialogOpen} onOpenChange={handleCloseWithdrawDialog}>
             <DialogTrigger asChild>
-              <Button size="lg" className="gap-2">
+              <Button size="lg" className="gap-2" disabled={hasPendingWithdrawal}>
                 <ArrowUpRight className="w-5 h-5" />
                 Withdraw {withdrawalSource === 'rider_revenue' ? 'Rider Revenue' : 'Menu Earnings'}
               </Button>
