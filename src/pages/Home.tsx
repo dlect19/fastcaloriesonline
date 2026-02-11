@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { LogOut, Flame, Star, ChevronRight, Sparkles, Heart, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
+import fastCaloriesFullLogo from '@/assets/fast-calories-full-logo.png';
 
 interface DeliveryLocation {
   lat: number | null;
@@ -78,7 +79,7 @@ export default function Home() {
           {/* Header */}
           <header className="relative z-10 flex items-center justify-between px-6 py-4">
             <div className="flex items-center gap-2">
-              <img src={fastCaloriesLogo} alt="Fast Calories" className="h-10 w-auto" />
+              <img src={fastCaloriesFullLogo} alt="Fast Calories" className="h-12 w-auto" />
             </div>
             <Button
               onClick={() => navigate('/auth')}
