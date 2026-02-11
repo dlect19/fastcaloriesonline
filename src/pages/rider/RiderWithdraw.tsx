@@ -23,6 +23,7 @@ interface WalletData {
   pending_balance: number;
   total_earned: number;
   total_withdrawn: number;
+  pending_payouts: number;
   bank_name: string | null;
   bank_account_number: string | null;
   bank_account_name: string | null;
@@ -146,6 +147,7 @@ export default function RiderWithdraw() {
           ...walletData,
           balance: balance,
           pending_balance: eligibleBalance, // Rider earnings are immediately eligible
+          pending_payouts: Number(walletData.pending_payouts) || 0,
         } as WalletData);
         setBankName(walletData.bank_name || '');
         setAccountNumber(walletData.bank_account_number || '');
@@ -554,7 +556,7 @@ export default function RiderWithdraw() {
         </Card>
 
         {/* Balance Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Available Balance</CardTitle>
@@ -565,6 +567,20 @@ export default function RiderWithdraw() {
               <p className="text-xs text-muted-foreground">Ready to withdraw</p>
             </CardContent>
           </Card>
+
+          {/* Withdraw Pending Card */}
+          {(wallet?.pending_payouts || 0) > 0 && (
+            <Card className="border-2 border-blue-200 bg-blue-50/50">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-blue-600">Withdraw Pending</CardTitle>
+                <Loader2 className="w-4 h-4 text-blue-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-blue-700">{formatCurrency(wallet?.pending_payouts || 0)}</div>
+                <p className="text-xs text-blue-500">Awaiting admin approval</p>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">

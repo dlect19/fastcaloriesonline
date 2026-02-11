@@ -30,6 +30,7 @@ interface WalletData {
   pending_balance: number;
   total_earned: number;
   total_withdrawn: number;
+  pending_payouts: number;
   bank_name: string | null;
   bank_account_number: string | null;
   bank_account_name: string | null;
@@ -179,6 +180,7 @@ export default function VendorWithdraw() {
           ...walletData,
           balance: balance,
           pending_balance: pendingBal,
+          pending_payouts: Number(walletData.pending_payouts) || 0,
           menu_earnings_balance: menuEarningsBalance,
           menu_earnings_pending: menuEarningsPending,
           rider_revenue_balance: riderRevenueBalance,
@@ -709,7 +711,7 @@ export default function VendorWithdraw() {
           </div>
 
           {/* Combined Stats */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card className="border-0 shadow-soft">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
@@ -728,6 +730,24 @@ export default function VendorWithdraw() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Withdraw Pending Card */}
+            {(wallet?.pending_payouts || 0) > 0 && (
+              <Card className="border-2 border-blue-200 bg-blue-50/50">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-blue-600 font-medium">Withdraw Pending</p>
+                      <p className="text-2xl font-bold text-blue-700">{formatCurrency(wallet?.pending_payouts || 0)}</p>
+                      <p className="text-xs text-blue-500">Awaiting admin approval</p>
+                    </div>
+                    <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center">
+                      <Loader2 className="w-6 h-6 text-blue-600" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             <Card className="border-0 shadow-soft">
               <CardContent className="p-6">

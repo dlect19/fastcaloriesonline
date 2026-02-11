@@ -213,15 +213,7 @@ const handler = async (req: Request): Promise<Response> => {
         );
       }
 
-      // Deduct from eligible balance and add to pending payouts
-      await supabase
-        .from("wallets")
-        .update({
-          balance: (wallet.balance || 0) - amount,
-          eligible_balance: (wallet.eligible_balance || 0) - amount,
-          pending_payouts: (wallet.pending_payouts || 0) + amount,
-        })
-        .eq("id", wallet.id);
+      // Balance deduction is handled by database trigger (deduct_wallet_on_payout_request)
 
       payoutRequest = {
         ...newRequest,

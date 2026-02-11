@@ -21,6 +21,7 @@ interface WalletData {
   id: string;
   balance: number;
   eligible_balance: number;
+  pending_payouts: number;
   bank_name: string | null;
   bank_account_number: string | null;
   bank_account_name: string | null;
@@ -88,6 +89,7 @@ export default function DeliveryWithdraw() {
           id: walletData.id,
           balance,
           eligible_balance: eligibleBalance,
+          pending_payouts: Number(walletData.pending_payouts) || 0,
           bank_name: walletData.bank_name,
           bank_account_number: walletData.bank_account_number,
           bank_account_name: walletData.bank_account_name,
@@ -306,7 +308,7 @@ export default function DeliveryWithdraw() {
           </div>
 
           {/* Balance Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card className="bg-primary text-primary-foreground">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
@@ -330,6 +332,22 @@ export default function DeliveryWithdraw() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Withdraw Pending Card */}
+            {(wallet?.pending_payouts || 0) > 0 && (
+              <Card className="border-2 border-blue-200 bg-blue-50/50">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-blue-600 font-medium">Withdraw Pending</p>
+                      <p className="text-2xl font-bold text-blue-700">{formatCurrency(wallet?.pending_payouts || 0)}</p>
+                      <p className="text-xs text-blue-500">Awaiting admin approval</p>
+                    </div>
+                    <Loader2 className="w-8 h-8 text-blue-600" />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             <Card>
               <CardContent className="pt-6">
