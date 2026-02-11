@@ -35,7 +35,7 @@ export function ProductCard({ product, vendor }: ProductCardProps) {
         className={cn(
           "w-full text-left bg-card rounded-xl overflow-hidden border shadow-soft transition-all group",
           isUnavailable
-            ? "opacity-50 border-border cursor-not-allowed grayscale"
+            ? "border-border cursor-not-allowed"
             : "border-border hover:shadow-card"
         )}
       >
@@ -62,19 +62,18 @@ export function ProductCard({ product, vendor }: ProductCardProps) {
                 {Math.round(((product.price - (product as any).discount_price) / product.price) * 100)}% OFF
               </div>
             )}
-            {/* Unavailable overlay */}
-            {isUnavailable && (
-              <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
-                <Badge variant="destructive" className="text-xs font-semibold">
-                  Unavailable
-                </Badge>
-              </div>
-            )}
           </div>
 
           {/* Content */}
           <div className="flex-1 min-w-0 flex flex-col">
-            <h3 className="font-semibold text-foreground truncate">{product.name}</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-foreground truncate">{product.name}</h3>
+              {isUnavailable && (
+                <Badge variant="destructive" className="text-[10px] shrink-0">
+                  Unavailable
+                </Badge>
+              )}
+            </div>
             
             {product.description && (
               <p className="text-sm text-muted-foreground line-clamp-2 mt-0.5">
