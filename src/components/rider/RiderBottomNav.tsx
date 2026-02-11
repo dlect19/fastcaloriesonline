@@ -2,6 +2,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Home, Package, DollarSign, Settings, Power, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
+import fastCaloriesFooterLogo from '@/assets/fast-calories-footer-logo.png';
 
 interface RiderBottomNavProps {
   isOnline?: boolean;
@@ -29,6 +30,10 @@ export function RiderBottomNav({ isOnline = false, onToggleOnline, canViewEarnin
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border safe-bottom z-50 md:hidden">
+      {/* Footer logo */}
+      <div className="flex justify-center py-1.5 border-b border-border/50">
+        <img src={fastCaloriesFooterLogo} alt="Fast Calories" className="h-6 w-auto" />
+      </div>
       {/* Online status bar */}
       <div className="flex items-center justify-center gap-3 py-2 px-4 border-b border-border bg-secondary/50">
         <Power className={cn("w-4 h-4", isOnline ? "text-calorie-low" : "text-muted-foreground")} />
