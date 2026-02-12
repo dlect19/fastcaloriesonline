@@ -73,8 +73,9 @@ export function usePromoCode() {
         return { valid: false, discount: 0, message: 'This promo code has reached its usage limit' };
       }
 
-      // Check per-user usage limit
-      if (promo.per_user_limit && user) {
+      // Check per-user usage limit (default to 1 use per user if not set)
+      const effectivePerUserLimit = promo.per_user_limit || 1;
+      if (user) {
         const { data: userUsage } = await supabase
           .from('promo_usage')
           .select('used_count')
@@ -82,11 +83,11 @@ export function usePromoCode() {
           .eq('user_id', user.id)
           .maybeSingle();
 
-        if (userUsage && userUsage.used_count >= promo.per_user_limit) {
+        if (userUsage && userUsage.used_count >= effectivePerUserLimit) {
           return { 
             valid: false, 
             discount: 0, 
-            message: `You've already used this promo ${promo.per_user_limit} time(s)` 
+            message: `You've already used this promo code` 
           };
         }
       }
