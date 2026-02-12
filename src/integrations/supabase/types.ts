@@ -3170,6 +3170,7 @@ export type Database = {
         Returns: Database["public"]["Enums"]["delivery_company_staff_role"]
       }
       get_platform_environment: { Args: never; Returns: string }
+      get_rider_profile_id: { Args: { _user_id: string }; Returns: string }
       get_vendor_staff_role: {
         Args: { _user_id: string; _vendor_id: string }
         Returns: Database["public"]["Enums"]["vendor_staff_role"]
