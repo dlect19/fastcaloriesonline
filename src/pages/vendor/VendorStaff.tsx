@@ -8,12 +8,13 @@ import { Loader2 } from 'lucide-react';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
+
 export default function VendorStaff() {
   const navigate = useNavigate();
   const [vendorId, setVendorId] = useState<string | null>(null);
   const [vendorName, setVendorName] = useState('');
   const [loading, setLoading] = useState(true);
-  const { hasPermission, loading: permLoading } = useVendorPermissions(vendorId);
+  const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendorId);
 
   useEffect(() => {
     checkAuth();
@@ -48,7 +49,7 @@ export default function VendorStaff() {
   if (!hasPermission('manage_staff')) {
     return (
       <div className="min-h-screen bg-background flex">
-        <VendorSidebar vendorName={vendorName} />
+        <VendorSidebar vendorName={vendorName} permissions={permissions} />
         <main className="flex-1 lg:ml-64 pt-14 lg:pt-0">
           <div className="p-6 flex items-center justify-center min-h-screen">
             <div className="text-center">
@@ -63,7 +64,7 @@ export default function VendorStaff() {
 
   return (
     <div className="min-h-screen bg-background flex">
-      <VendorSidebar vendorName={vendorName} />
+      <VendorSidebar vendorName={vendorName} permissions={permissions} />
       <main className="flex-1 lg:ml-64 pt-14 lg:pt-0">
         <div className="p-6">
           <Tabs defaultValue="staff">

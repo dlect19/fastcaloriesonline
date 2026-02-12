@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { VendorSidebar } from '@/components/vendor/VendorSidebar';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { useVendorPermissions } from '@/hooks/useVendorPermissions';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Vendor = Tables<'vendors'>;
@@ -17,6 +18,7 @@ export default function VendorReviews() {
   const [vendor, setVendor] = useState<Vendor | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
+  const { permissions } = useVendorPermissions(vendor?.id ?? null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -93,7 +95,7 @@ export default function VendorReviews() {
   if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-background">
-        <VendorSidebar />
+        <VendorSidebar permissions={permissions} />
         <main className="lg:ml-64 pt-14 lg:pt-0">
           <div className="p-6 space-y-6">
             <Skeleton className="h-8 w-48" />
@@ -106,7 +108,7 @@ export default function VendorReviews() {
 
   return (
     <div className="min-h-screen bg-background">
-      <VendorSidebar vendorName={vendor?.name} />
+      <VendorSidebar vendorName={vendor?.name} permissions={permissions} />
 
       <main className="lg:ml-64 pt-14 lg:pt-0">
         <div className="p-6 space-y-6">
