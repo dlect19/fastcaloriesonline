@@ -103,11 +103,14 @@ export function ComboCard({ combo, vendor }: ComboCardProps) {
     setShowDetails(false);
   };
 
+  const isUnavailable = combo.is_available === false;
+
   return (
     <>
       <button
-        onClick={() => setShowDetails(true)}
-        className="w-full text-left bg-gradient-to-br from-primary/5 to-primary/10 rounded-xl overflow-hidden border border-primary/20 shadow-soft hover:shadow-card transition-all group"
+        onClick={() => !isUnavailable && setShowDetails(true)}
+        disabled={isUnavailable}
+        className={`w-full text-left bg-gradient-to-br from-primary/5 to-primary/10 rounded-xl overflow-hidden border border-primary/20 shadow-soft hover:shadow-card transition-all group ${isUnavailable ? 'cursor-not-allowed' : ''}`}
       >
         <div className="flex gap-3 p-3">
           {/* Image */}
@@ -124,21 +127,29 @@ export function ComboCard({ combo, vendor }: ComboCardProps) {
               </div>
             )}
             {/* Savings Badge */}
-            <div className="absolute top-1 left-1">
-              <Badge className="bg-calorie-low text-white text-xs px-1.5 py-0.5">
-                -{savingsPercent}%
-              </Badge>
-            </div>
+            {!isUnavailable && (
+              <div className="absolute top-1 left-1">
+                <Badge className="bg-calorie-low text-white text-xs px-1.5 py-0.5">
+                  -{savingsPercent}%
+                </Badge>
+              </div>
+            )}
           </div>
 
           {/* Content */}
           <div className="flex-1 min-w-0 flex flex-col">
             <div className="flex items-center gap-2">
               <h3 className="font-semibold text-foreground truncate">{combo.name}</h3>
-              <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/20">
-                <Package className="w-3 h-3 mr-1" />
-                Combo
-              </Badge>
+              {isUnavailable ? (
+                <Badge variant="destructive" className="text-xs">
+                  Unavailable
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/20">
+                  <Package className="w-3 h-3 mr-1" />
+                  Combo
+                </Badge>
+              )}
             </div>
             
             <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">

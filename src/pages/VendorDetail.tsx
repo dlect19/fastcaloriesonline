@@ -163,7 +163,7 @@ export default function VendorDetail() {
         .from('combos')
         .select('*')
         .eq('vendor_id', id)
-        .eq('is_available', true)
+        .order('is_available', { ascending: false })
         .order('created_at', { ascending: false });
 
       if (combosError) throw combosError;
