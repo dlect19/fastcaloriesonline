@@ -435,7 +435,7 @@ export default function Cart() {
       // Create order items from cart
       const orderItems = items.map(item => ({
         order_id: order.id,
-        product_id: item.productId,
+        product_id: item.addonsDescription ? null : item.productId,
         product_name: item.productName,
         quantity: item.quantity,
         unit_price: item.price,
