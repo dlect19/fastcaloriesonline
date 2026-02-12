@@ -64,7 +64,7 @@ export function RiderFloatingWidget({ isOnline, onToggleOnline }: RiderFloatingW
 
     const { data: orders } = await supabase
       .from('orders')
-      .select('*, vendors(name, address, latitude, longitude)')
+      .select('*, vendors(name, address, latitude, longitude), addresses!delivery_address_id(latitude, longitude)')
       .eq('rider_id', user.id)
       .not('status', 'in', '("delivered","cancelled")')
       .order('created_at', { ascending: false });
@@ -238,6 +238,8 @@ export function RiderFloatingWidget({ isOnline, onToggleOnline }: RiderFloatingW
               ) : (
                 <MapOptionsMenu 
                   address={activeOrder.delivery_address_text || ''} 
+                  latitude={activeOrder.addresses?.latitude}
+                  longitude={activeOrder.addresses?.longitude}
                   variant="outline"
                   size="sm"
                   className="flex-1 text-xs h-8"
