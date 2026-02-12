@@ -414,19 +414,59 @@ export default function VendorMenu() {
 
       if (error) throw error;
 
-      // If marking product as unavailable, auto-disable any combos containing it
-      if (!newAvailability) {
-        const { data: comboItems } = await supabase
-          .from('combo_items')
-          .select('combo_id')
-          .eq('product_id', product.id);
+      // Find all combos containing this product
+      const { data: comboItems } = await supabase
+        .from('combo_items')
+        .select('combo_id')
+        .eq('product_id', product.id);
 
-        if (comboItems && comboItems.length > 0) {
-          const comboIds = [...new Set(comboItems.map(ci => ci.combo_id))];
+      if (comboItems && comboItems.length > 0) {
+        const comboIds = [...new Set(comboItems.map(ci => ci.combo_id))];
+
+        if (!newAvailability) {
+          // Product became unavailable → disable its combos
           await supabase
             .from('combos')
             .update({ is_available: false })
             .in('id', comboIds);
+        } else {
+          // Product became available → check if ALL items in each combo are now available
+          for (const comboId of comboIds) {
+            const { data: allItems } = await supabase
+              .from('combo_items')
+              .select('product_id, takeaway_pack_id')
+              .eq('combo_id', comboId);
+
+            if (!allItems) continue;
+
+            const productIds = allItems.filter(i => i.product_id).map(i => i.product_id!);
+            const packIds = allItems.filter(i => i.takeaway_pack_id).map(i => i.takeaway_pack_id!);
+
+            let allAvailable = true;
+
+            if (productIds.length > 0) {
+              const { data: prods } = await supabase
+                .from('products')
+                .select('id, is_available')
+                .in('id', productIds);
+              if (prods?.some(p => p.is_available === false)) allAvailable = false;
+            }
+
+            if (allAvailable && packIds.length > 0) {
+              const { data: packs } = await supabase
+                .from('takeaway_packs')
+                .select('id, is_active')
+                .in('id', packIds);
+              if (packs?.some(p => p.is_active === false)) allAvailable = false;
+            }
+
+            if (allAvailable) {
+              await supabase
+                .from('combos')
+                .update({ is_available: true })
+                .eq('id', comboId);
+            }
+          }
         }
       }
 
