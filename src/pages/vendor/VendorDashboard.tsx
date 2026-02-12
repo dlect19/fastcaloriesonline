@@ -28,6 +28,7 @@ import { useVendorPermissions } from '@/hooks/useVendorPermissions';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 import { useToast } from '@/hooks/use-toast';
 import { useVendorNotificationSound } from '@/hooks/useVendorNotificationSound';
+import { useAutoStoreStatus } from '@/hooks/useAutoStoreStatus';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables } from '@/integrations/supabase/types';
 
@@ -60,6 +61,14 @@ export default function VendorDashboard() {
   const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendor?.id || null);
 
   const { isComplete: profileComplete, loading: profileLoading } = useProfileCompletion(user?.id);
+
+  // Auto-close/open store based on working hours
+  useAutoStoreStatus(vendor?.id || null, vendor?.is_open ?? null, (isOpen) => {
+    if (vendor) {
+      setVendor({ ...vendor, is_open: isOpen });
+      toast({ title: isOpen ? 'Store auto-opened (working hours)' : 'Store auto-closed (working hours)' });
+    }
+  });
 
   useEffect(() => {
     if (!authLoading && !user) {
