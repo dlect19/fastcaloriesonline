@@ -2681,6 +2681,7 @@ export type Database = {
       vendors: {
         Row: {
           address: string
+          allow_rider_external_jobs: boolean
           approved_for_live: boolean | null
           banner_url: string | null
           category: Database["public"]["Enums"]["vendor_category"]
@@ -2712,6 +2713,7 @@ export type Database = {
         }
         Insert: {
           address: string
+          allow_rider_external_jobs?: boolean
           approved_for_live?: boolean | null
           banner_url?: string | null
           category?: Database["public"]["Enums"]["vendor_category"]
@@ -2743,6 +2745,7 @@ export type Database = {
         }
         Update: {
           address?: string
+          allow_rider_external_jobs?: boolean
           approved_for_live?: boolean | null
           banner_url?: string | null
           category?: Database["public"]["Enums"]["vendor_category"]

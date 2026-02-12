@@ -31,6 +31,7 @@ interface DispatchOfferCardProps {
   onDecline: (offerId: string) => Promise<{ success: boolean }>;
   accepting: boolean;
   declining: boolean;
+  hideEarnings?: boolean;
 }
 
 export function DispatchOfferCard({
@@ -39,6 +40,7 @@ export function DispatchOfferCard({
   onDecline,
   accepting,
   declining,
+  hideEarnings = false,
 }: DispatchOfferCardProps) {
   const [timeLeft, setTimeLeft] = useState<number>(0);
 
@@ -167,7 +169,7 @@ export function DispatchOfferCard({
         </div>
 
         {/* Stats Row */}
-        <div className="grid grid-cols-3 gap-2 pt-2">
+        <div className={`grid ${hideEarnings ? 'grid-cols-2' : 'grid-cols-3'} gap-2 pt-2`}>
           <div className="bg-muted/50 rounded-lg p-2 text-center">
             <Navigation className="h-4 w-4 mx-auto text-muted-foreground" />
             <p className="text-xs text-muted-foreground mt-1">Distance</p>
@@ -182,73 +184,84 @@ export function DispatchOfferCard({
             </p>
           </div>
 
-          <div className="bg-primary/10 rounded-lg p-2 text-center">
-            <Banknote className="h-4 w-4 mx-auto text-primary" />
-            <p className="text-xs text-muted-foreground mt-1">You Earn</p>
-            <p className="font-bold text-sm text-primary">₦{offer.rider_share.toLocaleString()}</p>
-          </div>
+          {!hideEarnings && (
+            <div className="bg-primary/10 rounded-lg p-2 text-center">
+              <Banknote className="h-4 w-4 mx-auto text-primary" />
+              <p className="text-xs text-muted-foreground mt-1">You Earn</p>
+              <p className="font-bold text-sm text-primary">₦{offer.rider_share.toLocaleString()}</p>
+            </div>
+          )}
         </div>
 
-        {/* Transparent Payout Breakdown */}
-        <Separator />
-        <div className="space-y-1.5 text-sm">
-          <p className="font-medium text-xs text-muted-foreground uppercase tracking-wide">Payout Breakdown</p>
+        {!hideEarnings && (
+          <>
+            <Separator />
+            <div className="space-y-1.5 text-sm">
+              <p className="font-medium text-xs text-muted-foreground uppercase tracking-wide">Payout Breakdown</p>
 
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Delivery fee</span>
-            <span>₦{offer.delivery_fee.toLocaleString()}</span>
-          </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Delivery fee</span>
+                <span>₦{offer.delivery_fee.toLocaleString()}</span>
+              </div>
 
-          <div className="flex justify-between text-destructive/80">
-            <span>Platform fee</span>
-            <span>-₦{platformFee.toLocaleString()}</span>
-          </div>
+              <div className="flex justify-between text-destructive/80">
+                <span>Platform fee</span>
+                <span>-₦{platformFee.toLocaleString()}</span>
+              </div>
 
-          {distanceBonus > 0 && (
-            <div className="flex justify-between text-green-600">
-              <span>Distance bonus ({'>'}4km)</span>
-              <span>+₦{distanceBonus.toLocaleString()}</span>
+              {distanceBonus > 0 && (
+                <div className="flex justify-between text-green-600">
+                  <span>Distance bonus ({'>'}4km)</span>
+                  <span>+₦{distanceBonus.toLocaleString()}</span>
+                </div>
+              )}
+
+              {timeSurge > 0 && (
+                <div className="flex justify-between text-amber-600">
+                  <span>{getTimePeriodLabel(offer.time_period || 'morning')} surge</span>
+                  <span>+₦{timeSurge.toLocaleString()}</span>
+                </div>
+              )}
+
+              {weatherSurge > 0 && (
+                <div className="flex justify-between text-blue-600">
+                  <span className="flex items-center gap-1">
+                    {getWeatherIcon(offer.weather_condition || 'clear')}
+                    Weather surge
+                  </span>
+                  <span>+₦{weatherSurge.toLocaleString()}</span>
+                </div>
+              )}
+
+              {hasSubsidy && (
+                <div className="flex justify-between text-purple-600">
+                  <span className="flex items-center gap-1">
+                    <Shield className="h-3 w-3" />
+                    Guaranteed min top-up
+                  </span>
+                  <span>+₦{subsidy.toLocaleString()}</span>
+                </div>
+              )}
+
+              <Separator className="my-1" />
+              <div className="flex justify-between font-bold text-primary">
+                <span>Your payout</span>
+                <span>₦{offer.rider_share.toLocaleString()}</span>
+              </div>
             </div>
-          )}
 
-          {timeSurge > 0 && (
-            <div className="flex justify-between text-amber-600">
-              <span>{getTimePeriodLabel(offer.time_period || 'morning')} surge</span>
-              <span>+₦{timeSurge.toLocaleString()}</span>
-            </div>
-          )}
+            {/* Rider trust message */}
+            <p className="text-[11px] text-muted-foreground text-center italic pt-1">
+              You see the full delivery fee. We take a small capped platform fee, and you're guaranteed a minimum payout on every trip.
+            </p>
+          </>
+        )}
 
-          {weatherSurge > 0 && (
-            <div className="flex justify-between text-blue-600">
-              <span className="flex items-center gap-1">
-                {getWeatherIcon(offer.weather_condition || 'clear')}
-                Weather surge
-              </span>
-              <span>+₦{weatherSurge.toLocaleString()}</span>
-            </div>
-          )}
-
-          {hasSubsidy && (
-            <div className="flex justify-between text-purple-600">
-              <span className="flex items-center gap-1">
-                <Shield className="h-3 w-3" />
-                Guaranteed min top-up
-              </span>
-              <span>+₦{subsidy.toLocaleString()}</span>
-            </div>
-          )}
-
-          <Separator className="my-1" />
-          <div className="flex justify-between font-bold text-primary">
-            <span>Your payout</span>
-            <span>₦{offer.rider_share.toLocaleString()}</span>
-          </div>
-        </div>
-
-        {/* Rider trust message */}
-        <p className="text-[11px] text-muted-foreground text-center italic pt-1">
-          You see the full delivery fee. We take a small capped platform fee, and you're guaranteed a minimum payout on every trip.
-        </p>
+        {hideEarnings && (
+          <p className="text-xs text-muted-foreground text-center italic pt-2">
+            Earnings for this delivery are managed by your vendor.
+          </p>
+        )}
       </CardContent>
 
       <CardFooter className="gap-2">
