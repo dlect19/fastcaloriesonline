@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Switch } from '@/components/ui/switch';
-import { UserPlus, Shield, Users, Loader2, Trash2, Eye, EyeOff, KeyRound, Clock } from 'lucide-react';
+import { UserPlus, Shield, Users, Loader2, Trash2, Eye, EyeOff, KeyRound, Clock, Link2, Copy, Check } from 'lucide-react';
 import { format } from 'date-fns';
 import type { VendorStaffRole, VendorPermission } from '@/hooks/useVendorPermissions';
 import { PermissionChecklistDialog } from '@/components/shared/PermissionChecklistDialog';
@@ -81,10 +81,34 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [permDialogOpen, setPermDialogOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
+  const [vendorSlug, setVendorSlug] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   useEffect(() => {
     fetchStaff();
+    fetchVendorSlug();
   }, [vendorId]);
+
+  const fetchVendorSlug = async () => {
+    const { data } = await supabase
+      .from('vendors')
+      .select('slug')
+      .eq('id', vendorId)
+      .single();
+    if (data?.slug) setVendorSlug(data.slug);
+  };
+
+  const workspaceUrl = vendorSlug
+    ? `${window.location.origin}/workspace/${vendorSlug}`
+    : null;
+
+  const copyWorkspaceLink = async () => {
+    if (!workspaceUrl) return;
+    await navigator.clipboard.writeText(workspaceUrl);
+    setLinkCopied(true);
+    toast({ title: 'Link copied!' });
+    setTimeout(() => setLinkCopied(false), 2000);
+  };
 
   const fetchStaff = async () => {
     try {
@@ -292,6 +316,32 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
 
   return (
     <div className="space-y-6">
+      {/* Workspace Login Link */}
+      {workspaceUrl && (
+        <Card className="border-primary/20 bg-primary/5">
+          <CardContent className="pt-5 pb-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Link2 className="w-5 h-5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold text-sm mb-1">Staff Login Link</h3>
+                <p className="text-xs text-muted-foreground mb-2">Share this link with your staff so they can log in to your workspace</p>
+                <div className="flex items-center gap-2">
+                  <code className="text-xs bg-background border rounded px-2 py-1.5 truncate flex-1 block">
+                    {workspaceUrl}
+                  </code>
+                  <Button size="sm" variant="outline" onClick={copyWorkspaceLink} className="shrink-0">
+                    {linkCopied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                    {linkCopied ? 'Copied' : 'Copy'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2">
@@ -489,15 +539,19 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
                       {member.role !== 'owner' && (
                         <>
                           <Button
-                            variant="ghost"
-                            size="icon"
+                            variant={member.permissions && member.permissions.length > 0 ? "secondary" : "ghost"}
+                            size="sm"
                             title="Edit permissions"
                             onClick={() => {
                               setEditingStaff(member);
                               setPermDialogOpen(true);
                             }}
+                            className="gap-1"
                           >
                             <Shield className="w-4 h-4" />
+                            {member.permissions && member.permissions.length > 0 
+                              ? <span className="text-xs">Custom</span>
+                              : <span className="text-xs hidden sm:inline">Permissions</span>}
                           </Button>
                           <Button
                             variant="ghost"
