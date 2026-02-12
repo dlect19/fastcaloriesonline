@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useState, useEffect } from 'react';
 import { VendorPermission } from '@/hooks/useVendorPermissions';
+import { useAutoStoreStatus } from '@/hooks/useAutoStoreStatus';
 
 // Map nav items to required permissions
 const navItems: { 
@@ -126,6 +127,9 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
       supabase.removeChannel(channel);
     };
   }, [resolvedVendorId]);
+
+  // Auto-close/open store based on working hours (runs on every vendor page)
+  useAutoStoreStatus(resolvedVendorId);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
