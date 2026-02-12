@@ -24,7 +24,7 @@ interface AvailableRider {
   rating: number;
   total_deliveries: number;
   distance: number;
-  type: 'vendor' | 'company';
+  type: 'vendor';
 }
 
 export function ManualRiderAssignment({ 
@@ -91,12 +91,11 @@ export function ManualRiderAssignment({
 
       const profileMap = new Map(profiles?.map(p => [p.user_id, p.full_name]) || []);
 
-      // Filter and calculate distances - only vendor and company riders
+      // Filter and calculate distances - only vendor's own riders (no logistics company riders)
       const ridersWithDistance = riders
         .filter(rider => {
           const isVendorRider = vendorRiderProfileIds.includes(rider.id) || rider.affiliated_vendor_id === vendorId;
-          const isCompanyRider = !!rider.delivery_company_id;
-          return isVendorRider || isCompanyRider;
+          return isVendorRider;
         })
         .map(rider => {
           const riderLat = rider.current_latitude || rider.preferred_latitude;
@@ -107,8 +106,6 @@ export function ManualRiderAssignment({
             distance = calculateDistance(vendorLat, vendorLng, riderLat, riderLng);
           }
 
-          const isVendorRider = vendorRiderProfileIds.includes(rider.id) || rider.affiliated_vendor_id === vendorId;
-
           return {
             id: rider.id,
             user_id: rider.user_id,
@@ -116,16 +113,11 @@ export function ManualRiderAssignment({
             rating: rider.rating || 0,
             total_deliveries: rider.total_deliveries || 0,
             distance,
-            type: isVendorRider ? 'vendor' as const : 'company' as const
+            type: 'vendor' as const
           };
         })
-        .filter(r => r.distance < 30) // Within 30km
-        .sort((a, b) => {
-          // Vendor riders first, then by distance
-          if (a.type === 'vendor' && b.type !== 'vendor') return -1;
-          if (a.type !== 'vendor' && b.type === 'vendor') return 1;
-          return a.distance - b.distance;
-        })
+        .filter(r => r.distance < 30)
+        .sort((a, b) => a.distance - b.distance)
         .slice(0, 15);
 
       setAvailableRiders(ridersWithDistance);
@@ -245,8 +237,8 @@ export function ManualRiderAssignment({
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="font-medium truncate">{rider.profile_name}</p>
-                        <Badge variant={rider.type === 'vendor' ? 'default' : 'secondary'} className="text-xs">
-                          {rider.type === 'vendor' ? 'Your Rider' : 'Company'}
+                        <Badge variant="default" className="text-xs">
+                          Your Rider
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground flex items-center gap-2">
