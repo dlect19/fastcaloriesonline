@@ -85,6 +85,37 @@ export default function VendorDashboard() {
     }
   }, [dateRange]);
 
+  // Subscribe to vendor status changes (auto-open/close from sidebar hook)
+  useEffect(() => {
+    if (!vendor) return;
+
+    const channel = supabase
+      .channel('vendor-status-sync')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'vendors',
+          filter: `id=eq.${vendor.id}`,
+        },
+        (payload) => {
+          const newIsOpen = (payload.new as any)?.is_open;
+          if (newIsOpen !== undefined && newIsOpen !== vendor.is_open) {
+            setVendor(prev => prev ? { ...prev, is_open: newIsOpen } : prev);
+            toast({
+              title: newIsOpen ? 'Store auto-opened (working hours)' : 'Store auto-closed (working hours)',
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [vendor?.id, vendor?.is_open]);
+
   // Subscribe to real-time order updates for notifications
   useEffect(() => {
     if (!vendor) return;
