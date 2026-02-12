@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useRef } from 'react';
+import { ReactNode, useEffect } from 'react';
 import { RiderSidebar } from './RiderSidebar';
 import { RiderBottomNav } from './RiderBottomNav';
 import { RiderMobileHeader } from './RiderMobileHeader';
