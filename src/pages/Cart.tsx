@@ -512,6 +512,11 @@ export default function Cart() {
         await incrementUsage(appliedPromo.id);
       }
       
+      // Mark spin wheel discount as used
+      if (selectedDiscountType === 'spin' && selectedSpinDiscountId) {
+        await useDiscount(selectedSpinDiscountId, order.id);
+      }
+      
       if (selectedDiscountType === 'platform' && eligibility.firstOrderDiscount) {
         await markFirstOrderUsed();
       }
