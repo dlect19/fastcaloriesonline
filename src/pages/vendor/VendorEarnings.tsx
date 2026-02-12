@@ -257,14 +257,17 @@ export default function VendorEarnings() {
     .filter(tx => tx.category === 'vendor_rider_share' && tx.status === 'completed')
     .reduce((sum, tx) => sum + tx.amount, 0);
 
-  // Calculate accurate total earned from ledger (only completed, non-cancelled earnings)
+  // Calculate accurate total earned from ledger (net credits minus reversal debits)
   const computedTotalEarned = transactions
     .filter(tx => 
       ['vendor_share', 'vendor_rider_share'].includes(tx.category) && 
-      tx.status === 'completed' && 
-      tx.transaction_type === 'credit'
+      tx.status === 'completed'
     )
-    .reduce((sum, tx) => sum + tx.amount, 0);
+    .reduce((sum, tx) => {
+      if (tx.transaction_type === 'credit') return sum + tx.amount;
+      if (tx.transaction_type === 'debit') return sum - tx.amount;
+      return sum;
+    }, 0);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
