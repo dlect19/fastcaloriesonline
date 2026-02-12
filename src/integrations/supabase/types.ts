@@ -2970,6 +2970,42 @@ export type Database = {
         }
         Relationships: []
       }
+      withdrawal_otps: {
+        Row: {
+          amount: number
+          created_at: string | null
+          email: string
+          expires_at: string
+          id: string
+          otp_code: string
+          used: boolean | null
+          used_at: string | null
+          user_type: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          email: string
+          expires_at: string
+          id?: string
+          otp_code: string
+          used?: boolean | null
+          used_at?: string | null
+          user_type: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          email?: string
+          expires_at?: string
+          id?: string
+          otp_code?: string
+          used?: boolean | null
+          used_at?: string | null
+          user_type?: string
+        }
+        Relationships: []
+      }
       withdrawal_requests: {
         Row: {
           amount: number
