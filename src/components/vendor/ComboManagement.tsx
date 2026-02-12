@@ -140,7 +140,7 @@ export function ComboManagement({ vendor, products, onRefresh }: ComboManagement
     fetchCombos();
     fetchTakeawayPacks();
     fetchAddonGroups();
-  }, [vendor.id]);
+  }, [vendor.id, products]);
 
   const fetchTakeawayPacks = async () => {
     const { data, error } = await supabase
