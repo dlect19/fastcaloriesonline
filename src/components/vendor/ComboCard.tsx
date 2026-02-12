@@ -77,20 +77,21 @@ export function ComboCard({ combo, vendor }: ComboCardProps) {
 
     setAdding(true);
 
-    // Add each combo item separately to cart
-    combo.items.forEach((item) => {
-      if (item.product) {
-        addItem({
-          productId: item.product.id,
-          productName: `${item.product.name} (${combo.name})`,
-          vendorId: vendor.id,
-          vendorName: vendor.name,
-          price: (combo.combo_price / combo.items.reduce((s, i) => s + i.quantity, 0)) * item.quantity, // Distribute combo price
-          quantity: item.quantity,
-          calories: item.product.calories || 0,
-          imageUrl: item.product.image_url || undefined,
-        });
-      }
+    // Add combo as a single cart item
+    const comboDescription = combo.items
+      .map((item) => `${item.quantity}x ${item.product?.name || 'Item'}`)
+      .join(' + ');
+
+    addItem({
+      productId: combo.id,
+      productName: combo.name,
+      vendorId: vendor.id,
+      vendorName: vendor.name,
+      price: combo.combo_price,
+      quantity: 1,
+      calories: totalCalories,
+      imageUrl: combo.image_url || combo.items[0]?.product?.image_url || undefined,
+      addonsDescription: comboDescription,
     });
 
     toast({

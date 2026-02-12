@@ -45,6 +45,10 @@ export function CartItemCard({ item }: CartItemCardProps) {
               ))}
             </div>
           )}
+          {/* Combo/bundle description */}
+          {!item.addons?.length && item.addonsDescription && (
+            <p className="text-xs text-muted-foreground mt-1">{item.addonsDescription}</p>
+          )}
           
           {/* Calories */}
           <div className="flex items-center gap-1 mt-1">

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Star, MessageSquare } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
 
 interface VendorReviewsSectionProps {
@@ -74,38 +75,42 @@ export function VendorReviewsSection({ vendorId, limit = 5 }: VendorReviewsSecti
           Customer Reviews
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
-        {reviews.map((review) => (
-          <div key={review.id} className="p-3 rounded-xl bg-muted/50">
-            <div className="flex items-center justify-between mb-1.5">
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-0.5">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <Star
-                      key={star}
-                      className={`w-3.5 h-3.5 ${
-                        star <= (review.vendor_rating || 0)
-                          ? 'fill-warning text-warning'
-                          : 'text-muted-foreground/30'
-                      }`}
-                    />
-                  ))}
+      <CardContent>
+        <ScrollArea className="max-h-[320px]">
+          <div className="space-y-3 pr-3">
+            {reviews.map((review) => (
+              <div key={review.id} className="p-3 rounded-xl bg-muted/50">
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-0.5">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          className={`w-3.5 h-3.5 ${
+                            star <= (review.vendor_rating || 0)
+                              ? 'fill-warning text-warning'
+                              : 'text-muted-foreground/30'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <span className="text-xs font-medium text-foreground">
+                      {review.profile_name}
+                    </span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(review.created_at).toLocaleDateString('en-NG', {
+                      dateStyle: 'medium',
+                    })}
+                  </span>
                 </div>
-                <span className="text-xs font-medium text-foreground">
-                  {review.profile_name}
-                </span>
+                {review.comment && (
+                  <p className="text-sm text-muted-foreground">{review.comment}</p>
+                )}
               </div>
-              <span className="text-xs text-muted-foreground">
-                {new Date(review.created_at).toLocaleDateString('en-NG', {
-                  dateStyle: 'medium',
-                })}
-              </span>
-            </div>
-            {review.comment && (
-              <p className="text-sm text-muted-foreground">{review.comment}</p>
-            )}
+            ))}
           </div>
-        ))}
+        </ScrollArea>
       </CardContent>
     </Card>
   );
