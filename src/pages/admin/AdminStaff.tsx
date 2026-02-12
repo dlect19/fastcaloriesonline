@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
 import { AdminStaffManagement } from '@/components/admin/AdminStaffManagement';
+import { ActivityLogViewer } from '@/components/shared/ActivityLogViewer';
 import { Loader2 } from 'lucide-react';
 import { useAdminPermissions } from '@/hooks/useAdminPermissions';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function AdminStaff() {
   const navigate = useNavigate();
@@ -16,10 +18,7 @@ export default function AdminStaff() {
 
   const checkAuth = async () => {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      navigate('/admin/auth');
-      return;
-    }
+    if (!user) { navigate('/admin/auth'); return; }
 
     const { data: roles } = await supabase
       .from('user_roles')
@@ -39,7 +38,6 @@ export default function AdminStaff() {
     );
   }
 
-  // Check if user has permission to manage admin staff
   if (!hasPermission('manage_admin_staff')) {
     return (
       <div className="min-h-screen bg-background flex">
@@ -59,9 +57,19 @@ export default function AdminStaff() {
   return (
     <div className="min-h-screen bg-background flex">
       <AdminSidebar />
-      
       <main className="flex-1 p-8">
-        <AdminStaffManagement />
+        <Tabs defaultValue="staff">
+          <TabsList>
+            <TabsTrigger value="staff">Staff</TabsTrigger>
+            <TabsTrigger value="activity">Activity Log</TabsTrigger>
+          </TabsList>
+          <TabsContent value="staff" className="mt-4">
+            <AdminStaffManagement />
+          </TabsContent>
+          <TabsContent value="activity" className="mt-4">
+            <ActivityLogViewer entityType="admin" />
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );
