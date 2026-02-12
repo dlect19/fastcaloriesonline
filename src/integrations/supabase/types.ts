@@ -2298,6 +2298,9 @@ export type Database = {
           category: Database["public"]["Enums"]["support_category"]
           created_at: string
           id: string
+          rated_at: string | null
+          rating: number | null
+          rating_comment: string | null
           status: Database["public"]["Enums"]["support_ticket_status"]
           subject: string
           updated_at: string
@@ -2309,6 +2312,9 @@ export type Database = {
           category: Database["public"]["Enums"]["support_category"]
           created_at?: string
           id?: string
+          rated_at?: string | null
+          rating?: number | null
+          rating_comment?: string | null
           status?: Database["public"]["Enums"]["support_ticket_status"]
           subject: string
           updated_at?: string
@@ -2320,6 +2326,9 @@ export type Database = {
           category?: Database["public"]["Enums"]["support_category"]
           created_at?: string
           id?: string
+          rated_at?: string | null
+          rating?: number | null
+          rating_comment?: string | null
           status?: Database["public"]["Enums"]["support_ticket_status"]
           subject?: string
           updated_at?: string
