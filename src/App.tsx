@@ -84,6 +84,21 @@ import AdminSupport from "./pages/admin/AdminSupport";
 
 const queryClient = new QueryClient();
 
+// Global listener for push notification sounds from service worker
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker?.addEventListener('message', (event: MessageEvent) => {
+    if (event.data?.type === 'PLAY_NOTIFICATION_SOUND') {
+      try {
+        const audio = new Audio('/sounds/new-order.mp3');
+        audio.volume = 1.0;
+        audio.play().catch(err => console.warn('Push sound blocked (user interaction needed):', err));
+      } catch (e) {
+        console.error('Error playing push notification sound:', e);
+      }
+    }
+  });
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
