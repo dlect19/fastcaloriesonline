@@ -6,9 +6,10 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MapOptionsMenu } from '@/components/shared/MapOptionsMenu';
-import { Package, X, Maximize2, Truck, MapPin, ShieldCheck } from 'lucide-react';
+import { Package, X, Maximize2, Truck, MapPin, ShieldCheck, Bell } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { playGlobalNotificationSound, isAudioUnlocked } from '@/lib/globalAudio';
 
 // Generate a random 6-digit confirmation code
 const generateConfirmationCode = (): string => {
@@ -26,9 +27,11 @@ export function RiderFloatingWidget({ isOnline, onToggleOnline }: RiderFloatingW
   const [expanded, setExpanded] = useState(false);
   const [activeOrder, setActiveOrder] = useState<any>(null);
   const [activeOrderCount, setActiveOrderCount] = useState(0);
+  const [dispatchOfferCount, setDispatchOfferCount] = useState(0);
 
   useEffect(() => {
     fetchActiveOrders();
+    fetchDispatchOffers();
     
     const channel = supabase
       .channel('floating-widget-orders')
@@ -36,6 +39,17 @@ export function RiderFloatingWidget({ isOnline, onToggleOnline }: RiderFloatingW
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders' },
         () => fetchActiveOrders()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'dispatch_offers' },
+        (payload) => {
+          fetchDispatchOffers();
+          // Play sound when a new dispatch offer arrives
+          if (payload.eventType === 'INSERT') {
+            playGlobalNotificationSound();
+          }
+        }
       )
       .subscribe();
 
@@ -57,6 +71,20 @@ export function RiderFloatingWidget({ isOnline, onToggleOnline }: RiderFloatingW
 
     setActiveOrderCount(orders?.length || 0);
     setActiveOrder(orders?.[0] || null);
+  };
+
+  const fetchDispatchOffers = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data: offers } = await supabase
+      .from('dispatch_offers')
+      .select('id')
+      .eq('rider_user_id', user.id)
+      .eq('status', 'pending')
+      .gt('expires_at', new Date().toISOString());
+
+    setDispatchOfferCount(offers?.length || 0);
   };
 
 
@@ -111,26 +139,40 @@ export function RiderFloatingWidget({ isOnline, onToggleOnline }: RiderFloatingW
   if (!expanded) {
     // Minimized FAB
     return (
-      <button
-        onClick={() => setExpanded(true)}
-        className={cn(
-          "fixed bottom-28 right-4 z-[60] flex items-center gap-2 px-4 py-3 rounded-full shadow-lg transition-all",
-          isOnline 
-            ? "bg-primary text-primary-foreground" 
-            : "bg-muted text-muted-foreground"
+      <div className="fixed bottom-28 right-4 z-[60] flex items-center gap-2">
+        {/* Notification bell with dispatch offer count */}
+        {dispatchOfferCount > 0 && (
+          <button
+            onClick={() => navigate('/rider/available')}
+            className="relative flex items-center justify-center w-12 h-12 rounded-full shadow-lg bg-destructive text-destructive-foreground animate-pulse"
+          >
+            <Bell className="w-5 h-5" />
+            <span className="absolute -top-1 -right-1 flex items-center justify-center w-5 h-5 text-[10px] font-bold rounded-full bg-primary text-primary-foreground">
+              {dispatchOfferCount}
+            </span>
+          </button>
         )}
-      >
-        <div className={cn(
-          "w-2 h-2 rounded-full",
-          isOnline ? "bg-calorie-low animate-pulse" : "bg-muted-foreground"
-        )} />
-        <Truck className="w-5 h-5" />
-        {activeOrderCount > 0 && (
-          <Badge variant="secondary" className="ml-1">
-            {activeOrderCount}
-          </Badge>
-        )}
-      </button>
+        <button
+          onClick={() => setExpanded(true)}
+          className={cn(
+            "flex items-center gap-2 px-4 py-3 rounded-full shadow-lg transition-all",
+            isOnline 
+              ? "bg-primary text-primary-foreground" 
+              : "bg-muted text-muted-foreground"
+          )}
+        >
+          <div className={cn(
+            "w-2 h-2 rounded-full",
+            isOnline ? "bg-calorie-low animate-pulse" : "bg-muted-foreground"
+          )} />
+          <Truck className="w-5 h-5" />
+          {activeOrderCount > 0 && (
+            <Badge variant="secondary" className="ml-1">
+              {activeOrderCount}
+            </Badge>
+          )}
+        </button>
+      </div>
     );
   }
 
