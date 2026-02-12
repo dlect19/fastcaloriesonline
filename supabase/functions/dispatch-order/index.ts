@@ -445,6 +445,32 @@ Deno.serve(async (req) => {
       } else {
         console.log(`Created ${offers.length} dispatch offers with hybrid payout`);
       }
+
+      // Send push notifications to all eligible riders
+      const riderUserIds = eligibleRiders.map(r => r.user_id);
+      try {
+        const notifResponse = await fetch(
+          `${supabaseUrl}/functions/v1/send-push-notification`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseKey}`,
+            },
+            body: JSON.stringify({
+              user_ids: riderUserIds,
+              title: '🚴 New Delivery Request!',
+              body: `New order from ${vendor.name} — ₦${payout.finalRiderPay} payout`,
+              data: { tag: 'dispatch-offer' },
+              url: '/rider/available-orders',
+            }),
+          }
+        );
+        const notifResult = await notifResponse.json();
+        console.log(`Push notifications sent: ${notifResult.sent} sent, ${notifResult.failed} failed`);
+      } catch (pushErr) {
+        console.error('Failed to send push notifications to riders:', pushErr);
+      }
     }
 
     // Update order status
