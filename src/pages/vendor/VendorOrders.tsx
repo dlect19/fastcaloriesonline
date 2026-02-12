@@ -773,6 +773,7 @@ export default function VendorOrders() {
               orderId={cancelDialog.order.id}
               orderNumber={cancelDialog.order.order_number}
               orderTotal={Number(cancelDialog.order.total)}
+              paymentStatus={cancelDialog.order.payment_status}
               onCancelled={() => {
                 fetchData();
                 setCancelDialog({ open: false, order: null });
