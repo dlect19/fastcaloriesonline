@@ -7,33 +7,50 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
+import { useAdminPermissions, type AdminPermission } from '@/hooks/useAdminPermissions';
 
-const menuItems = [
-  { icon: Home, label: 'Dashboard', path: '/admin/dashboard' },
-  { icon: Package, label: 'Orders', path: '/admin/orders' },
-  { icon: Store, label: 'Vendors', path: '/admin/vendors' },
-  { icon: Bike, label: 'Riders', path: '/admin/riders' },
-  { icon: Star, label: 'Reviews', path: '/admin/reviews' },
-  { icon: Truck, label: 'Delivery Companies', path: '/admin/delivery-companies' },
-  { icon: UserCheck, label: 'Customers', path: '/admin/customers' },
-  { icon: Banknote, label: 'Payouts', path: '/admin/payouts', badgeKey: 'payouts' as const },
-  { icon: Wallet, label: 'Customer Wallets', path: '/admin/customer-wallets' },
-  { icon: ArrowDownLeft, label: 'Wallet Funding', path: '/admin/wallet-funding' },
-  { icon: Activity, label: 'Nutrition', path: '/admin/nutrition' },
-  { icon: Ticket, label: 'Promo Codes', path: '/admin/promos' },
-  { icon: Gift, label: 'Rewards & Spins', path: '/admin/rewards' },
-  { icon: Image, label: 'Carousel', path: '/admin/advertisements' },
-  { icon: Users, label: 'Users', path: '/admin/users' },
-  { icon: Users, label: 'Admin Staff', path: '/admin/staff' },
-  { icon: MessageSquare, label: 'Support', path: '/admin/support' },
-  { icon: Settings, label: 'Settings', path: '/admin/settings' },
+interface MenuItem {
+  icon: any;
+  label: string;
+  path: string;
+  badgeKey?: 'payouts';
+  requiredPermission?: AdminPermission;
+}
+
+const menuItems: MenuItem[] = [
+  { icon: Home, label: 'Dashboard', path: '/admin/dashboard', requiredPermission: 'view_dashboard' },
+  { icon: Package, label: 'Orders', path: '/admin/orders', requiredPermission: 'manage_vendors' },
+  { icon: Store, label: 'Vendors', path: '/admin/vendors', requiredPermission: 'manage_vendors' },
+  { icon: Bike, label: 'Riders', path: '/admin/riders', requiredPermission: 'manage_riders' },
+  { icon: Star, label: 'Reviews', path: '/admin/reviews', requiredPermission: 'manage_vendors' },
+  { icon: Truck, label: 'Delivery Companies', path: '/admin/delivery-companies', requiredPermission: 'manage_vendors' },
+  { icon: UserCheck, label: 'Customers', path: '/admin/customers', requiredPermission: 'manage_users' },
+  { icon: Banknote, label: 'Payouts', path: '/admin/payouts', badgeKey: 'payouts', requiredPermission: 'process_withdrawals' },
+  { icon: Wallet, label: 'Customer Wallets', path: '/admin/customer-wallets', requiredPermission: 'manage_users' },
+  { icon: ArrowDownLeft, label: 'Wallet Funding', path: '/admin/wallet-funding', requiredPermission: 'manage_users' },
+  { icon: Activity, label: 'Nutrition', path: '/admin/nutrition', requiredPermission: 'view_reports' },
+  { icon: Ticket, label: 'Promo Codes', path: '/admin/promos', requiredPermission: 'manage_promos' },
+  { icon: Gift, label: 'Rewards & Spins', path: '/admin/rewards', requiredPermission: 'manage_promos' },
+  { icon: Image, label: 'Carousel', path: '/admin/advertisements', requiredPermission: 'manage_vendors' },
+  { icon: Users, label: 'Users', path: '/admin/users', requiredPermission: 'manage_users' },
+  { icon: Users, label: 'Admin Staff', path: '/admin/staff', requiredPermission: 'manage_admin_staff' },
+  { icon: MessageSquare, label: 'Support', path: '/admin/support', requiredPermission: 'handle_support' },
+  { icon: Settings, label: 'Settings', path: '/admin/settings', requiredPermission: 'platform_settings' },
 ];
 
 export function AdminSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { hasPermission, isSuperAdmin } = useAdminPermissions();
   const [pendingPayouts, setPendingPayouts] = useState(0);
+
+  // Filter menu items based on permissions
+  const visibleItems = menuItems.filter(item => {
+    if (isSuperAdmin) return true;
+    if (!item.requiredPermission) return true;
+    return hasPermission(item.requiredPermission);
+  });
 
   useEffect(() => {
     const fetchPendingPayouts = async () => {
@@ -78,7 +95,7 @@ export function AdminSidebar() {
       {/* Navigation */}
       <nav className="flex-1 p-4">
         <ul className="space-y-2">
-          {menuItems.map((item) => {
+          {visibleItems.map((item) => {
             const isActive = location.pathname === item.path;
             const badgeCount = item.badgeKey === 'payouts' ? pendingPayouts : 0;
             return (
