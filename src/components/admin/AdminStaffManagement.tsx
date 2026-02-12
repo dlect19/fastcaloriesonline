@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,9 +10,62 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Switch } from '@/components/ui/switch';
-import { UserPlus, Shield, Users, Loader2, Trash2, Eye, EyeOff, KeyRound, Clock, Link2, Copy, Check } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { UserPlus, Shield, Users, Loader2, Trash2, Eye, EyeOff, KeyRound, Clock, Link2, Copy, Check, Save } from 'lucide-react';
 import { format } from 'date-fns';
-import type { AdminStaffRole } from '@/hooks/useAdminPermissions';
+import type { AdminStaffRole, AdminPermission } from '@/hooks/useAdminPermissions';
+
+// Map each sidebar tab to its required permission
+const SIDEBAR_TABS: { label: string; permission: AdminPermission }[] = [
+  { label: 'Dashboard', permission: 'view_dashboard' },
+  { label: 'Orders', permission: 'manage_vendors' },
+  { label: 'Vendors', permission: 'manage_vendors' },
+  { label: 'Riders', permission: 'manage_riders' },
+  { label: 'Reviews', permission: 'manage_vendors' },
+  { label: 'Delivery Companies', permission: 'manage_vendors' },
+  { label: 'Customers', permission: 'manage_users' },
+  { label: 'Payouts', permission: 'process_withdrawals' },
+  { label: 'Customer Wallets', permission: 'manage_users' },
+  { label: 'Wallet Funding', permission: 'manage_users' },
+  { label: 'Nutrition', permission: 'view_reports' },
+  { label: 'Promo Codes', permission: 'manage_promos' },
+  { label: 'Rewards & Spins', permission: 'manage_promos' },
+  { label: 'Carousel', permission: 'manage_vendors' },
+  { label: 'Users', permission: 'manage_users' },
+  { label: 'Admin Staff', permission: 'manage_admin_staff' },
+  { label: 'Support', permission: 'handle_support' },
+  { label: 'Settings', permission: 'platform_settings' },
+];
+
+// Unique permissions list
+const ALL_PERMISSIONS: { key: AdminPermission; label: string }[] = [
+  { key: 'view_dashboard', label: 'View Dashboard' },
+  { key: 'manage_vendors', label: 'Manage Vendors/Orders/Reviews/Carousel' },
+  { key: 'approve_vendors', label: 'Approve Vendors' },
+  { key: 'manage_riders', label: 'Manage Riders' },
+  { key: 'process_withdrawals', label: 'Process Withdrawals (Payouts)' },
+  { key: 'manage_admin_staff', label: 'Manage Admin Staff' },
+  { key: 'platform_settings', label: 'Platform Settings' },
+  { key: 'view_reports', label: 'View Reports (Nutrition)' },
+  { key: 'handle_support', label: 'Handle Support' },
+  { key: 'manage_promos', label: 'Manage Promos & Rewards' },
+  { key: 'manage_users', label: 'Manage Users/Customers/Wallets' },
+];
+
+const DEFAULT_ROLE_PERMISSIONS: Record<string, AdminPermission[]> = {
+  admin: [
+    'view_dashboard', 'manage_vendors', 'approve_vendors', 'manage_riders',
+    'view_reports', 'handle_support', 'manage_promos', 'manage_users'
+  ],
+  support: ['view_dashboard', 'view_reports', 'handle_support'],
+  analyst: ['view_dashboard', 'view_reports']
+};
+
+const EDITABLE_ROLES: { key: string; label: string }[] = [
+  { key: 'admin', label: 'Admin' },
+  { key: 'support', label: 'Support' },
+  { key: 'analyst', label: 'Analyst' },
+];
 
 
 interface AdminStaffMember {
@@ -56,6 +109,8 @@ export function AdminStaffManagement() {
   const [adding, setAdding] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [rolePermissions, setRolePermissions] = useState<Record<string, AdminPermission[]>>({ ...DEFAULT_ROLE_PERMISSIONS });
+  const [savingPerms, setSavingPerms] = useState(false);
 
   const adminLoginUrl = `${window.location.origin}/admin/auth`;
 
@@ -68,7 +123,51 @@ export function AdminStaffManagement() {
 
   useEffect(() => {
     fetchStaff();
+    fetchRolePermissions();
   }, []);
+
+  const fetchRolePermissions = async () => {
+    const { data } = await supabase
+      .from('platform_settings')
+      .select('value')
+      .eq('key', 'admin_role_permissions')
+      .maybeSingle();
+    if (data?.value) {
+      try {
+        const parsed = JSON.parse(data.value);
+        setRolePermissions({ ...DEFAULT_ROLE_PERMISSIONS, ...parsed });
+      } catch { /* use defaults */ }
+    }
+  };
+
+  const togglePermission = (role: string, permission: AdminPermission) => {
+    setRolePermissions(prev => {
+      const current = prev[role] || [];
+      const updated = current.includes(permission)
+        ? current.filter(p => p !== permission)
+        : [...current, permission];
+      return { ...prev, [role]: updated };
+    });
+  };
+
+  const saveRolePermissions = async () => {
+    setSavingPerms(true);
+    try {
+      const { error } = await supabase
+        .from('platform_settings')
+        .upsert({ 
+          key: 'admin_role_permissions', 
+          value: JSON.stringify(rolePermissions),
+          description: 'Custom permission overrides for admin staff roles'
+        }, { onConflict: 'key' });
+      if (error) throw error;
+      toast({ title: 'Role permissions saved!' });
+    } catch (err: any) {
+      toast({ title: 'Error saving permissions', description: err.message, variant: 'destructive' });
+    } finally {
+      setSavingPerms(false);
+    }
+  };
 
   const fetchStaff = async () => {
     try {
@@ -362,30 +461,56 @@ export function AdminStaffManagement() {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Shield className="w-5 h-5" />
-            Role Permissions
-          </CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Shield className="w-5 h-5" />
+              Role Permissions
+            </CardTitle>
+            <CardDescription className="mt-1">
+              Configure which tabs each role can access. Super Admin always has full access.
+            </CardDescription>
+          </div>
+          <Button onClick={saveRolePermissions} disabled={savingPerms} size="sm">
+            {savingPerms ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+            Save Changes
+          </Button>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="p-3 rounded-lg border">
-              <Badge className={ROLE_COLORS.super_admin}>Super Admin</Badge>
-              <p className="text-xs text-muted-foreground mt-2">Full platform access, manage other admins, process withdrawals</p>
-            </div>
-            <div className="p-3 rounded-lg border">
-              <Badge className={ROLE_COLORS.admin}>Admin</Badge>
-              <p className="text-xs text-muted-foreground mt-2">Manage vendors, riders, orders, promos (no withdrawals)</p>
-            </div>
-            <div className="p-3 rounded-lg border">
-              <Badge className={ROLE_COLORS.support}>Support</Badge>
-              <p className="text-xs text-muted-foreground mt-2">View reports and handle customer support tickets</p>
-            </div>
-            <div className="p-3 rounded-lg border">
-              <Badge className={ROLE_COLORS.analyst}>Analyst</Badge>
-              <p className="text-xs text-muted-foreground mt-2">View-only access to dashboard and reports</p>
-            </div>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="min-w-[220px]">Permission</TableHead>
+                  {EDITABLE_ROLES.map(role => (
+                    <TableHead key={role.key} className="text-center min-w-[100px]">
+                      <Badge className={ROLE_COLORS[role.key as AdminStaffRole]}>{role.label}</Badge>
+                    </TableHead>
+                  ))}
+                  <TableHead className="text-center min-w-[100px]">
+                    <Badge className={ROLE_COLORS.super_admin}>Super Admin</Badge>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {ALL_PERMISSIONS.map(perm => (
+                  <TableRow key={perm.key}>
+                    <TableCell className="font-medium text-sm">{perm.label}</TableCell>
+                    {EDITABLE_ROLES.map(role => (
+                      <TableCell key={role.key} className="text-center">
+                        <Checkbox
+                          checked={(rolePermissions[role.key] || []).includes(perm.key)}
+                          onCheckedChange={() => togglePermission(role.key, perm.key)}
+                        />
+                      </TableCell>
+                    ))}
+                    <TableCell className="text-center">
+                      <Checkbox checked disabled className="opacity-50" />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         </CardContent>
       </Card>

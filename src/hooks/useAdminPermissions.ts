@@ -17,7 +17,7 @@ export type AdminPermission =
   | 'manage_promos'
   | 'manage_users';
 
-const ROLE_PERMISSIONS: Record<AdminStaffRole, AdminPermission[]> = {
+const DEFAULT_ROLE_PERMISSIONS: Record<AdminStaffRole, AdminPermission[]> = {
   super_admin: [
     'view_dashboard', 'manage_vendors', 'approve_vendors', 'manage_riders',
     'process_withdrawals', 'manage_admin_staff', 'platform_settings',
@@ -44,6 +44,25 @@ export function useAdminPermissions(): UseAdminPermissionsResult {
   const [role, setRole] = useState<AdminStaffRole | null>(null);
   const [loading, setLoading] = useState(true);
   const [customPermissions, setCustomPermissions] = useState<AdminPermission[] | null>(null);
+  const [rolePermissions, setRolePermissions] = useState<Record<AdminStaffRole, AdminPermission[]>>(DEFAULT_ROLE_PERMISSIONS);
+
+  useEffect(() => {
+    // Load custom role permissions from platform_settings
+    const loadRolePerms = async () => {
+      const { data } = await supabase
+        .from('platform_settings')
+        .select('value')
+        .eq('key', 'admin_role_permissions')
+        .maybeSingle();
+      if (data?.value) {
+        try {
+          const parsed = JSON.parse(data.value);
+          setRolePermissions(prev => ({ ...prev, ...parsed }));
+        } catch { /* use defaults */ }
+      }
+    };
+    loadRolePerms();
+  }, []);
 
   useEffect(() => {
     if (!user) {
@@ -98,11 +117,11 @@ export function useAdminPermissions(): UseAdminPermissionsResult {
 
   const hasPermission = (permission: AdminPermission): boolean => {
     if (!role) return false;
-    const effectivePerms = customPermissions || ROLE_PERMISSIONS[role];
+    const effectivePerms = customPermissions || rolePermissions[role];
     return effectivePerms.includes(permission);
   };
 
-  const permissions = customPermissions || (role ? ROLE_PERMISSIONS[role] : []);
+  const permissions = customPermissions || (role ? rolePermissions[role] : []);
   const isSuperAdmin = role === 'super_admin';
 
   return { role, loading, hasPermission, isSuperAdmin, permissions };
