@@ -76,6 +76,7 @@ export function usePromoCode() {
       // Check per-user usage limit (default to 1 use per user if not set)
       const effectivePerUserLimit = promo.per_user_limit || 1;
       if (user) {
+        // Check promo_usage table first
         const { data: userUsage } = await supabase
           .from('promo_usage')
           .select('used_count')
@@ -89,6 +90,30 @@ export function usePromoCode() {
             discount: 0, 
             message: `You've already used this promo code` 
           };
+        }
+
+        // Fallback: also check orders table for this promo code usage
+        if (!userUsage) {
+          const { count: orderUsageCount } = await supabase
+            .from('orders')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', user.id)
+            .eq('promo_code', promo.code)
+            .not('status', 'eq', 'cancelled');
+
+          if (orderUsageCount && orderUsageCount >= effectivePerUserLimit) {
+            // Backfill promo_usage record
+            await supabase.from('promo_usage').insert({
+              promo_id: promo.id,
+              user_id: user.id,
+              used_count: orderUsageCount,
+            });
+            return { 
+              valid: false, 
+              discount: 0, 
+              message: `You've already used this promo code` 
+            };
+          }
         }
       }
 
