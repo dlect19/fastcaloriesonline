@@ -389,8 +389,8 @@ export default function RiderOrders() {
                   </div>
 
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-4 border-t">
-                    {/* Only show earnings for platform riders */}
-                    {canViewEarnings ? (
+                    {/* Only show earnings for platform riders (not affiliated) */}
+                    {canViewEarnings && !isAffiliated ? (
                       <div className="flex items-center gap-2">
                         <Clock className="w-4 h-4 text-muted-foreground" />
                         <span className="text-sm text-muted-foreground">
@@ -400,7 +400,7 @@ export default function RiderOrders() {
                     ) : (
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Lock className="w-4 h-4" />
-                        Vendor delivery
+                        {isAffiliated ? 'Managed by your vendor' : 'Vendor delivery'}
                       </div>
                     )}
 
@@ -468,12 +468,12 @@ export default function RiderOrders() {
                     <p className="text-sm text-muted-foreground truncate">
                       {order.vendors?.name} → {order.delivery_address_text?.split(',')[0]}
                     </p>
-                    {canViewEarnings ? (
+                    {canViewEarnings && !isAffiliated ? (
                       <p className="font-medium">₦{(Number(order.total) * 0.1).toLocaleString()}</p>
                     ) : (
                       <Badge variant="secondary" className="text-xs">
                         <Lock className="w-3 h-3 mr-1" />
-                        Completed
+                        {isAffiliated ? 'Managed by vendor' : 'Completed'}
                       </Badge>
                     )}
                   </div>
