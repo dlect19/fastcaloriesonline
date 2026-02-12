@@ -884,14 +884,14 @@ export default function VendorWithdraw() {
                       onChange={(e) => setWithdrawAmount(e.target.value)}
                       placeholder="Enter amount"
                       max={withdrawalSource === 'rider_revenue' 
-                        ? wallet?.rider_revenue_balance || 0 
-                        : wallet?.menu_earnings_balance || 0}
+                        ? computedRiderBalance 
+                        : computedMenuBalance}
                     />
                     <p className="text-xs text-muted-foreground">
                       Available: {formatCurrency(
                         withdrawalSource === 'rider_revenue' 
-                          ? wallet?.rider_revenue_balance || 0 
-                          : wallet?.menu_earnings_balance || 0
+                          ? computedRiderBalance 
+                          : computedMenuBalance
                       )}
                     </p>
                   </div>
