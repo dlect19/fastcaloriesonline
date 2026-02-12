@@ -522,7 +522,7 @@ export default function VendorDashboard() {
                       <div className="text-right flex items-center gap-3">
                         <div>
                           <p className="font-semibold text-foreground">
-                            {hasPermission('view_earnings') ? formatCurrency(Number(order.total)) : '***'}
+                            {hasPermission('view_earnings') ? formatCurrency(Number(order.menu_subtotal || order.subtotal)) : '***'}
                           </p>
                           <Badge className={`${getStatusColor(order.status)} border-0 text-xs`}>
                             {order.status.replace('_', ' ')}

@@ -419,23 +419,44 @@ export default function VendorEarnings() {
               onDateRangeChange={setDateRange}
             />
             {financialBreakdown && financialBreakdown.totalOrders > 0 ? (
-              <EarningsBreakdownCard
-                grossAmount={financialBreakdown.grossRevenue}
-                deductions={[
-                  {
-                    label: 'Platform Commission',
-                    amount: financialBreakdown.totalCommission,
-                    percentage: financialBreakdown.commissionRate,
-                    description: 'Commission calculated on menu price only. Delivery fees and service fees are not included.',
-                  },
-                ]}
-                netAmount={financialBreakdown.netRevenue}
-                title="Earnings Breakdown"
-                period={dateRange.from || dateRange.to 
-                  ? `${dateRange.from?.toLocaleDateString() || 'Start'} - ${dateRange.to?.toLocaleDateString() || 'Now'}`
-                  : 'All Time'
-                }
-              />
+              <div className="space-y-4">
+                <EarningsBreakdownCard
+                  grossAmount={financialBreakdown.grossRevenue}
+                  deductions={[
+                    {
+                      label: 'Platform Commission',
+                      amount: financialBreakdown.totalCommission,
+                      percentage: financialBreakdown.commissionRate,
+                      description: 'Commission calculated on menu price only. Packaging, delivery fees and service fees are not included.',
+                    },
+                  ]}
+                  netAmount={financialBreakdown.netRevenue}
+                  title="Menu Earnings Breakdown"
+                  period={dateRange.from || dateRange.to 
+                    ? `${dateRange.from?.toLocaleDateString() || 'Start'} - ${dateRange.to?.toLocaleDateString() || 'Now'}`
+                    : 'All Time'
+                  }
+                />
+                {financialBreakdown.deliveryOrderCount > 0 && (
+                  <EarningsBreakdownCard
+                    grossAmount={financialBreakdown.deliveryGrossRevenue}
+                    deductions={[
+                      {
+                        label: 'Platform Delivery Fee',
+                        amount: financialBreakdown.deliveryPlatformFee,
+                        percentage: 20,
+                        description: 'Platform takes 20% of delivery fees from vendor-affiliated riders.',
+                      },
+                    ]}
+                    netAmount={financialBreakdown.deliveryNetRevenue}
+                    title="Rider Delivery Revenue Breakdown"
+                    period={dateRange.from || dateRange.to 
+                      ? `${dateRange.from?.toLocaleDateString() || 'Start'} - ${dateRange.to?.toLocaleDateString() || 'Now'}`
+                      : `All Time (${financialBreakdown.deliveryOrderCount} deliveries)`
+                    }
+                  />
+                )}
+              </div>
             ) : (
               <Card className="p-6 text-center text-muted-foreground text-sm">
                 No earnings data for the selected period.
