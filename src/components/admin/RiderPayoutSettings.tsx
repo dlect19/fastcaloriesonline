@@ -46,7 +46,7 @@ export function RiderPayoutSettings({ settings, onSettingChange, onSave, saving 
             Rider Payout Formula
           </CardTitle>
           <CardDescription>
-            Configure the hybrid rider payout model with capped platform fees and guaranteed minimums
+            Configure the hybrid rider payout model. Surge fees are charged to customers and included in the delivery fee. All rider types (platform, vendor-affiliated, logistics) receive surge equally.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -165,7 +165,7 @@ export function RiderPayoutSettings({ settings, onSettingChange, onSave, saving 
             Surge Bonuses
           </CardTitle>
           <CardDescription>
-            Configure time-based and weather-based surge bonuses for riders
+            Configure time-based and weather-based surge bonuses. These are added to the delivery fee charged to customers.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">

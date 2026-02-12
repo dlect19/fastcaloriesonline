@@ -137,20 +137,11 @@ function calculateRiderPayout(
   deliveryDistanceKm: number,
   ps: PayoutSettings
 ): PayoutBreakdown {
-  // 1. Platform fee = min(max(deliveryFee * pct/100, min), max)
-  const platformFee = Math.round(
-    Math.min(
-      Math.max(deliveryFee * (ps.platformFeePct / 100), ps.platformFeeMin),
-      ps.platformFeeMax
-    )
-  );
+  // NOTE: Surge is now included in the delivery_fee paid by the customer.
+  // We calculate surge amounts here only for DISPLAY in the offer breakdown,
+  // but do NOT add them on top — they're already in the fee.
 
-  // 2. Distance bonus: extra km beyond threshold * rate
-  const distanceBonus = Math.round(
-    Math.max(0, (deliveryDistanceKm - ps.distanceBonusThresholdKm) * ps.distanceBonusRate)
-  );
-
-  // 3. Time-based surge
+  // 1. Determine surge amounts (for transparency/display only)
   const timePeriod = getTimePeriod(ps);
   let timeSurgeBonus = 0;
   if (ps.surgeEnabled && ps.timeSurgeEnabled) {
@@ -159,7 +150,6 @@ function calculateRiderPayout(
     else if (timePeriod === 'night') timeSurgeBonus = ps.timeSurgeNight;
   }
 
-  // 4. Weather-based surge (using admin override for now)
   const weatherCondition = ps.weatherOverride || 'clear';
   let weatherSurgeBonus = 0;
   if (ps.surgeEnabled && ps.weatherSurgeEnabled) {
@@ -168,13 +158,27 @@ function calculateRiderPayout(
     else weatherSurgeBonus = ps.weatherSurgeClear;
   }
 
-  // 5. Total surge with safety cap
   const totalSurgeBonus = Math.min(timeSurgeBonus + weatherSurgeBonus, ps.maxSurgeCap);
 
-  // 6. Raw rider pay
-  const rawRiderPay = deliveryFee - platformFee + distanceBonus + totalSurgeBonus;
+  // 2. Platform fee is calculated on BASE fee (deliveryFee minus surge)
+  const baseFee = Math.max(0, deliveryFee - totalSurgeBonus);
+  const platformFee = Math.round(
+    Math.min(
+      Math.max(baseFee * (ps.platformFeePct / 100), ps.platformFeeMin),
+      ps.platformFeeMax
+    )
+  );
 
-  // 7. Guaranteed minimum with subsidy
+  // 3. Distance bonus: extra km beyond threshold * rate
+  const distanceBonus = Math.round(
+    Math.max(0, (deliveryDistanceKm - ps.distanceBonusThresholdKm) * ps.distanceBonusRate)
+  );
+
+  // 4. Raw rider pay = totalDeliveryFee - platformFee + distanceBonus
+  // Surge is already in deliveryFee, so rider naturally gets it (minus platform cut on base)
+  const rawRiderPay = deliveryFee - platformFee + distanceBonus;
+
+  // 5. Guaranteed minimum with subsidy
   const finalRiderPay = Math.max(rawRiderPay, ps.minimumPayout);
   const subsidyAmount = Math.max(0, ps.minimumPayout - rawRiderPay);
 

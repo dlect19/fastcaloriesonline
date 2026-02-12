@@ -11,6 +11,7 @@ interface OrderSummaryProps {
   packagingFee?: number;
   discount?: number;
   distanceKm?: number | null;
+  surgeFee?: number;
 }
 
 export function OrderSummary({ 
@@ -22,6 +23,7 @@ export function OrderSummary({
   packagingFee = 0,
   discount = 0,
   distanceKm,
+  surgeFee = 0,
 }: OrderSummaryProps) {
   const getCalorieLevel = (calories: number) => {
     if (calories <= 500) return { label: 'Low', color: 'text-calorie-low bg-calorie-low/10' };
@@ -80,6 +82,12 @@ export function OrderSummary({
             </div>
             <span>₦{deliveryFee.toLocaleString()}</span>
           </div>
+          {surgeFee > 0 && (
+            <div className="flex justify-between text-xs text-amber-600 pl-4">
+              <span>↳ Includes surge fee</span>
+              <span>₦{surgeFee.toLocaleString()}</span>
+            </div>
+          )}
           <div className="flex justify-between text-muted-foreground">
             <span>Service Fee</span>
             <span>₦{serviceFee.toLocaleString()}</span>

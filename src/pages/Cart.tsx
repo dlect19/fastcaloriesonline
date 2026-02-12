@@ -142,8 +142,8 @@ export default function Cart() {
     }
   }, [vendorId]);
 
-  // Calculate dynamic delivery fee (0 for self-pickup)
-  const { fee: calculatedDeliveryFee, isOutOfRange, distanceKm, hasCoordinates } = useDeliveryFee({
+  // Calculate dynamic delivery fee with surge (0 for self-pickup)
+  const { fee: calculatedDeliveryFee, isOutOfRange, distanceKm, hasCoordinates, surgeFee } = useDeliveryFee({
     vendorLat: vendorLocation.latitude,
     vendorLon: vendorLocation.longitude,
     customerLat: selectedAddress?.latitude ?? null,
@@ -850,6 +850,7 @@ export default function Cart() {
               packagingFee={packagingFee}
               discount={promoDiscount}
               distanceKm={deliveryType === 'delivery' ? distanceKm : null}
+              surgeFee={deliveryType === 'delivery' ? surgeFee : 0}
             />
             {/* Checkout Button - inline */}
             {items.length > 0 && (
