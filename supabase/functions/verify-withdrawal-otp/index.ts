@@ -12,8 +12,6 @@ interface VerifyOTPRequest {
   expectedAmount: number;
 }
 
-// In-memory OTP store (shared with send-withdrawal-otp in production, use database)
-// For this implementation, we'll verify against a stored hash in the database
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -27,14 +25,13 @@ const handler = async (req: Request): Promise<Response> => {
     const { email, otp, expectedAmount }: VerifyOTPRequest = await req.json();
 
     if (!email || !otp || !expectedAmount) {
-      throw new Error("Missing required fields");
+      return new Response(
+        JSON.stringify({ valid: false, error: "Missing required fields" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
     }
 
-    // For now, we'll use a simple verification approach
-    // In production, you'd want to store OTPs in a database table with expiry
-    // This edge function shares context with send-withdrawal-otp during the same session
-
-    // Check if OTP matches pattern (6 digits)
+    // Validate OTP format
     if (!/^\d{6}$/.test(otp)) {
       return new Response(
         JSON.stringify({ valid: false, error: "Invalid OTP format" }),
@@ -42,11 +39,42 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // For security, we trust the client-side validation in this implementation
-    // The OTP was sent to the user's verified email, so possession of correct OTP = verified
-    // In production, implement server-side OTP storage using a database table
+    // Verify OTP from database
+    const { data: otpRecord, error: otpError } = await supabase
+      .from('withdrawal_otps')
+      .select('*')
+      .eq('email', email)
+      .eq('otp_code', otp)
+      .eq('amount', expectedAmount)
+      .eq('used', false)
+      .gte('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-    console.log(`OTP verification attempted for ${email}, amount: ₦${expectedAmount}`);
+    if (otpError) {
+      console.error("Error querying OTP:", otpError);
+      return new Response(
+        JSON.stringify({ valid: false, error: "Verification failed" }),
+        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    if (!otpRecord) {
+      console.log(`OTP verification failed for ${email}`);
+      return new Response(
+        JSON.stringify({ valid: false, error: "Invalid or expired OTP" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Mark as used
+    await supabase
+      .from('withdrawal_otps')
+      .update({ used: true, used_at: new Date().toISOString() })
+      .eq('id', otpRecord.id);
+
+    console.log(`OTP verified for ${email}, amount: ₦${expectedAmount}`);
 
     return new Response(
       JSON.stringify({ valid: true, message: "OTP verified successfully" }),

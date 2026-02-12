@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 
@@ -13,9 +14,6 @@ interface OTPRequest {
   amount: number;
   userType: "vendor" | "rider";
 }
-
-// Simple in-memory OTP store (in production, use database)
-const otpStore = new Map<string, { code: string; expiresAt: number; amount: number }>();
 
 function generateOTP(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -92,12 +90,15 @@ function generateEmailHtml(userName: string, otp: string, amount: number, userTy
 }
 
 const handler = async (req: Request): Promise<Response> => {
-  // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
     const { email, userName, amount, userType }: OTPRequest = await req.json();
 
     if (!email || !amount || !userType) {
@@ -106,14 +107,34 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Generate OTP
     const otp = generateOTP();
-    const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes
 
-    // Store OTP (keyed by email + amount for security)
-    otpStore.set(`${email}-withdrawal`, { code: otp, expiresAt, amount });
+    // Invalidate any previous unused OTPs for this email
+    await supabase
+      .from('withdrawal_otps')
+      .update({ used: true })
+      .eq('email', email)
+      .eq('used', false);
+
+    // Store OTP in database
+    const { error: insertError } = await supabase
+      .from('withdrawal_otps')
+      .insert({
+        email,
+        otp_code: otp,
+        amount,
+        user_type: userType,
+        expires_at: expiresAt,
+      });
+
+    if (insertError) {
+      console.error("Error storing OTP:", insertError);
+      throw new Error("Failed to store OTP");
+    }
 
     console.log(`Sending withdrawal OTP to ${email} for ₦${amount}`);
 
-    // Send email using Resend API directly
+    // Send email using Resend API
     const emailResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
