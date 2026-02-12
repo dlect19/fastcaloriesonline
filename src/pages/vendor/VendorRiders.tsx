@@ -520,6 +520,7 @@ export default function VendorRiders() {
                       rider={rider}
                       vendorId={vendor?.id || ''}
                       onToggleStatus={toggleRiderStatus}
+                      dateRange={revenueDateRange}
                     />
                   ))}
                 </div>

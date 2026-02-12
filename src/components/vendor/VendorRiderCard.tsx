@@ -30,6 +30,7 @@ interface VendorRiderCardProps {
   rider: VendorRider;
   vendorId: string;
   onToggleStatus: (riderId: string, currentStatus: boolean) => void;
+  dateRange?: { from?: Date; to?: Date };
 }
 
 interface RiderStats {
@@ -38,22 +39,32 @@ interface RiderStats {
   totalEarnings: number;
 }
 
-export function VendorRiderCard({ rider, vendorId, onToggleStatus }: VendorRiderCardProps) {
+export function VendorRiderCard({ rider, vendorId, onToggleStatus, dateRange }: VendorRiderCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [stats, setStats] = useState<RiderStats | null>(null);
   const [loadingStats, setLoadingStats] = useState(false);
 
   const fetchRiderStats = async () => {
-    if (!rider.rider_profile?.user_id || stats) return;
+    if (!rider.rider_profile?.user_id) return;
     
     setLoadingStats(true);
     try {
-      // Get orders delivered by this rider for this vendor
-      const { data: orders } = await supabase
+      let query = supabase
         .from('orders')
         .select('id, delivery_fee, status')
         .eq('vendor_id', vendorId)
         .eq('rider_id', rider.rider_profile.user_id);
+
+      if (dateRange?.from) {
+        query = query.gte('delivered_at', dateRange.from.toISOString());
+      }
+      if (dateRange?.to) {
+        const endOfDay = new Date(dateRange.to);
+        endOfDay.setHours(23, 59, 59, 999);
+        query = query.lte('delivered_at', endOfDay.toISOString());
+      }
+
+      const { data: orders } = await query;
 
       if (orders) {
         const completedOrders = orders.filter(o => o.status === 'delivered');
@@ -74,10 +85,10 @@ export function VendorRiderCard({ rider, vendorId, onToggleStatus }: VendorRider
   };
 
   useEffect(() => {
-    if (expanded && !stats) {
+    if (expanded) {
       fetchRiderStats();
     }
-  }, [expanded]);
+  }, [expanded, dateRange?.from?.getTime(), dateRange?.to?.getTime()]);
 
   const isVerified = rider.rider_profile?.is_verified;
   const isOnline = rider.rider_profile?.is_online && rider.is_active;
