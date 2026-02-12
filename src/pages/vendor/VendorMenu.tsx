@@ -406,12 +406,30 @@ export default function VendorMenu() {
 
   const toggleAvailability = async (product: Product) => {
     try {
+      const newAvailability = !product.is_available;
       const { error } = await supabase
         .from('products')
-        .update({ is_available: !product.is_available })
+        .update({ is_available: newAvailability })
         .eq('id', product.id);
 
       if (error) throw error;
+
+      // If marking product as unavailable, auto-disable any combos containing it
+      if (!newAvailability) {
+        const { data: comboItems } = await supabase
+          .from('combo_items')
+          .select('combo_id')
+          .eq('product_id', product.id);
+
+        if (comboItems && comboItems.length > 0) {
+          const comboIds = [...new Set(comboItems.map(ci => ci.combo_id))];
+          await supabase
+            .from('combos')
+            .update({ is_available: false })
+            .in('id', comboIds);
+        }
+      }
+
       fetchData();
     } catch (error: any) {
       toast({
