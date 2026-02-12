@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DeliverySidebar } from '@/components/delivery/DeliverySidebar';
+import { DateRangeFilter, DateRange } from '@/components/shared/DateRangeFilter';
 import { useAuth } from '@/hooks/useAuth';
 import { useDeliveryCompany } from '@/hooks/useDeliveryCompany';
 import { supabase } from '@/integrations/supabase/client';
@@ -30,6 +31,7 @@ export default function DeliveryOrders() {
   const [orders, setOrders] = useState<DeliveryOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('active');
+  const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -40,6 +42,12 @@ export default function DeliveryOrders() {
       fetchOrders();
     }
   }, [user, authLoading, company, navigate]);
+
+  useEffect(() => {
+    if (company) {
+      fetchOrders();
+    }
+  }, [dateRange]);
 
   const fetchOrders = async () => {
     if (!company) return;
@@ -60,11 +68,22 @@ export default function DeliveryOrders() {
       }
 
       // Get orders for these riders
-      const { data: orderData } = await supabase
+      let query = supabase
         .from('orders')
         .select('*, vendors(name)')
         .in('rider_id', riderUserIds)
         .order('created_at', { ascending: false });
+
+      if (dateRange.from) {
+        query = query.gte('created_at', dateRange.from.toISOString());
+      }
+      if (dateRange.to) {
+        const endDate = new Date(dateRange.to);
+        endDate.setHours(23, 59, 59, 999);
+        query = query.lte('created_at', endDate.toISOString());
+      }
+
+      const { data: orderData } = await query;
 
       if (orderData) {
         // Get rider names
@@ -150,9 +169,12 @@ export default function DeliveryOrders() {
       <main className="lg:ml-64 pt-14 lg:pt-0">
         <div className="p-6 space-y-6">
           {/* Header */}
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Deliveries</h1>
-            <p className="text-muted-foreground">Track orders assigned to your riders</p>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">Deliveries</h1>
+              <p className="text-muted-foreground">Track orders assigned to your riders</p>
+            </div>
+            <DateRangeFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
           </div>
 
           {/* Stats */}
