@@ -1,7 +1,9 @@
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Home, Package, DollarSign, Settings, Power, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
+import { supabase } from '@/integrations/supabase/client';
 import fastCaloriesFooterLogo from '@/assets/fast-calories-footer-logo.png';
 
 interface RiderBottomNavProps {
@@ -13,6 +15,40 @@ interface RiderBottomNavProps {
 export function RiderBottomNav({ isOnline = false, onToggleOnline, canViewEarnings = true }: RiderBottomNavProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const [availableCount, setAvailableCount] = useState(0);
+
+  useEffect(() => {
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    const setup = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const fetchCount = async () => {
+        const { count, error } = await supabase
+          .from('dispatch_offers')
+          .select('*', { count: 'exact', head: true })
+          .eq('rider_user_id', user.id)
+          .eq('status', 'pending');
+        if (!error && count !== null) setAvailableCount(count);
+      };
+
+      fetchCount();
+
+      channel = supabase
+        .channel('rider-bottomnav-offers')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'dispatch_offers',
+          filter: `rider_user_id=eq.${user.id}`,
+        }, () => fetchCount())
+        .subscribe();
+    };
+
+    setup();
+    return () => { if (channel) supabase.removeChannel(channel); };
+  }, []);
 
   // Build nav items based on permissions
   const navItems = [
@@ -56,13 +92,20 @@ export function RiderBottomNav({ isOnline = false, onToggleOnline, canViewEarnin
                 isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
               )}
             >
-              <Icon
-                className={cn(
-                  'w-5 h-5 transition-all',
-                  isActive && 'scale-110'
+              <div className="relative">
+                <Icon
+                  className={cn(
+                    'w-5 h-5 transition-all',
+                    isActive && 'scale-110'
+                  )}
+                  fill={isActive ? 'currentColor' : 'none'}
+                />
+                {item.id === 'available' && availableCount > 0 && (
+                  <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+                    {availableCount > 99 ? '99+' : availableCount}
+                  </span>
                 )}
-                fill={isActive ? 'currentColor' : 'none'}
-              />
+              </div>
               <span className="text-[10px] font-medium truncate">{item.label}</span>
             </button>
           );
