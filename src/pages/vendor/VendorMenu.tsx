@@ -86,6 +86,7 @@ export default function VendorMenu() {
   const [vendor, setVendor] = useState<Vendor | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [comboRefreshKey, setComboRefreshKey] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -470,6 +471,7 @@ export default function VendorMenu() {
         }
       }
 
+      setComboRefreshKey(k => k + 1);
       fetchData();
     } catch (error: any) {
       toast({
@@ -983,7 +985,7 @@ export default function VendorMenu() {
           {/* Combo Management Section */}
           {vendor && (
             <div className="bg-card rounded-xl border border-border p-4">
-              <ComboManagement vendor={vendor} products={regularProducts} onRefresh={fetchData} />
+              <ComboManagement vendor={vendor} products={regularProducts} onRefresh={fetchData} refreshKey={comboRefreshKey} />
             </div>
           )}
 

@@ -75,6 +75,7 @@ interface ComboManagementProps {
   vendor: Vendor;
   products: Product[];
   onRefresh: () => void;
+  refreshKey?: number;
 }
 
 const getComboLabels = (category: string) => {
@@ -88,7 +89,7 @@ const getComboLabels = (category: string) => {
   }
 };
 
-export function ComboManagement({ vendor, products, onRefresh }: ComboManagementProps) {
+export function ComboManagement({ vendor, products, onRefresh, refreshKey = 0 }: ComboManagementProps) {
   const { toast } = useToast();
   const [combos, setCombos] = useState<(Combo & { items: ComboItem[] })[]>([]);
   const [takeawayPacks, setTakeawayPacks] = useState<TakeawayPack[]>([]);
@@ -140,7 +141,7 @@ export function ComboManagement({ vendor, products, onRefresh }: ComboManagement
     fetchCombos();
     fetchTakeawayPacks();
     fetchAddonGroups();
-  }, [vendor.id, products]);
+  }, [vendor.id, refreshKey]);
 
   const fetchTakeawayPacks = async () => {
     const { data, error } = await supabase
