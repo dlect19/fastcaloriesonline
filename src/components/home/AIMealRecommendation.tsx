@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, ChevronRight, Loader2, RefreshCw, Utensils } from 'lucide-react';
+import { Sparkles, ChevronRight, Loader2, RefreshCw, Utensils, MapPin, Store, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -8,12 +8,24 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 
+interface VendorMatch {
+  vendorId: string;
+  vendorName: string;
+  productName: string;
+  productId: string;
+  price: number;
+  calories: number | null;
+  imageUrl: string | null;
+}
+
 interface MealRecommendation {
   name: string;
   description: string;
   estimatedCalories: number;
   category: string;
   tags: string[];
+  vendorMatches?: VendorMatch[];
+  searching?: boolean;
 }
 
 interface AIResponse {
@@ -45,14 +57,12 @@ export function AIMealRecommendation() {
     if (!user) return;
 
     try {
-      // Fetch profile data
       const { data: profile } = await supabase
         .from('profiles')
         .select('daily_calorie_target, health_goal')
         .eq('user_id', user.id)
         .maybeSingle();
 
-      // Fetch today's calorie logs
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const tomorrow = new Date(today);
@@ -77,6 +87,71 @@ export function AIMealRecommendation() {
     }
   };
 
+  const searchVendorsForMeal = async (mealName: string): Promise<VendorMatch[]> => {
+    try {
+      // Search products with fuzzy matching using ilike on keywords
+      const keywords = mealName
+        .toLowerCase()
+        .split(/\s+/)
+        .filter(w => w.length > 2 && !['and', 'with', 'the', 'for'].includes(w));
+
+      if (keywords.length === 0) return [];
+
+      // Search for products matching any keyword
+      let allMatches: VendorMatch[] = [];
+      
+      for (const keyword of keywords.slice(0, 3)) {
+        const { data: products } = await supabase
+          .from('products')
+          .select('id, name, price, calories, image_url, vendor_id')
+          .ilike('name', `%${keyword}%`)
+          .eq('is_available', true)
+          .limit(10);
+
+        if (products && products.length > 0) {
+          const vendorIds = [...new Set(products.map(p => p.vendor_id))];
+          const { data: vendors } = await supabase
+            .from('vendors')
+            .select('id, name, is_active')
+            .in('id', vendorIds)
+            .eq('is_active', true);
+
+          if (vendors) {
+            const vendorMap = new Map(vendors.map(v => [v.id, v.name]));
+            
+            for (const product of products) {
+              const vendorName = vendorMap.get(product.vendor_id);
+              if (vendorName && !allMatches.some(m => m.productId === product.id)) {
+                allMatches.push({
+                  vendorId: product.vendor_id,
+                  vendorName,
+                  productName: product.name,
+                  productId: product.id,
+                  price: product.price,
+                  calories: product.calories,
+                  imageUrl: product.image_url,
+                });
+              }
+            }
+          }
+        }
+      }
+
+      // Deduplicate by vendor - keep best match per vendor
+      const byVendor = new Map<string, VendorMatch>();
+      for (const match of allMatches) {
+        if (!byVendor.has(match.vendorId)) {
+          byVendor.set(match.vendorId, match);
+        }
+      }
+
+      return Array.from(byVendor.values()).slice(0, 3);
+    } catch (error) {
+      console.error('Error searching vendors for meal:', error);
+      return [];
+    }
+  };
+
   const getRecommendations = async () => {
     setLoading(true);
     try {
@@ -91,8 +166,19 @@ export function AIMealRecommendation() {
       if (error) throw error;
 
       const response = data as AIResponse;
-      setRecommendations(response.recommendations || []);
+      const meals = (response.recommendations || []).map(m => ({ ...m, searching: true }));
+      setRecommendations(meals);
       setTip(response.tip || '');
+
+      // Now search for each meal across vendors
+      const updatedMeals = await Promise.all(
+        meals.map(async (meal) => {
+          const vendorMatches = await searchVendorsForMeal(meal.name);
+          return { ...meal, vendorMatches, searching: false };
+        })
+      );
+
+      setRecommendations(updatedMeals);
     } catch (error: any) {
       console.error('Error getting recommendations:', error);
       toast({
@@ -103,6 +189,10 @@ export function AIMealRecommendation() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleVendorClick = (vendorId: string) => {
+    navigate(`/vendor/${vendorId}`);
   };
 
   const handleExplore = (category: string) => {
@@ -171,12 +261,11 @@ export function AIMealRecommendation() {
               {recommendations.map((meal, index) => (
                 <div
                   key={index}
-                  className="p-3 rounded-lg bg-card border border-border hover:border-primary/30 transition-colors cursor-pointer"
-                  onClick={() => handleExplore(meal.category)}
+                  className="p-3 rounded-lg bg-card border border-border"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-medium text-sm text-foreground truncate">
+                      <h4 className="font-medium text-sm text-foreground">
                         {meal.name}
                       </h4>
                       <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
@@ -193,7 +282,82 @@ export function AIMealRecommendation() {
                         ))}
                       </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                  </div>
+
+                  {/* Vendor matches section */}
+                  <div className="mt-3 pt-2 border-t border-border">
+                    {meal.searching ? (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        Searching nearby vendors...
+                      </div>
+                    ) : meal.vendorMatches && meal.vendorMatches.length > 0 ? (
+                      <div className="space-y-2">
+                        <p className="text-xs font-medium text-primary flex items-center gap-1">
+                          <Store className="w-3 h-3" />
+                          Available nearby
+                        </p>
+                        {meal.vendorMatches.map((match) => (
+                          <div
+                            key={match.productId}
+                            className="flex items-center justify-between p-2 rounded-md bg-primary/5 border border-primary/10 cursor-pointer hover:bg-primary/10 transition-colors"
+                            onClick={() => handleVendorClick(match.vendorId)}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              {match.imageUrl ? (
+                                <img 
+                                  src={match.imageUrl} 
+                                  alt={match.productName}
+                                  className="w-8 h-8 rounded-md object-cover"
+                                />
+                              ) : (
+                                <div className="w-8 h-8 rounded-md bg-muted flex items-center justify-center">
+                                  <Utensils className="w-4 h-4 text-muted-foreground" />
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <p className="text-xs font-medium text-foreground truncate">
+                                  {match.productName}
+                                </p>
+                                <p className="text-[10px] text-muted-foreground truncate flex items-center gap-1">
+                                  <MapPin className="w-2.5 h-2.5" />
+                                  {match.vendorName}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <div className="text-right">
+                                <p className="text-xs font-semibold text-foreground">
+                                  ₦{match.price.toLocaleString()}
+                                </p>
+                                {match.calories && (
+                                  <p className="text-[10px] text-muted-foreground">
+                                    {match.calories} kcal
+                                  </p>
+                                )}
+                              </div>
+                              <ChevronRight className="w-3 h-3 text-muted-foreground" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3" />
+                          Not available from nearby vendors
+                        </p>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-xs px-2"
+                          onClick={() => handleExplore(meal.category)}
+                        >
+                          Browse similar
+                          <ChevronRight className="w-3 h-3 ml-1" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
