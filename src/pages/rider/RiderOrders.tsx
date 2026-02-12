@@ -133,7 +133,7 @@ export default function RiderOrders() {
       // Active orders (assigned to this rider, not delivered/cancelled)
       const { data: active } = await supabase
         .from('orders')
-        .select('*, vendors(name, address, phone, latitude, longitude), profiles!user_id(full_name, phone)')
+        .select('*, vendors(name, address, phone, latitude, longitude)')
         .eq('rider_id', user.id)
         .not('status', 'in', '("delivered","cancelled")')
         .order('created_at', { ascending: false });
@@ -141,14 +141,36 @@ export default function RiderOrders() {
       // Completed orders
       const { data: completed } = await supabase
         .from('orders')
-        .select('*, vendors(name, address, phone), profiles!user_id(full_name, phone)')
+        .select('*, vendors(name, address, phone)')
         .eq('rider_id', user.id)
         .in('status', ['delivered', 'cancelled'])
         .order('created_at', { ascending: false })
         .limit(20);
 
-      setActiveOrders(active || []);
-      setCompletedOrders(completed || []);
+      // Fetch customer profiles for all orders
+      const allOrders = [...(active || []), ...(completed || [])];
+      const customerIds = [...new Set(allOrders.map(o => o.user_id).filter(Boolean))];
+      
+      let profilesMap: Record<string, { full_name: string | null; phone: string | null }> = {};
+      if (customerIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('user_id, full_name, phone')
+          .in('user_id', customerIds);
+        
+        if (profiles) {
+          profilesMap = Object.fromEntries(profiles.map(p => [p.user_id, { full_name: p.full_name, phone: p.phone }]));
+        }
+      }
+
+      // Attach customer profiles to orders
+      const attachProfiles = (orders: any[]) => orders.map(o => ({
+        ...o,
+        customer_profile: o.user_id ? profilesMap[o.user_id] || null : null,
+      }));
+
+      setActiveOrders(attachProfiles(active || []));
+      setCompletedOrders(attachProfiles(completed || []));
     } catch (error) {
       console.error('Error fetching orders:', error);
     } finally {
@@ -381,18 +403,18 @@ export default function RiderOrders() {
                           className="h-7 text-xs"
                         />
                       </div>
-                      {order.profiles?.full_name && (
-                        <p className="text-sm font-medium text-foreground">{order.profiles.full_name}</p>
+                      {order.customer_profile?.full_name && (
+                        <p className="text-sm font-medium text-foreground">{order.customer_profile.full_name}</p>
                       )}
                       <div className="flex items-start gap-2 text-sm text-muted-foreground">
                         <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
                         <p className="break-words">{order.delivery_address_text}</p>
                       </div>
-                      {order.profiles?.phone && (
+                      {order.customer_profile?.phone && (
                         <div className="flex items-center gap-2 text-sm">
                           <Phone className="w-4 h-4" />
-                          <a href={`tel:${order.profiles.phone}`} className="text-primary">
-                            {order.profiles.phone}
+                          <a href={`tel:${order.customer_profile.phone}`} className="text-primary">
+                            {order.customer_profile.phone}
                           </a>
                         </div>
                       )}
