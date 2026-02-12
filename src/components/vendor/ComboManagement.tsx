@@ -226,7 +226,7 @@ export function ComboManagement({ vendor, products, onRefresh, refreshKey = 0 }:
             takeawayPack: item.takeaway_pack_id ? takeawayPacks.find((p) => p.id === item.takeaway_pack_id) : undefined,
           }));
 
-          // Auto-disable combo if any product item is unavailable or deleted
+          // Check availability of all items
           const hasUnavailableItem = itemsWithDetails.some((item: any) => {
             if (item.product_id) {
               const product = products.find(p => p.id === item.product_id);
@@ -239,13 +239,19 @@ export function ComboManagement({ vendor, products, onRefresh, refreshKey = 0 }:
             return false;
           });
 
+          // Sync combo availability with item availability
           if (hasUnavailableItem && combo.is_available) {
-            // Auto-switch combo to unavailable
             await supabase
               .from('combos')
               .update({ is_available: false })
               .eq('id', combo.id);
             combo.is_available = false;
+          } else if (!hasUnavailableItem && !combo.is_available) {
+            await supabase
+              .from('combos')
+              .update({ is_available: true })
+              .eq('id', combo.id);
+            combo.is_available = true;
           }
 
           return { ...combo, items: itemsWithDetails };
