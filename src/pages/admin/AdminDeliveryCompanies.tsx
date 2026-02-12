@@ -17,6 +17,7 @@ interface DeliveryCompany {
   name: string;
   email: string | null;
   phone: string | null;
+  address: string | null;
   city: string | null;
   state: string | null;
   commission_rate: number;
@@ -220,8 +221,11 @@ export default function AdminDeliveryCompanies() {
                           )}
                         </div>
                         <p className="text-sm text-muted-foreground">{company.email}</p>
+                        {company.phone && (
+                          <p className="text-sm text-muted-foreground">📞 {company.phone}</p>
+                        )}
                         <p className="text-sm text-muted-foreground">
-                          {company.city}, {company.state} • {company.rider_count} riders
+                          📍 {[company.address, company.city, company.state].filter(Boolean).join(', ')} • {company.rider_count} riders
                         </p>
                       </div>
                       <div className="flex items-center gap-2 flex-wrap">
