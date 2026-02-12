@@ -1,9 +1,11 @@
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import { Home, Package, Store, Bike, Ticket, Users, Settings, LogOut, Image, Activity, Banknote, Wallet, ArrowDownLeft, Gift, Truck, UserCheck, Star, MessageSquare } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 
 const menuItems = [
@@ -14,7 +16,7 @@ const menuItems = [
   { icon: Star, label: 'Reviews', path: '/admin/reviews' },
   { icon: Truck, label: 'Delivery Companies', path: '/admin/delivery-companies' },
   { icon: UserCheck, label: 'Customers', path: '/admin/customers' },
-  { icon: Banknote, label: 'Payouts', path: '/admin/payouts' },
+  { icon: Banknote, label: 'Payouts', path: '/admin/payouts', badgeKey: 'payouts' as const },
   { icon: Wallet, label: 'Customer Wallets', path: '/admin/customer-wallets' },
   { icon: ArrowDownLeft, label: 'Wallet Funding', path: '/admin/wallet-funding' },
   { icon: Activity, label: 'Nutrition', path: '/admin/nutrition' },
@@ -31,6 +33,28 @@ export function AdminSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [pendingPayouts, setPendingPayouts] = useState(0);
+
+  useEffect(() => {
+    const fetchPendingPayouts = async () => {
+      const { count } = await supabase
+        .from('payout_requests')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pending');
+      setPendingPayouts(count || 0);
+    };
+
+    fetchPendingPayouts();
+
+    const channel = supabase
+      .channel('admin-payout-badge')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payout_requests' }, () => {
+        fetchPendingPayouts();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, []);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -56,6 +80,7 @@ export function AdminSidebar() {
         <ul className="space-y-2">
           {menuItems.map((item) => {
             const isActive = location.pathname === item.path;
+            const badgeCount = item.badgeKey === 'payouts' ? pendingPayouts : 0;
             return (
               <li key={item.path}>
                 <button
@@ -69,6 +94,11 @@ export function AdminSidebar() {
                 >
                   <item.icon className="w-5 h-5" />
                   {item.label}
+                  {badgeCount > 0 && (
+                    <Badge variant="destructive" className="ml-auto text-xs px-1.5 py-0.5 min-w-[20px] text-center">
+                      {badgeCount}
+                    </Badge>
+                  )}
                 </button>
               </li>
             );
