@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Package, Clock, ChevronRight, ShoppingBag } from 'lucide-react';
+import { PaginationControls } from '@/components/shared/PaginationControls';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Order = Tables<'orders'>;
@@ -37,6 +38,8 @@ const statusLabels: Record<string, string> = {
 export function OrderHistoryCard({ userId }: OrderHistoryCardProps) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
 
   useEffect(() => {
     fetchOrders();
@@ -55,8 +58,9 @@ export function OrderHistoryCard({ userId }: OrderHistoryCardProps) {
         .from('orders')
         .select('*')
         .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(5);
+        .order('created_at', { ascending: false });
+
+      // Remove the limit to get all orders for pagination
 
       if (error) {
         console.error('Order history query error:', error);
@@ -124,7 +128,9 @@ export function OrderHistoryCard({ userId }: OrderHistoryCardProps) {
           </div>
         ) : (
           <div className="space-y-3">
-            {orders.map((order) => (
+            {orders
+              .slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
+              .map((order) => (
               <button
                 key={order.id}
                 className="w-full flex items-center gap-3 p-3 bg-secondary/50 rounded-lg hover:bg-secondary transition-colors text-left"
@@ -157,6 +163,13 @@ export function OrderHistoryCard({ userId }: OrderHistoryCardProps) {
                 </div>
               </button>
             ))}
+            <PaginationControls
+              currentPage={currentPage}
+              totalPages={Math.ceil(orders.length / ITEMS_PER_PAGE)}
+              onPageChange={setCurrentPage}
+              totalItems={orders.length}
+              itemsPerPage={ITEMS_PER_PAGE}
+            />
           </div>
         )}
       </CardContent>
