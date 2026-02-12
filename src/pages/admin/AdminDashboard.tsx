@@ -186,7 +186,8 @@ export default function AdminDashboard() {
       // Fetch payout requests with date filter
       let payoutQuery = supabase
         .from('payout_requests')
-        .select('amount, status, created_at');
+        .select('amount, status, created_at')
+        .eq('environment', envFilter);
 
       if (dateRange.from) {
         payoutQuery = payoutQuery.gte('created_at', dateRange.from.toISOString());

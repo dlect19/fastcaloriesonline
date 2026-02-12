@@ -40,13 +40,12 @@ export function FinancialPerformanceChart({ environment }: FinancialPerformanceC
         .gte('created_at', sixMonthsAgo.toISOString())
         .eq('environment', environment);
 
-      // Fetch payout completions
+      // Fetch payout completions (show payouts from all environments for comprehensive view)
       const { data: payouts } = await supabase
         .from('payout_requests')
-        .select('amount, status, processed_at')
+        .select('amount, status, processed_at, environment')
         .eq('status', 'completed')
-        .gte('created_at', sixMonthsAgo.toISOString())
-        .eq('environment', environment);
+        .gte('created_at', sixMonthsAgo.toISOString());
 
       // Group by month
       const monthMap = new Map<string, ChartDataPoint>();

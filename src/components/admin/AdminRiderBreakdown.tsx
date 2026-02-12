@@ -60,21 +60,49 @@ export function AdminRiderBreakdown({ environment, dateRange, type }: AdminRider
           : Promise.resolve({ data: [] as { id: string; name: string }[] }),
       ]);
 
-      // Fetch wallet transactions for these riders
+      // Get wallets - for logistics riders, earnings go to delivery_company wallets
       const walletIds: string[] = [];
       const walletToRider = new Map<string, string>();
 
-      // Get wallets for these riders
-      const { data: wallets } = await supabase
-        .from('wallets')
-        .select('id, user_id')
-        .eq('wallet_type', 'rider')
-        .in('user_id', userIds);
+      if (type === 'logistics') {
+        // For logistics riders, look up delivery_company wallets via company owner
+        const companyIds = riderProfiles.map(rp => rp.delivery_company_id).filter(Boolean);
+        if (companyIds.length > 0) {
+          const { data: companies } = await supabase
+            .from('delivery_companies')
+            .select('id, user_id')
+            .in('id', companyIds);
 
-      wallets?.forEach(w => {
-        walletIds.push(w.id);
-        walletToRider.set(w.id, w.user_id);
-      });
+          if (companies && companies.length > 0) {
+            const companyUserIds = companies.map(c => c.user_id);
+            const { data: wallets } = await supabase
+              .from('wallets')
+              .select('id, user_id')
+              .eq('wallet_type', 'delivery_company')
+              .in('user_id', companyUserIds);
+
+            wallets?.forEach(w => {
+              walletIds.push(w.id);
+              // Map wallet to the rider's user_id via company
+              const company = companies.find(c => c.user_id === w.user_id);
+              const rider = riderProfiles.find(rp => rp.delivery_company_id === company?.id);
+              if (rider) walletToRider.set(w.id, rider.user_id);
+            });
+          }
+        }
+      } else {
+        // For platform riders, look up rider wallets
+        const { data: wallets } = await supabase
+          .from('wallets')
+          .select('id, user_id')
+          .eq('wallet_type', 'rider')
+          .in('user_id', userIds);
+
+        wallets?.forEach(w => {
+          walletIds.push(w.id);
+          walletToRider.set(w.id, w.user_id);
+        });
+      }
 
       if (walletIds.length === 0) {
         // No wallets, show riders with 0
