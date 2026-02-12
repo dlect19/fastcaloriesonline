@@ -64,11 +64,34 @@ export default function VendorHours() {
 
   const fetchData = async () => {
     try {
-      const { data: vendorData } = await supabase
+      let vendorData = null;
+      const { data: ownedVendors } = await supabase
         .from('vendors')
         .select('*')
         .eq('user_id', user?.id)
-        .maybeSingle();
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (ownedVendors?.[0]) {
+        vendorData = ownedVendors[0];
+      } else {
+        // Check if user is staff
+        const { data: staffRecord } = await supabase
+          .from('vendor_staff')
+          .select('vendor_id')
+          .eq('user_id', user?.id)
+          .eq('is_active', true)
+          .maybeSingle();
+
+        if (staffRecord) {
+          const { data: staffVendor } = await supabase
+            .from('vendors')
+            .select('*')
+            .eq('id', staffRecord.vendor_id)
+            .single();
+          vendorData = staffVendor;
+        }
+      }
 
       setVendor(vendorData);
 
