@@ -225,6 +225,28 @@ export function ComboManagement({ vendor, products, onRefresh }: ComboManagement
             takeawayPack: item.takeaway_pack_id ? takeawayPacks.find((p) => p.id === item.takeaway_pack_id) : undefined,
           }));
 
+          // Auto-disable combo if any product item is unavailable or deleted
+          const hasUnavailableItem = itemsWithDetails.some((item: any) => {
+            if (item.product_id) {
+              const product = products.find(p => p.id === item.product_id);
+              return !product || product.is_available === false;
+            }
+            if (item.takeaway_pack_id) {
+              const pack = takeawayPacks.find(p => p.id === item.takeaway_pack_id);
+              return !pack || !pack.is_active;
+            }
+            return false;
+          });
+
+          if (hasUnavailableItem && combo.is_available) {
+            // Auto-switch combo to unavailable
+            await supabase
+              .from('combos')
+              .update({ is_available: false })
+              .eq('id', combo.id);
+            combo.is_available = false;
+          }
+
           return { ...combo, items: itemsWithDetails };
         })
       );
@@ -720,9 +742,19 @@ export function ComboManagement({ vendor, products, onRefresh }: ComboManagement
                       price = pack.price;
                     }
                     return (
-                      <div key={`${itemType}-${itemId}`} className="flex justify-between text-sm">
+                      <div key={`${itemType}-${itemId}`} className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">{quantity}x {name}</span>
-                        <span className="text-muted-foreground">₦{(price * quantity).toLocaleString()}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground">₦{(price * quantity).toLocaleString()}</span>
+                          <button
+                            type="button"
+                            onClick={() => toggleItem(itemId, itemType)}
+                            className="p-0.5 rounded-full hover:bg-destructive/10 text-destructive"
+                            title="Remove from combo"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
