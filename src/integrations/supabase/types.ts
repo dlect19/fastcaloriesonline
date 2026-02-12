@@ -682,6 +682,13 @@ export type Database = {
             referencedRelation: "rider_profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "dispatch_offers_rider_profile_id_fkey"
+            columns: ["rider_profile_id"]
+            isOneToOne: false
+            referencedRelation: "rider_profiles_safe"
+            referencedColumns: ["id"]
+          },
         ]
       }
       dispatch_requests: {
@@ -754,6 +761,13 @@ export type Database = {
             columns: ["accepted_by_rider_profile_id"]
             isOneToOne: false
             referencedRelation: "rider_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dispatch_requests_accepted_by_rider_profile_id_fkey"
+            columns: ["accepted_by_rider_profile_id"]
+            isOneToOne: false
+            referencedRelation: "rider_profiles_safe"
             referencedColumns: ["id"]
           },
           {
@@ -2506,6 +2520,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "vendor_rider_invites_used_by_fkey"
+            columns: ["used_by"]
+            isOneToOne: false
+            referencedRelation: "rider_profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "vendor_rider_invites_vendor_id_fkey"
             columns: ["vendor_id"]
             isOneToOne: false
@@ -2551,6 +2572,13 @@ export type Database = {
             columns: ["rider_profile_id"]
             isOneToOne: false
             referencedRelation: "rider_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_riders_rider_profile_id_fkey"
+            columns: ["rider_profile_id"]
+            isOneToOne: false
+            referencedRelation: "rider_profiles_safe"
             referencedColumns: ["id"]
           },
           {
@@ -3000,7 +3028,99 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      rider_profiles_safe: {
+        Row: {
+          affiliated_vendor_id: string | null
+          created_at: string | null
+          current_latitude: number | null
+          current_longitude: number | null
+          delivery_company_id: string | null
+          email: string | null
+          id: string | null
+          is_email_verified: boolean | null
+          is_online: boolean | null
+          is_test_rider: boolean | null
+          is_verified: boolean | null
+          nin_verified: boolean | null
+          preferred_city: string | null
+          preferred_latitude: number | null
+          preferred_longitude: number | null
+          preferred_state: string | null
+          rating: number | null
+          total_deliveries: number | null
+          updated_at: string | null
+          user_id: string | null
+          vehicle_plate: string | null
+          vehicle_type: string | null
+          work_radius_km: number | null
+        }
+        Insert: {
+          affiliated_vendor_id?: string | null
+          created_at?: string | null
+          current_latitude?: number | null
+          current_longitude?: number | null
+          delivery_company_id?: string | null
+          email?: string | null
+          id?: string | null
+          is_email_verified?: boolean | null
+          is_online?: boolean | null
+          is_test_rider?: boolean | null
+          is_verified?: boolean | null
+          nin_verified?: boolean | null
+          preferred_city?: string | null
+          preferred_latitude?: number | null
+          preferred_longitude?: number | null
+          preferred_state?: string | null
+          rating?: number | null
+          total_deliveries?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+          vehicle_plate?: string | null
+          vehicle_type?: string | null
+          work_radius_km?: number | null
+        }
+        Update: {
+          affiliated_vendor_id?: string | null
+          created_at?: string | null
+          current_latitude?: number | null
+          current_longitude?: number | null
+          delivery_company_id?: string | null
+          email?: string | null
+          id?: string | null
+          is_email_verified?: boolean | null
+          is_online?: boolean | null
+          is_test_rider?: boolean | null
+          is_verified?: boolean | null
+          nin_verified?: boolean | null
+          preferred_city?: string | null
+          preferred_latitude?: number | null
+          preferred_longitude?: number | null
+          preferred_state?: string | null
+          rating?: number | null
+          total_deliveries?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+          vehicle_plate?: string | null
+          vehicle_type?: string | null
+          work_radius_km?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rider_profiles_affiliated_vendor_id_fkey"
+            columns: ["affiliated_vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rider_profiles_delivery_company_id_fkey"
+            columns: ["delivery_company_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       add_vendor_role: { Args: never; Returns: undefined }
