@@ -17,7 +17,7 @@ interface EnvironmentConfig {
 }
 
 export function useEnvironmentConfig(): EnvironmentConfig {
-  const [platformEnvironment, setPlatformEnvironment] = useState<'development' | 'production'>('development');
+  const [platformEnvironment, setPlatformEnvironment] = useState<'development' | 'production'>('production');
   const [paystackPublicKey, setPaystackPublicKey] = useState('');
   const [isAdminTestMode, setIsAdminTestMode] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
