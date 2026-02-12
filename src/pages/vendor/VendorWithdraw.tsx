@@ -68,6 +68,7 @@ export default function VendorWithdraw() {
   const [vendor, setVendor] = useState<Vendor | null>(null);
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
+  const [allTransactions, setAllTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
   const [bankDialogOpen, setBankDialogOpen] = useState(false);
@@ -193,6 +194,18 @@ export default function VendorWithdraw() {
         setAutoWithdrawThreshold(String(walletData.auto_withdraw_threshold || 5000));
         setAutoWithdrawDay(String(walletData.auto_withdraw_day || 1));
 
+        // Fetch ALL transactions for ledger-based balance computation
+        const env = isTestMode ? 'development' : 'production';
+        const { data: allTxData } = await supabase
+          .from('wallet_transactions')
+          .select('*')
+          .eq('wallet_id', walletData.id)
+          .eq('environment', env);
+
+        if (allTxData) {
+          setAllTransactions(allTxData);
+        }
+
         // Fetch withdrawal requests from unified payout_requests table
         const { data: payoutData } = await supabase
           .from('payout_requests')
@@ -303,6 +316,39 @@ export default function VendorWithdraw() {
     }
   };
 
+  // Compute balances from ledger (source of truth) - same logic as VendorEarnings
+  const computedMenuBalance = Math.max(0, allTransactions
+    .reduce((sum: number, tx: any) => {
+      if (tx.category === 'vendor_share' && tx.status === 'completed') {
+        return tx.transaction_type === 'credit' ? sum + Number(tx.amount) : sum - Number(tx.amount);
+      }
+      if (tx.category === 'withdrawal' && tx.transaction_type === 'debit' && tx.notes?.includes('Menu Earnings')) {
+        return sum - Number(tx.amount);
+      }
+      if (tx.category === 'withdrawal_reversal' && tx.transaction_type === 'credit' && tx.notes?.includes('Menu Earnings')) {
+        return sum + Number(tx.amount);
+      }
+      return sum;
+    }, 0));
+
+  const computedMenuPending = Math.max(0, allTransactions
+    .filter((tx: any) => tx.category === 'vendor_share' && tx.transaction_type === 'credit' && tx.status === 'pending')
+    .reduce((sum: number, tx: any) => sum + Number(tx.amount), 0));
+
+  const computedRiderBalance = Math.max(0, allTransactions
+    .reduce((sum: number, tx: any) => {
+      if (tx.category === 'vendor_rider_share' && tx.status === 'completed') {
+        return tx.transaction_type === 'credit' ? sum + Number(tx.amount) : sum - Number(tx.amount);
+      }
+      if (tx.category === 'withdrawal' && tx.transaction_type === 'debit' && tx.notes?.includes('Rider Revenue')) {
+        return sum - Number(tx.amount);
+      }
+      if (tx.category === 'withdrawal_reversal' && tx.transaction_type === 'credit' && tx.notes?.includes('Rider Revenue')) {
+        return sum + Number(tx.amount);
+      }
+      return sum;
+    }, 0));
+
   // Track pending withdrawals for display, but don't block new ones
   const hasPendingWithdrawal = withdrawals.some(
     w => w.status === 'pending' || w.status === 'processing'
@@ -315,10 +361,10 @@ export default function VendorWithdraw() {
       return;
     }
 
-    // Get the correct eligible balance based on source
+    // Get the correct eligible balance based on source (from ledger)
     const sourceBalance = withdrawalSource === 'rider_revenue' 
-      ? (wallet?.rider_revenue_balance || 0)
-      : (wallet?.menu_earnings_balance || 0);
+      ? computedRiderBalance
+      : computedMenuBalance;
 
     if (amount > sourceBalance) {
       toast({ title: `Amount exceeds ${withdrawalSource === 'rider_revenue' ? 'rider revenue' : 'menu earnings'} balance`, variant: 'destructive' });
@@ -640,13 +686,13 @@ export default function VendorWithdraw() {
                   <div>
                     <p className="text-sm text-muted-foreground">Available</p>
                     <p className="text-xl font-bold text-success">
-                      {formatCurrency(wallet?.menu_earnings_balance || 0)}
+                      {formatCurrency(computedMenuBalance)}
                     </p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Pending</p>
                     <p className="text-xl font-bold text-warning">
-                      {formatCurrency(wallet?.menu_earnings_pending || 0)}
+                      {formatCurrency(computedMenuPending)}
                     </p>
                   </div>
                 </div>
@@ -676,7 +722,7 @@ export default function VendorWithdraw() {
                   <div>
                     <p className="text-sm text-muted-foreground">Available</p>
                     <p className="text-xl font-bold text-success">
-                      {formatCurrency(wallet?.rider_revenue_balance || 0)}
+                      {formatCurrency(computedRiderBalance)}
                     </p>
                   </div>
                   <div className="flex flex-col justify-center">
