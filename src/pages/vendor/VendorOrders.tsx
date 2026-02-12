@@ -134,7 +134,9 @@ export default function VendorOrders() {
           const oldOrder = payload.old as Partial<Order>;
           
           if (payload.eventType === 'INSERT') {
-            // Start repeating notification for new orders
+            // Play sound for each new order
+            playOnce();
+            // Start repeating for pending orders
             startRepeating();
             toast({
               title: '🔔 New Order!',
@@ -142,29 +144,34 @@ export default function VendorOrders() {
             });
           }
           
-          // Notify when order is cancelled by customer
-          if (payload.eventType === 'UPDATE' && newOrder.status === 'cancelled' && oldOrder.status !== 'cancelled') {
-            toast({
-              title: '❌ Order Cancelled',
-              description: `Order #${newOrder.order_number} has been cancelled${newOrder.cancellation_reason ? `: ${newOrder.cancellation_reason}` : ''}`,
-              variant: 'destructive',
-            });
-          }
-          
-          // Notify when rider is assigned
-          if (payload.eventType === 'UPDATE' && newOrder.rider_id && !oldOrder.rider_id) {
-            toast({
-              title: '🚴 Rider Assigned!',
-              description: `A rider has been assigned to order #${newOrder.order_number}`,
-            });
-          }
-          
-          // Notify when order is picked up
-          if (payload.eventType === 'UPDATE' && newOrder.status === 'picked_up' && oldOrder.status !== 'picked_up') {
-            toast({
-              title: '📦 Order Picked Up!',
-              description: `Order #${newOrder.order_number} has been picked up by the rider`,
-            });
+          // When ANY order status changes, stop sound and re-evaluate after data refresh
+          if (payload.eventType === 'UPDATE' && newOrder.status !== oldOrder.status) {
+            stopRepeating();
+            
+            // Notify when order is cancelled by customer
+            if (newOrder.status === 'cancelled' && oldOrder.status !== 'cancelled') {
+              toast({
+                title: '❌ Order Cancelled',
+                description: `Order #${newOrder.order_number} has been cancelled${newOrder.cancellation_reason ? `: ${newOrder.cancellation_reason}` : ''}`,
+                variant: 'destructive',
+              });
+            }
+            
+            // Notify when rider is assigned
+            if (newOrder.rider_id && !oldOrder.rider_id) {
+              toast({
+                title: '🚴 Rider Assigned!',
+                description: `A rider has been assigned to order #${newOrder.order_number}`,
+              });
+            }
+            
+            // Notify when order is picked up
+            if (newOrder.status === 'picked_up' && oldOrder.status !== 'picked_up') {
+              toast({
+                title: '📦 Order Picked Up!',
+                description: `Order #${newOrder.order_number} has been picked up by the rider`,
+              });
+            }
           }
           
           fetchData();
@@ -177,15 +184,16 @@ export default function VendorOrders() {
     };
   }, [vendor]);
 
-  // Auto-start sound if there are pending orders on page load
+  // Re-evaluate sound whenever orders change: play only if pending orders exist
   useEffect(() => {
-    if (!loading && orders.length > 0) {
-      const hasPending = orders.some(o => o.status === 'pending');
-      if (hasPending) {
-        startRepeating();
-      }
+    if (loading) return;
+    const hasPending = orders.some(o => o.status === 'pending');
+    if (hasPending) {
+      startRepeating();
+    } else {
+      stopRepeating();
     }
-  }, [loading]);
+  }, [orders, loading]);
 
   const fetchData = async () => {
     try {
@@ -294,17 +302,11 @@ export default function VendorOrders() {
 
       if (error) throw error;
 
-      // Stop notification sound when vendor acts on an order
+      // Stop sound immediately — the useEffect on orders will restart if needed
       stopRepeating();
 
       toast({ title: `Order updated to ${statusConfig[newStatus].label}` });
       await fetchData();
-
-      // After action, check if there are still other pending orders - restart sound
-      const remainingPending = orders.filter(o => o.id !== orderId && o.status === 'pending');
-      if (remainingPending.length > 0) {
-        startRepeating();
-      }
     } catch (error: any) {
       toast({
         title: 'Error updating order',

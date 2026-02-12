@@ -71,11 +71,16 @@ export default function RiderOrders() {
           if (payload.eventType === 'UPDATE' && payload.new.rider_id === userId) {
             const wasJustAssigned = payload.old.rider_id !== userId;
             if (wasJustAssigned) {
-              startRepeating();
+              playOnce();
               toast({
                 title: '🚚 New Delivery!',
-                description: `Order #${payload.new.order_number} has been assigned to you. Tap pickup to stop notification.`,
+                description: `Order #${payload.new.order_number} has been assigned to you.`,
               });
+            }
+            
+            // If any status changed, stop sound — effect will restart if needed
+            if (payload.new.status !== payload.old.status) {
+              stopRepeating();
             }
           }
           fetchOrders();
@@ -86,19 +91,20 @@ export default function RiderOrders() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [userId, startRepeating, toast]);
+  }, [userId, playOnce, stopRepeating, toast]);
 
-  // Auto-start sound if there are unactioned assigned orders on load
+  // Re-evaluate sound whenever active orders change
   useEffect(() => {
-    if (!loading && activeOrders.length > 0) {
-      const hasNewAssignments = activeOrders.some(o => 
-        ['assigned', 'searching_for_rider', 'ready_for_pickup', 'confirmed'].includes(o.status)
-      );
-      if (hasNewAssignments) {
-        startRepeating();
-      }
+    if (loading) return;
+    const hasUnactioned = activeOrders.some(o => 
+      ['assigned', 'searching_for_rider', 'ready_for_pickup', 'confirmed'].includes(o.status)
+    );
+    if (hasUnactioned) {
+      startRepeating();
+    } else {
+      stopRepeating();
     }
-  }, [loading]);
+  }, [activeOrders, loading]);
 
   const checkAuth = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -151,7 +157,7 @@ export default function RiderOrders() {
   };
 
   const updateOrderStatus = async (orderId: string, newStatus: string, order?: any) => {
-    // Stop notification sound when rider takes action
+    // Stop notification sound when rider takes action — effect will restart if needed
     stopRepeating();
     
     // If trying to deliver, open confirmation dialog instead
@@ -176,14 +182,6 @@ export default function RiderOrders() {
           : 'Status updated successfully' 
       });
       await fetchOrders();
-      
-      // After action, check if there are still other unactioned orders - restart sound
-      const remainingNew = activeOrders.filter(o => 
-        o.id !== orderId && ['assigned', 'searching_for_rider', 'ready_for_pickup', 'confirmed'].includes(o.status)
-      );
-      if (remainingNew.length > 0) {
-        startRepeating();
-      }
     } catch (error) {
       console.error('Error updating order:', error);
       toast({ title: 'Failed to update status', variant: 'destructive' });
