@@ -354,10 +354,10 @@ Deno.serve(async (req) => {
     const payoutSettings = getPayoutSettings(settingsMap);
 
     // Find eligible riders from ALL tiers (vendor, delivery company, and platform)
-    const currentTier = 'all';
+    const searchTier = 'all';
     const eligibleRiders = await findEligibleRiders(
       supabase, order.vendor_id, vendor.latitude, vendor.longitude,
-      dispatchSettings.initialRadiusKm, currentTier
+      dispatchSettings.initialRadiusKm, searchTier
     );
 
     console.log(`Found ${eligibleRiders.length} eligible riders`);
@@ -391,7 +391,7 @@ Deno.serve(async (req) => {
         customer_latitude: customerLat,
         customer_longitude: customerLon,
         search_radius_km: dispatchSettings.initialRadiusKm,
-        priority_tier: currentTier,
+        priority_tier: 'platform_riders',
         delivery_fee: deliveryFee,
         expires_at: expiresAt.toISOString(),
         max_retries: dispatchSettings.maxRetries,
