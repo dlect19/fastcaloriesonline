@@ -358,28 +358,39 @@ export default function Cart() {
 
     setPlacingOrder(true);
     try {
-      // Validate all products still exist before placing order
-      const productIds = items.map(i => i.productId).filter(Boolean);
+      // Validate all products/combos still exist before placing order
+      const productIds = items.filter(i => i.productId && !i.addonsDescription).map(i => i.productId);
+      const comboIds = items.filter(i => i.productId && i.addonsDescription).map(i => i.productId);
+      
+      const existingIds = new Set<string>();
+      
       if (productIds.length > 0) {
         const { data: existingProducts, error: prodCheckError } = await supabase
           .from('products')
           .select('id')
           .in('id', productIds);
-        
         if (prodCheckError) throw prodCheckError;
-        
-        const existingIds = new Set(existingProducts?.map(p => p.id) || []);
-        const missingItems = items.filter(i => i.productId && !existingIds.has(i.productId));
-        
-        if (missingItems.length > 0) {
-          toast({
-            title: 'Menu Updated',
-            description: `"${missingItems[0].productName}" is no longer available. Please remove it and try again.`,
-            variant: 'destructive',
-          });
-          setPlacingOrder(false);
-          return;
-        }
+        existingProducts?.forEach(p => existingIds.add(p.id));
+      }
+      
+      if (comboIds.length > 0) {
+        const { data: existingCombos, error: comboCheckError } = await supabase
+          .from('combos')
+          .select('id')
+          .in('id', comboIds);
+        if (comboCheckError) throw comboCheckError;
+        existingCombos?.forEach(c => existingIds.add(c.id));
+      }
+      
+      const missingItems = items.filter(i => i.productId && !existingIds.has(i.productId));
+      if (missingItems.length > 0) {
+        toast({
+          title: 'Menu Updated',
+          description: `"${missingItems[0].productName}" is no longer available. Please remove it and try again.`,
+          variant: 'destructive',
+        });
+        setPlacingOrder(false);
+        return;
       }
 
       const promoType = selectedDiscountType === 'spin' ? 'spin' 
