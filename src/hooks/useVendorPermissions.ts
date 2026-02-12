@@ -44,9 +44,14 @@ export function useVendorPermissions(vendorId: string | null): UseVendorPermissi
 
   useEffect(() => {
     if (!user || !vendorId) {
+      setRole(null);
+      setCustomPermissions(null);
       setLoading(false);
       return;
     }
+
+    // Reset loading when vendorId changes so we don't flash Access Denied
+    setLoading(true);
 
     const fetchRole = async () => {
       try {
