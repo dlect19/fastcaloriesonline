@@ -33,7 +33,8 @@ export function RiderSidebar({ isOnline = false, onToggleOnline, canViewEarnings
           .from('dispatch_offers')
           .select('*', { count: 'exact', head: true })
           .eq('rider_user_id', user.id)
-          .eq('status', 'pending');
+          .eq('status', 'pending')
+          .gt('expires_at', new Date().toISOString());
         if (!error && count !== null) setAvailableCount(count);
       };
 

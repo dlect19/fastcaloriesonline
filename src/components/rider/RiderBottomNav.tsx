@@ -29,7 +29,8 @@ export function RiderBottomNav({ isOnline = false, onToggleOnline, canViewEarnin
           .from('dispatch_offers')
           .select('*', { count: 'exact', head: true })
           .eq('rider_user_id', user.id)
-          .eq('status', 'pending');
+          .eq('status', 'pending')
+          .gt('expires_at', new Date().toISOString());
         if (!error && count !== null) setAvailableCount(count);
       };
 

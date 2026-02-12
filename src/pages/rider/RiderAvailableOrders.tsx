@@ -279,6 +279,7 @@ export default function RiderAvailableOrders() {
               onDecline={handleDeclineOffer}
               accepting={accepting === offer.id}
               declining={declining === offer.id}
+              hideEarnings={isAffiliated}
             />
           ))}
         </div>

@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Plus, Copy, QrCode, RefreshCw, Trash2, Circle, Bike, TrendingUp, Banknote } from 'lucide-react';
+import { Users, Plus, Copy, QrCode, RefreshCw, Trash2, Circle, Bike, TrendingUp, Banknote, Globe } from 'lucide-react';
 import { DateRangeFilter, DateRange } from '@/components/shared/DateRangeFilter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { VendorSidebar } from '@/components/vendor/VendorSidebar';
 import { VendorRiderCard } from '@/components/vendor/VendorRiderCard';
 import { AccessDenied } from '@/components/vendor/AccessDenied';
@@ -58,7 +60,7 @@ export default function VendorRiders() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [vendor, setVendor] = useState<{ id: string; name: string } | null>(null);
+  const [vendor, setVendor] = useState<{ id: string; name: string; allow_rider_external_jobs: boolean } | null>(null);
   const [riders, setRiders] = useState<VendorRider[]>([]);
   const [invites, setInvites] = useState<RiderInvite[]>([]);
   const [loading, setLoading] = useState(true);
@@ -131,7 +133,7 @@ export default function VendorRiders() {
     try {
       const { data: vendorResults } = await supabase
         .from('vendors')
-        .select('id, name')
+        .select('id, name, allow_rider_external_jobs')
         .eq('user_id', user?.id)
         .order('created_at', { ascending: false })
         .limit(1);
@@ -311,6 +313,21 @@ export default function VendorRiders() {
     }
   };
 
+  const toggleExternalJobs = async (allow: boolean) => {
+    if (!vendor) return;
+    try {
+      const { error } = await supabase
+        .from('vendors')
+        .update({ allow_rider_external_jobs: allow })
+        .eq('id', vendor.id);
+      if (error) throw error;
+      setVendor({ ...vendor, allow_rider_external_jobs: allow });
+      toast({ title: allow ? 'Riders can now accept external jobs' : 'Riders restricted to your orders only' });
+    } catch (error: any) {
+      toast({ title: 'Error updating setting', description: error.message, variant: 'destructive' });
+    }
+  };
+
   const onlineRidersCount = riders.filter(r => r.rider_profile?.is_online && r.is_active).length;
 
   if (authLoading || loading || permLoading) {
@@ -439,6 +456,30 @@ export default function VendorRiders() {
                 dateRange={revenueDateRange}
                 onDateRangeChange={handleRevenueDateChange}
               />
+            </CardContent>
+          </Card>
+
+          {/* External Jobs Setting */}
+          <Card className="border-0 shadow-soft">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
+                    <Globe className="w-5 h-5 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <Label htmlFor="external-jobs" className="text-sm font-medium">Allow external jobs</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Let your riders be visible to and accept deliveries from other vendors
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  id="external-jobs"
+                  checked={vendor?.allow_rider_external_jobs || false}
+                  onCheckedChange={toggleExternalJobs}
+                />
+              </div>
             </CardContent>
           </Card>
 
