@@ -54,12 +54,15 @@ export default function AdminDeliveryCompanies() {
       // Get rider counts for each company
       const companiesWithCounts = await Promise.all(
         (data || []).map(async (company) => {
-          const { count } = await supabase
-            .from('rider_profiles')
-            .select('*', { count: 'exact', head: true })
-            .eq('delivery_company_id', company.id);
-
-          return { ...company, rider_count: count || 0 };
+          try {
+            const { count } = await supabase
+              .from('rider_profiles')
+              .select('*', { count: 'exact', head: true })
+              .eq('delivery_company_id', company.id);
+            return { ...company, rider_count: count || 0 };
+          } catch {
+            return { ...company, rider_count: 0 };
+          }
         })
       );
 
