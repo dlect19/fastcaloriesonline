@@ -131,6 +131,7 @@ export default function VendorRiders() {
 
   const fetchData = async () => {
     try {
+      // Check if owner
       const { data: vendorResults } = await supabase
         .from('vendors')
         .select('id, name, allow_rider_external_jobs')
@@ -138,7 +139,27 @@ export default function VendorRiders() {
         .order('created_at', { ascending: false })
         .limit(1);
 
-      const vendorData = vendorResults?.[0] || null;
+      let vendorData = vendorResults?.[0] || null;
+
+      // If not owner, check if staff
+      if (!vendorData && user) {
+        const { data: staffRecord } = await supabase
+          .from('vendor_staff')
+          .select('vendor_id')
+          .eq('user_id', user.id)
+          .eq('is_active', true)
+          .maybeSingle();
+
+        if (staffRecord) {
+          const { data: staffVendor } = await supabase
+            .from('vendors')
+            .select('id, name, allow_rider_external_jobs')
+            .eq('id', staffRecord.vendor_id)
+            .single();
+          vendorData = staffVendor;
+        }
+      }
+
       setVendor(vendorData);
 
       if (vendorData) {
