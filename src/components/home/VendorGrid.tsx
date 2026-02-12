@@ -144,7 +144,7 @@ export function VendorGrid({
               rating={vendor.rating || 0}
               deliveryTime={vendor.estimated_delivery_minutes || 30}
               deliveryFee={vendor.dynamic_delivery_fee}
-              isOpen={vendor.is_active ?? true}
+              isOpen={vendor.is_open ?? true}
               imageUrl={vendor.banner_url || undefined}
               distance={formatDistance(vendor.distance)}
             />
