@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TrendingUp, Wallet, ArrowUpRight, ArrowDownRight, Calendar, Clock, AlertCircle, FlaskConical, Bike, UtensilsCrossed } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +15,7 @@ import { useVendorPermissions } from '@/hooks/useVendorPermissions';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 import { useOrderFinancials } from '@/hooks/useOrderFinancials';
 import { supabase } from '@/integrations/supabase/client';
+import { PaginationControls } from '@/components/shared/PaginationControls';
 interface Vendor {
   id: string;
   name: string;
@@ -61,6 +62,8 @@ export default function VendorEarnings() {
   const [allTransactions, setAllTransactions] = useState<WalletTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
+  const [txPage, setTxPage] = useState(1);
+  const TX_PER_PAGE = 10;
   const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendor?.id || null);
   
   // Fetch order financials for breakdown
@@ -77,6 +80,7 @@ export default function VendorEarnings() {
     }
     if (user) {
       fetchData();
+      setTxPage(1);
     }
   }, [user, authLoading, navigate, dateRange, isTestMode]);
 
@@ -688,7 +692,9 @@ export default function VendorEarnings() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {transactions.map((tx) => (
+                  {transactions
+                    .slice((txPage - 1) * TX_PER_PAGE, txPage * TX_PER_PAGE)
+                    .map((tx) => (
                     <div
                       key={tx.id}
                       className="flex items-center justify-between p-4 rounded-xl bg-muted/50"
@@ -729,6 +735,13 @@ export default function VendorEarnings() {
                       </div>
                     </div>
                   ))}
+                  <PaginationControls
+                    currentPage={txPage}
+                    totalPages={Math.ceil(transactions.length / TX_PER_PAGE)}
+                    onPageChange={setTxPage}
+                    totalItems={transactions.length}
+                    itemsPerPage={TX_PER_PAGE}
+                  />
                 </div>
               )}
             </CardContent>
