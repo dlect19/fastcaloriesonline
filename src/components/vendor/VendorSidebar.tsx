@@ -19,7 +19,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { VendorPermission } from '@/hooks/useVendorPermissions';
 
 // Map nav items to required permissions
@@ -47,12 +47,85 @@ const navItems: {
 interface VendorSidebarProps {
   vendorName?: string;
   permissions?: VendorPermission[];
+  vendorId?: string;
 }
 
-export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [] }: VendorSidebarProps) {
+export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], vendorId }: VendorSidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
+  const [newOrderCount, setNewOrderCount] = useState(0);
+  const [resolvedVendorId, setResolvedVendorId] = useState<string | null>(vendorId || null);
+
+  // Resolve vendor ID from auth user if not provided
+  useEffect(() => {
+    if (vendorId) {
+      setResolvedVendorId(vendorId);
+      return;
+    }
+    const resolve = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      // Check if owner
+      const { data: vendor } = await supabase
+        .from('vendors')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (vendor) {
+        setResolvedVendorId(vendor.id);
+        return;
+      }
+      // Check if staff
+      const { data: staff } = await supabase
+        .from('vendor_staff')
+        .select('vendor_id')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .maybeSingle();
+      if (staff) {
+        setResolvedVendorId(staff.vendor_id);
+      }
+    };
+    resolve();
+  }, [vendorId]);
+
+  // Fetch pending/confirmed order count and subscribe to realtime updates
+  useEffect(() => {
+    if (!resolvedVendorId) return;
+
+    const fetchCount = async () => {
+      const { count, error } = await supabase
+        .from('orders')
+        .select('*', { count: 'exact', head: true })
+        .eq('vendor_id', resolvedVendorId)
+        .in('status', ['pending', 'confirmed']);
+
+      if (!error && count !== null) {
+        setNewOrderCount(count);
+      }
+    };
+
+    fetchCount();
+
+    const channel = supabase
+      .channel('vendor-sidebar-orders')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'orders',
+          filter: `vendor_id=eq.${resolvedVendorId}`,
+        },
+        () => fetchCount()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [resolvedVendorId]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -133,7 +206,12 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [] }
                 )}
               >
                 <Icon className="w-5 h-5 flex-shrink-0" />
-                {!collapsed && <span className="text-sm font-medium">{item.label}</span>}
+                {!collapsed && <span className="text-sm font-medium flex-1">{item.label}</span>}
+                {item.id === 'orders' && newOrderCount > 0 && (
+                  <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-destructive text-destructive-foreground text-xs font-bold flex items-center justify-center">
+                    {newOrderCount > 99 ? '99+' : newOrderCount}
+                  </span>
+                )}
               </button>
             );
           })}
