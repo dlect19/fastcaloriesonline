@@ -81,6 +81,7 @@ import DeliverySupport from "./pages/delivery/DeliverySupport";
 import VendorSupport from "./pages/vendor/VendorSupport";
 import RiderSupport from "./pages/rider/RiderSupport";
 import AdminSupport from "./pages/admin/AdminSupport";
+import { playGlobalNotificationSound } from '@/lib/globalAudio';
 
 const queryClient = new QueryClient();
 
@@ -88,13 +89,7 @@ const queryClient = new QueryClient();
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker?.addEventListener('message', (event: MessageEvent) => {
     if (event.data?.type === 'PLAY_NOTIFICATION_SOUND') {
-      try {
-        const audio = new Audio('/sounds/new-order.mp3');
-        audio.volume = 1.0;
-        audio.play().catch(err => console.warn('Push sound blocked (user interaction needed):', err));
-      } catch (e) {
-        console.error('Error playing push notification sound:', e);
-      }
+      playGlobalNotificationSound();
     }
   });
 }

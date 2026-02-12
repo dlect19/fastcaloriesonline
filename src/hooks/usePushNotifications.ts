@@ -27,22 +27,7 @@ export function usePushNotifications() {
       checkExistingSubscription();
     }
 
-    // Listen for service worker messages to play notification sound
-    const handleSWMessage = (event: MessageEvent) => {
-      if (event.data?.type === 'PLAY_NOTIFICATION_SOUND') {
-        try {
-          const audio = new Audio('/sounds/new-order.mp3');
-          audio.play().catch(err => console.error('Failed to play push notification sound:', err));
-        } catch (e) {
-          console.error('Error creating audio for push notification:', e);
-        }
-      }
-    };
-
-    navigator.serviceWorker?.addEventListener('message', handleSWMessage);
-    return () => {
-      navigator.serviceWorker?.removeEventListener('message', handleSWMessage);
-    };
+    // Sound is now handled globally in App.tsx via globalAudio.ts
   }, []);
 
   const checkExistingSubscription = async () => {
