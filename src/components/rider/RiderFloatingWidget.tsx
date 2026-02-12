@@ -64,7 +64,7 @@ export function RiderFloatingWidget({ isOnline, onToggleOnline }: RiderFloatingW
 
     const { data: orders } = await supabase
       .from('orders')
-      .select('*, vendors(name)')
+      .select('*, vendors(name, address, latitude, longitude)')
       .eq('rider_id', user.id)
       .not('status', 'in', '("delivered","cancelled")')
       .order('created_at', { ascending: false });
@@ -224,14 +224,26 @@ export function RiderFloatingWidget({ isOnline, onToggleOnline }: RiderFloatingW
             </div>
 
             <div className="flex gap-2">
-              {/* Map button - opens in dropdown to avoid redirect issues */}
-              <MapOptionsMenu 
-                address={activeOrder.delivery_address_text || ''} 
-                variant="outline"
-                size="sm"
-                className="flex-1 text-xs h-8"
-                label="Navigate"
-              />
+              {/* Pickup navigation - vendor location */}
+              {['assigned', 'searching_for_rider', 'confirmed', 'preparing', 'ready_for_pickup'].includes(activeOrder.status) ? (
+                <MapOptionsMenu 
+                  address={activeOrder.vendors?.address || activeOrder.vendors?.name || ''} 
+                  latitude={activeOrder.vendors?.latitude}
+                  longitude={activeOrder.vendors?.longitude}
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 text-xs h-8"
+                  label="Pickup"
+                />
+              ) : (
+                <MapOptionsMenu 
+                  address={activeOrder.delivery_address_text || ''} 
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 text-xs h-8"
+                  label="Deliver"
+                />
+              )}
               {getNextStatus(activeOrder.status) && (
                 <Button 
                   size="sm" 
