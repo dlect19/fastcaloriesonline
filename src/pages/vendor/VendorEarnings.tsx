@@ -257,6 +257,15 @@ export default function VendorEarnings() {
     .filter(tx => tx.category === 'vendor_rider_share' && tx.status === 'completed')
     .reduce((sum, tx) => sum + tx.amount, 0);
 
+  // Calculate accurate total earned from ledger (only completed, non-cancelled earnings)
+  const computedTotalEarned = transactions
+    .filter(tx => 
+      ['vendor_share', 'vendor_rider_share'].includes(tx.category) && 
+      tx.status === 'completed' && 
+      tx.transaction_type === 'credit'
+    )
+    .reduce((sum, tx) => sum + tx.amount, 0);
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'completed':
@@ -532,7 +541,7 @@ export default function VendorEarnings() {
                   <div>
                     <p className="text-sm text-muted-foreground">Total Earned</p>
                     <p className="text-2xl font-bold text-foreground">
-                      {formatCurrency(wallet?.total_earned || 0)}
+                      {formatCurrency(computedTotalEarned)}
                     </p>
                     <p className="text-xs text-muted-foreground">All time</p>
                   </div>
