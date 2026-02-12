@@ -204,12 +204,19 @@ export function ComboManagement({ vendor, products, onRefresh, refreshKey = 0 }:
   const fetchCombos = async () => {
     setLoading(true);
     try {
-      // Fetch fresh takeaway packs to avoid stale state
-      const { data: freshPacks } = await supabase
-        .from('takeaway_packs')
-        .select('id, vendor_id, name, description, image_url, price, is_active')
-        .eq('vendor_id', vendor.id);
+      // Fetch fresh data to avoid stale props/state
+      const [{ data: freshPacks }, { data: freshProducts }] = await Promise.all([
+        supabase
+          .from('takeaway_packs')
+          .select('id, vendor_id, name, description, image_url, price, is_active')
+          .eq('vendor_id', vendor.id),
+        supabase
+          .from('products')
+          .select('id, name, price, is_available, calories, image_url')
+          .eq('vendor_id', vendor.id),
+      ]);
       const allPacks = freshPacks || [];
+      const allProducts = freshProducts || [];
 
       const { data: combosData, error: combosError } = await supabase
         .from('combos')
@@ -229,14 +236,14 @@ export function ComboManagement({ vendor, products, onRefresh, refreshKey = 0 }:
 
           const itemsWithDetails = (itemsData || []).map((item: any) => ({
             ...item,
-            product: item.product_id ? products.find((p) => p.id === item.product_id) : undefined,
+            product: item.product_id ? allProducts.find((p) => p.id === item.product_id) : undefined,
             takeawayPack: item.takeaway_pack_id ? allPacks.find((p) => p.id === item.takeaway_pack_id) : undefined,
           }));
 
-          // Check availability of all items
+          // Check availability of all items using fresh DB data
           const hasUnavailableItem = itemsWithDetails.some((item: any) => {
             if (item.product_id) {
-              const product = products.find(p => p.id === item.product_id);
+              const product = allProducts.find(p => p.id === item.product_id);
               return !product || product.is_available === false;
             }
             if (item.takeaway_pack_id) {
