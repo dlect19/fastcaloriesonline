@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Clock, CheckCircle, XCircle, Package, ChevronDown, ChevronUp, ShoppingBag, Store, Search, Bike } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,7 @@ import { DispatchStatus } from '@/components/vendor/DispatchStatus';
 import { ManualRiderAssignment } from '@/components/vendor/ManualRiderAssignment';
 import { RiderAssignmentDialog } from '@/components/vendor/RiderAssignmentDialog';
 import { CancelOrderDialog } from '@/components/vendor/CancelOrderDialog';
+import { PaginationControls } from '@/components/shared/PaginationControls';
 import { useAuth } from '@/hooks/useAuth';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
 import { useToast } from '@/hooks/use-toast';
@@ -102,6 +103,8 @@ export default function VendorOrders() {
   const [cancelDialog, setCancelDialog] = useState<{ open: boolean; order: OrderWithItems | null }>({ open: false, order: null });
   const [showManualAssignForOrder, setShowManualAssignForOrder] = useState<string | null>(null);
   const [riderAssignDialog, setRiderAssignDialog] = useState<{ open: boolean; order: OrderWithItems | null }>({ open: false, order: null });
+  const [completedPage, setCompletedPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
 
   const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendor?.id || null);
 
@@ -333,6 +336,12 @@ export default function VendorOrders() {
   const completedOrders = orders.filter((o) =>
     ['delivered', 'cancelled', 'picked_up', 'on_the_way'].includes(o.status)
   );
+
+  const completedTotalPages = Math.ceil(completedOrders.length / ITEMS_PER_PAGE);
+  const paginatedCompleted = useMemo(() => {
+    const start = (completedPage - 1) * ITEMS_PER_PAGE;
+    return completedOrders.slice(start, start + ITEMS_PER_PAGE);
+  }, [completedOrders, completedPage]);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString('en-NG', {
@@ -746,7 +755,14 @@ export default function VendorOrders() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {completedOrders.map(renderOrderCard)}
+                  {paginatedCompleted.map(renderOrderCard)}
+                  <PaginationControls
+                    currentPage={completedPage}
+                    totalPages={completedTotalPages}
+                    onPageChange={setCompletedPage}
+                    totalItems={completedOrders.length}
+                    itemsPerPage={ITEMS_PER_PAGE}
+                  />
                 </div>
               )}
             </TabsContent>

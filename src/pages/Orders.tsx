@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Package, Clock, CheckCircle, XCircle, ChevronRight, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BottomNav } from '@/components/home/BottomNav';
 import { CartButton } from '@/components/cart/CartButton';
+import { PaginationControls } from '@/components/shared/PaginationControls';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables } from '@/integrations/supabase/types';
@@ -28,6 +29,14 @@ export default function Orders() {
   const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
+
+  const totalPages = Math.ceil(orders.length / ITEMS_PER_PAGE);
+  const paginatedOrders = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return orders.slice(start, start + ITEMS_PER_PAGE);
+  }, [orders, currentPage]);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -147,7 +156,7 @@ export default function Orders() {
           </div>
         ) : (
           <div className="space-y-4">
-            {orders.map((order) => {
+            {paginatedOrders.map((order) => {
               const status = statusConfig[order.status] || statusConfig.pending;
               const StatusIcon = status.icon;
 
@@ -180,6 +189,13 @@ export default function Orders() {
                 </div>
               );
             })}
+            <PaginationControls
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              totalItems={orders.length}
+              itemsPerPage={ITEMS_PER_PAGE}
+            />
           </div>
         )}
       </main>

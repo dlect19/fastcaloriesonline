@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ArrowDownLeft, ArrowUpRight, Calendar, Filter, Loader2, Percent, Info } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { supabase } from '@/integrations/supabase/client';
 import { DateRangeFilter, DateRange } from './DateRangeFilter';
+import { PaginationControls } from './PaginationControls';
 
 interface Transaction {
   id: string;
@@ -42,6 +43,8 @@ export function TransactionHistory({
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'credit' | 'debit'>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
   const [internalDateRange, setInternalDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   
   // Use external date range if provided, otherwise use internal state
@@ -161,6 +164,17 @@ export function TransactionHistory({
 
   const { inflow, outflow } = calculateTotals();
 
+  const totalPages = Math.ceil(transactions.length / ITEMS_PER_PAGE);
+  const paginatedTransactions = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return transactions.slice(start, start + ITEMS_PER_PAGE);
+  }, [transactions, currentPage]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter, dateRange]);
+
   if (loading) {
     return (
       <Card className="border-0 shadow-soft">
@@ -230,7 +244,7 @@ export function TransactionHistory({
           </div>
         ) : (
           <div className="space-y-3">
-            {transactions.map((tx) => (
+            {paginatedTransactions.map((tx) => (
               <div
                 key={tx.id}
                 className="flex items-center justify-between p-4 rounded-xl bg-muted/50"
@@ -294,6 +308,13 @@ export function TransactionHistory({
                 </div>
               </div>
             ))}
+            <PaginationControls
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              totalItems={transactions.length}
+              itemsPerPage={ITEMS_PER_PAGE}
+            />
           </div>
         )}
       </CardContent>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Wallet, ArrowUpRight, Building2, CreditCard, Clock, Settings, AlertCircle, Loader2, ShieldCheck, FlaskConical, AlertTriangle, Bike, UtensilsCrossed } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,6 +20,7 @@ import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { Tables } from '@/integrations/supabase/types';
+import { PaginationControls } from '@/components/shared/PaginationControls';
 
 type Vendor = Tables<'vendors'>;
 type Order = Tables<'orders'>;
@@ -84,6 +85,8 @@ export default function VendorWithdraw() {
   const [otp, setOtp] = useState('');
   const [sendingOtp, setSendingOtp] = useState(false);
   const [recipientEnvironment, setRecipientEnvironment] = useState<string | null>(null);
+  const [withdrawalPage, setWithdrawalPage] = useState(1);
+  const W_PER_PAGE = 10;
   const [settlementHours, setSettlementHours] = useState<number | null>(null);
 
   // Bank details form
@@ -975,7 +978,7 @@ export default function VendorWithdraw() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {withdrawals.map((withdrawal) => (
+                  {withdrawals.slice((withdrawalPage - 1) * W_PER_PAGE, withdrawalPage * W_PER_PAGE).map((withdrawal) => (
                     <div
                       key={withdrawal.id}
                       className="flex items-center justify-between p-4 rounded-xl bg-muted/50"
@@ -1004,6 +1007,13 @@ export default function VendorWithdraw() {
                       </Badge>
                     </div>
                   ))}
+                  <PaginationControls
+                    currentPage={withdrawalPage}
+                    totalPages={Math.ceil(withdrawals.length / W_PER_PAGE)}
+                    onPageChange={setWithdrawalPage}
+                    totalItems={withdrawals.length}
+                    itemsPerPage={W_PER_PAGE}
+                  />
                 </div>
               )}
             </CardContent>
