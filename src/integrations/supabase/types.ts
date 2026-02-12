@@ -499,6 +499,7 @@ export type Database = {
           name: string
           paystack_recipient_code: string | null
           phone: string | null
+          slug: string | null
           state: string | null
           updated_at: string
           user_id: string
@@ -520,6 +521,7 @@ export type Database = {
           name: string
           paystack_recipient_code?: string | null
           phone?: string | null
+          slug?: string | null
           state?: string | null
           updated_at?: string
           user_id: string
@@ -541,6 +543,7 @@ export type Database = {
           name?: string
           paystack_recipient_code?: string | null
           phone?: string | null
+          slug?: string | null
           state?: string | null
           updated_at?: string
           user_id?: string
@@ -2706,6 +2709,7 @@ export type Database = {
           phone: string | null
           qr_code_url: string | null
           rating: number | null
+          slug: string | null
           state: string
           total_ratings: number | null
           updated_at: string
@@ -2738,6 +2742,7 @@ export type Database = {
           phone?: string | null
           qr_code_url?: string | null
           rating?: number | null
+          slug?: string | null
           state: string
           total_ratings?: number | null
           updated_at?: string
@@ -2770,6 +2775,7 @@ export type Database = {
           phone?: string | null
           qr_code_url?: string | null
           rating?: number | null
+          slug?: string | null
           state?: string
           total_ratings?: number | null
           updated_at?: string
@@ -3164,6 +3170,7 @@ export type Database = {
     Functions: {
       add_vendor_role: { Args: never; Returns: undefined }
       cancel_stale_pending_orders: { Args: never; Returns: number }
+      generate_slug: { Args: { input_text: string }; Returns: string }
       get_admin_staff_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["admin_staff_role"]
@@ -3207,6 +3214,15 @@ export type Database = {
         Returns: undefined
       }
       release_pending_vendor_earnings: { Args: never; Returns: number }
+      resolve_workspace_slug: {
+        Args: { workspace_slug: string }
+        Returns: {
+          logo_url: string
+          workspace_id: string
+          workspace_name: string
+          workspace_type: string
+        }[]
+      }
       rider_belongs_to_company: {
         Args: { _rider_user_id: string }
         Returns: string
