@@ -296,11 +296,23 @@ export default function VendorOrders() {
     }
   };
 
+  const generateConfirmationCode = () => {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+  };
+
   const updateOrderStatus = async (orderId: string, newStatus: OrderStatus) => {
     try {
+      const order = orders.find(o => o.id === orderId);
+      const updateData: any = { status: newStatus };
+
+      // Generate confirmation code for self-pickup orders when they become ready
+      if (newStatus === 'ready_for_pickup' && order?.delivery_type === 'self_pickup') {
+        updateData.confirmation_code = generateConfirmationCode();
+      }
+
       const { error } = await supabase
         .from('orders')
-        .update({ status: newStatus })
+        .update(updateData)
         .eq('id', orderId);
 
       if (error) throw error;
