@@ -10,8 +10,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   MessageSquare, Send, ArrowLeft, Clock, CheckCircle2, AlertCircle, XCircle,
-  User, Store, Bike, Truck, Inbox,
+  User, Store, Bike, Truck, Inbox, Star,
 } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -43,6 +44,9 @@ const USER_TYPE_ICONS = {
   rider: Bike,
   logistics: Truck,
 };
+
+const RATING_EMOJIS = ['', '😡', '😕', '😐', '😊', '🤩'];
+const RATING_LABELS = ['', 'Terrible', 'Poor', 'Okay', 'Good', 'Amazing'];
 
 export default function AdminSupport() {
   const navigate = useNavigate();
@@ -294,9 +298,28 @@ export default function AdminSupport() {
                   <span className="text-xs text-muted-foreground">•</span>
                   <span className="text-xs text-muted-foreground capitalize">{activeTicket.user_type}</span>
                   <span className="text-xs text-muted-foreground">•</span>
-                  <span className="text-xs text-muted-foreground capitalize">
+                   <span className="text-xs text-muted-foreground capitalize">
                     {CATEGORIES.find(c => c.value === activeTicket.category)?.label}
                   </span>
+                  {activeTicket.rating && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="text-xs flex items-center gap-1">
+                            <span className="text-muted-foreground">•</span>
+                            <span>{RATING_EMOJIS[activeTicket.rating]}</span>
+                            <span className="text-muted-foreground">{RATING_LABELS[activeTicket.rating]}</span>
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="font-medium">Customer Review: {activeTicket.rating}/5</p>
+                          {activeTicket.rating_comment && (
+                            <p className="text-xs mt-1 max-w-[200px]">"{activeTicket.rating_comment}"</p>
+                          )}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
                 </div>
               </div>
               <Select
@@ -456,13 +479,26 @@ export default function AdminSupport() {
                                 <span className="text-xs text-muted-foreground">
                                   {format(new Date(ticket.created_at), 'MMM d, yyyy')}
                                 </span>
+                                {ticket.rating && (
+                                  <>
+                                    <span className="text-xs text-muted-foreground">•</span>
+                                    <span className="text-xs">{RATING_EMOJIS[ticket.rating]} {RATING_LABELS[ticket.rating]}</span>
+                                  </>
+                                )}
                               </div>
                             </div>
                           </div>
-                          <Badge variant="outline" className={cn('text-xs shrink-0', statusConfig.color)}>
-                            <StatusIcon className="w-3 h-3 mr-1" />
-                            {statusConfig.label}
-                          </Badge>
+                          <div className="flex flex-col items-end gap-1.5 shrink-0">
+                            <Badge variant="outline" className={cn('text-xs', statusConfig.color)}>
+                              <StatusIcon className="w-3 h-3 mr-1" />
+                              {statusConfig.label}
+                            </Badge>
+                            {ticket.rating_comment && (
+                              <span className="text-[10px] text-muted-foreground max-w-[150px] truncate italic">
+                                "{ticket.rating_comment}"
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
