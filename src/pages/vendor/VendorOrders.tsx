@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Clock, CheckCircle, XCircle, Package, ChevronDown, ChevronUp, ShoppingBag, Store, Search, Bike } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -716,11 +717,32 @@ export default function VendorOrders() {
       <main className="lg:ml-64 pt-14 lg:pt-0">
         <div className="p-6 space-y-6">
           {/* Header */}
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Orders</h1>
-            <p className="text-muted-foreground">
-              {activeOrders.length} active • {completedOrders.length} completed
-            </p>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">Orders</h1>
+              <p className="text-muted-foreground">
+                {activeOrders.length} active • {completedOrders.length} completed
+              </p>
+            </div>
+            {/* Store Open/Close Toggle */}
+            <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-card border border-border w-fit">
+              <Store className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm font-medium">{vendor?.is_open ? 'Open' : 'Closed'}</span>
+              <Switch
+                checked={vendor?.is_open ?? true}
+                onCheckedChange={async (checked) => {
+                  if (!vendor) return;
+                  const { error } = await supabase
+                    .from('vendors')
+                    .update({ is_open: checked })
+                    .eq('id', vendor.id);
+                  if (!error) {
+                    setVendor({ ...vendor, is_open: checked });
+                    toast({ title: checked ? 'Store is now open' : 'Store is now closed' });
+                  }
+                }}
+              />
+            </div>
           </div>
 
           {/* Sound notification controls */}

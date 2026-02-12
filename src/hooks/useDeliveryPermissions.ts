@@ -41,9 +41,14 @@ export function useDeliveryPermissions(companyId: string | null): UseDeliveryPer
 
   useEffect(() => {
     if (!user || !companyId) {
+      setRole(null);
+      setCustomPermissions(null);
       setLoading(false);
       return;
     }
+
+    // Reset loading when companyId changes
+    setLoading(true);
 
     const fetchRole = async () => {
       try {

@@ -2707,6 +2707,7 @@ export type Database = {
           estimated_delivery_minutes: number | null
           id: string
           is_active: boolean | null
+          is_open: boolean
           is_test_store: boolean | null
           is_verified: boolean | null
           latitude: number | null
@@ -2740,6 +2741,7 @@ export type Database = {
           estimated_delivery_minutes?: number | null
           id?: string
           is_active?: boolean | null
+          is_open?: boolean
           is_test_store?: boolean | null
           is_verified?: boolean | null
           latitude?: number | null
@@ -2773,6 +2775,7 @@ export type Database = {
           estimated_delivery_minutes?: number | null
           id?: string
           is_active?: boolean | null
+          is_open?: boolean
           is_test_store?: boolean | null
           is_verified?: boolean | null
           latitude?: number | null

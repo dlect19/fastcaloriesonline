@@ -13,11 +13,13 @@ import {
   Clock,
   UtensilsCrossed,
   Bike,
+  Store,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
 import { VendorSidebar } from '@/components/vendor/VendorSidebar';
 import { AccessDenied } from '@/components/vendor/AccessDenied';
 import { DateRangeFilter, DateRange } from '@/components/shared/DateRangeFilter';
@@ -385,12 +387,32 @@ export default function VendorDashboard() {
               <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
               <p className="text-muted-foreground">Welcome back, {vendor.name}</p>
             </div>
-            {!vendor.is_active && (
-              <Badge variant="outline" className="w-fit bg-warning/10 text-warning border-warning">
-                <AlertCircle className="w-3 h-3 mr-1" />
-                Pending Approval
-              </Badge>
-            )}
+            <div className="flex items-center gap-3">
+              {/* Store Open/Close Toggle */}
+              <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-card border border-border">
+                <Store className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm font-medium">{vendor.is_open ? 'Open' : 'Closed'}</span>
+                <Switch
+                  checked={vendor.is_open ?? true}
+                  onCheckedChange={async (checked) => {
+                    const { error } = await supabase
+                      .from('vendors')
+                      .update({ is_open: checked })
+                      .eq('id', vendor.id);
+                    if (!error) {
+                      setVendor({ ...vendor, is_open: checked });
+                      toast({ title: checked ? 'Store is now open' : 'Store is now closed' });
+                    }
+                  }}
+                />
+              </div>
+              {!vendor.is_active && (
+                <Badge variant="outline" className="w-fit bg-warning/10 text-warning border-warning">
+                  <AlertCircle className="w-3 h-3 mr-1" />
+                  Pending Approval
+                </Badge>
+              )}
+            </div>
           </div>
 
           {/* Date Range Filter */}
