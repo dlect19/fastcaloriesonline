@@ -204,6 +204,13 @@ export function ComboManagement({ vendor, products, onRefresh, refreshKey = 0 }:
   const fetchCombos = async () => {
     setLoading(true);
     try {
+      // Fetch fresh takeaway packs to avoid stale state
+      const { data: freshPacks } = await supabase
+        .from('takeaway_packs')
+        .select('id, vendor_id, name, description, image_url, price, is_active')
+        .eq('vendor_id', vendor.id);
+      const allPacks = freshPacks || [];
+
       const { data: combosData, error: combosError } = await supabase
         .from('combos')
         .select('*')
@@ -223,7 +230,7 @@ export function ComboManagement({ vendor, products, onRefresh, refreshKey = 0 }:
           const itemsWithDetails = (itemsData || []).map((item: any) => ({
             ...item,
             product: item.product_id ? products.find((p) => p.id === item.product_id) : undefined,
-            takeawayPack: item.takeaway_pack_id ? takeawayPacks.find((p) => p.id === item.takeaway_pack_id) : undefined,
+            takeawayPack: item.takeaway_pack_id ? allPacks.find((p) => p.id === item.takeaway_pack_id) : undefined,
           }));
 
           // Check availability of all items
@@ -233,7 +240,7 @@ export function ComboManagement({ vendor, products, onRefresh, refreshKey = 0 }:
               return !product || product.is_available === false;
             }
             if (item.takeaway_pack_id) {
-              const pack = takeawayPacks.find(p => p.id === item.takeaway_pack_id);
+              const pack = allPacks.find(p => p.id === item.takeaway_pack_id);
               return !pack || !pack.is_active;
             }
             return false;
