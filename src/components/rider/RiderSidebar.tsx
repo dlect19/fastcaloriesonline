@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Home, Package, DollarSign, ArrowUpRight, Settings, LogOut, Power, MessageSquare } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,6 +18,41 @@ export function RiderSidebar({ isOnline = false, onToggleOnline, canViewEarnings
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [availableCount, setAvailableCount] = useState(0);
+
+  // Fetch and subscribe to pending dispatch offers count
+  useEffect(() => {
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    const setup = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const fetchCount = async () => {
+        const { count, error } = await supabase
+          .from('dispatch_offers')
+          .select('*', { count: 'exact', head: true })
+          .eq('rider_user_id', user.id)
+          .eq('status', 'pending');
+        if (!error && count !== null) setAvailableCount(count);
+      };
+
+      fetchCount();
+
+      channel = supabase
+        .channel('rider-sidebar-offers')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'dispatch_offers',
+          filter: `rider_user_id=eq.${user.id}`,
+        }, () => fetchCount())
+        .subscribe();
+    };
+
+    setup();
+    return () => { if (channel) supabase.removeChannel(channel); };
+  }, []);
 
   // Build menu items based on permissions
   const menuItems = [
@@ -79,6 +115,11 @@ export function RiderSidebar({ isOnline = false, onToggleOnline, canViewEarnings
                 >
                   <item.icon className="w-5 h-5" />
                   {item.label}
+                  {item.path === '/rider/available' && availableCount > 0 && (
+                    <span className="ml-auto min-w-[20px] h-5 px-1.5 rounded-full bg-destructive text-destructive-foreground text-xs font-bold flex items-center justify-center">
+                      {availableCount > 99 ? '99+' : availableCount}
+                    </span>
+                  )}
                 </button>
               </li>
             );
