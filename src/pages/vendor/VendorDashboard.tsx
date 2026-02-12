@@ -8,6 +8,7 @@ import {
   Wallet,
   AlertCircle,
   ChevronRight,
+  ChevronDown,
   Package,
   Clock,
   UtensilsCrossed,
@@ -41,6 +42,9 @@ export default function VendorDashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [walletData, setWalletData] = useState<any>(null);
+  const [allTransactions, setAllTransactions] = useState<any[]>([]);
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+  const [orderItems, setOrderItems] = useState<Record<string, any[]>>({});
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [stats, setStats] = useState({
     todayOrders: 0,
@@ -232,6 +236,16 @@ export default function VendorDashboard() {
         
         setWalletData(wallet);
 
+        // Fetch ALL wallet transactions for ledger-based balance computation
+        if (wallet) {
+          const env = isTestMode ? 'development' : 'production';
+          const { data: allTxData } = await supabase
+            .from('wallet_transactions')
+            .select('*')
+            .eq('wallet_id', wallet.id)
+            .eq('environment', env);
+          if (allTxData) setAllTransactions(allTxData);
+        }
         setStats(prev => ({
           ...prev,
           pendingOrders: pendingCount || 0,
@@ -250,6 +264,54 @@ export default function VendorDashboard() {
 
   const formatCurrency = (amount: number) => {
     return `₦${amount.toLocaleString()}`;
+  };
+
+  // Ledger-based balance computation (source of truth)
+  const computedMenuBalance = Math.max(0, allTransactions.reduce((sum: number, tx: any) => {
+    if (tx.category === 'vendor_share' && tx.status === 'completed') {
+      return tx.transaction_type === 'credit' ? sum + Number(tx.amount) : sum - Number(tx.amount);
+    }
+    if (tx.category === 'withdrawal' && tx.transaction_type === 'debit' && tx.notes?.includes('Menu Earnings')) {
+      return sum - Number(tx.amount);
+    }
+    if (tx.category === 'withdrawal_reversal' && tx.transaction_type === 'credit' && tx.notes?.includes('Menu Earnings')) {
+      return sum + Number(tx.amount);
+    }
+    return sum;
+  }, 0));
+
+  const computedMenuPending = Math.max(0, allTransactions
+    .filter((tx: any) => tx.category === 'vendor_share' && tx.transaction_type === 'credit' && tx.status === 'pending')
+    .reduce((sum: number, tx: any) => sum + Number(tx.amount), 0));
+
+  const computedRiderBalance = Math.max(0, allTransactions.reduce((sum: number, tx: any) => {
+    if (tx.category === 'vendor_rider_share' && tx.status === 'completed') {
+      return tx.transaction_type === 'credit' ? sum + Number(tx.amount) : sum - Number(tx.amount);
+    }
+    if (tx.category === 'withdrawal' && tx.transaction_type === 'debit' && tx.notes?.includes('Rider Revenue')) {
+      return sum - Number(tx.amount);
+    }
+    if (tx.category === 'withdrawal_reversal' && tx.transaction_type === 'credit' && tx.notes?.includes('Rider Revenue')) {
+      return sum + Number(tx.amount);
+    }
+    return sum;
+  }, 0));
+
+  const toggleOrderExpand = async (orderId: string) => {
+    if (expandedOrderId === orderId) {
+      setExpandedOrderId(null);
+      return;
+    }
+    setExpandedOrderId(orderId);
+    if (!orderItems[orderId]) {
+      const { data: items } = await supabase
+        .from('order_items')
+        .select('*, order_item_addons(*)')
+        .eq('order_id', orderId);
+      if (items) {
+        setOrderItems(prev => ({ ...prev, [orderId]: items }));
+      }
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -433,21 +495,13 @@ export default function VendorDashboard() {
                     <div>
                       <p className="text-xs text-muted-foreground">Available</p>
                       <p className="text-xl font-bold text-success">
-                        {formatCurrency(
-                          isTestMode 
-                            ? Number(walletData.test_menu_earnings_balance || 0)
-                            : Number(walletData.menu_earnings_balance || 0)
-                        )}
+                        {formatCurrency(computedMenuBalance)}
                       </p>
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">Pending (24hr hold)</p>
                       <p className="text-xl font-bold text-warning">
-                        {formatCurrency(
-                          isTestMode 
-                            ? Number(walletData.test_menu_earnings_pending || 0)
-                            : Number(walletData.menu_earnings_pending || 0)
-                        )}
+                        {formatCurrency(computedMenuPending)}
                       </p>
                     </div>
                   </div>
@@ -469,11 +523,7 @@ export default function VendorDashboard() {
                     <div>
                       <p className="text-xs text-muted-foreground">Available</p>
                       <p className="text-xl font-bold text-primary">
-                        {formatCurrency(
-                          isTestMode 
-                            ? Number(walletData.test_rider_revenue_balance || 0)
-                            : Number(walletData.rider_revenue_balance || 0)
-                        )}
+                        {formatCurrency(computedRiderBalance)}
                       </p>
                     </div>
                     <div>
@@ -506,30 +556,70 @@ export default function VendorDashboard() {
               ) : (
                 <div className="space-y-3">
                   {orders.map((order) => (
-                    <div
-                      key={order.id}
-                      className="flex items-center justify-between p-4 rounded-xl bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
-                    >
-                      <div>
-                        <p className="font-medium text-foreground">{order.order_number}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {new Date(order.created_at).toLocaleString('en-NG', {
-                            dateStyle: 'short',
-                            timeStyle: 'short',
-                          })}
-                        </p>
-                      </div>
-                      <div className="text-right flex items-center gap-3">
+                    <div key={order.id} className="rounded-xl bg-muted/50 overflow-hidden">
+                      <div
+                        className="flex items-center justify-between p-4 hover:bg-muted transition-colors cursor-pointer"
+                        onClick={() => toggleOrderExpand(order.id)}
+                      >
                         <div>
-                          <p className="font-semibold text-foreground">
-                            {hasPermission('view_earnings') ? formatCurrency(Number(order.menu_subtotal || order.subtotal)) : '***'}
+                          <p className="font-medium text-foreground">{order.order_number}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {new Date(order.created_at).toLocaleString('en-NG', {
+                              dateStyle: 'short',
+                              timeStyle: 'short',
+                            })}
                           </p>
-                          <Badge className={`${getStatusColor(order.status)} border-0 text-xs`}>
-                            {order.status.replace('_', ' ')}
-                          </Badge>
                         </div>
-                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                        <div className="text-right flex items-center gap-3">
+                          <div>
+                            <p className="font-semibold text-foreground">
+                              {hasPermission('view_earnings') ? formatCurrency(Number(order.menu_subtotal || order.subtotal)) : '***'}
+                            </p>
+                            <Badge className={`${getStatusColor(order.status)} border-0 text-xs`}>
+                              {order.status.replace('_', ' ')}
+                            </Badge>
+                          </div>
+                          {expandedOrderId === order.id 
+                            ? <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                            : <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                          }
+                        </div>
                       </div>
+                      {expandedOrderId === order.id && (
+                        <div className="px-4 pb-4 border-t border-border">
+                          {orderItems[order.id] ? (
+                            <div className="pt-3 space-y-2">
+                              {orderItems[order.id].map((item: any) => (
+                                <div key={item.id} className="flex justify-between items-start text-sm">
+                                  <div>
+                                    <p className="text-foreground">{item.quantity}x {item.product_name}</p>
+                                    {item.special_instructions && (
+                                      <p className="text-xs text-muted-foreground italic">Note: {item.special_instructions}</p>
+                                    )}
+                                    {item.order_item_addons?.length > 0 && (
+                                      <div className="text-xs text-muted-foreground mt-0.5">
+                                        {item.order_item_addons.map((addon: any) => (
+                                          <span key={addon.id} className="mr-2">+ {addon.addon_item_name}</span>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <p className="text-foreground font-medium whitespace-nowrap ml-3">
+                                    {formatCurrency(Number(item.total_price))}
+                                  </p>
+                                </div>
+                              ))}
+                              {order.delivery_type && (
+                                <p className="text-xs text-muted-foreground pt-1 border-t border-border mt-2">
+                                  Type: {order.delivery_type === 'pickup' ? 'Self Pickup' : 'Delivery'}
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="pt-3 text-sm text-muted-foreground">Loading items...</div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
