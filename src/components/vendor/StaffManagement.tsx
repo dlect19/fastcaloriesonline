@@ -12,8 +12,27 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Switch } from '@/components/ui/switch';
 import { UserPlus, Shield, Users, Loader2, Trash2, Eye, EyeOff, KeyRound, Clock } from 'lucide-react';
 import { format } from 'date-fns';
-import type { VendorStaffRole } from '@/hooks/useVendorPermissions';
+import type { VendorStaffRole, VendorPermission } from '@/hooks/useVendorPermissions';
+import { PermissionChecklistDialog } from '@/components/shared/PermissionChecklistDialog';
 
+const VENDOR_PERMISSION_DEFS: { key: string; label: string; description: string }[] = [
+  { key: 'view_dashboard', label: 'View Dashboard', description: 'Access the vendor dashboard' },
+  { key: 'manage_menu', label: 'Manage Menu', description: 'Add, edit, and remove menu items' },
+  { key: 'process_orders', label: 'Process Orders', description: 'View and manage customer orders' },
+  { key: 'view_earnings', label: 'View Earnings', description: 'See revenue and financial reports' },
+  { key: 'request_withdrawal', label: 'Request Withdrawal', description: 'Withdraw funds to bank account' },
+  { key: 'manage_staff', label: 'Manage Staff', description: 'Invite and manage team members' },
+  { key: 'edit_settings', label: 'Edit Settings', description: 'Change vendor settings and profile' },
+  { key: 'manage_promos', label: 'Manage Promos', description: 'Create and manage promotions' },
+  { key: 'manage_riders', label: 'Manage Riders', description: 'Manage affiliated riders' },
+];
+
+const VENDOR_ROLE_PERMISSIONS: Record<VendorStaffRole, string[]> = {
+  owner: ['view_dashboard', 'manage_menu', 'process_orders', 'view_earnings', 'request_withdrawal', 'manage_staff', 'edit_settings', 'manage_promos', 'manage_riders'],
+  manager: ['view_dashboard', 'manage_menu', 'process_orders', 'view_earnings', 'manage_promos', 'manage_riders'],
+  cashier: ['view_dashboard', 'process_orders'],
+  viewer: ['view_dashboard'],
+};
 
 interface StaffMember {
   id: string;
@@ -24,6 +43,7 @@ interface StaffMember {
   invite_code: string | null;
   invite_accepted_at: string | null;
   created_at: string;
+  permissions?: string[];
   profile?: {
     full_name: string | null;
     phone: string | null;
@@ -59,6 +79,8 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
   const [inviteRole, setInviteRole] = useState<VendorStaffRole>('viewer');
   const [inviting, setInviting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [permDialogOpen, setPermDialogOpen] = useState(false);
+  const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
 
   useEffect(() => {
     fetchStaff();
@@ -68,7 +90,7 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
     try {
       const { data, error } = await supabase
         .from('vendor_staff')
-        .select('id, vendor_id, user_id, role, is_active, invite_email, invite_accepted_at, created_at')
+        .select('id, vendor_id, user_id, role, is_active, invite_email, invite_accepted_at, created_at, permissions')
         .eq('vendor_id', vendorId)
         .order('created_at', { ascending: false });
 
@@ -238,6 +260,28 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
       toast({ title: 'Error removing staff', variant: 'destructive' });
     }
   };
+
+  const handleSavePermissions = async (permissions: string[]) => {
+    if (!editingStaff) return;
+    try {
+      const { error } = await supabase
+        .from('vendor_staff')
+        .update({ permissions })
+        .eq('id', editingStaff.id);
+
+      if (error) throw error;
+
+      setStaff(prev => prev.map(s => 
+        s.id === editingStaff.id ? { ...s, permissions } : s
+      ));
+      
+      toast({ title: permissions.length > 0 ? 'Custom permissions saved' : 'Reset to role defaults' });
+    } catch (error) {
+      console.error('Error saving permissions:', error);
+      toast({ title: 'Error saving permissions', variant: 'destructive' });
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -441,15 +485,28 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
                         ? format(new Date(member.invite_accepted_at), 'PP')
                         : 'Not yet'}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right flex items-center justify-end gap-1">
                       {member.role !== 'owner' && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleRemoveStaff(member.id)}
-                        >
-                          <Trash2 className="w-4 h-4 text-destructive" />
-                        </Button>
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Edit permissions"
+                            onClick={() => {
+                              setEditingStaff(member);
+                              setPermDialogOpen(true);
+                            }}
+                          >
+                            <Shield className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRemoveStaff(member.id)}
+                          >
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
+                        </>
                       )}
                     </TableCell>
                   </TableRow>
@@ -459,6 +516,18 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
           )}
         </CardContent>
       </Card>
+
+      {editingStaff && (
+        <PermissionChecklistDialog
+          open={permDialogOpen}
+          onOpenChange={setPermDialogOpen}
+          allPermissions={VENDOR_PERMISSION_DEFS}
+          roleDefaults={VENDOR_ROLE_PERMISSIONS[editingStaff.role]}
+          currentPermissions={editingStaff.permissions || []}
+          onSave={handleSavePermissions}
+          roleName={editingStaff.role.charAt(0).toUpperCase() + editingStaff.role.slice(1)}
+        />
+      )}
     </div>
   );
 }
