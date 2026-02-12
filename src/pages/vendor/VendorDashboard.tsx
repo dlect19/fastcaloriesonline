@@ -157,10 +157,10 @@ export default function VendorDashboard() {
         .lt('created_at', end);
 
       const revenue = (deliveredOrders || []).reduce(
-        (sum, o) => sum + Number(o.menu_subtotal || o.subtotal || 0), 0
+        (sum, o) => sum + Number(o.subtotal || 0), 0
       );
       const inTransitRevenue = (inTransitOrders || []).reduce(
-        (sum, o) => sum + Number(o.menu_subtotal || o.subtotal || 0), 0
+        (sum, o) => sum + Number(o.subtotal || 0), 0
       );
 
       setStats(prev => ({
@@ -573,7 +573,7 @@ export default function VendorDashboard() {
                         <div className="text-right flex items-center gap-3">
                           <div>
                             <p className="font-semibold text-foreground">
-                              {hasPermission('view_earnings') ? formatCurrency(Number(order.menu_subtotal || order.subtotal)) : '***'}
+                              {hasPermission('view_earnings') ? formatCurrency(Number(order.subtotal)) : '***'}
                             </p>
                             <Badge className={`${getStatusColor(order.status)} border-0 text-xs`}>
                               {order.status.replace('_', ' ')}
