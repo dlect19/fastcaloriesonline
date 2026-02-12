@@ -1,0 +1,1 @@
+ALTER FUNCTION reconcile_vendor_wallet(UUID) SET search_path = public;

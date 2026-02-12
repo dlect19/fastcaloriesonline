@@ -47,6 +47,7 @@ interface WalletTransaction {
   status: string;
   order_id: string | null;
   created_at: string;
+  notes: string | null;
   metadata: Record<string, unknown>;
 }
 
@@ -57,6 +58,7 @@ export default function VendorEarnings() {
   const [vendor, setVendor] = useState<Vendor | null>(null);
   const [wallet, setWallet] = useState<VendorWallet | null>(null);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
+  const [allTransactions, setAllTransactions] = useState<WalletTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendor?.id || null);
@@ -217,8 +219,7 @@ export default function VendorEarnings() {
 
         const { data: txData } = await txQuery;
 
-        if (txData) {
-          setTransactions(txData.map(tx => ({
+          const mapTx = (tx: any): WalletTransaction => ({
             id: tx.id,
             wallet_type: tx.wallet_type,
             transaction_type: tx.transaction_type,
@@ -227,10 +228,26 @@ export default function VendorEarnings() {
             status: tx.status || 'completed',
             order_id: tx.order_id,
             created_at: tx.created_at,
+            notes: tx.notes || null,
             metadata: (tx.metadata as Record<string, unknown>) || {},
-          })));
+          });
+
+          if (txData) {
+            setTransactions(txData.map(mapTx));
+          }
+
+          // Fetch ALL transactions (no date filter) for accurate balance computation
+          const env = isTestMode ? 'development' : 'production';
+          const { data: allTxData } = await supabase
+            .from('wallet_transactions')
+            .select('*')
+            .eq('wallet_id', walletData.id)
+            .eq('environment', env);
+
+          if (allTxData) {
+            setAllTransactions(allTxData.map(mapTx));
+          }
         }
-      }
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -252,13 +269,43 @@ export default function VendorEarnings() {
     return labels[category] || category;
   };
 
-  // Calculate rider delivery revenue from transactions
-  const riderDeliveryRevenue = transactions
-    .filter(tx => tx.category === 'vendor_rider_share' && tx.status === 'completed')
-    .reduce((sum, tx) => sum + tx.amount, 0);
+  // Compute balances from ALL transactions (ledger = source of truth)
+  const computedMenuBalance = Math.max(0, allTransactions
+    .reduce((sum, tx) => {
+      if (tx.category === 'vendor_share' && tx.status === 'completed') {
+        return tx.transaction_type === 'credit' ? sum + tx.amount : sum - tx.amount;
+      }
+      if (tx.category === 'withdrawal' && tx.transaction_type === 'debit' && tx.notes?.includes('Menu Earnings')) {
+        return sum - tx.amount;
+      }
+      if (tx.category === 'withdrawal_reversal' && tx.transaction_type === 'credit' && tx.notes?.includes('Menu Earnings')) {
+        return sum + tx.amount;
+      }
+      return sum;
+    }, 0));
+
+  const computedMenuPending = Math.max(0, allTransactions
+    .filter(tx => tx.category === 'vendor_share' && tx.transaction_type === 'credit' && tx.status === 'pending')
+    .reduce((sum, tx) => sum + tx.amount, 0));
+
+  const computedRiderBalance = Math.max(0, allTransactions
+    .reduce((sum, tx) => {
+      if (tx.category === 'vendor_rider_share' && tx.status === 'completed') {
+        return tx.transaction_type === 'credit' ? sum + tx.amount : sum - tx.amount;
+      }
+      if (tx.category === 'withdrawal' && tx.transaction_type === 'debit' && tx.notes?.includes('Rider Revenue')) {
+        return sum - tx.amount;
+      }
+      if (tx.category === 'withdrawal_reversal' && tx.transaction_type === 'credit' && tx.notes?.includes('Rider Revenue')) {
+        return sum + tx.amount;
+      }
+      return sum;
+    }, 0));
+
+  const computedTotalAvailable = computedMenuBalance + computedRiderBalance;
 
   // Calculate accurate total earned from ledger (net credits minus reversal debits)
-  const computedTotalEarned = transactions
+  const computedTotalEarned = allTransactions
     .filter(tx => 
       ['vendor_share', 'vendor_rider_share'].includes(tx.category) && 
       tx.status === 'completed'
@@ -420,21 +467,21 @@ export default function VendorEarnings() {
                   <div>
                     <p className="text-sm text-muted-foreground">Available</p>
                     <p className="text-xl font-bold text-success">
-                      {formatCurrency(wallet?.menu_earnings_balance || 0)}
+                      {formatCurrency(computedMenuBalance)}
                     </p>
                     <p className="text-xs text-success">Ready to withdraw</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Pending</p>
                     <p className="text-xl font-bold text-warning">
-                      {formatCurrency(wallet?.menu_earnings_pending || 0)}
+                      {formatCurrency(computedMenuPending)}
                     </p>
                     <p className="text-xs text-muted-foreground flex items-center gap-1">
                       <Clock className="w-3 h-3" /> 24hr hold
                     </p>
                   </div>
                 </div>
-                {hasPermission('request_withdrawal') && (wallet?.menu_earnings_balance || 0) > 0 && (
+                {hasPermission('request_withdrawal') && computedMenuBalance > 0 && (
                   <Button 
                     variant="default" 
                     size="sm" 
@@ -464,7 +511,7 @@ export default function VendorEarnings() {
                   <div>
                     <p className="text-sm text-muted-foreground">Available</p>
                     <p className="text-xl font-bold text-success">
-                      {formatCurrency(wallet?.rider_revenue_balance || 0)}
+                      {formatCurrency(computedRiderBalance)}
                     </p>
                     <p className="text-xs text-success">Ready to withdraw</p>
                   </div>
@@ -474,7 +521,7 @@ export default function VendorEarnings() {
                   </div>
                 </div>
                 <div className="flex gap-2 mt-4">
-                  {hasPermission('request_withdrawal') && (wallet?.rider_revenue_balance || 0) > 0 && (
+                  {hasPermission('request_withdrawal') && computedRiderBalance > 0 && (
                     <Button 
                       variant="default" 
                       size="sm" 
@@ -506,7 +553,7 @@ export default function VendorEarnings() {
                   <div>
                     <p className="text-sm text-muted-foreground">Total Available</p>
                     <p className="text-2xl font-bold text-foreground">
-                      {formatCurrency(wallet?.eligible_balance || 0)}
+                      {formatCurrency(computedTotalAvailable)}
                     </p>
                     <p className="text-xs text-success">All sources combined</p>
                   </div>
@@ -524,7 +571,7 @@ export default function VendorEarnings() {
                   <div>
                     <p className="text-sm text-muted-foreground">Total Pending</p>
                     <p className="text-2xl font-bold text-foreground">
-                      {formatCurrency(wallet?.pending_balance || 0)}
+                      {formatCurrency(computedMenuPending)}
                     </p>
                     <p className="text-xs text-muted-foreground flex items-center gap-1">
                       <Clock className="w-3 h-3" /> Menu sales only
