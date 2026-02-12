@@ -348,47 +348,64 @@ export default function VendorDetail() {
         />
       )}
 
-      {/* Combos Section */}
-      {combos.length > 0 && !searchQuery && (
-        <section className="container py-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Package className="w-5 h-5 text-primary" />
-            <h2 className="text-lg font-semibold text-foreground">
-              {vendor.category === 'pharmacy' ? 'Health Packs' : vendor.category === 'market' ? 'Bundle Deals' : 'Combo Deals'}
-            </h2>
+      {/* Closed Store Banner */}
+      {!vendor.is_open && (
+        <div className="container py-3">
+          <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-4 text-center">
+            <p className="text-sm font-semibold text-destructive">This store is currently closed</p>
+            <p className="text-xs text-muted-foreground mt-1">You can browse the menu but ordering is not available right now.</p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {combos.map((combo) => (
-              <ComboCard key={combo.id} combo={combo} vendor={vendor} />
-            ))}
-          </div>
-        </section>
+        </div>
       )}
 
-      {/* Products Grid */}
-      <main className="container py-4">
-        {filteredProducts.length === 0 && combos.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground">
-              {searchQuery ? 'No items match your search' : 'No items available'}
-            </p>
-          </div>
-        ) : filteredProducts.length === 0 && searchQuery ? (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground">No items match your search</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {filteredProducts.map((product) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                vendor={vendor}
-              />
-            ))}
-          </div>
+      {/* Menu content wrapper — overlay when closed */}
+      <div className={`relative ${!vendor.is_open ? 'pointer-events-none' : ''}`}>
+        {!vendor.is_open && (
+          <div className="absolute inset-0 bg-background/60 z-10 rounded-xl" />
         )}
-      </main>
+
+        {/* Combos Section */}
+        {combos.length > 0 && !searchQuery && (
+          <section className="container py-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Package className="w-5 h-5 text-primary" />
+              <h2 className="text-lg font-semibold text-foreground">
+                {vendor.category === 'pharmacy' ? 'Health Packs' : vendor.category === 'market' ? 'Bundle Deals' : 'Combo Deals'}
+              </h2>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {combos.map((combo) => (
+                <ComboCard key={combo.id} combo={combo} vendor={vendor} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Products Grid */}
+        <main className="container py-4">
+          {filteredProducts.length === 0 && combos.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">
+                {searchQuery ? 'No items match your search' : 'No items available'}
+              </p>
+            </div>
+          ) : filteredProducts.length === 0 && searchQuery ? (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">No items match your search</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {filteredProducts.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  vendor={vendor}
+                />
+              ))}
+            </div>
+          )}
+        </main>
+      </div>
 
       {/* Customer Reviews Section */}
       <div className="container py-2 pb-6">

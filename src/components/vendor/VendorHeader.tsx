@@ -61,8 +61,8 @@ export function VendorHeader({ vendor }: VendorHeaderProps) {
                   <h1 className="text-xl font-bold text-foreground truncate">{vendor.name}</h1>
                   <p className="text-sm text-muted-foreground">{categoryLabels[vendor.category]}</p>
                 </div>
-                <Badge variant="secondary" className="shrink-0">
-                  {vendor.is_active ? 'Open' : 'Closed'}
+                <Badge variant={vendor.is_open ? 'secondary' : 'destructive'} className="shrink-0">
+                  {vendor.is_open ? 'Open' : 'Closed'}
                 </Badge>
               </div>
 
