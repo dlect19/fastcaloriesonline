@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, Plus, Copy, QrCode, RefreshCw, Trash2, Circle, Bike, TrendingUp, Banknote } from 'lucide-react';
+import { DateRangeFilter, DateRange } from '@/components/shared/DateRangeFilter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -66,6 +67,7 @@ export default function VendorRiders() {
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [currentInviteLink, setCurrentInviteLink] = useState('');
   const [deliveryRevenue, setDeliveryRevenue] = useState(0);
+  const [revenueDateRange, setRevenueDateRange] = useState<DateRange>({ from: undefined, to: undefined });
 
   const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendor?.id || null);
 
@@ -80,6 +82,50 @@ export default function VendorRiders() {
       fetchData();
     }
   }, [user, authLoading, navigate]);
+
+  const fetchDeliveryRevenue = async (vendorId: string, riderUserIds: string[], dateRange?: DateRange) => {
+    try {
+      let query = supabase
+        .from('orders')
+        .select('delivery_fee')
+        .eq('vendor_id', vendorId)
+        .eq('status', 'delivered')
+        .in('rider_id', riderUserIds);
+
+      const range = dateRange || revenueDateRange;
+      if (range.from) {
+        query = query.gte('delivered_at', range.from.toISOString());
+      }
+      if (range.to) {
+        const endOfDay = new Date(range.to);
+        endOfDay.setHours(23, 59, 59, 999);
+        query = query.lte('delivered_at', endOfDay.toISOString());
+      }
+
+      const { data: deliveredOrders } = await query;
+      if (deliveredOrders) {
+        const totalRevenue = deliveredOrders.reduce(
+          (sum, o) => sum + (o.delivery_fee || 0) * 0.8,
+          0
+        );
+        setDeliveryRevenue(Math.round(totalRevenue));
+      }
+    } catch (error) {
+      console.error('Error fetching delivery revenue:', error);
+    }
+  };
+
+  const handleRevenueDateChange = (newRange: DateRange) => {
+    setRevenueDateRange(newRange);
+    if (vendor && riders.length > 0) {
+      const riderUserIds = riders
+        .map((r) => r.rider_profile?.user_id)
+        .filter(Boolean) as string[];
+      if (riderUserIds.length > 0) {
+        fetchDeliveryRevenue(vendor.id, riderUserIds, newRange);
+      }
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -158,20 +204,7 @@ export default function VendorRiders() {
           .filter(Boolean);
 
         if (riderUserIds.length > 0) {
-          const { data: deliveredOrders } = await supabase
-            .from('orders')
-            .select('delivery_fee')
-            .eq('vendor_id', vendorData.id)
-            .eq('status', 'delivered')
-            .in('rider_id', riderUserIds);
-
-          if (deliveredOrders) {
-            const totalRevenue = deliveredOrders.reduce(
-              (sum, o) => sum + (o.delivery_fee || 0) * 0.8, // 80% vendor share
-              0
-            );
-            setDeliveryRevenue(Math.round(totalRevenue));
-          }
+          await fetchDeliveryRevenue(vendorData.id, riderUserIds);
         }
       }
     } catch (error) {
@@ -385,9 +418,8 @@ export default function VendorRiders() {
             </Card>
           </div>
 
-          {/* Delivery Revenue Card */}
           <Card className="border-0 shadow-soft bg-gradient-to-br from-primary/5 to-primary/10">
-            <CardContent className="p-4">
+            <CardContent className="p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
@@ -403,6 +435,10 @@ export default function VendorRiders() {
                 </div>
                 <TrendingUp className="w-8 h-8 text-primary/40" />
               </div>
+              <DateRangeFilter
+                dateRange={revenueDateRange}
+                onDateRangeChange={handleRevenueDateChange}
+              />
             </CardContent>
           </Card>
 
