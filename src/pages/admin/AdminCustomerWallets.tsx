@@ -164,55 +164,19 @@ export default function AdminCustomerWallets() {
 
     setAdjusting(true);
     try {
-      const currentBalance = isTestMode 
-        ? Number(selectedWallet.test_balance) || 0 
-        : Number(selectedWallet.balance) || 0;
+      const { data, error } = await supabase.rpc('admin_adjust_wallet_balance' as any, {
+        p_wallet_id: selectedWallet.id,
+        p_amount: amount,
+        p_adjust_type: adjustType,
+        p_notes: adjustNotes,
+        p_environment: isTestMode ? 'development' : 'production',
+        p_reference: adjustReference || null,
+      });
 
-      let newBalance: number;
-      if (adjustType === 'credit') {
-        newBalance = currentBalance + amount;
-      } else {
-        if (amount > currentBalance) {
-          toast({
-            title: 'Insufficient Balance',
-            description: 'Cannot debit more than the current balance',
-            variant: 'destructive',
-          });
-          setAdjusting(false);
-          return;
-        }
-        newBalance = currentBalance - amount;
-      }
+      if (error) throw error;
 
-      // Update wallet balance
-      const updateData = isTestMode 
-        ? { test_balance: newBalance }
-        : { balance: newBalance };
-
-      const { error: updateError } = await supabase
-        .from('wallets')
-        .update(updateData)
-        .eq('id', selectedWallet.id);
-
-      if (updateError) throw updateError;
-
-      // Log transaction
-      const { error: txError } = await supabase
-        .from('wallet_transactions')
-        .insert({
-          wallet_id: selectedWallet.id,
-          wallet_type: 'customer',
-          transaction_type: adjustType,
-          category: adjustType === 'credit' ? 'admin_credit' : 'admin_debit',
-          amount,
-          balance_after: newBalance,
-          status: 'completed',
-          environment: isTestMode ? 'development' : 'production',
-          notes: adjustNotes,
-          metadata: { adjusted_by_admin: true, ...(adjustReference ? { payment_reference: adjustReference } : {}) },
-        });
-
-      if (txError) throw txError;
+      const result = data as any;
+      const newBalance = result?.new_balance ?? 0;
 
       // Update local state
       setWallets(prev => prev.map(w => {
