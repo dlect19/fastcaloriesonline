@@ -24,6 +24,7 @@ export default function VendorStaff() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { navigate('/vendor/auth'); return; }
 
+    // Check if owner
     const { data: vendor } = await supabase
       .from('vendors')
       .select('id, name')
@@ -32,10 +33,36 @@ export default function VendorStaff() {
       .limit(1)
       .maybeSingle();
 
-    if (!vendor) { navigate('/vendor/auth'); return; }
-    setVendorId(vendor.id);
-    setVendorName(vendor.name);
-    setLoading(false);
+    if (vendor) {
+      setVendorId(vendor.id);
+      setVendorName(vendor.name);
+      setLoading(false);
+      return;
+    }
+
+    // Check if staff
+    const { data: staffRecord } = await supabase
+      .from('vendor_staff')
+      .select('vendor_id')
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (staffRecord) {
+      const { data: staffVendor } = await supabase
+        .from('vendors')
+        .select('id, name')
+        .eq('id', staffRecord.vendor_id)
+        .single();
+      if (staffVendor) {
+        setVendorId(staffVendor.id);
+        setVendorName(staffVendor.name);
+        setLoading(false);
+        return;
+      }
+    }
+
+    navigate('/vendor/auth');
   };
 
   if (loading || permLoading) {
