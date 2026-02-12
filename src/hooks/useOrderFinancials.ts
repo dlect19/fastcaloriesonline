@@ -43,7 +43,9 @@ export function useOrderFinancials({
         .select('id')
         .eq('vendor_id', vendorId)
         .eq('environment', environment)
-        .eq('payment_status', 'paid');
+        .eq('payment_status', 'paid')
+        .not('status', 'eq', 'cancelled')
+        .in('status', ['delivered']);
 
       if (dateRange?.from) {
         orderQuery = orderQuery.gte('created_at', dateRange.from.toISOString());
