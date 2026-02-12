@@ -22,6 +22,7 @@ interface CancelOrderDialogProps {
   orderId: string;
   orderNumber: string;
   orderTotal: number;
+  paymentStatus?: string;
   onCancelled: () => void;
 }
 
@@ -39,8 +40,10 @@ export function CancelOrderDialog({
   orderId,
   orderNumber,
   orderTotal,
+  paymentStatus,
   onCancelled,
 }: CancelOrderDialogProps) {
+  const isPaid = paymentStatus === 'paid';
   const { toast } = useToast();
   const [selectedReason, setSelectedReason] = useState<string>('');
   const [customReason, setCustomReason] = useState('');
@@ -75,34 +78,40 @@ export function CancelOrderDialog({
 
       if (updateError) throw updateError;
 
-      // 2. Process refund to customer wallet
-      const { data: refundData, error: refundError } = await supabase.functions.invoke(
-        'process-refund',
-        {
-          body: {
-            orderId,
-            reason: `Vendor cancelled: ${finalReason}`,
-          },
-        }
-      );
+      // 2. Only process refund if the order was actually paid
+      if (isPaid) {
+        const { data: refundData, error: refundError } = await supabase.functions.invoke(
+          'process-refund',
+          {
+            body: {
+              orderId,
+              reason: `Vendor cancelled: ${finalReason}`,
+            },
+          }
+        );
 
-      if (refundError) {
-        console.error('Refund error:', refundError);
+        if (refundError) {
+          console.error('Refund error:', refundError);
+          toast({
+            title: 'Order Cancelled',
+            description: `Order cancelled but refund failed. Please contact support.`,
+            variant: 'destructive',
+          });
+        } else if (refundData?.success) {
+          toast({
+            title: 'Order Cancelled & Refunded',
+            description: `₦${refundData.refund_amount?.toLocaleString()} has been refunded to customer's wallet`,
+          });
+        } else if (refundData?.error) {
+          toast({
+            title: 'Order Cancelled',
+            description: refundData.error,
+          });
+        }
+      } else {
         toast({
           title: 'Order Cancelled',
-          description: `Order cancelled but refund failed. Please contact support.`,
-          variant: 'destructive',
-        });
-      } else if (refundData?.success) {
-        toast({
-          title: 'Order Cancelled & Refunded',
-          description: `₦${refundData.refund_amount?.toLocaleString()} has been refunded to customer's wallet`,
-        });
-      } else if (refundData?.error) {
-        // Refund might fail if already refunded or other issue
-        toast({
-          title: 'Order Cancelled',
-          description: refundData.error,
+          description: 'Order was not paid — no refund needed.',
         });
       }
 
@@ -133,11 +142,19 @@ export function CancelOrderDialog({
             Cancel Order {orderNumber}?
           </AlertDialogTitle>
           <AlertDialogDescription className="text-left">
-            This will cancel the order and automatically refund{' '}
-            <span className="font-semibold text-foreground">
-              ₦{orderTotal.toLocaleString()}
-            </span>{' '}
-            to the customer's wallet.
+            {isPaid ? (
+              <>
+                This will cancel the order and automatically refund{' '}
+                <span className="font-semibold text-foreground">
+                  ₦{orderTotal.toLocaleString()}
+                </span>{' '}
+                to the customer's wallet.
+              </>
+            ) : (
+              <>
+                This will cancel the order. No refund will be issued as the order was not paid.
+              </>
+            )}
           </AlertDialogDescription>
         </AlertDialogHeader>
 
@@ -183,7 +200,7 @@ export function CancelOrderDialog({
                 Processing...
               </>
             ) : (
-              'Cancel & Refund'
+              isPaid ? 'Cancel & Refund' : 'Cancel Order'
             )}
           </AlertDialogAction>
         </AlertDialogFooter>

@@ -77,6 +77,15 @@ serve(async (req: Request) => {
       );
     }
 
+    // CRITICAL: Only refund orders that were actually paid
+    if (order.payment_status !== 'paid') {
+      console.log(`Refund skipped: order ${order.order_number} has payment_status=${order.payment_status}`);
+      return new Response(
+        JSON.stringify({ error: "Order was not paid — no refund needed", skipped: true }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
     // Check if refund already processed
     const { data: existingRefund } = await supabaseAdmin
       .from("wallet_transactions")
