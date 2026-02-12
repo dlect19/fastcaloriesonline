@@ -7,17 +7,9 @@ const corsHeaders = {
 
 interface AssignRiderRequest {
   orderId: string;
-  riderId: string; // Now REQUIRED - no auto-assignment
+  riderId: string;
 }
 
-/**
- * MANUAL RIDER ASSIGNMENT ONLY
- * 
- * This function is ONLY for explicit manual assignment by vendors.
- * It does NOT auto-find riders anymore.
- * 
- * For platform rider dispatch, use the dispatch-order function instead.
- */
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -28,6 +20,24 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // 1. Verify authentication
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ error: 'Missing authorization' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const { orderId, riderId }: AssignRiderRequest = await req.json();
 
     if (!orderId) {
@@ -37,39 +47,59 @@ Deno.serve(async (req) => {
       );
     }
 
-    // IMPORTANT: riderId is now REQUIRED - no auto-assignment
     if (!riderId) {
-      console.log('No riderId provided - auto-assignment is disabled. Use dispatch-order for platform riders.');
       return new Response(
-        JSON.stringify({ 
-          error: 'Rider ID is required. Auto-assignment is disabled.',
-          message: 'For platform rider dispatch, use the dispatch-order function instead.',
-          success: false 
-        }),
+        JSON.stringify({ error: 'Rider ID is required. Use dispatch-order for platform riders.' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`Manually assigning rider ${riderId} to order ${orderId}`);
-
-    // Get order details
+    // 2. Get order details
     const { data: order, error: orderError } = await supabase
       .from('orders')
-      .select('id, vendor_id, status, rider_id, delivery_type')
+      .select('id, vendor_id, status, rider_id, delivery_type, order_number')
       .eq('id', orderId)
       .single();
 
     if (orderError || !order) {
-      console.error('Order not found:', orderError);
       return new Response(
         JSON.stringify({ error: 'Order not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Skip rider assignment for self-pickup orders
+    // 3. Authorization: check if user is vendor owner, vendor staff, or admin
+    const { data: isVendorOwner } = await supabase
+      .from('vendors')
+      .select('id')
+      .eq('id', order.vendor_id)
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    const { data: isVendorStaff } = await supabase
+      .from('vendor_staff')
+      .select('role')
+      .eq('user_id', user.id)
+      .eq('vendor_id', order.vendor_id)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    const { data: isAdmin } = await supabase
+      .from('admin_staff')
+      .select('role')
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (!isVendorOwner && !isVendorStaff && !isAdmin) {
+      return new Response(
+        JSON.stringify({ error: 'You do not have permission to assign riders to this order' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 4. Business logic checks
     if (order.delivery_type === 'self_pickup') {
-      console.log('Self-pickup order, skipping rider assignment');
       return new Response(
         JSON.stringify({ success: true, message: 'Self-pickup order, no rider needed' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -83,7 +113,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Update order with assigned rider
+    // 5. Assign rider
     const { error: updateError } = await supabase
       .from('orders')
       .update({
@@ -98,14 +128,10 @@ Deno.serve(async (req) => {
       throw updateError;
     }
 
-    console.log(`Rider ${riderId} manually assigned to order ${orderId}`);
+    console.log(`User ${user.id} assigned rider ${riderId} to order ${orderId}`);
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        riderId: riderId,
-        message: 'Rider assigned successfully',
-      }),
+      JSON.stringify({ success: true, riderId, message: 'Rider assigned successfully' }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
