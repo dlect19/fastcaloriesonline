@@ -1,19 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { VendorSidebar } from '@/components/vendor/VendorSidebar';
-import { StaffManagement } from '@/components/vendor/StaffManagement';
+import { DeliverySidebar } from '@/components/delivery/DeliverySidebar';
+import { DeliveryStaffManagement } from '@/components/delivery/DeliveryStaffManagement';
 import { ActivityLogViewer } from '@/components/shared/ActivityLogViewer';
 import { Loader2 } from 'lucide-react';
-import { useVendorPermissions } from '@/hooks/useVendorPermissions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-export default function VendorStaff() {
+export default function DeliveryStaff() {
   const navigate = useNavigate();
-  const [vendorId, setVendorId] = useState<string | null>(null);
-  const [vendorName, setVendorName] = useState('');
+  const [companyId, setCompanyId] = useState<string | null>(null);
+  const [companyName, setCompanyName] = useState('');
   const [loading, setLoading] = useState(true);
-  const { hasPermission, loading: permLoading } = useVendorPermissions(vendorId);
 
   useEffect(() => {
     checkAuth();
@@ -21,23 +19,23 @@ export default function VendorStaff() {
 
   const checkAuth = async () => {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { navigate('/vendor/auth'); return; }
+    if (!user) { navigate('/delivery/auth'); return; }
 
-    const { data: vendor } = await supabase
-      .from('vendors')
+    const { data: company } = await supabase
+      .from('delivery_companies')
       .select('id, name')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
 
-    if (!vendor) { navigate('/vendor/auth'); return; }
-    setVendorId(vendor.id);
-    setVendorName(vendor.name);
+    if (!company) { navigate('/delivery/auth'); return; }
+    setCompanyId(company.id);
+    setCompanyName(company.name);
     setLoading(false);
   };
 
-  if (loading || permLoading) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -45,25 +43,9 @@ export default function VendorStaff() {
     );
   }
 
-  if (!hasPermission('manage_staff')) {
-    return (
-      <div className="min-h-screen bg-background flex">
-        <VendorSidebar vendorName={vendorName} />
-        <main className="flex-1 lg:ml-64 pt-14 lg:pt-0">
-          <div className="p-6 flex items-center justify-center min-h-screen">
-            <div className="text-center">
-              <h2 className="text-xl font-semibold mb-2">Access Denied</h2>
-              <p className="text-muted-foreground">You don't have permission to manage staff.</p>
-            </div>
-          </div>
-        </main>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-background flex">
-      <VendorSidebar vendorName={vendorName} />
+      <DeliverySidebar companyName={companyName} />
       <main className="flex-1 lg:ml-64 pt-14 lg:pt-0">
         <div className="p-6">
           <Tabs defaultValue="staff">
@@ -72,10 +54,10 @@ export default function VendorStaff() {
               <TabsTrigger value="activity">Activity Log</TabsTrigger>
             </TabsList>
             <TabsContent value="staff" className="mt-4">
-              {vendorId && <StaffManagement vendorId={vendorId} />}
+              {companyId && <DeliveryStaffManagement companyId={companyId} />}
             </TabsContent>
             <TabsContent value="activity" className="mt-4">
-              {vendorId && <ActivityLogViewer entityType="vendor" entityId={vendorId} />}
+              {companyId && <ActivityLogViewer entityType="delivery_company" entityId={companyId} />}
             </TabsContent>
           </Tabs>
         </div>

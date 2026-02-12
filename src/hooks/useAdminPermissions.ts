@@ -43,6 +43,7 @@ export function useAdminPermissions(): UseAdminPermissionsResult {
   const { user } = useAuth();
   const [role, setRole] = useState<AdminStaffRole | null>(null);
   const [loading, setLoading] = useState(true);
+  const [customPermissions, setCustomPermissions] = useState<AdminPermission[] | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -69,12 +70,16 @@ export function useAdminPermissions(): UseAdminPermissionsResult {
         // Then check admin_staff table for specific role
         const { data: staffRecord } = await supabase
           .from('admin_staff')
-          .select('role')
+          .select('role, permissions')
           .eq('user_id', user.id)
           .eq('is_active', true)
           .maybeSingle();
 
         if (staffRecord) {
+          const customPerms = staffRecord.permissions as string[] | null;
+          if (customPerms && customPerms.length > 0) {
+            setCustomPermissions(customPerms as AdminPermission[]);
+          }
           setRole(staffRecord.role as AdminStaffRole);
         } else {
           // If user has admin role but no admin_staff record, treat as super_admin (legacy)
@@ -93,10 +98,11 @@ export function useAdminPermissions(): UseAdminPermissionsResult {
 
   const hasPermission = (permission: AdminPermission): boolean => {
     if (!role) return false;
-    return ROLE_PERMISSIONS[role].includes(permission);
+    const effectivePerms = customPermissions || ROLE_PERMISSIONS[role];
+    return effectivePerms.includes(permission);
   };
 
-  const permissions = role ? ROLE_PERMISSIONS[role] : [];
+  const permissions = customPermissions || (role ? ROLE_PERMISSIONS[role] : []);
   const isSuperAdmin = role === 'super_admin';
 
   return { role, loading, hasPermission, isSuperAdmin, permissions };

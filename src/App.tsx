@@ -78,9 +78,11 @@ import DeliveryWithdraw from "./pages/delivery/DeliveryWithdraw";
 import DeliverySettings from "./pages/delivery/DeliverySettings";
 import DeliveryRiderJoin from "./pages/delivery/DeliveryRiderJoin";
 import DeliverySupport from "./pages/delivery/DeliverySupport";
+import DeliveryStaff from "./pages/delivery/DeliveryStaff";
 import VendorSupport from "./pages/vendor/VendorSupport";
 import RiderSupport from "./pages/rider/RiderSupport";
 import AdminSupport from "./pages/admin/AdminSupport";
+import WorkspaceLogin from "./pages/WorkspaceLogin";
 import { playGlobalNotificationSound } from '@/lib/globalAudio';
 
 const queryClient = new QueryClient();
@@ -182,6 +184,9 @@ const App = () => (
               <Route path="/delivery/settings" element={<DeliverySettings />} />
               <Route path="/delivery/rider/join/:companyId" element={<DeliveryRiderJoin />} />
               <Route path="/delivery/support" element={<DeliverySupport />} />
+              <Route path="/delivery/staff" element={<DeliveryStaff />} />
+              {/* Workspace Login */}
+              <Route path="/workspace/:slug" element={<WorkspaceLogin />} />
               {/* Install Page */}
               <Route path="/install" element={<Install />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

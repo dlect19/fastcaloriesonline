@@ -40,6 +40,7 @@ export function useVendorPermissions(vendorId: string | null): UseVendorPermissi
   const { user } = useAuth();
   const [role, setRole] = useState<VendorStaffRole | null>(null);
   const [loading, setLoading] = useState(true);
+  const [customPermissions, setCustomPermissions] = useState<VendorPermission[] | null>(null);
 
   useEffect(() => {
     if (!user || !vendorId) {
@@ -52,7 +53,7 @@ export function useVendorPermissions(vendorId: string | null): UseVendorPermissi
     // First check vendor_staff table for explicit role assignment
         const { data: staffRecord } = await supabase
           .from('vendor_staff')
-          .select('role')
+          .select('role, permissions')
           .eq('vendor_id', vendorId)
           .eq('user_id', user.id)
           .eq('is_active', true)
@@ -60,6 +61,11 @@ export function useVendorPermissions(vendorId: string | null): UseVendorPermissi
 
         if (staffRecord) {
           setRole(staffRecord.role as VendorStaffRole);
+          // If staff has custom permissions, use those instead of role defaults
+          const customPerms = staffRecord.permissions as string[] | null;
+          if (customPerms && customPerms.length > 0) {
+            setCustomPermissions(customPerms as VendorPermission[]);
+          }
       setLoading(false);
       return;
     }
@@ -89,10 +95,12 @@ export function useVendorPermissions(vendorId: string | null): UseVendorPermissi
 
   const hasPermission = (permission: VendorPermission): boolean => {
     if (!role) return false;
-    return ROLE_PERMISSIONS[role].includes(permission);
+    // Use custom permissions if set, otherwise fall back to role defaults
+    const effectivePerms = customPermissions || ROLE_PERMISSIONS[role];
+    return effectivePerms.includes(permission);
   };
 
-  const permissions = role ? ROLE_PERMISSIONS[role] : [];
+  const permissions = customPermissions || (role ? ROLE_PERMISSIONS[role] : []);
   const isOwner = role === 'owner';
 
   return { role, loading, hasPermission, isOwner, permissions };

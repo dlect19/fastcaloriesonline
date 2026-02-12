@@ -15,6 +15,7 @@ const menuItems = [
   { icon: Home, label: 'Dashboard', path: '/delivery/dashboard' },
   { icon: Package, label: 'Deliveries', path: '/delivery/orders' },
   { icon: Users, label: 'My Riders', path: '/delivery/riders' },
+  { icon: Users, label: 'Staff', path: '/delivery/staff' },
   { icon: Wallet, label: 'Earnings', path: '/delivery/earnings' },
   { icon: ArrowUpRight, label: 'Withdraw', path: '/delivery/withdraw' },
   { icon: MessageSquare, label: 'Support', path: '/delivery/support' },
