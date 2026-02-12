@@ -3042,6 +3042,10 @@ export type Database = {
         Args: { _user_id: string; _vendor_id: string }
         Returns: boolean
       }
+      reconcile_vendor_wallet: {
+        Args: { p_wallet_id: string }
+        Returns: undefined
+      }
       release_pending_vendor_earnings: { Args: never; Returns: number }
       rider_belongs_to_company: {
         Args: { _rider_user_id: string }
