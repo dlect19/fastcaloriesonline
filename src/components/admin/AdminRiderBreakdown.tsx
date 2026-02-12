@@ -99,7 +99,7 @@ export function AdminRiderBreakdown({ environment, dateRange, type }: AdminRider
         .select('wallet_id, amount, created_at')
         .in('wallet_id', walletIds)
         .eq('transaction_type', 'credit')
-        .eq('category', 'delivery_earning')
+        .in('category', type === 'logistics' ? ['delivery_company_share', 'rider_share'] : ['rider_share', 'vendor_rider_share'])
         .eq('status', 'completed')
         .eq('environment', environment);
 
