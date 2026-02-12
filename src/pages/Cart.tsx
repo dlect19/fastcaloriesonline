@@ -359,27 +359,26 @@ export default function Cart() {
     setPlacingOrder(true);
     try {
       // Validate all products/combos still exist before placing order
-      const productIds = items.filter(i => i.productId && !i.addonsDescription).map(i => i.productId);
-      const comboIds = items.filter(i => i.productId && i.addonsDescription).map(i => i.productId);
+      const allItemIds = items.filter(i => i.productId).map(i => i.productId);
       
       const existingIds = new Set<string>();
       
-      if (productIds.length > 0) {
-        const { data: existingProducts, error: prodCheckError } = await supabase
-          .from('products')
-          .select('id')
-          .in('id', productIds);
-        if (prodCheckError) throw prodCheckError;
-        existingProducts?.forEach(p => existingIds.add(p.id));
-      }
-      
-      if (comboIds.length > 0) {
-        const { data: existingCombos, error: comboCheckError } = await supabase
-          .from('combos')
-          .select('id')
-          .in('id', comboIds);
-        if (comboCheckError) throw comboCheckError;
-        existingCombos?.forEach(c => existingIds.add(c.id));
+      if (allItemIds.length > 0) {
+        // Check both products and combos tables for all IDs
+        const [productsResult, combosResult] = await Promise.all([
+          supabase.from('products').select('id, is_available').in('id', allItemIds),
+          supabase.from('combos').select('id, is_available').in('id', allItemIds),
+        ]);
+        
+        if (productsResult.error) throw productsResult.error;
+        if (combosResult.error) throw combosResult.error;
+        
+        productsResult.data?.forEach(p => {
+          if (p.is_available) existingIds.add(p.id);
+        });
+        combosResult.data?.forEach(c => {
+          if (c.is_available) existingIds.add(c.id);
+        });
       }
       
       const missingItems = items.filter(i => i.productId && !existingIds.has(i.productId));
