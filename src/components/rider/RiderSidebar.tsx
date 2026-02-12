@@ -99,7 +99,7 @@ export function RiderSidebar({ isOnline = false, onToggleOnline, canViewEarnings
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-4">
+      <nav className="p-4">
         <ul className="space-y-2">
           {menuItems.map((item) => {
             const isActive = location.pathname === item.path;
@@ -129,7 +129,7 @@ export function RiderSidebar({ isOnline = false, onToggleOnline, canViewEarnings
       </nav>
 
       {/* Logout */}
-      <div className="p-4 pb-8 border-t border-border">
+      <div className="p-4 border-t border-border mt-0">
         <Button variant="ghost" className="w-full justify-start text-muted-foreground" onClick={handleLogout}>
           <LogOut className="w-5 h-5 mr-3" />
           Logout
