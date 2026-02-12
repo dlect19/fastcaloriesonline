@@ -3169,6 +3169,17 @@ export type Database = {
     }
     Functions: {
       add_vendor_role: { Args: never; Returns: undefined }
+      admin_adjust_wallet_balance: {
+        Args: {
+          p_adjust_type: string
+          p_amount: number
+          p_environment?: string
+          p_notes: string
+          p_reference?: string
+          p_wallet_id: string
+        }
+        Returns: Json
+      }
       cancel_stale_pending_orders: { Args: never; Returns: number }
       generate_slug: { Args: { input_text: string }; Returns: string }
       get_admin_staff_role: {
