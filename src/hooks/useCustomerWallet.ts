@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
@@ -62,9 +62,33 @@ export function useCustomerWallet() {
     }
   }, [user]);
 
+  // Auto-requery DVA transactions when wallet loads with active DVA
+  const autoRequeryDone = useRef(false);
+
+  const autoRequeryDVA = useCallback(async () => {
+    if (!wallet?.dva_active || !wallet?.dva_account_number || autoRequeryDone.current) return;
+    autoRequeryDone.current = true;
+
+    try {
+      const { data, error } = await supabase.functions.invoke('requery-dva-transactions', {
+        body: {},
+      });
+      if (!error && data?.transactions_processed > 0) {
+        console.log('Auto-requery found transactions:', data.message);
+        fetchWallet(); // Refresh wallet balance
+      }
+    } catch (err) {
+      console.error('Auto DVA requery failed:', err);
+    }
+  }, [wallet?.dva_active, wallet?.dva_account_number, fetchWallet]);
+
   useEffect(() => {
     fetchWallet();
   }, [fetchWallet]);
+
+  useEffect(() => {
+    autoRequeryDVA();
+  }, [autoRequeryDVA]);
 
   // Subscribe to wallet changes
   useEffect(() => {
