@@ -11,6 +11,7 @@ import { DateRangeFilter, DateRange } from '@/components/shared/DateRangeFilter'
 import { Package, DollarSign, Star, TrendingUp, Loader2, MapPin, Settings, Navigation, Bell, ArrowRight, Lock, Bike } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useRiderRestrictions } from '@/hooks/useRiderRestrictions';
+import { PushNotificationBanner } from '@/components/shared/PushNotificationBanner';
 
 // Haversine formula for distance calculation
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
@@ -367,6 +368,9 @@ export default function RiderDashboard() {
           </CardContent>
         </Card>
       )}
+
+      {/* Push Notification Banner */}
+      <PushNotificationBanner />
 
       {/* Date Range Filter */}
       <div className="mb-4 md:mb-6">

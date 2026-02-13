@@ -28,6 +28,7 @@ import { useVendorPermissions } from '@/hooks/useVendorPermissions';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 import { useToast } from '@/hooks/use-toast';
 import { useVendorNotificationSound } from '@/hooks/useVendorNotificationSound';
+import { PushNotificationBanner } from '@/components/shared/PushNotificationBanner';
 
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables } from '@/integrations/supabase/types';
@@ -448,6 +449,9 @@ export default function VendorDashboard() {
               )}
             </div>
           </div>
+
+          {/* Push Notification Banner */}
+          <PushNotificationBanner />
 
           {/* Date Range Filter */}
           <DateRangeFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
