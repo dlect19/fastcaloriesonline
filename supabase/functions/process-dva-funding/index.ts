@@ -96,13 +96,14 @@ serve(async (req: Request): Promise<Response> => {
 
     console.log(`Processing wallet funding via DVA: ref=${reference}, amount=${amount}, customer=${customerCode}, account=${accountNumber}`);
 
-    // Idempotency check - check for wallet_funding with this reference
+    // Idempotency check - check for dva_funding or wallet_funding with this reference
     const { data: existingTx } = await supabaseAdmin
       .from("wallet_transactions")
       .select("id")
       .eq("paystack_reference", reference)
-      .eq("category", "wallet_funding")
-      .single();
+      .in("category", ["dva_funding", "wallet_funding"])
+      .limit(1)
+      .maybeSingle();
 
     if (existingTx) {
       console.log(`DVA funding ${reference} already processed`);
@@ -179,7 +180,7 @@ serve(async (req: Request): Promise<Response> => {
         wallet_id: wallet.id,
         wallet_type: "customer",
         transaction_type: "credit",
-        category: "wallet_funding",
+        category: "dva_funding",
         amount: amount,
         balance_after: newBalance,
         paystack_reference: reference,
