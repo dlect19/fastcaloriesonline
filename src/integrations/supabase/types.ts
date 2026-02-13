@@ -3232,6 +3232,18 @@ export type Database = {
         Args: { _user_id: string; _vendor_id: string }
         Returns: boolean
       }
+      reconcile_customer_wallet: {
+        Args: { p_wallet_id: string }
+        Returns: undefined
+      }
+      reconcile_delivery_company_wallet: {
+        Args: { p_wallet_id: string }
+        Returns: undefined
+      }
+      reconcile_rider_wallet: {
+        Args: { p_wallet_id: string }
+        Returns: undefined
+      }
       reconcile_vendor_wallet: {
         Args: { p_wallet_id: string }
         Returns: undefined
