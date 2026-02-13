@@ -16,6 +16,7 @@ import { LocationSearch } from '@/components/home/LocationSearch';
 import { Button } from '@/components/ui/button';
 import { LogOut, Flame, Star, ChevronRight, Sparkles, Heart, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { PushNotificationBanner } from '@/components/shared/PushNotificationBanner';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 import fastCaloriesFullLogo from '@/assets/fast-calories-full-logo.png';
 
@@ -247,6 +248,9 @@ export default function Home() {
             <LogOut className="w-5 h-5" />
           </Button>
         </div>
+
+        {/* Push Notification Banner */}
+        <PushNotificationBanner />
 
         {/* Action Hints - Orders & Next Steps */}
         <ActionHints />
