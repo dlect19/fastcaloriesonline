@@ -85,6 +85,18 @@ serve(async (req: Request): Promise<Response> => {
       .single();
     const environment = (envSetting?.value as string) || "production";
 
+    // Get company name from platform settings (fallback to Dlect Technologies)
+    const { data: companyNameSetting } = await supabaseAdmin
+      .from("platform_settings")
+      .select("value")
+      .eq("key", "company_name")
+      .single();
+    const companyName = companyNameSetting?.value || "Dlect Technologies";
+
+    // Build month label from period
+    const periodDate = new Date(periodStart);
+    const monthLabel = periodDate.toLocaleString("en-US", { month: "long", year: "numeric" });
+
     const paystackSecretKey = environment === "production"
       ? Deno.env.get("PAYSTACK_LIVE_SECRET_KEY") || Deno.env.get("PAYSTACK_SECRET_KEY")!
       : Deno.env.get("PAYSTACK_TEST_SECRET_KEY") || Deno.env.get("PAYSTACK_SECRET_KEY")!;
@@ -186,7 +198,7 @@ serve(async (req: Request): Promise<Response> => {
             source: "balance",
             amount: Math.round(item.net_pay * 100), // Convert to kobo
             recipient: employee.paystack_recipient_code,
-            reason: `${title} - ${item.employee_name}`,
+            reason: `Salary from ${companyName} for ${monthLabel} - ${item.employee_name}`,
             reference,
           }),
         });
