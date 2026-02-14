@@ -67,6 +67,7 @@ import AdminReferrals from "./pages/admin/AdminReferrals";
 import AdminExpenses from "./pages/admin/AdminExpenses";
 import AdminRequisitions from "./pages/admin/AdminRequisitions";
 import AdminLegal from "./pages/admin/AdminLegal";
+import AdminFAQ from "./pages/admin/AdminFAQ";
 import LegalPage from "./pages/legal/LegalPage";
 import Install from "./pages/Install";
 import Rewards from "./pages/Rewards";
@@ -184,6 +185,7 @@ const App = () => (
               <Route path="/admin/expenses" element={<AdminExpenses />} />
               <Route path="/admin/requisitions" element={<AdminRequisitions />} />
               <Route path="/admin/legal" element={<AdminLegal />} />
+              <Route path="/admin/faq" element={<AdminFAQ />} />
               <Route path="/admin/support" element={<AdminSupport />} />
               {/* Legal Pages (public) */}
               <Route path="/legal" element={<LegalPage />} />
