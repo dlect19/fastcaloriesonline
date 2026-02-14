@@ -7,6 +7,7 @@ import { PayrollEmployeeList } from '@/components/admin/payroll/PayrollEmployeeL
 import { PayrollRunDialog } from '@/components/admin/payroll/PayrollRunDialog';
 import { PayrollHistory } from '@/components/admin/payroll/PayrollHistory';
 import { PayrollProfitOverview } from '@/components/admin/payroll/PayrollProfitOverview';
+import { PayrollResetDialog } from '@/components/admin/payroll/PayrollResetDialog';
 import { PaystackBalanceCard } from '@/components/admin/PaystackBalanceCard';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -54,10 +55,13 @@ export default function AdminPayroll() {
             <h1 className="text-3xl font-bold text-foreground">Payroll</h1>
             <p className="text-muted-foreground">Manage staff salaries and payments</p>
           </div>
-          <Button onClick={() => setRunDialogOpen(true)} className="gap-2">
-            <Play className="w-4 h-4" />
-            Run Payroll
-          </Button>
+          <div className="flex gap-3">
+            <PayrollResetDialog onResetComplete={() => setRefreshKey(k => k + 1)} />
+            <Button onClick={() => setRunDialogOpen(true)} className="gap-2">
+              <Play className="w-4 h-4" />
+              Run Payroll
+            </Button>
+          </div>
         </div>
 
         {/* Profit & Payroll Overview */}
