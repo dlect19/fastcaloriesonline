@@ -64,6 +64,7 @@ import AdminCustomers from "./pages/admin/AdminCustomers";
 import AdminReviews from "./pages/admin/AdminReviews";
 import AdminPayroll from "./pages/admin/AdminPayroll";
 import AdminReferrals from "./pages/admin/AdminReferrals";
+import AdminExpenses from "./pages/admin/AdminExpenses";
 import Install from "./pages/Install";
 import Rewards from "./pages/Rewards";
 import TransactionHistoryPage from "./pages/profile/TransactionHistoryPage";
@@ -177,6 +178,7 @@ const App = () => (
               <Route path="/admin/reviews" element={<AdminReviews />} />
               <Route path="/admin/payroll" element={<AdminPayroll />} />
               <Route path="/admin/referrals" element={<AdminReferrals />} />
+              <Route path="/admin/expenses" element={<AdminExpenses />} />
               <Route path="/admin/support" element={<AdminSupport />} />
               {/* Delivery Company Portal Routes */}
               <Route path="/delivery/auth" element={<DeliveryCompanyAuth />} />
