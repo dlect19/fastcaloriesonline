@@ -6,6 +6,7 @@ import { AdminSidebar } from '@/components/admin/AdminSidebar';
 import { PayrollEmployeeList } from '@/components/admin/payroll/PayrollEmployeeList';
 import { PayrollRunDialog } from '@/components/admin/payroll/PayrollRunDialog';
 import { PayrollHistory } from '@/components/admin/payroll/PayrollHistory';
+import { PayrollProfitOverview } from '@/components/admin/payroll/PayrollProfitOverview';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Users, Play, History } from 'lucide-react';
@@ -46,7 +47,7 @@ export default function AdminPayroll() {
   return (
     <div className="flex min-h-screen bg-background">
       <AdminSidebar />
-      <main className="flex-1 p-8">
+      <main className="flex-1 p-8 overflow-auto">
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Payroll</h1>
@@ -56,6 +57,11 @@ export default function AdminPayroll() {
             <Play className="w-4 h-4" />
             Run Payroll
           </Button>
+        </div>
+
+        {/* Profit & Payroll Overview */}
+        <div className="mb-8">
+          <PayrollProfitOverview key={`profit-${refreshKey}`} />
         </div>
 
         <Tabs defaultValue="employees" className="space-y-6">
