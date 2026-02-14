@@ -1343,6 +1343,200 @@ export type Database = {
           },
         ]
       }
+      payroll_employees: {
+        Row: {
+          admin_staff_id: string
+          bank_account_number: string | null
+          bank_code: string | null
+          bank_name: string | null
+          base_salary: number
+          created_at: string
+          email: string | null
+          full_name: string
+          id: string
+          is_active: boolean
+          paystack_recipient_code: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          admin_staff_id: string
+          bank_account_number?: string | null
+          bank_code?: string | null
+          bank_name?: string | null
+          base_salary?: number
+          created_at?: string
+          email?: string | null
+          full_name: string
+          id?: string
+          is_active?: boolean
+          paystack_recipient_code?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          admin_staff_id?: string
+          bank_account_number?: string | null
+          bank_code?: string | null
+          bank_name?: string | null
+          base_salary?: number
+          created_at?: string
+          email?: string | null
+          full_name?: string
+          id?: string
+          is_active?: boolean
+          paystack_recipient_code?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_employees_admin_staff_id_fkey"
+            columns: ["admin_staff_id"]
+            isOneToOne: true
+            referencedRelation: "admin_staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payroll_items: {
+        Row: {
+          bank_account_number: string | null
+          bank_name: string | null
+          base_salary: number
+          bonus: number
+          bonus_note: string | null
+          created_at: string
+          deduction_note: string | null
+          deductions: number
+          employee_name: string
+          failure_reason: string | null
+          id: string
+          net_pay: number
+          payroll_employee_id: string
+          payroll_run_id: string
+          paystack_reference: string | null
+          paystack_transfer_code: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          bank_account_number?: string | null
+          bank_name?: string | null
+          base_salary?: number
+          bonus?: number
+          bonus_note?: string | null
+          created_at?: string
+          deduction_note?: string | null
+          deductions?: number
+          employee_name: string
+          failure_reason?: string | null
+          id?: string
+          net_pay?: number
+          payroll_employee_id: string
+          payroll_run_id: string
+          paystack_reference?: string | null
+          paystack_transfer_code?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          bank_account_number?: string | null
+          bank_name?: string | null
+          base_salary?: number
+          bonus?: number
+          bonus_note?: string | null
+          created_at?: string
+          deduction_note?: string | null
+          deductions?: number
+          employee_name?: string
+          failure_reason?: string | null
+          id?: string
+          net_pay?: number
+          payroll_employee_id?: string
+          payroll_run_id?: string
+          paystack_reference?: string | null
+          paystack_transfer_code?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_items_payroll_employee_id_fkey"
+            columns: ["payroll_employee_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_items_payroll_run_id_fkey"
+            columns: ["payroll_run_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payroll_runs: {
+        Row: {
+          created_at: string
+          created_by: string
+          environment: string | null
+          failed_count: number
+          id: string
+          notes: string | null
+          pay_period_end: string
+          pay_period_start: string
+          processed_at: string | null
+          processed_count: number
+          status: string
+          title: string
+          total_deductions: number
+          total_employees: number
+          total_gross: number
+          total_net: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          environment?: string | null
+          failed_count?: number
+          id?: string
+          notes?: string | null
+          pay_period_end: string
+          pay_period_start: string
+          processed_at?: string | null
+          processed_count?: number
+          status?: string
+          title: string
+          total_deductions?: number
+          total_employees?: number
+          total_gross?: number
+          total_net?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          environment?: string | null
+          failed_count?: number
+          id?: string
+          notes?: string | null
+          pay_period_end?: string
+          pay_period_start?: string
+          processed_at?: string | null
+          processed_count?: number
+          status?: string
+          title?: string
+          total_deductions?: number
+          total_employees?: number
+          total_gross?: number
+          total_net?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       paystack_recipients: {
         Row: {
           account_name: string

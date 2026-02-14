@@ -119,3 +119,6 @@ verify_jwt = false
 
 [functions.log-order-calories]
 verify_jwt = false
+
+[functions.process-payroll]
+verify_jwt = false
