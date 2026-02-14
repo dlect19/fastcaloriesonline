@@ -102,29 +102,18 @@ serve(async (req: Request) => {
     const environment = envSetting?.value || "development";
     const isTestMode = environment === "development";
 
-    // Check balances - main balance + referral bonus
+    // Check main wallet balance (referral bonus is now part of main balance)
     const currentBalance = isTestMode 
       ? Number(customerWallet.test_balance) || 0
       : Number(customerWallet.balance) || 0;
 
-    const referralBonusCol = isTestMode ? "test_referral_bonus_balance" : "referral_bonus_balance";
-    const referralBonusBalance = Number(customerWallet[referralBonusCol]) || 0;
-    
-    // Check if referral bonus is expired
-    const bonusExpiresAt = customerWallet.referral_bonus_expires_at;
-    const isBonusExpired = bonusExpiresAt ? new Date(bonusExpiresAt) < new Date() : false;
-    const availableBonus = isBonusExpired ? 0 : referralBonusBalance;
-
-    const totalAvailable = currentBalance + availableBonus;
     const orderTotal = Number(order.total);
 
-    if (totalAvailable < orderTotal) {
+    if (currentBalance < orderTotal) {
       return new Response(
         JSON.stringify({ 
           error: "Insufficient wallet balance",
           balance: currentBalance,
-          referral_bonus: availableBonus,
-          total_available: totalAvailable,
           required: orderTotal,
         }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
@@ -134,71 +123,34 @@ serve(async (req: Request) => {
     // Generate unique reference
     const reference = `WP-${orderId.slice(0, 8)}-${Date.now()}`;
 
-    // Calculate split: use referral bonus first, then main balance
-    const bonusUsed = Math.min(availableBonus, orderTotal);
-    const mainDeducted = orderTotal - bonusUsed;
-
-    // Debit referral bonus
-    if (bonusUsed > 0) {
-      const newBonusBalance = referralBonusBalance - bonusUsed;
+    // Debit main balance
+    const newBalance = currentBalance - orderTotal;
+    if (isTestMode) {
       await supabaseAdmin
         .from("wallets")
-        .update({ 
-          [referralBonusCol]: newBonusBalance,
-          updated_at: new Date().toISOString(),
-        })
+        .update({ test_balance: newBalance, updated_at: new Date().toISOString() })
         .eq("id", customerWallet.id);
-
-      // Log referral bonus debit transaction
-      await supabaseAdmin.from("wallet_transactions").insert({
-        wallet_id: customerWallet.id,
-        wallet_type: "customer",
-        transaction_type: "debit",
-        category: "referral_bonus_payment",
-        amount: bonusUsed,
-        balance_after: newBonusBalance,
-        reference,
-        order_id: orderId,
-        status: "completed",
-        environment,
-        notes: `Referral bonus used for order #${order.order_number}`,
-      });
+    } else {
+      await supabaseAdmin
+        .from("wallets")
+        .update({ balance: newBalance, updated_at: new Date().toISOString() })
+        .eq("id", customerWallet.id);
     }
 
-    // Debit main balance
-    const newBalance = currentBalance - mainDeducted;
-    if (mainDeducted > 0) {
-      if (isTestMode) {
-        await supabaseAdmin
-          .from("wallets")
-          .update({ test_balance: newBalance, updated_at: new Date().toISOString() })
-          .eq("id", customerWallet.id);
-      } else {
-        await supabaseAdmin
-          .from("wallets")
-          .update({ balance: newBalance, updated_at: new Date().toISOString() })
-          .eq("id", customerWallet.id);
-      }
-    }
-
-    // Log main wallet debit transaction (only if main balance was used)
-    if (mainDeducted > 0) {
-      await supabaseAdmin.from("wallet_transactions").insert({
-        wallet_id: customerWallet.id,
-        wallet_type: "customer",
-        transaction_type: "debit",
-        category: "wallet_payment",
-        amount: mainDeducted,
-        balance_after: newBalance,
-        reference,
-        order_id: orderId,
-        status: "completed",
-        environment,
-        notes: bonusUsed > 0 
-          ? `Payment for order #${order.order_number} (₦${bonusUsed} from referral bonus)`
-          : `Payment for order #${order.order_number}`,
-      });
-    }
+    // Log wallet debit transaction
+    await supabaseAdmin.from("wallet_transactions").insert({
+      wallet_id: customerWallet.id,
+      wallet_type: "customer",
+      transaction_type: "debit",
+      category: "wallet_payment",
+      amount: orderTotal,
+      balance_after: newBalance,
+      reference,
+      order_id: orderId,
+      status: "completed",
+      environment,
+      notes: `Payment for order #${order.order_number}`,
+    });
 
     // Update order payment status and set status to confirmed
     await supabaseAdmin
@@ -229,8 +181,7 @@ serve(async (req: Request) => {
       });
     }
 
-    // The database triggers (credit_vendor_on_payment, credit_rider_on_assignment) 
-    // will handle vendor/rider/platform splits automatically
+    // The database triggers handle vendor/rider/platform splits automatically
 
     // Trigger referral bonus processing (fire and forget)
     try {
@@ -246,15 +197,13 @@ serve(async (req: Request) => {
       console.error('Referral bonus trigger failed (non-blocking):', refErr);
     }
 
-    console.log(`Wallet payment processed: ${reference}, amount: ₦${orderTotal}, bonus_used: ₦${bonusUsed}, main_deducted: ₦${mainDeducted}, user: ${user.id}`);
+    console.log(`Wallet payment processed: ${reference}, amount: ₦${orderTotal}, user: ${user.id}`);
 
     return new Response(
       JSON.stringify({
         success: true,
         reference,
         new_balance: newBalance,
-        bonus_used: bonusUsed,
-        main_deducted: mainDeducted,
         order_number: order.order_number,
       }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }

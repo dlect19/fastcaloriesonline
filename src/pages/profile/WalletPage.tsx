@@ -10,13 +10,13 @@ import { TransactionHistory } from '@/components/shared/TransactionHistory';
 import { FundWalletDialog } from '@/components/profile/FundWalletDialog';
 import { VirtualAccountCard } from '@/components/profile/VirtualAccountCard';
 import { CreateDVADialog } from '@/components/profile/CreateDVADialog';
-import { ArrowLeft, Wallet, Plus, Leaf, AlertCircle, CheckCircle2, Loader2, Building2, User, Gift } from 'lucide-react';
+import { ArrowLeft, Wallet, Plus, Leaf, AlertCircle, CheckCircle2, Loader2, Building2, User } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function WalletPage() {
   const { user, loading: authLoading } = useAuth();
-  const { wallet, balance, referralBonusBalance, bonusExpiresAt, loading: walletLoading, isDisabled, hasDVA, dvaDetails, profileComplete, isTestMode, refetch } = useCustomerWallet();
+  const { wallet, balance, loading: walletLoading, isDisabled, hasDVA, dvaDetails, profileComplete, isTestMode, refetch } = useCustomerWallet();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -161,32 +161,7 @@ export default function WalletPage() {
           </CardContent>
         </Card>
 
-        {/* Referral Bonus Balance */}
-        {referralBonusBalance > 0 && (
-          <Card className="border-0 shadow-soft bg-gradient-to-br from-green-500/10 to-green-500/5">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center">
-                    <Gift className="w-5 h-5 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-foreground">Referral Bonus</p>
-                    <p className="text-xs text-muted-foreground">
-                      {bonusExpiresAt 
-                        ? `Expires ${new Date(bonusExpiresAt).toLocaleDateString()}`
-                        : 'Auto-applied at checkout'}
-                    </p>
-                  </div>
-                </div>
-                <p className="text-xl font-bold text-green-600">₦{referralBonusBalance.toLocaleString()}</p>
-              </div>
-              <p className="text-xs text-muted-foreground mt-2 pl-13">
-                This bonus is automatically used first when you pay for orders.
-              </p>
-            </CardContent>
-          </Card>
-        )}
+
         {/* Virtual Account Section */}
         {hasDVA && dvaDetails ? (
           <VirtualAccountCard
