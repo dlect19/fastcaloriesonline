@@ -62,6 +62,7 @@ import AdminWalletFunding from "./pages/admin/AdminWalletFunding";
 import AdminDeliveryCompanies from "./pages/admin/AdminDeliveryCompanies";
 import AdminCustomers from "./pages/admin/AdminCustomers";
 import AdminReviews from "./pages/admin/AdminReviews";
+import AdminPayroll from "./pages/admin/AdminPayroll";
 import Install from "./pages/Install";
 import Rewards from "./pages/Rewards";
 import TransactionHistoryPage from "./pages/profile/TransactionHistoryPage";
@@ -173,6 +174,7 @@ const App = () => (
               <Route path="/admin/delivery-companies" element={<AdminDeliveryCompanies />} />
               <Route path="/admin/customers" element={<AdminCustomers />} />
               <Route path="/admin/reviews" element={<AdminReviews />} />
+              <Route path="/admin/payroll" element={<AdminPayroll />} />
               <Route path="/admin/support" element={<AdminSupport />} />
               {/* Delivery Company Portal Routes */}
               <Route path="/delivery/auth" element={<DeliveryCompanyAuth />} />
