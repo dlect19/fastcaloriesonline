@@ -5,20 +5,16 @@ import { useAdminPermissions } from '@/hooks/useAdminPermissions';
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
 import { CompanyProfitCard } from '@/components/admin/CompanyProfitCard';
 import { PaystackBalanceCard } from '@/components/admin/PaystackBalanceCard';
-import { ExpenseRequisitionForm } from '@/components/admin/expenses/ExpenseRequisitionForm';
 import { ExpenseRequisitionList } from '@/components/admin/expenses/ExpenseRequisitionList';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
-import { FileText, Plus, ClipboardList } from 'lucide-react';
+import { FileText, ClipboardList } from 'lucide-react';
 
 export default function AdminExpenses() {
   const { user, loading: authLoading } = useAuth();
   const { isSuperAdmin, hasPermission, loading: permLoading } = useAdminPermissions();
   const { effectiveEnvironment } = useEnvironmentConfig();
   const navigate = useNavigate();
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -45,26 +41,6 @@ export default function AdminExpenses() {
             <h1 className="text-3xl font-bold text-foreground">Expenses</h1>
             <p className="text-muted-foreground">Manage company expenses and requisitions</p>
           </div>
-          <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2">
-                <Plus className="w-4 h-4" />
-                New Requisition
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Create Expense Requisition</DialogTitle>
-              </DialogHeader>
-              <ExpenseRequisitionForm
-                onSuccess={() => {
-                  setCreateDialogOpen(false);
-                  setRefreshKey(k => k + 1);
-                }}
-                onCancel={() => setCreateDialogOpen(false)}
-              />
-            </DialogContent>
-          </Dialog>
         </div>
 
         {/* Financial Overview */}
