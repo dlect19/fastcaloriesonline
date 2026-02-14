@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 import { ForgotPasswordModal } from '@/components/auth/ForgotPasswordModal';
+import { TermsAcceptanceCheckbox } from '@/components/auth/TermsAcceptanceCheckbox';
 
 type AuthTab = 'login' | 'signup' | 'link';
 
@@ -19,6 +20,7 @@ export default function VendorAuth() {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<AuthTab>('login');
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   // Login state
   const [loginEmail, setLoginEmail] = useState('');
@@ -106,6 +108,16 @@ export default function VendorAuth() {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!termsAccepted) {
+      toast({
+        title: 'Agreement required',
+        description: 'You must agree to the Terms & Conditions before continuing.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     
     // Validate passwords match
     if (signupPassword !== confirmPassword) {
@@ -584,7 +596,13 @@ export default function VendorAuth() {
                   </div>
                 </div>
 
-                <Button type="submit" className="w-full h-12" disabled={loading}>
+                <TermsAcceptanceCheckbox
+                  accepted={termsAccepted}
+                  onAcceptedChange={setTermsAccepted}
+                  disabled={loading}
+                />
+
+                <Button type="submit" className="w-full h-12" disabled={loading || !termsAccepted}>
                   {loading ? 'Creating account...' : 'Create Vendor Account'}
                 </Button>
               </form>

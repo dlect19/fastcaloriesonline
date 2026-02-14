@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 import { ForgotPasswordModal } from '@/components/auth/ForgotPasswordModal';
+import { TermsAcceptanceCheckbox } from '@/components/auth/TermsAcceptanceCheckbox';
 
 const emailSchema = z.string().email('Please enter a valid email address');
 const passwordSchema = z.string().min(6, 'Password must be at least 6 characters');
@@ -27,6 +28,7 @@ export default function Auth() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string; name?: string; confirmPassword?: string }>({});
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   // Pre-fill referral code from URL
   const urlRef = useMemo(() => {
@@ -86,6 +88,15 @@ export default function Auth() {
     e.preventDefault();
     
     if (!validateForm()) return;
+
+    if (!isLogin && !termsAccepted) {
+      toast({
+        title: 'Agreement required',
+        description: 'You must agree to the Terms & Conditions before continuing.',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     setIsLoading(true);
 
@@ -186,6 +197,7 @@ export default function Auth() {
     setConfirmPassword('');
     setShowPassword(false);
     setShowConfirmPassword(false);
+    setTermsAccepted(false);
     if (!urlRef) setReferralCode('');
   };
 
@@ -356,10 +368,18 @@ export default function Auth() {
               </div>
             )}
 
+            {!isLogin && (
+              <TermsAcceptanceCheckbox
+                accepted={termsAccepted}
+                onAcceptedChange={setTermsAccepted}
+                disabled={isLoading}
+              />
+            )}
+
             <Button
               type="submit"
               className="w-full h-12 text-base font-semibold shadow-button"
-              disabled={isLoading}
+              disabled={isLoading || (!isLogin && !termsAccepted)}
             >
               {isLoading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
