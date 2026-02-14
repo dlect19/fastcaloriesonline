@@ -51,6 +51,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
+  nin_verification: 'NIN Verification',
   office_supplies: 'Office Supplies',
   equipment: 'Equipment',
   marketing: 'Marketing',
