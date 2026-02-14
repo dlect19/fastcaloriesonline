@@ -24,6 +24,8 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { ArrowLeft, ShoppingBag, Leaf, Loader2, AlertTriangle, Store, Phone, MapPin, Navigation, Wallet } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useLegalAcceptance } from '@/hooks/useLegalAcceptance';
+import { LegalAcceptanceDialog } from '@/components/shared/LegalAcceptanceDialog';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Address = Tables<'addresses'>;
@@ -46,6 +48,9 @@ export default function Cart() {
   const { eligibility, getBestPlatformPromo, markFirstOrderUsed } = usePlatformPromos();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // Legal acceptance enforcement
+  const { pendingDocuments, hasPendingAcceptance, loading: legalLoading, accepting: legalAccepting, acceptAll } = useLegalAcceptance(user?.id, 'customer');
   const { toast } = useToast();
 
   const [addresses, setAddresses] = useState<Address[]>([]);
@@ -313,6 +318,16 @@ export default function Cart() {
 
   const handlePlaceOrder = async () => {
     if (!user || !vendorId || items.length === 0) return;
+
+    // Block if legal documents not accepted
+    if (hasPendingAcceptance) {
+      toast({
+        title: 'Agreement Required',
+        description: 'Please accept the required terms and policies before placing an order.',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     if (deliveryType === 'delivery' && !selectedAddress) {
       toast({
@@ -895,6 +910,14 @@ export default function Cart() {
           callbackUrl={`${window.location.origin}/cart?funded=true`}
         />
       )}
+
+      {/* Legal Acceptance Dialog */}
+      <LegalAcceptanceDialog
+        open={hasPendingAcceptance}
+        documents={pendingDocuments}
+        accepting={legalAccepting}
+        onAcceptAll={acceptAll}
+      />
 
       <BottomNav />
     </div>
