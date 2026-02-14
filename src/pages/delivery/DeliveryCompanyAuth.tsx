@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Eye, EyeOff, Loader2, Truck, Building2 } from 'lucide-react';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 import { ForgotPasswordModal } from '@/components/auth/ForgotPasswordModal';
+import { TermsAcceptanceCheckbox } from '@/components/auth/TermsAcceptanceCheckbox';
 
 export default function DeliveryCompanyAuth() {
   const navigate = useNavigate();
@@ -18,6 +19,7 @@ export default function DeliveryCompanyAuth() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   // Login state
   const [loginEmail, setLoginEmail] = useState('');
@@ -95,6 +97,16 @@ export default function DeliveryCompanyAuth() {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!termsAccepted) {
+      toast({
+        title: 'Agreement required',
+        description: 'You must agree to the Terms & Conditions before continuing.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     
     if (signupPassword !== confirmPassword) {
       toast({
@@ -427,7 +439,12 @@ export default function DeliveryCompanyAuth() {
                     </button>
                   </div>
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
+                <TermsAcceptanceCheckbox
+                  accepted={termsAccepted}
+                  onAcceptedChange={setTermsAccepted}
+                  disabled={loading}
+                />
+                <Button type="submit" className="w-full" disabled={loading || !termsAccepted}>
                   {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                   Register Company
                 </Button>
