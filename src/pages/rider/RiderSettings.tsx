@@ -13,6 +13,7 @@ import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Save, MapPin, Volume2, Smartphone, ShieldCheck, Mail, CheckCircle, AlertTriangle } from 'lucide-react';
+import { DeleteAccountDialog } from '@/components/shared/DeleteAccountDialog';
 import { useToast } from '@/hooks/use-toast';
 import { useNotificationSound } from '@/hooks/useNotificationSound';
 
@@ -652,6 +653,23 @@ export default function RiderSettings() {
           {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
           Save Changes
         </Button>
+
+        {/* Delete Account */}
+        {userId && userEmail && (
+          <Card className="border-destructive/30 mt-6">
+            <CardContent className="p-4 md:p-6">
+              <h3 className="text-sm font-medium text-destructive mb-2">Danger Zone</h3>
+              <p className="text-sm text-muted-foreground mb-3">
+                Permanently delete your rider account and all associated data.
+              </p>
+              <DeleteAccountDialog
+                userId={userId}
+                userEmail={userEmail}
+                onDeleted={() => navigate('/rider/auth')}
+              />
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Floating Widget */}

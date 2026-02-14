@@ -15,6 +15,7 @@ import { FundWalletDialog } from '@/components/profile/FundWalletDialog';
 import { ReferralCard } from '@/components/profile/ReferralCard';
 import { VirtualAccountCard } from '@/components/profile/VirtualAccountCard';
 import { CreateDVADialog } from '@/components/profile/CreateDVADialog';
+import { DeleteAccountDialog } from '@/components/shared/DeleteAccountDialog';
 import { Leaf, ArrowLeft, Receipt, ChevronRight, Wallet, Plus, Building2, User } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Tables } from '@/integrations/supabase/types';
@@ -235,6 +236,21 @@ export default function Profile() {
           userId={user.id}
           onUpdate={fetchProfileData}
         />
+
+        {/* Delete Account */}
+        <Card className="border-destructive/30">
+          <CardContent className="p-4">
+            <h3 className="text-sm font-medium text-destructive mb-2">Danger Zone</h3>
+            <p className="text-sm text-muted-foreground mb-3">
+              Once you delete your account, there is no going back.
+            </p>
+            <DeleteAccountDialog
+              userId={user.id}
+              userEmail={user.email || ''}
+              onDeleted={handleSignOut}
+            />
+          </CardContent>
+        </Card>
       </main>
 
       {/* Fund Wallet Dialog */}

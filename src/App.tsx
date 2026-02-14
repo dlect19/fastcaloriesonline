@@ -66,6 +66,8 @@ import AdminPayroll from "./pages/admin/AdminPayroll";
 import AdminReferrals from "./pages/admin/AdminReferrals";
 import AdminExpenses from "./pages/admin/AdminExpenses";
 import AdminRequisitions from "./pages/admin/AdminRequisitions";
+import AdminLegal from "./pages/admin/AdminLegal";
+import LegalPage from "./pages/legal/LegalPage";
 import Install from "./pages/Install";
 import Rewards from "./pages/Rewards";
 import TransactionHistoryPage from "./pages/profile/TransactionHistoryPage";
@@ -181,7 +183,11 @@ const App = () => (
               <Route path="/admin/referrals" element={<AdminReferrals />} />
               <Route path="/admin/expenses" element={<AdminExpenses />} />
               <Route path="/admin/requisitions" element={<AdminRequisitions />} />
+              <Route path="/admin/legal" element={<AdminLegal />} />
               <Route path="/admin/support" element={<AdminSupport />} />
+              {/* Legal Pages (public) */}
+              <Route path="/legal" element={<LegalPage />} />
+              <Route path="/legal/:type" element={<LegalPage />} />
               {/* Delivery Company Portal Routes */}
               <Route path="/delivery/auth" element={<DeliveryCompanyAuth />} />
               <Route path="/delivery/dashboard" element={<DeliveryDashboard />} />

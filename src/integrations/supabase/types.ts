@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_deletion_requests: {
+        Row: {
+          created_at: string
+          id: string
+          processed_at: string | null
+          processed_by: string | null
+          reason: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          processed_at?: string | null
+          processed_by?: string | null
+          reason?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          processed_at?: string | null
+          processed_by?: string | null
+          reason?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       activity_logs: {
         Row: {
           action: string
@@ -1006,6 +1039,92 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      legal_acceptances: {
+        Row: {
+          accepted_at: string
+          document_id: string
+          document_type: string
+          document_version: number
+          id: string
+          ip_address: string | null
+          role: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          accepted_at?: string
+          document_id: string
+          document_type: string
+          document_version: number
+          id?: string
+          ip_address?: string | null
+          role: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          accepted_at?: string
+          document_id?: string
+          document_type?: string
+          document_version?: number
+          id?: string
+          ip_address?: string | null
+          role?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "legal_acceptances_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "legal_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      legal_documents: {
+        Row: {
+          content: string
+          created_at: string
+          document_type: string
+          force_reaccept: boolean
+          id: string
+          is_current: boolean
+          published_by: string | null
+          requires_acceptance: boolean
+          title: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          document_type: string
+          force_reaccept?: boolean
+          id?: string
+          is_current?: boolean
+          published_by?: string | null
+          requires_acceptance?: boolean
+          title: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          document_type?: string
+          force_reaccept?: boolean
+          id?: string
+          is_current?: boolean
+          published_by?: string | null
+          requires_acceptance?: boolean
+          title?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: []
       }
       order_financials: {
         Row: {
