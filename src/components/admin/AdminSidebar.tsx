@@ -1,6 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { Home, Package, Store, Bike, Ticket, Users, Settings, LogOut, Image, Activity, Banknote, Wallet, ArrowDownLeft, Gift, Truck, UserCheck, Star, MessageSquare, DollarSign, UserPlus, Receipt, ClipboardList, Scale } from 'lucide-react';
+import { Home, Package, Store, Bike, Ticket, Users, Settings, LogOut, Image, Activity, Banknote, Wallet, ArrowDownLeft, Gift, Truck, UserCheck, Star, MessageSquare, DollarSign, UserPlus, Receipt, ClipboardList, Scale, HelpCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -39,6 +39,7 @@ const menuItems: MenuItem[] = [
   { icon: ClipboardList, label: 'Requisitions', path: '/admin/requisitions' },
   { icon: Receipt, label: 'Expenses', path: '/admin/expenses', requiredPermission: 'process_withdrawals' },
   { icon: Scale, label: 'Legal', path: '/admin/legal', requiredPermission: 'platform_settings' },
+  { icon: HelpCircle, label: 'FAQ', path: '/admin/faq', requiredPermission: 'platform_settings' },
   { icon: MessageSquare, label: 'Support', path: '/admin/support', requiredPermission: 'handle_support' },
   { icon: Settings, label: 'Settings', path: '/admin/settings', requiredPermission: 'platform_settings' },
 ];

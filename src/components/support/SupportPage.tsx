@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSupportChat } from '@/hooks/useSupportChat';
+import { FAQSection } from '@/components/support/FAQSection';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables } from '@/integrations/supabase/types';
 import { format } from 'date-fns';
@@ -413,6 +414,9 @@ export function SupportPage({ userId, userType }: SupportPageProps) {
           })}
         </div>
       )}
+
+      {/* FAQ Section */}
+      <FAQSection userType={userType} />
 
       {/* New Ticket Dialog */}
       <Dialog open={showNewTicket} onOpenChange={setShowNewTicket}>
