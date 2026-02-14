@@ -62,35 +62,34 @@ export function useCustomerWallet() {
     }
   }, [user]);
 
-  // Auto-requery DVA transactions when wallet loads with active DVA
+  // Auto-requery DVA transactions ONCE when wallet first loads with active DVA
   const autoRequeryDone = useRef(false);
 
-  const autoRequeryDVA = useCallback(async () => {
+  useEffect(() => {
     if (!wallet?.dva_active || !wallet?.dva_account_number || autoRequeryDone.current) return;
     autoRequeryDone.current = true;
 
-    try {
-      const { data, error } = await supabase.functions.invoke('requery-dva-transactions', {
-        body: {},
-      });
-      if (!error && data?.transactions_processed > 0) {
-        console.log('Auto-requery found transactions:', data.message);
-        fetchWallet(); // Refresh wallet balance
+    const doRequery = async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke('requery-dva-transactions', {
+          body: {},
+        });
+        if (!error && data?.transactions_processed > 0) {
+          console.log('Auto-requery found transactions:', data.message);
+          fetchWallet(); // Refresh wallet balance
+        }
+      } catch (err) {
+        console.error('Auto DVA requery failed:', err);
       }
-    } catch (err) {
-      console.error('Auto DVA requery failed:', err);
-    }
-  }, [wallet?.dva_active, wallet?.dva_account_number, fetchWallet]);
+    };
+    doRequery();
+  }, [wallet?.dva_active, wallet?.dva_account_number]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     fetchWallet();
   }, [fetchWallet]);
 
-  useEffect(() => {
-    autoRequeryDVA();
-  }, [autoRequeryDVA]);
-
-  // Subscribe to wallet changes via realtime + polling fallback
+  // Subscribe to wallet changes via realtime (no polling to avoid page refresh)
   useEffect(() => {
     if (!user || !wallet) return;
 
@@ -109,20 +108,12 @@ export function useCustomerWallet() {
           setWallet(payload.new as WalletRow);
         }
       )
-      .subscribe((status) => {
-        console.log('Wallet realtime status:', status);
-      });
-
-    // Polling fallback: check every 15 seconds for balance changes
-    const pollInterval = setInterval(() => {
-      fetchWallet();
-    }, 15000);
+      .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
-      clearInterval(pollInterval);
     };
-  }, [user, wallet?.id, fetchWallet]);
+  }, [user, wallet?.id]);
 
   const balance = wallet 
     ? (isTestMode ? Number(wallet.test_balance) || 0 : Number(wallet.balance) || 0)
