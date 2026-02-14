@@ -65,7 +65,7 @@ serve(async (req: Request) => {
       return new Response(JSON.stringify({ skipped: true, reason: "Referrals disabled" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const minOrder = Number(cfg.referral_min_order_amount) || 2000;
+    const minOrder = Number(cfg.referral_min_order_amount) || 2500;
     if (Number(order.total) < minOrder) {
       return new Response(JSON.stringify({ skipped: true, reason: "Order below minimum" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
@@ -98,9 +98,7 @@ serve(async (req: Request) => {
 
     const referrerBonus = Number(cfg.referral_referrer_bonus) || 300;
     const newUserBonus = Number(cfg.referral_new_user_bonus) || 200;
-    const expiryDays = Number(cfg.referral_bonus_expiry_days) || 30;
     const isTestMode = order.environment === "development";
-    const expiresAt = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000).toISOString();
 
     // Get referrer's user_id from profile
     const { data: referrerProfile } = await supabase
@@ -129,7 +127,16 @@ serve(async (req: Request) => {
       return new Response(JSON.stringify({ skipped: true, reason: "Daily limit reached" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Credit referrer wallet
+    // Get platform wallet for recording referral cost
+    const { data: platformWallet } = await supabase
+      .from("platform_wallet")
+      .select("id")
+      .limit(1)
+      .single();
+
+    const totalBonusCost = referrerBonus + newUserBonus;
+
+    // Credit referrer MAIN wallet balance
     const { data: referrerWallet } = await supabase
       .from("wallets")
       .select("id")
@@ -148,13 +155,12 @@ serve(async (req: Request) => {
     }
 
     if (referrerWalletId) {
-      const balCol = isTestMode ? "test_referral_bonus_balance" : "referral_bonus_balance";
+      const balCol = isTestMode ? "test_balance" : "balance";
       const { data: rw } = await supabase.from("wallets").select(balCol).eq("id", referrerWalletId).single();
       const currentBal = Number(rw?.[balCol]) || 0;
 
       await supabase.from("wallets").update({
         [balCol]: currentBal + referrerBonus,
-        referral_bonus_expires_at: expiresAt,
         updated_at: new Date().toISOString(),
       }).eq("id", referrerWalletId);
 
@@ -171,7 +177,7 @@ serve(async (req: Request) => {
       });
     }
 
-    // Credit referred user wallet
+    // Credit referred user MAIN wallet balance
     const { data: referredWallet } = await supabase
       .from("wallets")
       .select("id")
@@ -190,13 +196,12 @@ serve(async (req: Request) => {
     }
 
     if (referredWalletId) {
-      const balCol = isTestMode ? "test_referral_bonus_balance" : "referral_bonus_balance";
+      const balCol = isTestMode ? "test_balance" : "balance";
       const { data: rw } = await supabase.from("wallets").select(balCol).eq("id", referredWalletId).single();
       const currentBal = Number(rw?.[balCol]) || 0;
 
       await supabase.from("wallets").update({
         [balCol]: currentBal + newUserBonus,
-        referral_bonus_expires_at: expiresAt,
         updated_at: new Date().toISOString(),
       }).eq("id", referredWalletId);
 
@@ -213,6 +218,44 @@ serve(async (req: Request) => {
       });
     }
 
+    // Record referral cost as platform loss (debit from platform wallet)
+    if (platformWallet?.id) {
+      // Debit platform wallet for referral bonus cost
+      if (isTestMode) {
+        await supabase.from("platform_wallet").update({
+          test_balance: undefined, // Will use raw SQL approach below
+        }).eq("id", "never"); // no-op, use RPC below
+
+        // Use direct update with current balance
+        const { data: pw } = await supabase.from("platform_wallet").select("test_balance").eq("id", platformWallet.id).single();
+        const currentPlatformBal = Number(pw?.test_balance) || 0;
+        await supabase.from("platform_wallet").update({
+          test_balance: currentPlatformBal - totalBonusCost,
+          updated_at: new Date().toISOString(),
+        }).eq("id", platformWallet.id);
+      } else {
+        const { data: pw } = await supabase.from("platform_wallet").select("balance").eq("id", platformWallet.id).single();
+        const currentPlatformBal = Number(pw?.balance) || 0;
+        await supabase.from("platform_wallet").update({
+          balance: currentPlatformBal - totalBonusCost,
+          updated_at: new Date().toISOString(),
+        }).eq("id", platformWallet.id);
+      }
+
+      // Log referral cost as platform debit transaction
+      await supabase.from("wallet_transactions").insert({
+        wallet_type: "platform",
+        category: "referral_cost",
+        transaction_type: "debit",
+        amount: totalBonusCost,
+        platform_wallet_id: platformWallet.id,
+        environment: order.environment,
+        status: "completed",
+        notes: `Referral bonus cost - Referrer: ₦${referrerBonus}, New user: ₦${newUserBonus} (Order #${order.order_number})`,
+        order_id: orderId,
+      });
+    }
+
     // Update referral record
     await supabase.from("referrals").update({
       status: "completed",
@@ -222,15 +265,15 @@ serve(async (req: Request) => {
       referrer_credited: true,
       referred_credited: true,
       completed_at: new Date().toISOString(),
-      expires_at: expiresAt,
     }).eq("id", existingReferral.id);
 
-    console.log(`Referral bonus processed: referrer=${referrerProfile.user_id}, referred=${order.user_id}, order=${orderId}`);
+    console.log(`Referral bonus processed: referrer=${referrerProfile.user_id} (+₦${referrerBonus}), referred=${order.user_id} (+₦${newUserBonus}), platform_cost=₦${totalBonusCost}, order=${orderId}`);
 
     return new Response(JSON.stringify({
       success: true,
       referrer_bonus: referrerBonus,
       referred_bonus: newUserBonus,
+      platform_cost: totalBonusCost,
     }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Unknown error";

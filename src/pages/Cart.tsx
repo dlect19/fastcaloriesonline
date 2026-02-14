@@ -22,7 +22,7 @@ import { ActiveDiscountSelector } from '@/components/cart/ActiveDiscountSelector
 import { FundWalletDialog } from '@/components/profile/FundWalletDialog';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { ArrowLeft, ShoppingBag, Leaf, Loader2, AlertTriangle, Store, Phone, MapPin, Navigation, Wallet, Gift } from 'lucide-react';
+import { ArrowLeft, ShoppingBag, Leaf, Loader2, AlertTriangle, Store, Phone, MapPin, Navigation, Wallet } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Tables } from '@/integrations/supabase/types';
 
@@ -41,7 +41,7 @@ export default function Cart() {
   const { items, vendorId, vendorName, subtotal, totalCalories, clearCart } = useCart();
   const { getApplicablePacks } = useTakeawayPacks(vendorId);
   const { appliedPromo, incrementUsage, clearPromo: clearPromoHook, resetAfterOrder } = usePromoCode();
-  const { balance: walletBalance, referralBonusBalance, totalAvailableBalance, isDisabled: isWalletDisabled, hasDVA, dvaDetails, payWithWallet, refetch: refetchWallet } = useCustomerWallet();
+  const { balance: walletBalance, isDisabled: isWalletDisabled, hasDVA, dvaDetails, payWithWallet, refetch: refetchWallet } = useCustomerWallet();
   const { activeDiscounts, getBestDiscount, useDiscount } = useSpinWheel();
   const { eligibility, getBestPlatformPromo, markFirstOrderUsed } = usePlatformPromos();
   const navigate = useNavigate();
@@ -263,8 +263,8 @@ export default function Cart() {
 
   const serviceFee = 100;
   const total = subtotal + deliveryFee + serviceFee + packagingFee - promoDiscount;
-  const insufficientBalance = totalAvailableBalance < total;
-  const shortfall = total - totalAvailableBalance;
+  const insufficientBalance = walletBalance < total;
+  const shortfall = total - walletBalance;
 
   const handlePromoApplied = (discount: number, code: string | null) => {
     setPromoDiscount(discount);
@@ -797,28 +797,10 @@ export default function Cart() {
                   <Wallet className="w-5 h-5 text-primary" />
                   <h3 className="font-semibold text-foreground">Payment</h3>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm font-medium text-muted-foreground">
-                    Balance: ₦{walletBalance.toLocaleString()}
-                  </p>
-                  {referralBonusBalance > 0 && (
-                    <p className="text-xs text-green-600 font-medium">
-                      + ₦{referralBonusBalance.toLocaleString()} referral bonus
-                    </p>
-                  )}
-                </div>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Balance: ₦{walletBalance.toLocaleString()}
+                </p>
               </div>
-
-              {/* Referral Bonus Banner */}
-              {referralBonusBalance > 0 && items.length > 0 && (
-                <div className="flex items-center gap-2 p-3 bg-green-500/10 rounded-lg">
-                  <Gift className="w-4 h-4 text-green-600 shrink-0" />
-                  <p className="text-xs text-green-700 dark:text-green-400">
-                    ₦{Math.min(referralBonusBalance, total).toLocaleString()} referral bonus will be applied first
-                    {referralBonusBalance >= total && ' — this order is fully covered!'}
-                  </p>
-                </div>
-              )}
               
               {isWalletDisabled && (
                 <div className="flex items-center gap-2 p-3 bg-destructive/10 rounded-lg">
