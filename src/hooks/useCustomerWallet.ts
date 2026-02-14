@@ -90,7 +90,7 @@ export function useCustomerWallet() {
     autoRequeryDVA();
   }, [autoRequeryDVA]);
 
-  // Subscribe to wallet changes
+  // Subscribe to wallet changes via realtime + polling fallback
   useEffect(() => {
     if (!user || !wallet) return;
 
@@ -99,21 +99,30 @@ export function useCustomerWallet() {
       .on(
         'postgres_changes',
         {
-          event: 'UPDATE',
+          event: '*',
           schema: 'public',
           table: 'wallets',
           filter: `id=eq.${wallet.id}`,
         },
         (payload) => {
+          console.log('Wallet realtime update received:', payload.eventType);
           setWallet(payload.new as WalletRow);
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Wallet realtime status:', status);
+      });
+
+    // Polling fallback: check every 15 seconds for balance changes
+    const pollInterval = setInterval(() => {
+      fetchWallet();
+    }, 15000);
 
     return () => {
       supabase.removeChannel(channel);
+      clearInterval(pollInterval);
     };
-  }, [user, wallet?.id]);
+  }, [user, wallet?.id, fetchWallet]);
 
   const balance = wallet 
     ? (isTestMode ? Number(wallet.test_balance) || 0 : Number(wallet.balance) || 0)
