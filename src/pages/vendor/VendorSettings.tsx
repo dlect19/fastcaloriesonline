@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Store, Mail, Phone, MapPin, Save, Camera, ImageIcon, Loader2, Megaphone, Bike, Users, Building2, Heart, QrCode, Navigation, CheckCircle } from 'lucide-react';
+import { Store, Mail, Phone, MapPin, Save, Camera, ImageIcon, Loader2, Megaphone, Bike, Users, Building2, Heart, QrCode, Navigation, CheckCircle, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DeleteAccountDialog } from '@/components/shared/DeleteAccountDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,7 +24,7 @@ import type { Tables } from '@/integrations/supabase/types';
 type Vendor = Tables<'vendors'>;
 
 export default function VendorSettings() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, signOut } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [vendor, setVendor] = useState<Vendor | null>(null);
@@ -764,6 +765,23 @@ export default function VendorSettings() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Delete Account */}
+          {user && (
+            <Card className="border-destructive/30">
+              <CardContent className="p-6">
+                <h3 className="text-sm font-medium text-destructive mb-2">Danger Zone</h3>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Permanently delete your account and all business data.
+                </p>
+                <DeleteAccountDialog
+                  userId={user.id}
+                  userEmail={user.email || ''}
+                  onDeleted={() => { signOut?.(); navigate('/'); }}
+                />
+              </CardContent>
+            </Card>
+          )}
         </div>
       </main>
     </div>

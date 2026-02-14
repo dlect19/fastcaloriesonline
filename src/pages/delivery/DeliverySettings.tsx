@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Settings, Building2, Phone, Mail, MapPin, Loader2, Upload, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { DeleteAccountDialog } from '@/components/shared/DeleteAccountDialog';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -243,6 +244,23 @@ export default function DeliverySettings() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Delete Account */}
+          {user && isOwner && (
+            <Card className="border-destructive/30">
+              <CardContent className="p-6">
+                <h3 className="text-sm font-medium text-destructive mb-2">Danger Zone</h3>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Permanently delete your logistics company account.
+                </p>
+                <DeleteAccountDialog
+                  userId={user.id}
+                  userEmail={user.email || ''}
+                  onDeleted={() => navigate('/delivery/auth')}
+                />
+              </CardContent>
+            </Card>
+          )}
         </div>
       </main>
     </div>
