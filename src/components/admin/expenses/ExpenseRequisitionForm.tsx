@@ -22,7 +22,6 @@ interface ExpenseRequisitionFormProps {
 }
 
 const EXPENSE_CATEGORIES = [
-  { value: 'nin_verification', label: 'NIN Verification (NinBVN Portal)' },
   { value: 'office_supplies', label: 'Office Supplies' },
   { value: 'equipment', label: 'Equipment' },
   { value: 'marketing', label: 'Marketing' },

@@ -128,3 +128,6 @@ verify_jwt = false
 
 [functions.process-expense]
 verify_jwt = false
+
+[functions.ninbvn-balance]
+verify_jwt = false

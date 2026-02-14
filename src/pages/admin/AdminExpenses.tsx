@@ -5,6 +5,7 @@ import { useAdminPermissions } from '@/hooks/useAdminPermissions';
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
 import { CompanyProfitCard } from '@/components/admin/CompanyProfitCard';
 import { PaystackBalanceCard } from '@/components/admin/PaystackBalanceCard';
+import { NinBvnBalanceCard } from '@/components/admin/NinBvnBalanceCard';
 import { ExpenseRequisitionList } from '@/components/admin/expenses/ExpenseRequisitionList';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
@@ -48,7 +49,10 @@ export default function AdminExpenses() {
           <div className="lg:col-span-2">
             <CompanyProfitCard environment={effectiveEnvironment} />
           </div>
-          <PaystackBalanceCard />
+          <div className="space-y-6">
+            <PaystackBalanceCard />
+            <NinBvnBalanceCard />
+          </div>
         </div>
 
         {/* Requisitions */}
