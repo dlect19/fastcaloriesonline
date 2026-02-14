@@ -119,6 +119,15 @@ export function useCustomerWallet() {
     ? (isTestMode ? Number(wallet.test_balance) || 0 : Number(wallet.balance) || 0)
     : 0;
 
+  // Referral bonus balance
+  const referralBonusRaw = wallet
+    ? (isTestMode ? Number(wallet.test_referral_bonus_balance) || 0 : Number(wallet.referral_bonus_balance) || 0)
+    : 0;
+  const bonusExpiresAt = wallet?.referral_bonus_expires_at;
+  const isBonusExpired = bonusExpiresAt ? new Date(bonusExpiresAt) < new Date() : false;
+  const referralBonusBalance = isBonusExpired ? 0 : referralBonusRaw;
+  const totalAvailableBalance = balance + referralBonusBalance;
+
   // Check if DVA is active
   const hasDVA = wallet?.dva_active === true && !!wallet?.dva_account_number;
 
@@ -164,6 +173,9 @@ export function useCustomerWallet() {
   return {
     wallet,
     balance,
+    referralBonusBalance,
+    totalAvailableBalance,
+    bonusExpiresAt: isBonusExpired ? null : bonusExpiresAt,
     loading,
     error,
     isDisabled: wallet?.is_disabled || false,
