@@ -202,7 +202,7 @@ serve(async (req: Request) => {
       }
 
       // Log referral cost as platform debit transaction
-      await supabase.from("wallet_transactions").insert({
+      const { error: costErr } = await supabase.from("wallet_transactions").insert({
         wallet_type: "platform",
         category: "referral_cost",
         transaction_type: "debit",
@@ -211,8 +211,10 @@ serve(async (req: Request) => {
         environment: order.environment,
         status: "completed",
         notes: `Referral bonus cost - Referrer: ₦${referrerBonus} (Order #${order.order_number})`,
-        order_id: orderId,
       });
+      if (costErr) {
+        console.error("Failed to log referral_cost transaction:", costErr);
+      }
     }
 
     // Update referral record
