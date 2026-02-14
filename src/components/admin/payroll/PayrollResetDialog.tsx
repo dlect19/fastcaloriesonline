@@ -27,11 +27,11 @@ export function PayrollResetDialog({ onResetComplete }: PayrollResetDialogProps)
     setLoading(true);
     try {
       // Delete payroll_items first (FK dependency)
-      const { error: itemsError } = await supabase.from('payroll_items').delete().neq('id', '');
+      const { error: itemsError } = await supabase.from('payroll_items').delete().gte('created_at', '1970-01-01');
       if (itemsError) throw itemsError;
 
       // Delete payroll_runs
-      const { error: runsError } = await supabase.from('payroll_runs').delete().neq('id', '');
+      const { error: runsError } = await supabase.from('payroll_runs').delete().gte('created_at', '1970-01-01');
       if (runsError) throw runsError;
 
       toast.success('Payroll data reset successfully', {
