@@ -136,12 +136,12 @@ export default function Auth() {
               const { data: referrerProfile } = await supabase
                 .from('profiles')
                 .select('id')
-                .eq('referral_code', referralCode.trim().toUpperCase())
+                .ilike('referral_code', referralCode.trim())
                 .single();
 
               if (referrerProfile) {
                 // We'll link it after the user profile is created (profile-setup or auto-creation)
-                localStorage.setItem('fc_referral_code', referralCode.trim().toUpperCase());
+                localStorage.setItem('fc_referral_code', referralCode.trim());
               }
             } catch {
               // Ignore invalid referral codes silently
@@ -348,8 +348,8 @@ export default function Auth() {
                     type="text"
                     placeholder="e.g. FC-john1234"
                     value={referralCode}
-                    onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
-                    className="pl-10 h-12 bg-card border-border uppercase"
+                    onChange={(e) => setReferralCode(e.target.value)}
+                    className="pl-10 h-12 bg-card border-border"
                     disabled={isLoading}
                   />
                 </div>

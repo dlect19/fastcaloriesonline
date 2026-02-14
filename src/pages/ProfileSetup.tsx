@@ -89,7 +89,7 @@ export default function ProfileSetup() {
           const { data: referrerProfile } = await supabase
             .from('profiles')
             .select('id')
-            .eq('referral_code', storedReferralCode)
+            .ilike('referral_code', storedReferralCode)
             .single();
 
           const { data: myProfile } = await supabase
