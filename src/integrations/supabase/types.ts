@@ -894,6 +894,90 @@ export type Database = {
         }
         Relationships: []
       }
+      expense_requisitions: {
+        Row: {
+          account_name: string | null
+          account_number: string | null
+          amount: number
+          approved_at: string | null
+          approved_by: string | null
+          approved_by_name: string | null
+          bank_code: string | null
+          bank_name: string | null
+          category: string
+          created_at: string
+          description: string | null
+          environment: string
+          id: string
+          paid_at: string | null
+          paid_by: string | null
+          payment_method: string | null
+          payment_note: string | null
+          paystack_reference: string | null
+          paystack_transfer_code: string | null
+          rejection_reason: string | null
+          requested_by: string
+          requested_by_name: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          account_name?: string | null
+          account_number?: string | null
+          amount: number
+          approved_at?: string | null
+          approved_by?: string | null
+          approved_by_name?: string | null
+          bank_code?: string | null
+          bank_name?: string | null
+          category?: string
+          created_at?: string
+          description?: string | null
+          environment?: string
+          id?: string
+          paid_at?: string | null
+          paid_by?: string | null
+          payment_method?: string | null
+          payment_note?: string | null
+          paystack_reference?: string | null
+          paystack_transfer_code?: string | null
+          rejection_reason?: string | null
+          requested_by: string
+          requested_by_name: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          account_name?: string | null
+          account_number?: string | null
+          amount?: number
+          approved_at?: string | null
+          approved_by?: string | null
+          approved_by_name?: string | null
+          bank_code?: string | null
+          bank_name?: string | null
+          category?: string
+          created_at?: string
+          description?: string | null
+          environment?: string
+          id?: string
+          paid_at?: string | null
+          paid_by?: string | null
+          payment_method?: string | null
+          payment_note?: string | null
+          paystack_reference?: string | null
+          paystack_transfer_code?: string | null
+          rejection_reason?: string | null
+          requested_by?: string
+          requested_by_name?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       favorites: {
         Row: {
           created_at: string | null

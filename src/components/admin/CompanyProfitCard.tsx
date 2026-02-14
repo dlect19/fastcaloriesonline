@@ -28,6 +28,7 @@ interface CompanyProfitData {
   serviceFees: number;
   promoBonuses: number;
   referralCosts: number;
+  expenseCosts: number;
   grossRevenue: number;
   netProfit: number;
   platformBalance: number;
@@ -79,6 +80,7 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
       let serviceFees = 0;
       let promoBonuses = 0;
       let referralCosts = 0;
+      let expenseCosts = 0;
 
       transactions?.forEach((tx) => {
         const amount = Number(tx.amount) || 0;
@@ -93,11 +95,13 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
           promoBonuses += amount;
         } else if (tx.category === 'referral_cost' && tx.transaction_type === 'debit') {
           referralCosts += amount;
+        } else if (tx.category === 'expense' && tx.transaction_type === 'debit') {
+          expenseCosts += amount;
         }
       });
 
       const grossRevenue = vendorCommissions + deliveryCommissions + serviceFees;
-      const netProfit = grossRevenue - promoBonuses - referralCosts;
+      const netProfit = grossRevenue - promoBonuses - referralCosts - expenseCosts;
 
       // Get platform wallet and pending payouts
       const { data: platformWallet } = await supabase
@@ -123,6 +127,7 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
         serviceFees,
         promoBonuses,
         referralCosts,
+        expenseCosts,
         grossRevenue,
         netProfit,
         platformBalance,
@@ -250,6 +255,18 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
               <span className="font-semibold text-destructive">-{formatCurrency(data.referralCosts)}</span>
             </div>
           )}
+
+          {data.expenseCosts > 0 && (
+            <div className="flex items-center justify-between p-3 bg-destructive/5 rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-destructive/10 flex items-center justify-center">
+                  <CreditCard className="w-4 h-4 text-destructive" />
+                </div>
+                <span className="text-sm">Company Expenses</span>
+              </div>
+              <span className="font-semibold text-destructive">-{formatCurrency(data.expenseCosts)}</span>
+            </div>
+          )}
         </div>
 
         {/* Net Profit */}
@@ -332,6 +349,8 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
                 <span className="text-destructive">Promo Bonuses</span>
                 <span>-</span>
                 <span className="text-destructive">Referral Bonuses</span>
+                <span>-</span>
+                <span className="text-destructive">Expenses</span>
               </div>
               <div className="border-t border-border pt-2 text-center">
                 <span>=</span>
