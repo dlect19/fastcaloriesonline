@@ -97,7 +97,6 @@ serve(async (req: Request) => {
     }
 
     const referrerBonus = Number(cfg.referral_referrer_bonus) || 300;
-    const newUserBonus = Number(cfg.referral_new_user_bonus) || 200;
     const isTestMode = order.environment === "development";
 
     // Get referrer's user_id from profile
@@ -134,7 +133,7 @@ serve(async (req: Request) => {
       .limit(1)
       .single();
 
-    const totalBonusCost = referrerBonus + newUserBonus;
+    const totalBonusCost = referrerBonus;
 
     // Credit referrer MAIN wallet balance
     const { data: referrerWallet } = await supabase
@@ -177,46 +176,6 @@ serve(async (req: Request) => {
       });
     }
 
-    // Credit referred user MAIN wallet balance
-    const { data: referredWallet } = await supabase
-      .from("wallets")
-      .select("id")
-      .eq("user_id", order.user_id)
-      .eq("wallet_type", "customer")
-      .single();
-
-    let referredWalletId = referredWallet?.id;
-    if (!referredWalletId) {
-      const { data: newW } = await supabase
-        .from("wallets")
-        .insert({ user_id: order.user_id, wallet_type: "customer" })
-        .select("id")
-        .single();
-      referredWalletId = newW?.id;
-    }
-
-    if (referredWalletId) {
-      const balCol = isTestMode ? "test_balance" : "balance";
-      const { data: rw } = await supabase.from("wallets").select(balCol).eq("id", referredWalletId).single();
-      const currentBal = Number(rw?.[balCol]) || 0;
-
-      await supabase.from("wallets").update({
-        [balCol]: currentBal + newUserBonus,
-        updated_at: new Date().toISOString(),
-      }).eq("id", referredWalletId);
-
-      await supabase.from("wallet_transactions").insert({
-        wallet_id: referredWalletId,
-        wallet_type: "customer",
-        transaction_type: "credit",
-        category: "referral_bonus",
-        amount: newUserBonus,
-        balance_after: currentBal + newUserBonus,
-        status: "completed",
-        environment: order.environment,
-        notes: `Welcome bonus for first order #${order.order_number}`,
-      });
-    }
 
     // Record referral cost as platform loss (debit from platform wallet)
     if (platformWallet?.id) {
@@ -251,7 +210,7 @@ serve(async (req: Request) => {
         platform_wallet_id: platformWallet.id,
         environment: order.environment,
         status: "completed",
-        notes: `Referral bonus cost - Referrer: ₦${referrerBonus}, New user: ₦${newUserBonus} (Order #${order.order_number})`,
+        notes: `Referral bonus cost - Referrer: ₦${referrerBonus} (Order #${order.order_number})`,
         order_id: orderId,
       });
     }
@@ -261,18 +220,17 @@ serve(async (req: Request) => {
       status: "completed",
       trigger_order_id: orderId,
       referrer_bonus: referrerBonus,
-      referred_bonus: newUserBonus,
+      referred_bonus: 0,
       referrer_credited: true,
-      referred_credited: true,
+      referred_credited: false,
       completed_at: new Date().toISOString(),
     }).eq("id", existingReferral.id);
 
-    console.log(`Referral bonus processed: referrer=${referrerProfile.user_id} (+₦${referrerBonus}), referred=${order.user_id} (+₦${newUserBonus}), platform_cost=₦${totalBonusCost}, order=${orderId}`);
+    console.log(`Referral bonus processed: referrer=${referrerProfile.user_id} (+₦${referrerBonus}), platform_cost=₦${totalBonusCost}, order=${orderId}`);
 
     return new Response(JSON.stringify({
       success: true,
       referrer_bonus: referrerBonus,
-      referred_bonus: newUserBonus,
       platform_cost: totalBonusCost,
     }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error: unknown) {
