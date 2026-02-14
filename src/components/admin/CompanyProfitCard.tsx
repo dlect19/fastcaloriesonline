@@ -244,29 +244,25 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
             <span className="font-semibold text-destructive">-{formatCurrency(data.promoBonuses)}</span>
           </div>
 
-          {data.referralCosts > 0 && (
-            <div className="flex items-center justify-between p-3 bg-destructive/5 rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-destructive/10 flex items-center justify-center">
-                  <Users className="w-4 h-4 text-destructive" />
-                </div>
-                <span className="text-sm">Referral Bonuses Paid</span>
+          <div className="flex items-center justify-between p-3 bg-destructive/5 rounded-lg">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-destructive/10 flex items-center justify-center">
+                <Users className="w-4 h-4 text-destructive" />
               </div>
-              <span className="font-semibold text-destructive">-{formatCurrency(data.referralCosts)}</span>
+              <span className="text-sm">Referral Bonuses Paid</span>
             </div>
-          )}
+            <span className="font-semibold text-destructive">-{formatCurrency(data.referralCosts)}</span>
+          </div>
 
-          {data.expenseCosts > 0 && (
-            <div className="flex items-center justify-between p-3 bg-destructive/5 rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-destructive/10 flex items-center justify-center">
-                  <CreditCard className="w-4 h-4 text-destructive" />
-                </div>
-                <span className="text-sm">Company Expenses</span>
+          <div className="flex items-center justify-between p-3 bg-destructive/5 rounded-lg">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-destructive/10 flex items-center justify-center">
+                <CreditCard className="w-4 h-4 text-destructive" />
               </div>
-              <span className="font-semibold text-destructive">-{formatCurrency(data.expenseCosts)}</span>
+              <span className="text-sm">Company Expenses</span>
             </div>
-          )}
+            <span className="font-semibold text-destructive">-{formatCurrency(data.expenseCosts)}</span>
+          </div>
         </div>
 
         {/* Net Profit */}
