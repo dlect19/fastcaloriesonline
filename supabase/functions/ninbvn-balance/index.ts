@@ -16,17 +16,25 @@ serve(async (req) => {
       throw new Error('NINBVN_API_KEY is not configured');
     }
 
+    const trimmedKey = apiKey.trim();
+    console.log(`API key length: ${trimmedKey.length}, starts with: ${trimmedKey.substring(0, 8)}...`);
+
     const response = await fetch('https://checkmyninbvn.com.ng/api/balance', {
       method: 'GET',
-      headers: { 'x-api-key': apiKey },
+      headers: { 
+        'x-api-key': trimmedKey,
+        'Accept': 'application/json',
+      },
     });
 
+    const text = await response.text();
+    console.log(`NinBVN response status: ${response.status}, body: ${text}`);
+
     if (!response.ok) {
-      const text = await response.text();
       throw new Error(`NinBVN API error [${response.status}]: ${text}`);
     }
 
-    const data = await response.json();
+    const data = JSON.parse(text);
 
     return new Response(JSON.stringify({ success: true, data }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
