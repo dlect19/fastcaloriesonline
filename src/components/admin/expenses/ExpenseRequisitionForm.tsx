@@ -29,6 +29,7 @@ const EXPENSE_CATEGORIES = [
   { value: 'maintenance', label: 'Maintenance' },
   { value: 'subscription', label: 'Subscriptions & Software' },
   { value: 'utility', label: 'Utilities' },
+  { value: 'nin_verification', label: 'NIN Verification (NinBVN Portal)' },
   { value: 'general', label: 'General / Other' },
 ];
 

@@ -7,9 +7,12 @@ import { CompanyProfitCard } from '@/components/admin/CompanyProfitCard';
 import { PaystackBalanceCard } from '@/components/admin/PaystackBalanceCard';
 import { NinBvnBalanceCard } from '@/components/admin/NinBvnBalanceCard';
 import { ExpenseRequisitionList } from '@/components/admin/expenses/ExpenseRequisitionList';
+import { ExpenseRequisitionForm } from '@/components/admin/expenses/ExpenseRequisitionForm';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
-import { FileText, ClipboardList } from 'lucide-react';
+import { FileText, ClipboardList, Plus } from 'lucide-react';
 
 export default function AdminExpenses() {
   const { user, loading: authLoading } = useAuth();
@@ -17,6 +20,7 @@ export default function AdminExpenses() {
   const { effectiveEnvironment } = useEnvironmentConfig();
   const navigate = useNavigate();
   const [refreshKey, setRefreshKey] = useState(0);
+  const [showNewRequisition, setShowNewRequisition] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) navigate('/admin/auth');
@@ -42,6 +46,9 @@ export default function AdminExpenses() {
             <h1 className="text-3xl font-bold text-foreground">Expenses</h1>
             <p className="text-muted-foreground">Manage company expenses and requisitions</p>
           </div>
+          <Button onClick={() => setShowNewRequisition(true)} className="gap-2">
+            <Plus className="w-4 h-4" /> New Requisition
+          </Button>
         </div>
 
         {/* Financial Overview */}
@@ -84,6 +91,19 @@ export default function AdminExpenses() {
             />
           </TabsContent>
         </Tabs>
+
+        {/* New Requisition Dialog */}
+        <Dialog open={showNewRequisition} onOpenChange={setShowNewRequisition}>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>New Expense Requisition</DialogTitle>
+            </DialogHeader>
+            <ExpenseRequisitionForm
+              onSuccess={() => { setShowNewRequisition(false); setRefreshKey(k => k + 1); }}
+              onCancel={() => setShowNewRequisition(false)}
+            />
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );
