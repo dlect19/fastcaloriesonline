@@ -12,6 +12,7 @@ import { CalorieGoalCard } from '@/components/profile/CalorieGoalCard';
 import { OrderHistoryCard } from '@/components/profile/OrderHistoryCard';
 import { AddressesCard } from '@/components/profile/AddressesCard';
 import { FundWalletDialog } from '@/components/profile/FundWalletDialog';
+import { ReferralCard } from '@/components/profile/ReferralCard';
 import { VirtualAccountCard } from '@/components/profile/VirtualAccountCard';
 import { CreateDVADialog } from '@/components/profile/CreateDVADialog';
 import { Leaf, ArrowLeft, Receipt, ChevronRight, Wallet, Plus, Building2, User } from 'lucide-react';
@@ -225,6 +226,9 @@ export default function Profile() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Referral Card */}
+        <ReferralCard />
 
         <AddressesCard
           addresses={addresses}

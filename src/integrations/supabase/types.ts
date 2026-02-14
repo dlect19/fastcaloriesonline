@@ -1892,6 +1892,8 @@ export type Database = {
           health_goal: string | null
           id: string
           phone: string | null
+          referral_code: string | null
+          referred_by: string | null
           updated_at: string
           user_id: string
         }
@@ -1903,6 +1905,8 @@ export type Database = {
           health_goal?: string | null
           id?: string
           phone?: string | null
+          referral_code?: string | null
+          referred_by?: string | null
           updated_at?: string
           user_id: string
         }
@@ -1914,10 +1918,20 @@ export type Database = {
           health_goal?: string | null
           id?: string
           phone?: string | null
+          referral_code?: string | null
+          referred_by?: string | null
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_referred_by_fkey"
+            columns: ["referred_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       promo_codes: {
         Row: {
@@ -2098,6 +2112,76 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      referrals: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          expires_at: string | null
+          id: string
+          ip_address: string | null
+          referred_bonus: number
+          referred_credited: boolean
+          referred_id: string
+          referrer_bonus: number
+          referrer_credited: boolean
+          referrer_id: string
+          status: string
+          trigger_order_id: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          ip_address?: string | null
+          referred_bonus?: number
+          referred_credited?: boolean
+          referred_id: string
+          referrer_bonus?: number
+          referrer_credited?: boolean
+          referrer_id: string
+          status?: string
+          trigger_order_id?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          ip_address?: string | null
+          referred_bonus?: number
+          referred_credited?: boolean
+          referred_id?: string
+          referrer_bonus?: number
+          referrer_credited?: boolean
+          referrer_id?: string
+          status?: string
+          trigger_order_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referrals_referred_id_fkey"
+            columns: ["referred_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referrals_referrer_id_fkey"
+            columns: ["referrer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referrals_trigger_order_id_fkey"
+            columns: ["trigger_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       reviews: {
         Row: {
@@ -3096,12 +3180,15 @@ export type Database = {
           paystack_recipient_code: string | null
           pending_balance: number | null
           pending_payouts: number | null
+          referral_bonus_balance: number | null
+          referral_bonus_expires_at: string | null
           rider_revenue_balance: number | null
           test_balance: number | null
           test_eligible_balance: number | null
           test_menu_earnings_balance: number | null
           test_menu_earnings_pending: number | null
           test_pending_balance: number | null
+          test_referral_bonus_balance: number | null
           test_rider_revenue_balance: number | null
           total_earned: number | null
           total_withdrawn: number | null
@@ -3133,12 +3220,15 @@ export type Database = {
           paystack_recipient_code?: string | null
           pending_balance?: number | null
           pending_payouts?: number | null
+          referral_bonus_balance?: number | null
+          referral_bonus_expires_at?: string | null
           rider_revenue_balance?: number | null
           test_balance?: number | null
           test_eligible_balance?: number | null
           test_menu_earnings_balance?: number | null
           test_menu_earnings_pending?: number | null
           test_pending_balance?: number | null
+          test_referral_bonus_balance?: number | null
           test_rider_revenue_balance?: number | null
           total_earned?: number | null
           total_withdrawn?: number | null
@@ -3170,12 +3260,15 @@ export type Database = {
           paystack_recipient_code?: string | null
           pending_balance?: number | null
           pending_payouts?: number | null
+          referral_bonus_balance?: number | null
+          referral_bonus_expires_at?: string | null
           rider_revenue_balance?: number | null
           test_balance?: number | null
           test_eligible_balance?: number | null
           test_menu_earnings_balance?: number | null
           test_menu_earnings_pending?: number | null
           test_pending_balance?: number | null
+          test_referral_bonus_balance?: number | null
           test_rider_revenue_balance?: number | null
           total_earned?: number | null
           total_withdrawn?: number | null

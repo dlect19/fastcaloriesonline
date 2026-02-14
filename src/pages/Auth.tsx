@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Mail, Lock, User, ArrowRight, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight, Loader2, Eye, EyeOff, Gift } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
@@ -21,11 +21,25 @@ export default function Auth() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const [referralCode, setReferralCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string; name?: string; confirmPassword?: string }>({});
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+
+  // Pre-fill referral code from URL
+  const urlRef = useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('ref') || '';
+  }, []);
+
+  useEffect(() => {
+    if (urlRef) {
+      setReferralCode(urlRef);
+      setIsLogin(false);
+    }
+  }, [urlRef]);
 
   const { signIn, signUp, user } = useAuth();
   const navigate = useNavigate();
@@ -116,6 +130,24 @@ export default function Auth() {
             });
           }
         } else {
+          // Store referral code linkage if provided
+          if (referralCode.trim()) {
+            try {
+              const { data: referrerProfile } = await supabase
+                .from('profiles')
+                .select('id')
+                .eq('referral_code', referralCode.trim().toUpperCase())
+                .single();
+
+              if (referrerProfile) {
+                // We'll link it after the user profile is created (profile-setup or auto-creation)
+                localStorage.setItem('fc_referral_code', referralCode.trim().toUpperCase());
+              }
+            } catch {
+              // Ignore invalid referral codes silently
+            }
+          }
+
           // Send custom verification email via edge function
           try {
             const verificationUrl = `${window.location.origin}/verify-email`;
@@ -154,6 +186,7 @@ export default function Auth() {
     setConfirmPassword('');
     setShowPassword(false);
     setShowConfirmPassword(false);
+    if (!urlRef) setReferralCode('');
   };
 
   return (
@@ -300,6 +333,26 @@ export default function Auth() {
                 {errors.confirmPassword && (
                   <p className="text-sm text-destructive">{errors.confirmPassword}</p>
                 )}
+              </div>
+            )}
+
+            {!isLogin && (
+              <div className="space-y-2">
+                <Label htmlFor="referralCode" className="text-sm font-medium">
+                  Referral Code (Optional)
+                </Label>
+                <div className="relative">
+                  <Gift className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                  <Input
+                    id="referralCode"
+                    type="text"
+                    placeholder="e.g. FC-john1234"
+                    value={referralCode}
+                    onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                    className="pl-10 h-12 bg-card border-border uppercase"
+                    disabled={isLoading}
+                  />
+                </div>
               </div>
             )}
 

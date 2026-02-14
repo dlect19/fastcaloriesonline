@@ -139,6 +139,21 @@ serve(async (req) => {
       console.error('Failed to trigger receipt email:', emailErr);
     }
 
+    // Trigger referral bonus processing (fire and forget)
+    try {
+      await fetch(`${supabaseUrl}/functions/v1/process-referral-bonus`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseServiceKey}`,
+        },
+        body: JSON.stringify({ orderId }),
+      });
+      console.log('Referral bonus check triggered');
+    } catch (refErr) {
+      console.error('Referral bonus trigger failed (non-blocking):', refErr);
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true, 

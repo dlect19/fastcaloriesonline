@@ -185,6 +185,20 @@ serve(async (req: Request) => {
     // The database triggers (credit_vendor_on_payment, credit_rider_on_assignment) 
     // will handle vendor/rider/platform splits automatically
 
+    // Trigger referral bonus processing (fire and forget)
+    try {
+      await fetch(`${SUPABASE_URL}/functions/v1/process-referral-bonus`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+        body: JSON.stringify({ orderId }),
+      });
+    } catch (refErr) {
+      console.error('Referral bonus trigger failed (non-blocking):', refErr);
+    }
+
     console.log(`Wallet payment processed: ${reference}, amount: ₦${orderTotal}, user: ${user.id}`);
 
     return new Response(

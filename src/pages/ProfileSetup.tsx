@@ -82,6 +82,42 @@ export default function ProfileSetup() {
 
       if (error) throw error;
 
+      // Link referral if stored
+      const storedReferralCode = localStorage.getItem('fc_referral_code');
+      if (storedReferralCode) {
+        try {
+          const { data: referrerProfile } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('referral_code', storedReferralCode)
+            .single();
+
+          const { data: myProfile } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('user_id', user!.id)
+            .single();
+
+          if (referrerProfile && myProfile && referrerProfile.id !== myProfile.id) {
+            // Update referred_by
+            await supabase
+              .from('profiles')
+              .update({ referred_by: referrerProfile.id })
+              .eq('id', myProfile.id);
+
+            // Create referral record
+            await supabase.from('referrals').insert({
+              referrer_id: referrerProfile.id,
+              referred_id: myProfile.id,
+              status: 'pending',
+            });
+          }
+          localStorage.removeItem('fc_referral_code');
+        } catch (refErr) {
+          console.error('Failed to link referral:', refErr);
+        }
+      }
+
       toast({
         title: 'Profile updated!',
         description: 'Your profile has been set up successfully.',
