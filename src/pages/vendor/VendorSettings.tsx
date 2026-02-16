@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Store, Mail, Phone, MapPin, Save, Camera, ImageIcon, Loader2, Megaphone, Bike, Users, Building2, Heart, QrCode, Navigation, CheckCircle, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DeleteAccountDialog } from '@/components/shared/DeleteAccountDialog';
+import { VendorDocumentUpload } from '@/components/vendor/VendorDocumentUpload';
+import { GeoLockBanner } from '@/components/vendor/GeoLockBanner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -765,6 +767,22 @@ export default function VendorSettings() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Geo-Lock Banner */}
+          {vendor && (vendor as any).geo_verification_status === 'locked_pending_reverify' && (
+            <GeoLockBanner
+              vendorId={vendor.id}
+              geoStatus={(vendor as any).geo_verification_status}
+              lockReason={(vendor as any).geo_lock_reason}
+              lockedAt={(vendor as any).geo_locked_at}
+              onStatusChange={fetchData}
+            />
+          )}
+
+          {/* Verification Documents */}
+          {vendor && user && (
+            <VendorDocumentUpload vendorId={vendor.id} userId={user.id} />
+          )}
 
           {/* Delete Account */}
           {user && (

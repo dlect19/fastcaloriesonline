@@ -3015,6 +3015,109 @@ export type Database = {
         }
         Relationships: []
       }
+      vendor_location_logs: {
+        Row: {
+          action: string
+          created_at: string | null
+          device_latitude: number | null
+          device_longitude: number | null
+          distance_m: number | null
+          id: string
+          notes: string | null
+          performed_by: string | null
+          result: string | null
+          vendor_id: string
+          verified_latitude: number | null
+          verified_longitude: number | null
+        }
+        Insert: {
+          action: string
+          created_at?: string | null
+          device_latitude?: number | null
+          device_longitude?: number | null
+          distance_m?: number | null
+          id?: string
+          notes?: string | null
+          performed_by?: string | null
+          result?: string | null
+          vendor_id: string
+          verified_latitude?: number | null
+          verified_longitude?: number | null
+        }
+        Update: {
+          action?: string
+          created_at?: string | null
+          device_latitude?: number | null
+          device_longitude?: number | null
+          distance_m?: number | null
+          id?: string
+          notes?: string | null
+          performed_by?: string | null
+          result?: string | null
+          vendor_id?: string
+          verified_latitude?: number | null
+          verified_longitude?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_location_logs_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vendor_reverification_requests: {
+        Row: {
+          admin_notes: string | null
+          created_at: string | null
+          id: string
+          new_latitude: number
+          new_longitude: number
+          reason: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string | null
+          updated_at: string | null
+          vendor_id: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          created_at?: string | null
+          id?: string
+          new_latitude: number
+          new_longitude: number
+          reason: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string | null
+          updated_at?: string | null
+          vendor_id: string
+        }
+        Update: {
+          admin_notes?: string | null
+          created_at?: string | null
+          id?: string
+          new_latitude?: number
+          new_longitude?: number
+          reason?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string | null
+          updated_at?: string | null
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_reverification_requests_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendor_rider_invites: {
         Row: {
           created_at: string | null
@@ -3175,6 +3278,56 @@ export type Database = {
           },
         ]
       }
+      vendor_verification_documents: {
+        Row: {
+          created_at: string | null
+          document_type: string
+          file_name: string | null
+          file_url: string
+          id: string
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string | null
+          updated_at: string | null
+          vendor_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          document_type: string
+          file_name?: string | null
+          file_url: string
+          id?: string
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string | null
+          updated_at?: string | null
+          vendor_id: string
+        }
+        Update: {
+          created_at?: string | null
+          document_type?: string
+          file_name?: string | null
+          file_url?: string
+          id?: string
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string | null
+          updated_at?: string | null
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_verification_documents_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendor_working_hours: {
         Row: {
           close_time: string
@@ -3225,6 +3378,9 @@ export type Database = {
           description: string | null
           email: string | null
           estimated_delivery_minutes: number | null
+          geo_lock_reason: string | null
+          geo_locked_at: string | null
+          geo_verification_status: string | null
           id: string
           is_active: boolean | null
           is_open: boolean
@@ -3241,9 +3397,12 @@ export type Database = {
           rating: number | null
           slug: string | null
           state: string
+          tolerance_radius_m: number | null
           total_ratings: number | null
           updated_at: string
           user_id: string
+          verified_latitude: number | null
+          verified_longitude: number | null
         }
         Insert: {
           address: string
@@ -3259,6 +3418,9 @@ export type Database = {
           description?: string | null
           email?: string | null
           estimated_delivery_minutes?: number | null
+          geo_lock_reason?: string | null
+          geo_locked_at?: string | null
+          geo_verification_status?: string | null
           id?: string
           is_active?: boolean | null
           is_open?: boolean
@@ -3275,9 +3437,12 @@ export type Database = {
           rating?: number | null
           slug?: string | null
           state: string
+          tolerance_radius_m?: number | null
           total_ratings?: number | null
           updated_at?: string
           user_id: string
+          verified_latitude?: number | null
+          verified_longitude?: number | null
         }
         Update: {
           address?: string
@@ -3293,6 +3458,9 @@ export type Database = {
           description?: string | null
           email?: string | null
           estimated_delivery_minutes?: number | null
+          geo_lock_reason?: string | null
+          geo_locked_at?: string | null
+          geo_verification_status?: string | null
           id?: string
           is_active?: boolean | null
           is_open?: boolean
@@ -3309,9 +3477,12 @@ export type Database = {
           rating?: number | null
           slug?: string | null
           state?: string
+          tolerance_radius_m?: number | null
           total_ratings?: number | null
           updated_at?: string
           user_id?: string
+          verified_latitude?: number | null
+          verified_longitude?: number | null
         }
         Relationships: []
       }
@@ -3820,6 +3991,11 @@ export type Database = {
       support_user_type: "customer" | "vendor" | "rider" | "logistics"
       vendor_category: "restaurant" | "pharmacy" | "market"
       vendor_staff_role: "owner" | "manager" | "cashier" | "viewer"
+      vendor_verification_status:
+        | "unverified"
+        | "pending_verification"
+        | "verified"
+        | "locked_pending_reverify"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -3976,6 +4152,12 @@ export const Constants = {
       support_user_type: ["customer", "vendor", "rider", "logistics"],
       vendor_category: ["restaurant", "pharmacy", "market"],
       vendor_staff_role: ["owner", "manager", "cashier", "viewer"],
+      vendor_verification_status: [
+        "unverified",
+        "pending_verification",
+        "verified",
+        "locked_pending_reverify",
+      ],
     },
   },
 } as const
