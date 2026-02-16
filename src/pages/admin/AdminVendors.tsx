@@ -11,6 +11,7 @@ import { Check, X, Loader2, FlaskConical, ShieldCheck, MapPin } from 'lucide-rea
 import { useToast } from '@/hooks/use-toast';
 import { VendorCoordinateEditor } from '@/components/admin/VendorCoordinateEditor';
 import { VendorGeoLockManager } from '@/components/admin/VendorGeoLockManager';
+import { AdminVendorNameEditor } from '@/components/admin/AdminVendorNameEditor';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 
 export default function AdminVendors() {
@@ -184,6 +185,7 @@ export default function AdminVendors() {
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
                           <h3 className="font-medium">{vendor.name}</h3>
+                          <AdminVendorNameEditor vendorId={vendor.id} currentName={vendor.name} onUpdated={fetchVendors} />
                           {vendor.is_test_store && (
                             <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
                               <FlaskConical className="w-3 h-3 mr-1" />

@@ -235,24 +235,31 @@ export default function VendorSettings() {
     setSaving(true);
 
     try {
+      // Build update payload — exclude name if vendor is verified (locked after approval)
+      const updatePayload: Record<string, any> = {
+        description: formData.description || null,
+        phone: formData.phone || null,
+        email: formData.email || null,
+        address: formData.address,
+        city: formData.city,
+        state: formData.state,
+        min_order_amount: parseFloat(formData.min_order_amount) || 0,
+        delivery_fee: parseFloat(formData.delivery_fee) || 0,
+        estimated_delivery_minutes: parseInt(formData.estimated_delivery_minutes) || 30,
+        logo_url: formData.logo_url || null,
+        banner_url: formData.banner_url || null,
+        delivery_mode: formData.delivery_mode,
+        own_rider_priority: formData.own_rider_priority,
+      };
+
+      // Only allow name change if vendor is NOT yet verified
+      if (!vendor.is_verified) {
+        updatePayload.name = formData.name;
+      }
+
       const { error } = await supabase
         .from('vendors')
-        .update({
-          name: formData.name,
-          description: formData.description || null,
-          phone: formData.phone || null,
-          email: formData.email || null,
-          address: formData.address,
-          city: formData.city,
-          state: formData.state,
-          min_order_amount: parseFloat(formData.min_order_amount) || 0,
-          delivery_fee: parseFloat(formData.delivery_fee) || 0,
-          estimated_delivery_minutes: parseInt(formData.estimated_delivery_minutes) || 30,
-          logo_url: formData.logo_url || null,
-          banner_url: formData.banner_url || null,
-          delivery_mode: formData.delivery_mode,
-          own_rider_priority: formData.own_rider_priority,
-        })
+        .update(updatePayload)
         .eq('id', vendor.id);
 
       if (error) throw error;
@@ -427,7 +434,13 @@ export default function VendorSettings() {
                     id="name"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    disabled={vendor?.is_verified === true}
                   />
+                  {vendor?.is_verified && (
+                    <p className="text-xs text-muted-foreground">
+                      Store name is locked after approval. Contact admin to request a change.
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="phone">Phone Number</Label>
