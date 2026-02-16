@@ -89,6 +89,55 @@ export function useGeoLockCheck() {
         variant: 'destructive',
       });
 
+      // Send red flag notifications to admin and vendor
+      try {
+        // Get vendor name for notification context
+        const { data: vendorInfo } = await supabase
+          .from('vendors')
+          .select('name, user_id')
+          .eq('id', vendorId)
+          .single();
+
+        // Get all active admin user IDs
+        const { data: admins } = await supabase
+          .from('admin_staff')
+          .select('user_id')
+          .in('role', ['super_admin', 'admin'])
+          .eq('is_active', true);
+
+        const adminUserIds = admins?.map(a => a.user_id) || [];
+        const vendorName = vendorInfo?.name || 'Unknown Vendor';
+        const actionLabel = action === 'store_open_check' ? 'opening their store' : 'accepting an order';
+
+        // Red flag notification to admins
+        if (adminUserIds.length > 0) {
+          await supabase.functions.invoke('send-push-notification', {
+            body: {
+              user_ids: adminUserIds,
+              title: '🚩 RED FLAG: Geo-Lock Violation',
+              body: `Vendor "${vendorName}" triggered a geo-lock violation while ${actionLabel}. Device was ${distanceM}m from verified location (tolerance: ${toleranceM}m). Store has been auto-locked.`,
+              url: '/admin/vendors',
+              data: { vendor_id: vendorId, distance_m: distanceM, action },
+            },
+          });
+        }
+
+        // Red flag notification to vendor owner
+        if (vendorInfo?.user_id) {
+          await supabase.functions.invoke('send-push-notification', {
+            body: {
+              user_ids: [vendorInfo.user_id],
+              title: '🚩 Geo-Lock Violation Alert',
+              body: `Your store "${vendorName}" has been locked. Your device was detected ${distanceM}m away from the verified location (allowed: ${toleranceM}m). This violation has been reported to the administration. Submit a reverification request to unlock your store.`,
+              url: '/vendor/settings',
+              data: { vendor_id: vendorId, distance_m: distanceM },
+            },
+          });
+        }
+      } catch (notifErr) {
+        console.error('Failed to send geo-lock violation notifications:', notifErr);
+      }
+
       return { passed: false, distanceM, locked: true };
     }
 
