@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { GeoLockBanner } from '@/components/vendor/GeoLockBanner';
+import { useGeoLockCheck } from '@/hooks/useGeoLockCheck';
 import { useProfileCompletion } from '@/hooks/useProfileCompletion';
 import {
   TrendingUp,
@@ -42,6 +44,7 @@ export default function VendorDashboard() {
   const { toast } = useToast();
   const { isTestMode } = useEnvironmentConfig();
   const { playNotification } = useVendorNotificationSound();
+  const { checkGeoLock } = useGeoLockCheck();
   const [vendor, setVendor] = useState<Vendor | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -429,7 +432,20 @@ export default function VendorDashboard() {
                 <span className="text-sm font-medium">{vendor.is_open ? 'Open' : 'Closed'}</span>
                 <Switch
                   checked={vendor.is_open ?? true}
+                  disabled={(vendor as any).geo_verification_status === 'locked_pending_reverify'}
                   onCheckedChange={async (checked) => {
+                    if (checked) {
+                      // Geo-lock check on store open
+                      try {
+                        const result = await checkGeoLock(vendor.id, 'store_open_check');
+                        if (!result.passed) {
+                          fetchVendorData();
+                          return;
+                        }
+                      } catch {
+                        // GPS unavailable, allow open
+                      }
+                    }
                     const { error } = await supabase
                       .from('vendors')
                       .update({ is_open: checked })
@@ -449,6 +465,15 @@ export default function VendorDashboard() {
               )}
             </div>
           </div>
+
+          {/* Geo-Lock Banner */}
+          <GeoLockBanner
+            vendorId={vendor.id}
+            geoStatus={(vendor as any).geo_verification_status || 'unverified'}
+            lockReason={(vendor as any).geo_lock_reason}
+            lockedAt={(vendor as any).geo_locked_at}
+            onStatusChange={fetchVendorData}
+          />
 
           {/* Push Notification Banner */}
           <PushNotificationBanner />
