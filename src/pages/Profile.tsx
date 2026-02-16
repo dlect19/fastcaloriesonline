@@ -231,6 +231,9 @@ export default function Profile() {
         {/* Referral Card */}
         <ReferralCard />
 
+        {/* Health Goals */}
+        <CalorieGoalCard profile={profile} onUpdate={fetchProfileData} />
+
         <AddressesCard
           addresses={addresses}
           userId={user.id}
