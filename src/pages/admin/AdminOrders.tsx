@@ -4,15 +4,18 @@ import { supabase } from '@/integrations/supabase/client';
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2 } from 'lucide-react';
+import { Loader2, XCircle } from 'lucide-react';
 import { format } from 'date-fns';
+import { AdminCancelOrderDialog } from '@/components/admin/AdminCancelOrderDialog';
 
 export default function AdminOrders() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<any[]>([]);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [cancelOrder, setCancelOrder] = useState<any | null>(null);
 
   useEffect(() => {
     checkAuth();
@@ -144,6 +147,7 @@ export default function AdminOrders() {
                      <th className="text-left py-3 px-4 font-medium">Status</th>
                      <th className="text-left py-3 px-4 font-medium">Total</th>
                      <th className="text-left py-3 px-4 font-medium">Date</th>
+                     <th className="text-left py-3 px-4 font-medium">Actions</th>
                    </tr>
                  </thead>
                  <tbody>
@@ -158,6 +162,19 @@ export default function AdminOrders() {
                        <td className="py-3 px-4 text-muted-foreground">
                          {format(new Date(order.created_at), 'PP')}
                        </td>
+                       <td className="py-3 px-4">
+                         {order.status !== 'cancelled' && order.status !== 'delivered' && (
+                           <Button
+                             variant="ghost"
+                             size="sm"
+                             className="text-destructive hover:text-destructive gap-1"
+                             onClick={() => setCancelOrder(order)}
+                           >
+                             <XCircle className="w-4 h-4" />
+                             Cancel
+                           </Button>
+                         )}
+                       </td>
                      </tr>
                    ))}
                 </tbody>
@@ -165,6 +182,22 @@ export default function AdminOrders() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Admin Cancel Order Dialog */}
+        {cancelOrder && (
+          <AdminCancelOrderDialog
+            open={!!cancelOrder}
+            onOpenChange={(open) => !open && setCancelOrder(null)}
+            orderId={cancelOrder.id}
+            orderNumber={cancelOrder.order_number}
+            orderTotal={Number(cancelOrder.total)}
+            paymentStatus={cancelOrder.payment_status}
+            onCancelled={() => {
+              setCancelOrder(null);
+              fetchOrders();
+            }}
+          />
+        )}
       </main>
     </div>
   );
