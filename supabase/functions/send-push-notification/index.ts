@@ -6,110 +6,69 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Web Push encryption helpers using Web Crypto API
+// ─── Web Push (VAPID) helpers ───────────────────────────────────────
+
 async function sendWebPush(subscription: { endpoint: string; p256dh: string; auth: string }, payload: string) {
   const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY')!;
   const vapidPrivateKeyJwk = JSON.parse(Deno.env.get('VAPID_PRIVATE_KEY')!);
   const vapidSubject = Deno.env.get('VAPID_SUBJECT') || 'mailto:hello@fastcalories.com';
 
-  // Import VAPID private key
   const vapidPrivateKey = await crypto.subtle.importKey(
-    'jwk',
-    vapidPrivateKeyJwk,
-    { name: 'ECDSA', namedCurve: 'P-256' },
-    false,
-    ['sign']
+    'jwk', vapidPrivateKeyJwk, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']
   );
 
-  // Generate local ECDH key pair for encryption
   const localKeyPair = await crypto.subtle.generateKey(
-    { name: 'ECDH', namedCurve: 'P-256' },
-    true,
-    ['deriveBits']
+    { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']
   );
 
-  // Decode subscription keys
   const clientPublicKey = base64UrlDecode(subscription.p256dh);
   const clientAuth = base64UrlDecode(subscription.auth);
 
-  // Import client public key
   const clientKey = await crypto.subtle.importKey(
-    'raw',
-    clientPublicKey,
-    { name: 'ECDH', namedCurve: 'P-256' },
-    false,
-    []
+    'raw', clientPublicKey, { name: 'ECDH', namedCurve: 'P-256' }, false, []
   );
 
-  // Derive shared secret
   const sharedSecret = await crypto.subtle.deriveBits(
-    { name: 'ECDH', public: clientKey },
-    localKeyPair.privateKey,
-    256
+    { name: 'ECDH', public: clientKey }, localKeyPair.privateKey, 256
   );
 
-  // Export local public key
   const localPublicKeyRaw = await crypto.subtle.exportKey('raw', localKeyPair.publicKey);
-
-  // Derive encryption keys using HKDF
   const salt = crypto.getRandomValues(new Uint8Array(16));
 
-  // Create IKM (Input Key Material) = HKDF-Extract(auth, shared_secret)
-  const authInfo = new TextEncoder().encode('Content-Encoding: auth\0');
-  const prkKey = await crypto.subtle.importKey('raw', sharedSecret, { name: 'HKDF' }, false, ['deriveBits']);
-
-  // PRK = HKDF-Extract(auth, shared_secret)
   const ikmKey = await crypto.subtle.importKey(
-    'raw',
-    clientAuth,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
+    'raw', clientAuth, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
   );
   const prk = await crypto.subtle.sign('HMAC', ikmKey, sharedSecret);
 
-  // Derive content encryption key
   const cekInfo = createInfo('aesgcm', clientPublicKey, new Uint8Array(localPublicKeyRaw));
   const cekHmacKey = await crypto.subtle.importKey('raw', prk, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-
   const cekInfoWithSalt = new Uint8Array([...salt, ...new Uint8Array([0, 0, 0, 1]), ...cekInfo]);
   const cekFull = new Uint8Array(await crypto.subtle.sign('HMAC', cekHmacKey, cekInfoWithSalt));
   const cek = cekFull.slice(0, 16);
 
-  // Derive nonce
   const nonceInfo = createInfo('nonce', clientPublicKey, new Uint8Array(localPublicKeyRaw));
   const nonceInfoWithSalt = new Uint8Array([...salt, ...new Uint8Array([0, 0, 0, 1]), ...nonceInfo]);
   const nonceFull = new Uint8Array(await crypto.subtle.sign('HMAC', cekHmacKey, nonceInfoWithSalt));
   const nonce = nonceFull.slice(0, 12);
 
-  // Encrypt payload
   const payloadBytes = new TextEncoder().encode(payload);
-  const paddingLength = 0;
-  const paddedPayload = new Uint8Array(2 + paddingLength + payloadBytes.length);
-  paddedPayload[0] = (paddingLength >> 8) & 0xff;
-  paddedPayload[1] = paddingLength & 0xff;
-  paddedPayload.set(payloadBytes, 2 + paddingLength);
+  const paddedPayload = new Uint8Array(2 + payloadBytes.length);
+  paddedPayload.set(payloadBytes, 2);
 
   const encryptionKey = await crypto.subtle.importKey('raw', cek, { name: 'AES-GCM' }, false, ['encrypt']);
   const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce }, encryptionKey, paddedPayload);
-
   const body = new Uint8Array(encrypted);
 
-  // Create VAPID JWT
   const audience = new URL(subscription.endpoint).origin;
   const jwt = await createVapidJwt(vapidPrivateKey, audience, vapidSubject);
 
-  // Export VAPID public key as URL-safe base64
-  const vapidPublicKeyForHeader = vapidPublicKey;
-
-  // Send to push service
   const response = await fetch(subscription.endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/octet-stream',
       'Content-Encoding': 'aesgcm',
       'Encryption': `salt=${base64UrlEncode(salt)}`,
-      'Crypto-Key': `dh=${base64UrlEncode(new Uint8Array(localPublicKeyRaw))};p256ecdsa=${vapidPublicKeyForHeader}`,
+      'Crypto-Key': `dh=${base64UrlEncode(new Uint8Array(localPublicKeyRaw))};p256ecdsa=${vapidPublicKey}`,
       'Authorization': `WebPush ${jwt}`,
       'TTL': '86400',
     },
@@ -124,7 +83,7 @@ function createInfo(type: string, clientPublicKey: Uint8Array, serverPublicKey: 
   const result = new Uint8Array(label.length + 1 + 2 + clientPublicKey.length + 2 + serverPublicKey.length);
   let offset = 0;
   result.set(label, offset); offset += label.length;
-  result[offset++] = 0; // P-256 context separator
+  result[offset++] = 0;
   result[offset++] = 0; result[offset++] = clientPublicKey.length;
   result.set(clientPublicKey, offset); offset += clientPublicKey.length;
   result[offset++] = 0; result[offset++] = serverPublicKey.length;
@@ -142,27 +101,17 @@ async function createVapidJwt(privateKey: CryptoKey, audience: string, subject: 
   const unsignedToken = `${headerB64}.${payloadB64}`;
 
   const signature = await crypto.subtle.sign(
-    { name: 'ECDSA', hash: 'SHA-256' },
-    privateKey,
-    new TextEncoder().encode(unsignedToken)
+    { name: 'ECDSA', hash: 'SHA-256' }, privateKey, new TextEncoder().encode(unsignedToken)
   );
 
-  // Convert DER signature to raw r||s format
   const sig = derToRaw(new Uint8Array(signature));
-  const signatureB64 = base64UrlEncode(sig);
-
-  return `${unsignedToken}.${signatureB64}`;
+  return `${unsignedToken}.${base64UrlEncode(sig)}`;
 }
 
 function derToRaw(der: Uint8Array): Uint8Array {
-  // ECDSA signature from WebCrypto is already in raw format (r || s)
   if (der.length === 64) return der;
-
-  // Parse DER format
   const raw = new Uint8Array(64);
-  let offset = 2; // Skip sequence tag and length
-  
-  // Parse r
+  let offset = 2;
   if (der[offset] !== 0x02) return der;
   offset++;
   const rLen = der[offset++];
@@ -170,15 +119,12 @@ function derToRaw(der: Uint8Array): Uint8Array {
   const rDest = rLen < 32 ? 32 - rLen : 0;
   raw.set(der.slice(rStart, offset + rLen), rDest);
   offset += rLen;
-
-  // Parse s
   if (der[offset] !== 0x02) return der;
   offset++;
   const sLen = der[offset++];
   const sStart = sLen > 32 ? offset + (sLen - 32) : offset;
   const sDest = sLen < 32 ? 64 - sLen : 32;
   raw.set(der.slice(sStart, offset + sLen), sDest);
-
   return raw;
 }
 
@@ -193,6 +139,114 @@ function base64UrlDecode(str: string): Uint8Array {
   const binary = atob(base64 + padding);
   return new Uint8Array([...binary].map(c => c.charCodeAt(0)));
 }
+
+// ─── Firebase Cloud Messaging (FCM) helper ──────────────────────────
+
+async function getFirebaseAccessToken(): Promise<string> {
+  const serviceAccountJson = Deno.env.get('FIREBASE_SERVICE_ACCOUNT_JSON');
+  if (!serviceAccountJson) throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON not configured');
+  
+  const sa = JSON.parse(serviceAccountJson);
+  const now = Math.floor(Date.now() / 1000);
+  
+  // Create JWT for Google OAuth2
+  const header = { alg: 'RS256', typ: 'JWT' };
+  const claimSet = {
+    iss: sa.client_email,
+    scope: 'https://www.googleapis.com/auth/firebase.messaging',
+    aud: 'https://oauth2.googleapis.com/token',
+    iat: now,
+    exp: now + 3600,
+  };
+  
+  const headerB64 = btoa(JSON.stringify(header)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const claimB64 = btoa(JSON.stringify(claimSet)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const unsignedToken = `${headerB64}.${claimB64}`;
+  
+  // Import RSA private key
+  const pemContent = sa.private_key
+    .replace(/-----BEGIN PRIVATE KEY-----/g, '')
+    .replace(/-----END PRIVATE KEY-----/g, '')
+    .replace(/\n/g, '');
+  const keyData = Uint8Array.from(atob(pemContent), c => c.charCodeAt(0));
+  
+  const privateKey = await crypto.subtle.importKey(
+    'pkcs8', keyData,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false, ['sign']
+  );
+  
+  const signature = await crypto.subtle.sign(
+    'RSASSA-PKCS1-v1_5',
+    privateKey,
+    new TextEncoder().encode(unsignedToken)
+  );
+  
+  const sigB64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const jwt = `${unsignedToken}.${sigB64}`;
+  
+  // Exchange JWT for access token
+  const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
+  });
+  
+  const tokenData = await tokenRes.json();
+  if (!tokenData.access_token) {
+    throw new Error(`Failed to get Firebase access token: ${JSON.stringify(tokenData)}`);
+  }
+  return tokenData.access_token;
+}
+
+async function sendFcmNotification(
+  fcmToken: string,
+  title: string,
+  body: string,
+  data?: Record<string, string>
+): Promise<{ success: boolean; status: number }> {
+  const serviceAccountJson = Deno.env.get('FIREBASE_SERVICE_ACCOUNT_JSON');
+  const sa = JSON.parse(serviceAccountJson!);
+  const projectId = sa.project_id;
+  
+  const accessToken = await getFirebaseAccessToken();
+  
+  const message: any = {
+    message: {
+      token: fcmToken,
+      notification: { title, body },
+      android: {
+        priority: 'high',
+        notification: {
+          sound: 'default',
+          channel_id: 'fast_calories_orders',
+          icon: 'ic_notification',
+        },
+      },
+    },
+  };
+  
+  if (data) {
+    message.message.data = data;
+  }
+  
+  const response = await fetch(
+    `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(message),
+    }
+  );
+  
+  return { success: response.ok, status: response.status };
+}
+
+// ─── Main handler ───────────────────────────────────────────────────
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -213,7 +267,6 @@ serve(async (req) => {
       });
     }
 
-    // Fetch subscriptions for target users
     const { data: subscriptions, error } = await supabase
       .from('push_subscriptions')
       .select('*')
@@ -226,13 +279,8 @@ serve(async (req) => {
       });
     }
 
-    const payload = JSON.stringify({
-      title: title || 'Fast Calories',
-      body: body || '',
-      icon: '/images/fast-calories-logo.png',
-      badge: '/pwa-192x192.png',
-      data: { url: url || '/', ...data },
-    });
+    const notifTitle = title || 'Fast Calories';
+    const notifBody = body || '';
 
     let sent = 0;
     let failed = 0;
@@ -240,28 +288,55 @@ serve(async (req) => {
 
     for (const sub of subscriptions) {
       try {
-        const response = await sendWebPush(
-          { endpoint: sub.endpoint, p256dh: sub.p256dh, auth: sub.auth },
-          payload
-        );
-
-        if (response.status === 201 || response.status === 200) {
-          sent++;
-        } else if (response.status === 404 || response.status === 410) {
-          // Subscription expired, mark for cleanup
-          expiredEndpoints.push(sub.endpoint);
-          failed++;
+        if (sub.subscription_type === 'fcm' && sub.fcm_token) {
+          // ── FCM path ──
+          const dataPayload: Record<string, string> = {
+            url: url || '/',
+            ...(data ? Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)])) : {}),
+          };
+          
+          const result = await sendFcmNotification(sub.fcm_token, notifTitle, notifBody, dataPayload);
+          
+          if (result.success) {
+            sent++;
+          } else if (result.status === 404 || result.status === 410) {
+            expiredEndpoints.push(sub.endpoint);
+            failed++;
+          } else {
+            console.error(`FCM failed for token: ${result.status}`);
+            failed++;
+          }
         } else {
-          console.error(`Push failed for ${sub.endpoint}: ${response.status}`);
-          failed++;
+          // ── Web Push path ──
+          const payload = JSON.stringify({
+            title: notifTitle,
+            body: notifBody,
+            icon: '/images/fast-calories-logo.png',
+            badge: '/pwa-192x192.png',
+            data: { url: url || '/', ...data },
+          });
+          
+          const response = await sendWebPush(
+            { endpoint: sub.endpoint, p256dh: sub.p256dh, auth: sub.auth },
+            payload
+          );
+
+          if (response.status === 201 || response.status === 200) {
+            sent++;
+          } else if (response.status === 404 || response.status === 410) {
+            expiredEndpoints.push(sub.endpoint);
+            failed++;
+          } else {
+            console.error(`Push failed for ${sub.endpoint}: ${response.status}`);
+            failed++;
+          }
         }
       } catch (e) {
-        console.error(`Push error for ${sub.endpoint}:`, e);
+        console.error(`Push error:`, e);
         failed++;
       }
     }
 
-    // Clean up expired subscriptions
     if (expiredEndpoints.length > 0) {
       await supabase
         .from('push_subscriptions')

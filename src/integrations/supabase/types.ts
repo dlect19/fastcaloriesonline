@@ -2327,8 +2327,10 @@ export type Database = {
           auth: string
           created_at: string
           endpoint: string
+          fcm_token: string | null
           id: string
           p256dh: string
+          subscription_type: string
           updated_at: string
           user_agent: string | null
           user_id: string
@@ -2337,8 +2339,10 @@ export type Database = {
           auth: string
           created_at?: string
           endpoint: string
+          fcm_token?: string | null
           id?: string
           p256dh: string
+          subscription_type?: string
           updated_at?: string
           user_agent?: string | null
           user_id: string
@@ -2347,8 +2351,10 @@ export type Database = {
           auth?: string
           created_at?: string
           endpoint?: string
+          fcm_token?: string | null
           id?: string
           p256dh?: string
+          subscription_type?: string
           updated_at?: string
           user_agent?: string | null
           user_id?: string
