@@ -88,11 +88,10 @@ serve(async (req) => {
       });
     }
 
-    // 2. Rider assigned → Notify customer
+    // 2. Rider assigned → Notify customer AND rider
     if (
       new_rider_id &&
-      !old_rider_id &&
-      order.user_id
+      !old_rider_id
     ) {
       // Get rider name
       const { data: riderProfile } = await supabase
@@ -103,11 +102,22 @@ serve(async (req) => {
 
       const riderName = riderProfile?.full_name || 'A rider';
 
+      // Notify customer
+      if (order.user_id) {
+        notifications.push({
+          user_ids: [order.user_id],
+          title: '🏍️ Rider Assigned!',
+          body: `${riderName} has been assigned to deliver your order #${order.order_number}`,
+          url: `/orders/${order.id}`,
+        });
+      }
+
+      // Notify the rider they've been assigned
       notifications.push({
-        user_ids: [order.user_id],
-        title: '🏍️ Rider Assigned!',
-        body: `${riderName} has been assigned to deliver your order #${order.order_number}`,
-        url: `/orders/${order.id}`,
+        user_ids: [new_rider_id],
+        title: '📦 New Order Assigned!',
+        body: `You've been assigned to order #${order.order_number} from ${vendor?.name || 'a vendor'}. Total: ₦${order.total.toLocaleString()}`,
+        url: `/rider/orders`,
       });
     }
 
