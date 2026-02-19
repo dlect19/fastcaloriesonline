@@ -502,6 +502,34 @@ export default function RiderDashboard() {
         </Card>
       )}
 
+      {/* TEST: Native Notification Button (remove later) */}
+      <Card className="mb-6 border-dashed border-warning">
+        <CardContent className="p-4">
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => {
+              console.log('Showing test notification...');
+              import('@/plugins/RiderServicePlugin').then(({ default: RiderServicePlugin }) => {
+                RiderServicePlugin.showHeadsUpNotification({
+                  title: '🚗 New Delivery Request!',
+                  body: 'Test Vendor • ₦1,500',
+                  deliveryFee: 500,
+                  distanceKm: 2.3,
+                  vendorName: 'Test Vendor',
+                  offerId: 'test-offer-123',
+                  riderShare: 1500,
+                  timeoutSeconds: 30,
+                });
+              });
+            }}
+          >
+            <Bell className="w-4 h-4 mr-2" />
+            Show Test Notification
+          </Button>
+        </CardContent>
+      </Card>
+
       {/* Quick Actions */}
       <div className="grid grid-cols-2 gap-3 md:gap-4">
         <Button
