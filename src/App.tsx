@@ -159,7 +159,7 @@ const App = () => {
               <Route path="/rider/auth" element={<RiderAuth />} />
               <Route path="/rider/dashboard" element={<RiderDashboard />} />
               <Route path="/rider/orders" element={<RiderOrders />} />
-              <Route path="/rider/available" element={<RiderAvailableOrders />} />
+              <Route path="/rider/available-orders" element={<RiderAvailableOrders />} />
               <Route path="/rider/earnings" element={<RiderEarnings />} />
               <Route path="/rider/withdraw" element={<RiderWithdraw />} />
               <Route path="/rider/settings" element={<RiderSettings />} />
