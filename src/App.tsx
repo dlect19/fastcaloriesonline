@@ -91,6 +91,7 @@ import RiderSupport from "./pages/rider/RiderSupport";
 import AdminSupport from "./pages/admin/AdminSupport";
 import WorkspaceLogin from "./pages/WorkspaceLogin";
 import { playGlobalNotificationSound } from '@/lib/globalAudio';
+import { useFcmNotifications } from '@/hooks/useFcmNotifications';
 
 const queryClient = new QueryClient();
 
@@ -103,7 +104,11 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-const App = () => (
+const App = () => {
+  // Register FCM token on native Capacitor platforms
+  useFcmNotifications();
+
+  return (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
       <CartProvider>
@@ -213,6 +218,7 @@ const App = () => (
       </CartProvider>
     </AuthProvider>
   </QueryClientProvider>
-);
+  );
+};
 
 export default App;
