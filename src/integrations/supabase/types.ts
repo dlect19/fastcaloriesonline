@@ -137,13 +137,54 @@ export type Database = {
           },
         ]
       }
+      addon_item_choices: {
+        Row: {
+          addon_item_id: string
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          price: number
+          sort_order: number | null
+        }
+        Insert: {
+          addon_item_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          price?: number
+          sort_order?: number | null
+        }
+        Update: {
+          addon_item_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          price?: number
+          sort_order?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "addon_item_choices_addon_item_id_fkey"
+            columns: ["addon_item_id"]
+            isOneToOne: false
+            referencedRelation: "addon_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       addon_items: {
         Row: {
           additional_price: number
           addon_group_id: string
           calories: number | null
+          choice_required: boolean
+          choice_selection_type: string
           created_at: string
           description: string | null
+          has_choices: boolean
           id: string
           is_available: boolean
           linked_product_id: string | null
@@ -155,8 +196,11 @@ export type Database = {
           additional_price?: number
           addon_group_id: string
           calories?: number | null
+          choice_required?: boolean
+          choice_selection_type?: string
           created_at?: string
           description?: string | null
+          has_choices?: boolean
           id?: string
           is_available?: boolean
           linked_product_id?: string | null
@@ -168,8 +212,11 @@ export type Database = {
           additional_price?: number
           addon_group_id?: string
           calories?: number | null
+          choice_required?: boolean
+          choice_selection_type?: string
           created_at?: string
           description?: string | null
+          has_choices?: boolean
           id?: string
           is_available?: boolean
           linked_product_id?: string | null
