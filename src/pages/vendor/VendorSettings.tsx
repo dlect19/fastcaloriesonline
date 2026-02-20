@@ -50,12 +50,12 @@ export default function VendorSettings() {
     city: '',
     state: '',
     min_order_amount: '',
-    delivery_fee: '',
     estimated_delivery_minutes: '',
     logo_url: '',
     banner_url: '',
     delivery_mode: 'platform',
     own_rider_priority: true,
+    sales_radius: '10',
   });
 
   useEffect(() => {
@@ -111,12 +111,12 @@ export default function VendorSettings() {
           city: vendorData.city,
           state: vendorData.state,
           min_order_amount: vendorData.min_order_amount?.toString() || '0',
-          delivery_fee: vendorData.delivery_fee?.toString() || '0',
           estimated_delivery_minutes: vendorData.estimated_delivery_minutes?.toString() || '30',
           logo_url: vendorData.logo_url || '',
           banner_url: vendorData.banner_url || '',
           delivery_mode: vendorData.delivery_mode || 'platform',
           own_rider_priority: vendorData.own_rider_priority ?? true,
+          sales_radius: (vendorData as any).sales_radius?.toString() || '10',
         });
       }
     } catch (error) {
@@ -244,12 +244,12 @@ export default function VendorSettings() {
         city: formData.city,
         state: formData.state,
         min_order_amount: parseFloat(formData.min_order_amount) || 0,
-        delivery_fee: parseFloat(formData.delivery_fee) || 0,
         estimated_delivery_minutes: parseInt(formData.estimated_delivery_minutes) || 30,
         logo_url: formData.logo_url || null,
         banner_url: formData.banner_url || null,
         delivery_mode: formData.delivery_mode,
         own_rider_priority: formData.own_rider_priority,
+        sales_radius: Math.min(50, Math.max(1, parseFloat(formData.sales_radius) || 10)),
       };
 
       // Only allow name change if vendor is NOT yet verified
@@ -579,7 +579,7 @@ export default function VendorSettings() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="min_order">Minimum Order (₦)</Label>
                   <Input
@@ -587,15 +587,6 @@ export default function VendorSettings() {
                     type="number"
                     value={formData.min_order_amount}
                     onChange={(e) => setFormData({ ...formData, min_order_amount: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="delivery_fee">Delivery Fee (₦)</Label>
-                  <Input
-                    id="delivery_fee"
-                    type="number"
-                    value={formData.delivery_fee}
-                    onChange={(e) => setFormData({ ...formData, delivery_fee: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
@@ -607,6 +598,22 @@ export default function VendorSettings() {
                     onChange={(e) => setFormData({ ...formData, estimated_delivery_minutes: e.target.value })}
                   />
                 </div>
+              </div>
+
+              {/* Sales Radius */}
+              <div className="space-y-2">
+                <Label htmlFor="sales_radius">Sales Radius (KM)</Label>
+                <Input
+                  id="sales_radius"
+                  type="number"
+                  min="1"
+                  max="50"
+                  value={formData.sales_radius}
+                  onChange={(e) => setFormData({ ...formData, sales_radius: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Only customers within this distance (1–50 km) can see and order from your store. Delivery fees are calculated separately by the platform.
+                </p>
               </div>
 
               {/* Delivery Mode Selection */}

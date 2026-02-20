@@ -34,11 +34,13 @@ interface AddonItem {
   id: string;
   addon_group_id: string;
   name: string;
+  description: string | null;
   additional_price: number;
   calories: number;
   is_available: boolean;
   sort_order: number;
   linked_product_id: string | null;
+  pricing_type: string;
 }
 
 interface AddonGroup {
@@ -113,6 +115,8 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
             is_available: item.is_available ?? true,
             sort_order: item.sort_order ?? 0,
             linked_product_id: (item as any).linked_product_id || null,
+            description: (item as any).description || null,
+            pricing_type: (item as any).pricing_type || 'per_piece',
           })),
         }));
 
@@ -253,7 +257,7 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
 
       setGroups(groups.map(g =>
         g.id === groupId
-          ? { ...g, items: [...g.items, { ...data, additional_price: 0, calories: 0, is_available: true, sort_order: data.sort_order ?? 0, linked_product_id: null }] }
+          ? { ...g, items: [...g.items, { ...data, additional_price: 0, calories: 0, is_available: true, sort_order: data.sort_order ?? 0, linked_product_id: null, description: null, pricing_type: 'per_piece' }] }
           : g
       ));
     } catch (error: any) {
@@ -288,7 +292,7 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
 
       setGroups(groups.map(g =>
         g.id === groupId
-          ? { ...g, items: [...g.items, { ...data, additional_price: Number(data.additional_price), calories: data.calories ?? 0, is_available: data.is_available ?? true, sort_order: data.sort_order ?? 0, linked_product_id: product.id }] }
+          ? { ...g, items: [...g.items, { ...data, additional_price: Number(data.additional_price), calories: data.calories ?? 0, is_available: data.is_available ?? true, sort_order: data.sort_order ?? 0, linked_product_id: product.id, description: product.description || null, pricing_type: 'per_piece' }] }
           : g
       ));
       toast({ title: `${product.name} added to group` });
@@ -624,56 +628,92 @@ function AddonGroupCard({
             <div className="space-y-2">
               <Label className="text-xs font-medium">Options</Label>
               {group.items.map((item) => (
-                <div key={item.id} className="flex items-center gap-2 bg-muted/50 rounded-lg p-2">
-                  {item.linked_product_id && (
-                    <Badge variant="secondary" className="text-[10px] shrink-0">Meal</Badge>
-                  )}
-                  <Input
-                    value={item.name}
-                    onChange={(e) => {
-                      setGroups(groups.map(g =>
-                        g.id === group.id
-                          ? { ...g, items: g.items.map(i => i.id === item.id ? { ...i, name: e.target.value } : i) }
-                          : g
-                      ));
-                    }}
-                    onBlur={() => onUpdateItem(item.id, { name: item.name })}
-                    placeholder="Option name"
-                    className="h-7 text-sm flex-1"
-                    readOnly={!!item.linked_product_id}
-                  />
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs text-muted-foreground">₦</span>
+                <div key={item.id} className="bg-muted/50 rounded-lg p-2 space-y-2">
+                  <div className="flex items-center gap-2">
+                    {item.linked_product_id && (
+                      <Badge variant="secondary" className="text-[10px] shrink-0">Meal</Badge>
+                    )}
                     <Input
-                      type="number"
-                      value={item.additional_price}
+                      value={item.name}
                       onChange={(e) => {
-                        const val = parseFloat(e.target.value) || 0;
                         setGroups(groups.map(g =>
                           g.id === group.id
-                            ? { ...g, items: g.items.map(i => i.id === item.id ? { ...i, additional_price: val } : i) }
+                            ? { ...g, items: g.items.map(i => i.id === item.id ? { ...i, name: e.target.value } : i) }
                             : g
                         ));
                       }}
-                      onBlur={() => onUpdateItem(item.id, { additional_price: item.additional_price })}
-                      className="h-7 text-sm w-20"
-                      min="0"
+                      onBlur={() => onUpdateItem(item.id, { name: item.name })}
+                      placeholder="Option name"
+                      className="h-7 text-sm flex-1"
                       readOnly={!!item.linked_product_id}
                     />
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-muted-foreground">₦</span>
+                      <Input
+                        type="number"
+                        value={item.additional_price}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          setGroups(groups.map(g =>
+                            g.id === group.id
+                              ? { ...g, items: g.items.map(i => i.id === item.id ? { ...i, additional_price: val } : i) }
+                              : g
+                          ));
+                        }}
+                        onBlur={() => onUpdateItem(item.id, { additional_price: item.additional_price })}
+                        className="h-7 text-sm w-20"
+                        min="0"
+                        readOnly={!!item.linked_product_id}
+                      />
+                    </div>
+                    <Switch
+                      checked={item.is_available}
+                      onCheckedChange={(val) => onUpdateItem(item.id, { is_available: val })}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                      onClick={() => onDeleteItem(item.id)}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
                   </div>
-                  <Switch
-                    checked={item.is_available}
-                    onCheckedChange={(val) => onUpdateItem(item.id, { is_available: val })}
+                  {/* Description field */}
+                  <Input
+                    value={item.description || ''}
+                    onChange={(e) => {
+                      setGroups(groups.map(g =>
+                        g.id === group.id
+                          ? { ...g, items: g.items.map(i => i.id === item.id ? { ...i, description: e.target.value || null } : i) }
+                          : g
+                      ));
+                    }}
+                    onBlur={() => onUpdateItem(item.id, { description: item.description } as any)}
+                    placeholder="Description (shown to customers)"
+                    className="h-7 text-xs"
                   />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                    onClick={() => onDeleteItem(item.id)}
+                  {/* Pricing type */}
+                  <Select
+                    value={item.pricing_type}
+                    onValueChange={(val) => {
+                      setGroups(groups.map(g =>
+                        g.id === group.id
+                          ? { ...g, items: g.items.map(i => i.id === item.id ? { ...i, pricing_type: val } : i) }
+                          : g
+                      ));
+                      onUpdateItem(item.id, { pricing_type: val } as any);
+                    }}
                   >
-                    <Trash2 className="w-3 h-3" />
-                  </Button>
+                    <SelectTrigger className="h-7 text-xs w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="per_piece">Per Piece (customer selects qty)</SelectItem>
+                      <SelectItem value="fixed">Fixed Per Order (applies once)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               ))}
               <div className="flex gap-2">

@@ -143,10 +143,12 @@ export type Database = {
           addon_group_id: string
           calories: number | null
           created_at: string
+          description: string | null
           id: string
           is_available: boolean
           linked_product_id: string | null
           name: string
+          pricing_type: string
           sort_order: number | null
         }
         Insert: {
@@ -154,10 +156,12 @@ export type Database = {
           addon_group_id: string
           calories?: number | null
           created_at?: string
+          description?: string | null
           id?: string
           is_available?: boolean
           linked_product_id?: string | null
           name: string
+          pricing_type?: string
           sort_order?: number | null
         }
         Update: {
@@ -165,10 +169,12 @@ export type Database = {
           addon_group_id?: string
           calories?: number | null
           created_at?: string
+          description?: string | null
           id?: string
           is_available?: boolean
           linked_product_id?: string | null
           name?: string
+          pricing_type?: string
           sort_order?: number | null
         }
         Relationships: [
@@ -2870,6 +2876,7 @@ export type Database = {
           id: string
           image_url: string | null
           is_active: boolean | null
+          max_capacity: number | null
           name: string
           price: number
           sort_order: number | null
@@ -2884,6 +2891,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_active?: boolean | null
+          max_capacity?: number | null
           name: string
           price?: number
           sort_order?: number | null
@@ -2898,6 +2906,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_active?: boolean | null
+          max_capacity?: number | null
           name?: string
           price?: number
           sort_order?: number | null
@@ -3451,6 +3460,7 @@ export type Database = {
           phone: string | null
           qr_code_url: string | null
           rating: number | null
+          sales_radius: number | null
           slug: string | null
           state: string
           tolerance_radius_m: number | null
@@ -3491,6 +3501,7 @@ export type Database = {
           phone?: string | null
           qr_code_url?: string | null
           rating?: number | null
+          sales_radius?: number | null
           slug?: string | null
           state: string
           tolerance_radius_m?: number | null
@@ -3531,6 +3542,7 @@ export type Database = {
           phone?: string | null
           qr_code_url?: string | null
           rating?: number | null
+          sales_radius?: number | null
           slug?: string | null
           state?: string
           tolerance_radius_m?: number | null

@@ -22,11 +22,13 @@ interface AddonItem {
   id: string;
   addon_group_id: string;
   name: string;
+  description: string | null;
   additional_price: number;
   calories: number;
   is_available: boolean;
   sort_order: number;
   image_url?: string | null;
+  pricing_type: string;
 }
 
 interface AddonGroup {
@@ -45,6 +47,8 @@ export interface SelectedAddon {
   price: number;
   calories: number;
   imageUrl?: string;
+  quantity: number;
+  pricingType: string;
 }
 
 interface ProductCustomizationDialogProps {
@@ -65,6 +69,7 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
   const [addonGroups, setAddonGroups] = useState<AddonGroup[]>([]);
   const [loadingAddons, setLoadingAddons] = useState(false);
   const [selectedAddons, setSelectedAddons] = useState<Record<string, string[]>>({});
+  const [addonQuantities, setAddonQuantities] = useState<Record<string, number>>({});
 
   // Fetch add-on groups when dialog opens
   useEffect(() => {
@@ -72,6 +77,7 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
       fetchAddons();
       setQuantity(1);
       setSelectedAddons({});
+      setAddonQuantities({});
     }
   }, [open, product.id]);
 
@@ -131,6 +137,8 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
                 is_available: i.is_available ?? true,
                 sort_order: i.sort_order ?? 0,
                 image_url: i.linked_product_id ? productImages[i.linked_product_id] || null : null,
+                description: (i as any).description || null,
+                pricing_type: (i as any).pricing_type || 'per_piece',
               })),
           }));
 
@@ -155,12 +163,15 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
       if (group) {
         for (const itemId of itemIds) {
           const item = group.items.find(i => i.id === itemId);
-          if (item) total += item.additional_price;
+          if (item) {
+            const addonQty = addonQuantities[itemId] || 1;
+            total += item.additional_price * addonQty;
+          }
         }
       }
     }
     return total;
-  }, [selectedAddons, addonGroups]);
+  }, [selectedAddons, addonGroups, addonQuantities]);
 
   const totalAddonCalories = useMemo(() => {
     let total = 0;
@@ -169,19 +180,23 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
       if (group) {
         for (const itemId of itemIds) {
           const item = group.items.find(i => i.id === itemId);
-          if (item) total += item.calories;
+          if (item) {
+            const addonQty = addonQuantities[itemId] || 1;
+            total += item.calories * addonQty;
+          }
         }
       }
     }
     return total;
-  }, [selectedAddons, addonGroups]);
+  }, [selectedAddons, addonGroups, addonQuantities]);
 
   const effectivePrice = (product as any).discount_price && (product as any).discount_price < product.price
     ? (product as any).discount_price
     : product.price;
-  const unitPrice = effectivePrice + totalAddonPrice;
-  const totalPrice = unitPrice * quantity;
-  const totalCalories = ((product.calories || 0) + totalAddonCalories) * quantity;
+  // Addon price is INDEPENDENT of menu quantity
+  const menuTotal = effectivePrice * quantity;
+  const totalPrice = menuTotal + totalAddonPrice;
+  const totalCalories = ((product.calories || 0) * quantity) + totalAddonCalories;
 
   // Validation: all required groups must have selections
   const missingRequiredGroups = addonGroups.filter(g => 
@@ -219,12 +234,15 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
         for (const itemId of itemIds) {
           const item = group.items.find(i => i.id === itemId);
           if (item) {
+            const addonQty = addonQuantities[itemId] || 1;
             result.push({
               groupName: group.name,
               itemName: item.name,
               price: item.additional_price,
               calories: item.calories,
               imageUrl: item.image_url || undefined,
+              quantity: addonQty,
+              pricingType: item.pricing_type,
             });
           }
         }
@@ -263,7 +281,7 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
 
     const addonsList = getSelectedAddonsList();
     const addonsDescription = addonsList.length > 0
-      ? addonsList.map(a => a.itemName).join(', ')
+      ? addonsList.map(a => `${a.itemName}${a.quantity > 1 ? ` x${a.quantity}` : ''}`).join(', ')
       : undefined;
 
     addItem({
@@ -271,9 +289,9 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
       productName: product.name,
       vendorId: vendor.id,
       vendorName: vendor.name,
-      price: unitPrice,
+      price: effectivePrice,
       quantity,
-      calories: (product.calories || 0) + totalAddonCalories,
+      calories: (product.calories || 0),
       imageUrl: product.image_url || undefined,
       addons: addonsList.length > 0 ? addonsList.map(a => ({
         groupName: a.groupName,
@@ -281,6 +299,8 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
         price: a.price,
         calories: a.calories,
         imageUrl: a.imageUrl,
+        quantity: a.quantity,
+        pricingType: a.pricingType,
       })) : undefined,
       addonsDescription,
     });
@@ -399,63 +419,114 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
                       value={selectedAddons[group.id]?.[0] || ''}
                       onValueChange={(val) => handleSingleSelect(group.id, val)}
                     >
-                      {group.items.map((item) => (
+                      {group.items.map((item) => {
+                        const isSelected = selectedAddons[group.id]?.[0] === item.id;
+                        const addonQty = addonQuantities[item.id] || 1;
+                        return (
                         <label
                           key={item.id}
                           className={cn(
-                            "flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors",
-                            selectedAddons[group.id]?.[0] === item.id
+                            "flex flex-col p-3 rounded-lg cursor-pointer transition-colors",
+                            isSelected
                               ? "bg-primary/10 border border-primary/30"
                               : "bg-background border border-border hover:border-primary/20"
                           )}
                         >
-                          <div className="flex items-center gap-3">
-                            <RadioGroupItem value={item.id} />
-                            {item.image_url && (
-                              <img src={item.image_url} alt={item.name} className="w-8 h-8 rounded-md object-cover shrink-0" />
-                            )}
-                            <span className="text-sm font-medium">{item.name}</span>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <RadioGroupItem value={item.id} />
+                              {item.image_url && (
+                                <img src={item.image_url} alt={item.name} className="w-8 h-8 rounded-md object-cover shrink-0" />
+                              )}
+                              <div className="min-w-0">
+                                <span className="text-sm font-medium">{item.name}</span>
+                                {item.description && (
+                                  <p className="text-xs text-muted-foreground mt-0.5">{item.description}</p>
+                                )}
+                              </div>
+                            </div>
+                            <span className={cn(
+                              "text-sm font-medium shrink-0",
+                              item.additional_price > 0 ? "text-primary" : "text-muted-foreground"
+                            )}>
+                              {item.additional_price > 0 ? `+₦${item.additional_price.toLocaleString()}` : 'Free'}
+                            </span>
                           </div>
-                          <span className={cn(
-                            "text-sm font-medium",
-                            item.additional_price > 0 ? "text-primary" : "text-muted-foreground"
-                          )}>
-                            {item.additional_price > 0 ? `+₦${item.additional_price.toLocaleString()}` : 'Free'}
-                          </span>
+                          {/* Per-piece qty selector */}
+                          {isSelected && item.pricing_type === 'per_piece' && item.additional_price > 0 && (
+                            <div className="flex items-center gap-2 mt-2 ml-8">
+                              <span className="text-xs text-muted-foreground">Qty:</span>
+                              <Button variant="outline" size="icon" className="h-6 w-6" onClick={(e) => { e.preventDefault(); setAddonQuantities(prev => ({ ...prev, [item.id]: Math.max(1, (prev[item.id] || 1) - 1) })); }}>
+                                <Minus className="w-3 h-3" />
+                              </Button>
+                              <span className="text-sm font-medium w-6 text-center">{addonQty}</span>
+                              <Button variant="outline" size="icon" className="h-6 w-6" onClick={(e) => { e.preventDefault(); setAddonQuantities(prev => ({ ...prev, [item.id]: (prev[item.id] || 1) + 1 })); }}>
+                                <Plus className="w-3 h-3" />
+                              </Button>
+                              {addonQty > 1 && (
+                                <span className="text-xs text-primary ml-1">₦{(item.additional_price * addonQty).toLocaleString()}</span>
+                              )}
+                            </div>
+                          )}
                         </label>
-                      ))}
+                        );
+                      })}
                     </RadioGroup>
                   ) : (
                     <div className="space-y-2">
                       {group.items.map((item) => {
                         const isChecked = selectedAddons[group.id]?.includes(item.id) || false;
+                        const addonQty = addonQuantities[item.id] || 1;
                         return (
-                          <label
+                          <div
                             key={item.id}
                             className={cn(
-                              "flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors",
+                              "flex flex-col p-3 rounded-lg transition-colors",
                               isChecked
                                 ? "bg-primary/10 border border-primary/30"
                                 : "bg-background border border-border hover:border-primary/20"
                             )}
                           >
-                            <div className="flex items-center gap-3">
-                              <Checkbox
-                                checked={isChecked}
-                                onCheckedChange={(checked) => handleMultiSelect(group.id, item.id, !!checked)}
-                              />
-                              {item.image_url && (
-                                <img src={item.image_url} alt={item.name} className="w-8 h-8 rounded-md object-cover shrink-0" />
-                              )}
-                              <span className="text-sm font-medium">{item.name}</span>
-                            </div>
-                            <span className={cn(
-                              "text-sm font-medium",
-                              item.additional_price > 0 ? "text-primary" : "text-muted-foreground"
-                            )}>
-                              {item.additional_price > 0 ? `+₦${item.additional_price.toLocaleString()}` : 'Free'}
-                            </span>
-                          </label>
+                            <label className="flex items-center justify-between cursor-pointer">
+                              <div className="flex items-center gap-3">
+                                <Checkbox
+                                  checked={isChecked}
+                                  onCheckedChange={(checked) => handleMultiSelect(group.id, item.id, !!checked)}
+                                />
+                                {item.image_url && (
+                                  <img src={item.image_url} alt={item.name} className="w-8 h-8 rounded-md object-cover shrink-0" />
+                                )}
+                                <div className="min-w-0">
+                                  <span className="text-sm font-medium">{item.name}</span>
+                                  {item.description && (
+                                    <p className="text-xs text-muted-foreground mt-0.5">{item.description}</p>
+                                  )}
+                                </div>
+                              </div>
+                              <span className={cn(
+                                "text-sm font-medium shrink-0",
+                                item.additional_price > 0 ? "text-primary" : "text-muted-foreground"
+                              )}>
+                                {item.additional_price > 0 ? `+₦${item.additional_price.toLocaleString()}` : 'Free'}
+                              </span>
+                            </label>
+                            {/* Per-piece qty selector */}
+                            {isChecked && item.pricing_type === 'per_piece' && item.additional_price > 0 && (
+                              <div className="flex items-center gap-2 mt-2 ml-8">
+                                <span className="text-xs text-muted-foreground">Qty:</span>
+                                <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => setAddonQuantities(prev => ({ ...prev, [item.id]: Math.max(1, (prev[item.id] || 1) - 1) }))}>
+                                  <Minus className="w-3 h-3" />
+                                </Button>
+                                <span className="text-sm font-medium w-6 text-center">{addonQty}</span>
+                                <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => setAddonQuantities(prev => ({ ...prev, [item.id]: (prev[item.id] || 1) + 1 }))}>
+                                  <Plus className="w-3 h-3" />
+                                </Button>
+                                {addonQty > 1 && (
+                                  <span className="text-xs text-primary ml-1">₦{(item.additional_price * addonQty).toLocaleString()}</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         );
                       })}
                     </div>
@@ -482,11 +553,15 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
                     Was ₦{product.price.toLocaleString()} • {Math.round(((product.price - effectivePrice) / product.price) * 100)}% off
                   </span>
                 )}
-                {totalAddonPrice > 0 && (
-                  <span className="text-xs text-muted-foreground">
-                    Base ₦{effectivePrice.toLocaleString()} + Add-ons ₦{(totalAddonPrice).toLocaleString()} × {quantity}
-                  </span>
-                )}
+                {/* Clear subtotal breakdown */}
+                <div className="text-xs text-muted-foreground space-y-0.5 mt-1">
+                  <p>{product.name} x{quantity} = ₦{menuTotal.toLocaleString()}</p>
+                  {getSelectedAddonsList().map((addon, i) => (
+                    <p key={i}>
+                      {addon.itemName}{addon.quantity > 1 ? ` x${addon.quantity}` : ''} = ₦{(addon.price * addon.quantity).toLocaleString()}
+                    </p>
+                  ))}
+                </div>
                 {product.serving_unit && (
                   <span className="text-sm text-muted-foreground">{product.serving_unit}</span>
                 )}
