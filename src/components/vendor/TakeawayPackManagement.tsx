@@ -21,6 +21,7 @@ interface TakeawayPack {
   price: number;
   threshold_type: 'per_item' | 'total_items';
   threshold_value: number;
+  max_capacity: number | null;
   is_active: boolean;
   sort_order: number;
 }
@@ -47,6 +48,7 @@ export function TakeawayPackManagement({ vendorId, userId }: TakeawayPackManagem
   const [price, setPrice] = useState('');
   const [thresholdType, setThresholdType] = useState<'per_item' | 'total_items'>('per_item');
   const [thresholdValue, setThresholdValue] = useState('1');
+  const [maxCapacity, setMaxCapacity] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -93,6 +95,7 @@ export function TakeawayPackManagement({ vendorId, userId }: TakeawayPackManagem
     setPrice('');
     setThresholdType('per_item');
     setThresholdValue('1');
+    setMaxCapacity('');
     setEditingPack(null);
   };
 
@@ -104,6 +107,7 @@ export function TakeawayPackManagement({ vendorId, userId }: TakeawayPackManagem
     setPrice(pack.price.toString());
     setThresholdType(pack.threshold_type);
     setThresholdValue(pack.threshold_value.toString());
+    setMaxCapacity(pack.max_capacity?.toString() || '');
     setDialogOpen(true);
   };
 
@@ -159,6 +163,7 @@ export function TakeawayPackManagement({ vendorId, userId }: TakeawayPackManagem
         price: parseFloat(price),
         threshold_type: thresholdType,
         threshold_value: parseInt(thresholdValue),
+        max_capacity: maxCapacity ? parseInt(maxCapacity) : null,
         is_active: true,
         sort_order: editingPack?.sort_order ?? packs.length,
       };
@@ -384,6 +389,22 @@ export function TakeawayPackManagement({ vendorId, userId }: TakeawayPackManagem
                       </span>
                     </div>
                   )}
+                </div>
+
+                {/* Max Capacity */}
+                <div className="space-y-2">
+                  <Label htmlFor="max_capacity">Max Capacity (portions)</Label>
+                  <Input
+                    id="max_capacity"
+                    type="number"
+                    min="1"
+                    placeholder="Leave empty for no limit"
+                    value={maxCapacity}
+                    onChange={(e) => setMaxCapacity(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    The next larger pack will start from this value + 1. Leave empty if this is your largest pack.
+                  </p>
                 </div>
 
                 <Button onClick={handleSave} disabled={saving} className="w-full">

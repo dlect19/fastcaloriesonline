@@ -6,6 +6,8 @@ export interface CartAddon {
   price: number;
   calories: number;
   imageUrl?: string;
+  quantity: number;
+  pricingType: string;
 }
 
 export interface CartItem {
@@ -125,8 +127,20 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setVendorName(null);
   };
 
-  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const totalCalories = items.reduce((sum, item) => sum + item.calories * item.quantity, 0);
+  const subtotal = items.reduce((sum, item) => {
+    const menuTotal = item.price * item.quantity;
+    const addonTotal = (item.addons || []).reduce((aSum, addon) => {
+      return aSum + addon.price * (addon.quantity || 1);
+    }, 0);
+    return sum + menuTotal + addonTotal;
+  }, 0);
+  const totalCalories = items.reduce((sum, item) => {
+    const menuCals = (item.calories || 0) * item.quantity;
+    const addonCals = (item.addons || []).reduce((aSum, addon) => {
+      return aSum + (addon.calories || 0) * (addon.quantity || 1);
+    }, 0);
+    return sum + menuCals + addonCals;
+  }, 0);
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
