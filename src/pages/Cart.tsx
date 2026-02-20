@@ -1,10 +1,8 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useCart } from '@/hooks/useCart';
-import { useTakeawayPacks } from '@/hooks/useTakeawayPacks';
 import { usePromoCode } from '@/hooks/usePromoCode';
-import { useDeliveryFee } from '@/hooks/useDeliveryFee';
 import { useCustomerWallet } from '@/hooks/useCustomerWallet';
 import { useSpinWheel } from '@/hooks/useSpinWheel';
 import { usePlatformPromos } from '@/hooks/usePlatformPromos';
@@ -13,10 +11,9 @@ import { geocodeAddressWithSuggestions, updateAddressCoordinates, GeocodeSuggest
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { BottomNav } from '@/components/home/BottomNav';
-import { CartItemCard } from '@/components/cart/CartItemCard';
+import { VendorGroupCard } from '@/components/cart/VendorGroupCard';
 import { OrderSummary } from '@/components/cart/OrderSummary';
 import { AddressSelector } from '@/components/cart/AddressSelector';
-import { TakeawayPackDisplay } from '@/components/cart/TakeawayPackDisplay';
 import { PromoCodeInput } from '@/components/cart/PromoCodeInput';
 import { ActiveDiscountSelector } from '@/components/cart/ActiveDiscountSelector';
 import { FundWalletDialog } from '@/components/profile/FundWalletDialog';
@@ -36,14 +33,20 @@ interface VendorLocation {
   address: string | null;
 }
 
+interface VendorFees {
+  deliveryFee: number;
+  packagingFee: number;
+  distanceKm: number | null;
+  surgeFee: number;
+}
+
 type DeliveryType = 'delivery' | 'self_pickup';
 
 export default function Cart() {
   const { user, loading: authLoading } = useAuth();
-  const { items, vendorId, vendorName, subtotal, totalCalories, clearCart } = useCart();
-  const { getApplicablePacks } = useTakeawayPacks(vendorId);
-  const { appliedPromo, incrementUsage, clearPromo: clearPromoHook, resetAfterOrder } = usePromoCode();
-  const { balance: walletBalance, isDisabled: isWalletDisabled, hasDVA, dvaDetails, payWithWallet, refetch: refetchWallet } = useCustomerWallet();
+  const { items, vendorGroups, subtotal, totalCalories, clearCart, clearVendorGroup, isMultiVendor } = useCart();
+  const { appliedPromo, incrementUsage, resetAfterOrder } = usePromoCode();
+  const { balance: walletBalance, isDisabled: isWalletDisabled, hasDVA, dvaDetails, refetch: refetchWallet } = useCustomerWallet();
   const { activeDiscounts, getBestDiscount, useDiscount } = useSpinWheel();
   const { eligibility, getBestPlatformPromo, markFirstOrderUsed } = usePlatformPromos();
   const navigate = useNavigate();
@@ -59,7 +62,7 @@ export default function Cart() {
   const [placingOrder, setPlacingOrder] = useState(false);
   const [promoDiscount, setPromoDiscount] = useState(0);
   const [appliedPromoCode, setAppliedPromoCode] = useState<string | null>(null);
-  const [vendorLocation, setVendorLocation] = useState<VendorLocation>({ latitude: null, longitude: null, address: null });
+  const [vendorLocations, setVendorLocations] = useState<Record<string, VendorLocation>>({});
   const [deliveryType, setDeliveryType] = useState<DeliveryType>('delivery');
   const [selectedDiscountType, setSelectedDiscountType] = useState<'none' | 'promo' | 'spin' | 'platform'>('none');
   const [selectedSpinDiscountId, setSelectedSpinDiscountId] = useState<string | null>(null);
@@ -68,11 +71,12 @@ export default function Cart() {
   const [locationSuggestions, setLocationSuggestions] = useState<GeocodeSuggestion[]>([]);
   const [selectingSuggestion, setSelectingSuggestion] = useState(false);
   const [showFundDialog, setShowFundDialog] = useState(false);
+  const [vendorFees, setVendorFees] = useState<Record<string, VendorFees>>({});
 
   const [verifyingFunding, setVerifyingFunding] = useState(false);
   const verificationAttempted = useRef(false);
 
-  // Check if user returned from successful wallet funding - verify with backend
+  // Check if user returned from successful wallet funding
   useEffect(() => {
     const verifyFunding = async () => {
       const reference = searchParams.get('trxref') || searchParams.get('reference');
@@ -114,10 +118,7 @@ export default function Cart() {
         }
       }
 
-      // Always refetch wallet to get latest balance
       await refetchWallet();
-
-      // Clean up the URL
       const newParams = new URLSearchParams();
       setSearchParams(newParams, { replace: true });
     };
@@ -127,56 +128,97 @@ export default function Cart() {
     }
   }, [user, authLoading]);
 
-  // Fetch vendor location for delivery fee calculation
+  // Fetch vendor locations for all vendors in cart
   useEffect(() => {
-    if (vendorId) {
-      supabase
-        .from('vendors')
-        .select('latitude, longitude, address')
-        .eq('id', vendorId)
-        .single()
-        .then(({ data }) => {
-          if (data) {
-            setVendorLocation({ 
-              latitude: data.latitude, 
-              longitude: data.longitude,
-              address: data.address 
-            });
-          }
-        });
+    const vendorIds = vendorGroups.map(g => g.vendorId);
+    if (vendorIds.length === 0) return;
+
+    supabase
+      .from('vendors')
+      .select('id, latitude, longitude, address')
+      .in('id', vendorIds)
+      .then(({ data }) => {
+        if (data) {
+          const locs: Record<string, VendorLocation> = {};
+          data.forEach(v => {
+            locs[v.id] = { latitude: v.latitude, longitude: v.longitude, address: v.address };
+          });
+          setVendorLocations(locs);
+        }
+      });
+  }, [vendorGroups.map(g => g.vendorId).join(',')]);
+
+  // Calculate totals from per-vendor fees
+  const totalDeliveryFee = useMemo(() => {
+    if (deliveryType === 'self_pickup') return 0;
+    return Object.values(vendorFees).reduce((sum, f) => sum + f.deliveryFee, 0);
+  }, [vendorFees, deliveryType]);
+
+  const totalPackagingFee = useMemo(() => {
+    return Object.values(vendorFees).reduce((sum, f) => sum + f.packagingFee, 0);
+  }, [vendorFees]);
+
+  const totalSurgeFee = useMemo(() => {
+    if (deliveryType === 'self_pickup') return 0;
+    return Object.values(vendorFees).reduce((sum, f) => sum + f.surgeFee, 0);
+  }, [vendorFees, deliveryType]);
+
+  const serviceFee = 100;
+  const total = subtotal + totalDeliveryFee + serviceFee + totalPackagingFee - promoDiscount;
+  const insufficientBalance = walletBalance < total;
+  const shortfall = total - walletBalance;
+
+  const handleFeesCalculated = useCallback((vendorId: string, deliveryFee: number, packagingFee: number, distanceKm: number | null, surgeFee: number) => {
+    setVendorFees(prev => {
+      const existing = prev[vendorId];
+      if (existing && existing.deliveryFee === deliveryFee && existing.packagingFee === packagingFee && existing.surgeFee === surgeFee) {
+        return prev;
+      }
+      return { ...prev, [vendorId]: { deliveryFee, packagingFee, distanceKm, surgeFee } };
+    });
+  }, []);
+
+  const handlePromoApplied = (discount: number, code: string | null) => {
+    setPromoDiscount(discount);
+    setAppliedPromoCode(code);
+  };
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate('/auth');
     }
-  }, [vendorId]);
+  }, [user, authLoading, navigate]);
 
-  // Calculate dynamic delivery fee with surge (0 for self-pickup)
-  const { fee: calculatedDeliveryFee, isOutOfRange, distanceKm, hasCoordinates, surgeFee } = useDeliveryFee({
-    vendorLat: vendorLocation.latitude,
-    vendorLon: vendorLocation.longitude,
-    customerLat: selectedAddress?.latitude ?? null,
-    customerLon: selectedAddress?.longitude ?? null,
-  });
-  
-  const deliveryFee = deliveryType === 'self_pickup' ? 0 : calculatedDeliveryFee;
+  useEffect(() => {
+    if (user) {
+      fetchAddresses();
+    }
+  }, [user]);
 
-  // Detect coordinate mismatch
-  const coordinateMismatch = useMemo(() => {
-    if (!hasCoordinates || distanceKm === null) return false;
-    if (distanceKm > 0.5) return false;
+  const fetchAddresses = async () => {
+    if (!user) return;
     
-    const vendorAddr = vendorLocation.address?.toLowerCase() || '';
-    const customerCity = selectedAddress?.city?.toLowerCase() || '';
-    const customerAddrLine = selectedAddress?.address_line?.toLowerCase() || '';
-    const customerArea = `${customerAddrLine} ${customerCity}`;
-    
-    if (!vendorAddr || !customerArea) return false;
-    
-    const vendorWords = vendorAddr.split(/[\s,]+/).filter(w => w.length > 2);
-    const customerWords = customerArea.split(/[\s,]+/).filter(w => w.length > 2);
-    const hasCommonArea = vendorWords.some(vw => 
-      customerWords.some(cw => vw.includes(cw) || cw.includes(vw))
-    );
-    
-    return !hasCommonArea;
-  }, [hasCoordinates, distanceKm, vendorLocation.address, selectedAddress?.city, selectedAddress?.address_line]);
+    try {
+      const { data, error } = await supabase
+        .from('addresses')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('is_default', { ascending: false });
+
+      if (error) throw error;
+      
+      setAddresses(data || []);
+      
+      const defaultAddr = data?.find(a => a.is_default) || data?.[0];
+      if (defaultAddr) {
+        setSelectedAddress(defaultAddr);
+      }
+    } catch (error) {
+      console.error('Error fetching addresses:', error);
+    } finally {
+      setLoadingAddresses(false);
+    }
+  };
 
   // Auto-geocode selected address if it doesn't have coordinates
   useEffect(() => {
@@ -257,69 +299,11 @@ export default function Cart() {
     }
   };
 
-  // Calculate applicable takeaway packs
-  const applicablePacks = useMemo(() => {
-    return getApplicablePacks(items.map(item => ({ productId: item.productId, quantity: item.quantity })));
-  }, [items, getApplicablePacks]);
-
-  const packagingFee = useMemo(() => {
-    return applicablePacks.reduce((sum, pack) => sum + pack.price, 0);
-  }, [applicablePacks]);
-
-  const serviceFee = 100;
-  const total = subtotal + deliveryFee + serviceFee + packagingFee - promoDiscount;
-  const insufficientBalance = walletBalance < total;
-  const shortfall = total - walletBalance;
-
-  const handlePromoApplied = (discount: number, code: string | null) => {
-    setPromoDiscount(discount);
-    setAppliedPromoCode(code);
-  };
-
-  useEffect(() => {
-    if (!authLoading && !user) {
-      navigate('/auth');
-    }
-  }, [user, authLoading, navigate]);
-
-  useEffect(() => {
-    if (user) {
-      fetchAddresses();
-    }
-  }, [user]);
-
-  const fetchAddresses = async () => {
-    if (!user) return;
-    
-    try {
-      const { data, error } = await supabase
-        .from('addresses')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('is_default', { ascending: false });
-
-      if (error) throw error;
-      
-      setAddresses(data || []);
-      
-      const defaultAddr = data?.find(a => a.is_default) || data?.[0];
-      if (defaultAddr) {
-        setSelectedAddress(defaultAddr);
-      }
-    } catch (error) {
-      console.error('Error fetching addresses:', error);
-    } finally {
-      setLoadingAddresses(false);
-    }
-  };
-
   const addressMissingCoords = deliveryType === 'delivery' && selectedAddress && (!selectedAddress.latitude || !selectedAddress.longitude);
-  const addressHasIssue = addressMissingCoords || (deliveryType === 'delivery' && coordinateMismatch);
 
   const handlePlaceOrder = async () => {
-    if (!user || !vendorId || items.length === 0) return;
+    if (!user || items.length === 0 || vendorGroups.length === 0) return;
 
-    // Block if legal documents not accepted
     if (hasPendingAcceptance) {
       toast({
         title: 'Agreement Required',
@@ -347,15 +331,6 @@ export default function Cart() {
       return;
     }
 
-    if (coordinateMismatch) {
-      toast({
-        title: 'GPS Location Mismatch',
-        description: 'Your saved GPS appears to be at the restaurant location, not your delivery address. Please update your GPS while at your actual delivery location.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
     if (isWalletDisabled) {
       toast({
         title: 'Wallet Disabled',
@@ -365,7 +340,6 @@ export default function Cart() {
       return;
     }
 
-    // Check wallet balance - if insufficient, prompt to fund
     if (insufficientBalance) {
       setShowFundDialog(true);
       return;
@@ -373,13 +347,11 @@ export default function Cart() {
 
     setPlacingOrder(true);
     try {
-      // Validate all products/combos still exist before placing order
+      // Validate all products/combos still exist
       const allItemIds = items.filter(i => i.productId).map(i => i.productId);
-      
       const existingIds = new Set<string>();
       
       if (allItemIds.length > 0) {
-        // Check both products and combos tables for all IDs
         const [productsResult, combosResult] = await Promise.all([
           supabase.from('products').select('id, is_available').in('id', allItemIds),
           supabase.from('combos').select('id, is_available').in('id', allItemIds),
@@ -388,12 +360,8 @@ export default function Cart() {
         if (productsResult.error) throw productsResult.error;
         if (combosResult.error) throw combosResult.error;
         
-        productsResult.data?.forEach(p => {
-          if (p.is_available) existingIds.add(p.id);
-        });
-        combosResult.data?.forEach(c => {
-          if (c.is_available) existingIds.add(c.id);
-        });
+        productsResult.data?.forEach(p => { if (p.is_available) existingIds.add(p.id); });
+        combosResult.data?.forEach(c => { if (c.is_available) existingIds.add(c.id); });
       }
       
       const missingItems = items.filter(i => i.productId && !existingIds.has(i.productId));
@@ -416,120 +384,123 @@ export default function Cart() {
         ? `Receiver Phone: ${receiverPhone.trim()}`
         : null;
 
-      const { data: order, error: orderError } = await supabase
-        .from('orders')
-        .insert({
-          user_id: user.id,
-          promo_code: appliedPromoCode || (promoType === 'spin' ? `SPIN-${selectedSpinDiscountId}` : null),
-          discount: promoDiscount,
-          vendor_id: vendorId,
-          order_number: '',
-          menu_subtotal: subtotal,
-          subtotal: subtotal + packagingFee - promoDiscount,
-          packaging_fee: packagingFee,
-          delivery_fee: deliveryFee,
-          service_fee: serviceFee,
-          total,
-          total_calories: totalCalories,
-          delivery_address_id: deliveryType === 'delivery' ? selectedAddress?.id : null,
-          delivery_address_text: deliveryType === 'delivery' 
-            ? `${selectedAddress?.address_line}, ${selectedAddress?.city}, ${selectedAddress?.state}`
-            : `Self-pickup at ${vendorName}`,
-          delivery_instructions: deliveryInstructions,
-          delivery_type: deliveryType,
-          status: 'pending',
-          payment_status: 'pending',
-          payment_method: 'wallet',
-        })
-        .select()
-        .single();
+      // Create one order per vendor group
+      const orderIds: string[] = [];
 
-      if (orderError) throw orderError;
+      for (const group of vendorGroups) {
+        const fees = vendorFees[group.vendorId] || { deliveryFee: 0, packagingFee: 0, distanceKm: null, surgeFee: 0 };
+        const groupDeliveryFee = deliveryType === 'self_pickup' ? 0 : fees.deliveryFee;
+        // Only apply promo discount to the first vendor group (or distribute proportionally)
+        const isFirstGroup = group === vendorGroups[0];
+        const groupPromoDiscount = isFirstGroup ? promoDiscount : 0;
+        // Service fee only on first order to avoid double-charging
+        const groupServiceFee = isFirstGroup ? serviceFee : 0;
 
-      // Create order items from cart
-      const orderItems = items.map(item => ({
-        order_id: order.id,
-        product_id: item.addonsDescription ? null : item.productId,
-        product_name: item.productName,
-        quantity: item.quantity,
-        unit_price: item.price,
-        total_price: item.price * item.quantity,
-        calories: item.calories * item.quantity,
-        special_instructions: item.addonsDescription || null,
-      }));
+        const groupTotal = group.subtotal + fees.packagingFee + groupDeliveryFee + groupServiceFee - groupPromoDiscount;
 
-      const packItems = applicablePacks.map(pack => ({
-        order_id: order.id,
-        product_id: null,
-        product_name: `📦 ${pack.name}`,
-        quantity: 1,
-        unit_price: pack.price,
-        total_price: pack.price,
-        calories: 0,
-        special_instructions: 'Takeaway packaging',
-      }));
+        const { data: order, error: orderError } = await supabase
+          .from('orders')
+          .insert({
+            user_id: user.id,
+            promo_code: isFirstGroup ? (appliedPromoCode || (promoType === 'spin' ? `SPIN-${selectedSpinDiscountId}` : null)) : null,
+            discount: groupPromoDiscount,
+            vendor_id: group.vendorId,
+            order_number: '',
+            menu_subtotal: group.subtotal,
+            subtotal: group.subtotal + fees.packagingFee - groupPromoDiscount,
+            packaging_fee: fees.packagingFee,
+            delivery_fee: groupDeliveryFee,
+            service_fee: groupServiceFee,
+            total: groupTotal,
+            total_calories: group.totalCalories,
+            delivery_address_id: deliveryType === 'delivery' ? selectedAddress?.id : null,
+            delivery_address_text: deliveryType === 'delivery' 
+              ? `${selectedAddress?.address_line}, ${selectedAddress?.city}, ${selectedAddress?.state}`
+              : `Self-pickup at ${group.vendorName}`,
+            delivery_instructions: deliveryInstructions,
+            delivery_type: deliveryType,
+            status: 'pending',
+            payment_status: 'pending',
+            payment_method: 'wallet',
+          })
+          .select()
+          .single();
 
-      const allOrderItems = [...orderItems, ...packItems];
+        if (orderError) throw orderError;
+        orderIds.push(order.id);
 
-      const { data: insertedItems, error: itemsError } = await supabase
-        .from('order_items')
-        .insert(allOrderItems)
-        .select();
-
-      if (itemsError) throw itemsError;
-
-      // Save add-on details for each order item
-      if (insertedItems) {
-        const addonRecords: Array<{
-          order_item_id: string;
-          addon_group_name: string;
-          addon_item_name: string;
-          additional_price: number;
-          calories: number;
-          image_url: string | null;
-        }> = [];
-
-        items.forEach((cartItem, index) => {
-          if (cartItem.addons && cartItem.addons.length > 0) {
-            const orderItem = insertedItems[index];
-            if (orderItem) {
-              cartItem.addons.forEach(addon => {
-                addonRecords.push({
-                  order_item_id: orderItem.id,
-                  addon_group_name: addon.groupName,
-                  addon_item_name: addon.itemName,
-                  additional_price: addon.price,
-                  calories: addon.calories,
-                  image_url: addon.imageUrl || null,
-                });
-              });
-            }
-          }
-        });
-
-        if (addonRecords.length > 0) {
-          await supabase.from('order_item_addons').insert(addonRecords);
-        }
-      }
-
-      // Log calories
-      await supabase
-        .from('calorie_logs')
-        .insert({
-          user_id: user.id,
+        // Create order items
+        const orderItems = group.items.map(item => ({
           order_id: order.id,
-          calories: totalCalories,
-          meal_type: 'order',
-        });
+          product_id: item.addonsDescription ? null : item.productId,
+          product_name: item.productName,
+          quantity: item.quantity,
+          unit_price: item.price,
+          total_price: item.price * item.quantity,
+          calories: item.calories * item.quantity,
+          special_instructions: item.addonsDescription || null,
+        }));
+
+        const { data: insertedItems, error: itemsError } = await supabase
+          .from('order_items')
+          .insert(orderItems)
+          .select();
+
+        if (itemsError) throw itemsError;
+
+        // Save add-on details
+        if (insertedItems) {
+          const addonRecords: Array<{
+            order_item_id: string;
+            addon_group_name: string;
+            addon_item_name: string;
+            additional_price: number;
+            calories: number;
+            image_url: string | null;
+          }> = [];
+
+          group.items.forEach((cartItem, index) => {
+            if (cartItem.addons && cartItem.addons.length > 0) {
+              const orderItem = insertedItems[index];
+              if (orderItem) {
+                cartItem.addons.forEach(addon => {
+                  addonRecords.push({
+                    order_item_id: orderItem.id,
+                    addon_group_name: addon.groupName,
+                    addon_item_name: addon.itemName,
+                    additional_price: addon.price,
+                    calories: addon.calories,
+                    image_url: addon.imageUrl || null,
+                  });
+                });
+              }
+            }
+          });
+
+          if (addonRecords.length > 0) {
+            await supabase.from('order_item_addons').insert(addonRecords);
+          }
+        }
+
+        // Log calories
+        await supabase
+          .from('calorie_logs')
+          .insert({
+            user_id: user.id,
+            order_id: order.id,
+            calories: group.totalCalories,
+            meal_type: 'order',
+          });
+      }
 
       // Increment promo code usage
       if (appliedPromo?.id) {
         await incrementUsage(appliedPromo.id);
       }
       
-      // Mark spin wheel discount as used
-      if (selectedDiscountType === 'spin' && selectedSpinDiscountId) {
-        await useDiscount(selectedSpinDiscountId, order.id);
+      // Mark spin wheel discount as used (on first order)
+      if (selectedDiscountType === 'spin' && selectedSpinDiscountId && orderIds[0]) {
+        await useDiscount(selectedSpinDiscountId, orderIds[0]);
       }
       
       if (selectedDiscountType === 'platform' && eligibility.firstOrderDiscount) {
@@ -541,15 +512,24 @@ export default function Cart() {
       setAppliedPromoCode(null);
       setSelectedDiscountType('none');
 
-      // Pay with wallet
+      // Pay for ALL orders at once via batch wallet payment
       try {
-        await payWithWallet(order.id);
+        const { data: paymentResult, error: paymentError } = await supabase.functions.invoke('process-wallet-payment', {
+          body: { orderIds },
+        });
+
+        if (paymentError) throw paymentError;
+        if (paymentResult?.error) throw new Error(paymentResult.error);
+
         clearCart();
         toast({
           title: 'Order Placed!',
-          description: 'Your order has been paid with wallet balance.',
+          description: vendorGroups.length > 1
+            ? `${vendorGroups.length} orders placed and paid from your wallet.`
+            : 'Your order has been paid with wallet balance.',
         });
-        navigate(`/orders/${order.id}`);
+        // Navigate to the first order
+        navigate(`/orders/${orderIds[0]}`);
       } catch (walletError) {
         console.error('Wallet payment error:', walletError);
         toast({
@@ -600,9 +580,13 @@ export default function Cart() {
           </Button>
           <div className="flex-1">
             <h1 className="text-xl font-bold text-foreground">Your Cart</h1>
-            {vendorName && (
-              <p className="text-sm text-muted-foreground">From {vendorName}</p>
-            )}
+            {isMultiVendor ? (
+              <p className="text-sm text-muted-foreground">
+                {vendorGroups.length} vendors • {items.length} items
+              </p>
+            ) : vendorGroups[0]?.vendorName ? (
+              <p className="text-sm text-muted-foreground">From {vendorGroups[0].vendorName}</p>
+            ) : null}
           </div>
         </div>
       </header>
@@ -623,18 +607,19 @@ export default function Cart() {
           </div>
         ) : (
           <>
-            {/* Cart Items */}
-            <section className="space-y-3">
-              <h2 className="font-semibold text-foreground">Order Items</h2>
-              {items.map((item) => (
-                <CartItemCard key={item.id} item={item} />
-              ))}
-            </section>
-
-            {/* Takeaway Packs */}
-            {applicablePacks.length > 0 && (
-              <TakeawayPackDisplay packs={applicablePacks} />
-            )}
+            {/* Vendor Groups */}
+            {vendorGroups.map((group) => (
+              <VendorGroupCard
+                key={group.vendorId}
+                group={group}
+                vendorLocation={vendorLocations[group.vendorId] || { latitude: null, longitude: null, address: null }}
+                customerLat={selectedAddress?.latitude ?? null}
+                customerLon={selectedAddress?.longitude ?? null}
+                deliveryType={deliveryType}
+                onClearGroup={clearVendorGroup}
+                onFeesCalculated={handleFeesCalculated}
+              />
+            ))}
 
             {/* Delivery Type Toggle */}
             <section className="bg-card rounded-xl border border-border p-4">
@@ -643,7 +628,7 @@ export default function Cart() {
                   <Store className="w-5 h-5 text-primary" />
                   <div>
                     <Label className="font-medium">Self-Pickup</Label>
-                    <p className="text-xs text-muted-foreground">Pick up your order at the store</p>
+                    <p className="text-xs text-muted-foreground">Pick up your order at the store{isMultiVendor ? 's' : ''}</p>
                   </div>
                 </div>
                 <Switch
@@ -651,11 +636,6 @@ export default function Cart() {
                   onCheckedChange={(checked) => setDeliveryType(checked ? 'self_pickup' : 'delivery')}
                 />
               </div>
-              {deliveryType === 'self_pickup' && vendorLocation.address && (
-                <p className="text-sm text-muted-foreground mt-3 pl-8">
-                  📍 Pickup at: {vendorLocation.address}
-                </p>
-              )}
             </section>
 
             {/* Address Selector - only show for delivery */}
@@ -720,31 +700,6 @@ export default function Cart() {
                   </div>
                 )}
 
-                {!geocodingAddress && !addressMissingCoords && coordinateMismatch && (
-                  <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-lg">
-                    <AlertTriangle className="w-4 h-4" />
-                    <span>
-                      Your saved GPS location appears to be near the restaurant, not your delivery address. <strong>Tap the navigation icon</strong> while at your actual delivery location to update.
-                    </span>
-                  </div>
-                )}
-
-                {hasCoordinates && distanceKm !== null && !geocodingAddress && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground bg-secondary/50 p-3 rounded-lg">
-                    <MapPin className="w-4 h-4 text-primary" />
-                    <span>
-                      Distance: <strong>{distanceKm.toFixed(1)} km</strong> • Delivery fee: <strong>₦{deliveryFee.toLocaleString()}</strong>
-                    </span>
-                  </div>
-                )}
-
-                {isOutOfRange && selectedAddress && (
-                  <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-lg">
-                    <AlertTriangle className="w-4 h-4" />
-                    <span>This address may be outside the delivery zone ({distanceKm?.toFixed(1)}km away)</span>
-                  </div>
-                )}
-
                 {/* Receiver Phone Number */}
                 <section className="bg-card rounded-xl border border-border p-4">
                   <div className="flex items-center gap-3 mb-3">
@@ -765,10 +720,10 @@ export default function Cart() {
               </>
             )}
 
-            {/* Promo Code */}
+            {/* Promo Code - apply to first vendor group */}
             <PromoCodeInput 
               subtotal={subtotal} 
-              vendorId={vendorId || undefined} 
+              vendorId={vendorGroups[0]?.vendorId} 
               onDiscountApplied={handlePromoApplied} 
               disabled={selectedDiscountType === 'spin' || selectedDiscountType === 'platform'}
             />
@@ -854,7 +809,10 @@ export default function Cart() {
               {!isWalletDisabled && !insufficientBalance && items.length > 0 && (
                 <div className="flex items-center gap-2 p-3 bg-primary/10 rounded-lg">
                   <Wallet className="w-4 h-4 text-primary" />
-                  <p className="text-xs text-primary">₦{total.toLocaleString()} will be deducted from your wallet</p>
+                  <p className="text-xs text-primary">
+                    ₦{total.toLocaleString()} will be deducted from your wallet
+                    {isMultiVendor && ` (${vendorGroups.length} orders)`}
+                  </p>
                 </div>
               )}
             </section>
@@ -862,22 +820,24 @@ export default function Cart() {
             {/* Order Summary */}
             <OrderSummary
               subtotal={subtotal}
-              deliveryFee={deliveryFee}
+              deliveryFee={totalDeliveryFee}
               serviceFee={serviceFee}
               total={total}
               totalCalories={totalCalories}
-              packagingFee={packagingFee}
+              packagingFee={totalPackagingFee}
               discount={promoDiscount}
-              distanceKm={deliveryType === 'delivery' ? distanceKm : null}
-              surgeFee={deliveryType === 'delivery' ? surgeFee : 0}
+              distanceKm={null}
+              surgeFee={totalSurgeFee}
+              vendorCount={vendorGroups.length}
             />
-            {/* Checkout Button - inline */}
+
+            {/* Checkout Button */}
             {items.length > 0 && (
               <div className="pt-2 pb-4">
                 <Button 
                   className="w-full h-14 text-base font-semibold shadow-button gradient-primary border-0"
                   onClick={handlePlaceOrder}
-                  disabled={placingOrder || verifyingFunding || isWalletDisabled || (deliveryType === 'delivery' && (!selectedAddress || addressMissingCoords || coordinateMismatch || geocodingAddress))}
+                  disabled={placingOrder || verifyingFunding || isWalletDisabled || (deliveryType === 'delivery' && (!selectedAddress || !!addressMissingCoords || geocodingAddress))}
                 >
                   {placingOrder ? (
                     <>
