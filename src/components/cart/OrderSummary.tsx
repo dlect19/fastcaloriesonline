@@ -12,6 +12,7 @@ interface OrderSummaryProps {
   discount?: number;
   distanceKm?: number | null;
   surgeFee?: number;
+  vendorCount?: number;
 }
 
 export function OrderSummary({ 
@@ -24,6 +25,7 @@ export function OrderSummary({
   discount = 0,
   distanceKm,
   surgeFee = 0,
+  vendorCount = 1,
 }: OrderSummaryProps) {
   const getCalorieLevel = (calories: number) => {
     if (calories <= 500) return { label: 'Low', color: 'text-calorie-low bg-calorie-low/10' };

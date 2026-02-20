@@ -15,11 +15,14 @@ serve(async (req: Request) => {
   }
 
   try {
-    const { orderId } = await req.json();
+    const body = await req.json();
+    
+    // Support both single orderId and multiple orderIds
+    const orderIds: string[] = body.orderIds || (body.orderId ? [body.orderId] : []);
 
-    if (!orderId) {
+    if (orderIds.length === 0) {
       return new Response(
-        JSON.stringify({ error: "Order ID is required" }),
+        JSON.stringify({ error: "Order ID(s) required" }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
@@ -48,24 +51,25 @@ serve(async (req: Request) => {
       );
     }
 
-    // Get order details
-    const { data: order, error: orderError } = await supabaseAdmin
+    // Get all order details
+    const { data: orders, error: ordersError } = await supabaseAdmin
       .from("orders")
       .select("*, vendors(user_id, commission_rate)")
-      .eq("id", orderId)
-      .eq("user_id", user.id)
-      .single();
+      .in("id", orderIds)
+      .eq("user_id", user.id);
 
-    if (orderError || !order) {
+    if (ordersError || !orders || orders.length === 0) {
       return new Response(
-        JSON.stringify({ error: "Order not found" }),
+        JSON.stringify({ error: "Orders not found" }),
         { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    if (order.payment_status === "paid") {
+    // Validate all orders are unpaid
+    const alreadyPaid = orders.filter(o => o.payment_status === "paid");
+    if (alreadyPaid.length > 0) {
       return new Response(
-        JSON.stringify({ error: "Order is already paid" }),
+        JSON.stringify({ error: `Order(s) already paid: ${alreadyPaid.map(o => o.order_number).join(", ")}` }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
@@ -102,109 +106,122 @@ serve(async (req: Request) => {
     const environment = envSetting?.value || "development";
     const isTestMode = environment === "development";
 
-    // Check main wallet balance (referral bonus is now part of main balance)
     const currentBalance = isTestMode 
       ? Number(customerWallet.test_balance) || 0
       : Number(customerWallet.balance) || 0;
 
-    const orderTotal = Number(order.total);
+    // Calculate grand total across all orders
+    const grandTotal = orders.reduce((sum, o) => sum + Number(o.total), 0);
 
-    if (currentBalance < orderTotal) {
+    if (currentBalance < grandTotal) {
       return new Response(
         JSON.stringify({ 
           error: "Insufficient wallet balance",
           balance: currentBalance,
-          required: orderTotal,
+          required: grandTotal,
         }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    // Generate unique reference
-    const reference = `WP-${orderId.slice(0, 8)}-${Date.now()}`;
+    // Generate batch reference
+    const batchRef = `WP-BATCH-${Date.now()}`;
+    let runningBalance = currentBalance;
+    const results: Array<{ orderId: string; orderNumber: string; reference: string; amount: number }> = [];
 
-    // Debit main balance
-    const newBalance = currentBalance - orderTotal;
+    // Process each order
+    for (const order of orders) {
+      const orderTotal = Number(order.total);
+      const reference = orders.length === 1
+        ? `WP-${order.id.slice(0, 8)}-${Date.now()}`
+        : `${batchRef}-${order.id.slice(0, 8)}`;
+      
+      runningBalance -= orderTotal;
+
+      // Log wallet debit transaction for this order
+      await supabaseAdmin.from("wallet_transactions").insert({
+        wallet_id: customerWallet.id,
+        wallet_type: "customer",
+        transaction_type: "debit",
+        category: "wallet_payment",
+        amount: orderTotal,
+        balance_after: runningBalance,
+        reference,
+        order_id: order.id,
+        status: "completed",
+        environment,
+        notes: `Payment for order #${order.order_number}${orders.length > 1 ? ` (batch: ${batchRef})` : ''}`,
+      });
+
+      // Update order payment status and set status to confirmed
+      await supabaseAdmin
+        .from("orders")
+        .update({
+          payment_status: "paid",
+          status: "confirmed",
+          payment_method: "wallet",
+          payment_reference: reference,
+          environment,
+        })
+        .eq("id", order.id);
+
+      // Log promo usage if discount was applied
+      if (Number(order.discount) > 0) {
+        const menuSubtotal = Number(order.menu_subtotal) || (Number(order.subtotal) + Number(order.discount));
+        const discountPercentage = (Number(order.discount) / menuSubtotal) * 100;
+        
+        await supabaseAdmin.from("promo_usage_log").insert({
+          order_id: order.id,
+          user_id: user.id,
+          promo_type: order.promo_code?.startsWith("SPIN-") ? "spin" : "promo_code",
+          promo_source: order.promo_code?.startsWith("SPIN-") ? "spin_wheel" : "manual",
+          discount_percentage: discountPercentage,
+          discount_amount: Number(order.discount),
+          platform_cost: Number(order.discount),
+          environment,
+        });
+      }
+
+      // Trigger referral bonus processing (fire and forget)
+      try {
+        await fetch(`${SUPABASE_URL}/functions/v1/process-referral-bonus`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          },
+          body: JSON.stringify({ orderId: order.id }),
+        });
+      } catch (refErr) {
+        console.error('Referral bonus trigger failed (non-blocking):', refErr);
+      }
+
+      results.push({ orderId: order.id, orderNumber: order.order_number, reference, amount: orderTotal });
+    }
+
+    // Debit the full amount from wallet in one update
     if (isTestMode) {
       await supabaseAdmin
         .from("wallets")
-        .update({ test_balance: newBalance, updated_at: new Date().toISOString() })
+        .update({ test_balance: runningBalance, updated_at: new Date().toISOString() })
         .eq("id", customerWallet.id);
     } else {
       await supabaseAdmin
         .from("wallets")
-        .update({ balance: newBalance, updated_at: new Date().toISOString() })
+        .update({ balance: runningBalance, updated_at: new Date().toISOString() })
         .eq("id", customerWallet.id);
     }
 
-    // Log wallet debit transaction
-    await supabaseAdmin.from("wallet_transactions").insert({
-      wallet_id: customerWallet.id,
-      wallet_type: "customer",
-      transaction_type: "debit",
-      category: "wallet_payment",
-      amount: orderTotal,
-      balance_after: newBalance,
-      reference,
-      order_id: orderId,
-      status: "completed",
-      environment,
-      notes: `Payment for order #${order.order_number}`,
-    });
-
-    // Update order payment status and set status to confirmed
-    await supabaseAdmin
-      .from("orders")
-      .update({
-        payment_status: "paid",
-        status: "confirmed",
-        payment_method: "wallet",
-        payment_reference: reference,
-        environment,
-      })
-      .eq("id", orderId);
-
-    // Log promo usage if discount was applied
-    if (Number(order.discount) > 0) {
-      const menuSubtotal = Number(order.menu_subtotal) || (Number(order.subtotal) + Number(order.discount));
-      const discountPercentage = (Number(order.discount) / menuSubtotal) * 100;
-      
-      await supabaseAdmin.from("promo_usage_log").insert({
-        order_id: orderId,
-        user_id: user.id,
-        promo_type: order.promo_code?.startsWith("SPIN-") ? "spin" : "promo_code",
-        promo_source: order.promo_code?.startsWith("SPIN-") ? "spin_wheel" : "manual",
-        discount_percentage: discountPercentage,
-        discount_amount: Number(order.discount),
-        platform_cost: Number(order.discount),
-        environment,
-      });
-    }
-
-    // The database triggers handle vendor/rider/platform splits automatically
-
-    // Trigger referral bonus processing (fire and forget)
-    try {
-      await fetch(`${SUPABASE_URL}/functions/v1/process-referral-bonus`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-        },
-        body: JSON.stringify({ orderId }),
-      });
-    } catch (refErr) {
-      console.error('Referral bonus trigger failed (non-blocking):', refErr);
-    }
-
-    console.log(`Wallet payment processed: ${reference}, amount: ₦${orderTotal}, user: ${user.id}`);
+    console.log(`Wallet payment processed: ${batchRef}, total: ₦${grandTotal}, orders: ${orders.length}, user: ${user.id}`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        reference,
-        new_balance: newBalance,
-        order_number: order.order_number,
+        reference: batchRef,
+        new_balance: runningBalance,
+        orders: results,
+        // Legacy compat for single-order callers
+        order_number: results[0]?.orderNumber,
       }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );

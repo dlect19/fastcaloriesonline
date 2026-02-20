@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
 
 export interface CartAddon {
   groupName: string;
@@ -24,27 +24,55 @@ export interface CartItem {
   addonsDescription?: string;
 }
 
+export interface VendorGroup {
+  vendorId: string;
+  vendorName: string;
+  items: CartItem[];
+  subtotal: number;
+  totalCalories: number;
+  itemCount: number;
+}
+
 interface CartContextType {
   items: CartItem[];
+  vendorGroups: VendorGroup[];
+  /** @deprecated Use vendorGroups instead for multi-vendor support */
   vendorId: string | null;
+  /** @deprecated Use vendorGroups instead for multi-vendor support */
   vendorName: string | null;
   addItem: (item: Omit<CartItem, 'id'>) => void;
   removeItem: (itemId: string) => void;
   updateQuantity: (itemId: string, quantity: number) => void;
   clearCart: () => void;
+  clearVendorGroup: (vendorId: string) => void;
   subtotal: number;
   totalCalories: number;
   itemCount: number;
+  isMultiVendor: boolean;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 const CART_STORAGE_KEY = 'fast-calories-cart';
 
+function calculateItemSubtotal(item: CartItem): number {
+  const menuTotal = item.price * item.quantity;
+  const addonTotal = (item.addons || []).reduce((aSum, addon) => {
+    return aSum + addon.price * (addon.quantity || 1);
+  }, 0);
+  return menuTotal + addonTotal;
+}
+
+function calculateItemCalories(item: CartItem): number {
+  const menuCals = (item.calories || 0) * item.quantity;
+  const addonCals = (item.addons || []).reduce((aSum, addon) => {
+    return aSum + (addon.calories || 0) * (addon.quantity || 1);
+  }, 0);
+  return menuCals + addonCals;
+}
+
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
-  const [vendorId, setVendorId] = useState<string | null>(null);
-  const [vendorName, setVendorName] = useState<string | null>(null);
 
   // Load cart from localStorage on mount
   useEffect(() => {
@@ -52,9 +80,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (savedCart) {
       try {
         const parsed = JSON.parse(savedCart);
+        // Support legacy format (items + vendorId) and new format (just items)
         setItems(parsed.items || []);
-        setVendorId(parsed.vendorId || null);
-        setVendorName(parsed.vendorName || null);
       } catch (e) {
         console.error('Failed to parse cart:', e);
       }
@@ -63,25 +90,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   // Save cart to localStorage whenever it changes
   useEffect(() => {
-    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify({ items, vendorId, vendorName }));
-  }, [items, vendorId, vendorName]);
+    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify({ items }));
+  }, [items]);
 
   const addItem = (item: Omit<CartItem, 'id'>) => {
-    // Check if cart has items from a different vendor
-    if (vendorId && vendorId !== item.vendorId) {
-      // Clear cart and add new item
-      const newItem = { ...item, id: crypto.randomUUID() };
-      setItems([newItem]);
-      setVendorId(item.vendorId);
-      setVendorName(item.vendorName);
-      return;
-    }
-
-    // Check if same item with same addons already exists
+    // Check if same item with same addons already exists (from same vendor)
     const addonsKey = item.addons ? JSON.stringify(item.addons.map(a => `${a.groupName}:${a.itemName}`).sort()) : '';
     const existingIndex = items.findIndex(i => {
       const existingAddonsKey = i.addons ? JSON.stringify(i.addons.map(a => `${a.groupName}:${a.itemName}`).sort()) : '';
-      return i.productId === item.productId && existingAddonsKey === addonsKey;
+      return i.productId === item.productId && i.vendorId === item.vendorId && existingAddonsKey === addonsKey;
     });
     
     if (existingIndex >= 0) {
@@ -93,21 +110,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
     } else {
       const newItem = { ...item, id: crypto.randomUUID() };
       setItems([...items, newItem]);
-      if (!vendorId) {
-        setVendorId(item.vendorId);
-        setVendorName(item.vendorName);
-      }
     }
   };
 
   const removeItem = (itemId: string) => {
-    const newItems = items.filter(i => i.id !== itemId);
-    setItems(newItems);
-    
-    if (newItems.length === 0) {
-      setVendorId(null);
-      setVendorName(null);
-    }
+    setItems(items.filter(i => i.id !== itemId));
   };
 
   const updateQuantity = (itemId: string, quantity: number) => {
@@ -123,38 +130,62 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const clearCart = () => {
     setItems([]);
-    setVendorId(null);
-    setVendorName(null);
   };
 
-  const subtotal = items.reduce((sum, item) => {
-    const menuTotal = item.price * item.quantity;
-    const addonTotal = (item.addons || []).reduce((aSum, addon) => {
-      return aSum + addon.price * (addon.quantity || 1);
-    }, 0);
-    return sum + menuTotal + addonTotal;
-  }, 0);
-  const totalCalories = items.reduce((sum, item) => {
-    const menuCals = (item.calories || 0) * item.quantity;
-    const addonCals = (item.addons || []).reduce((aSum, addon) => {
-      return aSum + (addon.calories || 0) * (addon.quantity || 1);
-    }, 0);
-    return sum + menuCals + addonCals;
-  }, 0);
+  const clearVendorGroup = (vendorId: string) => {
+    setItems(items.filter(i => i.vendorId !== vendorId));
+  };
+
+  // Compute vendor groups
+  const vendorGroups = useMemo((): VendorGroup[] => {
+    const groups = new Map<string, VendorGroup>();
+    
+    for (const item of items) {
+      let group = groups.get(item.vendorId);
+      if (!group) {
+        group = {
+          vendorId: item.vendorId,
+          vendorName: item.vendorName,
+          items: [],
+          subtotal: 0,
+          totalCalories: 0,
+          itemCount: 0,
+        };
+        groups.set(item.vendorId, group);
+      }
+      group.items.push(item);
+      group.subtotal += calculateItemSubtotal(item);
+      group.totalCalories += calculateItemCalories(item);
+      group.itemCount += item.quantity;
+    }
+    
+    return Array.from(groups.values());
+  }, [items]);
+
+  const subtotal = items.reduce((sum, item) => sum + calculateItemSubtotal(item), 0);
+  const totalCalories = items.reduce((sum, item) => sum + calculateItemCalories(item), 0);
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
+
+  // Legacy compat: first vendor in cart
+  const vendorId = vendorGroups.length > 0 ? vendorGroups[0].vendorId : null;
+  const vendorName = vendorGroups.length > 0 ? vendorGroups[0].vendorName : null;
+  const isMultiVendor = vendorGroups.length > 1;
 
   return (
     <CartContext.Provider value={{
       items,
+      vendorGroups,
       vendorId,
       vendorName,
       addItem,
       removeItem,
       updateQuantity,
       clearCart,
+      clearVendorGroup,
       subtotal,
       totalCalories,
       itemCount,
+      isMultiVendor,
     }}>
       {children}
     </CartContext.Provider>
