@@ -1,6 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { Home, Package, Store, Bike, Ticket, Users, Settings, LogOut, Image, Activity, Banknote, Wallet, ArrowDownLeft, Gift, Truck, UserCheck, Star, MessageSquare, DollarSign, UserPlus, Receipt, ClipboardList, Scale, HelpCircle } from 'lucide-react';
+import { Home, Package, Store, Bike, Ticket, Users, Settings, LogOut, Image, Activity, Banknote, Wallet, ArrowDownLeft, Gift, Truck, UserCheck, Star, MessageSquare, DollarSign, UserPlus, Receipt, ClipboardList, Scale, HelpCircle, Percent } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -30,6 +30,7 @@ const menuItems: MenuItem[] = [
   { icon: ArrowDownLeft, label: 'Wallet Funding', path: '/admin/wallet-funding', requiredPermission: 'manage_users' },
   { icon: Activity, label: 'Nutrition', path: '/admin/nutrition', requiredPermission: 'view_reports' },
   { icon: Ticket, label: 'Promo Codes', path: '/admin/promos', requiredPermission: 'manage_promos' },
+  { icon: Percent, label: 'Commission Promos', path: '/admin/commission-promos', requiredPermission: 'manage_promos' },
   { icon: Gift, label: 'Rewards & Spins', path: '/admin/rewards', requiredPermission: 'manage_promos' },
   { icon: Image, label: 'Carousel', path: '/admin/advertisements', requiredPermission: 'manage_vendors' },
   { icon: Users, label: 'Users', path: '/admin/users', requiredPermission: 'manage_users' },
