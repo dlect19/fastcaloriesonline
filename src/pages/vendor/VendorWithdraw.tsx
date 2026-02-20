@@ -443,7 +443,7 @@ export default function VendorWithdraw() {
       }
 
       // Process withdrawal - insert into unified payout_requests table with source tag
-      const { error } = await supabase
+      const { data: insertedPayout, error } = await supabase
         .from('payout_requests')
         .insert({
           wallet_id: wallet!.id,
@@ -455,13 +455,38 @@ export default function VendorWithdraw() {
           user_type: 'vendor',
           status: 'pending',
           withdrawal_source: withdrawalSource,
-        });
+        })
+        .select('id')
+        .single();
 
       if (error) throw error;
 
       // Balance deduction is now handled by database trigger (deduct_wallet_on_payout_request)
 
-      toast({ title: 'Withdrawal request submitted', description: 'Your request is pending admin approval.' });
+      // Check if auto-approval is enabled
+      const { data: approvalSetting } = await supabase
+        .from('platform_settings')
+        .select('value')
+        .eq('key', 'payout_approval_mode')
+        .single();
+
+      if (approvalSetting?.value === 'auto' && insertedPayout?.id) {
+        toast({ title: 'Processing withdrawal...', description: 'Auto-approval is enabled. Processing your payout now.' });
+        try {
+          const { data: payoutResult, error: payoutError } = await supabase.functions.invoke('process-payout', {
+            body: { payout_request_id: insertedPayout.id }
+          });
+          if (payoutError || !payoutResult?.success) {
+            toast({ title: 'Payout queued', description: payoutResult?.error || 'Payout will be retried by admin.', variant: 'destructive' });
+          } else {
+            toast({ title: '✅ Withdrawal processing', description: payoutResult?.data?.message || 'Your payout is being processed.' });
+          }
+        } catch {
+          toast({ title: 'Payout queued', description: 'Auto-processing encountered an issue. Admin will review.' });
+        }
+      } else {
+        toast({ title: 'Withdrawal request submitted', description: 'Your request is pending admin approval.' });
+      }
       setWithdrawDialogOpen(false);
       setWithdrawAmount('');
       setOtp('');

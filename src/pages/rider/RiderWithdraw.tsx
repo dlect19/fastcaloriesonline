@@ -331,7 +331,7 @@ export default function RiderWithdraw() {
       }
 
       // Process withdrawal - insert into payout_requests table
-      const { error } = await supabase
+      const { data: insertedPayout, error } = await supabase
         .from('payout_requests')
         .insert({
           wallet_id: wallet!.id,
@@ -342,11 +342,36 @@ export default function RiderWithdraw() {
           bank_account_name: wallet!.bank_account_name || '',
           user_type: 'rider',
           status: 'pending',
-        });
+        })
+        .select('id')
+        .single();
 
       if (error) throw error;
 
-      toast({ title: 'Withdrawal request submitted', description: 'Your request will be processed shortly.' });
+      // Check if auto-approval is enabled
+      const { data: approvalSetting } = await supabase
+        .from('platform_settings')
+        .select('value')
+        .eq('key', 'payout_approval_mode')
+        .single();
+
+      if (approvalSetting?.value === 'auto' && insertedPayout?.id) {
+        toast({ title: 'Processing withdrawal...', description: 'Auto-approval is enabled. Processing your payout now.' });
+        try {
+          const { data: payoutResult, error: payoutError } = await supabase.functions.invoke('process-payout', {
+            body: { payout_request_id: insertedPayout.id }
+          });
+          if (payoutError || !payoutResult?.success) {
+            toast({ title: 'Payout queued', description: payoutResult?.error || 'Payout will be retried by admin.', variant: 'destructive' });
+          } else {
+            toast({ title: '✅ Withdrawal processing', description: payoutResult?.data?.message || 'Your payout is being processed.' });
+          }
+        } catch {
+          toast({ title: 'Payout queued', description: 'Auto-processing encountered an issue. Admin will review.' });
+        }
+      } else {
+        toast({ title: 'Withdrawal request submitted', description: 'Your request will be processed shortly.' });
+      }
       setWithdrawDialogOpen(false);
       setWithdrawAmount('');
       setOtp('');
