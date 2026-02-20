@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { Eye, EyeOff, Loader2, ShieldCheck, AlertCircle } from 'lucide-react';
-import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
+import riderLogo from '@/assets/rider-logo.png';
 import { ForgotPasswordModal } from '@/components/auth/ForgotPasswordModal';
 import { EmailVerificationOTP } from '@/components/rider/EmailVerificationOTP';
 import { TermsAcceptanceCheckbox } from '@/components/auth/TermsAcceptanceCheckbox';
@@ -382,7 +382,7 @@ export default function RiderAuth() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <img src={fastCaloriesLogo} alt="Fast Calories" className="w-20 h-20 object-contain" />
+            <img src={riderLogo} alt="Fast Calories Rider" className="w-24 h-24 object-contain" />
           </div>
           <CardTitle className="text-2xl">Rider Portal</CardTitle>
           <CardDescription>
