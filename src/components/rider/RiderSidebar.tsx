@@ -6,7 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
+import riderLogo from '@/assets/rider-logo.png';
 
 interface RiderSidebarProps {
   isOnline?: boolean;
@@ -79,7 +79,7 @@ export function RiderSidebar({ isOnline = false, onToggleOnline, canViewEarnings
       {/* Logo Header */}
       <div className="p-6 border-b border-border">
         <div className="flex items-center gap-3">
-          <img src={fastCaloriesLogo} alt="Fast Calories" className="w-14 h-14 object-contain" />
+          <img src={riderLogo} alt="Fast Calories Rider" className="w-14 h-14 object-contain" />
           <div>
             <h1 className="font-bold text-foreground">Fast Calories</h1>
             <p className="text-xs text-muted-foreground">Rider Portal</p>

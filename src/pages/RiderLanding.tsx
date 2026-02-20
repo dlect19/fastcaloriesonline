@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { ChevronRight, Bike, Wallet, Clock, MapPin, Shield, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import fastCaloriesLogo from '@/assets/fast-calories-text-logo.png';
+import riderLogo from '@/assets/rider-logo.png';
 
 export default function RiderLanding() {
   const navigate = useNavigate();
@@ -20,7 +20,7 @@ export default function RiderLanding() {
         {/* Header */}
         <header className="relative z-10 flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
-            <img src={fastCaloriesLogo} alt="Fast Calories" className="h-14 w-auto" />
+            <img src={riderLogo} alt="Fast Calories Rider" className="h-14 w-auto" />
           </div>
           <Button
             onClick={() => navigate('/rider/auth')}
