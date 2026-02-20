@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, GripVertical, ChevronDown, ChevronUp, Settings2, Link2, Unlink, PackagePlus } from 'lucide-react';
+import { Plus, Trash2, GripVertical, ChevronDown, ChevronUp, Settings2, Link2, Unlink, PackagePlus, List } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -30,6 +30,15 @@ import type { Tables } from '@/integrations/supabase/types';
 
 type Product = Tables<'products'>;
 
+interface AddonItemChoice {
+  id: string;
+  addon_item_id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  sort_order: number;
+}
+
 interface AddonItem {
   id: string;
   addon_group_id: string;
@@ -41,6 +50,10 @@ interface AddonItem {
   sort_order: number;
   linked_product_id: string | null;
   pricing_type: string;
+  has_choices: boolean;
+  choice_required: boolean;
+  choice_selection_type: string;
+  choices: AddonItemChoice[];
 }
 
 interface AddonGroup {
@@ -78,7 +91,6 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
 
   const fetchGroups = async () => {
     try {
-      // Fetch ALL addon groups for this vendor (shared/global)
       const { data: groupsData, error: groupsError } = await supabase
         .from('addon_groups')
         .select('*')
@@ -87,7 +99,6 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
 
       if (groupsError) throw groupsError;
 
-      // Fetch which groups are linked to this product
       const { data: linkedData } = await supabase
         .from('product_addon_groups')
         .select('addon_group_id')
@@ -103,6 +114,25 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
           .in('addon_group_id', groupIds)
           .order('sort_order');
 
+        // Fetch choices for all addon items
+        const itemIds = (itemsData || []).map(i => i.id);
+        let choicesMap: Record<string, AddonItemChoice[]> = {};
+        if (itemIds.length > 0) {
+          const { data: choicesData } = await supabase
+            .from('addon_item_choices')
+            .select('*')
+            .in('addon_item_id', itemIds)
+            .order('sort_order');
+          (choicesData || []).forEach(c => {
+            if (!choicesMap[c.addon_item_id]) choicesMap[c.addon_item_id] = [];
+            choicesMap[c.addon_item_id].push({
+              ...c,
+              price: Number(c.price),
+              description: c.description || null,
+            });
+          });
+        }
+
         const groupsWithItems: AddonGroup[] = groupsData.map(group => ({
           ...group,
           min_selections: group.min_selections ?? 0,
@@ -117,6 +147,10 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
             linked_product_id: (item as any).linked_product_id || null,
             description: (item as any).description || null,
             pricing_type: (item as any).pricing_type || 'per_piece',
+            has_choices: (item as any).has_choices || false,
+            choice_required: (item as any).choice_required || false,
+            choice_selection_type: (item as any).choice_selection_type || 'single',
+            choices: choicesMap[item.id] || [],
           })),
         }));
 
@@ -187,7 +221,6 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
 
       if (error) throw error;
 
-      // Auto-link to current product
       await supabase
         .from('product_addon_groups')
         .insert({ product_id: productId, addon_group_id: data.id });
@@ -257,7 +290,7 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
 
       setGroups(groups.map(g =>
         g.id === groupId
-          ? { ...g, items: [...g.items, { ...data, additional_price: 0, calories: 0, is_available: true, sort_order: data.sort_order ?? 0, linked_product_id: null, description: null, pricing_type: 'per_piece' }] }
+          ? { ...g, items: [...g.items, { ...data, additional_price: 0, calories: 0, is_available: true, sort_order: data.sort_order ?? 0, linked_product_id: null, description: null, pricing_type: 'per_piece', has_choices: false, choice_required: false, choice_selection_type: 'single', choices: [] }] }
           : g
       ));
     } catch (error: any) {
@@ -268,7 +301,6 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
   const addItemFromProduct = async (groupId: string, product: Product) => {
     try {
       const group = groups.find(g => g.id === groupId);
-      // Check if this product is already in the group
       if (group?.items.some(i => i.linked_product_id === product.id)) {
         toast({ title: 'Already added', description: `${product.name} is already in this group`, variant: 'destructive' });
         return;
@@ -292,7 +324,7 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
 
       setGroups(groups.map(g =>
         g.id === groupId
-          ? { ...g, items: [...g.items, { ...data, additional_price: Number(data.additional_price), calories: data.calories ?? 0, is_available: data.is_available ?? true, sort_order: data.sort_order ?? 0, linked_product_id: product.id, description: product.description || null, pricing_type: 'per_piece' }] }
+          ? { ...g, items: [...g.items, { ...data, additional_price: Number(data.additional_price), calories: data.calories ?? 0, is_available: data.is_available ?? true, sort_order: data.sort_order ?? 0, linked_product_id: product.id, description: product.description || null, pricing_type: 'per_piece', has_choices: false, choice_required: false, choice_selection_type: 'single', choices: [] }] }
           : g
       ));
       toast({ title: `${product.name} added to group` });
@@ -303,9 +335,10 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
 
   const updateItem = async (groupId: string, itemId: string, updates: Partial<AddonItem>) => {
     try {
+      const { choices, ...dbUpdates } = updates as any;
       const { error } = await supabase
         .from('addon_items')
-        .update(updates)
+        .update(dbUpdates)
         .eq('id', itemId);
 
       if (error) throw error;
@@ -327,6 +360,84 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
       setGroups(groups.map(g =>
         g.id === groupId
           ? { ...g, items: g.items.filter(i => i.id !== itemId) }
+          : g
+      ));
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    }
+  };
+
+  // Choice CRUD
+  const addChoice = async (groupId: string, itemId: string) => {
+    try {
+      const item = groups.flatMap(g => g.items).find(i => i.id === itemId);
+      const { data, error } = await supabase
+        .from('addon_item_choices')
+        .insert({
+          addon_item_id: itemId,
+          name: '',
+          price: 0,
+          sort_order: item?.choices.length || 0,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setGroups(groups.map(g =>
+        g.id === groupId
+          ? {
+            ...g, items: g.items.map(i =>
+              i.id === itemId
+                ? { ...i, choices: [...i.choices, { ...data, price: Number(data.price), description: data.description || null }] }
+                : i
+            )
+          }
+          : g
+      ));
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    }
+  };
+
+  const updateChoice = async (groupId: string, itemId: string, choiceId: string, updates: Partial<AddonItemChoice>) => {
+    try {
+      const { error } = await supabase
+        .from('addon_item_choices')
+        .update(updates)
+        .eq('id', choiceId);
+
+      if (error) throw error;
+
+      setGroups(groups.map(g =>
+        g.id === groupId
+          ? {
+            ...g, items: g.items.map(i =>
+              i.id === itemId
+                ? { ...i, choices: i.choices.map(c => c.id === choiceId ? { ...c, ...updates } : c) }
+                : i
+            )
+          }
+          : g
+      ));
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    }
+  };
+
+  const deleteChoice = async (groupId: string, itemId: string, choiceId: string) => {
+    try {
+      const { error } = await supabase.from('addon_item_choices').delete().eq('id', choiceId);
+      if (error) throw error;
+      setGroups(groups.map(g =>
+        g.id === groupId
+          ? {
+            ...g, items: g.items.map(i =>
+              i.id === itemId
+                ? { ...i, choices: i.choices.filter(c => c.id !== choiceId) }
+                : i
+            )
+          }
           : g
       ));
     } catch (error: any) {
@@ -369,7 +480,6 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
         </p>
       )}
 
-      {/* Linked groups */}
       {linkedGroups.map((group) => (
         <AddonGroupCard
           key={group.id}
@@ -383,13 +493,15 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
           onAddFromAddonMeals={() => setAddonPickerGroupId(group.id)}
           onUpdateItem={(itemId, updates) => updateItem(group.id, itemId, updates)}
           onDeleteItem={(itemId) => deleteItem(group.id, itemId)}
+          onAddChoice={(itemId) => addChoice(group.id, itemId)}
+          onUpdateChoice={(itemId, choiceId, updates) => updateChoice(group.id, itemId, choiceId, updates)}
+          onDeleteChoice={(itemId, choiceId) => deleteChoice(group.id, itemId, choiceId)}
           groups={groups}
           setGroups={setGroups}
           hasAddonProducts={addonProducts.length > 0}
         />
       ))}
 
-      {/* Unlinked groups (available to link) */}
       {unlinkedGroups.length > 0 && (
         <div className="space-y-2 pt-2">
           <p className="text-xs text-muted-foreground font-medium flex items-center gap-1">
@@ -418,7 +530,6 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
         </div>
       )}
 
-      {/* Add-On Meal Picker Dialog */}
       {addonPickerGroupId && (
         <Dialog open onOpenChange={(open) => { if (!open) setAddonPickerGroupId(null); }}>
           <DialogContent className="max-w-sm max-h-[70vh] overflow-y-auto">
@@ -484,6 +595,9 @@ interface AddonGroupCardProps {
   onAddFromAddonMeals: () => void;
   onUpdateItem: (itemId: string, updates: Partial<AddonItem>) => void;
   onDeleteItem: (itemId: string) => void;
+  onAddChoice: (itemId: string) => void;
+  onUpdateChoice: (itemId: string, choiceId: string, updates: Partial<AddonItemChoice>) => void;
+  onDeleteChoice: (itemId: string, choiceId: string) => void;
   groups: AddonGroup[];
   setGroups: React.Dispatch<React.SetStateAction<AddonGroup[]>>;
   hasAddonProducts: boolean;
@@ -492,6 +606,7 @@ interface AddonGroupCardProps {
 function AddonGroupCard({
   group, expanded, onToggleExpand, onToggleLink,
   onUpdateGroup, onDeleteGroup, onAddItem, onAddFromAddonMeals, onUpdateItem, onDeleteItem,
+  onAddChoice, onUpdateChoice, onDeleteChoice,
   groups, setGroups, hasAddonProducts,
 }: AddonGroupCardProps) {
   return (
@@ -555,7 +670,6 @@ function AddonGroupCard({
               </div>
             </div>
 
-            {/* Min/Max selections for multiple choice */}
             {group.selection_type === 'multiple' && (
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
@@ -714,6 +828,135 @@ function AddonGroupCard({
                       <SelectItem value="fixed">Fixed Per Order (applies once)</SelectItem>
                     </SelectContent>
                   </Select>
+
+                  {/* Choice Toggle */}
+                  <div className="flex items-center gap-2 pt-1 border-t border-border/50">
+                    <Switch
+                      checked={item.has_choices}
+                      onCheckedChange={(val) => {
+                        setGroups(groups.map(g =>
+                          g.id === group.id
+                            ? { ...g, items: g.items.map(i => i.id === item.id ? { ...i, has_choices: val } : i) }
+                            : g
+                        ));
+                        onUpdateItem(item.id, { has_choices: val } as any);
+                      }}
+                    />
+                    <Label className="text-xs flex items-center gap-1">
+                      <List className="w-3 h-3" />
+                      Enable Choice Selection
+                    </Label>
+                  </div>
+
+                  {/* Choice settings & list */}
+                  {item.has_choices && (
+                    <div className="ml-4 space-y-2 border-l-2 border-primary/20 pl-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={item.choice_required}
+                            onCheckedChange={(val) => {
+                              setGroups(groups.map(g =>
+                                g.id === group.id
+                                  ? { ...g, items: g.items.map(i => i.id === item.id ? { ...i, choice_required: val } : i) }
+                                  : g
+                              ));
+                              onUpdateItem(item.id, { choice_required: val } as any);
+                            }}
+                          />
+                          <Label className="text-xs">Required</Label>
+                        </div>
+                        <Select
+                          value={item.choice_selection_type}
+                          onValueChange={(val) => {
+                            setGroups(groups.map(g =>
+                              g.id === group.id
+                                ? { ...g, items: g.items.map(i => i.id === item.id ? { ...i, choice_selection_type: val } : i) }
+                                : g
+                            ));
+                            onUpdateItem(item.id, { choice_selection_type: val } as any);
+                          }}
+                        >
+                          <SelectTrigger className="h-7 text-xs w-40">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="single">Single Choice</SelectItem>
+                            <SelectItem value="multiple">Multiple Choice</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Choice items */}
+                      {item.choices.map((choice) => (
+                        <div key={choice.id} className="flex items-center gap-2 bg-background rounded p-1.5">
+                          <Input
+                            value={choice.name}
+                            onChange={(e) => {
+                              setGroups(groups.map(g =>
+                                g.id === group.id
+                                  ? {
+                                    ...g, items: g.items.map(i =>
+                                      i.id === item.id
+                                        ? { ...i, choices: i.choices.map(c => c.id === choice.id ? { ...c, name: e.target.value } : c) }
+                                        : i
+                                    )
+                                  }
+                                  : g
+                              ));
+                            }}
+                            onBlur={() => onUpdateChoice(item.id, choice.id, { name: choice.name })}
+                            placeholder="Choice name"
+                            className="h-6 text-xs flex-1"
+                          />
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-muted-foreground">₦</span>
+                            <Input
+                              type="number"
+                              value={choice.price}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value) || 0;
+                                setGroups(groups.map(g =>
+                                  g.id === group.id
+                                    ? {
+                                      ...g, items: g.items.map(i =>
+                                        i.id === item.id
+                                          ? { ...i, choices: i.choices.map(c => c.id === choice.id ? { ...c, price: val } : c) }
+                                          : i
+                                      )
+                                    }
+                                    : g
+                                ));
+                              }}
+                              onBlur={() => onUpdateChoice(item.id, choice.id, { price: choice.price })}
+                              className="h-6 text-xs w-16"
+                              min="0"
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                            onClick={() => onDeleteChoice(item.id, choice.id)}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      ))}
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-6 text-xs gap-1"
+                        onClick={() => onAddChoice(item.id)}
+                      >
+                        <Plus className="w-3 h-3" />
+                        Add Choice
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ))}
               <div className="flex gap-2">

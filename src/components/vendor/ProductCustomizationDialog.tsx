@@ -9,7 +9,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { Flame, Plus, Minus, Info, Loader2, Droplet, Apple, Gem, Wheat, Drumstick, Droplets, Leaf, Settings2 } from 'lucide-react';
+import { Flame, Plus, Minus, Info, Loader2, Settings2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,6 +17,15 @@ import type { Tables } from '@/integrations/supabase/types';
 
 type Product = Tables<'products'>;
 type Vendor = Tables<'vendors'>;
+
+interface AddonItemChoice {
+  id: string;
+  addon_item_id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  sort_order: number;
+}
 
 interface AddonItem {
   id: string;
@@ -29,6 +38,10 @@ interface AddonItem {
   sort_order: number;
   image_url?: string | null;
   pricing_type: string;
+  has_choices: boolean;
+  choice_required: boolean;
+  choice_selection_type: string;
+  choices: AddonItemChoice[];
 }
 
 interface AddonGroup {
@@ -49,6 +62,7 @@ export interface SelectedAddon {
   imageUrl?: string;
   quantity: number;
   pricingType: string;
+  selectedChoices?: { name: string; price: number }[];
 }
 
 interface ProductCustomizationDialogProps {
@@ -70,21 +84,22 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
   const [loadingAddons, setLoadingAddons] = useState(false);
   const [selectedAddons, setSelectedAddons] = useState<Record<string, string[]>>({});
   const [addonQuantities, setAddonQuantities] = useState<Record<string, number>>({});
+  // Track selected choices per addon item: { [addonItemId]: choiceId[] }
+  const [selectedChoices, setSelectedChoices] = useState<Record<string, string[]>>({});
 
-  // Fetch add-on groups when dialog opens
   useEffect(() => {
     if (open && product.id) {
       fetchAddons();
       setQuantity(1);
       setSelectedAddons({});
       setAddonQuantities({});
+      setSelectedChoices({});
     }
   }, [open, product.id]);
 
   const fetchAddons = async () => {
     setLoadingAddons(true);
     try {
-      // Fetch addon groups linked to this product via junction table
       const { data: linkedData } = await supabase
         .from('product_addon_groups')
         .select('addon_group_id')
@@ -108,7 +123,7 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
             .eq('is_available', true)
             .order('sort_order');
 
-          // Fetch linked product images for addon items that have linked_product_id
+          // Fetch linked product images
           const linkedProductIds = (itemsData || [])
             .map(i => i.linked_product_id)
             .filter(Boolean) as string[];
@@ -121,6 +136,25 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
               .in('id', linkedProductIds);
             (productsData || []).forEach(p => {
               if (p.image_url) productImages[p.id] = p.image_url;
+            });
+          }
+
+          // Fetch choices for items that have them
+          const itemIds = (itemsData || []).map(i => i.id);
+          let choicesMap: Record<string, AddonItemChoice[]> = {};
+          if (itemIds.length > 0) {
+            const { data: choicesData } = await supabase
+              .from('addon_item_choices')
+              .select('*')
+              .in('addon_item_id', itemIds)
+              .order('sort_order');
+            (choicesData || []).forEach(c => {
+              if (!choicesMap[c.addon_item_id]) choicesMap[c.addon_item_id] = [];
+              choicesMap[c.addon_item_id].push({
+                ...c,
+                price: Number(c.price),
+                description: c.description || null,
+              });
             });
           }
 
@@ -139,6 +173,10 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
                 image_url: i.linked_product_id ? productImages[i.linked_product_id] || null : null,
                 description: (i as any).description || null,
                 pricing_type: (i as any).pricing_type || 'per_piece',
+                has_choices: (i as any).has_choices || false,
+                choice_required: (i as any).choice_required || false,
+                choice_selection_type: (i as any).choice_selection_type || 'single',
+                choices: choicesMap[i.id] || [],
               })),
           }));
 
@@ -156,6 +194,22 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
     }
   };
 
+  const getChoicePriceForItem = (itemId: string): number => {
+    const choiceIds = selectedChoices[itemId] || [];
+    let total = 0;
+    for (const group of addonGroups) {
+      for (const item of group.items) {
+        if (item.id === itemId) {
+          for (const cId of choiceIds) {
+            const choice = item.choices.find(c => c.id === cId);
+            if (choice) total += choice.price;
+          }
+        }
+      }
+    }
+    return total;
+  };
+
   const totalAddonPrice = useMemo(() => {
     let total = 0;
     for (const [groupId, itemIds] of Object.entries(selectedAddons)) {
@@ -165,13 +219,14 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
           const item = group.items.find(i => i.id === itemId);
           if (item) {
             const addonQty = addonQuantities[itemId] || 1;
-            total += item.additional_price * addonQty;
+            const choicePrice = getChoicePriceForItem(itemId);
+            total += (item.additional_price + choicePrice) * addonQty;
           }
         }
       }
     }
     return total;
-  }, [selectedAddons, addonGroups, addonQuantities]);
+  }, [selectedAddons, addonGroups, addonQuantities, selectedChoices]);
 
   const totalAddonCalories = useMemo(() => {
     let total = 0;
@@ -193,17 +248,34 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
   const effectivePrice = (product as any).discount_price && (product as any).discount_price < product.price
     ? (product as any).discount_price
     : product.price;
-  // Addon price is INDEPENDENT of menu quantity
   const menuTotal = effectivePrice * quantity;
   const totalPrice = menuTotal + totalAddonPrice;
   const totalCalories = ((product.calories || 0) * quantity) + totalAddonCalories;
 
-  // Validation: all required groups must have selections
+  // Validation: all required groups must have selections + required choices
   const missingRequiredGroups = addonGroups.filter(g => 
     g.is_required && (!selectedAddons[g.id] || selectedAddons[g.id].length === 0)
   );
 
-  const canAddToCart = missingRequiredGroups.length === 0;
+  const missingRequiredChoices = useMemo(() => {
+    const missing: string[] = [];
+    for (const [, itemIds] of Object.entries(selectedAddons)) {
+      for (const itemId of itemIds) {
+        for (const group of addonGroups) {
+          const item = group.items.find(i => i.id === itemId);
+          if (item?.has_choices && item.choice_required && item.choices.length > 0) {
+            const selected = selectedChoices[itemId] || [];
+            if (selected.length === 0) {
+              missing.push(item.name);
+            }
+          }
+        }
+      }
+    }
+    return missing;
+  }, [selectedAddons, addonGroups, selectedChoices]);
+
+  const canAddToCart = missingRequiredGroups.length === 0 && missingRequiredChoices.length === 0;
 
   const handleSingleSelect = (groupId: string, itemId: string) => {
     setSelectedAddons(prev => ({ ...prev, [groupId]: [itemId] }));
@@ -214,14 +286,34 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
       const current = prev[groupId] || [];
       const group = addonGroups.find(g => g.id === groupId);
       if (checked) {
-        // Check max selections
         if (group?.max_selections && current.length >= group.max_selections) {
           toast({ title: `Maximum ${group.max_selections} selections allowed`, variant: 'destructive' });
           return prev;
         }
         return { ...prev, [groupId]: [...current, itemId] };
       } else {
+        // Clear choices when deselecting
+        setSelectedChoices(prev => {
+          const next = { ...prev };
+          delete next[itemId];
+          return next;
+        });
         return { ...prev, [groupId]: current.filter(id => id !== itemId) };
+      }
+    });
+  };
+
+  const handleChoiceSingleSelect = (itemId: string, choiceId: string) => {
+    setSelectedChoices(prev => ({ ...prev, [itemId]: [choiceId] }));
+  };
+
+  const handleChoiceMultiSelect = (itemId: string, choiceId: string, checked: boolean) => {
+    setSelectedChoices(prev => {
+      const current = prev[itemId] || [];
+      if (checked) {
+        return { ...prev, [itemId]: [...current, choiceId] };
+      } else {
+        return { ...prev, [itemId]: current.filter(id => id !== choiceId) };
       }
     });
   };
@@ -235,6 +327,12 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
           const item = group.items.find(i => i.id === itemId);
           if (item) {
             const addonQty = addonQuantities[itemId] || 1;
+            const choiceIds = selectedChoices[itemId] || [];
+            const choices = choiceIds
+              .map(cId => item.choices.find(c => c.id === cId))
+              .filter(Boolean)
+              .map(c => ({ name: c!.name, price: c!.price }));
+
             result.push({
               groupName: group.name,
               itemName: item.name,
@@ -243,6 +341,7 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
               imageUrl: item.image_url || undefined,
               quantity: addonQty,
               pricingType: item.pricing_type,
+              selectedChoices: choices.length > 0 ? choices : undefined,
             });
           }
         }
@@ -262,9 +361,13 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
     }
 
     if (!canAddToCart) {
+      const allMissing = [
+        ...missingRequiredGroups.map(g => g.name),
+        ...missingRequiredChoices,
+      ];
       toast({
         title: 'Required selections missing',
-        description: `Please make selections for: ${missingRequiredGroups.map(g => g.name).join(', ')}`,
+        description: `Please make selections for: ${allMissing.join(', ')}`,
         variant: 'destructive',
       });
       return;
@@ -281,7 +384,14 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
 
     const addonsList = getSelectedAddonsList();
     const addonsDescription = addonsList.length > 0
-      ? addonsList.map(a => `${a.itemName}${a.quantity > 1 ? ` x${a.quantity}` : ''}`).join(', ')
+      ? addonsList.map(a => {
+          let desc = a.itemName;
+          if (a.selectedChoices?.length) {
+            desc += ` (${a.selectedChoices.map(c => c.name).join(', ')})`;
+          }
+          if (a.quantity > 1) desc += ` x${a.quantity}`;
+          return desc;
+        }).join(', ')
       : undefined;
 
     addItem({
@@ -296,7 +406,7 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
       addons: addonsList.length > 0 ? addonsList.map(a => ({
         groupName: a.groupName,
         itemName: a.itemName,
-        price: a.price,
+        price: a.price + (a.selectedChoices?.reduce((s, c) => s + c.price, 0) || 0),
         calories: a.calories,
         imageUrl: a.imageUrl,
         quantity: a.quantity,
@@ -314,6 +424,7 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
     onOpenChange(false);
     setQuantity(1);
     setSelectedAddons({});
+    setSelectedChoices({});
   };
 
   const getCalorieLevel = (calories: number | null) => {
@@ -324,6 +435,79 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
   };
 
   const calorieLevel = getCalorieLevel(product.calories);
+
+  const renderChoiceSelector = (item: AddonItem) => {
+    if (!item.has_choices || item.choices.length === 0) return null;
+
+    const itemChoices = selectedChoices[item.id] || [];
+
+    return (
+      <div className="ml-8 mt-2 space-y-1.5">
+        <p className="text-xs text-muted-foreground font-medium">
+          {item.choice_selection_type === 'single' ? 'Choose one option' : 'Choose options'}
+          {item.choice_required && <span className="text-destructive ml-1">*</span>}
+        </p>
+        {item.choice_selection_type === 'single' ? (
+          <RadioGroup
+            value={itemChoices[0] || ''}
+            onValueChange={(val) => handleChoiceSingleSelect(item.id, val)}
+          >
+            {item.choices.map(choice => (
+              <label
+                key={choice.id}
+                className={cn(
+                  "flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors text-xs",
+                  itemChoices.includes(choice.id)
+                    ? "bg-primary/10 border border-primary/30"
+                    : "bg-background border border-border/50 hover:border-primary/20"
+                )}
+              >
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value={choice.id} className="h-3 w-3" />
+                  <span>{choice.name}</span>
+                </div>
+                <span className={cn("font-medium", choice.price > 0 ? "text-primary" : "text-muted-foreground")}>
+                  {choice.price > 0 ? `+₦${choice.price.toLocaleString()}` : 'Free'}
+                </span>
+              </label>
+            ))}
+          </RadioGroup>
+        ) : (
+          <div className="space-y-1">
+            {item.choices.map(choice => {
+              const isChecked = itemChoices.includes(choice.id);
+              return (
+                <label
+                  key={choice.id}
+                  className={cn(
+                    "flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors text-xs",
+                    isChecked
+                      ? "bg-primary/10 border border-primary/30"
+                      : "bg-background border border-border/50 hover:border-primary/20"
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      checked={isChecked}
+                      onCheckedChange={(checked) => handleChoiceMultiSelect(item.id, choice.id, !!checked)}
+                      className="h-3 w-3"
+                    />
+                    <span>{choice.name}</span>
+                  </div>
+                  <span className={cn("font-medium", choice.price > 0 ? "text-primary" : "text-muted-foreground")}>
+                    {choice.price > 0 ? `+₦${choice.price.toLocaleString()}` : 'Free'}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        )}
+        {item.choice_required && itemChoices.length === 0 && (
+          <p className="text-[10px] text-destructive">* Please select an option</p>
+        )}
+      </div>
+    );
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -378,7 +562,6 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
               </div>
             </div>
 
-            {/* Calorie Level Badge */}
             <div className="flex flex-wrap items-center justify-center gap-2 mt-3">
               <Badge variant="outline" className={cn('gap-1', calorieLevel.color)}>
                 <Flame className="w-3.5 h-3.5" />
@@ -422,9 +605,10 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
                       {group.items.map((item) => {
                         const isSelected = selectedAddons[group.id]?.[0] === item.id;
                         const addonQty = addonQuantities[item.id] || 1;
+                        const choicePrice = getChoicePriceForItem(item.id);
                         return (
+                        <div key={item.id}>
                         <label
-                          key={item.id}
                           className={cn(
                             "flex flex-col p-3 rounded-lg cursor-pointer transition-colors",
                             isSelected
@@ -464,11 +648,14 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
                                 <Plus className="w-3 h-3" />
                               </Button>
                               {addonQty > 1 && (
-                                <span className="text-xs text-primary ml-1">₦{(item.additional_price * addonQty).toLocaleString()}</span>
+                                <span className="text-xs text-primary ml-1">₦{((item.additional_price + choicePrice) * addonQty).toLocaleString()}</span>
                               )}
                             </div>
                           )}
                         </label>
+                        {/* Choice selector shown below the addon when selected */}
+                        {isSelected && renderChoiceSelector(item)}
+                        </div>
                         );
                       })}
                     </RadioGroup>
@@ -477,9 +664,10 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
                       {group.items.map((item) => {
                         const isChecked = selectedAddons[group.id]?.includes(item.id) || false;
                         const addonQty = addonQuantities[item.id] || 1;
+                        const choicePrice = getChoicePriceForItem(item.id);
                         return (
+                          <div key={item.id}>
                           <div
-                            key={item.id}
                             className={cn(
                               "flex flex-col p-3 rounded-lg transition-colors",
                               isChecked
@@ -522,10 +710,13 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
                                   <Plus className="w-3 h-3" />
                                 </Button>
                                 {addonQty > 1 && (
-                                  <span className="text-xs text-primary ml-1">₦{(item.additional_price * addonQty).toLocaleString()}</span>
+                                  <span className="text-xs text-primary ml-1">₦{((item.additional_price + choicePrice) * addonQty).toLocaleString()}</span>
                                 )}
                               </div>
                             )}
+                          </div>
+                          {/* Choice selector shown below the addon when selected */}
+                          {isChecked && renderChoiceSelector(item)}
                           </div>
                         );
                       })}
@@ -556,11 +747,17 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
                 {/* Clear subtotal breakdown */}
                 <div className="text-xs text-muted-foreground space-y-0.5 mt-1">
                   <p>{product.name} x{quantity} = ₦{menuTotal.toLocaleString()}</p>
-                  {getSelectedAddonsList().map((addon, i) => (
-                    <p key={i}>
-                      {addon.itemName}{addon.quantity > 1 ? ` x${addon.quantity}` : ''} = ₦{(addon.price * addon.quantity).toLocaleString()}
-                    </p>
-                  ))}
+                  {getSelectedAddonsList().map((addon, i) => {
+                    const choiceTotal = addon.selectedChoices?.reduce((s, c) => s + c.price, 0) || 0;
+                    const unitPrice = addon.price + choiceTotal;
+                    return (
+                      <p key={i}>
+                        {addon.itemName}
+                        {addon.selectedChoices?.length ? ` (${addon.selectedChoices.map(c => c.name).join(', ')})` : ''}
+                        {addon.quantity > 1 ? ` x${addon.quantity}` : ''} = ₦{(unitPrice * addon.quantity).toLocaleString()}
+                      </p>
+                    );
+                  })}
                 </div>
                 {product.serving_unit && (
                   <span className="text-sm text-muted-foreground">{product.serving_unit}</span>
@@ -608,7 +805,7 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
 
           {!canAddToCart && (
             <p className="text-xs text-destructive text-center">
-              Please complete required selections: {missingRequiredGroups.map(g => g.name).join(', ')}
+              Please complete required selections: {[...missingRequiredGroups.map(g => g.name), ...missingRequiredChoices].join(', ')}
             </p>
           )}
         </div>
