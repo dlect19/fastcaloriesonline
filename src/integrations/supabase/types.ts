@@ -3021,6 +3021,56 @@ export type Database = {
         }
         Relationships: []
       }
+      vendor_commission_promos: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          end_date: string
+          id: string
+          is_active: boolean
+          normal_commission_rate: number
+          notes: string | null
+          promo_commission_rate: number
+          start_date: string
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          end_date: string
+          id?: string
+          is_active?: boolean
+          normal_commission_rate: number
+          notes?: string | null
+          promo_commission_rate: number
+          start_date?: string
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          end_date?: string
+          id?: string
+          is_active?: boolean
+          normal_commission_rate?: number
+          notes?: string | null
+          promo_commission_rate?: number
+          start_date?: string
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_commission_promos_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendor_location_logs: {
         Row: {
           action: string
@@ -3898,6 +3948,7 @@ export type Database = {
         }
         Returns: Json
       }
+      apply_vendor_commission_promos: { Args: never; Returns: undefined }
       cancel_stale_pending_orders: { Args: never; Returns: number }
       generate_slug: { Args: { input_text: string }; Returns: string }
       get_admin_staff_role: {

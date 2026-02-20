@@ -49,6 +49,7 @@ import AdminOrders from "./pages/admin/AdminOrders";
 import AdminVendors from "./pages/admin/AdminVendors";
 import AdminRiders from "./pages/admin/AdminRiders";
 import AdminPromos from "./pages/admin/AdminPromos";
+import AdminVendorCommissionPromos from "./pages/admin/AdminVendorCommissionPromos";
 import AdminRewards from "./pages/admin/AdminRewards";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminStaff from "./pages/admin/AdminStaff";
@@ -172,6 +173,7 @@ const App = () => {
               <Route path="/admin/vendors" element={<AdminVendors />} />
               <Route path="/admin/riders" element={<AdminRiders />} />
               <Route path="/admin/promos" element={<AdminPromos />} />
+              <Route path="/admin/commission-promos" element={<AdminVendorCommissionPromos />} />
               <Route path="/admin/rewards" element={<AdminRewards />} />
               <Route path="/admin/users" element={<AdminUsers />} />
               <Route path="/admin/staff" element={<AdminStaff />} />
