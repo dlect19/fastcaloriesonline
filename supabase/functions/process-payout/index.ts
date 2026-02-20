@@ -54,8 +54,9 @@ const handler = async (req: Request): Promise<Response> => {
     // Create admin client for data access (bypasses RLS)
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Check if this is a service role call (from database trigger auto-processing)
-    const isServiceRoleCall = token === SUPABASE_SERVICE_ROLE_KEY;
+    // Check if this is an internal server call (from database trigger auto-processing)
+    const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || "";
+    const isServiceRoleCall = token === SUPABASE_SERVICE_ROLE_KEY || token === SUPABASE_ANON_KEY;
     let userId: string | null = null;
 
     if (isServiceRoleCall) {
