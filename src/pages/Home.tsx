@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { LogOut, Flame, Star, ChevronRight, Sparkles, Heart, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { PushNotificationBanner } from '@/components/shared/PushNotificationBanner';
+import { useCapacitorPush } from '@/hooks/useCapacitorPush';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 import fastCaloriesFullLogo from '@/assets/fast-calories-full-logo.png';
 
@@ -33,6 +34,9 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState('home');
   const [deliveryLocation, setDeliveryLocation] = useState<DeliveryLocation | null>(null);
   const navigate = useNavigate();
+
+  // Register Capacitor native push notifications on mobile
+  useCapacitorPush();
 
   // Redirect to profile setup if incomplete
   useEffect(() => {

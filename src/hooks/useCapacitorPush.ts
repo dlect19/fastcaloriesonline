@@ -1,0 +1,59 @@
+import { useEffect, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+
+/**
+ * Hook to register Capacitor native push notifications (iOS/Android).
+ * Uses dynamic imports so it doesn't break on web.
+ */
+export function useCapacitorPush() {
+  const [token, setToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    const setup = async () => {
+      try {
+        const { Capacitor } = await import('@capacitor/core');
+        if (!Capacitor.isNativePlatform()) return;
+
+        const { PushNotifications } = await import('@capacitor/push-notifications');
+
+        const result = await PushNotifications.requestPermissions();
+        if (result.receive === 'granted') {
+          await PushNotifications.register();
+        }
+
+        PushNotifications.addListener('registration', async (tokenData) => {
+          console.log('Push token:', tokenData.value);
+          setToken(tokenData.value);
+
+          // Save token to database
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            await supabase
+              .from('push_subscriptions')
+              .upsert({
+                user_id: user.id,
+                endpoint: `capacitor://${tokenData.value.substring(0, 50)}`,
+                p256dh: '',
+                auth: '',
+                fcm_token: tokenData.value,
+                subscription_type: 'fcm',
+                user_agent: navigator.userAgent,
+              }, {
+                onConflict: 'user_id,endpoint,subscription_type',
+              });
+          }
+        });
+
+        PushNotifications.addListener('registrationError', (error) => {
+          console.error('Push registration error:', error);
+        });
+      } catch {
+        // Not in Capacitor environment
+      }
+    };
+
+    setup();
+  }, []);
+
+  return { token };
+}
