@@ -31,17 +31,29 @@ export function CartItemCard({ item }: CartItemCardProps) {
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-foreground truncate">{item.productName}</h3>
           
-          {/* Add-ons display */}
+          {/* Add-ons display with quantity breakdown */}
           {item.addons && item.addons.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1.5 mt-1">
-              <Settings2 className="w-3 h-3 text-primary shrink-0" />
+            <div className="mt-1 space-y-0.5">
+              <div className="flex items-center gap-1">
+                <Settings2 className="w-3 h-3 text-primary shrink-0" />
+                <span className="text-xs font-medium text-muted-foreground">Add-ons:</span>
+              </div>
               {item.addons.map((a, i) => (
-                <span key={i} className="text-xs text-muted-foreground flex items-center gap-1">
+                <div key={i} className="flex items-center gap-1.5 pl-4 text-xs text-muted-foreground">
                   {a.imageUrl && (
-                    <img src={a.imageUrl} alt={a.itemName} className="w-5 h-5 rounded object-cover shrink-0" />
+                    <img src={a.imageUrl} alt={a.itemName} className="w-4 h-4 rounded object-cover shrink-0" />
                   )}
-                  {a.itemName}{i < item.addons!.length - 1 ? ',' : ''}
-                </span>
+                  <span className="truncate">{a.itemName}</span>
+                  {(a.quantity || 1) > 1 && (
+                    <span className="text-primary font-medium">×{a.quantity}</span>
+                  )}
+                  <span className="text-muted-foreground/70">
+                    — ₦{(a.price * (a.quantity || 1)).toLocaleString()}
+                    {a.pricingType === 'fixed' && (
+                      <span className="ml-0.5 italic">(fixed)</span>
+                    )}
+                  </span>
+                </div>
               ))}
             </div>
           )}

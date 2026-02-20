@@ -127,18 +127,20 @@ serve(async (req) => {
         vendor.longitude
       );
 
-      console.log(`Vendor ${vendor.name} distance: ${distance.toFixed(2)} km (max: ${maxVisibilityRadius} km)`);
+      // Use vendor's own sales_radius if set, otherwise fall back to platform default
+      const vendorRadius = vendor.sales_radius ?? maxVisibilityRadius;
+      console.log(`Vendor ${vendor.name} distance: ${distance.toFixed(2)} km (max: ${vendorRadius} km)`);
 
       // Check if within radius
-      if (distance > maxVisibilityRadius) {
+      if (distance > vendorRadius) {
         return new Response(
           JSON.stringify({
             success: false,
             error: "vendor_outside_radius",
-            message: `This vendor is not available in your area. They are ${distance.toFixed(1)}km away, but our delivery radius is ${maxVisibilityRadius}km.`,
+            message: `This vendor is not available in your area. They are ${distance.toFixed(1)}km away, but their delivery radius is ${vendorRadius}km.`,
             vendor: null,
             distance: distance,
-            max_radius: maxVisibilityRadius,
+            max_radius: vendorRadius,
           }),
           { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
@@ -190,6 +192,7 @@ serve(async (req) => {
     }
 
     // Filter vendors by distance (backend enforcement)
+    // Each vendor's own sales_radius takes priority over platform default
     const nearbyVendors = (vendors || [])
       .filter((vendor) => {
         // Vendors must have coordinates to be visible
@@ -205,9 +208,11 @@ serve(async (req) => {
           vendor.longitude
         );
         
-        const withinRadius = distance <= maxVisibilityRadius;
+        // Use vendor's own sales_radius if set, otherwise fall back to platform default
+        const vendorRadius = vendor.sales_radius ?? maxVisibilityRadius;
+        const withinRadius = distance <= vendorRadius;
         if (!withinRadius) {
-          console.log(`Vendor ${vendor.name} excluded: ${distance.toFixed(2)}km > ${maxVisibilityRadius}km`);
+          console.log(`Vendor ${vendor.name} excluded: ${distance.toFixed(2)}km > ${vendorRadius}km (vendor radius)`);
         }
         
         return withinRadius;
