@@ -372,6 +372,46 @@ export default function RiderDashboard() {
       {/* Push Notification Banner */}
       <PushNotificationBanner />
 
+      {/* Test Push Notification Button */}
+      {riderProfile?.is_verified && (
+        <Card className="mb-4 md:mb-6">
+          <CardContent className="p-3 md:p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium text-sm">Test Push Notification</p>
+                <p className="text-xs text-muted-foreground">Send a test notification to this device</p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={async () => {
+                  try {
+                    const { data, error } = await supabase.functions.invoke('send-push-notification', {
+                      body: {
+                        user_id: userId,
+                        title: '🔔 Test Notification',
+                        body: 'Push notifications are working!',
+                        data: { type: 'test' },
+                      },
+                    });
+                    toast({
+                      title: error ? 'Failed' : 'Sent!',
+                      description: error ? String(error.message || error) : (data?.message || 'Test notification sent'),
+                      variant: error ? 'destructive' : 'default',
+                    });
+                  } catch (e: any) {
+                    toast({ title: 'Error', description: e.message, variant: 'destructive' });
+                  }
+                }}
+              >
+                <Bell className="w-4 h-4 mr-1" />
+                Test
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Date Range Filter */}
       <div className="mb-4 md:mb-6">
         <DateRangeFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
