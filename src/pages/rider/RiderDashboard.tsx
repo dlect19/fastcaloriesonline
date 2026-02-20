@@ -44,6 +44,7 @@ export default function RiderDashboard() {
   const [userId, setUserId] = useState<string | null>(null);
   const [availableOrderCount, setAvailableOrderCount] = useState(0);
   const [affiliatedVendorName, setAffiliatedVendorName] = useState<string | null>(null);
+  const [showTestNotification, setShowTestNotification] = useState(false);
 
   const { isAffiliated, affiliatedVendorId, isDeliveryCompanyRider, deliveryCompanyId, canViewEarnings } = useRiderRestrictions(riderProfile);
 
@@ -51,6 +52,7 @@ export default function RiderDashboard() {
     checkAuth();
     const savedFloatMode = localStorage.getItem('rider_float_mode');
     setFloatModeEnabled(savedFloatMode === 'true');
+    fetchTestNotificationSetting();
   }, []);
 
   useEffect(() => {
@@ -67,6 +69,15 @@ export default function RiderDashboard() {
   const fetchVendorName = async (vendorId: string) => {
     const { data } = await supabase.from('vendors').select('name').eq('id', vendorId).single();
     if (data) setAffiliatedVendorName(data.name);
+  };
+
+  const fetchTestNotificationSetting = async () => {
+    const { data } = await supabase
+      .from('platform_settings')
+      .select('value')
+      .eq('key', 'show_rider_test_notification')
+      .maybeSingle();
+    setShowTestNotification(data?.value === 'true');
   };
 
   const fetchDeliveryCompanyName = async (companyId: string) => {
@@ -372,8 +383,8 @@ export default function RiderDashboard() {
       {/* Push Notification Banner */}
       <PushNotificationBanner />
 
-      {/* Test Push Notification Button */}
-      {riderProfile?.is_verified && (
+      {/* Test Push Notification Button - controlled by admin setting */}
+      {riderProfile?.is_verified && showTestNotification && (
         <Card className="mb-4 md:mb-6">
           <CardContent className="p-3 md:p-4">
             <div className="flex items-center justify-between">

@@ -55,7 +55,7 @@ export function RiderBottomNav({ isOnline = false, onToggleOnline, canViewEarnin
   const navItems = [
     { id: 'dashboard', icon: Home, label: 'Home', path: '/rider/dashboard' },
     { id: 'orders', icon: Package, label: 'My Orders', path: '/rider/orders' },
-    { id: 'available', icon: Package, label: 'Available', path: '/rider/available' },
+    { id: 'available', icon: Package, label: 'Available', path: '/rider/available-orders' },
     ...(canViewEarnings ? [
       { id: 'earnings', icon: DollarSign, label: 'Earnings', path: '/rider/earnings' },
     ] : []),
