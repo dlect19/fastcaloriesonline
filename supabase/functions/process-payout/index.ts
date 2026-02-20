@@ -49,22 +49,33 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Create client with user's auth for auth validation
-    const supabaseAuth = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-      global: { headers: { Authorization: authHeader } }
-    });
+    const token = authHeader.replace("Bearer ", "");
     
     // Create admin client for data access (bypasses RLS)
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await supabaseAuth.auth.getUser(token);
-    
-    if (claimsError || !claimsData.user) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Invalid token" }),
-        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
+    // Check if this is a service role call (from database trigger auto-processing)
+    const isServiceRoleCall = token === SUPABASE_SERVICE_ROLE_KEY;
+    let userId: string | null = null;
+
+    if (isServiceRoleCall) {
+      // Server-to-server call (e.g., from pg_net trigger) - no user context needed
+      console.log("Service role call detected - auto-processing payout");
+    } else {
+      // User call - validate JWT
+      const supabaseAuth = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+        global: { headers: { Authorization: authHeader } }
+      });
+      
+      const { data: claimsData, error: claimsError } = await supabaseAuth.auth.getUser(token);
+      
+      if (claimsError || !claimsData.user) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Invalid token" }),
+          { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+      userId = claimsData.user.id;
     }
 
     // Get platform environment
@@ -83,7 +94,6 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    const userId = claimsData.user.id;
     const { payout_request_id, amount }: PayoutRequest = await req.json();
 
     let payoutRequest;
@@ -103,17 +113,19 @@ const handler = async (req: Request): Promise<Response> => {
         );
       }
 
-      // Verify ownership or admin
-      const { data: isAdmin } = await supabase.rpc("has_role", {
-        _user_id: userId,
-        _role: "admin"
-      });
+      // Verify ownership or admin (skip for service role calls - auto-processing)
+      if (!isServiceRoleCall) {
+        const { data: isAdmin } = await supabase.rpc("has_role", {
+          _user_id: userId,
+          _role: "admin"
+        });
 
-      if (data.user_id !== userId && !isAdmin) {
-        return new Response(
-          JSON.stringify({ success: false, error: "Not authorized" }),
-          { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } }
-        );
+        if (data.user_id !== userId && !isAdmin) {
+          return new Response(
+            JSON.stringify({ success: false, error: "Not authorized" }),
+            { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } }
+          );
+        }
       }
 
       // Always generate a fresh reference to avoid duplicate_transfer_reference errors on retries
