@@ -621,104 +621,116 @@ export default function Cart() {
               />
             ))}
 
-            {/* Delivery Type Toggle */}
-            <section className="bg-card rounded-xl border border-border p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Store className="w-5 h-5 text-primary" />
-                  <div>
-                    <Label className="font-medium">Self-Pickup</Label>
-                    <p className="text-xs text-muted-foreground">Pick up your order at the store{isMultiVendor ? 's' : ''}</p>
-                  </div>
-                </div>
-                <Switch
-                  checked={deliveryType === 'self_pickup'}
-                  onCheckedChange={(checked) => setDeliveryType(checked ? 'self_pickup' : 'delivery')}
-                />
+            {/* Delivery & Address Section */}
+            <section className="bg-card rounded-xl border border-border overflow-hidden">
+              <div className="p-4 bg-secondary/50 border-b border-border">
+                <h3 className="font-semibold text-foreground flex items-center gap-2">
+                  <MapPin className="w-5 h-5 text-primary" />
+                  Delivery Options
+                </h3>
               </div>
-            </section>
 
-            {/* Address Selector - only show for delivery */}
-            {deliveryType === 'delivery' && (
-              <>
-                <AddressSelector
-                  addresses={addresses}
-                  selectedAddress={selectedAddress}
-                  onSelect={setSelectedAddress}
-                  loading={loadingAddresses}
-                  userId={user.id}
-                  onAddressAdded={fetchAddresses}
-                />
-                
-                {geocodingAddress && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground bg-secondary/50 p-3 rounded-lg">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Calculating delivery distance...</span>
+              <div className="p-4 space-y-4">
+                {/* Delivery Type Toggle */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Store className="w-5 h-5 text-muted-foreground" />
+                    <div>
+                      <Label className="font-medium">Self-Pickup</Label>
+                      <p className="text-xs text-muted-foreground">Pick up your order at the store{isMultiVendor ? 's' : ''}</p>
+                    </div>
                   </div>
-                )}
+                  <Switch
+                    checked={deliveryType === 'self_pickup'}
+                    onCheckedChange={(checked) => setDeliveryType(checked ? 'self_pickup' : 'delivery')}
+                  />
+                </div>
 
-                {!geocodingAddress && addressMissingCoords && (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-lg">
-                      <AlertTriangle className="w-4 h-4 shrink-0" />
-                      <span>
-                        We couldn't find your exact address. Select a nearby location below or <strong>tap the navigation icon</strong> to capture your GPS.
-                      </span>
+                {/* Address Selector - only show for delivery */}
+                {deliveryType === 'delivery' && (
+                  <>
+                    <div className="border-t border-border pt-4">
+                      <AddressSelector
+                        addresses={addresses}
+                        selectedAddress={selectedAddress}
+                        onSelect={setSelectedAddress}
+                        loading={loadingAddresses}
+                        userId={user.id}
+                        onAddressAdded={fetchAddresses}
+                      />
                     </div>
                     
-                    {locationSuggestions.length > 0 && (
-                      <div className="bg-secondary/50 rounded-lg border border-border p-3 space-y-2">
-                        <p className="text-sm font-medium text-foreground flex items-center gap-2">
-                          <Navigation className="w-4 h-4 text-primary" />
-                          Select a nearby location:
-                        </p>
-                        <div className="space-y-2">
-                          {locationSuggestions.map((suggestion, index) => (
-                            <button
-                              key={index}
-                              onClick={() => handleSelectSuggestion(suggestion)}
-                              disabled={selectingSuggestion}
-                              className="w-full text-left p-2 rounded-md bg-background hover:bg-primary/10 border border-border transition-colors disabled:opacity-50"
-                            >
-                              <p className="text-sm font-medium text-foreground truncate">
-                                {suggestion.name || suggestion.display_name.split(',')[0]}
-                              </p>
-                              <p className="text-xs text-muted-foreground truncate">
-                                {suggestion.display_name}
-                              </p>
-                            </button>
-                          ))}
+                    {geocodingAddress && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground bg-secondary/50 p-3 rounded-lg">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Calculating delivery distance...</span>
+                      </div>
+                    )}
+
+                    {!geocodingAddress && addressMissingCoords && (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-lg">
+                          <AlertTriangle className="w-4 h-4 shrink-0" />
+                          <span>
+                            We couldn't find your exact address. Select a nearby location below or <strong>tap the navigation icon</strong> to capture your GPS.
+                          </span>
                         </div>
-                        {selectingSuggestion && (
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                            Setting location...
+                        
+                        {locationSuggestions.length > 0 && (
+                          <div className="bg-secondary/50 rounded-lg border border-border p-3 space-y-2">
+                            <p className="text-sm font-medium text-foreground flex items-center gap-2">
+                              <Navigation className="w-4 h-4 text-primary" />
+                              Select a nearby location:
+                            </p>
+                            <div className="space-y-2">
+                              {locationSuggestions.map((suggestion, index) => (
+                                <button
+                                  key={index}
+                                  onClick={() => handleSelectSuggestion(suggestion)}
+                                  disabled={selectingSuggestion}
+                                  className="w-full text-left p-2 rounded-md bg-background hover:bg-primary/10 border border-border transition-colors disabled:opacity-50"
+                                >
+                                  <p className="text-sm font-medium text-foreground truncate">
+                                    {suggestion.name || suggestion.display_name.split(',')[0]}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground truncate">
+                                    {suggestion.display_name}
+                                  </p>
+                                </button>
+                              ))}
+                            </div>
+                            {selectingSuggestion && (
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                                Setting location...
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
                     )}
-                  </div>
-                )}
 
-                {/* Receiver Phone Number */}
-                <section className="bg-card rounded-xl border border-border p-4">
-                  <div className="flex items-center gap-3 mb-3">
-                    <Phone className="w-5 h-5 text-primary" />
-                    <div>
-                      <Label className="font-medium">Receiver's Phone (Optional)</Label>
-                      <p className="text-xs text-muted-foreground">Add if ordering for someone else at this address</p>
+                    {/* Receiver Phone Number */}
+                    <div className="border-t border-border pt-4">
+                      <div className="flex items-center gap-3 mb-3">
+                        <Phone className="w-5 h-5 text-primary" />
+                        <div>
+                          <Label className="font-medium">Receiver's Phone (Optional)</Label>
+                          <p className="text-xs text-muted-foreground">Add if ordering for someone else at this address</p>
+                        </div>
+                      </div>
+                      <Input
+                        type="tel"
+                        placeholder="e.g., 08012345678"
+                        value={receiverPhone}
+                        onChange={(e) => setReceiverPhone(e.target.value)}
+                        className="mt-2"
+                      />
                     </div>
-                  </div>
-                  <Input
-                    type="tel"
-                    placeholder="e.g., 08012345678"
-                    value={receiverPhone}
-                    onChange={(e) => setReceiverPhone(e.target.value)}
-                    className="mt-2"
-                  />
-                </section>
-              </>
-            )}
+                  </>
+                )}
+              </div>
+            </section>
 
             {/* Promo Code - apply to first vendor group */}
             <PromoCodeInput 
