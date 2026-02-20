@@ -59,7 +59,7 @@ export function RiderSidebar({ isOnline = false, onToggleOnline, canViewEarnings
   const menuItems = [
     { icon: Home, label: 'Dashboard', path: '/rider/dashboard' },
     { icon: Package, label: 'My Deliveries', path: '/rider/orders' },
-    { icon: Package, label: 'Available Orders', path: '/rider/available' },
+    { icon: Package, label: 'Available Orders', path: '/rider/available-orders' },
     ...(canViewEarnings ? [
       { icon: DollarSign, label: 'Earnings', path: '/rider/earnings' },
       { icon: ArrowUpRight, label: 'Withdraw', path: '/rider/withdraw' },
@@ -116,7 +116,7 @@ export function RiderSidebar({ isOnline = false, onToggleOnline, canViewEarnings
                 >
                   <item.icon className="w-5 h-5" />
                   {item.label}
-                  {item.path === '/rider/available' && availableCount > 0 && (
+                  {item.path === '/rider/available-orders' && availableCount > 0 && (
                     <span className="ml-auto min-w-[20px] h-5 px-1.5 rounded-full bg-destructive text-destructive-foreground text-xs font-bold flex items-center justify-center">
                       {availableCount > 99 ? '99+' : availableCount}
                     </span>

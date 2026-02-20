@@ -10,7 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { MapPin, Bike, DollarSign, Settings2, Save, Loader2, CreditCard, Navigation, Clock, Store } from 'lucide-react';
+import { MapPin, Bike, DollarSign, Settings2, Save, Loader2, CreditCard, Navigation, Clock, Store, Bell } from 'lucide-react';
 import { EnvironmentSwitch } from '@/components/admin/EnvironmentSwitch';
 import { AdminTestModeToggle } from '@/components/admin/AdminTestModeToggle';
 import { PaystackBalanceCard } from '@/components/admin/PaystackBalanceCard';
@@ -138,6 +138,16 @@ export default function AdminSettings() {
           key: 'payout_approval_mode',
           value: settings['payout_approval_mode'],
           description: 'Payout approval mode: auto or manual',
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'key' });
+      }
+
+      // Save rider test notification toggle
+      if (settings['show_rider_test_notification'] !== undefined) {
+        await supabase.from('platform_settings').upsert({
+          key: 'show_rider_test_notification',
+          value: settings['show_rider_test_notification'],
+          description: 'Show test push notification button on rider dashboard',
           updated_at: new Date().toISOString()
         }, { onConflict: 'key' });
       }
@@ -461,6 +471,51 @@ export default function AdminSettings() {
                   <p className="text-sm text-muted-foreground">
                     🛒 Market vendors: <span className="text-primary font-medium">{settings['settlement_hours_market'] === '0' ? 'Immediate' : `${settings['settlement_hours_market'] || '24'} hours`}</span>
                   </p>
+                </div>
+
+                <div className="flex justify-end">
+                  <Button onClick={handleSave} disabled={saving}>
+                    {saving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4 mr-2" />
+                        Save Settings
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Rider Test Notification Toggle */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Bell className="w-5 h-5 text-primary" />
+                  Debug Tools
+                </CardTitle>
+                <CardDescription>
+                  Enable or disable debug/test features for riders
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between p-4 bg-secondary rounded-lg">
+                  <div className="space-y-1">
+                    <Label className="text-base">Rider Test Notification Button</Label>
+                    <p className="text-sm text-muted-foreground">
+                      {settings['show_rider_test_notification'] === 'true'
+                        ? 'Test push notification button is visible on rider dashboard'
+                        : 'Test push notification button is hidden on rider dashboard'}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={settings['show_rider_test_notification'] === 'true'}
+                    onCheckedChange={(checked) => handleSettingChange('show_rider_test_notification', checked ? 'true' : 'false')}
+                  />
                 </div>
 
                 <div className="flex justify-end">
