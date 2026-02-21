@@ -586,35 +586,10 @@ async function handleTransferFailed(supabase: SupabaseClient, data: any, environ
     })
     .eq("id", payoutRequest.id);
 
-  // Restore wallet balances including source-specific pools
-  const { data: wallet } = await supabase
-    .from("wallets")
-    .select("*")
-    .eq("id", payoutRequest.wallet_id)
-    .single();
-
-  if (wallet) {
-    const payoutAmount = Number(payoutRequest.amount);
-    const source = payoutRequest.withdrawal_source || 'menu_earnings';
-    
-    const updateFields: Record<string, number> = {
-      balance: (Number(wallet.balance) || 0) + payoutAmount,
-      eligible_balance: (Number(wallet.eligible_balance) || 0) + payoutAmount,
-      pending_payouts: Math.max(0, (Number(wallet.pending_payouts) || 0) - payoutAmount),
-    };
-    
-    // Restore to the correct source-specific pool
-    if (source === 'rider_revenue') {
-      updateFields.rider_revenue_balance = (Number(wallet.rider_revenue_balance) || 0) + payoutAmount;
-    } else {
-      updateFields.menu_earnings_balance = (Number(wallet.menu_earnings_balance) || 0) + payoutAmount;
-    }
-
-    await supabase
-      .from("wallets")
-      .update(updateFields)
-      .eq("id", wallet.id);
-  }
+  // NOTE: Wallet balance restoration and withdrawal_reversal transaction
+  // are handled automatically by the 'restore_wallet_on_payout_failure' 
+  // database trigger when payout status changes to 'failed'.
+  // Do NOT manually update wallet here to avoid double-crediting.
 
   console.log("Transfer failed processed, balance restored to source pool:", payoutRequest.withdrawal_source);
 }
