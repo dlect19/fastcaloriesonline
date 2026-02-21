@@ -1,0 +1,590 @@
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { VendorGroup, useCart } from '@/hooks/useCart';
+import { VendorGroupCard } from '@/components/cart/VendorGroupCard';
+import { OrderSummary } from '@/components/cart/OrderSummary';
+import { AddressSelector } from '@/components/cart/AddressSelector';
+import { PromoCodeInput } from '@/components/cart/PromoCodeInput';
+import { ActiveDiscountSelector } from '@/components/cart/ActiveDiscountSelector';
+import { FundWalletDialog } from '@/components/profile/FundWalletDialog';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
+import {
+  Store, Phone, MapPin, Navigation, Wallet, Loader2, AlertTriangle,
+} from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { usePromoCode } from '@/hooks/usePromoCode';
+import { useSpinWheel } from '@/hooks/useSpinWheel';
+import { usePlatformPromos } from '@/hooks/usePlatformPromos';
+import { supabase } from '@/integrations/supabase/client';
+import { geocodeAddressWithSuggestions, updateAddressCoordinates, GeocodeSuggestion } from '@/lib/geocoding';
+import type { Tables } from '@/integrations/supabase/types';
+
+type Address = Tables<'addresses'>;
+
+interface VendorLocation {
+  latitude: number | null;
+  longitude: number | null;
+  address: string | null;
+}
+
+interface VendorFees {
+  deliveryFee: number;
+  packagingFee: number;
+  distanceKm: number | null;
+  surgeFee: number;
+}
+
+type DeliveryType = 'delivery' | 'self_pickup';
+
+interface VendorCheckoutSectionProps {
+  group: VendorGroup;
+  vendorLocation: VendorLocation;
+  addresses: Address[];
+  selectedAddress: Address | null;
+  onSelectAddress: (addr: Address | null) => void;
+  loadingAddresses: boolean;
+  userId: string;
+  onAddressAdded: () => void;
+  walletBalance: number;
+  isWalletDisabled: boolean;
+  hasDVA: boolean;
+  dvaDetails: { bankName: string; accountNumber: string; accountName: string } | null;
+  refetchWallet: () => Promise<void>;
+  onOrderPlaced: (vendorId: string, orderId: string) => void;
+  placingOrderForVendor: string | null;
+  onPlacingChange: (vendorId: string | null) => void;
+}
+
+export function VendorCheckoutSection({
+  group,
+  vendorLocation,
+  addresses,
+  selectedAddress,
+  onSelectAddress,
+  loadingAddresses,
+  userId,
+  onAddressAdded,
+  walletBalance,
+  isWalletDisabled,
+  hasDVA,
+  dvaDetails,
+  refetchWallet,
+  onOrderPlaced,
+  placingOrderForVendor,
+  onPlacingChange,
+}: VendorCheckoutSectionProps) {
+  const { clearVendorGroup } = useCart();
+  const { toast } = useToast();
+  const navigate = useNavigate();
+  const { appliedPromo, incrementUsage, resetAfterOrder } = usePromoCode();
+  const { activeDiscounts, getBestDiscount, useDiscount } = useSpinWheel();
+  const { eligibility, getBestPlatformPromo, markFirstOrderUsed } = usePlatformPromos();
+
+  const [deliveryType, setDeliveryType] = useState<DeliveryType>('delivery');
+  const [receiverPhone, setReceiverPhone] = useState('');
+  const [promoDiscount, setPromoDiscount] = useState(0);
+  const [appliedPromoCode, setAppliedPromoCode] = useState<string | null>(null);
+  const [selectedDiscountType, setSelectedDiscountType] = useState<'none' | 'promo' | 'spin' | 'platform'>('none');
+  const [selectedSpinDiscountId, setSelectedSpinDiscountId] = useState<string | null>(null);
+  const [vendorFees, setVendorFees] = useState<VendorFees>({ deliveryFee: 0, packagingFee: 0, distanceKm: null, surgeFee: 0 });
+  const [showFundDialog, setShowFundDialog] = useState(false);
+
+  // Geocoding state
+  const [geocodingAddress, setGeocodingAddress] = useState(false);
+  const [locationSuggestions, setLocationSuggestions] = useState<GeocodeSuggestion[]>([]);
+  const [selectingSuggestion, setSelectingSuggestion] = useState(false);
+
+  const serviceFee = 100;
+  const deliveryFee = deliveryType === 'self_pickup' ? 0 : vendorFees.deliveryFee;
+  const surgeFee = deliveryType === 'self_pickup' ? 0 : vendorFees.surgeFee;
+  const total = group.subtotal + vendorFees.packagingFee + deliveryFee + serviceFee - promoDiscount;
+  const insufficientBalance = walletBalance < total;
+  const shortfall = total - walletBalance;
+
+  const isPlacing = placingOrderForVendor === group.vendorId;
+  const isOtherPlacing = placingOrderForVendor !== null && placingOrderForVendor !== group.vendorId;
+
+  const handleFeesCalculated = useCallback((_vendorId: string, df: number, pf: number, dk: number | null, sf: number) => {
+    setVendorFees(prev => {
+      if (prev.deliveryFee === df && prev.packagingFee === pf && prev.surgeFee === sf) return prev;
+      return { deliveryFee: df, packagingFee: pf, distanceKm: dk, surgeFee: sf };
+    });
+  }, []);
+
+  const handlePromoApplied = (discount: number, code: string | null) => {
+    setPromoDiscount(discount);
+    setAppliedPromoCode(code);
+  };
+
+  // Auto-geocode selected address
+  useEffect(() => {
+    const geocodeIfNeeded = async () => {
+      if (
+        selectedAddress &&
+        deliveryType === 'delivery' &&
+        (!selectedAddress.latitude || !selectedAddress.longitude)
+      ) {
+        setGeocodingAddress(true);
+        setLocationSuggestions([]);
+
+        const { result, suggestions } = await geocodeAddressWithSuggestions(
+          selectedAddress.address_line,
+          selectedAddress.city,
+          selectedAddress.state
+        );
+
+        if (result) {
+          await updateAddressCoordinates(selectedAddress.id, result.latitude, result.longitude);
+          onSelectAddress({ ...selectedAddress, latitude: result.latitude, longitude: result.longitude });
+          toast({ title: 'Distance Calculated', description: 'Delivery fee updated based on your address.' });
+        } else if (suggestions.length > 0) {
+          setLocationSuggestions(suggestions);
+        } else {
+          toast({ title: 'Location Not Found', description: 'Use the GPS icon to capture your exact location.', variant: 'destructive' });
+        }
+        setGeocodingAddress(false);
+      }
+    };
+    geocodeIfNeeded();
+  }, [selectedAddress?.id, deliveryType]);
+
+  const handleSelectSuggestion = async (suggestion: GeocodeSuggestion) => {
+    if (!selectedAddress) return;
+    setSelectingSuggestion(true);
+    try {
+      await updateAddressCoordinates(selectedAddress.id, suggestion.latitude, suggestion.longitude);
+      onSelectAddress({ ...selectedAddress, latitude: suggestion.latitude, longitude: suggestion.longitude });
+      setLocationSuggestions([]);
+      toast({ title: 'Location Set', description: `Set to: ${suggestion.display_name}` });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to set location', variant: 'destructive' });
+    } finally {
+      setSelectingSuggestion(false);
+    }
+  };
+
+  const addressMissingCoords = deliveryType === 'delivery' && selectedAddress && (!selectedAddress.latitude || !selectedAddress.longitude);
+
+  const handleCheckout = async () => {
+    if (deliveryType === 'delivery' && !selectedAddress) {
+      toast({ title: 'No delivery address', description: 'Please select or add a delivery address', variant: 'destructive' });
+      return;
+    }
+    if (addressMissingCoords) {
+      toast({ title: 'GPS Location Required', description: 'Tap the navigation icon to capture your exact location.', variant: 'destructive' });
+      return;
+    }
+    if (isWalletDisabled) {
+      toast({ title: 'Wallet Disabled', description: 'Your wallet has been disabled. Contact support.', variant: 'destructive' });
+      return;
+    }
+    if (insufficientBalance) {
+      setShowFundDialog(true);
+      return;
+    }
+
+    onPlacingChange(group.vendorId);
+    try {
+      // Validate products
+      const itemIds = group.items.filter(i => i.productId).map(i => i.productId);
+      const existingIds = new Set<string>();
+      if (itemIds.length > 0) {
+        const [productsResult, combosResult] = await Promise.all([
+          supabase.from('products').select('id, is_available').in('id', itemIds),
+          supabase.from('combos').select('id, is_available').in('id', itemIds),
+        ]);
+        productsResult.data?.forEach(p => { if (p.is_available) existingIds.add(p.id); });
+        combosResult.data?.forEach(c => { if (c.is_available) existingIds.add(c.id); });
+      }
+      const missingItems = group.items.filter(i => i.productId && !existingIds.has(i.productId));
+      if (missingItems.length > 0) {
+        toast({ title: 'Menu Updated', description: `"${missingItems[0].productName}" is no longer available.`, variant: 'destructive' });
+        onPlacingChange(null);
+        return;
+      }
+
+      const promoType = selectedDiscountType === 'spin' ? 'spin'
+        : selectedDiscountType === 'platform' ? 'platform_promo'
+        : selectedDiscountType === 'promo' ? 'promo_code'
+        : null;
+
+      const deliveryInstructions = receiverPhone.trim() ? `Receiver Phone: ${receiverPhone.trim()}` : null;
+
+      const groupTotal = total;
+
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .insert({
+          user_id: userId,
+          promo_code: appliedPromoCode || (promoType === 'spin' ? `SPIN-${selectedSpinDiscountId}` : null),
+          discount: promoDiscount,
+          vendor_id: group.vendorId,
+          order_number: '',
+          menu_subtotal: group.subtotal,
+          subtotal: group.subtotal + vendorFees.packagingFee - promoDiscount,
+          packaging_fee: vendorFees.packagingFee,
+          delivery_fee: deliveryFee,
+          service_fee: serviceFee,
+          total: groupTotal,
+          total_calories: group.totalCalories,
+          delivery_address_id: deliveryType === 'delivery' ? selectedAddress?.id : null,
+          delivery_address_text: deliveryType === 'delivery'
+            ? `${selectedAddress?.address_line}, ${selectedAddress?.city}, ${selectedAddress?.state}`
+            : `Self-pickup at ${group.vendorName}`,
+          delivery_instructions: deliveryInstructions,
+          delivery_type: deliveryType,
+          status: 'pending',
+          payment_status: 'pending',
+          payment_method: 'wallet',
+        })
+        .select()
+        .single();
+
+      if (orderError) throw orderError;
+
+      // Create order items
+      const orderItems = group.items.map(item => ({
+        order_id: order.id,
+        product_id: item.addonsDescription ? null : item.productId,
+        product_name: item.productName,
+        quantity: item.quantity,
+        unit_price: item.price,
+        total_price: item.price * item.quantity,
+        calories: item.calories * item.quantity,
+        special_instructions: item.addonsDescription || null,
+      }));
+
+      const { data: insertedItems, error: itemsError } = await supabase
+        .from('order_items')
+        .insert(orderItems)
+        .select();
+      if (itemsError) throw itemsError;
+
+      // Save add-on details
+      if (insertedItems) {
+        const addonRecords: Array<{
+          order_item_id: string;
+          addon_group_name: string;
+          addon_item_name: string;
+          additional_price: number;
+          calories: number;
+          image_url: string | null;
+        }> = [];
+
+        group.items.forEach((cartItem, index) => {
+          if (cartItem.addons && cartItem.addons.length > 0) {
+            const orderItem = insertedItems[index];
+            if (orderItem) {
+              cartItem.addons.forEach(addon => {
+                addonRecords.push({
+                  order_item_id: orderItem.id,
+                  addon_group_name: addon.groupName,
+                  addon_item_name: addon.itemName,
+                  additional_price: addon.price,
+                  calories: addon.calories,
+                  image_url: addon.imageUrl || null,
+                });
+              });
+            }
+          }
+        });
+
+        if (addonRecords.length > 0) {
+          await supabase.from('order_item_addons').insert(addonRecords);
+        }
+      }
+
+      // Log calories
+      await supabase.from('calorie_logs').insert({
+        user_id: userId,
+        order_id: order.id,
+        calories: group.totalCalories,
+        meal_type: 'order',
+      });
+
+      // Handle promo usage
+      if (appliedPromo?.id) await incrementUsage(appliedPromo.id);
+      if (selectedDiscountType === 'spin' && selectedSpinDiscountId) {
+        await useDiscount(selectedSpinDiscountId, order.id);
+      }
+      if (selectedDiscountType === 'platform' && eligibility.firstOrderDiscount) {
+        await markFirstOrderUsed();
+      }
+      resetAfterOrder();
+
+      // Pay via wallet
+      const { data: paymentResult, error: paymentError } = await supabase.functions.invoke('process-wallet-payment', {
+        body: { orderIds: [order.id] },
+      });
+      if (paymentError) throw paymentError;
+      if (paymentResult?.error) throw new Error(paymentResult.error);
+
+      await refetchWallet();
+      clearVendorGroup(group.vendorId);
+
+      toast({
+        title: 'Order Placed!',
+        description: `Your order from ${group.vendorName} has been paid.`,
+      });
+
+      onOrderPlaced(group.vendorId, order.id);
+    } catch (error) {
+      console.error('Error placing order:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to place order. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      onPlacingChange(null);
+    }
+  };
+
+  return (
+    <div className="space-y-4 p-4 bg-secondary/20 rounded-2xl border border-border">
+      {/* Vendor items */}
+      <VendorGroupCard
+        group={group}
+        vendorLocation={vendorLocation}
+        customerLat={selectedAddress?.latitude ?? null}
+        customerLon={selectedAddress?.longitude ?? null}
+        deliveryType={deliveryType}
+        onClearGroup={clearVendorGroup}
+        onFeesCalculated={handleFeesCalculated}
+      />
+
+      {/* Delivery Options */}
+      <section className="bg-card rounded-xl border border-border overflow-hidden">
+        <div className="p-4 bg-secondary/50 border-b border-border">
+          <h3 className="font-semibold text-foreground flex items-center gap-2">
+            <MapPin className="w-5 h-5 text-primary" />
+            Delivery Options
+          </h3>
+        </div>
+        <div className="p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Store className="w-5 h-5 text-muted-foreground" />
+              <div>
+                <Label className="font-medium">Self-Pickup</Label>
+                <p className="text-xs text-muted-foreground">Pick up at {group.vendorName}</p>
+              </div>
+            </div>
+            <Switch
+              checked={deliveryType === 'self_pickup'}
+              onCheckedChange={(checked) => setDeliveryType(checked ? 'self_pickup' : 'delivery')}
+            />
+          </div>
+
+          {deliveryType === 'delivery' && (
+            <>
+              <div className="border-t border-border pt-4">
+                <AddressSelector
+                  addresses={addresses}
+                  selectedAddress={selectedAddress}
+                  onSelect={onSelectAddress}
+                  loading={loadingAddresses}
+                  userId={userId}
+                  onAddressAdded={onAddressAdded}
+                />
+              </div>
+
+              {geocodingAddress && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground bg-secondary/50 p-3 rounded-lg">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Calculating delivery distance...</span>
+                </div>
+              )}
+
+              {!geocodingAddress && addressMissingCoords && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-lg">
+                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                    <span>We couldn't find your exact address. Select a nearby location or <strong>tap the navigation icon</strong>.</span>
+                  </div>
+                  {locationSuggestions.length > 0 && (
+                    <div className="bg-secondary/50 rounded-lg border border-border p-3 space-y-2">
+                      <p className="text-sm font-medium text-foreground flex items-center gap-2">
+                        <Navigation className="w-4 h-4 text-primary" />
+                        Select a nearby location:
+                      </p>
+                      <div className="space-y-2">
+                        {locationSuggestions.map((suggestion, index) => (
+                          <button
+                            key={index}
+                            onClick={() => handleSelectSuggestion(suggestion)}
+                            disabled={selectingSuggestion}
+                            className="w-full text-left p-2 rounded-md bg-background hover:bg-primary/10 border border-border transition-colors disabled:opacity-50"
+                          >
+                            <p className="text-sm font-medium text-foreground truncate">
+                              {suggestion.name || suggestion.display_name.split(',')[0]}
+                            </p>
+                            <p className="text-xs text-muted-foreground truncate">{suggestion.display_name}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Receiver Phone */}
+              <div className="border-t border-border pt-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <Phone className="w-5 h-5 text-primary" />
+                  <div>
+                    <Label className="font-medium">Receiver's Phone (Optional)</Label>
+                    <p className="text-xs text-muted-foreground">Add if ordering for someone else</p>
+                  </div>
+                </div>
+                <Input
+                  type="tel"
+                  placeholder="e.g., 08012345678"
+                  value={receiverPhone}
+                  onChange={(e) => setReceiverPhone(e.target.value)}
+                  className="mt-2"
+                />
+              </div>
+            </>
+          )}
+        </div>
+      </section>
+
+      {/* Promo Code */}
+      <PromoCodeInput
+        subtotal={group.subtotal}
+        vendorId={group.vendorId}
+        onDiscountApplied={handlePromoApplied}
+        disabled={selectedDiscountType === 'spin' || selectedDiscountType === 'platform'}
+      />
+
+      {/* Active Discount Selector */}
+      <ActiveDiscountSelector
+        activeSpinDiscounts={activeDiscounts}
+        platformPromo={getBestPlatformPromo()}
+        hasPromoCode={!!appliedPromoCode && selectedDiscountType !== 'spin' && selectedDiscountType !== 'platform'}
+        promoCodeDiscount={promoDiscount}
+        subtotal={group.subtotal}
+        selectedType={selectedDiscountType}
+        selectedSpinId={selectedSpinDiscountId}
+        onSelect={(type, spinId) => {
+          setSelectedDiscountType(type);
+          if (type === 'spin' && spinId) {
+            setSelectedSpinDiscountId(spinId);
+            const spinDiscount = activeDiscounts.find(d => d.id === spinId);
+            if (spinDiscount) setPromoDiscount(Math.round((group.subtotal * spinDiscount.discount_percentage) / 100));
+          } else if (type === 'platform') {
+            const platformPromo = getBestPlatformPromo();
+            if (platformPromo) setPromoDiscount(Math.round((group.subtotal * platformPromo.discount) / 100));
+            setSelectedSpinDiscountId(null);
+          } else if (type === 'promo') {
+            setSelectedSpinDiscountId(null);
+          } else {
+            setPromoDiscount(0);
+            setSelectedSpinDiscountId(null);
+          }
+        }}
+      />
+
+      {/* Wallet Payment Info */}
+      <section className="bg-card rounded-xl border border-border p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Wallet className="w-5 h-5 text-primary" />
+            <h3 className="font-semibold text-foreground">Payment</h3>
+          </div>
+          <p className="text-sm font-medium text-muted-foreground">
+            Balance: ₦{walletBalance.toLocaleString()}
+          </p>
+        </div>
+
+        {isWalletDisabled && (
+          <div className="flex items-center gap-2 p-3 bg-destructive/10 rounded-lg">
+            <AlertTriangle className="w-4 h-4 text-destructive" />
+            <p className="text-xs text-destructive">Your wallet has been disabled. Contact support.</p>
+          </div>
+        )}
+
+        {!isWalletDisabled && insufficientBalance && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 p-3 bg-warning/10 rounded-lg">
+              <AlertTriangle className="w-4 h-4 text-warning" />
+              <p className="text-xs text-warning">
+                You need ₦{shortfall.toLocaleString()} more.
+              </p>
+            </div>
+            <Button variant="outline" className="w-full gap-2" onClick={() => setShowFundDialog(true)}>
+              <Wallet className="w-4 h-4" />
+              Fund Wallet (₦{shortfall.toLocaleString()} needed)
+            </Button>
+            {hasDVA && dvaDetails && (
+              <div className="bg-secondary/50 rounded-lg p-3 space-y-1">
+                <p className="text-xs font-medium text-foreground">Or transfer to your virtual account:</p>
+                <p className="text-xs text-muted-foreground">Bank: {dvaDetails.bankName}</p>
+                <p className="text-xs font-mono text-foreground">{dvaDetails.accountNumber}</p>
+                <p className="text-xs text-muted-foreground">{dvaDetails.accountName}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {!isWalletDisabled && !insufficientBalance && (
+          <div className="flex items-center gap-2 p-3 bg-primary/10 rounded-lg">
+            <Wallet className="w-4 h-4 text-primary" />
+            <p className="text-xs text-primary">₦{total.toLocaleString()} will be deducted from your wallet</p>
+          </div>
+        )}
+      </section>
+
+      {/* Order Summary */}
+      <OrderSummary
+        subtotal={group.subtotal}
+        deliveryFee={deliveryFee}
+        serviceFee={serviceFee}
+        total={total}
+        totalCalories={group.totalCalories}
+        packagingFee={vendorFees.packagingFee}
+        discount={promoDiscount}
+        distanceKm={vendorFees.distanceKm}
+        surgeFee={surgeFee}
+      />
+
+      {/* Checkout Button */}
+      <Button
+        className="w-full h-14 text-base font-semibold shadow-button gradient-primary border-0"
+        onClick={handleCheckout}
+        disabled={isPlacing || isOtherPlacing || isWalletDisabled || (deliveryType === 'delivery' && (!selectedAddress || !!addressMissingCoords || geocodingAddress))}
+      >
+        {isPlacing ? (
+          <>
+            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+            Processing...
+          </>
+        ) : insufficientBalance ? (
+          <>
+            <Wallet className="w-5 h-5 mr-2" />
+            Fund Wallet & Pay • ₦{total.toLocaleString()}
+          </>
+        ) : (
+          <>
+            <Wallet className="w-5 h-5 mr-2" />
+            Pay {group.vendorName} • ₦{total.toLocaleString()}
+          </>
+        )}
+      </Button>
+
+      {/* Fund Wallet Dialog */}
+      {showFundDialog && (
+        <FundWalletDialog
+          open={showFundDialog}
+          onOpenChange={setShowFundDialog}
+          callbackUrl={`${window.location.origin}/cart?funded=true`}
+        />
+      )}
+    </div>
+  );
+}
