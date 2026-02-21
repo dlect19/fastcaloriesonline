@@ -101,23 +101,9 @@ const handler = async (req: Request): Promise<Response> => {
         .update({ status: "completed", processed_at: new Date().toISOString(), failure_reason: null })
         .eq("id", payout.id);
 
-      // Update wallet if not already done
-      if (payout.status !== "completed") {
-        const { data: wallet } = await supabase
-          .from("wallets")
-          .select("*")
-          .eq("id", payout.wallet_id)
-          .single();
-
-        if (wallet) {
-          const pendingPayouts = Math.max(0, (Number(wallet.pending_payouts) || 0) - Number(payout.amount));
-          const totalWithdrawn = (Number(wallet.total_withdrawn) || 0) + Number(payout.amount);
-          await supabase
-            .from("wallets")
-            .update({ pending_payouts: pendingPayouts, total_withdrawn: totalWithdrawn })
-            .eq("id", wallet.id);
-        }
-      }
+      // NOTE: Wallet updates (pending_payouts, total_withdrawn) are handled
+      // automatically by the 'restore_wallet_on_payout_failure' database trigger
+      // when payout status changes to 'completed'. Do NOT duplicate here.
     } else if (transferStatus === "failed" || transferStatus === "reversed") {
       newStatus = "failed";
       await supabase
