@@ -48,7 +48,7 @@ serve(async (req: Request) => {
       );
     }
 
-    // Check if user is admin
+    // Check if user is admin OR vendor/staff who owns the order's vendor
     const { data: adminRole } = await supabaseAdmin
       .from("user_roles")
       .select("role")
@@ -56,9 +56,45 @@ serve(async (req: Request) => {
       .eq("role", "admin")
       .single();
 
-    if (!adminRole) {
+    let isAuthorized = !!adminRole;
+
+    if (!isAuthorized) {
+      // Check if user is vendor owner or active staff for the order's vendor
+      const { data: orderCheck } = await supabaseAdmin
+        .from("orders")
+        .select("vendor_id")
+        .eq("id", orderId)
+        .single();
+
+      if (orderCheck?.vendor_id) {
+        // Check vendor owner
+        const { data: vendor } = await supabaseAdmin
+          .from("vendors")
+          .select("id")
+          .eq("id", orderCheck.vendor_id)
+          .eq("user_id", user.id)
+          .single();
+
+        if (vendor) {
+          isAuthorized = true;
+        } else {
+          // Check vendor staff
+          const { data: staff } = await supabaseAdmin
+            .from("vendor_staff")
+            .select("id")
+            .eq("vendor_id", orderCheck.vendor_id)
+            .eq("user_id", user.id)
+            .eq("is_active", true)
+            .single();
+
+          if (staff) isAuthorized = true;
+        }
+      }
+    }
+
+    if (!isAuthorized) {
       return new Response(
-        JSON.stringify({ error: "Admin access required" }),
+        JSON.stringify({ error: "Unauthorized: admin or vendor access required" }),
         { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
