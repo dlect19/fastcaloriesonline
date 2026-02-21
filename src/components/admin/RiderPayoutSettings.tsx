@@ -12,9 +12,10 @@ interface RiderPayoutSettingsProps {
   onSettingChange: (key: string, value: string) => void;
   onSave: () => void;
   saving: boolean;
+  onImmediateSave?: (key: string, value: string) => Promise<void>;
 }
 
-export function RiderPayoutSettings({ settings, onSettingChange, onSave, saving }: RiderPayoutSettingsProps) {
+export function RiderPayoutSettings({ settings, onSettingChange, onSave, saving, onImmediateSave }: RiderPayoutSettingsProps) {
   const feePct = parseFloat(settings['rider_platform_fee_pct'] || '20');
   const feeMin = parseFloat(settings['rider_platform_fee_min'] || '300');
   const feeMax = parseFloat(settings['rider_platform_fee_max'] || '700');
@@ -177,7 +178,11 @@ export function RiderPayoutSettings({ settings, onSettingChange, onSave, saving 
             </div>
             <Switch
               checked={surgeEnabled}
-              onCheckedChange={(checked) => onSettingChange('rider_surge_enabled', checked ? 'true' : 'false')}
+              onCheckedChange={(checked) => {
+                const val = checked ? 'true' : 'false';
+                onSettingChange('rider_surge_enabled', val);
+                onImmediateSave?.('rider_surge_enabled', val);
+              }}
             />
           </div>
 
@@ -291,22 +296,11 @@ export function RiderPayoutSettings({ settings, onSettingChange, onSave, saving 
                       </div>
                     </div>
 
-                    <div className="space-y-2">
-                      <Label>Current Weather Override</Label>
-                      <Select
-                        value={settings['rider_weather_override'] || 'clear'}
-                        onValueChange={(value) => onSettingChange('rider_weather_override', value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="clear">☀️ Clear</SelectItem>
-                          <SelectItem value="rain">🌧️ Rain</SelectItem>
-                          <SelectItem value="storm">⛈️ Storm</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground">Manually set current weather condition for surge calculation</p>
+                    <div className="p-3 bg-secondary/50 rounded-lg">
+                      <p className="text-sm text-muted-foreground flex items-center gap-2">
+                        <CloudRain className="w-4 h-4" />
+                        Weather is detected automatically based on the customer's location. No manual override needed.
+                      </p>
                     </div>
                   </>
                 )}

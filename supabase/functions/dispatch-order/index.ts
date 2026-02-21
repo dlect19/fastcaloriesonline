@@ -44,7 +44,7 @@ interface PayoutSettings {
   weatherSurgeClear: number;
   weatherSurgeRain: number;
   weatherSurgeStorm: number;
-  weatherOverride: string;
+  detectedWeather: string; // auto-detected from Open-Meteo
 }
 
 interface PayoutBreakdown {
@@ -78,6 +78,26 @@ function toRadians(degrees: number): number {
   return degrees * (Math.PI / 180);
 }
 
+/**
+ * Fetch real-time weather from Open-Meteo (free, no API key).
+ * Returns 'clear' | 'rain' | 'storm' based on WMO weather codes.
+ */
+async function fetchWeatherCondition(lat: number, lon: number): Promise<string> {
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`;
+    const res = await fetch(url);
+    if (!res.ok) return 'clear';
+    const data = await res.json();
+    const code = data?.current_weather?.weathercode ?? 0;
+    // WMO codes: 0-3 = clear/cloudy, 51-67 = drizzle/rain, 71-77 = snow, 80-82 = showers, 95-99 = thunderstorm
+    if (code >= 95) return 'storm';
+    if (code >= 51) return 'rain';
+    return 'clear';
+  } catch {
+    return 'clear';
+  }
+}
+
 async function getDispatchSettings(supabase: any) {
   const { data } = await supabase
     .from('platform_settings')
@@ -95,7 +115,7 @@ async function getDispatchSettings(supabase: any) {
   };
 }
 
-function getPayoutSettings(settings: Record<string, string>): PayoutSettings {
+function getPayoutSettings(settings: Record<string, string>, detectedWeather: string = 'clear'): PayoutSettings {
   return {
     platformFeePct: parseFloat(settings.rider_platform_fee_pct || '20'),
     platformFeeMin: parseFloat(settings.rider_platform_fee_min || '300'),
@@ -119,7 +139,7 @@ function getPayoutSettings(settings: Record<string, string>): PayoutSettings {
     weatherSurgeClear: parseFloat(settings.rider_weather_surge_clear || '0'),
     weatherSurgeRain: parseFloat(settings.rider_weather_surge_rain || '100'),
     weatherSurgeStorm: parseFloat(settings.rider_weather_surge_storm || '300'),
-    weatherOverride: settings.rider_weather_override || 'clear',
+    detectedWeather,
   };
 }
 
@@ -150,7 +170,7 @@ function calculateRiderPayout(
     else if (timePeriod === 'night') timeSurgeBonus = ps.timeSurgeNight;
   }
 
-  const weatherCondition = ps.weatherOverride || 'clear';
+  const weatherCondition = ps.detectedWeather || 'clear';
   let weatherSurgeBonus = 0;
   if (ps.surgeEnabled && ps.weatherSurgeEnabled) {
     if (weatherCondition === 'rain') weatherSurgeBonus = ps.weatherSurgeRain;
@@ -370,6 +390,15 @@ Deno.serve(async (req) => {
     const customerLat = address?.latitude || null;
     const customerLon = address?.longitude || null;
 
+    // Auto-detect weather from customer or vendor location
+    const weatherLat = customerLat || vendor.latitude;
+    const weatherLon = customerLon || vendor.longitude;
+    const detectedWeather = await fetchWeatherCondition(weatherLat, weatherLon);
+    console.log(`Auto-detected weather: ${detectedWeather} at (${weatherLat}, ${weatherLon})`);
+
+    // Re-apply detected weather to payout settings
+    const payoutSettingsWithWeather = getPayoutSettings(settingsMap, detectedWeather);
+
     // Calculate delivery distance (vendor -> customer)
     let deliveryDistanceKm = 0;
     if (customerLat && customerLon) {
@@ -379,8 +408,8 @@ Deno.serve(async (req) => {
     const expiresAt = new Date(Date.now() + dispatchSettings.acceptanceTimeoutSeconds * 1000);
     const deliveryFee = order.delivery_fee || 0;
 
-    // Calculate rider payout using the hybrid model
-    const payout = calculateRiderPayout(deliveryFee, deliveryDistanceKm, payoutSettings);
+    // Calculate rider payout using the hybrid model with auto-detected weather
+    const payout = calculateRiderPayout(deliveryFee, deliveryDistanceKm, payoutSettingsWithWeather);
 
     console.log(`Payout breakdown: fee=₦${payout.deliveryFee}, platform=₦${payout.platformFee}, distBonus=₦${payout.distanceBonus}, surge=₦${payout.totalSurgeBonus}, subsidy=₦${payout.subsidyAmount}, final=₦${payout.finalRiderPay}`);
 
