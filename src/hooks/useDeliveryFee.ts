@@ -27,7 +27,6 @@ interface SurgeSettings {
   weatherSurgeClear: number;
   weatherSurgeRain: number;
   weatherSurgeStorm: number;
-  weatherOverride: string;
 }
 
 const defaultSurgeSettings: SurgeSettings = {
@@ -47,7 +46,6 @@ const defaultSurgeSettings: SurgeSettings = {
   weatherSurgeClear: 0,
   weatherSurgeRain: 100,
   weatherSurgeStorm: 300,
-  weatherOverride: 'clear',
 };
 
 function getTimePeriod(ss: SurgeSettings): string {
@@ -58,7 +56,27 @@ function getTimePeriod(ss: SurgeSettings): string {
   return 'morning';
 }
 
-function calculateSurge(ss: SurgeSettings): { surgeFee: number; timePeriod: string; weatherCondition: string } {
+/**
+ * Fetch real-time weather from Open-Meteo (free, no API key).
+ * Returns 'clear' | 'rain' | 'storm' based on WMO weather codes.
+ */
+async function fetchWeatherCondition(lat: number, lon: number): Promise<string> {
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`;
+    const res = await fetch(url);
+    if (!res.ok) return 'clear';
+    const data = await res.json();
+    const code = data?.current_weather?.weathercode ?? 0;
+    // WMO codes: 0-3 = clear/cloudy, 51-67 = drizzle/rain, 71-77 = snow, 80-82 = showers, 95-99 = thunderstorm
+    if (code >= 95) return 'storm';
+    if (code >= 51) return 'rain';
+    return 'clear';
+  } catch {
+    return 'clear';
+  }
+}
+
+function calculateSurge(ss: SurgeSettings, weatherCondition: string): { surgeFee: number; timePeriod: string; weatherCondition: string } {
   if (!ss.surgeEnabled) return { surgeFee: 0, timePeriod: 'morning', weatherCondition: 'clear' };
 
   const timePeriod = getTimePeriod(ss);
@@ -69,7 +87,6 @@ function calculateSurge(ss: SurgeSettings): { surgeFee: number; timePeriod: stri
     else if (timePeriod === 'night') timeSurge = ss.timeSurgeNight;
   }
 
-  const weatherCondition = ss.weatherOverride || 'clear';
   let weatherSurge = 0;
   if (ss.weatherSurgeEnabled) {
     if (weatherCondition === 'rain') weatherSurge = ss.weatherSurgeRain;
@@ -86,8 +103,9 @@ export function useDeliveryFee({ vendorLat, vendorLon, customerLat, customerLon 
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
   const [surgeSettings, setSurgeSettings] = useState<SurgeSettings>(defaultSurgeSettings);
   const [surgeLoading, setSurgeLoading] = useState(true);
+  const [weatherCondition, setWeatherCondition] = useState<string>('clear');
 
-  // Fetch surge settings
+  // Fetch surge settings from DB
   useEffect(() => {
     const fetchSurge = async () => {
       try {
@@ -102,7 +120,6 @@ export function useDeliveryFee({ vendorLat, vendorLon, customerLat, customerLon 
             'rider_night_start_hour', 'rider_night_end_hour',
             'rider_time_surge_morning', 'rider_time_surge_afternoon', 'rider_time_surge_night',
             'rider_weather_surge_clear', 'rider_weather_surge_rain', 'rider_weather_surge_storm',
-            'rider_weather_override',
           ]);
 
         if (data) {
@@ -125,7 +142,6 @@ export function useDeliveryFee({ vendorLat, vendorLon, customerLat, customerLon 
             weatherSurgeClear: parseFloat(m.rider_weather_surge_clear || '0'),
             weatherSurgeRain: parseFloat(m.rider_weather_surge_rain || '100'),
             weatherSurgeStorm: parseFloat(m.rider_weather_surge_storm || '300'),
-            weatherOverride: m.rider_weather_override || 'clear',
           });
         }
       } catch (err) {
@@ -136,6 +152,13 @@ export function useDeliveryFee({ vendorLat, vendorLon, customerLat, customerLon 
     };
     fetchSurge();
   }, []);
+
+  // Fetch real weather based on customer location
+  useEffect(() => {
+    if (customerLat && customerLon) {
+      fetchWeatherCondition(customerLat, customerLon).then(setWeatherCondition);
+    }
+  }, [customerLat, customerLon]);
 
   // Calculate distance when coordinates are available
   useEffect(() => {
@@ -153,7 +176,7 @@ export function useDeliveryFee({ vendorLat, vendorLon, customerLat, customerLon 
     }
   }, [vendorLat, vendorLon, customerLat, customerLon]);
 
-  const surge = useMemo(() => calculateSurge(surgeSettings), [surgeSettings]);
+  const surge = useMemo(() => calculateSurge(surgeSettings, weatherCondition), [surgeSettings, weatherCondition]);
 
   const baseFee = useMemo(() => {
     if (distanceKm === null || settingsLoading) {

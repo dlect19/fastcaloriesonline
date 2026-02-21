@@ -639,6 +639,18 @@ export default function AdminSettings() {
               onSettingChange={handleSettingChange}
               onSave={handleSave}
               saving={saving}
+              onImmediateSave={async (key, value) => {
+                try {
+                  await supabase.from('platform_settings').upsert({
+                    key,
+                    value,
+                    updated_at: new Date().toISOString()
+                  }, { onConflict: 'key' });
+                  toast({ title: 'Saved', description: `${key.replace(/_/g, ' ')} updated.` });
+                } catch (err) {
+                  console.error('Immediate save error:', err);
+                }
+              }}
             />
           </div>
         )}
