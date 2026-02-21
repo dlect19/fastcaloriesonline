@@ -83,6 +83,8 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
   const [vendorSlug, setVendorSlug] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [invitePermissions, setInvitePermissions] = useState<string[]>([]);
+  const [invitePermDialogOpen, setInvitePermDialogOpen] = useState(false);
 
   useEffect(() => {
     fetchStaff();
@@ -199,6 +201,15 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
       if (error) throw error;
       if (!data.success) throw new Error(data.error);
 
+      // If custom permissions were set, save them to the new staff record
+      if (invitePermissions.length > 0 && data.userId) {
+        await supabase
+          .from('vendor_staff')
+          .update({ permissions: invitePermissions })
+          .eq('vendor_id', vendorId)
+          .eq('user_id', data.userId);
+      }
+
       toast({ 
         title: 'Staff account created!', 
         description: `Credentials sent to ${inviteEmail}`,
@@ -224,6 +235,7 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
     setInvitePassword('');
     setInviteFullName('');
     setInviteRole('viewer');
+    setInvitePermissions([]);
   };
 
   const handleToggleActive = async (staffId: string, isActive: boolean) => {
@@ -425,6 +437,32 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-2">
+                <Label>Tab Permissions</Label>
+                <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
+                  <div>
+                    <p className="text-sm font-medium">
+                      {invitePermissions.length > 0 
+                        ? `${invitePermissions.length} custom permission${invitePermissions.length > 1 ? 's' : ''}` 
+                        : `Using ${inviteRole} role defaults`}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {invitePermissions.length > 0 
+                        ? 'Custom permissions override role defaults' 
+                        : 'Click to customize which tabs this staff can access'}
+                    </p>
+                  </div>
+                  <Button 
+                    type="button" 
+                    variant={invitePermissions.length > 0 ? "secondary" : "outline"} 
+                    size="sm"
+                    onClick={() => setInvitePermDialogOpen(true)}
+                  >
+                    <Shield className="w-4 h-4 mr-1" />
+                    {invitePermissions.length > 0 ? 'Edit' : 'Customize'}
+                  </Button>
+                </div>
+              </div>
               <Button onClick={handleCreateStaff} disabled={inviting} className="w-full">
                 {inviting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <UserPlus className="w-4 h-4 mr-2" />}
                 Create Account & Send Credentials
@@ -582,6 +620,16 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
           roleName={editingStaff.role.charAt(0).toUpperCase() + editingStaff.role.slice(1)}
         />
       )}
+
+      <PermissionChecklistDialog
+        open={invitePermDialogOpen}
+        onOpenChange={setInvitePermDialogOpen}
+        allPermissions={VENDOR_PERMISSION_DEFS}
+        roleDefaults={VENDOR_ROLE_PERMISSIONS[inviteRole]}
+        currentPermissions={invitePermissions}
+        onSave={setInvitePermissions}
+        roleName={inviteRole.charAt(0).toUpperCase() + inviteRole.slice(1)}
+      />
     </div>
   );
 }
