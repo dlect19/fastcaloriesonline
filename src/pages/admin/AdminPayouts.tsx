@@ -334,47 +334,11 @@ export default function AdminPayouts() {
 
       if (error) throw error;
 
-      // CRITICAL: Return funds to the vendor's source-specific pool
-      const { data: wallet } = await supabase
-        .from('wallets')
-        .select('*')
-        .eq('id', selectedPayout.wallet_id)
-        .single();
-
-      if (wallet) {
-        const amount = Number(selectedPayout.amount);
-        const source = selectedPayout.withdrawal_source || 'menu_earnings';
-        const updateFields: Record<string, number> = {};
-        
-        // Restore to the correct source pool
-        if (source === 'rider_revenue') {
-          updateFields.rider_revenue_balance = (Number(wallet.rider_revenue_balance) || 0) + amount;
-        } else {
-          updateFields.menu_earnings_balance = (Number(wallet.menu_earnings_balance) || 0) + amount;
-        }
-        
-        // Restore general balances
-        updateFields.eligible_balance = (Number(wallet.eligible_balance) || 0) + amount;
-        updateFields.balance = (Number(wallet.balance) || 0) + amount;
-        updateFields.pending_payouts = Math.max(0, (Number(wallet.pending_payouts) || 0) - amount);
-
-        await supabase
-          .from('wallets')
-          .update(updateFields)
-          .eq('id', wallet.id);
-
-        // Log the reversal transaction
-        await supabase.from('wallet_transactions').insert({
-          wallet_id: wallet.id,
-          wallet_type: 'vendor',
-          transaction_type: 'credit',
-          category: source === 'rider_revenue' ? 'vendor_rider_share' : 'vendor_share',
-          amount: amount,
-          status: 'completed',
-          environment: isTestMode ? 'development' : 'production',
-          notes: `Withdrawal rejected by admin - funds returned to ${source === 'rider_revenue' ? 'rider revenue' : 'menu earnings'}`,
-        });
-      }
+      // NOTE: Wallet balance restoration and withdrawal_reversal transaction
+      // are handled automatically by the 'restore_wallet_on_payout_failure' 
+      // database trigger when payout status changes to 'failed'.
+      // Do NOT manually update wallet or insert transactions here to avoid
+      // double-crediting.
 
       toast({ title: 'Payout rejected and funds returned to vendor' });
       fetchPayouts();
