@@ -542,44 +542,10 @@ async function handleTransferSuccess(supabase: SupabaseClient, data: any, enviro
     })
     .eq("id", payoutRequest.id);
 
-  // Update wallet
-  const { data: wallet } = await supabase
-    .from("wallets")
-    .select("*")
-    .eq("id", payoutRequest.wallet_id)
-    .single();
-
-  if (wallet) {
-    const currentPendingPayouts = Number(wallet.pending_payouts) || 0;
-    const currentTotalWithdrawn = Number(wallet.total_withdrawn) || 0;
-    const payoutAmount = Number(payoutRequest.amount);
-
-    await supabase
-      .from("wallets")
-      .update({
-        pending_payouts: Math.max(0, currentPendingPayouts - payoutAmount),
-        total_withdrawn: currentTotalWithdrawn + payoutAmount
-      })
-      .eq("id", wallet.id);
-
-    // Log withdrawal transaction
-    await supabase.from("wallet_transactions").insert({
-      wallet_id: wallet.id,
-      wallet_type: payoutRequest.user_type,
-      transaction_type: "debit",
-      category: "withdrawal",
-      amount: payoutAmount,
-      balance_after: Number(wallet.balance),
-      paystack_reference: reference,
-      status: "completed",
-      environment: "production",
-      metadata: {
-        bank_name: payoutRequest.bank_name,
-        account_number: payoutRequest.bank_account_number,
-        transfer_code: transferCode
-      }
-    });
-  }
+  // NOTE: Wallet updates (pending_payouts, total_withdrawn) and the withdrawal
+  // debit transaction are handled by the 'restore_wallet_on_payout_failure' 
+  // database trigger when payout status changes to 'completed'.
+  // Do NOT duplicate them here to avoid double-deduction.
 
   console.log("Transfer success processed");
 }
