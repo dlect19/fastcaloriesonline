@@ -211,6 +211,42 @@ export default function VendorDetail() {
     getCurrentPosition();
   }, []);
 
+  // Realtime listener for product availability changes
+  useEffect(() => {
+    if (!id || accessDenied) return;
+
+    const channel = supabase
+      .channel(`vendor-products-${id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'products',
+          filter: `vendor_id=eq.${id}`,
+        },
+        (payload) => {
+          if (payload.eventType === 'UPDATE') {
+            setProducts(prev =>
+              prev.map(p => p.id === (payload.new as any).id ? { ...p, ...(payload.new as any) } : p)
+            );
+          } else if (payload.eventType === 'INSERT') {
+            const newProduct = payload.new as any;
+            if (newProduct.meal_type !== 'addon') {
+              setProducts(prev => [...prev, newProduct]);
+            }
+          } else if (payload.eventType === 'DELETE') {
+            setProducts(prev => prev.filter(p => p.id !== (payload.old as any).id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [id, accessDenied]);
+
   const checkFavoriteStatus = async () => {
     if (!user || !id) return;
     const { data } = await supabase
