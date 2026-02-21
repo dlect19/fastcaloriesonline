@@ -138,24 +138,65 @@ export default function RiderDashboard() {
     try {
       const { start, end } = getDateRangeForQuery();
 
+      // Count delivered orders in the period
       const { data: deliveredOrders } = await supabase
         .from('orders')
-        .select('id, total')
+        .select('id')
         .eq('rider_id', uid)
         .eq('status', 'delivered')
         .gte('delivered_at', start)
         .lt('delivered_at', end);
 
+      // Count in-transit orders in the period
       const { data: inTransitOrders } = await supabase
         .from('orders')
-        .select('id, total')
+        .select('id')
         .eq('rider_id', uid)
         .in('status', ['confirmed', 'preparing', 'ready_for_pickup', 'picked_up', 'on_the_way'])
         .gte('created_at', start)
         .lt('created_at', end);
 
-      const todayEarnings = (deliveredOrders || []).reduce((sum, o) => sum + (Number(o.total) * 0.1), 0);
-      const inTransitEarnings = (inTransitOrders || []).reduce((sum, o) => sum + (Number(o.total) * 0.1), 0);
+      // Get the rider's wallet
+      const { data: riderWallet } = await supabase
+        .from('wallets')
+        .select('id')
+        .eq('user_id', uid)
+        .eq('wallet_type', 'rider')
+        .maybeSingle();
+
+      let todayEarnings = 0;
+      let inTransitEarnings = 0;
+
+      if (riderWallet) {
+        // Fetch actual earnings from wallet_transactions for delivered orders
+        const deliveredIds = (deliveredOrders || []).map(o => o.id);
+        if (deliveredIds.length > 0) {
+          const { data: earningsTx } = await supabase
+            .from('wallet_transactions')
+            .select('amount')
+            .eq('wallet_id', riderWallet.id)
+            .eq('category', 'rider_share')
+            .eq('transaction_type', 'credit')
+            .eq('status', 'completed')
+            .in('order_id', deliveredIds);
+
+          todayEarnings = (earningsTx || []).reduce((sum, tx) => sum + Number(tx.amount), 0);
+        }
+
+        // Fetch pending earnings for in-transit orders
+        const inTransitIds = (inTransitOrders || []).map(o => o.id);
+        if (inTransitIds.length > 0) {
+          const { data: pendingTx } = await supabase
+            .from('wallet_transactions')
+            .select('amount')
+            .eq('wallet_id', riderWallet.id)
+            .eq('category', 'rider_share')
+            .eq('transaction_type', 'credit')
+            .in('order_id', inTransitIds);
+
+          inTransitEarnings = (pendingTx || []).reduce((sum, tx) => sum + Number(tx.amount), 0);
+        }
+      }
 
       setStats(prev => ({
         ...prev,
