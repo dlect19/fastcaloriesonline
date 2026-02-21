@@ -526,6 +526,14 @@ export default function VendorOrders() {
                 
                 {/* Order Summary - Vendors only see their revenue (subtotal minus discounts) */}
                 <div className="border-t border-border pt-2 mt-2 space-y-1">
+                  {order.packaging_fee && Number(order.packaging_fee) > 0 && (
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Package className="w-3 h-3" /> Takeaway Pack
+                      </span>
+                      <span>₦{Number(order.packaging_fee).toLocaleString()}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-xs text-muted-foreground">
                     <span>Meal Total</span>
                     <span>₦{Number(order.subtotal).toLocaleString()}</span>
