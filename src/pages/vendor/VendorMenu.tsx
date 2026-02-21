@@ -1104,7 +1104,7 @@ export default function VendorMenu() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
                       <Switch
                         checked={product.is_available ?? true}
                         onCheckedChange={() => toggleAvailability(product)}
@@ -1112,7 +1112,7 @@ export default function VendorMenu() {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="gap-1 text-xs"
+                        className="gap-1 text-xs hidden sm:flex"
                         onClick={() => setAddonDialogProductId(product.id)}
                       >
                         <Settings2 className="w-3.5 h-3.5" />
@@ -1121,6 +1121,15 @@ export default function VendorMenu() {
                       <Button
                         variant="ghost"
                         size="icon"
+                        className="sm:hidden h-8 w-8"
+                        onClick={() => setAddonDialogProductId(product.id)}
+                      >
+                        <Settings2 className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
                         onClick={() => handleEdit(product)}
                       >
                         <Edit2 className="w-4 h-4" />
@@ -1128,7 +1137,7 @@ export default function VendorMenu() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="text-destructive hover:text-destructive"
+                        className="text-destructive hover:text-destructive h-8 w-8"
                         onClick={() => handleDelete(product.id)}
                       >
                         <Trash2 className="w-4 h-4" />

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfileCompletion } from '@/hooks/useProfileCompletion';
+import { getPortalRedirect } from '@/hooks/usePortalMemory';
 import { Header } from '@/components/home/Header';
 import { CategoryPills } from '@/components/home/CategoryPills';
 import { PromoBanner } from '@/components/home/PromoBanner';
@@ -37,6 +38,14 @@ export default function Home() {
 
   // Register Capacitor native push notifications on mobile
   useCapacitorPush();
+
+  // On PWA launch, redirect to last-used portal if not customer
+  useEffect(() => {
+    const redirect = getPortalRedirect();
+    if (redirect) {
+      navigate(redirect, { replace: true });
+    }
+  }, []);
 
   // Redirect to profile setup if incomplete
   useEffect(() => {

@@ -93,6 +93,7 @@ import AdminSupport from "./pages/admin/AdminSupport";
 import WorkspaceLogin from "./pages/WorkspaceLogin";
 import { playGlobalNotificationSound } from '@/lib/globalAudio';
 import { useFcmNotifications } from '@/hooks/useFcmNotifications';
+import { usePortalMemory } from '@/hooks/usePortalMemory';
 
 const queryClient = new QueryClient();
 
@@ -104,6 +105,11 @@ if ('serviceWorker' in navigator) {
     }
   });
 }
+
+const PortalTracker = () => {
+  usePortalMemory();
+  return null;
+};
 
 const App = () => {
   // Register FCM token on native Capacitor platforms
@@ -118,6 +124,7 @@ const App = () => {
           <Toaster />
           <Sonner />
           <BrowserRouter>
+            <PortalTracker />
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/auth" element={<Auth />} />
