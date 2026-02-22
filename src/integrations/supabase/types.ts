@@ -507,6 +507,51 @@ export type Database = {
           },
         ]
       }
+      commission_overrides: {
+        Row: {
+          commission_type: string
+          created_at: string
+          created_by: string | null
+          entity_id: string
+          entity_type: string
+          fixed_value: number | null
+          id: string
+          max_value: number | null
+          min_value: number | null
+          notes: string | null
+          percentage_value: number | null
+          updated_at: string
+        }
+        Insert: {
+          commission_type?: string
+          created_at?: string
+          created_by?: string | null
+          entity_id: string
+          entity_type: string
+          fixed_value?: number | null
+          id?: string
+          max_value?: number | null
+          min_value?: number | null
+          notes?: string | null
+          percentage_value?: number | null
+          updated_at?: string
+        }
+        Update: {
+          commission_type?: string
+          created_at?: string
+          created_by?: string | null
+          entity_id?: string
+          entity_type?: string
+          fixed_value?: number | null
+          id?: string
+          max_value?: number | null
+          min_value?: number | null
+          notes?: string | null
+          percentage_value?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       daily_promo_stats: {
         Row: {
           created_at: string | null
@@ -1224,12 +1269,17 @@ export type Database = {
           created_at: string | null
           environment: string | null
           id: string
+          logistics_commission_amount: number | null
+          logistics_commission_percentage: number | null
           menu_price: number
           order_id: string
           promo_discount_amount: number
           promo_source: string | null
           promo_type: string | null
           revenue_status: string
+          rider_commission_amount: number | null
+          rider_commission_percentage: number | null
+          service_fee_amount: number | null
           vendor_commission_amount: number
           vendor_commission_percentage: number
           vendor_payout: number
@@ -1239,12 +1289,17 @@ export type Database = {
           created_at?: string | null
           environment?: string | null
           id?: string
+          logistics_commission_amount?: number | null
+          logistics_commission_percentage?: number | null
           menu_price: number
           order_id: string
           promo_discount_amount?: number
           promo_source?: string | null
           promo_type?: string | null
           revenue_status?: string
+          rider_commission_amount?: number | null
+          rider_commission_percentage?: number | null
+          service_fee_amount?: number | null
           vendor_commission_amount: number
           vendor_commission_percentage: number
           vendor_payout: number
@@ -1254,12 +1309,17 @@ export type Database = {
           created_at?: string | null
           environment?: string | null
           id?: string
+          logistics_commission_amount?: number | null
+          logistics_commission_percentage?: number | null
           menu_price?: number
           order_id?: string
           promo_discount_amount?: number
           promo_source?: string | null
           promo_type?: string | null
           revenue_status?: string
+          rider_commission_amount?: number | null
+          rider_commission_percentage?: number | null
+          service_fee_amount?: number | null
           vendor_commission_amount?: number
           vendor_commission_percentage?: number
           vendor_payout?: number
@@ -3077,6 +3137,45 @@ export type Database = {
         }
         Relationships: []
       }
+      vehicle_type_configs: {
+        Row: {
+          base_delivery_rate: number
+          created_at: string
+          display_name: string
+          id: string
+          is_active: boolean
+          max_delivery_distance_km: number
+          per_km_rate: number | null
+          sort_order: number
+          updated_at: string
+          vehicle_type: string
+        }
+        Insert: {
+          base_delivery_rate?: number
+          created_at?: string
+          display_name: string
+          id?: string
+          is_active?: boolean
+          max_delivery_distance_km?: number
+          per_km_rate?: number | null
+          sort_order?: number
+          updated_at?: string
+          vehicle_type: string
+        }
+        Update: {
+          base_delivery_rate?: number
+          created_at?: string
+          display_name?: string
+          id?: string
+          is_active?: boolean
+          max_delivery_distance_km?: number
+          per_km_rate?: number | null
+          sort_order?: number
+          updated_at?: string
+          vehicle_type?: string
+        }
+        Relationships: []
+      }
       vendor_commission_promos: {
         Row: {
           created_at: string
@@ -4065,6 +4164,10 @@ export type Database = {
         Returns: undefined
       }
       release_pending_vendor_earnings: { Args: never; Returns: number }
+      resolve_commission_rate: {
+        Args: { p_entity_id: string; p_entity_type: string }
+        Returns: number
+      }
       resolve_workspace_slug: {
         Args: { workspace_slug: string }
         Returns: {
