@@ -22,6 +22,7 @@ import { usePlatformPromos } from '@/hooks/usePlatformPromos';
 import { supabase } from '@/integrations/supabase/client';
 import { geocodeAddressWithSuggestions, updateAddressCoordinates, GeocodeSuggestion } from '@/lib/geocoding';
 import type { Tables } from '@/integrations/supabase/types';
+import { useServiceFee } from '@/hooks/useServiceFee';
 
 type Address = Tables<'addresses'>;
 
@@ -98,7 +99,8 @@ export function VendorCheckoutSection({
   const [locationSuggestions, setLocationSuggestions] = useState<GeocodeSuggestion[]>([]);
   const [selectingSuggestion, setSelectingSuggestion] = useState(false);
 
-  const serviceFee = 100;
+  const { calculateServiceFee, loading: serviceFeeLoading } = useServiceFee();
+  const serviceFee = calculateServiceFee(group.subtotal);
   const deliveryFee = deliveryType === 'self_pickup' ? 0 : vendorFees.deliveryFee;
   const surgeFee = deliveryType === 'self_pickup' ? 0 : vendorFees.surgeFee;
   const total = group.subtotal + vendorFees.packagingFee + deliveryFee + serviceFee - promoDiscount;

@@ -16,6 +16,7 @@ import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 import { useOrderFinancials } from '@/hooks/useOrderFinancials';
 import { supabase } from '@/integrations/supabase/client';
 import { PaginationControls } from '@/components/shared/PaginationControls';
+import { CommissionDisplay } from '@/components/shared/CommissionDisplay';
 interface Vendor {
   id: string;
   name: string;
@@ -383,6 +384,7 @@ export default function VendorEarnings() {
                 )}
               </div>
               <p className="text-muted-foreground">Track your revenue and payouts</p>
+              <CommissionDisplay entityType="vendor" entityId={vendor?.id || null} className="mt-1" />
             </div>
             {hasPermission('request_withdrawal') && (
               <Button 
