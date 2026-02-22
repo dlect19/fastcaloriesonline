@@ -15,6 +15,9 @@ import { EnvironmentSwitch } from '@/components/admin/EnvironmentSwitch';
 import { AdminTestModeToggle } from '@/components/admin/AdminTestModeToggle';
 import { PaystackBalanceCard } from '@/components/admin/PaystackBalanceCard';
 import { RiderPayoutSettings } from '@/components/admin/RiderPayoutSettings';
+import { ServiceFeeSettings } from '@/components/admin/ServiceFeeSettings';
+import { VehicleTypeSettings } from '@/components/admin/VehicleTypeSettings';
+import { CommissionOverrideManager } from '@/components/admin/CommissionOverrideManager';
 
 interface DeliverySetting {
   key: string;
@@ -175,6 +178,21 @@ export default function AdminSettings() {
         'rider_night_start_hour', 'rider_night_end_hour',
       ];
       for (const key of riderPayoutKeys) {
+        if (settings[key] !== undefined) {
+          await supabase.from('platform_settings').upsert({
+            key,
+            value: settings[key],
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'key' });
+        }
+      }
+
+      // Save service fee settings
+      const serviceFeeKeys = [
+        'service_fee_type', 'service_fee_fixed', 'service_fee_percentage',
+        'service_fee_min', 'service_fee_max',
+      ];
+      for (const key of serviceFeeKeys) {
         if (settings[key] !== undefined) {
           await supabase.from('platform_settings').upsert({
             key,
@@ -421,6 +439,20 @@ export default function AdminSettings() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Service Fee Settings */}
+            <ServiceFeeSettings
+              settings={settings}
+              onSettingChange={handleSettingChange}
+              onSave={handleSave}
+              saving={saving}
+            />
+
+            {/* Vehicle Type Settings */}
+            <VehicleTypeSettings />
+
+            {/* Commission Overrides */}
+            <CommissionOverrideManager />
 
             {/* Category-Based Settlement Periods */}
             <Card>

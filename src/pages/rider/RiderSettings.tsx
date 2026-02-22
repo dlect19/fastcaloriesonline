@@ -14,22 +14,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Save, MapPin, Volume2, Smartphone, ShieldCheck, Mail, CheckCircle, AlertTriangle } from 'lucide-react';
 import { DeleteAccountDialog } from '@/components/shared/DeleteAccountDialog';
+import { CommissionDisplay } from '@/components/shared/CommissionDisplay';
 import { useToast } from '@/hooks/use-toast';
 import { useNotificationSound } from '@/hooks/useNotificationSound';
-
-const VEHICLE_TYPES = [
-  { value: 'bicycle', label: 'Bicycle' },
-  { value: 'motorcycle', label: 'Motorcycle' },
-  { value: 'tricycle', label: 'Tricycle (Keke)' },
-  { value: 'car', label: 'Car' },
-  { value: 'van', label: 'Van' },
-];
+import { useVehicleTypeConfigs } from '@/hooks/useVehicleTypeConfigs';
 
 export default function RiderSettings() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const { soundEnabled, setSoundEnabled, playNotification } = useNotificationSound();
+  const { configs: vehicleConfigs, getConfigForVehicle } = useVehicleTypeConfigs();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const isSetupMode = searchParams.get('setup') === 'true';
@@ -449,9 +444,9 @@ export default function RiderSettings() {
                   <SelectValue placeholder="Select your vehicle type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {VEHICLE_TYPES.map((type) => (
-                    <SelectItem key={type.value} value={type.value}>
-                      {type.label}
+                  {vehicleConfigs.filter(c => c.is_active).map((type) => (
+                    <SelectItem key={type.vehicle_type} value={type.vehicle_type}>
+                      {type.display_name} (max {type.max_delivery_distance_km}km)
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -510,17 +505,30 @@ export default function RiderSettings() {
                 <Label>Work Radius</Label>
                 <span className="text-sm font-medium text-primary">{workRadius} km</span>
               </div>
-              <Slider
-                value={[workRadius]}
-                onValueChange={(values) => setWorkRadius(values[0])}
-                min={5}
-                max={50}
-                step={5}
-                className="w-full"
-              />
-              <p className="text-xs text-muted-foreground">
-                You'll receive orders from vendors within {workRadius}km of your preferred location
-              </p>
+              {(() => {
+                const vehicleConfig = getConfigForVehicle(vehicleType);
+                const maxAllowed = vehicleConfig ? vehicleConfig.max_delivery_distance_km : 50;
+                return (
+                  <>
+                    <Slider
+                      value={[Math.min(workRadius, maxAllowed)]}
+                      onValueChange={(values) => setWorkRadius(values[0])}
+                      min={5}
+                      max={maxAllowed}
+                      step={5}
+                      className="w-full"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      You'll receive orders from vendors within {workRadius}km of your preferred location
+                      {vehicleConfig && (
+                        <span className="block text-xs mt-1">
+                          Max allowed for {vehicleConfig.display_name}: <strong>{maxAllowed}km</strong>
+                        </span>
+                      )}
+                    </p>
+                  </>
+                );
+              })()}
             </div>
 
             <Button 
