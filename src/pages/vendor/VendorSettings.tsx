@@ -570,54 +570,17 @@ export default function VendorSettings() {
             </CardContent>
           </Card>
 
-          {/* Delivery Settings */}
+          {/* Delivery Mode */}
           <Card className="border-0 shadow-soft">
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <Bike className="w-5 h-5" />
-                Delivery Settings
+                Delivery Mode
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="min_order">Minimum Order (₦)</Label>
-                  <Input
-                    id="min_order"
-                    type="number"
-                    value={formData.min_order_amount}
-                    onChange={(e) => setFormData({ ...formData, min_order_amount: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="delivery_time">Est. Delivery (mins)</Label>
-                  <Input
-                    id="delivery_time"
-                    type="number"
-                    value={formData.estimated_delivery_minutes}
-                    onChange={(e) => setFormData({ ...formData, estimated_delivery_minutes: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              {/* Sales Radius */}
-              <div className="space-y-2">
-                <Label htmlFor="sales_radius">Sales Radius (KM)</Label>
-                <Input
-                  id="sales_radius"
-                  type="number"
-                  min="1"
-                  max="50"
-                  value={formData.sales_radius}
-                  onChange={(e) => setFormData({ ...formData, sales_radius: e.target.value })}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Only customers within this distance (1–50 km) can see and order from your store. Delivery fees are calculated separately by the platform.
-                </p>
-              </div>
-
               {/* Delivery Mode Selection */}
-              <div className="space-y-4 pt-4 border-t border-border">
+              <div className="space-y-4">
                 <div>
                   <Label className="text-base font-medium">Delivery Mode</Label>
                   <p className="text-sm text-muted-foreground mb-4">
