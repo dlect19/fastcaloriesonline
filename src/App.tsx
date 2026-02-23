@@ -30,6 +30,7 @@ import VendorEarnings from "./pages/vendor/VendorEarnings";
 import VendorWithdraw from "./pages/vendor/VendorWithdraw";
 import VendorHours from "./pages/vendor/VendorHours";
 import VendorSettings from "./pages/vendor/VendorSettings";
+import VendorStoreSettings from "./pages/vendor/VendorStoreSettings";
 import VendorPromos from "./pages/vendor/VendorPromos";
 import VendorRiders from "./pages/vendor/VendorRiders";
 import VendorStaff from "./pages/vendor/VendorStaff";
@@ -157,6 +158,7 @@ const App = () => {
               <Route path="/vendor/withdraw" element={<VendorWithdraw />} />
               <Route path="/vendor/hours" element={<VendorHours />} />
               <Route path="/vendor/settings" element={<VendorSettings />} />
+              <Route path="/vendor/store-settings" element={<VendorStoreSettings />} />
               <Route path="/vendor/promos" element={<VendorPromos />} />
               <Route path="/vendor/riders" element={<VendorRiders />} />
               <Route path="/vendor/staff" element={<VendorStaff />} />
