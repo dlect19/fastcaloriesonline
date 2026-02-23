@@ -88,6 +88,7 @@ export type Database = {
           max_selections: number | null
           min_selections: number | null
           name: string
+          outlet_id: string | null
           product_id: string | null
           selection_type: string
           sort_order: number | null
@@ -101,6 +102,7 @@ export type Database = {
           max_selections?: number | null
           min_selections?: number | null
           name: string
+          outlet_id?: string | null
           product_id?: string | null
           selection_type?: string
           sort_order?: number | null
@@ -114,6 +116,7 @@ export type Database = {
           max_selections?: number | null
           min_selections?: number | null
           name?: string
+          outlet_id?: string | null
           product_id?: string | null
           selection_type?: string
           sort_order?: number | null
@@ -121,6 +124,13 @@ export type Database = {
           vendor_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "addon_groups_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_outlets"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "addon_groups_product_id_fkey"
             columns: ["product_id"]
@@ -470,6 +480,7 @@ export type Database = {
           is_available: boolean | null
           name: string
           original_price: number
+          outlet_id: string | null
           updated_at: string | null
           vendor_id: string
         }
@@ -482,6 +493,7 @@ export type Database = {
           is_available?: boolean | null
           name: string
           original_price: number
+          outlet_id?: string | null
           updated_at?: string | null
           vendor_id: string
         }
@@ -494,10 +506,18 @@ export type Database = {
           is_available?: boolean | null
           name?: string
           original_price?: number
+          outlet_id?: string | null
           updated_at?: string | null
           vendor_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "combos_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_outlets"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "combos_vendor_id_fkey"
             columns: ["vendor_id"]
@@ -839,6 +859,7 @@ export type Database = {
           id: string
           max_retries: number | null
           order_id: string
+          outlet_id: string | null
           priority_tier: string | null
           retry_count: number | null
           search_radius_km: number | null
@@ -860,6 +881,7 @@ export type Database = {
           id?: string
           max_retries?: number | null
           order_id: string
+          outlet_id?: string | null
           priority_tier?: string | null
           retry_count?: number | null
           search_radius_km?: number | null
@@ -881,6 +903,7 @@ export type Database = {
           id?: string
           max_retries?: number | null
           order_id?: string
+          outlet_id?: string | null
           priority_tier?: string | null
           retry_count?: number | null
           search_radius_km?: number | null
@@ -909,6 +932,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: true
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dispatch_requests_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_outlets"
             referencedColumns: ["id"]
           },
           {
@@ -1273,6 +1303,7 @@ export type Database = {
           logistics_commission_percentage: number | null
           menu_price: number
           order_id: string
+          outlet_id: string | null
           promo_discount_amount: number
           promo_source: string | null
           promo_type: string | null
@@ -1293,6 +1324,7 @@ export type Database = {
           logistics_commission_percentage?: number | null
           menu_price: number
           order_id: string
+          outlet_id?: string | null
           promo_discount_amount?: number
           promo_source?: string | null
           promo_type?: string | null
@@ -1313,6 +1345,7 @@ export type Database = {
           logistics_commission_percentage?: number | null
           menu_price?: number
           order_id?: string
+          outlet_id?: string | null
           promo_discount_amount?: number
           promo_source?: string | null
           promo_type?: string | null
@@ -1330,6 +1363,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_financials_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_outlets"
             referencedColumns: ["id"]
           },
         ]
@@ -1491,6 +1531,7 @@ export type Database = {
           id: string
           menu_subtotal: number | null
           order_number: string
+          outlet_id: string | null
           packaging_fee: number | null
           payment_method: string | null
           payment_reference: string | null
@@ -1523,6 +1564,7 @@ export type Database = {
           id?: string
           menu_subtotal?: number | null
           order_number: string
+          outlet_id?: string | null
           packaging_fee?: number | null
           payment_method?: string | null
           payment_reference?: string | null
@@ -1555,6 +1597,7 @@ export type Database = {
           id?: string
           menu_subtotal?: number | null
           order_number?: string
+          outlet_id?: string | null
           packaging_fee?: number | null
           payment_method?: string | null
           payment_reference?: string | null
@@ -1576,6 +1619,13 @@ export type Database = {
             columns: ["delivery_address_id"]
             isOneToOne: false
             referencedRelation: "addresses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_outlets"
             referencedColumns: ["id"]
           },
           {
@@ -1627,6 +1677,7 @@ export type Database = {
           environment: string | null
           failure_reason: string | null
           id: string
+          outlet_id: string | null
           paystack_reference: string | null
           paystack_transfer_code: string | null
           processed_at: string | null
@@ -1648,6 +1699,7 @@ export type Database = {
           environment?: string | null
           failure_reason?: string | null
           id?: string
+          outlet_id?: string | null
           paystack_reference?: string | null
           paystack_transfer_code?: string | null
           processed_at?: string | null
@@ -1669,6 +1721,7 @@ export type Database = {
           environment?: string | null
           failure_reason?: string | null
           id?: string
+          outlet_id?: string | null
           paystack_reference?: string | null
           paystack_transfer_code?: string | null
           processed_at?: string | null
@@ -1682,6 +1735,13 @@ export type Database = {
           withdrawal_source?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "payout_requests_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_outlets"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "payout_requests_recipient_id_fkey"
             columns: ["recipient_id"]
@@ -2120,6 +2180,7 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          outlet_id: string | null
           sort_order: number | null
           vendor_id: string
         }
@@ -2127,6 +2188,7 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
+          outlet_id?: string | null
           sort_order?: number | null
           vendor_id: string
         }
@@ -2134,10 +2196,18 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          outlet_id?: string | null
           sort_order?: number | null
           vendor_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "product_categories_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_outlets"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "product_categories_vendor_id_fkey"
             columns: ["vendor_id"]
@@ -2164,6 +2234,7 @@ export type Database = {
           meal_type: string
           name: string
           nutrient_tags: string[] | null
+          outlet_id: string | null
           price: number
           protein_grams: number | null
           requires_prescription: boolean | null
@@ -2189,6 +2260,7 @@ export type Database = {
           meal_type?: string
           name: string
           nutrient_tags?: string[] | null
+          outlet_id?: string | null
           price: number
           protein_grams?: number | null
           requires_prescription?: boolean | null
@@ -2214,6 +2286,7 @@ export type Database = {
           meal_type?: string
           name?: string
           nutrient_tags?: string[] | null
+          outlet_id?: string | null
           price?: number
           protein_grams?: number | null
           requires_prescription?: boolean | null
@@ -2227,6 +2300,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "product_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_outlets"
             referencedColumns: ["id"]
           },
           {
@@ -2299,6 +2379,7 @@ export type Database = {
           is_active: boolean | null
           max_discount: number | null
           min_order_amount: number | null
+          outlet_id: string | null
           per_user_limit: number | null
           scope: string | null
           usage_limit: number | null
@@ -2317,6 +2398,7 @@ export type Database = {
           is_active?: boolean | null
           max_discount?: number | null
           min_order_amount?: number | null
+          outlet_id?: string | null
           per_user_limit?: number | null
           scope?: string | null
           usage_limit?: number | null
@@ -2335,6 +2417,7 @@ export type Database = {
           is_active?: boolean | null
           max_discount?: number | null
           min_order_amount?: number | null
+          outlet_id?: string | null
           per_user_limit?: number | null
           scope?: string | null
           usage_limit?: number | null
@@ -2344,6 +2427,13 @@ export type Database = {
           vendor_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "promo_codes_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_outlets"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "promo_codes_vendor_id_fkey"
             columns: ["vendor_id"]
@@ -2550,6 +2640,7 @@ export type Database = {
           created_at: string
           id: string
           order_id: string
+          outlet_id: string | null
           rider_id: string | null
           rider_rating: number | null
           user_id: string
@@ -2561,6 +2652,7 @@ export type Database = {
           created_at?: string
           id?: string
           order_id: string
+          outlet_id?: string | null
           rider_id?: string | null
           rider_rating?: number | null
           user_id: string
@@ -2572,6 +2664,7 @@ export type Database = {
           created_at?: string
           id?: string
           order_id?: string
+          outlet_id?: string | null
           rider_id?: string | null
           rider_rating?: number | null
           user_id?: string
@@ -2584,6 +2677,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: true
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reviews_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_outlets"
             referencedColumns: ["id"]
           },
           {
@@ -2985,6 +3085,7 @@ export type Database = {
           is_active: boolean | null
           max_capacity: number | null
           name: string
+          outlet_id: string | null
           price: number
           sort_order: number | null
           threshold_type: string
@@ -3000,6 +3101,7 @@ export type Database = {
           is_active?: boolean | null
           max_capacity?: number | null
           name: string
+          outlet_id?: string | null
           price?: number
           sort_order?: number | null
           threshold_type?: string
@@ -3015,6 +3117,7 @@ export type Database = {
           is_active?: boolean | null
           max_capacity?: number | null
           name?: string
+          outlet_id?: string | null
           price?: number
           sort_order?: number | null
           threshold_type?: string
@@ -3023,6 +3126,13 @@ export type Database = {
           vendor_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "takeaway_packs_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_outlets"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "takeaway_packs_vendor_id_fkey"
             columns: ["vendor_id"]
@@ -3235,6 +3345,7 @@ export type Database = {
           distance_m: number | null
           id: string
           notes: string | null
+          outlet_id: string | null
           performed_by: string | null
           result: string | null
           vendor_id: string
@@ -3249,6 +3360,7 @@ export type Database = {
           distance_m?: number | null
           id?: string
           notes?: string | null
+          outlet_id?: string | null
           performed_by?: string | null
           result?: string | null
           vendor_id: string
@@ -3263,6 +3375,7 @@ export type Database = {
           distance_m?: number | null
           id?: string
           notes?: string | null
+          outlet_id?: string | null
           performed_by?: string | null
           result?: string | null
           vendor_id?: string
@@ -3271,7 +3384,124 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "vendor_location_logs_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_outlets"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "vendor_location_logs_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vendor_outlets: {
+        Row: {
+          address: string | null
+          banner_url: string | null
+          city: string | null
+          created_at: string
+          delivery_mode: string | null
+          description: string | null
+          estimated_delivery_minutes: number | null
+          geo_lock_reason: string | null
+          geo_locked_at: string | null
+          geo_verification_status: string | null
+          id: string
+          is_active: boolean
+          is_approved: boolean
+          is_default: boolean
+          is_open: boolean
+          latitude: number | null
+          logo_url: string | null
+          longitude: number | null
+          min_order_amount: number | null
+          outlet_code: string
+          outlet_name: string
+          outlet_surname: string | null
+          rating: number | null
+          sales_radius: number | null
+          state: string | null
+          tolerance_radius_m: number | null
+          total_ratings: number | null
+          updated_at: string
+          vendor_id: string
+          verified_latitude: number | null
+          verified_longitude: number | null
+        }
+        Insert: {
+          address?: string | null
+          banner_url?: string | null
+          city?: string | null
+          created_at?: string
+          delivery_mode?: string | null
+          description?: string | null
+          estimated_delivery_minutes?: number | null
+          geo_lock_reason?: string | null
+          geo_locked_at?: string | null
+          geo_verification_status?: string | null
+          id?: string
+          is_active?: boolean
+          is_approved?: boolean
+          is_default?: boolean
+          is_open?: boolean
+          latitude?: number | null
+          logo_url?: string | null
+          longitude?: number | null
+          min_order_amount?: number | null
+          outlet_code?: string
+          outlet_name?: string
+          outlet_surname?: string | null
+          rating?: number | null
+          sales_radius?: number | null
+          state?: string | null
+          tolerance_radius_m?: number | null
+          total_ratings?: number | null
+          updated_at?: string
+          vendor_id: string
+          verified_latitude?: number | null
+          verified_longitude?: number | null
+        }
+        Update: {
+          address?: string | null
+          banner_url?: string | null
+          city?: string | null
+          created_at?: string
+          delivery_mode?: string | null
+          description?: string | null
+          estimated_delivery_minutes?: number | null
+          geo_lock_reason?: string | null
+          geo_locked_at?: string | null
+          geo_verification_status?: string | null
+          id?: string
+          is_active?: boolean
+          is_approved?: boolean
+          is_default?: boolean
+          is_open?: boolean
+          latitude?: number | null
+          logo_url?: string | null
+          longitude?: number | null
+          min_order_amount?: number | null
+          outlet_code?: string
+          outlet_name?: string
+          outlet_surname?: string | null
+          rating?: number | null
+          sales_radius?: number | null
+          state?: string | null
+          tolerance_radius_m?: number | null
+          total_ratings?: number | null
+          updated_at?: string
+          vendor_id?: string
+          verified_latitude?: number | null
+          verified_longitude?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_outlets_vendor_id_fkey"
             columns: ["vendor_id"]
             isOneToOne: false
             referencedRelation: "vendors"
@@ -3286,6 +3516,7 @@ export type Database = {
           id: string
           new_latitude: number
           new_longitude: number
+          outlet_id: string | null
           reason: string
           reviewed_at: string | null
           reviewed_by: string | null
@@ -3299,6 +3530,7 @@ export type Database = {
           id?: string
           new_latitude: number
           new_longitude: number
+          outlet_id?: string | null
           reason: string
           reviewed_at?: string | null
           reviewed_by?: string | null
@@ -3312,6 +3544,7 @@ export type Database = {
           id?: string
           new_latitude?: number
           new_longitude?: number
+          outlet_id?: string | null
           reason?: string
           reviewed_at?: string | null
           reviewed_by?: string | null
@@ -3320,6 +3553,13 @@ export type Database = {
           vendor_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "vendor_reverification_requests_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_outlets"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "vendor_reverification_requests_vendor_id_fkey"
             columns: ["vendor_id"]
@@ -3336,6 +3576,7 @@ export type Database = {
           id: string
           invite_code: string
           is_used: boolean | null
+          outlet_id: string | null
           used_by: string | null
           vendor_id: string
         }
@@ -3345,6 +3586,7 @@ export type Database = {
           id?: string
           invite_code: string
           is_used?: boolean | null
+          outlet_id?: string | null
           used_by?: string | null
           vendor_id: string
         }
@@ -3354,10 +3596,18 @@ export type Database = {
           id?: string
           invite_code?: string
           is_used?: boolean | null
+          outlet_id?: string | null
           used_by?: string | null
           vendor_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "vendor_rider_invites_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_outlets"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "vendor_rider_invites_used_by_fkey"
             columns: ["used_by"]
@@ -3387,6 +3637,7 @@ export type Database = {
           id: string
           invite_code: string
           is_active: boolean | null
+          outlet_id: string | null
           restriction_mode: string | null
           rider_profile_id: string
           updated_at: string | null
@@ -3397,6 +3648,7 @@ export type Database = {
           id?: string
           invite_code: string
           is_active?: boolean | null
+          outlet_id?: string | null
           restriction_mode?: string | null
           rider_profile_id: string
           updated_at?: string | null
@@ -3407,12 +3659,20 @@ export type Database = {
           id?: string
           invite_code?: string
           is_active?: boolean | null
+          outlet_id?: string | null
           restriction_mode?: string | null
           rider_profile_id?: string
           updated_at?: string | null
           vendor_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "vendor_riders_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_outlets"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "vendor_riders_rider_profile_id_fkey"
             columns: ["rider_profile_id"]
@@ -3445,6 +3705,7 @@ export type Database = {
           invite_email: string | null
           invited_by: string | null
           is_active: boolean | null
+          outlet_id: string | null
           permissions: string[] | null
           role: Database["public"]["Enums"]["vendor_staff_role"]
           updated_at: string | null
@@ -3459,6 +3720,7 @@ export type Database = {
           invite_email?: string | null
           invited_by?: string | null
           is_active?: boolean | null
+          outlet_id?: string | null
           permissions?: string[] | null
           role?: Database["public"]["Enums"]["vendor_staff_role"]
           updated_at?: string | null
@@ -3473,6 +3735,7 @@ export type Database = {
           invite_email?: string | null
           invited_by?: string | null
           is_active?: boolean | null
+          outlet_id?: string | null
           permissions?: string[] | null
           role?: Database["public"]["Enums"]["vendor_staff_role"]
           updated_at?: string | null
@@ -3480,6 +3743,13 @@ export type Database = {
           vendor_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "vendor_staff_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_outlets"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "vendor_staff_vendor_id_fkey"
             columns: ["vendor_id"]
@@ -3546,6 +3816,7 @@ export type Database = {
           id: string
           is_closed: boolean | null
           open_time: string
+          outlet_id: string | null
           vendor_id: string
         }
         Insert: {
@@ -3554,6 +3825,7 @@ export type Database = {
           id?: string
           is_closed?: boolean | null
           open_time: string
+          outlet_id?: string | null
           vendor_id: string
         }
         Update: {
@@ -3562,9 +3834,17 @@ export type Database = {
           id?: string
           is_closed?: boolean | null
           open_time?: string
+          outlet_id?: string | null
           vendor_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "vendor_working_hours_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_outlets"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "vendor_working_hours_vendor_id_fkey"
             columns: ["vendor_id"]
@@ -3711,6 +3991,7 @@ export type Database = {
           metadata: Json | null
           notes: string | null
           order_id: string | null
+          outlet_id: string | null
           paystack_reference: string | null
           platform_wallet_id: string | null
           reference: string | null
@@ -3730,6 +4011,7 @@ export type Database = {
           metadata?: Json | null
           notes?: string | null
           order_id?: string | null
+          outlet_id?: string | null
           paystack_reference?: string | null
           platform_wallet_id?: string | null
           reference?: string | null
@@ -3749,6 +4031,7 @@ export type Database = {
           metadata?: Json | null
           notes?: string | null
           order_id?: string | null
+          outlet_id?: string | null
           paystack_reference?: string | null
           platform_wallet_id?: string | null
           reference?: string | null
@@ -3764,6 +4047,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wallet_transactions_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_outlets"
             referencedColumns: ["id"]
           },
           {
@@ -3802,6 +4092,7 @@ export type Database = {
           is_disabled: boolean | null
           menu_earnings_balance: number | null
           menu_earnings_pending: number | null
+          outlet_id: string | null
           paystack_customer_code: string | null
           paystack_customer_id: number | null
           paystack_recipient_code: string | null
@@ -3842,6 +4133,7 @@ export type Database = {
           is_disabled?: boolean | null
           menu_earnings_balance?: number | null
           menu_earnings_pending?: number | null
+          outlet_id?: string | null
           paystack_customer_code?: string | null
           paystack_customer_id?: number | null
           paystack_recipient_code?: string | null
@@ -3882,6 +4174,7 @@ export type Database = {
           is_disabled?: boolean | null
           menu_earnings_balance?: number | null
           menu_earnings_pending?: number | null
+          outlet_id?: string | null
           paystack_customer_code?: string | null
           paystack_customer_id?: number | null
           paystack_recipient_code?: string | null
@@ -3903,7 +4196,15 @@ export type Database = {
           user_id?: string
           wallet_type?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "wallets_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_outlets"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       withdrawal_otps: {
         Row: {
@@ -4113,6 +4414,7 @@ export type Database = {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["admin_staff_role"]
       }
+      get_default_outlet_id: { Args: { _vendor_id: string }; Returns: string }
       get_delivery_company_staff_role: {
         Args: { _company_id: string; _user_id: string }
         Returns: Database["public"]["Enums"]["delivery_company_staff_role"]
@@ -4141,6 +4443,10 @@ export type Database = {
       }
       owns_delivery_company: {
         Args: { _company_id: string; _user_id: string }
+        Returns: boolean
+      }
+      owns_outlet: {
+        Args: { _outlet_id: string; _user_id: string }
         Returns: boolean
       }
       owns_vendor: {
