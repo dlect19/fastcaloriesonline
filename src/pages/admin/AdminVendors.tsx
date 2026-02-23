@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { VendorCoordinateEditor } from '@/components/admin/VendorCoordinateEditor';
 import { VendorGeoLockManager } from '@/components/admin/VendorGeoLockManager';
 import { AdminVendorNameEditor } from '@/components/admin/AdminVendorNameEditor';
+import { AdminOutletList } from '@/components/admin/AdminOutletList';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 
 export default function AdminVendors() {
@@ -171,6 +172,7 @@ export default function AdminVendors() {
           <TabsList>
             <TabsTrigger value="approved">Approved ({vendors.length})</TabsTrigger>
             <TabsTrigger value="pending">Pending ({pendingVendors.length})</TabsTrigger>
+            <TabsTrigger value="outlets">Outlets</TabsTrigger>
           </TabsList>
 
           <TabsContent value="approved">
@@ -302,8 +304,10 @@ export default function AdminVendors() {
               </CardContent>
             </Card>
           </TabsContent>
+          <TabsContent value="outlets">
+            <AdminOutletList vendors={vendors} onRefresh={fetchVendors} />
+          </TabsContent>
         </Tabs>
-
         {/* Geo-Lock Manager Dialog */}
         {geoLockVendor && (
           <VendorGeoLockManager
