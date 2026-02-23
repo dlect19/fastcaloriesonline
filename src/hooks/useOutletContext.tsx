@@ -20,7 +20,13 @@ const OutletContext = createContext<OutletContextValue>({
   refreshOutlets: async () => {},
 });
 
-export function OutletProvider({ vendorId, children }: { vendorId: string | null; children: ReactNode }) {
+interface OutletProviderProps {
+  vendorId: string | null;
+  children: ReactNode;
+  onOutletChange?: (outletId: string | null) => void;
+}
+
+export function OutletProvider({ vendorId, children, onOutletChange }: OutletProviderProps) {
   const [outlets, setOutlets] = useState<VendorOutlet[]>([]);
   const [selectedOutletId, setSelectedOutletId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -74,6 +80,11 @@ export function OutletProvider({ vendorId, children }: { vendorId: string | null
       supabase.removeChannel(channel);
     };
   }, [vendorId]);
+
+  // Notify parent when outlet changes
+  useEffect(() => {
+    onOutletChange?.(selectedOutletId);
+  }, [selectedOutletId, onOutletChange]);
 
   const selectedOutlet = outlets.find(o => o.id === selectedOutletId) || null;
 

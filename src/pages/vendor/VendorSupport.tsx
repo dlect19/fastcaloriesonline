@@ -73,7 +73,7 @@ export default function VendorSupport() {
 
   return (
     <div className="min-h-screen bg-background flex">
-      <VendorSidebar vendorName={vendorName} permissions={permissions} />
+      <VendorSidebar vendorName={vendorName} permissions={permissions} vendorId={vendorId || undefined} />
       <main className="flex-1 lg:ml-64 p-6 pt-20 lg:pt-6">
         <SupportPage userId={userId} userType="vendor" />
       </main>
