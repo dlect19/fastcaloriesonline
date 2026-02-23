@@ -15,6 +15,7 @@ import {
   Ticket,
   Users,
   MessageSquare,
+  Settings2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -22,6 +23,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useState, useEffect } from 'react';
 import { VendorPermission } from '@/hooks/useVendorPermissions';
 import { useAutoStoreStatus } from '@/hooks/useAutoStoreStatus';
+import { OutletSwitcher } from '@/components/vendor/OutletSwitcher';
+import { AddOutletDialog } from '@/components/vendor/AddOutletDialog';
+
 
 // Map nav items to required permissions
 const navItems: { 
@@ -41,8 +45,9 @@ const navItems: {
   { id: 'earnings', icon: Wallet, label: 'Earnings', path: '/vendor/earnings', permission: 'view_earnings' },
   { id: 'withdraw', icon: ArrowUpRight, label: 'Withdraw', path: '/vendor/withdraw', permission: 'request_withdrawal' },
   { id: 'hours', icon: Clock, label: 'Working Hours', path: '/vendor/hours', permission: 'edit_settings' },
+  { id: 'store-settings', icon: Settings2, label: 'Store Settings', path: '/vendor/store-settings', permission: 'edit_settings' },
   { id: 'support', icon: MessageSquare, label: 'Support', path: '/vendor/support' },
-  { id: 'settings', icon: Settings, label: 'Settings', path: '/vendor/settings', permission: 'edit_settings' },
+  { id: 'settings', icon: Settings, label: 'Main Settings', path: '/vendor/settings', permission: 'edit_settings' },
 ];
 
 interface VendorSidebarProps {
@@ -57,6 +62,7 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
   const [collapsed, setCollapsed] = useState(false);
   const [newOrderCount, setNewOrderCount] = useState(0);
   const [resolvedVendorId, setResolvedVendorId] = useState<string | null>(vendorId || null);
+  const [addOutletOpen, setAddOutletOpen] = useState(false);
 
   // Resolve vendor ID from auth user if not provided
   useEffect(() => {
@@ -189,6 +195,14 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
           </Button>
         </div>
 
+        {/* Outlet Switcher */}
+        <div className="px-3 pt-3 pb-1">
+          <OutletSwitcher
+            collapsed={collapsed}
+            onAddOutlet={() => setAddOutletOpen(true)}
+          />
+        </div>
+
         {/* Navigation */}
         <nav className="p-3 space-y-1">
           {visibleItems.map((item) => {
@@ -238,6 +252,15 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
         <div
           className="lg:hidden fixed inset-0 bg-black/50 z-30"
           onClick={() => setCollapsed(true)}
+        />
+      )}
+
+      {/* Add Outlet Dialog */}
+      {resolvedVendorId && (
+        <AddOutletDialog
+          open={addOutletOpen}
+          onOpenChange={setAddOutletOpen}
+          vendorId={resolvedVendorId}
         />
       )}
     </>
