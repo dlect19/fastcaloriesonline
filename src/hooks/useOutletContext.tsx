@@ -52,6 +52,27 @@ export function OutletProvider({ vendorId, children }: { vendorId: string | null
 
   useEffect(() => {
     fetchOutlets();
+
+    if (!vendorId) return;
+
+    // Subscribe to realtime changes so admin approvals and new outlets appear instantly
+    const channel = supabase
+      .channel(`outlet-context-${vendorId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'vendor_outlets',
+          filter: `vendor_id=eq.${vendorId}`,
+        },
+        () => fetchOutlets()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [vendorId]);
 
   const selectedOutlet = outlets.find(o => o.id === selectedOutletId) || null;
