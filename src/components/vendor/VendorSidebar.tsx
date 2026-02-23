@@ -23,6 +23,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useState, useEffect } from 'react';
 import { VendorPermission } from '@/hooks/useVendorPermissions';
 import { useAutoStoreStatus } from '@/hooks/useAutoStoreStatus';
+import { OutletProvider } from '@/hooks/useOutletContext';
 import { OutletSwitcher } from '@/components/vendor/OutletSwitcher';
 import { AddOutletDialog } from '@/components/vendor/AddOutletDialog';
 
@@ -195,13 +196,15 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
           </Button>
         </div>
 
-        {/* Outlet Switcher */}
-        <div className="px-3 pt-3 pb-1">
-          <OutletSwitcher
-            collapsed={collapsed}
-            onAddOutlet={() => setAddOutletOpen(true)}
-          />
-        </div>
+        {/* Outlet Switcher - wrapped in own provider for pages that don't use VendorLayout */}
+        <OutletProvider vendorId={resolvedVendorId}>
+          <div className="px-3 pt-3 pb-1">
+            <OutletSwitcher
+              collapsed={collapsed}
+              onAddOutlet={() => setAddOutletOpen(true)}
+            />
+          </div>
+        </OutletProvider>
 
         {/* Navigation */}
         <nav className="p-3 space-y-1">
