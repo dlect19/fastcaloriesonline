@@ -55,9 +55,10 @@ interface VendorSidebarProps {
   vendorName?: string;
   permissions?: VendorPermission[];
   vendorId?: string;
+  onOutletChange?: (outletId: string | null) => void;
 }
 
-export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], vendorId }: VendorSidebarProps) {
+export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], vendorId, onOutletChange }: VendorSidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
@@ -197,7 +198,7 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
         </div>
 
         {/* Outlet Switcher - wrapped in own provider for pages that don't use VendorLayout */}
-        <OutletProvider vendorId={resolvedVendorId}>
+        <OutletProvider vendorId={resolvedVendorId} onOutletChange={onOutletChange}>
           <div className="px-3 pt-3 pb-1">
             <OutletSwitcher
               collapsed={collapsed}

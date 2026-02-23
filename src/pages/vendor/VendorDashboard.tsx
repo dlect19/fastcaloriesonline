@@ -53,6 +53,7 @@ export default function VendorDashboard() {
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [orderItems, setOrderItems] = useState<Record<string, any[]>>({});
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
+  const [selectedOutletId, setSelectedOutletId] = useState<string | null>(null);
   const [stats, setStats] = useState({
     todayOrders: 0,
     todayRevenue: 0,
@@ -82,12 +83,19 @@ export default function VendorDashboard() {
     }
   }, [user, authLoading, navigate, profileLoading, profileComplete]);
 
-  // Refetch stats when date range changes
+  // Refetch stats when date range or selected outlet changes
   useEffect(() => {
     if (vendor) {
       fetchFilteredStats(vendor);
     }
-  }, [dateRange]);
+  }, [dateRange, selectedOutletId]);
+
+  // Refetch orders when outlet changes
+  useEffect(() => {
+    if (vendor) {
+      fetchVendorData();
+    }
+  }, [selectedOutletId]);
 
   // Subscribe to vendor status changes (auto-open/close from sidebar hook)
   useEffect(() => {
@@ -177,7 +185,7 @@ export default function VendorDashboard() {
       const { start, end } = getDateRangeForQuery();
 
       // Fetch DELIVERED paid orders for the date range
-      const { data: deliveredOrders } = await supabase
+      let deliveredQuery = supabase
         .from('orders')
         .select('id, subtotal, menu_subtotal')
         .eq('vendor_id', vendorData.id)
@@ -185,9 +193,11 @@ export default function VendorDashboard() {
         .eq('status', 'delivered')
         .gte('created_at', start)
         .lt('created_at', end);
+      if (selectedOutletId) deliveredQuery = deliveredQuery.eq('outlet_id', selectedOutletId);
+      const { data: deliveredOrders } = await deliveredQuery;
 
       // Fetch IN-TRANSIT paid orders for the date range
-      const { data: inTransitOrders } = await supabase
+      let inTransitQuery = supabase
         .from('orders')
         .select('id, subtotal, menu_subtotal')
         .eq('vendor_id', vendorData.id)
@@ -195,6 +205,8 @@ export default function VendorDashboard() {
         .in('status', ['confirmed', 'preparing', 'ready_for_pickup', 'picked_up', 'on_the_way'])
         .gte('created_at', start)
         .lt('created_at', end);
+      if (selectedOutletId) inTransitQuery = inTransitQuery.eq('outlet_id', selectedOutletId);
+      const { data: inTransitOrders } = await inTransitQuery;
 
       const revenue = (deliveredOrders || []).reduce(
         (sum, o) => sum + Number(o.subtotal || 0), 0
@@ -250,21 +262,25 @@ export default function VendorDashboard() {
 
       if (vendorData) {
         // Fetch recent orders for display (limit 5)
-        const { data: ordersData } = await supabase
+        let recentQuery = supabase
           .from('orders')
           .select('*')
           .eq('vendor_id', vendorData.id)
           .order('created_at', { ascending: false })
           .limit(5);
+        if (selectedOutletId) recentQuery = recentQuery.eq('outlet_id', selectedOutletId);
+        const { data: ordersData } = await recentQuery;
 
         setOrders(ordersData || []);
 
         // Count pending orders (all, not just recent 5)
-        const { count: pendingCount } = await supabase
+        let pendingQuery = supabase
           .from('orders')
           .select('id', { count: 'exact', head: true })
           .eq('vendor_id', vendorData.id)
           .in('status', ['pending', 'confirmed', 'preparing']);
+        if (selectedOutletId) pendingQuery = pendingQuery.eq('outlet_id', selectedOutletId);
+        const { count: pendingCount } = await pendingQuery;
 
         // Fetch vendor wallet for revenue pools
         const { data: wallet } = await supabase
@@ -374,7 +390,7 @@ export default function VendorDashboard() {
   if (authLoading || loading || permLoading) {
     return (
       <div className="min-h-screen bg-background">
-        <VendorSidebar />
+        <VendorSidebar onOutletChange={setSelectedOutletId} />
         <main className="lg:ml-64 pt-14 lg:pt-0">
           <div className="p-6 space-y-6">
             <Skeleton className="h-8 w-48" />
@@ -405,7 +421,7 @@ export default function VendorDashboard() {
   if (!hasPermission('view_dashboard')) {
     return (
       <div className="min-h-screen bg-background">
-        <VendorSidebar vendorName={vendor.name} permissions={permissions} />
+        <VendorSidebar vendorName={vendor.name} permissions={permissions} onOutletChange={setSelectedOutletId} />
         <main className="lg:ml-64 pt-14 lg:pt-0">
           <AccessDenied />
         </main>
@@ -415,7 +431,7 @@ export default function VendorDashboard() {
 
   return (
     <div className="min-h-screen bg-background">
-      <VendorSidebar vendorName={vendor.name} permissions={permissions} />
+      <VendorSidebar vendorName={vendor.name} permissions={permissions} onOutletChange={setSelectedOutletId} />
 
       <main className="lg:ml-64 pt-14 lg:pt-0">
         <div className="p-6 space-y-6">

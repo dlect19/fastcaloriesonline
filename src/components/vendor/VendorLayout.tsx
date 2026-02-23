@@ -8,13 +8,14 @@ interface VendorLayoutProps {
   vendorName?: string;
   vendorId?: string;
   permissions?: VendorPermission[];
+  onOutletChange?: (outletId: string | null) => void;
 }
 
-export function VendorLayout({ children, vendorName, vendorId, permissions }: VendorLayoutProps) {
+export function VendorLayout({ children, vendorName, vendorId, permissions, onOutletChange }: VendorLayoutProps) {
   return (
-    <OutletProvider vendorId={vendorId || null}>
+    <OutletProvider vendorId={vendorId || null} onOutletChange={onOutletChange}>
       <div className="min-h-screen bg-background">
-        <VendorSidebar vendorName={vendorName} vendorId={vendorId} permissions={permissions} />
+        <VendorSidebar vendorName={vendorName} vendorId={vendorId} permissions={permissions} onOutletChange={onOutletChange} />
         <main className="lg:ml-64 pt-14 lg:pt-0">
           {children}
         </main>
