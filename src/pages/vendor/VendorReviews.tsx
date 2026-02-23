@@ -18,6 +18,7 @@ export default function VendorReviews() {
   const [vendor, setVendor] = useState<Vendor | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedOutletId, setSelectedOutletId] = useState<string | null>(null);
   const { permissions } = useVendorPermissions(vendor?.id ?? null);
 
   useEffect(() => {
@@ -28,7 +29,7 @@ export default function VendorReviews() {
     if (user) {
       fetchData();
     }
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading, navigate, selectedOutletId]);
 
   const fetchData = async () => {
     try {
@@ -65,11 +66,17 @@ export default function VendorReviews() {
       setVendor(vendorData);
 
       if (vendorData) {
-        const { data: reviewsData } = await supabase
+        let reviewsQuery = supabase
           .from('reviews')
           .select('*')
           .eq('vendor_id', vendorData.id)
           .order('created_at', { ascending: false });
+
+        if (selectedOutletId) {
+          reviewsQuery = reviewsQuery.eq('outlet_id', selectedOutletId);
+        }
+
+        const { data: reviewsData } = await reviewsQuery;
 
         setReviews(reviewsData || []);
       }
@@ -95,7 +102,7 @@ export default function VendorReviews() {
   if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-background">
-        <VendorSidebar permissions={permissions} />
+        <VendorSidebar permissions={permissions} onOutletChange={setSelectedOutletId} />
         <main className="lg:ml-64 pt-14 lg:pt-0">
           <div className="p-6 space-y-6">
             <Skeleton className="h-8 w-48" />
@@ -108,7 +115,7 @@ export default function VendorReviews() {
 
   return (
     <div className="min-h-screen bg-background">
-      <VendorSidebar vendorName={vendor?.name} permissions={permissions} />
+      <VendorSidebar vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId} />
 
       <main className="lg:ml-64 pt-14 lg:pt-0">
         <div className="p-6 space-y-6">

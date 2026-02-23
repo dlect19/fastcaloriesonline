@@ -70,6 +70,7 @@ export default function VendorRiders() {
   const [currentInviteLink, setCurrentInviteLink] = useState('');
   const [deliveryRevenue, setDeliveryRevenue] = useState(0);
   const [revenueDateRange, setRevenueDateRange] = useState<DateRange>({ from: undefined, to: undefined });
+  const [selectedOutletId, setSelectedOutletId] = useState<string | null>(null);
 
   const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendor?.id || null);
 
@@ -83,7 +84,7 @@ export default function VendorRiders() {
     if (user) {
       fetchData();
     }
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading, navigate, selectedOutletId]);
 
   const fetchDeliveryRevenue = async (vendorId: string, riderUserIds: string[], dateRange?: DateRange) => {
     try {
@@ -164,7 +165,7 @@ export default function VendorRiders() {
 
       if (vendorData) {
         // Fetch vendor's riders
-        const { data: ridersData } = await supabase
+        let ridersQuery = supabase
           .from('vendor_riders')
           .select(`
             id,
@@ -186,6 +187,12 @@ export default function VendorRiders() {
           `)
           .eq('vendor_id', vendorData.id)
           .order('created_at', { ascending: false });
+
+        if (selectedOutletId) {
+          ridersQuery = ridersQuery.eq('outlet_id', selectedOutletId);
+        }
+
+        const { data: ridersData } = await ridersQuery;
 
         // Get profile names and phone for each rider
         const ridersWithDetails = await Promise.all(
@@ -354,7 +361,7 @@ export default function VendorRiders() {
   if (authLoading || loading || permLoading) {
     return (
       <div className="min-h-screen bg-background">
-        <VendorSidebar />
+        <VendorSidebar onOutletChange={setSelectedOutletId} />
         <main className="lg:ml-64 pt-14 lg:pt-0">
           <div className="p-6 space-y-6">
             <Skeleton className="h-8 w-48" />
@@ -382,7 +389,7 @@ export default function VendorRiders() {
 
   return (
     <div className="min-h-screen bg-background">
-      <VendorSidebar vendorName={vendor?.name} permissions={permissions} />
+      <VendorSidebar vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId} />
 
       <main className="lg:ml-64 pt-14 lg:pt-0">
         <div className="p-6 space-y-6">

@@ -71,6 +71,7 @@ export default function VendorWithdraw() {
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
   const [allTransactions, setAllTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedOutletId, setSelectedOutletId] = useState<string | null>(null);
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
   const [bankDialogOpen, setBankDialogOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
@@ -117,7 +118,7 @@ export default function VendorWithdraw() {
     if (user) {
       fetchData();
     }
-  }, [user, authLoading, navigate, isTestMode]);
+  }, [user, authLoading, navigate, isTestMode, selectedOutletId]);
 
   const fetchData = async () => {
     try {
@@ -152,13 +153,20 @@ export default function VendorWithdraw() {
 
       setVendor(vendorData);
 
-      // Fetch vendor wallet specifically
-      const { data: walletData } = await supabase
+      // Fetch vendor wallet specifically - use outlet wallet if selected
+      let walletQuery = supabase
         .from('wallets')
         .select('*')
         .eq('user_id', user?.id)
-        .eq('wallet_type', 'vendor')
-        .maybeSingle();
+        .eq('wallet_type', 'vendor');
+
+      if (selectedOutletId) {
+        walletQuery = walletQuery.eq('outlet_id', selectedOutletId);
+      } else {
+        walletQuery = walletQuery.is('outlet_id', null);
+      }
+
+      const { data: walletData } = await walletQuery.maybeSingle();
 
       if (walletData) {
         // Use test columns if in test mode, otherwise production columns
@@ -522,7 +530,7 @@ export default function VendorWithdraw() {
   if (authLoading || loading || permLoading) {
     return (
       <div className="min-h-screen bg-background">
-        <VendorSidebar />
+        <VendorSidebar onOutletChange={setSelectedOutletId} />
         <main className="lg:ml-64 pt-14 lg:pt-0">
           <div className="p-6 space-y-6">
             <Skeleton className="h-8 w-48" />
@@ -540,7 +548,7 @@ export default function VendorWithdraw() {
   if (!hasPermission('request_withdrawal')) {
     return (
       <div className="min-h-screen bg-background">
-        <VendorSidebar vendorName={vendor?.name} permissions={permissions} />
+        <VendorSidebar vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId} />
         <main className="lg:ml-64 pt-14 lg:pt-0">
           <AccessDenied message="You don't have permission to request withdrawals." />
         </main>
@@ -550,7 +558,7 @@ export default function VendorWithdraw() {
 
   return (
     <div className="min-h-screen bg-background">
-      <VendorSidebar vendorName={vendor?.name} permissions={permissions} />
+      <VendorSidebar vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId} />
 
       <main className="lg:ml-64 pt-14 lg:pt-0">
         <div className="p-6 space-y-6">
