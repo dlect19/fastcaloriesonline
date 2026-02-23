@@ -217,15 +217,32 @@ function calculateRiderPayout(
   };
 }
 
+async function getVehicleTypeConfigs(supabase: any): Promise<Record<string, number>> {
+  const { data } = await supabase
+    .from('vehicle_type_configs')
+    .select('vehicle_type, max_delivery_distance_km')
+    .eq('is_active', true);
+
+  const configs: Record<string, number> = {};
+  (data || []).forEach((c: any) => {
+    configs[c.vehicle_type] = c.max_delivery_distance_km;
+  });
+  return configs;
+}
+
 async function findEligibleRiders(
   supabase: any,
   vendorId: string,
   vendorLat: number,
   vendorLon: number,
   radiusKm: number,
-  priorityTier: string
+  priorityTier: string,
+  deliveryDistanceKm: number
 ): Promise<EligibleRider[]> {
-  console.log(`Finding ${priorityTier} riders within ${radiusKm}km of vendor`);
+  console.log(`Finding ${priorityTier} riders within ${radiusKm}km of vendor (delivery distance: ${deliveryDistanceKm.toFixed(1)}km)`);
+
+  // Fetch vehicle type configs for distance enforcement
+  const vehicleMaxDistances = await getVehicleTypeConfigs(supabase);
 
   const { data: vendorRiders } = await supabase
     .from('vendor_riders')
@@ -237,7 +254,7 @@ async function findEligibleRiders(
 
   const { data: riders, error } = await supabase
     .from('rider_profiles')
-    .select('id, user_id, current_latitude, current_longitude, preferred_latitude, preferred_longitude, work_radius_km, affiliated_vendor_id, delivery_company_id, nin_verified')
+    .select('id, user_id, current_latitude, current_longitude, preferred_latitude, preferred_longitude, work_radius_km, affiliated_vendor_id, delivery_company_id, nin_verified, vehicle_type')
     .eq('is_online', true)
     .eq('is_verified', true)
     .eq('is_email_verified', true)
@@ -249,8 +266,18 @@ async function findEligibleRiders(
   }
 
   const eligibleRiders: EligibleRider[] = [];
+  let skippedVehicle = 0;
 
   for (const rider of riders) {
+    // Vehicle type distance enforcement
+    if (rider.vehicle_type && deliveryDistanceKm > 0) {
+      const maxDist = vehicleMaxDistances[rider.vehicle_type];
+      if (maxDist !== undefined && deliveryDistanceKm > maxDist) {
+        skippedVehicle++;
+        continue;
+      }
+    }
+
     const isVendorRider = vendorRiderProfileIds.includes(rider.id) || rider.affiliated_vendor_id === vendorId;
     const isDeliveryCompanyRider = !!rider.delivery_company_id;
 
@@ -279,6 +306,10 @@ async function findEligibleRiders(
         preferred_longitude: rider.preferred_longitude,
       });
     }
+  }
+
+  if (skippedVehicle > 0) {
+    console.log(`Skipped ${skippedVehicle} riders due to vehicle type distance limits`);
   }
 
   return eligibleRiders.sort((a, b) => a.distance_km - b.distance_km);
