@@ -14,6 +14,7 @@ export default function VendorStaff() {
   const [vendorId, setVendorId] = useState<string | null>(null);
   const [vendorName, setVendorName] = useState('');
   const [loading, setLoading] = useState(true);
+  const [selectedOutletId, setSelectedOutletId] = useState<string | null>(null);
   const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendorId);
 
   useEffect(() => {
@@ -76,7 +77,7 @@ export default function VendorStaff() {
   if (!hasPermission('manage_staff')) {
     return (
       <div className="min-h-screen bg-background flex">
-        <VendorSidebar vendorName={vendorName} permissions={permissions} />
+        <VendorSidebar vendorName={vendorName} permissions={permissions} onOutletChange={setSelectedOutletId} />
         <main className="flex-1 lg:ml-64 pt-14 lg:pt-0">
           <div className="p-6 flex items-center justify-center min-h-screen">
             <div className="text-center">
@@ -91,7 +92,7 @@ export default function VendorStaff() {
 
   return (
     <div className="min-h-screen bg-background flex">
-      <VendorSidebar vendorName={vendorName} permissions={permissions} />
+      <VendorSidebar vendorName={vendorName} permissions={permissions} onOutletChange={setSelectedOutletId} />
       <main className="flex-1 lg:ml-64 pt-14 lg:pt-0">
         <div className="p-6">
           <Tabs defaultValue="staff">

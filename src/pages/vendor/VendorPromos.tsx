@@ -41,6 +41,7 @@ export default function VendorPromos() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [selectedOutletId, setSelectedOutletId] = useState<string | null>(null);
 
   const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendor?.id || null);
 
@@ -64,7 +65,7 @@ export default function VendorPromos() {
     if (user) {
       fetchData();
     }
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading, navigate, selectedOutletId]);
 
   const fetchData = async () => {
     try {
@@ -100,11 +101,17 @@ export default function VendorPromos() {
       setVendor(vendorData);
 
       if (vendorData) {
-        const { data: promosData } = await supabase
+        const promoQuery = supabase
           .from('promo_codes')
           .select('*')
           .eq('vendor_id', vendorData.id)
           .order('created_at', { ascending: false });
+
+        if (selectedOutletId) {
+          promoQuery.eq('outlet_id', selectedOutletId);
+        }
+
+        const { data: promosData } = await promoQuery;
 
         setPromos(promosData || []);
       }
@@ -138,6 +145,7 @@ export default function VendorPromos() {
         per_user_limit: formData.per_user_limit ? parseInt(formData.per_user_limit) : null,
         valid_until: formData.valid_until || null,
         vendor_id: vendor.id,
+        outlet_id: selectedOutletId || null,
         scope: 'vendor',
         is_active: true,
       });
@@ -214,7 +222,7 @@ export default function VendorPromos() {
   if (authLoading || loading || permLoading) {
     return (
       <div className="min-h-screen bg-background">
-        <VendorSidebar />
+        <VendorSidebar onOutletChange={setSelectedOutletId} />
         <main className="lg:ml-64 pt-14 lg:pt-0">
           <div className="p-6 space-y-6">
             <Skeleton className="h-8 w-48" />
@@ -232,7 +240,7 @@ export default function VendorPromos() {
   if (!hasPermission('manage_promos')) {
     return (
       <div className="min-h-screen bg-background">
-        <VendorSidebar vendorName={vendor?.name} permissions={permissions} />
+        <VendorSidebar vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId} />
         <main className="lg:ml-64 pt-14 lg:pt-0">
           <AccessDenied message="You don't have permission to manage promo codes." />
         </main>
@@ -242,7 +250,7 @@ export default function VendorPromos() {
 
   return (
     <div className="min-h-screen bg-background">
-      <VendorSidebar vendorName={vendor?.name} permissions={permissions} />
+      <VendorSidebar vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId} />
 
       <main className="lg:ml-64 pt-14 lg:pt-0">
         <div className="p-6 space-y-6">

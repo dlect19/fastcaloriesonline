@@ -63,6 +63,7 @@ export default function VendorEarnings() {
   const [allTransactions, setAllTransactions] = useState<WalletTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
+  const [selectedOutletId, setSelectedOutletId] = useState<string | null>(null);
   const [txPage, setTxPage] = useState(1);
   const TX_PER_PAGE = 10;
   const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendor?.id || null);
@@ -83,7 +84,7 @@ export default function VendorEarnings() {
       fetchData();
       setTxPage(1);
     }
-  }, [user, authLoading, navigate, dateRange, isTestMode]);
+  }, [user, authLoading, navigate, dateRange, isTestMode, selectedOutletId]);
 
   const fetchData = async () => {
     try {
@@ -136,12 +137,19 @@ export default function VendorEarnings() {
       const vendorOwnerId = vendorFull?.user_id;
 
       // Get or create wallet for vendor - specifically the vendor wallet
-      let { data: walletData } = await supabase
+      let walletQuery = supabase
         .from('wallets')
         .select('*')
         .eq('user_id', vendorOwnerId)
-        .eq('wallet_type', 'vendor')
-        .maybeSingle();
+        .eq('wallet_type', 'vendor');
+
+      if (selectedOutletId) {
+        walletQuery = walletQuery.eq('outlet_id', selectedOutletId);
+      } else {
+        walletQuery = walletQuery.is('outlet_id', null);
+      }
+
+      let { data: walletData } = await walletQuery.maybeSingle();
 
       // Auto-create wallet if it doesn't exist for vendor
       if (!walletData && vendorOwnerId) {
@@ -337,7 +345,7 @@ export default function VendorEarnings() {
   if (authLoading || loading || permLoading) {
     return (
       <div className="min-h-screen bg-background">
-        <VendorSidebar />
+        <VendorSidebar onOutletChange={setSelectedOutletId} />
         <main className="lg:ml-64 pt-14 lg:pt-0">
           <div className="p-6 space-y-6">
             <Skeleton className="h-8 w-48" />
@@ -355,7 +363,7 @@ export default function VendorEarnings() {
   if (!hasPermission('view_earnings')) {
     return (
       <div className="min-h-screen bg-background">
-        <VendorSidebar vendorName={vendor?.name} permissions={permissions} />
+        <VendorSidebar vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId} />
         <main className="lg:ml-64 pt-14 lg:pt-0">
           <AccessDenied message="You don't have permission to view earnings." />
         </main>
@@ -367,7 +375,7 @@ export default function VendorEarnings() {
 
   return (
     <div className="min-h-screen bg-background">
-      <VendorSidebar vendorName={vendor?.name} permissions={permissions} />
+      <VendorSidebar vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId} />
 
       <main className="lg:ml-64 pt-14 lg:pt-0">
         <div className="p-6 space-y-6">

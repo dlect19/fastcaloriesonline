@@ -41,6 +41,7 @@ export default function VendorHours() {
   const [vendor, setVendor] = useState<Vendor | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [selectedOutletId, setSelectedOutletId] = useState<string | null>(null);
   const [schedule, setSchedule] = useState<DaySchedule[]>(
     DAYS.map((day) => ({
       day_of_week: day.id,
@@ -60,7 +61,7 @@ export default function VendorHours() {
     if (user) {
       fetchData();
     }
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading, navigate, selectedOutletId]);
 
   const fetchData = async () => {
     try {
@@ -96,10 +97,16 @@ export default function VendorHours() {
       setVendor(vendorData);
 
       if (vendorData) {
-        const { data: hoursData } = await supabase
+        let hoursQuery = supabase
           .from('vendor_working_hours')
           .select('*')
           .eq('vendor_id', vendorData.id);
+
+        if (selectedOutletId) {
+          hoursQuery = hoursQuery.eq('outlet_id', selectedOutletId);
+        }
+
+        const { data: hoursData } = await hoursQuery;
 
         if (hoursData && hoursData.length > 0) {
           setSchedule(
@@ -134,11 +141,17 @@ export default function VendorHours() {
     setSaving(true);
 
     try {
-      // Delete existing hours
-      await supabase
+      // Delete existing hours for this vendor/outlet
+      let deleteQuery = supabase
         .from('vendor_working_hours')
         .delete()
         .eq('vendor_id', vendor.id);
+
+      if (selectedOutletId) {
+        deleteQuery = deleteQuery.eq('outlet_id', selectedOutletId);
+      }
+
+      await deleteQuery;
 
       // Insert new hours
       const { error } = await supabase
@@ -146,6 +159,7 @@ export default function VendorHours() {
         .insert(
           schedule.map((s) => ({
             vendor_id: vendor.id,
+            outlet_id: selectedOutletId || null,
             day_of_week: s.day_of_week,
             open_time: s.open_time,
             close_time: s.close_time,
@@ -178,7 +192,7 @@ export default function VendorHours() {
   if (authLoading || loading || permLoading) {
     return (
       <div className="min-h-screen bg-background">
-        <VendorSidebar />
+        <VendorSidebar onOutletChange={setSelectedOutletId} />
         <main className="lg:ml-64 pt-14 lg:pt-0">
           <div className="p-6 space-y-6">
             <Skeleton className="h-8 w-48" />
@@ -192,7 +206,7 @@ export default function VendorHours() {
   if (!hasPermission('edit_settings')) {
     return (
       <div className="min-h-screen bg-background">
-        <VendorSidebar vendorName={vendor?.name} permissions={permissions} />
+        <VendorSidebar vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId} />
         <main className="lg:ml-64 pt-14 lg:pt-0">
           <AccessDenied message="You don't have permission to edit working hours." />
         </main>
@@ -202,7 +216,7 @@ export default function VendorHours() {
 
   return (
     <div className="min-h-screen bg-background">
-      <VendorSidebar vendorName={vendor?.name} permissions={permissions} />
+      <VendorSidebar vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId} />
 
       <main className="lg:ml-64 pt-14 lg:pt-0">
         <div className="p-6 space-y-6">
