@@ -408,18 +408,23 @@ Deno.serve(async (req) => {
 
     const payoutSettings = getPayoutSettings(settingsMap);
 
-    // Find eligible riders from ALL tiers (vendor, delivery company, and platform)
-    const searchTier = 'all';
-    const eligibleRiders = await findEligibleRiders(
-      supabase, order.vendor_id, vendor.latitude, vendor.longitude,
-      dispatchSettings.initialRadiusKm, searchTier
-    );
-
-    console.log(`Found ${eligibleRiders.length} eligible riders`);
-
+    // Calculate delivery distance early (needed for vehicle type filtering)
     const address = order.addresses as any;
     const customerLat = address?.latitude || null;
     const customerLon = address?.longitude || null;
+    let deliveryDistanceKm = 0;
+    if (customerLat && customerLon) {
+      deliveryDistanceKm = calculateDistance(vendor.latitude, vendor.longitude, customerLat, customerLon);
+    }
+
+    // Find eligible riders from ALL tiers with vehicle distance enforcement
+    const searchTier = 'all';
+    const eligibleRiders = await findEligibleRiders(
+      supabase, order.vendor_id, vendor.latitude, vendor.longitude,
+      dispatchSettings.initialRadiusKm, searchTier, deliveryDistanceKm
+    );
+
+    console.log(`Found ${eligibleRiders.length} eligible riders`);
 
     // Auto-detect weather from customer or vendor location
     const weatherLat = customerLat || vendor.latitude;
@@ -429,12 +434,6 @@ Deno.serve(async (req) => {
 
     // Re-apply detected weather to payout settings
     const payoutSettingsWithWeather = getPayoutSettings(settingsMap, detectedWeather);
-
-    // Calculate delivery distance (vendor -> customer)
-    let deliveryDistanceKm = 0;
-    if (customerLat && customerLon) {
-      deliveryDistanceKm = calculateDistance(vendor.latitude, vendor.longitude, customerLat, customerLon);
-    }
 
     const expiresAt = new Date(Date.now() + dispatchSettings.acceptanceTimeoutSeconds * 1000);
     const deliveryFee = order.delivery_fee || 0;
