@@ -128,9 +128,9 @@ export default function VendorOrders() {
     fetchData();
   }, [user, authLoading, navigate, selectedOutletId, outletReady]);
 
-  // Subscribe to real-time order updates
+  // Subscribe to real-time order updates — scoped to selected outlet
   useEffect(() => {
-    if (!vendor) return;
+    if (!vendor || !selectedOutletId) return;
 
     const channel = supabase
       .channel('vendor-orders')
@@ -145,6 +145,10 @@ export default function VendorOrders() {
         (payload) => {
           const newOrder = payload.new as Order;
           const oldOrder = payload.old as Partial<Order>;
+
+          // Only react to orders for the currently selected outlet
+          const orderOutletId = (newOrder as any).outlet_id || (oldOrder as any).outlet_id;
+          if (orderOutletId !== selectedOutletId) return;
           
           if (payload.eventType === 'INSERT') {
             // Play sound for each new order
@@ -195,7 +199,7 @@ export default function VendorOrders() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [vendor]);
+  }, [vendor, selectedOutletId]);
 
   // Re-evaluate sound whenever orders change: play only if pending orders exist
   useEffect(() => {
@@ -384,7 +388,7 @@ export default function VendorOrders() {
   if (authLoading || loading || permLoading) {
     return (
       <div className="min-h-screen bg-background">
-        <VendorSidebar onOutletChange={setSelectedOutletId} />
+        <VendorSidebar onOutletChange={setSelectedOutletId} selectedOutletId={selectedOutletId} />
         <main className="lg:ml-64 pt-14 lg:pt-0">
           <div className="p-6 space-y-6">
             <Skeleton className="h-8 w-48" />
@@ -402,7 +406,7 @@ export default function VendorOrders() {
   if (!hasPermission('process_orders')) {
     return (
       <div className="min-h-screen bg-background">
-        <VendorSidebar vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId} />
+        <VendorSidebar vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId} selectedOutletId={selectedOutletId} />
         <main className="lg:ml-64 pt-14 lg:pt-0">
           <AccessDenied message="You don't have permission to manage orders." />
         </main>
@@ -738,7 +742,7 @@ export default function VendorOrders() {
 
   return (
     <div className="min-h-screen bg-background">
-      <VendorSidebar vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId} />
+      <VendorSidebar vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId} selectedOutletId={selectedOutletId} />
 
       <main className="lg:ml-64 pt-14 lg:pt-0">
         <div className="p-6 space-y-6">
