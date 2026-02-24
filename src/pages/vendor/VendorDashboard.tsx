@@ -283,12 +283,17 @@ export default function VendorDashboard() {
         const { count: pendingCount } = await pendingQuery;
 
         // Fetch vendor wallet for revenue pools
-        const { data: wallet } = await supabase
+        let walletQuery = supabase
           .from('wallets')
           .select('*')
           .eq('user_id', vendorData.user_id)
-          .eq('wallet_type', 'vendor')
-          .maybeSingle();
+          .eq('wallet_type', 'vendor');
+        if (selectedOutletId) {
+          walletQuery = walletQuery.eq('outlet_id', selectedOutletId);
+        } else {
+          walletQuery = walletQuery.is('outlet_id', null);
+        }
+        const { data: wallet } = await walletQuery.maybeSingle();
         
         setWalletData(wallet);
 

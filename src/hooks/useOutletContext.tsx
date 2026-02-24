@@ -28,8 +28,23 @@ interface OutletProviderProps {
 
 export function OutletProvider({ vendorId, children, onOutletChange }: OutletProviderProps) {
   const [outlets, setOutlets] = useState<VendorOutlet[]>([]);
-  const [selectedOutletId, setSelectedOutletId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Persist selected outlet in localStorage keyed by vendorId
+  const storageKey = vendorId ? `selected_outlet_${vendorId}` : null;
+  const [selectedOutletId, setSelectedOutletIdRaw] = useState<string | null>(() => {
+    if (storageKey) {
+      try { return localStorage.getItem(storageKey); } catch { return null; }
+    }
+    return null;
+  });
+
+  const setSelectedOutletId = (id: string) => {
+    setSelectedOutletIdRaw(id);
+    if (storageKey) {
+      try { localStorage.setItem(storageKey, id); } catch {}
+    }
+  };
 
   const fetchOutlets = async () => {
     if (!vendorId) {
@@ -47,7 +62,7 @@ export function OutletProvider({ vendorId, children, onOutletChange }: OutletPro
 
     if (!error && data) {
       setOutlets(data);
-      // Auto-select default outlet if none selected
+      // Auto-select default outlet if none selected or selected not found
       if (!selectedOutletId || !data.find(o => o.id === selectedOutletId)) {
         const defaultOutlet = data.find(o => o.is_default) || data[0];
         if (defaultOutlet) setSelectedOutletId(defaultOutlet.id);
