@@ -17,12 +17,14 @@ interface FinancialBreakdown {
 
 interface UseOrderFinancialsOptions {
   vendorId?: string;
+  outletId?: string | null;
   environment?: 'development' | 'production';
   dateRange?: DateRange;
 }
 
 export function useOrderFinancials({
   vendorId,
+  outletId,
   environment = 'production',
   dateRange,
 }: UseOrderFinancialsOptions) {
@@ -35,7 +37,7 @@ export function useOrderFinancials({
     } else {
       setLoading(false);
     }
-  }, [vendorId, environment, dateRange?.from, dateRange?.to]);
+  }, [vendorId, outletId, environment, dateRange?.from, dateRange?.to]);
 
   const fetchFinancials = async () => {
     if (!vendorId) return;
@@ -51,6 +53,10 @@ export function useOrderFinancials({
         .eq('payment_status', 'paid')
         .not('status', 'eq', 'cancelled')
         .in('status', ['delivered']);
+
+      if (outletId) {
+        orderQuery = orderQuery.eq('outlet_id', outletId);
+      }
 
       if (dateRange?.from) {
         orderQuery = orderQuery.gte('created_at', dateRange.from.toISOString());
@@ -123,12 +129,19 @@ export function useOrderFinancials({
       let deliveryOrderCount = 0;
 
       if (vendorInfo) {
-        const { data: vendorWallet } = await supabase
+        let walletQuery = supabase
           .from('wallets')
           .select('id')
           .eq('user_id', vendorInfo.user_id)
-          .eq('wallet_type', 'vendor')
-          .maybeSingle();
+          .eq('wallet_type', 'vendor');
+
+        if (outletId) {
+          walletQuery = walletQuery.eq('outlet_id', outletId);
+        } else {
+          walletQuery = walletQuery.is('outlet_id', null);
+        }
+
+        const { data: vendorWallet } = await walletQuery.maybeSingle();
 
         if (vendorWallet) {
           let riderTxQuery = supabase

@@ -32,17 +32,28 @@ export function OutletProvider({ vendorId, children, onOutletChange }: OutletPro
 
   // Persist selected outlet in localStorage keyed by vendorId
   const storageKey = vendorId ? `selected_outlet_${vendorId}` : null;
-  const [selectedOutletId, setSelectedOutletIdRaw] = useState<string | null>(() => {
-    if (storageKey) {
-      try { return localStorage.getItem(storageKey); } catch { return null; }
+
+  const getStoredOutletId = () => {
+    if (!storageKey) return null;
+    try {
+      return localStorage.getItem(storageKey);
+    } catch {
+      return null;
     }
-    return null;
-  });
+  };
+
+  const [selectedOutletId, setSelectedOutletIdRaw] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSelectedOutletIdRaw(getStoredOutletId());
+  }, [storageKey]);
 
   const setSelectedOutletId = (id: string) => {
     setSelectedOutletIdRaw(id);
     if (storageKey) {
-      try { localStorage.setItem(storageKey, id); } catch {}
+      try {
+        localStorage.setItem(storageKey, id);
+      } catch {}
     }
   };
 
@@ -62,12 +73,24 @@ export function OutletProvider({ vendorId, children, onOutletChange }: OutletPro
 
     if (!error && data) {
       setOutlets(data);
-      // Auto-select default outlet if none selected or selected not found
-      if (!selectedOutletId || !data.find(o => o.id === selectedOutletId)) {
-        const defaultOutlet = data.find(o => o.is_default) || data[0];
+
+      // Keep persisted/current selection if still valid; otherwise fallback to default
+      const storedOutletId = getStoredOutletId();
+      const preferredOutletId = selectedOutletId || storedOutletId;
+      const preferredOutlet = preferredOutletId
+        ? data.find((o) => o.id === preferredOutletId)
+        : null;
+
+      if (preferredOutlet) {
+        if (preferredOutlet.id !== selectedOutletId) {
+          setSelectedOutletIdRaw(preferredOutlet.id);
+        }
+      } else {
+        const defaultOutlet = data.find((o) => o.is_default) || data[0];
         if (defaultOutlet) setSelectedOutletId(defaultOutlet.id);
       }
     }
+
     setLoading(false);
   };
 
@@ -94,12 +117,13 @@ export function OutletProvider({ vendorId, children, onOutletChange }: OutletPro
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [vendorId]);
+  }, [vendorId, storageKey]);
 
-  // Notify parent when outlet changes
+  // Notify parent when outlet changes (only after initial outlet load)
   useEffect(() => {
+    if (loading || !selectedOutletId) return;
     onOutletChange?.(selectedOutletId);
-  }, [selectedOutletId, onOutletChange]);
+  }, [selectedOutletId, onOutletChange, loading]);
 
   const selectedOutlet = outlets.find(o => o.id === selectedOutletId) || null;
 

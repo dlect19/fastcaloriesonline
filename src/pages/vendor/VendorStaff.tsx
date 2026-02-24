@@ -101,7 +101,7 @@ export default function VendorStaff() {
               <TabsTrigger value="activity">Activity Log</TabsTrigger>
             </TabsList>
             <TabsContent value="staff" className="mt-4">
-              {vendorId && <StaffManagement vendorId={vendorId} />}
+              {vendorId && <StaffManagement vendorId={vendorId} selectedOutletId={selectedOutletId} />}
             </TabsContent>
             <TabsContent value="activity" className="mt-4">
               {vendorId && <ActivityLogViewer entityType="vendor" entityId={vendorId} />}

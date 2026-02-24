@@ -62,7 +62,7 @@ export default function VendorPromos() {
       navigate('/vendor/auth');
       return;
     }
-    if (user) {
+    if (user && selectedOutletId !== null) {
       fetchData();
     }
   }, [user, authLoading, navigate, selectedOutletId]);
@@ -101,17 +101,17 @@ export default function VendorPromos() {
       setVendor(vendorData);
 
       if (vendorData) {
-        const promoQuery = supabase
+        if (!selectedOutletId) {
+          setPromos([]);
+          return;
+        }
+
+        const { data: promosData } = await supabase
           .from('promo_codes')
           .select('*')
           .eq('vendor_id', vendorData.id)
+          .eq('outlet_id', selectedOutletId)
           .order('created_at', { ascending: false });
-
-        if (selectedOutletId) {
-          promoQuery.eq('outlet_id', selectedOutletId);
-        }
-
-        const { data: promosData } = await promoQuery;
 
         setPromos(promosData || []);
       }
@@ -123,6 +123,15 @@ export default function VendorPromos() {
   };
 
   const handleCreatePromo = async () => {
+    if (!selectedOutletId) {
+      toast({
+        title: 'Select an outlet first',
+        description: 'Choose an outlet from the sidebar before creating promo codes.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     if (!vendor || !formData.code || !formData.discount_value) {
       toast({
         title: 'Missing required fields',
@@ -145,7 +154,7 @@ export default function VendorPromos() {
         per_user_limit: formData.per_user_limit ? parseInt(formData.per_user_limit) : null,
         valid_until: formData.valid_until || null,
         vendor_id: vendor.id,
-        outlet_id: selectedOutletId || null,
+        outlet_id: selectedOutletId,
         scope: 'vendor',
         is_active: true,
       });

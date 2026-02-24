@@ -66,9 +66,10 @@ const ROLE_COLORS: Record<VendorStaffRole, string> = {
 
 interface StaffManagementProps {
   vendorId: string;
+  selectedOutletId?: string | null;
 }
 
-export function StaffManagement({ vendorId }: StaffManagementProps) {
+export function StaffManagement({ vendorId, selectedOutletId }: StaffManagementProps) {
   const { toast } = useToast();
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -89,7 +90,7 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
   useEffect(() => {
     fetchStaff();
     fetchVendorSlug();
-  }, [vendorId]);
+  }, [vendorId, selectedOutletId]);
 
   const fetchVendorSlug = async () => {
     const { data } = await supabase
@@ -113,11 +114,20 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
   };
 
   const fetchStaff = async () => {
+    setLoading(true);
+
+    if (!selectedOutletId) {
+      setStaff([]);
+      setLoading(false);
+      return;
+    }
+
     try {
       const { data, error } = await supabase
         .from('vendor_staff')
         .select('id, vendor_id, user_id, role, is_active, invite_email, invite_accepted_at, created_at, permissions')
         .eq('vendor_id', vendorId)
+        .eq('outlet_id', selectedOutletId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -129,7 +139,7 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
             .select('full_name, phone')
             .eq('user_id', member.user_id)
             .maybeSingle();
-          
+
           return { ...member, profile } as StaffMember;
         })
       );
@@ -153,6 +163,11 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
   };
 
   const handleCreateStaff = async () => {
+    if (!selectedOutletId) {
+      toast({ title: 'Select an outlet first', variant: 'destructive' });
+      return;
+    }
+
     if (!inviteEmail.trim()) {
       toast({ title: 'Please enter an email', variant: 'destructive' });
       return;
@@ -169,14 +184,14 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
     setInviting(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       // Get vendor name for the email
       const { data: vendor } = await supabase
         .from('vendors')
         .select('name')
         .eq('id', vendorId)
         .single();
-      
+
       // Get inviter's profile name
       const { data: inviterProfile } = await supabase
         .from('profiles')
@@ -201,11 +216,19 @@ export function StaffManagement({ vendorId }: StaffManagementProps) {
       if (error) throw error;
       if (!data.success) throw new Error(data.error);
 
-      // If custom permissions were set, save them to the new staff record
-      if (invitePermissions.length > 0 && data.userId) {
+      // Ensure staff is bound to selected outlet, and apply custom permissions if provided
+      if (data.userId) {
+        const updatePayload: { outlet_id: string; permissions?: string[] } = {
+          outlet_id: selectedOutletId,
+        };
+
+        if (invitePermissions.length > 0) {
+          updatePayload.permissions = invitePermissions;
+        }
+
         await supabase
           .from('vendor_staff')
-          .update({ permissions: invitePermissions })
+          .update(updatePayload)
           .eq('vendor_id', vendorId)
           .eq('user_id', data.userId);
       }

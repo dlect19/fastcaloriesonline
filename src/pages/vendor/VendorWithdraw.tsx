@@ -115,7 +115,7 @@ export default function VendorWithdraw() {
       navigate('/vendor/auth');
       return;
     }
-    if (user) {
+    if (user && selectedOutletId !== null) {
       fetchData();
     }
   }, [user, authLoading, navigate, isTestMode, selectedOutletId]);
@@ -153,20 +153,22 @@ export default function VendorWithdraw() {
 
       setVendor(vendorData);
 
-      // Fetch vendor wallet specifically - use outlet wallet if selected
-      let walletQuery = supabase
-        .from('wallets')
-        .select('*')
-        .eq('user_id', user?.id)
-        .eq('wallet_type', 'vendor');
-
-      if (selectedOutletId) {
-        walletQuery = walletQuery.eq('outlet_id', selectedOutletId);
-      } else {
-        walletQuery = walletQuery.is('outlet_id', null);
+      const vendorOwnerId = vendorData?.user_id;
+      if (!vendorOwnerId || !selectedOutletId) {
+        setWallet(null);
+        setWithdrawals([]);
+        setAllTransactions([]);
+        return;
       }
 
-      const { data: walletData } = await walletQuery.maybeSingle();
+      // Fetch selected outlet wallet
+      const { data: walletData } = await supabase
+        .from('wallets')
+        .select('*')
+        .eq('user_id', vendorOwnerId)
+        .eq('wallet_type', 'vendor')
+        .eq('outlet_id', selectedOutletId)
+        .maybeSingle();
 
       if (walletData) {
         // Use test columns if in test mode, otherwise production columns
@@ -240,7 +242,7 @@ export default function VendorWithdraw() {
         const { data: recipientData } = await supabase
           .from('paystack_recipients')
           .select('created_in_environment')
-          .eq('user_id', user?.id)
+          .eq('user_id', vendorOwnerId)
           .eq('is_default', true)
           .maybeSingle();
         
@@ -453,17 +455,18 @@ export default function VendorWithdraw() {
       // Process withdrawal - insert into unified payout_requests table with source tag
       const { data: insertedPayout, error } = await supabase
         .from('payout_requests')
-        .insert({
-          wallet_id: wallet!.id,
-          user_id: user?.id,
-          amount,
-          bank_name: wallet!.bank_name,
-          bank_account_number: wallet!.bank_account_number,
-          bank_account_name: wallet!.bank_account_name || '',
-          user_type: 'vendor',
-          status: 'pending',
-          withdrawal_source: withdrawalSource,
-        })
+          .insert({
+            wallet_id: wallet!.id,
+            user_id: user?.id,
+            outlet_id: selectedOutletId,
+            amount,
+            bank_name: wallet!.bank_name,
+            bank_account_number: wallet!.bank_account_number,
+            bank_account_name: wallet!.bank_account_name || '',
+            user_type: 'vendor',
+            status: 'pending',
+            withdrawal_source: withdrawalSource,
+          })
         .select('id')
         .single();
 
