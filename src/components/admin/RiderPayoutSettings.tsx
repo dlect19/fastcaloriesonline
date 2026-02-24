@@ -19,7 +19,7 @@ export function RiderPayoutSettings({ settings, onSettingChange, onSave, saving,
   const feePct = parseFloat(settings['rider_platform_fee_pct'] || '20');
   const feeMin = parseFloat(settings['rider_platform_fee_min'] || '300');
   const feeMax = parseFloat(settings['rider_platform_fee_max'] || '700');
-  const minPayout = parseFloat(settings['rider_minimum_payout'] || '900');
+  
   const distThreshold = parseFloat(settings['rider_distance_bonus_threshold_km'] || '4');
   const distRate = parseFloat(settings['rider_distance_bonus_rate'] || '100');
   const surgeCap = parseFloat(settings['rider_max_surge_cap'] || '500');
@@ -35,7 +35,6 @@ export function RiderPayoutSettings({ settings, onSettingChange, onSave, saving,
   const exampleFee2 = 700;
   const examplePlatformFee2 = Math.min(Math.max(exampleFee2 * feePct / 100, feeMin), feeMax);
   const exampleRawPay2 = exampleFee2 - examplePlatformFee2;
-  const exampleSubsidy2 = Math.max(0, minPayout - exampleRawPay2);
 
   return (
     <div className="space-y-6">
@@ -91,26 +90,6 @@ export function RiderPayoutSettings({ settings, onSettingChange, onSave, saving,
           <Separator />
 
           <div>
-            <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
-              <Shield className="w-4 h-4 text-purple-500" />
-              Guaranteed Minimum
-            </h3>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Minimum Rider Payout (₦)</Label>
-                <Input
-                  type="number" min="0" step="50"
-                  value={settings['rider_minimum_payout'] || '900'}
-                  onChange={(e) => onSettingChange('rider_minimum_payout', e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">Platform tops up if payout falls below this</p>
-              </div>
-            </div>
-          </div>
-
-          <Separator />
-
-          <div>
             <h3 className="text-sm font-semibold mb-4">Distance Bonus</h3>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
@@ -141,12 +120,7 @@ export function RiderPayoutSettings({ settings, onSettingChange, onSave, saving,
               ₦{exampleFee.toLocaleString()} delivery → Platform fee: ₦{examplePlatformFee.toLocaleString()} → <span className="text-primary font-semibold">Rider gets ₦{examplePay.toLocaleString()}</span>
             </p>
             <p className="text-sm text-muted-foreground">
-              ₦{exampleFee2.toLocaleString()} delivery → Platform fee: ₦{examplePlatformFee2.toLocaleString()} → Raw: ₦{exampleRawPay2.toLocaleString()} → 
-              {exampleSubsidy2 > 0 ? (
-                <span className="text-purple-600 font-semibold"> Top-up ₦{exampleSubsidy2.toLocaleString()} → Rider gets ₦{minPayout.toLocaleString()}</span>
-              ) : (
-                <span className="text-primary font-semibold"> Rider gets ₦{Math.max(exampleRawPay2, minPayout).toLocaleString()}</span>
-              )}
+              ₦{exampleFee2.toLocaleString()} delivery → Platform fee: ₦{examplePlatformFee2.toLocaleString()} → <span className="text-primary font-semibold">Rider gets ₦{exampleRawPay2.toLocaleString()}</span>
             </p>
           </div>
 
