@@ -40,9 +40,10 @@ interface Combo {
 interface ComboCardProps {
   combo: Combo;
   vendor: Vendor;
+  outletId?: string;
 }
 
-export function ComboCard({ combo, vendor }: ComboCardProps) {
+export function ComboCard({ combo, vendor, outletId }: ComboCardProps) {
   const { user } = useAuth();
   const { addItem, vendorId } = useCart();
   const { toast } = useToast();
@@ -87,6 +88,7 @@ export function ComboCard({ combo, vendor }: ComboCardProps) {
       productName: combo.name,
       vendorId: vendor.id,
       vendorName: vendor.name,
+      outletId,
       price: combo.combo_price,
       quantity: 1,
       calories: totalCalories,

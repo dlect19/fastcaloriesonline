@@ -16,6 +16,7 @@ export interface CartItem {
   productName: string;
   vendorId: string;
   vendorName: string;
+  outletId?: string;
   price: number;
   quantity: number;
   calories: number;
@@ -27,6 +28,7 @@ export interface CartItem {
 export interface VendorGroup {
   vendorId: string;
   vendorName: string;
+  outletId?: string;
   items: CartItem[];
   subtotal: number;
   totalCalories: number;
@@ -44,7 +46,7 @@ interface CartContextType {
   removeItem: (itemId: string) => void;
   updateQuantity: (itemId: string, quantity: number) => void;
   clearCart: () => void;
-  clearVendorGroup: (vendorId: string) => void;
+  clearVendorGroup: (vendorId: string, outletId?: string) => void;
   subtotal: number;
   totalCalories: number;
   itemCount: number;
@@ -98,7 +100,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const addonsKey = item.addons ? JSON.stringify(item.addons.map(a => `${a.groupName}:${a.itemName}`).sort()) : '';
     const existingIndex = items.findIndex(i => {
       const existingAddonsKey = i.addons ? JSON.stringify(i.addons.map(a => `${a.groupName}:${a.itemName}`).sort()) : '';
-      return i.productId === item.productId && i.vendorId === item.vendorId && existingAddonsKey === addonsKey;
+      return i.productId === item.productId && i.vendorId === item.vendorId && i.outletId === item.outletId && existingAddonsKey === addonsKey;
     });
     
     if (existingIndex >= 0) {
@@ -132,8 +134,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems([]);
   };
 
-  const clearVendorGroup = (vendorId: string) => {
-    setItems(items.filter(i => i.vendorId !== vendorId));
+  const clearVendorGroup = (vendorId: string, outletId?: string) => {
+    setItems(items.filter(i => !(i.vendorId === vendorId && i.outletId === outletId)));
   };
 
   // Compute vendor groups
@@ -141,17 +143,20 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const groups = new Map<string, VendorGroup>();
     
     for (const item of items) {
-      let group = groups.get(item.vendorId);
+      // Group by vendorId + outletId combo to support multi-outlet
+      const groupKey = item.outletId ? `${item.vendorId}:${item.outletId}` : item.vendorId;
+      let group = groups.get(groupKey);
       if (!group) {
         group = {
           vendorId: item.vendorId,
           vendorName: item.vendorName,
+          outletId: item.outletId,
           items: [],
           subtotal: 0,
           totalCalories: 0,
           itemCount: 0,
         };
-        groups.set(item.vendorId, group);
+        groups.set(groupKey, group);
       }
       group.items.push(item);
       group.subtotal += calculateItemSubtotal(item);

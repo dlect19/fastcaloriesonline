@@ -11,9 +11,10 @@ type Vendor = Tables<'vendors'>;
 interface ProductCardProps {
   product: Product;
   vendor: Vendor;
+  outletId?: string;
 }
 
-export function ProductCard({ product, vendor }: ProductCardProps) {
+export function ProductCard({ product, vendor, outletId }: ProductCardProps) {
   const [showDetails, setShowDetails] = useState(false);
 
   const getCalorieLevel = (calories: number | null) => {
@@ -147,6 +148,7 @@ export function ProductCard({ product, vendor }: ProductCardProps) {
         <ProductCustomizationDialog
           product={product}
           vendor={vendor}
+          outletId={outletId}
           open={showDetails}
           onOpenChange={setShowDetails}
         />
