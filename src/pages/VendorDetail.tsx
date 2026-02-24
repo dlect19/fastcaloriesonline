@@ -71,6 +71,7 @@ export default function VendorDetail() {
   const [loading, setLoading] = useState(true);
   const [isFavorite, setIsFavorite] = useState(false);
   const [togglingFavorite, setTogglingFavorite] = useState(false);
+  const [outletOverrides, setOutletOverrides] = useState<Record<string, boolean>>({});
 
   // Check vendor access when location is available
   useEffect(() => {
@@ -135,6 +136,7 @@ export default function VendorDetail() {
 
   const fetchVendorProducts = async () => {
     if (!id) return;
+    const outletId = searchParams.get('outlet') || undefined;
 
     try {
       // Fetch categories
@@ -156,7 +158,30 @@ export default function VendorDetail() {
         .order('name');
 
       if (productError) throw productError;
-      setProducts(productData || []);
+
+      // Fetch per-outlet availability overrides
+      let overrides: Record<string, boolean> = {};
+      if (outletId) {
+        const { data: overrideData } = await supabase
+          .from('outlet_product_overrides')
+          .select('product_id, is_available')
+          .eq('outlet_id', outletId);
+
+        (overrideData || []).forEach(row => {
+          overrides[row.product_id] = row.is_available;
+        });
+        setOutletOverrides(overrides);
+      }
+
+      // Apply outlet overrides to products
+      const effectiveProducts = (productData || []).map(p => {
+        if (outletId && p.id in overrides) {
+          return { ...p, is_available: overrides[p.id] };
+        }
+        return p;
+      });
+
+      setProducts(effectiveProducts);
 
       // Fetch combos
       const { data: combosData, error: combosError } = await supabase
@@ -178,7 +203,7 @@ export default function VendorDetail() {
 
           const itemsWithProducts = (itemsData || []).map((item) => ({
             ...item,
-            product: productData?.find((p) => p.id === item.product_id),
+            product: effectiveProducts.find((p) => p.id === item.product_id),
           }));
 
           return { ...combo, items: itemsWithProducts };
@@ -214,6 +239,7 @@ export default function VendorDetail() {
   // Realtime listener for product availability changes
   useEffect(() => {
     if (!id || accessDenied) return;
+    const outletId = searchParams.get('outlet') || undefined;
 
     const channel = supabase
       .channel(`vendor-products-${id}`)
@@ -227,12 +253,20 @@ export default function VendorDetail() {
         },
         (payload) => {
           if (payload.eventType === 'UPDATE') {
+            const updated = payload.new as any;
+            // Apply outlet override if exists
+            const effectiveAvailability = outletId && updated.id in outletOverrides
+              ? outletOverrides[updated.id]
+              : updated.is_available;
             setProducts(prev =>
-              prev.map(p => p.id === (payload.new as any).id ? { ...p, ...(payload.new as any) } : p)
+              prev.map(p => p.id === updated.id ? { ...p, ...updated, is_available: effectiveAvailability } : p)
             );
           } else if (payload.eventType === 'INSERT') {
             const newProduct = payload.new as any;
             if (newProduct.meal_type !== 'addon') {
+              if (outletId && newProduct.id in outletOverrides) {
+                newProduct.is_available = outletOverrides[newProduct.id];
+              }
               setProducts(prev => [...prev, newProduct]);
             }
           } else if (payload.eventType === 'DELETE') {
@@ -242,10 +276,34 @@ export default function VendorDetail() {
       )
       .subscribe();
 
+    // Also listen for outlet override changes
+    const overrideChannel = outletId ? supabase
+      .channel(`outlet-overrides-${outletId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'outlet_product_overrides',
+          filter: `outlet_id=eq.${outletId}`,
+        },
+        (payload) => {
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const row = payload.new as any;
+            setOutletOverrides(prev => ({ ...prev, [row.product_id]: row.is_available }));
+            setProducts(prev =>
+              prev.map(p => p.id === row.product_id ? { ...p, is_available: row.is_available } : p)
+            );
+          }
+        }
+      )
+      .subscribe() : null;
+
     return () => {
       supabase.removeChannel(channel);
+      if (overrideChannel) supabase.removeChannel(overrideChannel);
     };
-  }, [id, accessDenied]);
+  }, [id, accessDenied, outletOverrides]);
 
   const checkFavoriteStatus = async () => {
     if (!user || !id) return;

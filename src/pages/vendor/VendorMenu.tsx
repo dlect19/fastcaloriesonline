@@ -24,6 +24,7 @@ import { TakeawayPackManagement } from '@/components/vendor/TakeawayPackManageme
 import { AddonMealsList } from '@/components/vendor/AddonMealsList';
 import { useAuth } from '@/hooks/useAuth';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
+import { usePersistedOutletId } from '@/hooks/usePersistedOutletId';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables, Database } from '@/integrations/supabase/types';
@@ -88,6 +89,8 @@ export default function VendorMenu() {
   const [loading, setLoading] = useState(true);
   const [comboRefreshKey, setComboRefreshKey] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
+  const { selectedOutletId } = usePersistedOutletId();
+  const [outletOverrides, setOutletOverrides] = useState<Record<string, boolean>>({});
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
@@ -248,6 +251,26 @@ export default function VendorMenu() {
       setLoading(false);
     }
   };
+
+  // Fetch per-outlet availability overrides
+  const fetchOutletOverrides = async () => {
+    if (!selectedOutletId) {
+      setOutletOverrides({});
+      return;
+    }
+    const { data } = await supabase
+      .from('outlet_product_overrides')
+      .select('product_id, is_available')
+      .eq('outlet_id', selectedOutletId);
+    
+    const map: Record<string, boolean> = {};
+    (data || []).forEach(row => { map[row.product_id] = row.is_available; });
+    setOutletOverrides(map);
+  };
+
+  useEffect(() => {
+    fetchOutletOverrides();
+  }, [selectedOutletId]);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -426,17 +449,49 @@ export default function VendorMenu() {
     }
   };
 
+  // Get effective availability for a product in the current outlet
+  const getEffectiveAvailability = (product: Product): boolean => {
+    if (selectedOutletId && product.id in outletOverrides) {
+      return outletOverrides[product.id];
+    }
+    return product.is_available ?? true;
+  };
+
   const toggleAvailability = async (product: Product) => {
     try {
-      const newAvailability = !product.is_available;
-      const { error } = await supabase
-        .from('products')
-        .update({ is_available: newAvailability })
-        .eq('id', product.id);
+      const currentAvailability = getEffectiveAvailability(product);
+      const newAvailability = !currentAvailability;
 
-      if (error) throw error;
+      if (selectedOutletId) {
+        // Per-outlet override: upsert into outlet_product_overrides
+        const { error } = await supabase
+          .from('outlet_product_overrides')
+          .upsert(
+            {
+              outlet_id: selectedOutletId,
+              product_id: product.id,
+              is_available: newAvailability,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'outlet_id,product_id' }
+          );
 
-      // Find all combos containing this product
+        if (error) throw error;
+
+        // Update local state immediately
+        setOutletOverrides(prev => ({ ...prev, [product.id]: newAvailability }));
+      } else {
+        // No outlet selected — fall back to global toggle
+        const { error } = await supabase
+          .from('products')
+          .update({ is_available: newAvailability })
+          .eq('id', product.id);
+
+        if (error) throw error;
+        fetchData();
+      }
+
+      // Handle combo availability cascade
       const { data: comboItems } = await supabase
         .from('combo_items')
         .select('combo_id')
@@ -446,13 +501,11 @@ export default function VendorMenu() {
         const comboIds = [...new Set(comboItems.map(ci => ci.combo_id))];
 
         if (!newAvailability) {
-          // Product became unavailable → disable its combos
           await supabase
             .from('combos')
             .update({ is_available: false })
             .in('id', comboIds);
         } else {
-          // Product became available → check if ALL items in each combo are now available
           for (const comboId of comboIds) {
             const { data: allItems } = await supabase
               .from('combo_items')
@@ -467,11 +520,19 @@ export default function VendorMenu() {
             let allAvailable = true;
 
             if (productIds.length > 0) {
-              const { data: prods } = await supabase
-                .from('products')
-                .select('id, is_available')
-                .in('id', productIds);
-              if (prods?.some(p => p.is_available === false)) allAvailable = false;
+              // Check outlet overrides for each product
+              for (const pid of productIds) {
+                if (selectedOutletId && pid in outletOverrides) {
+                  if (!outletOverrides[pid] && pid !== product.id) { allAvailable = false; break; }
+                  if (pid === product.id && !newAvailability) { allAvailable = false; break; }
+                } else {
+                  const { data: prods } = await supabase
+                    .from('products')
+                    .select('id, is_available')
+                    .eq('id', pid);
+                  if (prods?.some(p => p.is_available === false)) { allAvailable = false; break; }
+                }
+              }
             }
 
             if (allAvailable && packIds.length > 0) {
@@ -493,7 +554,6 @@ export default function VendorMenu() {
       }
 
       setComboRefreshKey(k => k + 1);
-      fetchData();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -1032,14 +1092,14 @@ export default function VendorMenu() {
               {filteredProducts.map((product) => (
                 <div
                   key={product.id}
-                  className={`bg-card rounded-xl border overflow-hidden ${!product.is_available ? 'opacity-60 border-destructive/40' : 'border-border'}`}
+                  className={`bg-card rounded-xl border overflow-hidden ${!getEffectiveAvailability(product) ? 'opacity-60 border-destructive/40' : 'border-border'}`}
                 >
                   <div className="p-4 flex items-center gap-4">
                     {product.image_url ? (
                       <img
                         src={product.image_url}
                         alt={product.name}
-                        className={`w-16 h-16 rounded-lg object-cover ${!product.is_available ? 'grayscale' : ''}`}
+                        className={`w-16 h-16 rounded-lg object-cover ${!getEffectiveAvailability(product) ? 'grayscale' : ''}`}
                       />
                     ) : (
                       <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center text-2xl">
@@ -1050,7 +1110,7 @@ export default function VendorMenu() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="font-semibold text-foreground truncate">{product.name}</h3>
-                        {!product.is_available && (
+                        {!getEffectiveAvailability(product) && (
                           <Badge variant="destructive" className="text-xs">Unavailable</Badge>
                         )}
                         {/* Food class badges */}
@@ -1106,7 +1166,7 @@ export default function VendorMenu() {
 
                     <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
                       <Switch
-                        checked={product.is_available ?? true}
+                        checked={getEffectiveAvailability(product)}
                         onCheckedChange={() => toggleAvailability(product)}
                       />
                       <Button

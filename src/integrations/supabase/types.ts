@@ -1637,6 +1637,48 @@ export type Database = {
           },
         ]
       }
+      outlet_product_overrides: {
+        Row: {
+          created_at: string
+          id: string
+          is_available: boolean
+          outlet_id: string
+          product_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_available?: boolean
+          outlet_id: string
+          product_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_available?: boolean
+          outlet_id?: string
+          product_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outlet_product_overrides_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_outlets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outlet_product_overrides_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       password_reset_otps: {
         Row: {
           created_at: string | null
