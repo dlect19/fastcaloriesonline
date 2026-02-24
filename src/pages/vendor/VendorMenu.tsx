@@ -89,7 +89,7 @@ export default function VendorMenu() {
   const [loading, setLoading] = useState(true);
   const [comboRefreshKey, setComboRefreshKey] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
-  const { selectedOutletId } = usePersistedOutletId();
+  const { selectedOutletId, setSelectedOutletId, ready: outletReady } = usePersistedOutletId();
   const [outletOverrides, setOutletOverrides] = useState<Record<string, boolean>>({});
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -491,63 +491,65 @@ export default function VendorMenu() {
         fetchData();
       }
 
-      // Handle combo availability cascade
-      const { data: comboItems } = await supabase
-        .from('combo_items')
-        .select('combo_id')
-        .eq('product_id', product.id);
+      // Handle combo availability cascade only for global availability mode
+      if (!selectedOutletId) {
+        const { data: comboItems } = await supabase
+          .from('combo_items')
+          .select('combo_id')
+          .eq('product_id', product.id);
 
-      if (comboItems && comboItems.length > 0) {
-        const comboIds = [...new Set(comboItems.map(ci => ci.combo_id))];
+        if (comboItems && comboItems.length > 0) {
+          const comboIds = [...new Set(comboItems.map(ci => ci.combo_id))];
 
-        if (!newAvailability) {
-          await supabase
-            .from('combos')
-            .update({ is_available: false })
-            .in('id', comboIds);
-        } else {
-          for (const comboId of comboIds) {
-            const { data: allItems } = await supabase
-              .from('combo_items')
-              .select('product_id, takeaway_pack_id')
-              .eq('combo_id', comboId);
+          if (!newAvailability) {
+            await supabase
+              .from('combos')
+              .update({ is_available: false })
+              .in('id', comboIds);
+          } else {
+            for (const comboId of comboIds) {
+              const { data: allItems } = await supabase
+                .from('combo_items')
+                .select('product_id, takeaway_pack_id')
+                .eq('combo_id', comboId);
 
-            if (!allItems) continue;
+              if (!allItems) continue;
 
-            const productIds = allItems.filter(i => i.product_id).map(i => i.product_id!);
-            const packIds = allItems.filter(i => i.takeaway_pack_id).map(i => i.takeaway_pack_id!);
+              const productIds = allItems.filter(i => i.product_id).map(i => i.product_id!);
+              const packIds = allItems.filter(i => i.takeaway_pack_id).map(i => i.takeaway_pack_id!);
 
-            let allAvailable = true;
+              let allAvailable = true;
 
-            if (productIds.length > 0) {
-              // Check outlet overrides for each product
-              for (const pid of productIds) {
-                if (selectedOutletId && pid in outletOverrides) {
-                  if (!outletOverrides[pid] && pid !== product.id) { allAvailable = false; break; }
-                  if (pid === product.id && !newAvailability) { allAvailable = false; break; }
-                } else {
-                  const { data: prods } = await supabase
-                    .from('products')
-                    .select('id, is_available')
-                    .eq('id', pid);
-                  if (prods?.some(p => p.is_available === false)) { allAvailable = false; break; }
+              if (productIds.length > 0) {
+                // Check outlet overrides for each product
+                for (const pid of productIds) {
+                  if (selectedOutletId && pid in outletOverrides) {
+                    if (!outletOverrides[pid] && pid !== product.id) { allAvailable = false; break; }
+                    if (pid === product.id && !newAvailability) { allAvailable = false; break; }
+                  } else {
+                    const { data: prods } = await supabase
+                      .from('products')
+                      .select('id, is_available')
+                      .eq('id', pid);
+                    if (prods?.some(p => p.is_available === false)) { allAvailable = false; break; }
+                  }
                 }
               }
-            }
 
-            if (allAvailable && packIds.length > 0) {
-              const { data: packs } = await supabase
-                .from('takeaway_packs')
-                .select('id, is_active')
-                .in('id', packIds);
-              if (packs?.some(p => p.is_active === false)) allAvailable = false;
-            }
+              if (allAvailable && packIds.length > 0) {
+                const { data: packs } = await supabase
+                  .from('takeaway_packs')
+                  .select('id, is_active')
+                  .in('id', packIds);
+                if (packs?.some(p => p.is_active === false)) allAvailable = false;
+              }
 
-            if (allAvailable) {
-              await supabase
-                .from('combos')
-                .update({ is_available: true })
-                .eq('id', comboId);
+              if (allAvailable) {
+                await supabase
+                  .from('combos')
+                  .update({ is_available: true })
+                  .eq('id', comboId);
+              }
             }
           }
         }
@@ -607,10 +609,10 @@ export default function VendorMenu() {
 
   const labels = getCategoryLabels(vendor?.category);
 
-  if (authLoading || loading || permLoading) {
+  if (authLoading || loading || permLoading || !outletReady) {
     return (
       <div className="min-h-screen bg-background">
-        <VendorSidebar />
+        <VendorSidebar onOutletChange={setSelectedOutletId} />
         <main className="lg:ml-64 pt-14 lg:pt-0">
           <div className="p-6 space-y-6">
             <Skeleton className="h-8 w-48" />
@@ -628,7 +630,7 @@ export default function VendorMenu() {
   if (!hasPermission('manage_menu')) {
     return (
       <div className="min-h-screen bg-background">
-        <VendorSidebar vendorName={vendor?.name} permissions={permissions} />
+        <VendorSidebar vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId} />
         <main className="lg:ml-64 pt-14 lg:pt-0">
           <AccessDenied message="You don't have permission to manage the menu." />
         </main>
@@ -638,7 +640,7 @@ export default function VendorMenu() {
 
   return (
     <div className="min-h-screen bg-background">
-      <VendorSidebar vendorName={vendor?.name} permissions={permissions} />
+      <VendorSidebar vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId} />
 
       <main className="lg:ml-64 pt-14 lg:pt-0">
         <div className="p-6 space-y-6">
@@ -1059,7 +1061,7 @@ export default function VendorMenu() {
           {/* Add-On Meals Management Section */}
           {vendor && (
             <div className="bg-card rounded-xl border border-border p-4">
-              <AddonMealsList vendor={vendor} addonProducts={addonProducts} onRefresh={fetchData} />
+              <AddonMealsList vendor={vendor} addonProducts={addonProducts} onRefresh={fetchData} getEffectiveAvailability={getEffectiveAvailability} onToggleAvailability={toggleAvailability} />
             </div>
           )}
 

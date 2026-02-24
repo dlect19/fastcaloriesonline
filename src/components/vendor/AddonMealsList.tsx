@@ -42,9 +42,11 @@ interface AddonMealsListProps {
   vendor: Vendor;
   addonProducts: Product[];
   onRefresh: () => void;
+  getEffectiveAvailability?: (product: Product) => boolean;
+  onToggleAvailability?: (product: Product) => Promise<void> | void;
 }
 
-export function AddonMealsList({ vendor, addonProducts, onRefresh }: AddonMealsListProps) {
+export function AddonMealsList({ vendor, addonProducts, onRefresh, getEffectiveAvailability, onToggleAvailability }: AddonMealsListProps) {
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -191,7 +193,7 @@ export function AddonMealsList({ vendor, addonProducts, onRefresh }: AddonMealsL
       carbs_grams: product.carbs_grams?.toString() || '',
       fats_grams: product.fats_grams?.toString() || '',
       fiber_grams: product.fiber_grams?.toString() || '',
-      is_available: product.is_available ?? true,
+      is_available: (getEffectiveAvailability ? getEffectiveAvailability(product) : (product.is_available ?? true)),
       calorie_classes: (product.calorie_classes as CalorieClass[]) || [],
       nutrient_tags: (product.nutrient_tags as NutrientTag[]) || [],
       image_url: product.image_url || '',
@@ -214,6 +216,10 @@ export function AddonMealsList({ vendor, addonProducts, onRefresh }: AddonMealsL
 
   const toggleAvailability = async (product: Product) => {
     try {
+      if (onToggleAvailability) {
+        await onToggleAvailability(product);
+        return;
+      }
       const { error } = await supabase.from('products').update({ is_available: !product.is_available }).eq('id', product.id);
       if (error) throw error;
       onRefresh();
@@ -242,7 +248,9 @@ export function AddonMealsList({ vendor, addonProducts, onRefresh }: AddonMealsL
         carbs_grams: formData.carbs_grams ? parseFloat(formData.carbs_grams) : null,
         fats_grams: formData.fats_grams ? parseFloat(formData.fats_grams) : null,
         fiber_grams: formData.fiber_grams ? parseFloat(formData.fiber_grams) : null,
-        is_available: formData.is_available,
+        is_available: editingProduct && onToggleAvailability
+          ? (editingProduct.is_available ?? true)
+          : formData.is_available,
         calorie_classes: formData.calorie_classes.length > 0 ? formData.calorie_classes : null,
         nutrient_tags: formData.nutrient_tags.length > 0 ? formData.nutrient_tags : null,
         image_url: imageUrl,
@@ -252,15 +260,29 @@ export function AddonMealsList({ vendor, addonProducts, onRefresh }: AddonMealsL
       if (editingProduct) {
         const { error } = await supabase.from('products').update(productData).eq('id', editingProduct.id);
         if (error) throw error;
+
         // Sync all addon_items linked to this product
+        const addonItemUpdate = {
+          name: formData.name,
+          additional_price: parseFloat(formData.price) || 0,
+          calories: finalCalories || 0,
+          ...(editingProduct && onToggleAvailability ? {} : { is_available: formData.is_available }),
+        };
+
         await supabase.from('addon_items')
-          .update({
-            name: formData.name,
-            additional_price: parseFloat(formData.price) || 0,
-            calories: finalCalories || 0,
-            is_available: formData.is_available,
-          })
+          .update(addonItemUpdate)
           .eq('linked_product_id', editingProduct.id);
+
+        if (onToggleAvailability) {
+          const currentAvailability = getEffectiveAvailability
+            ? getEffectiveAvailability(editingProduct)
+            : (editingProduct.is_available ?? true);
+
+          if (currentAvailability !== formData.is_available) {
+            await onToggleAvailability(editingProduct);
+          }
+        }
+
         toast({ title: 'Add-on meal updated' });
       } else {
         const { error } = await supabase.from('products').insert(productData);
@@ -364,8 +386,13 @@ export function AddonMealsList({ vendor, addonProducts, onRefresh }: AddonMealsL
         </div>
       ) : (
         <div className="space-y-3">
-          {filteredAddonProducts.map((product) => (
-            <div key={product.id} className="bg-card rounded-xl border border-border overflow-hidden">
+          {filteredAddonProducts.map((product) => {
+            const effectiveAvailability = getEffectiveAvailability
+              ? getEffectiveAvailability(product)
+              : (product.is_available ?? true);
+
+            return (
+              <div key={product.id} className="bg-card rounded-xl border border-border overflow-hidden">
               <div className="p-4 flex items-center gap-4">
                 {product.image_url ? (
                   <img src={product.image_url} alt={product.name} className="w-14 h-14 rounded-lg object-cover" />
@@ -376,7 +403,7 @@ export function AddonMealsList({ vendor, addonProducts, onRefresh }: AddonMealsL
                   <div className="flex items-center gap-2 flex-wrap">
                     <h3 className="font-semibold text-foreground truncate">{product.name}</h3>
                     <Badge variant="secondary" className="text-xs">Add-On</Badge>
-                    {!product.is_available && <Badge variant="outline" className="text-xs">Unavailable</Badge>}
+                    {!effectiveAvailability && <Badge variant="outline" className="text-xs">Unavailable</Badge>}
                     {product.calorie_classes && (product.calorie_classes as string[]).length > 0 && (
                       <div className="flex gap-0.5">
                         {(product.calorie_classes as string[]).map((cls) => (
@@ -402,7 +429,7 @@ export function AddonMealsList({ vendor, addonProducts, onRefresh }: AddonMealsL
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Switch checked={product.is_available ?? true} onCheckedChange={() => toggleAvailability(product)} />
+                  <Switch checked={effectiveAvailability} onCheckedChange={() => toggleAvailability(product)} />
                   <Button variant="ghost" size="icon" onClick={() => handleEdit(product)}>
                     <Edit2 className="w-4 h-4" />
                   </Button>
@@ -412,7 +439,8 @@ export function AddonMealsList({ vendor, addonProducts, onRefresh }: AddonMealsL
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
