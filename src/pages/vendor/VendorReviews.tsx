@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { usePersistedOutletId } from '@/hooks/usePersistedOutletId';
 import { useNavigate } from 'react-router-dom';
 import { Star, MessageSquare } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,7 +19,7 @@ export default function VendorReviews() {
   const [vendor, setVendor] = useState<Vendor | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedOutletId, setSelectedOutletId] = useState<string | null>(null);
+  const { selectedOutletId, setSelectedOutletId } = usePersistedOutletId();
   const { permissions } = useVendorPermissions(vendor?.id ?? null);
 
   useEffect(() => {

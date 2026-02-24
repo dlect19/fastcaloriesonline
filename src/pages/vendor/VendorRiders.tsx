@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { usePersistedOutletId } from '@/hooks/usePersistedOutletId';
 import { useNavigate } from 'react-router-dom';
 import { Users, Plus, Copy, QrCode, RefreshCw, Trash2, Circle, Bike, TrendingUp, Banknote, Globe } from 'lucide-react';
 import { DateRangeFilter, DateRange } from '@/components/shared/DateRangeFilter';
@@ -70,7 +71,7 @@ export default function VendorRiders() {
   const [currentInviteLink, setCurrentInviteLink] = useState('');
   const [deliveryRevenue, setDeliveryRevenue] = useState(0);
   const [revenueDateRange, setRevenueDateRange] = useState<DateRange>({ from: undefined, to: undefined });
-  const [selectedOutletId, setSelectedOutletId] = useState<string | null>(null);
+  const { selectedOutletId, setSelectedOutletId } = usePersistedOutletId();
 
   const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendor?.id || null);
 

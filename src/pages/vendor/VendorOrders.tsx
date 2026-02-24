@@ -34,6 +34,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useRepeatingNotificationSound } from '@/hooks/useRepeatingNotificationSound';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables, Database } from '@/integrations/supabase/types';
+import { usePersistedOutletId } from '@/hooks/usePersistedOutletId';
 
 type Order = Tables<'orders'>;
 type OrderItem = Tables<'order_items'>;
@@ -105,7 +106,7 @@ export default function VendorOrders() {
   const [showManualAssignForOrder, setShowManualAssignForOrder] = useState<string | null>(null);
   const [riderAssignDialog, setRiderAssignDialog] = useState<{ open: boolean; order: OrderWithItems | null }>({ open: false, order: null });
   const [completedPage, setCompletedPage] = useState(1);
-  const [selectedOutletId, setSelectedOutletId] = useState<string | null>(null);
+  const { selectedOutletId, setSelectedOutletId } = usePersistedOutletId();
   const ITEMS_PER_PAGE = 10;
 
   const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendor?.id || null);

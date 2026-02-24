@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { usePersistedOutletId } from '@/hooks/usePersistedOutletId';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Wallet, ArrowUpRight, Building2, CreditCard, Clock, Settings, AlertCircle, Loader2, ShieldCheck, FlaskConical, AlertTriangle, Bike, UtensilsCrossed } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -71,7 +72,7 @@ export default function VendorWithdraw() {
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
   const [allTransactions, setAllTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedOutletId, setSelectedOutletId] = useState<string | null>(null);
+  const { selectedOutletId, setSelectedOutletId } = usePersistedOutletId();
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
   const [bankDialogOpen, setBankDialogOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
