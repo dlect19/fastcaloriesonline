@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { usePersistedOutletId } from '@/hooks/usePersistedOutletId';
 import { useNavigate } from 'react-router-dom';
 import { TrendingUp, Wallet, ArrowUpRight, ArrowDownRight, Calendar, Clock, AlertCircle, FlaskConical, Bike, UtensilsCrossed } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -63,7 +64,7 @@ export default function VendorEarnings() {
   const [allTransactions, setAllTransactions] = useState<WalletTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
-  const [selectedOutletId, setSelectedOutletId] = useState<string | null>(null);
+  const { selectedOutletId, setSelectedOutletId } = usePersistedOutletId();
   const [txPage, setTxPage] = useState(1);
   const TX_PER_PAGE = 10;
   const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendor?.id || null);

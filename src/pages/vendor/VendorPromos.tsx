@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { usePersistedOutletId } from '@/hooks/usePersistedOutletId';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Ticket, Trash2, ToggleLeft, ToggleRight, Users, Calendar } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -41,7 +42,7 @@ export default function VendorPromos() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [selectedOutletId, setSelectedOutletId] = useState<string | null>(null);
+  const { selectedOutletId, setSelectedOutletId } = usePersistedOutletId();
 
   const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendor?.id || null);
 

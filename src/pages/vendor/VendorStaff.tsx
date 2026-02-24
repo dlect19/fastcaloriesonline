@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { usePersistedOutletId } from '@/hooks/usePersistedOutletId';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { VendorSidebar } from '@/components/vendor/VendorSidebar';
@@ -14,7 +15,7 @@ export default function VendorStaff() {
   const [vendorId, setVendorId] = useState<string | null>(null);
   const [vendorName, setVendorName] = useState('');
   const [loading, setLoading] = useState(true);
-  const [selectedOutletId, setSelectedOutletId] = useState<string | null>(null);
+  const { selectedOutletId, setSelectedOutletId } = usePersistedOutletId();
   const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendorId);
 
   useEffect(() => {

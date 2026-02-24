@@ -34,6 +34,7 @@ import { PushNotificationBanner } from '@/components/shared/PushNotificationBann
 
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables } from '@/integrations/supabase/types';
+import { usePersistedOutletId } from '@/hooks/usePersistedOutletId';
 
 type Vendor = Tables<'vendors'>;
 type Order = Tables<'orders'>;
@@ -53,7 +54,7 @@ export default function VendorDashboard() {
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [orderItems, setOrderItems] = useState<Record<string, any[]>>({});
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
-  const [selectedOutletId, setSelectedOutletId] = useState<string | null>(null);
+  const { selectedOutletId, setSelectedOutletId } = usePersistedOutletId();
   const [stats, setStats] = useState({
     todayOrders: 0,
     todayRevenue: 0,
