@@ -2,6 +2,9 @@ import { Button } from '@/components/ui/button';
 import { ChevronRight, Bike, Wallet, Clock, MapPin, Shield, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import riderLogo from '@/assets/rider-logo.png';
+import riderFrontImg from '@/assets/landing-rider-front.jpeg';
+import riderBackImg from '@/assets/landing-rider-back.jpeg';
+import riderMotorcycleImg from '@/assets/landing-rider-motorcycle.png';
 
 export default function RiderLanding() {
   const navigate = useNavigate();
@@ -65,6 +68,13 @@ export default function RiderLanding() {
             >
               Rider Login
             </Button>
+          </div>
+
+          {/* Hero Images */}
+          <div className="flex items-center justify-center gap-4 mb-12 animate-fade-in">
+            <img src={riderFrontImg} alt="Fast Calories rider" className="w-32 h-44 sm:w-40 sm:h-56 object-cover rounded-2xl shadow-card" />
+            <img src={riderMotorcycleImg} alt="Rider on motorcycle" className="w-32 h-44 sm:w-40 sm:h-56 object-cover rounded-2xl shadow-card -mt-6" />
+            <img src={riderBackImg} alt="Fast Calories delivery bag" className="w-32 h-44 sm:w-40 sm:h-56 object-cover rounded-2xl shadow-card" />
           </div>
 
           {/* Stats */}
