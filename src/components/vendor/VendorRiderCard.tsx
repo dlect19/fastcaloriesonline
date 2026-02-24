@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Bike, Circle, Star, Package, TrendingUp, ChevronDown, ChevronUp, AlertCircle, CheckCircle2, Phone, Mail, MapPin } from 'lucide-react';
+import { Bike, Circle, Star, Package, TrendingUp, ChevronDown, ChevronUp, AlertCircle, CheckCircle2, Phone, Mail, MapPin, Clock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
@@ -39,9 +39,19 @@ interface RiderStats {
   totalEarnings: number;
 }
 
+interface RecentOrder {
+  id: string;
+  order_number: string;
+  status: string;
+  delivered_at: string | null;
+  created_at: string;
+  delivery_fee: number | null;
+}
+
 export function VendorRiderCard({ rider, vendorId, onToggleStatus, dateRange }: VendorRiderCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [stats, setStats] = useState<RiderStats | null>(null);
+  const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([]);
   const [loadingStats, setLoadingStats] = useState(false);
 
   const fetchRiderStats = async () => {
@@ -51,7 +61,7 @@ export function VendorRiderCard({ rider, vendorId, onToggleStatus, dateRange }: 
     try {
       let query = supabase
         .from('orders')
-        .select('id, delivery_fee, status')
+        .select('id, delivery_fee, status, order_number, delivered_at, created_at')
         .eq('vendor_id', vendorId)
         .eq('rider_id', rider.rider_profile.user_id);
 
@@ -64,7 +74,7 @@ export function VendorRiderCard({ rider, vendorId, onToggleStatus, dateRange }: 
         query = query.lte('delivered_at', endOfDay.toISOString());
       }
 
-      const { data: orders } = await query;
+      const { data: orders } = await query.order('created_at', { ascending: false });
 
       if (orders) {
         const completedOrders = orders.filter(o => o.status === 'delivered');
@@ -89,6 +99,16 @@ export function VendorRiderCard({ rider, vendorId, onToggleStatus, dateRange }: 
           completedDeliveries: completedOrders.length,
           totalEarnings: Math.round(vendorDeliveryRevenue),
         });
+
+        // Set recent orders (top 5)
+        setRecentOrders(orders.slice(0, 5).map(o => ({
+          id: o.id,
+          order_number: o.order_number,
+          status: o.status,
+          delivered_at: o.delivered_at,
+          created_at: o.created_at,
+          delivery_fee: o.delivery_fee,
+        })));
       }
     } catch (error) {
       console.error('Error fetching rider stats:', error);
@@ -106,6 +126,15 @@ export function VendorRiderCard({ rider, vendorId, onToggleStatus, dateRange }: 
   const isVerified = rider.rider_profile?.is_verified;
   const isOnline = rider.rider_profile?.is_online && rider.is_active;
 
+  const statusColor = (status: string) => {
+    switch (status) {
+      case 'delivered': return 'bg-success/10 text-success';
+      case 'cancelled': return 'bg-destructive/10 text-destructive';
+      case 'picked_up': return 'bg-primary/10 text-primary';
+      default: return 'bg-warning/10 text-warning';
+    }
+  };
+
   return (
     <div className="p-4 bg-muted/30 rounded-xl space-y-3">
       <div className="flex items-center justify-between">
@@ -120,73 +149,61 @@ export function VendorRiderCard({ rider, vendorId, onToggleStatus, dateRange }: 
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-medium">{rider.user_name}</span>
               {!isVerified && (
-              <Badge variant="outline" className="text-xs bg-warning/10 text-warning border-warning/30">
-                <AlertCircle className="w-3 h-3 mr-1" />
-                Pending Admin Approval
-              </Badge>
-            )}
-            {isVerified && (
-              <Badge variant="outline" className="text-xs bg-success/10 text-success border-success/30">
-                <CheckCircle2 className="w-3 h-3 mr-1" />
-                Verified
-              </Badge>
+                <Badge variant="outline" className="text-xs bg-warning/10 text-warning border-warning/30">
+                  <AlertCircle className="w-3 h-3 mr-1" />
+                  Pending Admin Approval
+                </Badge>
+              )}
+              {isVerified && (
+                <Badge variant="outline" className="text-xs bg-success/10 text-success border-success/30">
+                  <CheckCircle2 className="w-3 h-3 mr-1" />
+                  Verified
+                </Badge>
               )}
             </div>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
-            <span>{rider.rider_profile?.vehicle_type || 'Vehicle not set'}</span>
-            <span>•</span>
-            <span>{rider.rider_profile?.total_deliveries || 0} total trips</span>
-            {rider.rider_profile?.rating && (
-              <>
-                <span>•</span>
-                <span className="flex items-center gap-0.5">
-                  <Star className="w-3 h-3 fill-warning text-warning" />
-                  {rider.rider_profile.rating.toFixed(1)}
+            <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+              <span>{rider.rider_profile?.vehicle_type || 'Vehicle not set'}</span>
+              <span>•</span>
+              <span>{rider.rider_profile?.total_deliveries || 0} total trips</span>
+              {rider.rider_profile?.rating && (
+                <>
+                  <span>•</span>
+                  <span className="flex items-center gap-0.5">
+                    <Star className="w-3 h-3 fill-warning text-warning" />
+                    {rider.rider_profile.rating.toFixed(1)}
+                  </span>
+                </>
+              )}
+            </div>
+            
+            {/* Contact Details */}
+            <div className="flex flex-wrap items-center gap-3 mt-2 text-sm">
+              {rider.user_phone && (
+                <a href={`tel:${rider.user_phone}`} className="flex items-center gap-1 text-primary hover:underline">
+                  <Phone className="w-3.5 h-3.5" />
+                  {rider.user_phone}
+                </a>
+              )}
+              {rider.user_email && (
+                <a href={`mailto:${rider.user_email}`} className="flex items-center gap-1 text-primary hover:underline">
+                  <Mail className="w-3.5 h-3.5" />
+                  {rider.user_email}
+                </a>
+              )}
+              {(rider.rider_profile?.preferred_city || rider.rider_profile?.preferred_state) && (
+                <span className="flex items-center gap-1 text-muted-foreground">
+                  <MapPin className="w-3.5 h-3.5" />
+                  {[rider.rider_profile?.preferred_city, rider.rider_profile?.preferred_state].filter(Boolean).join(', ')}
                 </span>
-              </>
-            )}
-          </div>
-          
-          {/* Contact Details */}
-          <div className="flex flex-wrap items-center gap-3 mt-2 text-sm">
-            {rider.user_phone && (
-              <a 
-                href={`tel:${rider.user_phone}`} 
-                className="flex items-center gap-1 text-primary hover:underline"
-              >
-                <Phone className="w-3.5 h-3.5" />
-                {rider.user_phone}
-              </a>
-            )}
-            {rider.user_email && (
-              <a 
-                href={`mailto:${rider.user_email}`} 
-                className="flex items-center gap-1 text-primary hover:underline"
-              >
-                <Mail className="w-3.5 h-3.5" />
-                {rider.user_email}
-              </a>
-            )}
-            {(rider.rider_profile?.preferred_city || rider.rider_profile?.preferred_state) && (
-              <span className="flex items-center gap-1 text-muted-foreground">
-                <MapPin className="w-3.5 h-3.5" />
-                {[rider.rider_profile?.preferred_city, rider.rider_profile?.preferred_state]
-                  .filter(Boolean)
-                  .join(', ')}
-              </span>
-            )}
-          </div>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant={rider.is_active ? 'default' : 'secondary'}>
             {rider.is_active ? 'Active' : 'Inactive'}
           </Badge>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onToggleStatus(rider.id, rider.is_active)}
-          >
+          <Button variant="outline" size="sm" onClick={() => onToggleStatus(rider.id, rider.is_active)}>
             {rider.is_active ? 'Deactivate' : 'Activate'}
           </Button>
         </div>
@@ -211,37 +228,70 @@ export function VendorRiderCard({ rider, vendorId, onToggleStatus, dateRange }: 
       >
         <span className="flex items-center gap-2">
           <TrendingUp className="w-4 h-4" />
-          Performance Stats
+          Performance Stats & Recent Orders
         </span>
         {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
       </Button>
 
       {expanded && (
-        <div className="grid grid-cols-3 gap-3 pt-2">
-          {loadingStats ? (
-            <>
-              <div className="h-16 bg-muted animate-pulse rounded-lg" />
-              <div className="h-16 bg-muted animate-pulse rounded-lg" />
-              <div className="h-16 bg-muted animate-pulse rounded-lg" />
-            </>
-          ) : (
-            <>
-              <div className="bg-muted/50 rounded-lg p-3 text-center">
-                <Package className="w-5 h-5 mx-auto text-primary mb-1" />
-                <p className="text-lg font-bold">{stats?.totalDeliveries || 0}</p>
-                <p className="text-xs text-muted-foreground">Orders Assigned</p>
+        <div className="space-y-4 pt-2">
+          <div className="grid grid-cols-3 gap-3">
+            {loadingStats ? (
+              <>
+                <div className="h-16 bg-muted animate-pulse rounded-lg" />
+                <div className="h-16 bg-muted animate-pulse rounded-lg" />
+                <div className="h-16 bg-muted animate-pulse rounded-lg" />
+              </>
+            ) : (
+              <>
+                <div className="bg-muted/50 rounded-lg p-3 text-center">
+                  <Package className="w-5 h-5 mx-auto text-primary mb-1" />
+                  <p className="text-lg font-bold">{stats?.totalDeliveries || 0}</p>
+                  <p className="text-xs text-muted-foreground">Orders Assigned</p>
+                </div>
+                <div className="bg-muted/50 rounded-lg p-3 text-center">
+                  <CheckCircle2 className="w-5 h-5 mx-auto text-success mb-1" />
+                  <p className="text-lg font-bold">{stats?.completedDeliveries || 0}</p>
+                  <p className="text-xs text-muted-foreground">Completed</p>
+                </div>
+                <div className="bg-muted/50 rounded-lg p-3 text-center">
+                  <TrendingUp className="w-5 h-5 mx-auto text-accent mb-1" />
+                  <p className="text-lg font-bold">₦{(stats?.totalEarnings || 0).toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground">Your Revenue</p>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Recent Orders */}
+          {!loadingStats && recentOrders.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium flex items-center gap-1.5">
+                <Clock className="w-4 h-4 text-muted-foreground" />
+                Recent Orders Picked Up
+              </h4>
+              <div className="space-y-1.5">
+                {recentOrders.map((order) => (
+                  <div key={order.id} className="flex items-center justify-between p-2.5 bg-muted/40 rounded-lg text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-medium">#{order.order_number}</span>
+                      <Badge variant="outline" className={`text-xs ${statusColor(order.status)}`}>
+                        {order.status.replace('_', ' ')}
+                      </Badge>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {order.delivered_at
+                        ? new Date(order.delivered_at).toLocaleDateString()
+                        : new Date(order.created_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="bg-muted/50 rounded-lg p-3 text-center">
-                <CheckCircle2 className="w-5 h-5 mx-auto text-success mb-1" />
-                <p className="text-lg font-bold">{stats?.completedDeliveries || 0}</p>
-                <p className="text-xs text-muted-foreground">Completed</p>
-              </div>
-              <div className="bg-muted/50 rounded-lg p-3 text-center">
-                <TrendingUp className="w-5 h-5 mx-auto text-accent mb-1" />
-                <p className="text-lg font-bold">₦{(stats?.totalEarnings || 0).toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground">Your Revenue</p>
-              </div>
-            </>
+            </div>
+          )}
+
+          {!loadingStats && recentOrders.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-2">No orders found for this rider in the selected period.</p>
           )}
         </div>
       )}
