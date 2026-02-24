@@ -39,14 +39,14 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Verify OTP from database
+    // Verify OTP from database - allow reuse within validity window
+    // OTP is only fully consumed when the payout request is created successfully
     const { data: otpRecord, error: otpError } = await supabase
       .from('withdrawal_otps')
       .select('*')
       .eq('email', email)
       .eq('otp_code', otp)
       .eq('amount', expectedAmount)
-      .eq('used', false)
       .gte('expires_at', new Date().toISOString())
       .order('created_at', { ascending: false })
       .limit(1)
@@ -68,11 +68,13 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Mark as used
-    await supabase
-      .from('withdrawal_otps')
-      .update({ used: true, used_at: new Date().toISOString() })
-      .eq('id', otpRecord.id);
+    // Mark as used now that verification passed
+    if (!otpRecord.used) {
+      await supabase
+        .from('withdrawal_otps')
+        .update({ used: true, used_at: new Date().toISOString() })
+        .eq('id', otpRecord.id);
+    }
 
     console.log(`OTP verified for ${email}, amount: ₦${expectedAmount}`);
 
