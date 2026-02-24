@@ -131,3 +131,6 @@ verify_jwt = false
 
 [functions.ninbvn-balance]
 verify_jwt = false
+
+[functions.auto-store-status]
+verify_jwt = false
