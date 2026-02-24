@@ -26,6 +26,7 @@ import { useAutoStoreStatus } from '@/hooks/useAutoStoreStatus';
 import { OutletProvider } from '@/hooks/useOutletContext';
 import { OutletSwitcher } from '@/components/vendor/OutletSwitcher';
 import { AddOutletDialog } from '@/components/vendor/AddOutletDialog';
+import { usePersistedOutletId } from '@/hooks/usePersistedOutletId';
 
 
 // Map nav items to required permissions
@@ -55,16 +56,21 @@ interface VendorSidebarProps {
   vendorName?: string;
   permissions?: VendorPermission[];
   vendorId?: string;
+  selectedOutletId?: string | null;
   onOutletChange?: (outletId: string | null) => void;
 }
 
-export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], vendorId, onOutletChange }: VendorSidebarProps) {
+export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], vendorId, selectedOutletId: selectedOutletIdProp, onOutletChange }: VendorSidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [newOrderCount, setNewOrderCount] = useState(0);
   const [resolvedVendorId, setResolvedVendorId] = useState<string | null>(vendorId || null);
   const [addOutletOpen, setAddOutletOpen] = useState(false);
+  
+  // Use persisted outlet as fallback when the prop isn't provided
+  const { selectedOutletId: persistedOutletId } = usePersistedOutletId();
+  const effectiveOutletId = selectedOutletIdProp ?? persistedOutletId;
 
   // Resolve vendor ID from auth user if not provided
   useEffect(() => {
@@ -100,14 +106,19 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
   }, [vendorId]);
 
   // Fetch pending/confirmed order count and subscribe to realtime updates
+  // Scoped to selected outlet so badge only reflects the active branch
   useEffect(() => {
-    if (!resolvedVendorId) return;
+    if (!resolvedVendorId || !effectiveOutletId) {
+      setNewOrderCount(0);
+      return;
+    }
 
     const fetchCount = async () => {
       const { count, error } = await supabase
         .from('orders')
         .select('*', { count: 'exact', head: true })
         .eq('vendor_id', resolvedVendorId)
+        .eq('outlet_id', effectiveOutletId)
         .in('status', ['pending', 'confirmed']);
 
       if (!error && count !== null) {
@@ -127,14 +138,20 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
           table: 'orders',
           filter: `vendor_id=eq.${resolvedVendorId}`,
         },
-        () => fetchCount()
+        (payload) => {
+          // Only refresh count if the changed order belongs to the selected outlet
+          const orderOutletId = (payload.new as any)?.outlet_id || (payload.old as any)?.outlet_id;
+          if (orderOutletId === effectiveOutletId) {
+            fetchCount();
+          }
+        }
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [resolvedVendorId]);
+  }, [resolvedVendorId, effectiveOutletId]);
 
   // Auto-close/open store based on working hours (runs on every vendor page)
   useAutoStoreStatus(resolvedVendorId);
