@@ -41,8 +41,7 @@ export function useCommissionInfo(entityType: 'vendor' | 'rider' | 'logistics', 
 
         // Fall back to global default
         let settingKey = 'default_vendor_commission_rate';
-        if (entityType === 'rider') settingKey = 'rider_platform_fee_pct';
-        if (entityType === 'logistics') settingKey = 'default_delivery_company_commission_rate';
+        if (entityType === 'rider' || entityType === 'logistics') settingKey = 'rider_platform_fee_pct';
 
         const { data: setting } = await supabase
           .from('platform_settings')
