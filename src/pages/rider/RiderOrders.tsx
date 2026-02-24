@@ -133,7 +133,7 @@ export default function RiderOrders() {
       // Active orders (assigned to this rider, not delivered/cancelled)
       const { data: active } = await supabase
         .from('orders')
-        .select('*, vendors(name, address, phone, latitude, longitude), vendor_outlets(outlet_name, outlet_surname, address, city, state, latitude, longitude)')
+        .select('*, vendors(name, address, phone, latitude, longitude), vendor_outlets(outlet_name, outlet_surname, address, city, state, latitude, longitude), addresses!delivery_address_id(latitude, longitude)')
         .eq('rider_id', user.id)
         .not('status', 'in', '("delivered","cancelled")')
         .order('created_at', { ascending: false });
@@ -141,7 +141,7 @@ export default function RiderOrders() {
       // Completed orders
       const { data: completed } = await supabase
         .from('orders')
-        .select('*, vendors(name, address, phone), vendor_outlets(outlet_name, outlet_surname, address, city, state, latitude, longitude)')
+        .select('*, vendors(name, address, phone), vendor_outlets(outlet_name, outlet_surname, address, city, state, latitude, longitude), addresses!delivery_address_id(latitude, longitude)')
         .eq('rider_id', user.id)
         .in('status', ['delivered', 'cancelled'])
         .order('created_at', { ascending: false })
@@ -404,6 +404,8 @@ export default function RiderOrders() {
                         <p className="text-sm font-medium">Deliver To</p>
                         <MapOptionsMenu 
                           address={order.delivery_address_text || ''} 
+                          latitude={order.addresses?.latitude}
+                          longitude={order.addresses?.longitude}
                           className="h-7 text-xs"
                         />
                       </div>
