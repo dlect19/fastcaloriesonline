@@ -341,7 +341,7 @@ Deno.serve(async (req) => {
       .from('orders')
       .select(`
         id, vendor_id, status, rider_id, delivery_type, delivery_fee,
-        delivery_address_text, environment,
+        delivery_address_text, environment, outlet_id,
         vendors (id, name, address, latitude, longitude),
         addresses (latitude, longitude)
       `)
@@ -385,9 +385,41 @@ Deno.serve(async (req) => {
     }
 
     const vendor = order.vendors as any;
-    if (!vendor?.latitude || !vendor?.longitude) {
+
+    // If order has an outlet_id, fetch outlet-specific address & coordinates
+    let pickupName = vendor?.name || 'Vendor';
+    let pickupAddress = vendor?.address || '';
+    let pickupLat = vendor?.latitude;
+    let pickupLng = vendor?.longitude;
+
+    if (order.outlet_id) {
+      const { data: outlet } = await supabase
+        .from('vendor_outlets')
+        .select('outlet_name, outlet_surname, address, city, state, latitude, longitude')
+        .eq('id', order.outlet_id)
+        .single();
+
+      if (outlet) {
+        // Use outlet coordinates if available, otherwise fall back to vendor
+        if (outlet.latitude && outlet.longitude) {
+          pickupLat = outlet.latitude;
+          pickupLng = outlet.longitude;
+        }
+        // Use outlet address if available
+        if (outlet.address) {
+          pickupAddress = outlet.address;
+        }
+        // Build outlet display name: "Vendor Name – Outlet Surname"
+        if (outlet.outlet_surname) {
+          pickupName = `${vendor?.name || 'Vendor'} – ${outlet.outlet_surname}`;
+        }
+        console.log(`Using outlet data: name="${pickupName}", address="${pickupAddress}", coords=(${pickupLat}, ${pickupLng})`);
+      }
+    }
+
+    if (!pickupLat || !pickupLng) {
       return new Response(
-        JSON.stringify({ error: 'Vendor location not set' }),
+        JSON.stringify({ error: 'Vendor/outlet location not set' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -414,21 +446,21 @@ Deno.serve(async (req) => {
     const customerLon = address?.longitude || null;
     let deliveryDistanceKm = 0;
     if (customerLat && customerLon) {
-      deliveryDistanceKm = calculateDistance(vendor.latitude, vendor.longitude, customerLat, customerLon);
+      deliveryDistanceKm = calculateDistance(pickupLat, pickupLng, customerLat, customerLon);
     }
 
     // Find eligible riders from ALL tiers with vehicle distance enforcement
     const searchTier = 'all';
     const eligibleRiders = await findEligibleRiders(
-      supabase, order.vendor_id, vendor.latitude, vendor.longitude,
+      supabase, order.vendor_id, pickupLat, pickupLng,
       dispatchSettings.initialRadiusKm, searchTier, deliveryDistanceKm
     );
 
     console.log(`Found ${eligibleRiders.length} eligible riders`);
 
     // Auto-detect weather from customer or vendor location
-    const weatherLat = customerLat || vendor.latitude;
-    const weatherLon = customerLon || vendor.longitude;
+    const weatherLat = customerLat || pickupLat;
+    const weatherLon = customerLon || pickupLng;
     const detectedWeather = await fetchWeatherCondition(weatherLat, weatherLon);
     console.log(`Auto-detected weather: ${detectedWeather} at (${weatherLat}, ${weatherLon})`);
 
@@ -449,8 +481,9 @@ Deno.serve(async (req) => {
       .insert({
         order_id: orderId,
         vendor_id: order.vendor_id,
-        vendor_latitude: vendor.latitude,
-        vendor_longitude: vendor.longitude,
+        outlet_id: order.outlet_id || null,
+        vendor_latitude: pickupLat,
+        vendor_longitude: pickupLng,
         customer_latitude: customerLat,
         customer_longitude: customerLon,
         search_radius_km: dispatchSettings.initialRadiusKm,
@@ -486,8 +519,8 @@ Deno.serve(async (req) => {
       weather_condition: payout.weatherCondition,
       time_period: payout.timePeriod,
       priority_tier: rider.priority_tier,
-      vendor_name: vendor.name,
-      vendor_address: vendor.address,
+      vendor_name: pickupName,
+      vendor_address: pickupAddress,
       customer_address: order.delivery_address_text,
       estimated_pickup_minutes: Math.ceil((rider.distance_km / 25) * 60),
       estimated_delivery_minutes: customerLat && customerLon
@@ -519,7 +552,7 @@ Deno.serve(async (req) => {
             body: JSON.stringify({
               user_ids: riderUserIds,
               title: '🚴 New Delivery Request!',
-              body: `New order from ${vendor.name} — ₦${payout.finalRiderPay} payout`,
+              body: `New order from ${pickupName} — ₦${payout.finalRiderPay} payout`,
               data: { tag: 'dispatch-offer' },
               url: '/rider/available-orders',
             }),
