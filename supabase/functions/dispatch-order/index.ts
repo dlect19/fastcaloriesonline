@@ -25,7 +25,7 @@ interface PayoutSettings {
   platformFeePct: number;
   platformFeeMin: number;
   platformFeeMax: number;
-  minimumPayout: number;
+  
   distanceBonusThresholdKm: number;
   distanceBonusRate: number;
   surgeEnabled: boolean;
@@ -120,7 +120,6 @@ function getPayoutSettings(settings: Record<string, string>, detectedWeather: st
     platformFeePct: parseFloat(settings.rider_platform_fee_pct || '20'),
     platformFeeMin: parseFloat(settings.rider_platform_fee_min || '300'),
     platformFeeMax: parseFloat(settings.rider_platform_fee_max || '700'),
-    minimumPayout: parseFloat(settings.rider_minimum_payout || '900'),
     distanceBonusThresholdKm: parseFloat(settings.rider_distance_bonus_threshold_km || '4'),
     distanceBonusRate: parseFloat(settings.rider_distance_bonus_rate || '100'),
     surgeEnabled: settings.rider_surge_enabled !== 'false',
@@ -198,13 +197,13 @@ function calculateRiderPayout(
   // Surge is already in deliveryFee, so rider naturally gets it (minus platform cut on base)
   const rawRiderPay = deliveryFee - platformFee + distanceBonus;
 
-  // 5. Guaranteed minimum with subsidy
-  const finalRiderPay = Math.max(rawRiderPay, ps.minimumPayout);
-  const subsidyAmount = Math.max(0, ps.minimumPayout - rawRiderPay);
+  // 5. Final rider pay = raw pay (no minimum guarantee / subsidy)
+  const finalRiderPay = rawRiderPay;
+  const subsidyAmount = 0;
 
   return {
     deliveryFee,
-    platformFee,
+    platformFee: Math.min(platformFee, deliveryFee), // platform fee can't exceed delivery fee
     distanceBonus,
     timeSurgeBonus: ps.surgeEnabled && ps.timeSurgeEnabled ? timeSurgeBonus : 0,
     weatherSurgeBonus: ps.surgeEnabled && ps.weatherSurgeEnabled ? weatherSurgeBonus : 0,
