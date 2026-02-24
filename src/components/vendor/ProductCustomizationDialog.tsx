@@ -68,11 +68,12 @@ export interface SelectedAddon {
 interface ProductCustomizationDialogProps {
   product: Product;
   vendor: Vendor;
+  outletId?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-export function ProductCustomizationDialog({ product, vendor, open, onOpenChange }: ProductCustomizationDialogProps) {
+export function ProductCustomizationDialog({ product, vendor, outletId, open, onOpenChange }: ProductCustomizationDialogProps) {
   const { user } = useAuth();
   const { addItem, vendorId } = useCart();
   const { toast } = useToast();
@@ -399,6 +400,7 @@ export function ProductCustomizationDialog({ product, vendor, open, onOpenChange
       productName: product.name,
       vendorId: vendor.id,
       vendorName: vendor.name,
+      outletId,
       price: effectivePrice,
       quantity,
       calories: (product.calories || 0),

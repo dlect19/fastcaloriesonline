@@ -14,7 +14,7 @@ interface VendorGroupCardProps {
   customerLat: number | null;
   customerLon: number | null;
   deliveryType: 'delivery' | 'self_pickup';
-  onClearGroup: (vendorId: string) => void;
+  onClearGroup: (vendorId: string, outletId?: string) => void;
   /** Called with (vendorId, fee, packagingFee, distanceKm) whenever they change */
   onFeesCalculated: (vendorId: string, deliveryFee: number, packagingFee: number, distanceKm: number | null, surgeFee: number) => void;
 }
@@ -67,7 +67,7 @@ export function VendorGroupCard({
           variant="ghost"
           size="sm"
           className="text-muted-foreground hover:text-destructive h-8 gap-1"
-          onClick={() => onClearGroup(group.vendorId)}
+          onClick={() => onClearGroup(group.vendorId, group.outletId)}
         >
           <Trash2 className="w-3.5 h-3.5" />
           Remove

@@ -242,6 +242,7 @@ export function VendorCheckoutSection({
           status: 'pending',
           payment_status: 'pending',
           payment_method: 'wallet',
+          outlet_id: group.outletId || null,
         })
         .select()
         .single();
@@ -326,7 +327,7 @@ export function VendorCheckoutSection({
       if (paymentResult?.error) throw new Error(paymentResult.error);
 
       await refetchWallet();
-      clearVendorGroup(group.vendorId);
+      clearVendorGroup(group.vendorId, group.outletId);
 
       toast({
         title: 'Order Placed!',

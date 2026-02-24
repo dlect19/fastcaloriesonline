@@ -469,7 +469,7 @@ export default function VendorDetail() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {combos.map((combo) => (
-                <ComboCard key={combo.id} combo={combo} vendor={vendor} />
+                <ComboCard key={combo.id} combo={combo} vendor={vendor} outletId={searchParams.get('outlet') || undefined} />
               ))}
             </div>
           </section>
@@ -494,6 +494,7 @@ export default function VendorDetail() {
                   key={product.id}
                   product={product}
                   vendor={vendor}
+                  outletId={searchParams.get('outlet') || undefined}
                 />
               ))}
             </div>
