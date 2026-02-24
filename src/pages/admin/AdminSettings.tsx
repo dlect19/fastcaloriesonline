@@ -340,10 +340,20 @@ export default function AdminSettings() {
                     For each additional km: 
                     <span className="text-primary font-medium"> +₦{parseInt(settings['per_km_fee'] || '100').toLocaleString()}</span>
                   </p>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Example: A 7km delivery = ₦{settings['base_delivery_fee'] || '500'} + (4 × ₦{settings['per_km_fee'] || '100'}) = 
-                    <span className="text-primary font-semibold"> ₦{(parseInt(settings['base_delivery_fee'] || '500') + (4 * parseInt(settings['per_km_fee'] || '100'))).toLocaleString()}</span>
-                  </p>
+                  {(() => {
+                    const baseDist = parseInt(settings['base_delivery_distance_km'] || '3');
+                    const exampleDist = 7;
+                    const extraKm = Math.max(exampleDist - baseDist, 0);
+                    const baseFee = parseInt(settings['base_delivery_fee'] || '500');
+                    const perKm = parseInt(settings['per_km_fee'] || '100');
+                    const total = baseFee + (extraKm * perKm);
+                    return (
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Example: A {exampleDist}km delivery = ₦{baseFee.toLocaleString()} + ({extraKm} × ₦{perKm.toLocaleString()}) = 
+                        <span className="text-primary font-semibold"> ₦{total.toLocaleString()}</span>
+                      </p>
+                    );
+                  })()}
                 </div>
 
                 <div className="flex justify-end">

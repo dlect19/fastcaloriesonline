@@ -455,27 +455,48 @@ export default function VendorEarnings() {
                     : 'All Time'
                   }
                 />
-                {financialBreakdown.deliveryOrderCount > 0 && (
-                  <EarningsBreakdownCard
-                    grossAmount={financialBreakdown.deliveryGrossRevenue}
-                    deductions={[
-                      {
-                        label: 'Platform Delivery Fee',
-                        amount: financialBreakdown.deliveryPlatformFee,
-                        percentage: financialBreakdown.deliveryGrossRevenue > 0
-                          ? Math.round((financialBreakdown.deliveryPlatformFee / financialBreakdown.deliveryGrossRevenue) * 100 * 10) / 10
-                          : financialBreakdown.deliveryPlatformFeeRate,
-                        description: 'Platform fee on delivery revenue (based on delivery fee configuration including distance, surge, and min/max caps).',
-                      },
-                    ]}
-                    netAmount={financialBreakdown.deliveryNetRevenue}
-                    title="Rider Delivery Revenue Breakdown"
-                    period={dateRange.from || dateRange.to 
-                      ? `${dateRange.from?.toLocaleDateString() || 'Start'} - ${dateRange.to?.toLocaleDateString() || 'Now'}`
-                      : `All Time (${financialBreakdown.deliveryOrderCount} deliveries)`
-                    }
-                  />
-                )}
+                {financialBreakdown.deliveryOrderCount > 0 && (() => {
+                  const gross = financialBreakdown.deliveryGrossRevenue;
+                  const net = financialBreakdown.deliveryNetRevenue;
+                  const rawPlatformFee = gross - net;
+                  
+                  // With hybrid model, platform fee can be negative (subsidy when min guarantee kicks in)
+                  const actualPlatformFee = Math.max(rawPlatformFee, 0);
+                  const subsidyAmount = rawPlatformFee < 0 ? Math.abs(rawPlatformFee) : 0;
+                  
+                  const deductions = [
+                    {
+                      label: 'Platform Fee (capped)',
+                      amount: actualPlatformFee,
+                      percentage: gross > 0
+                        ? Math.round((actualPlatformFee / gross) * 100 * 10) / 10
+                        : financialBreakdown.deliveryPlatformFeeRate,
+                      description: 'Capped platform fee on delivery revenue (min ₦300, max ₦700).',
+                    },
+                  ];
+                  
+                  if (subsidyAmount > 0) {
+                    deductions.push({
+                      label: 'Min Guarantee Top-up',
+                      amount: -subsidyAmount,
+                      percentage: undefined as unknown as number,
+                      description: 'Platform subsidy to ensure ₦900 minimum rider payout.',
+                    });
+                  }
+                  
+                  return (
+                    <EarningsBreakdownCard
+                      grossAmount={gross}
+                      deductions={deductions}
+                      netAmount={net}
+                      title="Rider Delivery Revenue Breakdown"
+                      period={dateRange.from || dateRange.to 
+                        ? `${dateRange.from?.toLocaleDateString() || 'Start'} - ${dateRange.to?.toLocaleDateString() || 'Now'}`
+                        : `All Time (${financialBreakdown.deliveryOrderCount} deliveries)`
+                      }
+                    />
+                  );
+                })()}
               </div>
             ) : (
               <Card className="p-6 text-center text-muted-foreground text-sm">
