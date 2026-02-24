@@ -269,9 +269,16 @@ export default function RiderEarnings() {
         <p className="text-muted-foreground text-sm md:text-base">Track your income and withdrawals</p>
       </div>
 
-      {/* Earnings Breakdown - New Transparency Feature */}
-      {grossDeliveryFees > 0 && (
-        <div className="mb-6">
+      {/* Earnings Breakdown - with Date Filter */}
+      <div className="mb-6 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <h2 className="text-lg font-semibold text-foreground">Delivery Earnings Breakdown</h2>
+          <DateRangeFilter 
+            dateRange={dateRange} 
+            onDateRangeChange={setDateRange}
+          />
+        </div>
+        {grossDeliveryFees > 0 ? (
           <EarningsBreakdownCard
             grossAmount={grossDeliveryFees}
             deductions={[
@@ -304,8 +311,10 @@ export default function RiderEarnings() {
               : 'All Time'
             }
           />
-        </div>
-      )}
+        ) : (
+          <p className="text-sm text-muted-foreground">No delivery earnings for this period.</p>
+        )}
+      </div>
 
       {/* Understanding Your Earnings */}
       <div className="mb-6">
@@ -367,16 +376,10 @@ export default function RiderEarnings() {
 
       <Card>
         <CardHeader>
-          <div className="flex flex-col gap-4">
-            <CardTitle className="text-lg md:text-xl flex items-center gap-2">
-              <Calendar className="w-5 h-5" />
-              Transaction History
-            </CardTitle>
-            <DateRangeFilter 
-              dateRange={dateRange} 
-              onDateRangeChange={setDateRange}
-            />
-          </div>
+          <CardTitle className="text-lg md:text-xl flex items-center gap-2">
+            <Calendar className="w-5 h-5" />
+            Transaction History
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {transactions.length === 0 ? (
