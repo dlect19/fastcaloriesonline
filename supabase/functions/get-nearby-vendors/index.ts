@@ -143,20 +143,35 @@ serve(async (req) => {
         ? baseDeliveryFee
         : Math.round(baseDeliveryFee + (closestDistance - baseDeliveryDistanceKm) * perKmFee);
 
+      const outletDisplayName = closestOutlet.outlet_surname
+        ? `${vendor.name} – ${closestOutlet.outlet_surname}`
+        : (closestOutlet.outlet_name || vendor.name);
+
       return new Response(
         JSON.stringify({
           success: true,
           vendor: {
             ...vendor,
+            name: outletDisplayName,
+            rating: closestOutlet.rating ?? vendor.rating,
+            total_ratings: closestOutlet.total_ratings ?? vendor.total_ratings,
+            is_open: closestOutlet.is_open,
+            address: closestOutlet.address ?? vendor.address,
+            city: closestOutlet.city ?? vendor.city,
+            state: closestOutlet.state ?? vendor.state,
+            latitude: closestOutlet.latitude ?? vendor.latitude,
+            longitude: closestOutlet.longitude ?? vendor.longitude,
+            delivery_mode: closestOutlet.delivery_mode ?? vendor.delivery_mode,
+            delivery_fee: dynamicDeliveryFee,
             outlet_id: closestOutlet.id,
             outlet_name: closestOutlet.outlet_name,
             outlet_surname: closestOutlet.outlet_surname,
             outlet_address: closestOutlet.address,
             outlet_city: closestOutlet.city,
             outlet_state: closestOutlet.state,
-            is_open: closestOutlet.is_open,
             distance: Math.round(closestDistance * 10) / 10,
             dynamic_delivery_fee: dynamicDeliveryFee,
+            display_name: outletDisplayName,
           },
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
