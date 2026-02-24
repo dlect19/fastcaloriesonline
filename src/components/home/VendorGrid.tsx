@@ -139,6 +139,7 @@ export function VendorGrid({
             <VendorCard
               key={vendor.outlet_id || vendor.id}
               id={vendor.id}
+              outletId={vendor.outlet_id}
               name={(vendor as any).display_name || vendor.name}
               category={vendor.description || `${vendor.category}`}
               rating={vendor.rating || 0}
