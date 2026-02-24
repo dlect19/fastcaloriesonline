@@ -68,8 +68,21 @@ export function VendorRiderCard({ rider, vendorId, onToggleStatus, dateRange }: 
 
       if (orders) {
         const completedOrders = orders.filter(o => o.status === 'delivered');
-        // 80% goes to vendor for affiliated riders
-        const vendorDeliveryRevenue = completedOrders.reduce((sum, o) => sum + (o.delivery_fee || 0) * 0.8, 0);
+        const completedOrderIds = completedOrders.map(o => o.id);
+
+        // Fetch actual vendor_rider_share from wallet ledger for accuracy
+        let vendorDeliveryRevenue = 0;
+        if (completedOrderIds.length > 0) {
+          const { data: txns } = await supabase
+            .from('wallet_transactions')
+            .select('amount')
+            .in('order_id', completedOrderIds)
+            .eq('category', 'vendor_rider_share')
+            .eq('transaction_type', 'credit')
+            .eq('status', 'completed');
+
+          vendorDeliveryRevenue = (txns || []).reduce((sum, t) => sum + Number(t.amount), 0);
+        }
         
         setStats({
           totalDeliveries: orders.length,
