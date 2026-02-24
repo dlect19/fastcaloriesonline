@@ -1,16 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, Save, Loader2, Bike, Users, Building2, Navigation, CheckCircle, Clock, Settings2 } from 'lucide-react';
+import { MapPin, Save, Loader2, Bike, Users, Building2, Navigation, CheckCircle, Clock, Settings2, Megaphone, Heart, QrCode, Radar, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
+import { Slider } from '@/components/ui/slider';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { VendorLayout } from '@/components/vendor/VendorLayout';
 import { AccessDenied } from '@/components/vendor/AccessDenied';
 import { GeoLockBanner } from '@/components/vendor/GeoLockBanner';
+import { MarketingBanner } from '@/components/vendor/MarketingBanner';
 import { useAuth } from '@/hooks/useAuth';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
 import { useVendorResolver } from '@/hooks/useVendorResolver';
@@ -24,13 +27,16 @@ function VendorStoreSettingsInner() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { vendorId, loading: vendorLoading } = useVendorResolver();
-  const { selectedOutlet, refreshOutlets } = useOutletContext();
-  const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendorId);
-  const { latitude: geoLat, longitude: geoLon, loading: geoLoading, error: geoError, getCurrentPosition } = useGeolocation();
+  const { selectedOutlet, outlets, refreshOutlets } = useOutletContext();
+  const { hasPermission, loading: permLoading } = useVendorPermissions(vendorId);
+  const { latitude: geoLat, longitude: geoLon, loading: geoLoading, getCurrentPosition } = useGeolocation();
   
   const [saving, setSaving] = useState(false);
   const [gettingLocation, setGettingLocation] = useState(false);
   const [vendorName, setVendorName] = useState('');
+  const [vendorData, setVendorData] = useState<{ logo_url: string | null } | null>(null);
+  const [maxSalesRadius, setMaxSalesRadius] = useState(50);
+  const [deletingOutlet, setDeletingOutlet] = useState(false);
 
   const [formData, setFormData] = useState({
     outlet_name: '',
@@ -40,15 +46,25 @@ function VendorStoreSettingsInner() {
     state: '',
     delivery_mode: 'platform',
     own_rider_priority: true,
-    min_order_amount: '0',
-    estimated_delivery_minutes: '30',
+    sales_radius: 10,
   });
 
-  // Fetch vendor name
+  // Fetch vendor name + logo + max radius
   useEffect(() => {
     if (!vendorId) return;
-    supabase.from('vendors').select('name').eq('id', vendorId).single()
-      .then(({ data }) => { if (data) setVendorName(data.name); });
+    supabase.from('vendors').select('name, logo_url').eq('id', vendorId).single()
+      .then(({ data }) => { 
+        if (data) {
+          setVendorName(data.name);
+          setVendorData(data);
+        }
+      });
+    
+    // Fetch platform max sales radius threshold
+    supabase.from('platform_settings').select('value').eq('key', 'vendor_delivery_radius_km').single()
+      .then(({ data }) => {
+        if (data) setMaxSalesRadius(Math.min(50, Math.max(1, parseFloat(data.value) || 50)));
+      });
   }, [vendorId]);
 
   // Load outlet data into form
@@ -62,8 +78,7 @@ function VendorStoreSettingsInner() {
       state: selectedOutlet.state || '',
       delivery_mode: selectedOutlet.delivery_mode || 'platform',
       own_rider_priority: true,
-      min_order_amount: selectedOutlet.min_order_amount?.toString() || '0',
-      estimated_delivery_minutes: selectedOutlet.estimated_delivery_minutes?.toString() || '30',
+      sales_radius: (selectedOutlet as any).sales_radius || 10,
     });
   }, [selectedOutlet?.id]);
 
@@ -84,8 +99,7 @@ function VendorStoreSettingsInner() {
           city: formData.city,
           state: formData.state,
           delivery_mode: formData.delivery_mode,
-          min_order_amount: parseFloat(formData.min_order_amount) || 0,
-          estimated_delivery_minutes: parseInt(formData.estimated_delivery_minutes) || 30,
+          sales_radius: Math.min(maxSalesRadius, Math.max(1, formData.sales_radius)),
         })
         .eq('id', selectedOutlet.id);
 
@@ -96,6 +110,29 @@ function VendorStoreSettingsInner() {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeleteOutlet = async () => {
+    if (!selectedOutlet) return;
+    if (selectedOutlet.is_default) {
+      toast({ title: 'Cannot delete', description: 'You cannot delete the default outlet.', variant: 'destructive' });
+      return;
+    }
+    setDeletingOutlet(true);
+    try {
+      const { error } = await supabase
+        .from('vendor_outlets')
+        .delete()
+        .eq('id', selectedOutlet.id);
+
+      if (error) throw error;
+      toast({ title: 'Outlet deleted' });
+      await refreshOutlets();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setDeletingOutlet(false);
     }
   };
 
@@ -114,265 +151,410 @@ function VendorStoreSettingsInner() {
     return <AccessDenied message="You don't have permission to edit store settings." />;
   }
 
+  const outletDisplayName = `${vendorName} – ${selectedOutlet?.outlet_surname || 'Branch'}`;
+
   return (
     <div className="p-6 space-y-6">
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-                <Settings2 className="w-6 h-6" />
-                Store Settings
-              </h1>
-              <p className="text-muted-foreground">
-                Configure settings for: {selectedOutlet?.outlet_name}
-                {selectedOutlet?.outlet_surname ? ` – ${selectedOutlet.outlet_surname}` : ''}
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+            <Settings2 className="w-6 h-6" />
+            Store Settings
+          </h1>
+          <p className="text-muted-foreground">
+            Configure settings for: {outletDisplayName}
+          </p>
+        </div>
+        <Button onClick={handleSave} disabled={saving} className="gap-2 w-fit">
+          <Save className="w-4 h-4" />
+          {saving ? 'Saving...' : 'Save Changes'}
+        </Button>
+      </div>
+
+      {/* Outlet Identity */}
+      <Card className="border-0 shadow-soft">
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Settings2 className="w-5 h-5" />
+            Outlet Identity
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Outlet Name</Label>
+              <Input
+                value={formData.outlet_name}
+                onChange={e => setFormData({ ...formData, outlet_name: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Branch Tag (Surname)</Label>
+              <Input
+                value={formData.outlet_surname}
+                onChange={e => setFormData({ ...formData, outlet_surname: e.target.value })}
+                placeholder="e.g. Ikeja"
+              />
+              <p className="text-xs text-muted-foreground">
+                Displays as: {vendorName} – {formData.outlet_surname || 'Branch'}
               </p>
             </div>
-            <Button onClick={handleSave} disabled={saving} className="gap-2 w-fit">
-              <Save className="w-4 h-4" />
-              {saving ? 'Saving...' : 'Save Changes'}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Location */}
+      <Card className="border-0 shadow-soft">
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <MapPin className="w-5 h-5" />
+            Outlet Location
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* GPS */}
+          <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium text-foreground">Precise GPS Location</p>
+                <p className="text-sm text-muted-foreground">
+                  {selectedOutlet?.latitude && selectedOutlet?.longitude
+                    ? `📍 Saved: ${selectedOutlet.latitude.toFixed(4)}, ${selectedOutlet.longitude.toFixed(4)}`
+                    : 'Set exact location for accurate delivery distances'}
+                </p>
+              </div>
+              {selectedOutlet?.latitude && selectedOutlet?.longitude && (
+                <CheckCircle className="w-5 h-5 text-primary shrink-0" />
+              )}
+            </div>
+            <Button
+              variant={selectedOutlet?.latitude ? 'outline' : 'default'}
+              size="sm"
+              className="gap-2"
+              onClick={async () => {
+                setGettingLocation(true);
+                getCurrentPosition();
+              }}
+              disabled={geoLoading || gettingLocation}
+            >
+              {(geoLoading || gettingLocation) ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Navigation className="w-4 h-4" />
+              )}
+              {selectedOutlet?.latitude ? 'Update Location' : 'Use Current Location'}
             </Button>
           </div>
 
-          {/* Outlet Identity */}
-          <Card className="border-0 shadow-soft">
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Settings2 className="w-5 h-5" />
-                Outlet Identity
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Outlet Name</Label>
-                  <Input
-                    value={formData.outlet_name}
-                    onChange={e => setFormData({ ...formData, outlet_name: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Branch Tag (Surname)</Label>
-                  <Input
-                    value={formData.outlet_surname}
-                    onChange={e => setFormData({ ...formData, outlet_surname: e.target.value })}
-                    placeholder="e.g. Ikeja"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Displays as: {vendorName} – {formData.outlet_surname || 'Branch'}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Location */}
-          <Card className="border-0 shadow-soft">
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <MapPin className="w-5 h-5" />
-                Outlet Location
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* GPS */}
-              <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-foreground">Precise GPS Location</p>
-                    <p className="text-sm text-muted-foreground">
-                      {selectedOutlet?.latitude && selectedOutlet?.longitude
-                        ? `📍 Saved: ${selectedOutlet.latitude.toFixed(4)}, ${selectedOutlet.longitude.toFixed(4)}`
-                        : 'Set exact location for accurate delivery distances'}
-                    </p>
-                  </div>
-                  {selectedOutlet?.latitude && selectedOutlet?.longitude && (
-                    <CheckCircle className="w-5 h-5 text-success shrink-0" />
-                  )}
-                </div>
-                <Button
-                  variant={selectedOutlet?.latitude ? 'outline' : 'default'}
-                  size="sm"
-                  className="gap-2"
-                  onClick={async () => {
-                    setGettingLocation(true);
-                    getCurrentPosition();
-                  }}
-                  disabled={geoLoading || gettingLocation}
-                >
-                  {(geoLoading || gettingLocation) ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Navigation className="w-4 h-4" />
-                  )}
-                  {selectedOutlet?.latitude ? 'Update Location' : 'Use Current Location'}
-                </Button>
-              </div>
-
-              {/* Auto-save GPS */}
-              {gettingLocation && geoLat && geoLon && selectedOutlet && (
-                <GpsAutoSaveOutlet
-                  outletId={selectedOutlet.id}
-                  lat={geoLat}
-                  lon={geoLon}
-                  onComplete={() => {
-                    setGettingLocation(false);
-                    toast({ title: 'Location saved' });
-                    refreshOutlets();
-                  }}
-                  onError={(err) => {
-                    setGettingLocation(false);
-                    toast({ title: 'Error', description: err, variant: 'destructive' });
-                  }}
-                />
-              )}
-
-              <div className="space-y-2">
-                <Label>Street Address</Label>
-                <Input
-                  value={formData.address}
-                  onChange={e => setFormData({ ...formData, address: e.target.value })}
-                />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>City</Label>
-                  <Input
-                    value={formData.city}
-                    onChange={e => setFormData({ ...formData, city: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>State</Label>
-                  <Input
-                    value={formData.state}
-                    onChange={e => setFormData({ ...formData, state: e.target.value })}
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Delivery Mode */}
-          <Card className="border-0 shadow-soft">
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Bike className="w-5 h-5" />
-                Delivery Mode
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <RadioGroup
-                value={formData.delivery_mode}
-                onValueChange={val => setFormData({ ...formData, delivery_mode: val })}
-                className="grid gap-4"
-              >
-                <div className="flex items-start space-x-3 p-4 rounded-xl border border-border hover:border-primary/50 transition-colors">
-                  <RadioGroupItem value="own" id="own" className="mt-1" />
-                  <div className="flex-1">
-                    <Label htmlFor="own" className="flex items-center gap-2 cursor-pointer font-medium">
-                      <Users className="w-4 h-4 text-primary" />
-                      My Own Riders Only
-                    </Label>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Only your in-house delivery staff will handle orders
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-start space-x-3 p-4 rounded-xl border border-border hover:border-primary/50 transition-colors">
-                  <RadioGroupItem value="platform" id="platform" className="mt-1" />
-                  <div className="flex-1">
-                    <Label htmlFor="platform" className="flex items-center gap-2 cursor-pointer font-medium">
-                      <Building2 className="w-4 h-4 text-primary" />
-                      Platform Riders Only
-                    </Label>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Platform riders will handle all deliveries
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-start space-x-3 p-4 rounded-xl border border-border hover:border-primary/50 transition-colors">
-                  <RadioGroupItem value="both" id="both" className="mt-1" />
-                  <div className="flex-1">
-                    <Label htmlFor="both" className="flex items-center gap-2 cursor-pointer font-medium">
-                      <Bike className="w-4 h-4 text-primary" />
-                      Both (With Priority)
-                    </Label>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Use both your riders and platform riders with priority settings
-                    </p>
-                  </div>
-                </div>
-              </RadioGroup>
-
-              {formData.delivery_mode === 'both' && (
-                <div className="p-4 bg-muted/50 rounded-xl space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label className="font-medium">Prioritize My Riders</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Try your riders first before platform riders
-                      </p>
-                    </div>
-                    <Switch
-                      checked={formData.own_rider_priority}
-                      onCheckedChange={checked => setFormData({ ...formData, own_rider_priority: checked })}
-                    />
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Store Status */}
-          {selectedOutlet && (
-            <Card className="border-0 shadow-soft">
-              <CardHeader>
-                <CardTitle className="text-lg">Store Status</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between p-4 rounded-xl bg-muted/50">
-                  <div>
-                    <p className="font-medium text-foreground">Open / Closed</p>
-                    <p className="text-sm text-muted-foreground">
-                      {selectedOutlet.is_open ? 'This outlet is currently accepting orders' : 'This outlet is closed'}
-                    </p>
-                  </div>
-                  <Switch
-                    checked={selectedOutlet.is_open ?? false}
-                    onCheckedChange={async (checked) => {
-                      await supabase.from('vendor_outlets').update({ is_open: checked }).eq('id', selectedOutlet.id);
-                      await refreshOutlets();
-                      toast({ title: checked ? 'Outlet opened' : 'Outlet closed' });
-                    }}
-                  />
-                </div>
-                {!selectedOutlet.is_approved && (
-                  <div className="p-4 bg-warning/10 border border-warning/30 rounded-xl">
-                    <p className="text-sm font-medium text-warning flex items-center gap-2">
-                      <Clock className="w-4 h-4" />
-                      Pending Admin Approval
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      This outlet cannot accept orders until approved by an administrator.
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Geo-Lock */}
-          {selectedOutlet && (selectedOutlet as any).geo_lock_status === 'locked' && (
-            <GeoLockBanner
-              vendorId={vendorId || ''}
-              geoStatus="locked_pending_reverify"
-              lockReason={(selectedOutlet as any).geo_lock_reason}
-              lockedAt={null}
-              onStatusChange={refreshOutlets}
+          {/* Auto-save GPS */}
+          {gettingLocation && geoLat && geoLon && selectedOutlet && (
+            <GpsAutoSaveOutlet
+              outletId={selectedOutlet.id}
+              lat={geoLat}
+              lon={geoLon}
+              onComplete={() => {
+                setGettingLocation(false);
+                toast({ title: 'Location saved' });
+                refreshOutlets();
+              }}
+              onError={(err) => {
+                setGettingLocation(false);
+                toast({ title: 'Error', description: err, variant: 'destructive' });
+              }}
             />
           )}
-        </div>
+
+          <div className="space-y-2">
+            <Label>Street Address</Label>
+            <Input
+              value={formData.address}
+              onChange={e => setFormData({ ...formData, address: e.target.value })}
+            />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>City</Label>
+              <Input
+                value={formData.city}
+                onChange={e => setFormData({ ...formData, city: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>State</Label>
+              <Input
+                value={formData.state}
+                onChange={e => setFormData({ ...formData, state: e.target.value })}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Delivery Mode */}
+      <Card className="border-0 shadow-soft">
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Bike className="w-5 h-5" />
+            Delivery Mode
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <RadioGroup
+            value={formData.delivery_mode}
+            onValueChange={val => setFormData({ ...formData, delivery_mode: val })}
+            className="grid gap-4"
+          >
+            <div className="flex items-start space-x-3 p-4 rounded-xl border border-border hover:border-primary/50 transition-colors">
+              <RadioGroupItem value="own" id="own" className="mt-1" />
+              <div className="flex-1">
+                <Label htmlFor="own" className="flex items-center gap-2 cursor-pointer font-medium">
+                  <Users className="w-4 h-4 text-primary" />
+                  My Own Riders Only
+                </Label>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Only your in-house delivery staff will handle orders
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start space-x-3 p-4 rounded-xl border border-border hover:border-primary/50 transition-colors">
+              <RadioGroupItem value="platform" id="platform" className="mt-1" />
+              <div className="flex-1">
+                <Label htmlFor="platform" className="flex items-center gap-2 cursor-pointer font-medium">
+                  <Building2 className="w-4 h-4 text-primary" />
+                  Platform Riders Only
+                </Label>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Platform riders will handle all deliveries
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start space-x-3 p-4 rounded-xl border border-border hover:border-primary/50 transition-colors">
+              <RadioGroupItem value="both" id="both" className="mt-1" />
+              <div className="flex-1">
+                <Label htmlFor="both" className="flex items-center gap-2 cursor-pointer font-medium">
+                  <Bike className="w-4 h-4 text-primary" />
+                  Both (With Priority)
+                </Label>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Use both your riders and platform riders with priority settings
+                </p>
+              </div>
+            </div>
+          </RadioGroup>
+
+          {formData.delivery_mode === 'both' && (
+            <div className="p-4 bg-muted/50 rounded-xl space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="font-medium">Prioritize My Riders</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Try your riders first before platform riders
+                  </p>
+                </div>
+                <Switch
+                  checked={formData.own_rider_priority}
+                  onCheckedChange={checked => setFormData({ ...formData, own_rider_priority: checked })}
+                />
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Store Status */}
+      {selectedOutlet && (
+        <Card className="border-0 shadow-soft">
+          <CardHeader>
+            <CardTitle className="text-lg">Store Status</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between p-4 rounded-xl bg-muted/50">
+              <div>
+                <p className="font-medium text-foreground">Open / Closed</p>
+                <p className="text-sm text-muted-foreground">
+                  {selectedOutlet.is_open ? 'This outlet is currently accepting orders' : 'This outlet is closed'}
+                </p>
+              </div>
+              <Switch
+                checked={selectedOutlet.is_open ?? false}
+                onCheckedChange={async (checked) => {
+                  await supabase.from('vendor_outlets').update({ is_open: checked }).eq('id', selectedOutlet.id);
+                  await refreshOutlets();
+                  toast({ title: checked ? 'Outlet opened' : 'Outlet closed' });
+                }}
+              />
+            </div>
+            {!selectedOutlet.is_approved && (
+              <div className="p-4 bg-warning/10 border border-warning/30 rounded-xl">
+                <p className="text-sm font-medium text-warning flex items-center gap-2">
+                  <Clock className="w-4 h-4" />
+                  Pending Admin Approval
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  This outlet cannot accept orders until approved by an administrator.
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Delivery Coverage */}
+      <Card className="border-0 shadow-soft">
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Radar className="w-5 h-5" />
+            Delivery Coverage
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Set how far customers can see and order from this outlet. Maximum allowed: {maxSalesRadius}km.
+          </p>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label className="font-medium">Sales Radius</Label>
+              <span className="text-sm font-semibold text-primary">{formData.sales_radius} km</span>
+            </div>
+            <Slider
+              value={[formData.sales_radius]}
+              onValueChange={([val]) => setFormData({ ...formData, sales_radius: val })}
+              min={1}
+              max={maxSalesRadius}
+              step={1}
+              className="w-full"
+            />
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>1 km</span>
+              <span>{maxSalesRadius} km</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Marketing Materials */}
+      {selectedOutlet && (
+        <Card className="border-0 shadow-soft">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Megaphone className="w-5 h-5" />
+              Marketing Materials
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Generate printable marketing banners with QR codes for this outlet.
+            </p>
+            <MarketingBanner
+              vendor={{
+                id: selectedOutlet.id,
+                name: outletDisplayName,
+                address: selectedOutlet.address || '',
+                city: selectedOutlet.city || '',
+                state: selectedOutlet.state || '',
+                logo_url: vendorData?.logo_url || null,
+              }}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Customer Favorites QR Code */}
+      {selectedOutlet && vendorId && (
+        <Card className="border-0 shadow-soft">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Heart className="w-5 h-5 text-destructive" />
+              Customer Favorites QR Code
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Display this QR code at this outlet. When customers scan it, they can instantly add your store to their favorites.
+            </p>
+            <div className="flex flex-col items-center gap-4 p-4 bg-muted/50 rounded-xl">
+              <div className="p-4 bg-background rounded-lg shadow-sm">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`${window.location.origin}/vendor/${vendorId}?action=favorite`)}`}
+                  alt="Favorites QR Code"
+                  className="w-48 h-48"
+                />
+              </div>
+              <div className="text-center">
+                <p className="font-medium text-foreground">Scan to Favorite</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {outletDisplayName}
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={() => {
+                  const link = document.createElement('a');
+                  link.href = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(`${window.location.origin}/vendor/${vendorId}?action=favorite`)}`;
+                  link.download = `${outletDisplayName.replace(/\s+/g, '-')}-favorites-qr.png`;
+                  link.click();
+                }}
+              >
+                <QrCode className="w-4 h-4" />
+                Download QR Code
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Geo-Lock */}
+      {selectedOutlet && (selectedOutlet as any).geo_verification_status === 'locked_pending_reverify' && (
+        <GeoLockBanner
+          vendorId={vendorId || ''}
+          geoStatus="locked_pending_reverify"
+          lockReason={(selectedOutlet as any).geo_lock_reason}
+          lockedAt={null}
+          onStatusChange={refreshOutlets}
+        />
+      )}
+
+      {/* Delete Outlet */}
+      {selectedOutlet && !selectedOutlet.is_default && outlets.length > 1 && (
+        <Card className="border-destructive/30">
+          <CardContent className="p-6">
+            <h3 className="text-sm font-medium text-destructive mb-2">Danger Zone</h3>
+            <p className="text-sm text-muted-foreground mb-3">
+              Permanently delete this outlet ({outletDisplayName}). This cannot be undone.
+            </p>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm" className="gap-2">
+                  <Trash2 className="w-4 h-4" />
+                  Delete Outlet
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete {outletDisplayName}?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently delete this outlet and all its associated data including orders, earnings, and staff assignments. This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleDeleteOutlet}
+                    disabled={deletingOutlet}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    {deletingOutlet ? 'Deleting...' : 'Delete Outlet'}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }
 

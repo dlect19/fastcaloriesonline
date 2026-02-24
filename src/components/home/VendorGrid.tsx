@@ -137,9 +137,9 @@ export function VendorGrid({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {vendors.map((vendor) => (
             <VendorCard
-              key={vendor.id}
+              key={vendor.outlet_id || vendor.id}
               id={vendor.id}
-              name={vendor.name}
+              name={(vendor as any).display_name || vendor.name}
               category={vendor.description || `${vendor.category}`}
               rating={vendor.rating || 0}
               deliveryTime={vendor.estimated_delivery_minutes || 30}

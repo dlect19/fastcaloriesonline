@@ -8,6 +8,10 @@ type Vendor = Tables<'vendors'>;
 export interface VendorWithDistance extends Vendor {
   distance: number;
   dynamic_delivery_fee: number;
+  outlet_id?: string;
+  outlet_name?: string;
+  outlet_surname?: string;
+  display_name?: string;
 }
 
 interface UseLocationBasedVendorsOptions {
