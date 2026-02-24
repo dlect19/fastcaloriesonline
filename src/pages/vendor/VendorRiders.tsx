@@ -87,33 +87,58 @@ export default function VendorRiders() {
     }
   }, [user, authLoading, navigate, selectedOutletId]);
 
-  const fetchDeliveryRevenue = async (vendorId: string, riderUserIds: string[], dateRange?: DateRange) => {
+  const fetchDeliveryRevenue = async (vendorId: string, _riderUserIds: string[], dateRange?: DateRange) => {
     try {
-      let query = supabase
-        .from('orders')
-        .select('delivery_fee')
-        .eq('vendor_id', vendorId)
-        .eq('status', 'delivered')
-        .in('rider_id', riderUserIds);
+      // Get vendor owner to find wallet
+      const { data: vendorInfo } = await supabase
+        .from('vendors')
+        .select('user_id')
+        .eq('id', vendorId)
+        .single();
+
+      if (!vendorInfo) return;
+
+      // Find the vendor wallet (use selected outlet if any)
+      let walletQuery = supabase
+        .from('wallets')
+        .select('id')
+        .eq('user_id', vendorInfo.user_id)
+        .eq('wallet_type', 'vendor');
+
+      if (selectedOutletId) {
+        walletQuery = walletQuery.eq('outlet_id', selectedOutletId);
+      } else {
+        walletQuery = walletQuery.is('outlet_id', null);
+      }
+
+      const { data: vendorWallet } = await walletQuery.maybeSingle();
+      if (!vendorWallet) {
+        setDeliveryRevenue(0);
+        return;
+      }
+
+      // Fetch actual vendor_rider_share from ledger
+      let txQuery = supabase
+        .from('wallet_transactions')
+        .select('amount')
+        .eq('wallet_id', vendorWallet.id)
+        .eq('category', 'vendor_rider_share')
+        .eq('transaction_type', 'credit')
+        .eq('status', 'completed');
 
       const range = dateRange || revenueDateRange;
       if (range.from) {
-        query = query.gte('delivered_at', range.from.toISOString());
+        txQuery = txQuery.gte('created_at', range.from.toISOString());
       }
       if (range.to) {
         const endOfDay = new Date(range.to);
         endOfDay.setHours(23, 59, 59, 999);
-        query = query.lte('delivered_at', endOfDay.toISOString());
+        txQuery = txQuery.lte('created_at', endOfDay.toISOString());
       }
 
-      const { data: deliveredOrders } = await query;
-      if (deliveredOrders) {
-        const totalRevenue = deliveredOrders.reduce(
-          (sum, o) => sum + (o.delivery_fee || 0) * 0.8,
-          0
-        );
-        setDeliveryRevenue(Math.round(totalRevenue));
-      }
+      const { data: txns } = await txQuery;
+      const totalRevenue = (txns || []).reduce((sum, t) => sum + Number(t.amount), 0);
+      setDeliveryRevenue(Math.round(totalRevenue));
     } catch (error) {
       console.error('Error fetching delivery revenue:', error);
     }
@@ -189,9 +214,7 @@ export default function VendorRiders() {
           .eq('vendor_id', vendorData.id)
           .order('created_at', { ascending: false });
 
-        if (selectedOutletId) {
-          ridersQuery = ridersQuery.eq('outlet_id', selectedOutletId);
-        }
+        // Don't filter riders by outlet - show all vendor riders regardless of outlet
 
         const { data: ridersData } = await ridersQuery;
 
