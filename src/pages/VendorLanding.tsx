@@ -2,6 +2,8 @@ import { Button } from '@/components/ui/button';
 import { ChevronRight, Store, TrendingUp, Users, Clock, Shield, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import fastCaloriesLogo from '@/assets/fast-calories-text-logo.png';
+import vendorRestaurantImg from '@/assets/landing-vendor-restaurant.png';
+import customerAppImg from '@/assets/landing-customer-app.png';
 
 export default function VendorLanding() {
   const navigate = useNavigate();
@@ -65,6 +67,12 @@ export default function VendorLanding() {
             >
               Login to Dashboard
             </Button>
+          </div>
+
+          {/* Hero Images */}
+          <div className="flex items-center justify-center gap-4 mb-12 animate-fade-in">
+            <img src={vendorRestaurantImg} alt="Restaurant partnering with Fast Calories" className="w-44 h-32 sm:w-64 sm:h-44 object-cover rounded-2xl shadow-card" />
+            <img src={customerAppImg} alt="Customer using Fast Calories app" className="w-32 h-44 sm:w-40 sm:h-56 object-cover rounded-2xl shadow-card -mt-4" />
           </div>
 
           {/* Stats */}

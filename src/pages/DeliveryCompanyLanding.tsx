@@ -2,6 +2,8 @@ import { Button } from '@/components/ui/button';
 import { ChevronRight, Building2, TrendingUp, Users, Truck, BarChart3, Shield } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import fastCaloriesLogo from '@/assets/fast-calories-text-logo.png';
+import riderMotorcycleImg from '@/assets/landing-rider-motorcycle.png';
+import riderBackImg from '@/assets/landing-rider-back.jpeg';
 
 export default function DeliveryCompanyLanding() {
   const navigate = useNavigate();
@@ -65,6 +67,12 @@ export default function DeliveryCompanyLanding() {
             >
               Partner Dashboard
             </Button>
+          </div>
+
+          {/* Hero Images */}
+          <div className="flex items-center justify-center gap-4 mb-12 animate-fade-in">
+            <img src={riderMotorcycleImg} alt="Rider on motorcycle with Fast Calories bag" className="w-44 h-32 sm:w-64 sm:h-44 object-cover rounded-2xl shadow-card" />
+            <img src={riderBackImg} alt="Fast Calories delivery bag" className="w-32 h-44 sm:w-40 sm:h-56 object-cover rounded-2xl shadow-card -mt-4" />
           </div>
 
           {/* Stats */}
