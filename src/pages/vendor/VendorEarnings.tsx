@@ -462,8 +462,10 @@ export default function VendorEarnings() {
                       {
                         label: 'Platform Delivery Fee',
                         amount: financialBreakdown.deliveryPlatformFee,
-                        percentage: financialBreakdown.deliveryPlatformFeeRate,
-                        description: `Platform takes ${financialBreakdown.deliveryPlatformFeeRate}% of delivery fees from vendor-affiliated riders.`,
+                        percentage: financialBreakdown.deliveryGrossRevenue > 0
+                          ? Math.round((financialBreakdown.deliveryPlatformFee / financialBreakdown.deliveryGrossRevenue) * 100 * 10) / 10
+                          : financialBreakdown.deliveryPlatformFeeRate,
+                        description: 'Platform fee on delivery revenue (based on delivery fee configuration including distance, surge, and min/max caps).',
                       },
                     ]}
                     netAmount={financialBreakdown.deliveryNetRevenue}

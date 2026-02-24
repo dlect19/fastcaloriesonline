@@ -157,7 +157,7 @@ export function useOrderFinancials({
         if (vendorWallet) {
           let riderTxQuery = supabase
             .from('wallet_transactions')
-            .select('amount, order_id')
+            .select('amount, order_id, metadata')
             .eq('wallet_id', vendorWallet.id)
             .eq('category', 'vendor_rider_share')
             .eq('transaction_type', 'credit')
@@ -178,10 +178,23 @@ export function useOrderFinancials({
           if (riderTxs && riderTxs.length > 0) {
             deliveryNetRevenue = riderTxs.reduce((sum, tx) => sum + Number(tx.amount), 0);
             deliveryOrderCount = riderTxs.length;
-            // Reverse-calculate gross using actual platform fee rate
-            deliveryGrossRevenue = vendorShareFraction > 0
-              ? Math.round(deliveryNetRevenue / vendorShareFraction * 100) / 100
-              : deliveryNetRevenue;
+            // Use metadata for accurate gross calculation when available
+            const metadataGross = riderTxs.reduce((sum, tx) => {
+              const meta = tx.metadata as Record<string, unknown> | null;
+              if (meta && typeof meta.delivery_fee === 'number') {
+                return sum + meta.delivery_fee;
+              }
+              return sum;
+            }, 0);
+            
+            if (metadataGross > 0) {
+              deliveryGrossRevenue = metadataGross;
+            } else {
+              // Fallback: reverse-calculate using platform fee rate
+              deliveryGrossRevenue = vendorShareFraction > 0
+                ? Math.round(deliveryNetRevenue / vendorShareFraction * 100) / 100
+                : deliveryNetRevenue;
+            }
           }
         }
       }
