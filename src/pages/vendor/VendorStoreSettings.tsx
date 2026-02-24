@@ -163,24 +163,6 @@ function VendorStoreSettingsInner() {
                   </p>
                 </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Min Order Amount (₦)</Label>
-                  <Input
-                    type="number"
-                    value={formData.min_order_amount}
-                    onChange={e => setFormData({ ...formData, min_order_amount: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Est. Delivery Time (min)</Label>
-                  <Input
-                    type="number"
-                    value={formData.estimated_delivery_minutes}
-                    onChange={e => setFormData({ ...formData, estimated_delivery_minutes: e.target.value })}
-                  />
-                </div>
-              </div>
             </CardContent>
           </Card>
 
