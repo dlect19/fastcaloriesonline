@@ -141,7 +141,8 @@ export function useLocationBasedVendors({
 export async function checkVendorAccess(
   vendorId: string,
   customerLat: number | null,
-  customerLon: number | null
+  customerLon: number | null,
+  outletId?: string
 ): Promise<VendorAccessResult> {
   // If no location, deny access
   if (customerLat === null || customerLon === null) {
@@ -159,6 +160,7 @@ export async function checkVendorAccess(
         customer_lat: customerLat,
         customer_lon: customerLon,
         vendor_id: vendorId,
+        outlet_id: outletId,
       },
     });
 

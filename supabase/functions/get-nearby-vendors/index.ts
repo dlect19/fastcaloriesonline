@@ -35,7 +35,7 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { customer_lat, customer_lon, category, vendor_id } = await req.json();
+    const { customer_lat, customer_lon, category, vendor_id, outlet_id } = await req.json();
 
     console.log("get-nearby-vendors called with:", { customer_lat, customer_lon, category, vendor_id });
 
@@ -84,13 +84,20 @@ serve(async (req) => {
         );
       }
 
-      // Find nearest approved outlet for this vendor
-      const { data: outlets } = await supabase
+      // Find approved outlet(s) for this vendor
+      let outletQuery = supabase
         .from("vendor_outlets")
         .select("*")
         .eq("vendor_id", vendor_id)
         .eq("is_approved", true)
         .eq("is_active", true);
+
+      // If a specific outlet was requested, filter to just that one
+      if (outlet_id) {
+        outletQuery = outletQuery.eq("id", outlet_id);
+      }
+
+      const { data: outlets } = await outletQuery;
 
       if (!outlets || outlets.length === 0) {
         return new Response(

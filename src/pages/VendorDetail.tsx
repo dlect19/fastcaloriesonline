@@ -96,7 +96,8 @@ export default function VendorDetail() {
     if (!id || latitude === null || longitude === null) return;
 
     setLoading(true);
-    const result = await checkVendorAccess(id, latitude, longitude);
+    const outletId = searchParams.get('outlet') || undefined;
+    const result = await checkVendorAccess(id, latitude, longitude, outletId);
 
     if (!result.success) {
       setAccessDenied(true);

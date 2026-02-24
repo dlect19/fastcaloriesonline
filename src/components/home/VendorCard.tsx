@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 
 interface VendorCardProps {
   id: string;
+  outletId?: string;
   name: string;
   category: string;
   imageUrl?: string;
@@ -17,6 +18,7 @@ interface VendorCardProps {
 
 export function VendorCard({
   id,
+  outletId,
   name,
   category,
   imageUrl,
@@ -29,7 +31,8 @@ export function VendorCard({
   const navigate = useNavigate();
 
   const handleClick = () => {
-    navigate(`/vendor/${id}`);
+    const path = outletId ? `/vendor/${id}?outlet=${outletId}` : `/vendor/${id}`;
+    navigate(path);
   };
 
   return (
