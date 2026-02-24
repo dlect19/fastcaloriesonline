@@ -6,9 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, XCircle } from 'lucide-react';
+import { Loader2, XCircle, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 import { AdminCancelOrderDialog } from '@/components/admin/AdminCancelOrderDialog';
+import { AdminOrderTrackingDialog } from '@/components/admin/AdminOrderTrackingDialog';
 
 export default function AdminOrders() {
   const navigate = useNavigate();
@@ -16,6 +17,7 @@ export default function AdminOrders() {
   const [orders, setOrders] = useState<any[]>([]);
   const [statusFilter, setStatusFilter] = useState('all');
   const [cancelOrder, setCancelOrder] = useState<any | null>(null);
+  const [trackOrder, setTrackOrder] = useState<any | null>(null);
 
   useEffect(() => {
     checkAuth();
@@ -23,6 +25,16 @@ export default function AdminOrders() {
 
   useEffect(() => {
     fetchOrders();
+
+    // Real-time subscription for order updates
+    const channel = supabase
+      .channel('admin-orders-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        fetchOrders();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [statusFilter]);
 
   const checkAuth = async () => {
@@ -163,17 +175,28 @@ export default function AdminOrders() {
                          {format(new Date(order.created_at), 'PP')}
                        </td>
                        <td className="py-3 px-4">
-                         {order.status !== 'cancelled' && order.status !== 'delivered' && (
-                           <Button
-                             variant="ghost"
-                             size="sm"
-                             className="text-destructive hover:text-destructive gap-1"
-                             onClick={() => setCancelOrder(order)}
-                           >
-                             <XCircle className="w-4 h-4" />
-                             Cancel
-                           </Button>
-                         )}
+                          <div className="flex gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="gap-1"
+                              onClick={() => setTrackOrder(order)}
+                            >
+                              <Eye className="w-4 h-4" />
+                              Track
+                            </Button>
+                            {order.status !== 'cancelled' && order.status !== 'delivered' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-destructive hover:text-destructive gap-1"
+                                onClick={() => setCancelOrder(order)}
+                              >
+                                <XCircle className="w-4 h-4" />
+                                Cancel
+                              </Button>
+                            )}
+                          </div>
                        </td>
                      </tr>
                    ))}
@@ -198,6 +221,14 @@ export default function AdminOrders() {
             }}
           />
         )}
+
+        {/* Admin Order Tracking Dialog */}
+        <AdminOrderTrackingDialog
+          open={!!trackOrder}
+          onOpenChange={(open) => !open && setTrackOrder(null)}
+          order={trackOrder}
+          onUpdated={fetchOrders}
+        />
       </main>
     </div>
   );

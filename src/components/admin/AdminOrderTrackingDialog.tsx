@@ -1,0 +1,729 @@
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Progress } from '@/components/ui/progress';
+import { Separator } from '@/components/ui/separator';
+import {
+  Loader2, Clock, Store, User, Bike, Phone, Star, MapPin,
+  AlertTriangle, CheckCircle2, Package, Search, Globe, Gift,
+  RefreshCw, ArrowRight,
+} from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import { format } from 'date-fns';
+
+/* ------------------------------------------------------------------ */
+/*  Types                                                              */
+/* ------------------------------------------------------------------ */
+
+interface Order {
+  id: string;
+  order_number: string;
+  status: string;
+  delivery_type: string;
+  rider_id: string | null;
+  vendor_id: string;
+  user_id: string;
+  total: number;
+  subtotal: number;
+  delivery_fee: number;
+  service_fee: number;
+  discount: number;
+  delivery_address: string;
+  created_at: string;
+  updated_at: string;
+  payment_status: string;
+  outlet_id: string | null;
+  packaging_fee: number;
+  environment: string;
+}
+
+interface VendorInfo {
+  name: string;
+  phone: string | null;
+  address: string | null;
+  outletName: string | null;
+  outletAddress: string | null;
+  latitude: number | null;
+  longitude: number | null;
+}
+
+interface CustomerInfo {
+  name: string;
+  phone: string | null;
+  email: string | null;
+}
+
+interface RiderInfo {
+  userId: string;
+  name: string;
+  phone: string | null;
+  rating: number;
+  totalDeliveries: number;
+}
+
+interface NearbyRider {
+  id: string;
+  user_id: string;
+  name: string;
+  rating: number;
+  totalDeliveries: number;
+  distance: number;
+  currentOrderStatus: string | null;
+  vehicleType: string | null;
+}
+
+interface Props {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  order: Order | null;
+  onUpdated: () => void;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Status pipeline                                                    */
+/* ------------------------------------------------------------------ */
+
+const ORDER_STEPS = [
+  { key: 'pending', label: 'Order Placed', icon: Package },
+  { key: 'confirmed', label: 'Vendor Confirmed', icon: CheckCircle2 },
+  { key: 'preparing', label: 'Preparing', icon: Store },
+  { key: 'searching_for_rider', label: 'Finding Rider', icon: Search },
+  { key: 'ready_for_pickup', label: 'Ready for Pickup', icon: Package },
+  { key: 'picked_up', label: 'Picked Up', icon: Bike },
+  { key: 'on_the_way', label: 'On the Way', icon: Bike },
+  { key: 'delivered', label: 'Delivered', icon: CheckCircle2 },
+];
+
+const VENDOR_RESPONSE_THRESHOLD_SECONDS = 300; // 5 minutes
+
+/* ------------------------------------------------------------------ */
+/*  Helpers                                                            */
+/* ------------------------------------------------------------------ */
+
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/* ------------------------------------------------------------------ */
+/*  Component                                                          */
+/* ------------------------------------------------------------------ */
+
+export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated }: Props) {
+  const { toast } = useToast();
+
+  // Data
+  const [vendor, setVendor] = useState<VendorInfo | null>(null);
+  const [customer, setCustomer] = useState<CustomerInfo | null>(null);
+  const [rider, setRider] = useState<RiderInfo | null>(null);
+  const [liveOrder, setLiveOrder] = useState<Order | null>(null);
+
+  // Vendor countdown
+  const [vendorElapsed, setVendorElapsed] = useState(0);
+
+  // Manual assignment
+  const [nearbyRiders, setNearbyRiders] = useState<NearbyRider[]>([]);
+  const [loadingRiders, setLoadingRiders] = useState(false);
+  const [selectedRiderId, setSelectedRiderId] = useState('');
+  const [rescueBonus, setRescueBonus] = useState('');
+  const [assigning, setAssigning] = useState(false);
+  const [dispatching, setDispatching] = useState(false);
+
+  const activeOrder = liveOrder || order;
+
+  /* ---------- fetch vendor, customer, rider info ---------- */
+
+  const fetchDetails = useCallback(async (o: Order) => {
+    // Vendor
+    const { data: v } = await supabase
+      .from('vendors')
+      .select('name, phone, address, latitude, longitude')
+      .eq('id', o.vendor_id)
+      .maybeSingle();
+
+    let outletName: string | null = null;
+    let outletAddr: string | null = null;
+    let oLat = v?.latitude ?? null;
+    let oLng = v?.longitude ?? null;
+
+    if (o.outlet_id) {
+      const { data: outlet } = await supabase
+        .from('vendor_outlets')
+        .select('outlet_surname, address, latitude, longitude')
+        .eq('id', o.outlet_id)
+        .maybeSingle();
+      if (outlet) {
+        outletName = outlet.outlet_surname;
+        outletAddr = outlet.address;
+        oLat = outlet.latitude ?? oLat;
+        oLng = outlet.longitude ?? oLng;
+      }
+    }
+
+    setVendor({
+      name: v?.name || 'Unknown',
+      phone: v?.phone || null,
+      address: v?.address || null,
+      outletName,
+      outletAddress: outletAddr,
+      latitude: oLat,
+      longitude: oLng,
+    });
+
+    // Customer
+    const { data: cp } = await supabase
+      .from('profiles')
+      .select('full_name, phone')
+      .eq('user_id', o.user_id)
+      .maybeSingle();
+
+    const { data: authUser } = await supabase
+      .from('profiles')
+      .select('user_id')
+      .eq('user_id', o.user_id)
+      .maybeSingle();
+
+    setCustomer({
+      name: cp?.full_name || 'Customer',
+      phone: cp?.phone || null,
+      email: null,
+    });
+
+    // Rider (if assigned)
+    if (o.rider_id) {
+      fetchRider(o.rider_id);
+    } else {
+      setRider(null);
+    }
+  }, []);
+
+  const fetchRider = async (riderId: string) => {
+    const { data: rp } = await supabase
+      .from('rider_profiles')
+      .select('rating, total_deliveries')
+      .eq('user_id', riderId)
+      .maybeSingle();
+    const { data: prof } = await supabase
+      .from('profiles')
+      .select('full_name, phone')
+      .eq('user_id', riderId)
+      .maybeSingle();
+
+    setRider({
+      userId: riderId,
+      name: prof?.full_name || 'Rider',
+      phone: prof?.phone || null,
+      rating: rp?.rating || 0,
+      totalDeliveries: rp?.total_deliveries || 0,
+    });
+  };
+
+  /* ---------- initial load + realtime ---------- */
+
+  useEffect(() => {
+    if (!order || !open) return;
+    setLiveOrder(order as Order);
+    fetchDetails(order as Order);
+    setSelectedRiderId('');
+    setRescueBonus('');
+    setNearbyRiders([]);
+  }, [order, open, fetchDetails]);
+
+  // realtime subscription
+  useEffect(() => {
+    if (!order || !open) return;
+    const channel = supabase
+      .channel(`admin-track-${order.id}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${order.id}` }, (payload) => {
+        const updated = payload.new as unknown as Order;
+        setLiveOrder(updated);
+        if (updated.rider_id && !rider) fetchRider(updated.rider_id);
+        onUpdated();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [order?.id, open]);
+
+  /* ---------- vendor countdown ---------- */
+
+  useEffect(() => {
+    if (!activeOrder) return;
+    const status = activeOrder.status;
+    if (status !== 'pending' && status !== 'confirmed') {
+      setVendorElapsed(0);
+      return;
+    }
+
+    const calc = () => {
+      const created = new Date(activeOrder.created_at).getTime();
+      setVendorElapsed(Math.floor((Date.now() - created) / 1000));
+    };
+    calc();
+    const iv = setInterval(calc, 1000);
+    return () => clearInterval(iv);
+  }, [activeOrder?.status, activeOrder?.created_at]);
+
+  /* ---------- nearby rider search ---------- */
+
+  const searchNearbyRiders = async () => {
+    if (!vendor?.latitude || !vendor?.longitude) {
+      toast({ title: 'Vendor location missing', variant: 'destructive' });
+      return;
+    }
+    setLoadingRiders(true);
+    try {
+      // Fetch ALL online verified riders
+      const { data: riders } = await supabase
+        .from('rider_profiles')
+        .select('id, user_id, current_latitude, current_longitude, preferred_latitude, preferred_longitude, rating, total_deliveries, vehicle_type')
+        .eq('is_online', true)
+        .eq('is_verified', true)
+        .eq('is_email_verified', true);
+
+      if (!riders?.length) { setNearbyRiders([]); return; }
+
+      const userIds = riders.map((r) => r.user_id);
+      const { data: profiles } = await supabase.from('profiles').select('user_id, full_name').in('user_id', userIds);
+      const nameMap = new Map(profiles?.map((p) => [p.user_id, p.full_name]) || []);
+
+      // Check which riders currently have an active (non-delivered/cancelled) order
+      const { data: activeOrders } = await supabase
+        .from('orders')
+        .select('rider_id, status')
+        .in('rider_id', userIds)
+        .not('status', 'in', '("delivered","cancelled")');
+
+      const activeMap = new Map<string, string>();
+      activeOrders?.forEach((ao) => {
+        if (ao.rider_id) activeMap.set(ao.rider_id, ao.status);
+      });
+
+      const mapped: NearbyRider[] = riders
+        .map((r) => {
+          const rLat = r.current_latitude || r.preferred_latitude;
+          const rLng = r.current_longitude || r.preferred_longitude;
+          const dist = rLat && rLng ? haversineKm(vendor.latitude!, vendor.longitude!, rLat, rLng) : 999;
+          return {
+            id: r.id,
+            user_id: r.user_id,
+            name: nameMap.get(r.user_id) || 'Rider',
+            rating: r.rating || 0,
+            totalDeliveries: r.total_deliveries || 0,
+            distance: dist,
+            currentOrderStatus: activeMap.get(r.user_id) || null,
+            vehicleType: r.vehicle_type,
+          };
+        })
+        .filter((r) => r.distance <= 5) // within 5 km
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, 20);
+
+      setNearbyRiders(mapped);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingRiders(false);
+    }
+  };
+
+  /* ---------- assign rider ---------- */
+
+  const handleAssignRider = async () => {
+    if (!selectedRiderId || !activeOrder) return;
+    setAssigning(true);
+    try {
+      const chosen = nearbyRiders.find((r) => r.id === selectedRiderId);
+      if (!chosen) throw new Error('Rider not found');
+
+      const { error } = await supabase.functions.invoke('assign-rider', {
+        body: { orderId: activeOrder.id, riderId: chosen.user_id },
+      });
+      if (error) throw error;
+
+      // Record rescue bonus if any
+      const bonusVal = parseFloat(rescueBonus);
+      if (bonusVal > 0) {
+        // Get rider wallet
+        const { data: riderWallet } = await supabase
+          .from('wallets')
+          .select('id')
+          .eq('user_id', chosen.user_id)
+          .eq('wallet_type', 'rider')
+          .maybeSingle();
+
+        if (riderWallet) {
+          await supabase.from('wallet_transactions').insert({
+            wallet_type: 'rider',
+            category: 'rescue_bonus',
+            transaction_type: 'credit',
+            amount: bonusVal,
+            wallet_id: riderWallet.id,
+            order_id: activeOrder.id,
+            environment: activeOrder.environment || 'production',
+            status: 'completed',
+            notes: `Rescue bonus for order #${activeOrder.order_number}`,
+          });
+
+          // Credit rider balance
+          const isTest = activeOrder.environment === 'development';
+          if (isTest) {
+            await supabase.rpc('admin_adjust_wallet_balance', {
+              p_wallet_id: riderWallet.id,
+              p_amount: bonusVal,
+              p_adjust_type: 'credit',
+              p_notes: `Rescue bonus for order #${activeOrder.order_number}`,
+              p_environment: 'development',
+            });
+          } else {
+            await supabase.rpc('admin_adjust_wallet_balance', {
+              p_wallet_id: riderWallet.id,
+              p_amount: bonusVal,
+              p_adjust_type: 'credit',
+              p_notes: `Rescue bonus for order #${activeOrder.order_number}`,
+              p_environment: 'production',
+            });
+          }
+        }
+      }
+
+      toast({ title: '✅ Rider assigned' + (bonusVal > 0 ? ` with ₦${bonusVal} rescue bonus` : '') });
+      onUpdated();
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  /* ---------- dispatch publicly ---------- */
+
+  const handleDispatchPublic = async () => {
+    if (!activeOrder) return;
+    setDispatching(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('dispatch-order', {
+        body: { orderId: activeOrder.id, publicOnly: true },
+      });
+      if (error) throw error;
+      toast({
+        title: '🔔 Dispatched publicly',
+        description: `Notifying ${data?.eligibleRiderCount || 0} nearby riders`,
+      });
+      onUpdated();
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    } finally {
+      setDispatching(false);
+    }
+  };
+
+  /* ---------- derived state ---------- */
+
+  const currentStepIndex = useMemo(() => {
+    if (!activeOrder) return 0;
+    const s = activeOrder.status;
+    if (s === 'cancelled') return -1;
+    if (s === 'assigned') return ORDER_STEPS.findIndex((st) => st.key === 'ready_for_pickup');
+    const idx = ORDER_STEPS.findIndex((st) => st.key === s);
+    return idx >= 0 ? idx : 0;
+  }, [activeOrder?.status]);
+
+  const progressPct = activeOrder?.status === 'cancelled' ? 0 : ((currentStepIndex + 1) / ORDER_STEPS.length) * 100;
+
+  const vendorOverdue = vendorElapsed > VENDOR_RESPONSE_THRESHOLD_SECONDS && (activeOrder?.status === 'pending' || activeOrder?.status === 'confirmed');
+
+  const needsRider =
+    activeOrder &&
+    activeOrder.delivery_type !== 'self_pickup' &&
+    !activeOrder.rider_id &&
+    ['searching_for_rider', 'ready_for_pickup', 'confirmed', 'preparing'].includes(activeOrder.status);
+
+  if (!activeOrder) return null;
+
+  const fmtTime = (s: number) => {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m}:${sec.toString().padStart(2, '0')}`;
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            Order #{activeOrder.order_number}
+            <Badge variant={activeOrder.status === 'cancelled' ? 'destructive' : 'secondary'} className="capitalize">
+              {activeOrder.status.replace(/_/g, ' ')}
+            </Badge>
+          </DialogTitle>
+        </DialogHeader>
+
+        {/* ── Progress Timeline ── */}
+        <div className="space-y-3">
+          <Progress value={progressPct} className="h-2" />
+          <div className="grid grid-cols-4 gap-1 text-[10px] text-muted-foreground">
+            {ORDER_STEPS.map((step, i) => {
+              const isActive = i <= currentStepIndex;
+              const Icon = step.icon;
+              return (
+                <div key={step.key} className={`flex flex-col items-center gap-0.5 ${isActive ? 'text-primary font-medium' : ''}`}>
+                  <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-primary' : 'text-muted-foreground/40'}`} />
+                  <span className="text-center leading-tight">{step.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── Vendor Countdown Alert ── */}
+        {vendorOverdue && (
+          <Card className="border-destructive/50 bg-destructive/5">
+            <CardContent className="py-3 flex items-center gap-3">
+              <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-destructive">Vendor hasn't updated this order</p>
+                <p className="text-xs text-muted-foreground">
+                  {fmtTime(vendorElapsed)} elapsed since order was placed
+                </p>
+              </div>
+              {vendor?.phone && (
+                <a href={`tel:${vendor.phone}`}>
+                  <Button size="sm" variant="destructive" className="gap-1">
+                    <Phone className="w-3.5 h-3.5" /> Call Vendor
+                  </Button>
+                </a>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ── Vendor countdown (non-overdue) ── */}
+        {!vendorOverdue && (activeOrder.status === 'pending' || activeOrder.status === 'confirmed') && (
+          <Card className="border-warning/30 bg-warning/5">
+            <CardContent className="py-3 flex items-center gap-3">
+              <Clock className="w-5 h-5 text-warning shrink-0" />
+              <div>
+                <p className="text-sm font-medium">Waiting for vendor response</p>
+                <p className="text-xs text-muted-foreground">
+                  {fmtTime(vendorElapsed)} elapsed • Alert at {Math.floor(VENDOR_RESPONSE_THRESHOLD_SECONDS / 60)} min
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        <Separator />
+
+        {/* ── Info Cards: Vendor + Customer ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Vendor */}
+          <Card>
+            <CardHeader className="pb-2 pt-3 px-4">
+              <CardTitle className="text-xs flex items-center gap-1.5 text-muted-foreground">
+                <Store className="w-3.5 h-3.5" /> Vendor
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-3 space-y-1">
+              <p className="font-medium text-sm">
+                {vendor?.name}{vendor?.outletName ? ` – ${vendor.outletName}` : ''}
+              </p>
+              <p className="text-xs text-muted-foreground">{vendor?.outletAddress || vendor?.address || '—'}</p>
+              {vendor?.phone && (
+                <a href={`tel:${vendor.phone}`} className="text-xs text-primary flex items-center gap-1">
+                  <Phone className="w-3 h-3" /> {vendor.phone}
+                </a>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Customer */}
+          <Card>
+            <CardHeader className="pb-2 pt-3 px-4">
+              <CardTitle className="text-xs flex items-center gap-1.5 text-muted-foreground">
+                <User className="w-3.5 h-3.5" /> Customer
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-3 space-y-1">
+              <p className="font-medium text-sm">{customer?.name || '—'}</p>
+              <p className="text-xs text-muted-foreground">{activeOrder.delivery_address || '—'}</p>
+              {customer?.phone && (
+                <a href={`tel:${customer.phone}`} className="text-xs text-primary flex items-center gap-1">
+                  <Phone className="w-3 h-3" /> {customer.phone}
+                </a>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* ── Order Financials ── */}
+        <Card>
+          <CardContent className="py-3 px-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              <div><span className="text-muted-foreground">Subtotal</span><p className="font-medium">₦{Number(activeOrder.subtotal).toLocaleString()}</p></div>
+              <div><span className="text-muted-foreground">Delivery Fee</span><p className="font-medium">₦{Number(activeOrder.delivery_fee || 0).toLocaleString()}</p></div>
+              <div><span className="text-muted-foreground">Service Fee</span><p className="font-medium">₦{Number(activeOrder.service_fee || 0).toLocaleString()}</p></div>
+              <div><span className="text-muted-foreground">Total</span><p className="font-semibold text-primary">₦{Number(activeOrder.total).toLocaleString()}</p></div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ── Rider Info (if assigned) ── */}
+        {rider && (
+          <>
+            <Separator />
+            <Card className="border-primary/30 bg-primary/5">
+              <CardHeader className="pb-2 pt-3 px-4">
+                <CardTitle className="text-xs flex items-center gap-1.5 text-muted-foreground">
+                  <Bike className="w-3.5 h-3.5" /> Assigned Rider
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-sm">{rider.name}</p>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                      <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                      {rider.rating.toFixed(1)} • {rider.totalDeliveries} trips
+                    </div>
+                  </div>
+                  {rider.phone && (
+                    <a href={`tel:${rider.phone}`}>
+                      <Button size="sm" variant="outline" className="gap-1">
+                        <Phone className="w-3.5 h-3.5" /> Call Rider
+                      </Button>
+                    </a>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        )}
+
+        {/* ── Manual Rider Assignment (admin rescue) ── */}
+        {needsRider && (
+          <>
+            <Separator />
+            <Card>
+              <CardHeader className="pb-2 pt-3 px-4">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Search className="w-4 h-4" /> Find & Assign Rider
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4 space-y-3">
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={searchNearbyRiders} disabled={loadingRiders} className="gap-1">
+                    {loadingRiders ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MapPin className="w-3.5 h-3.5" />}
+                    Search Nearby Riders
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={handleDispatchPublic} disabled={dispatching} className="gap-1">
+                    {dispatching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Globe className="w-3.5 h-3.5" />}
+                    Dispatch Publicly
+                  </Button>
+                </div>
+
+                {nearbyRiders.length > 0 && (
+                  <RadioGroup value={selectedRiderId} onValueChange={setSelectedRiderId}>
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                      {nearbyRiders.map((r) => (
+                        <div
+                          key={r.id}
+                          className="flex items-center gap-2 p-2.5 border rounded-lg cursor-pointer hover:bg-secondary/50"
+                          onClick={() => setSelectedRiderId(r.id)}
+                        >
+                          <RadioGroupItem value={r.id} id={`admin-r-${r.id}`} />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-medium text-sm truncate">{r.name}</span>
+                              {r.currentOrderStatus && (
+                                <Badge variant="outline" className="text-[10px] shrink-0">
+                                  {r.currentOrderStatus.replace(/_/g, ' ')}
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                              <Star className="w-3 h-3" /> {r.rating.toFixed(1)}
+                              <span>•</span>
+                              {r.totalDeliveries} trips
+                              <span>•</span>
+                              <MapPin className="w-3 h-3" /> {r.distance.toFixed(1)}km
+                              {r.vehicleType && <><span>•</span>{r.vehicleType}</>}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </RadioGroup>
+                )}
+
+                {nearbyRiders.length > 0 && (
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-end gap-2">
+                      <div className="flex-1">
+                        <Label className="text-xs flex items-center gap-1 mb-1">
+                          <Gift className="w-3 h-3" /> Rescue Bonus (₦)
+                        </Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          placeholder="0"
+                          value={rescueBonus}
+                          onChange={(e) => setRescueBonus(e.target.value)}
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={handleAssignRider}
+                        disabled={assigning || !selectedRiderId}
+                        className="gap-1"
+                      >
+                        {assigning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowRight className="w-3.5 h-3.5" />}
+                        Assign Rider
+                      </Button>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      Bonus is credited from platform commission to rider wallet instantly
+                    </p>
+                  </div>
+                )}
+
+                {!loadingRiders && nearbyRiders.length === 0 && (
+                  <p className="text-xs text-muted-foreground text-center py-2">
+                    Click "Search Nearby Riders" to find available riders within 5km of the outlet
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </>
+        )}
+
+        {/* ── Timestamps ── */}
+        <div className="text-[10px] text-muted-foreground flex flex-wrap gap-x-4 gap-y-1">
+          <span>Created: {format(new Date(activeOrder.created_at), 'PP p')}</span>
+          <span>Updated: {format(new Date(activeOrder.updated_at), 'PP p')}</span>
+          <span>Payment: {activeOrder.payment_status}</span>
+          <span>Type: {activeOrder.delivery_type?.replace(/_/g, ' ') || 'delivery'}</span>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
