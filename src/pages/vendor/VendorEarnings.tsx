@@ -458,31 +458,15 @@ export default function VendorEarnings() {
                 {financialBreakdown.deliveryOrderCount > 0 && (() => {
                   const gross = financialBreakdown.deliveryGrossRevenue;
                   const net = financialBreakdown.deliveryNetRevenue;
-                  const rawPlatformFee = gross - net;
-                  
-                  // With hybrid model, platform fee can be negative (subsidy when min guarantee kicks in)
-                  const actualPlatformFee = Math.max(rawPlatformFee, 0);
-                  const subsidyAmount = rawPlatformFee < 0 ? Math.abs(rawPlatformFee) : 0;
+                  const platformFee = gross - net;
                   
                   const deductions = [
                     {
-                      label: 'Platform Fee (capped)',
-                      amount: actualPlatformFee,
-                      percentage: gross > 0
-                        ? Math.round((actualPlatformFee / gross) * 100 * 10) / 10
-                        : financialBreakdown.deliveryPlatformFeeRate,
-                      description: 'Capped platform fee on delivery revenue (min ₦300, max ₦700).',
+                      label: 'Platform Delivery Fee',
+                      amount: platformFee,
+                      description: 'Platform commission on delivery revenue (min ₦300, max ₦700).',
                     },
                   ];
-                  
-                  if (subsidyAmount > 0) {
-                    deductions.push({
-                      label: 'Min Guarantee Top-up',
-                      amount: -subsidyAmount,
-                      percentage: undefined as unknown as number,
-                      description: 'Platform subsidy to ensure ₦900 minimum rider payout.',
-                    });
-                  }
                   
                   return (
                     <EarningsBreakdownCard

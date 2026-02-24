@@ -11,6 +11,7 @@ interface Deduction {
   amount: number;
   percentage?: number;
   description?: string;
+  isBonus?: boolean;
 }
 
 interface EarningsBreakdownProps {
@@ -73,7 +74,7 @@ export function EarningsBreakdownCard({
 
           {/* Deductions & Bonuses */}
           {deductions.map((deduction, index) => {
-            const isBonus = deduction.amount < 0;
+            const isBonus = deduction.isBonus || deduction.amount < 0;
             return (
               <div key={index} className={cn(
                 "flex items-center justify-between p-4 rounded-xl",
@@ -116,7 +117,7 @@ export function EarningsBreakdownCard({
                   "text-xl font-bold",
                   isBonus ? "text-success" : "text-destructive"
                 )}>
-                  {isBonus ? `+${formatCurrency(Math.abs(deduction.amount))}` : `-${formatCurrency(deduction.amount)}`}
+                  {isBonus ? `+${formatCurrency(Math.abs(deduction.amount))}` : `-${formatCurrency(Math.abs(deduction.amount))}`}
                 </p>
               </div>
             );
