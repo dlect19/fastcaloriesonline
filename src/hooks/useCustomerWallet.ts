@@ -61,12 +61,12 @@ export function useCustomerWallet() {
     }
   }, [user]);
 
-  // Auto-requery DVA transactions ONCE when wallet first loads with active DVA
+  // Auto-requery DVA transactions ONCE on load, then poll every 30s while DVA is active
   const autoRequeryDone = useRef(false);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    if (!wallet?.dva_active || !wallet?.dva_account_number || autoRequeryDone.current) return;
-    autoRequeryDone.current = true;
+    if (!wallet?.dva_active || !wallet?.dva_account_number) return;
 
     const doRequery = async () => {
       try {
@@ -74,14 +74,26 @@ export function useCustomerWallet() {
           body: {},
         });
         if (!error && data?.transactions_processed > 0) {
-          console.log('Auto-requery found transactions:', data.message);
+          console.log('DVA requery found transactions:', data.message);
           fetchWallet();
         }
       } catch (err) {
-        console.error('Auto DVA requery failed:', err);
+        console.error('DVA requery failed:', err);
       }
     };
-    doRequery();
+
+    // Initial requery once
+    if (!autoRequeryDone.current) {
+      autoRequeryDone.current = true;
+      doRequery();
+    }
+
+    // Poll every 30 seconds for pending transfers
+    pollIntervalRef.current = setInterval(doRequery, 30_000);
+
+    return () => {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    };
   }, [wallet?.dva_active, wallet?.dva_account_number]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {

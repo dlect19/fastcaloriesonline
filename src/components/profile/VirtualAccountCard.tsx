@@ -114,7 +114,7 @@ export function VirtualAccountCard({ bankName, accountNumber, accountName, onRef
 
         <div className="pt-2 border-t border-border flex items-center justify-between">
           <p className="text-xs text-muted-foreground">
-            💡 Bank transfers are credited automatically
+            💡 Bank transfers take 1-3 mins to reflect. Auto-checking...
           </p>
           <Button
             variant="ghost"
