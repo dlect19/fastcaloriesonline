@@ -92,8 +92,10 @@ export default function Explore() {
 
   // Filter vendors based on search (already location-filtered from backend)
   const filteredVendors = vendors.filter((vendor) => {
+    const displayName = (vendor as any).display_name || vendor.name;
     const matchesSearch =
       searchQuery === '' ||
+      displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       vendor.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       vendor.description?.toLowerCase().includes(searchQuery.toLowerCase());
 
@@ -294,9 +296,9 @@ export default function Explore() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {filteredVendors.map((vendor) => (
                     <VendorCard
-                      key={vendor.id}
+                      key={(vendor as any).outlet_id || vendor.id}
                       id={vendor.id}
-                      name={vendor.name}
+                      name={(vendor as any).display_name || vendor.name}
                       category={vendor.description || vendor.category}
                       rating={vendor.rating || 0}
                       deliveryTime={vendor.estimated_delivery_minutes || 30}

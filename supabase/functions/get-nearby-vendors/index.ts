@@ -7,29 +7,17 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-/**
- * Calculate distance between two points using the Haversine formula
- * @returns Distance in kilometers
- */
 function calculateHaversineDistance(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number
+  lat1: number, lon1: number, lat2: number, lon2: number
 ): number {
-  const R = 6371; // Earth's radius in kilometers
+  const R = 6371;
   const dLat = toRadians(lat2 - lat1);
   const dLon = toRadians(lon2 - lon1);
-
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRadians(lat1)) *
-      Math.cos(toRadians(lat2)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-
+    Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
   return R * c;
 }
 
@@ -38,7 +26,6 @@ function toRadians(degrees: number): number {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -52,8 +39,7 @@ serve(async (req) => {
 
     console.log("get-nearby-vendors called with:", { customer_lat, customer_lon, category, vendor_id });
 
-    // Validate required location data
-    if (customer_lat === null || customer_lat === undefined || 
+    if (customer_lat === null || customer_lat === undefined ||
         customer_lon === null || customer_lon === undefined) {
       return new Response(
         JSON.stringify({
@@ -66,16 +52,14 @@ serve(async (req) => {
       );
     }
 
-    // Fetch platform settings for visibility radius
+    // Fetch platform settings
     const { data: settingsData } = await supabase
       .from("platform_settings")
       .select("key, value")
       .in("key", ["vendor_delivery_radius_km", "base_delivery_fee", "base_delivery_distance_km", "per_km_fee"]);
 
     const settings: Record<string, string> = {};
-    settingsData?.forEach((s) => {
-      settings[s.key] = s.value;
-    });
+    settingsData?.forEach((s: any) => { settings[s.key] = s.value; });
 
     const maxVisibilityRadius = parseFloat(settings["vendor_delivery_radius_km"]) || 10;
     const baseDeliveryFee = parseFloat(settings["base_delivery_fee"]) || 500;
@@ -84,7 +68,7 @@ serve(async (req) => {
 
     console.log("Settings:", { maxVisibilityRadius, baseDeliveryFee, baseDeliveryDistanceKm, perKmFee });
 
-    // If checking a specific vendor (for direct access validation)
+    // --- Single vendor access check (for direct vendor page access) ---
     if (vendor_id) {
       const { data: vendor, error: vendorError } = await supabase
         .from("vendors")
@@ -95,69 +79,76 @@ serve(async (req) => {
 
       if (vendorError || !vendor) {
         return new Response(
-          JSON.stringify({
-            success: false,
-            error: "vendor_not_found",
-            message: "Vendor not found or not active",
-            vendor: null,
-          }),
+          JSON.stringify({ success: false, error: "vendor_not_found", message: "Vendor not found or not active", vendor: null }),
           { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      // Check if vendor has coordinates
-      if (!vendor.latitude || !vendor.longitude) {
-        // Vendor without coordinates - cannot determine distance, deny access
+      // Find nearest approved outlet for this vendor
+      const { data: outlets } = await supabase
+        .from("vendor_outlets")
+        .select("*")
+        .eq("vendor_id", vendor_id)
+        .eq("is_approved", true)
+        .eq("is_active", true);
+
+      if (!outlets || outlets.length === 0) {
         return new Response(
-          JSON.stringify({
-            success: false,
-            error: "vendor_location_unavailable",
-            message: "This vendor's location is not configured. Please try again later.",
-            vendor: null,
-          }),
+          JSON.stringify({ success: false, error: "no_active_outlets", message: "This vendor has no active outlets.", vendor: null }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      // Calculate distance
-      const distance = calculateHaversineDistance(
-        customer_lat,
-        customer_lon,
-        vendor.latitude,
-        vendor.longitude
-      );
+      // Find closest outlet with coordinates
+      let closestOutlet = null;
+      let closestDistance = Infinity;
 
-      // Use vendor's own sales_radius if set, otherwise fall back to platform default
-      const vendorRadius = vendor.sales_radius ?? maxVisibilityRadius;
-      console.log(`Vendor ${vendor.name} distance: ${distance.toFixed(2)} km (max: ${vendorRadius} km)`);
+      for (const outlet of outlets) {
+        if (!outlet.latitude || !outlet.longitude) continue;
+        const dist = calculateHaversineDistance(customer_lat, customer_lon, outlet.latitude, outlet.longitude);
+        if (dist < closestDistance) {
+          closestDistance = dist;
+          closestOutlet = outlet;
+        }
+      }
 
-      // Check if within radius
-      if (distance > vendorRadius) {
+      if (!closestOutlet) {
+        return new Response(
+          JSON.stringify({ success: false, error: "vendor_location_unavailable", message: "This vendor's location is not configured.", vendor: null }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const outletRadius = closestOutlet.sales_radius ?? maxVisibilityRadius;
+
+      if (closestDistance > outletRadius) {
         return new Response(
           JSON.stringify({
-            success: false,
-            error: "vendor_outside_radius",
-            message: `This vendor is not available in your area. They are ${distance.toFixed(1)}km away, but their delivery radius is ${vendorRadius}km.`,
-            vendor: null,
-            distance: distance,
-            max_radius: vendorRadius,
+            success: false, error: "vendor_outside_radius",
+            message: `This vendor is not available in your area. They are ${closestDistance.toFixed(1)}km away, but their delivery radius is ${outletRadius}km.`,
+            vendor: null, distance: closestDistance, max_radius: outletRadius,
           }),
           { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      // Calculate dynamic delivery fee
-      const dynamicDeliveryFee =
-        distance <= baseDeliveryDistanceKm
-          ? baseDeliveryFee
-          : Math.round(baseDeliveryFee + (distance - baseDeliveryDistanceKm) * perKmFee);
+      const dynamicDeliveryFee = closestDistance <= baseDeliveryDistanceKm
+        ? baseDeliveryFee
+        : Math.round(baseDeliveryFee + (closestDistance - baseDeliveryDistanceKm) * perKmFee);
 
       return new Response(
         JSON.stringify({
           success: true,
           vendor: {
             ...vendor,
-            distance: Math.round(distance * 10) / 10,
+            outlet_id: closestOutlet.id,
+            outlet_name: closestOutlet.outlet_name,
+            outlet_surname: closestOutlet.outlet_surname,
+            outlet_address: closestOutlet.address,
+            outlet_city: closestOutlet.city,
+            outlet_state: closestOutlet.state,
+            is_open: closestOutlet.is_open,
+            distance: Math.round(closestDistance * 10) / 10,
             dynamic_delivery_fee: dynamicDeliveryFee,
           },
         }),
@@ -165,87 +156,90 @@ serve(async (req) => {
       );
     }
 
-    // Fetch all active vendors for discovery
-    let query = supabase
-      .from("vendors")
-      .select("*")
+    // --- Discovery: fetch all active outlets joined with vendors ---
+    const { data: outlets, error: outletsError } = await supabase
+      .from("vendor_outlets")
+      .select("*, vendors!inner(id, name, description, logo_url, banner_url, category, rating, total_ratings, is_active, is_open, phone, email, slug)")
+      .eq("is_approved", true)
       .eq("is_active", true)
-      .order("rating", { ascending: false });
+      .eq("vendors.is_active", true);
 
-    if (category && category !== "all" && ["restaurant", "pharmacy", "market"].includes(category)) {
-      query = query.eq("category", category);
-    }
-
-    const { data: vendors, error: vendorsError } = await query;
-
-    if (vendorsError) {
-      console.error("Error fetching vendors:", vendorsError);
+    if (outletsError) {
+      console.error("Error fetching outlets:", outletsError);
       return new Response(
-        JSON.stringify({
-          success: false,
-          error: "database_error",
-          message: "Failed to fetch vendors",
-          vendors: [],
-        }),
+        JSON.stringify({ success: false, error: "database_error", message: "Failed to fetch vendors", vendors: [] }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Filter vendors by distance (backend enforcement)
-    // Each vendor's own sales_radius takes priority over platform default
-    const nearbyVendors = (vendors || [])
-      .filter((vendor) => {
-        // Vendors must have coordinates to be visible
-        if (!vendor.latitude || !vendor.longitude) {
-          console.log(`Vendor ${vendor.name} excluded: no coordinates`);
+    // Optionally filter by category
+    let filteredOutlets = outlets || [];
+    if (category && category !== "all" && ["restaurant", "pharmacy", "market"].includes(category)) {
+      filteredOutlets = filteredOutlets.filter((o: any) => o.vendors?.category === category);
+    }
+
+    // Filter by distance using per-outlet sales_radius
+    const nearbyVendors = filteredOutlets
+      .filter((outlet: any) => {
+        if (!outlet.latitude || !outlet.longitude) {
+          console.log(`Outlet ${outlet.vendors?.name} – ${outlet.outlet_surname} excluded: no coordinates`);
           return false;
         }
-        
-        const distance = calculateHaversineDistance(
-          customer_lat,
-          customer_lon,
-          vendor.latitude,
-          vendor.longitude
-        );
-        
-        // Use vendor's own sales_radius if set, otherwise fall back to platform default
-        const vendorRadius = vendor.sales_radius ?? maxVisibilityRadius;
-        const withinRadius = distance <= vendorRadius;
+        const distance = calculateHaversineDistance(customer_lat, customer_lon, outlet.latitude, outlet.longitude);
+        const outletRadius = outlet.sales_radius ?? maxVisibilityRadius;
+        const withinRadius = distance <= outletRadius;
         if (!withinRadius) {
-          console.log(`Vendor ${vendor.name} excluded: ${distance.toFixed(2)}km > ${vendorRadius}km (vendor radius)`);
+          console.log(`Outlet ${outlet.vendors?.name} – ${outlet.outlet_surname} excluded: ${distance.toFixed(2)}km > ${outletRadius}km`);
         }
-        
         return withinRadius;
       })
-      .map((vendor) => {
-        const distance = calculateHaversineDistance(
-          customer_lat,
-          customer_lon,
-          vendor.latitude!,
-          vendor.longitude!
-        );
-
-        // Calculate dynamic delivery fee
-        const dynamicDeliveryFee =
-          distance <= baseDeliveryDistanceKm
-            ? baseDeliveryFee
-            : Math.round(baseDeliveryFee + (distance - baseDeliveryDistanceKm) * perKmFee);
+      .map((outlet: any) => {
+        const vendor = outlet.vendors;
+        const distance = calculateHaversineDistance(customer_lat, customer_lon, outlet.latitude, outlet.longitude);
+        const dynamicDeliveryFee = distance <= baseDeliveryDistanceKm
+          ? baseDeliveryFee
+          : Math.round(baseDeliveryFee + (distance - baseDeliveryDistanceKm) * perKmFee);
 
         return {
-          ...vendor,
+          // Vendor-level fields (for backward compatibility)
+          id: vendor.id,
+          name: vendor.name,
+          description: vendor.description,
+          logo_url: vendor.logo_url,
+          banner_url: vendor.banner_url,
+          category: vendor.category,
+          rating: outlet.rating ?? vendor.rating,
+          total_ratings: outlet.total_ratings ?? vendor.total_ratings,
+          is_active: true,
+          is_open: outlet.is_open,
+          phone: vendor.phone,
+          email: vendor.email,
+          slug: vendor.slug,
+          // Outlet-specific fields
+          outlet_id: outlet.id,
+          outlet_name: outlet.outlet_name,
+          outlet_surname: outlet.outlet_surname,
+          address: outlet.address,
+          city: outlet.city,
+          state: outlet.state,
+          latitude: outlet.latitude,
+          longitude: outlet.longitude,
+          delivery_mode: outlet.delivery_mode,
+          // Computed fields
           distance: Math.round(distance * 10) / 10,
           dynamic_delivery_fee: dynamicDeliveryFee,
+          // Display name for customer UI
+          display_name: outlet.outlet_surname
+            ? `${vendor.name} – ${outlet.outlet_surname}`
+            : vendor.name,
         };
       })
-      .sort((a, b) => {
-        // Sort: open vendors first, then by distance
-        if (a.is_active !== b.is_active) {
-          return a.is_active ? -1 : 1;
-        }
+      .sort((a: any, b: any) => {
+        if (a.is_open !== b.is_open) return a.is_open ? -1 : 1;
         return a.distance - b.distance;
       });
 
-    console.log(`Found ${nearbyVendors.length} vendors within ${maxVisibilityRadius}km radius`);
+    console.log(`Found ${nearbyVendors.length} outlets within radius`);
 
     return new Response(
       JSON.stringify({
