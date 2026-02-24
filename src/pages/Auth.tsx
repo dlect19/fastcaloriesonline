@@ -9,6 +9,8 @@ import { Mail, Lock, User, ArrowRight, Loader2, Eye, EyeOff, Gift } from 'lucide
 import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
+import customerAppImg from '@/assets/landing-customer-app.png';
+import vendorRestaurantImg from '@/assets/landing-vendor-restaurant.png';
 import { ForgotPasswordModal } from '@/components/auth/ForgotPasswordModal';
 import { TermsAcceptanceCheckbox } from '@/components/auth/TermsAcceptanceCheckbox';
 
@@ -203,11 +205,14 @@ export default function Auth() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-secondary to-background flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-center pt-12 pb-8">
-        <div className="flex items-center gap-3">
+      {/* Header with images */}
+      <div className="flex flex-col items-center pt-8 pb-4">
+        <div className="flex items-center justify-center gap-3 mb-4">
+          <img src={vendorRestaurantImg} alt="Order food online" className="w-24 h-20 sm:w-32 sm:h-24 object-cover rounded-xl shadow-card" />
           <img src={fastCaloriesLogo} alt="Fast Calories" className="h-14 w-auto" />
+          <img src={customerAppImg} alt="Fast Calories app" className="w-20 h-28 sm:w-24 sm:h-32 object-cover rounded-xl shadow-card" />
         </div>
+        <p className="text-xs text-muted-foreground">Eat Smart. Live Healthy.</p>
       </div>
 
       {/* Main Content */}
