@@ -97,6 +97,7 @@ export default function VendorOrders() {
     storageKey: 'vendor-notification-sound' 
   });
   const [vendor, setVendor] = useState<Vendor | null>(null);
+  const [outletData, setOutletData] = useState<{ address?: string; latitude?: number; longitude?: number; outlet_surname?: string } | null>(null);
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('active');
@@ -252,6 +253,16 @@ export default function VendorOrders() {
       }
 
       setVendor(vendorData);
+
+      // Fetch outlet-specific data (address, coordinates)
+      if (selectedOutletId) {
+        const { data: outlet } = await supabase
+          .from('vendor_outlets')
+          .select('address, latitude, longitude, outlet_surname')
+          .eq('id', selectedOutletId)
+          .single();
+        setOutletData(outlet || null);
+      }
 
       if (vendorData) {
         // Fetch orders with their items for selected outlet only
@@ -669,13 +680,13 @@ export default function VendorOrders() {
          order.status === 'ready_for_pickup' && 
          !order.rider_id && (
           <div className="px-4 pb-4">
-            {vendor?.latitude && vendor?.longitude ? (
+            {(outletData?.latitude && outletData?.longitude) || (vendor?.latitude && vendor?.longitude) ? (
               <ManualRiderAssignment 
                 orderId={order.id}
                 orderNumber={order.order_number}
                 vendorId={order.vendor_id}
-                vendorLat={vendor.latitude}
-                vendorLng={vendor.longitude}
+                vendorLat={outletData?.latitude || vendor!.latitude!}
+                vendorLng={outletData?.longitude || vendor!.longitude!}
                 onAssigned={fetchData}
               />
             ) : (
@@ -700,8 +711,8 @@ export default function VendorOrders() {
               orderId={order.id} 
               orderNumber={order.order_number}
               vendorId={order.vendor_id}
-              vendorLat={vendor?.latitude}
-              vendorLng={vendor?.longitude}
+              vendorLat={outletData?.latitude || vendor?.latitude}
+              vendorLng={outletData?.longitude || vendor?.longitude}
               onRiderAssigned={fetchData}
               onShowManualAssign={() => setShowManualAssignForOrder(order.id)}
             />
@@ -712,16 +723,16 @@ export default function VendorOrders() {
         {order.delivery_type !== 'self_pickup' && 
          order.status === 'searching_for_rider' && 
          !order.rider_id && 
-         showManualAssignForOrder === order.id &&
-         vendor?.latitude && 
-         vendor?.longitude && (
+          showManualAssignForOrder === order.id &&
+         (outletData?.latitude || vendor?.latitude) && 
+         (outletData?.longitude || vendor?.longitude) && (
           <div className="px-4 pb-4">
             <ManualRiderAssignment 
               orderId={order.id}
               orderNumber={order.order_number}
               vendorId={order.vendor_id}
-              vendorLat={vendor.latitude}
-              vendorLng={vendor.longitude}
+              vendorLat={outletData?.latitude || vendor!.latitude!}
+              vendorLng={outletData?.longitude || vendor!.longitude!}
               onAssigned={() => {
                 setShowManualAssignForOrder(null);
                 fetchData();
