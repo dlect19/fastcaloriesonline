@@ -238,7 +238,6 @@ export default function RiderEarnings() {
   const totalPlatformFees = payoutDetails.reduce((sum, d) => sum + Number(d.platform_fee || 0), 0);
   const totalDistanceBonus = payoutDetails.reduce((sum, d) => sum + Number(d.distance_bonus || 0), 0);
   const totalSurgeBonus = payoutDetails.reduce((sum, d) => sum + Number(d.total_surge_bonus || 0), 0);
-  const totalSubsidies = payoutDetails.reduce((sum, d) => sum + Number(d.subsidy_amount || 0), 0);
   const totalDeliveryFees = payoutDetails.reduce((sum, d) => sum + Number(d.delivery_fee || 0), 0);
   const totalFinalPay = payoutDetails.reduce((sum, d) => sum + Number(d.final_rider_pay || 0), 0);
 
@@ -285,23 +284,19 @@ export default function RiderEarnings() {
               {
                 label: 'Platform Fee (capped)',
                 amount: platformCommission,
-                percentage: grossDeliveryFees > 0 ? Math.round((platformCommission / grossDeliveryFees) * 100) : 0,
-                description: 'Capped platform fee: min ₦300, max ₦700',
+                description: 'Platform delivery commission (min ₦300, max ₦700)',
               },
               ...(totalDistanceBonus > 0 ? [{
                 label: 'Distance Bonus',
-                amount: -totalDistanceBonus,
+                amount: totalDistanceBonus,
+                isBonus: true,
                 description: '₦100 per km beyond 4km threshold',
               }] : []),
               ...(totalSurgeBonus > 0 ? [{
                 label: 'Surge Bonuses',
-                amount: -totalSurgeBonus,
+                amount: totalSurgeBonus,
+                isBonus: true,
                 description: 'Time & weather surge bonuses',
-              }] : []),
-              ...(totalSubsidies > 0 ? [{
-                label: 'Minimum Guarantee Top-ups',
-                amount: -totalSubsidies,
-                description: 'Platform subsidy to ensure ₦900 minimum payout',
               }] : []),
             ]}
             netAmount={netRiderEarnings}
