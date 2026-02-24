@@ -433,7 +433,7 @@ export default function RiderOrders() {
                       <div className="flex items-center gap-2">
                         <Clock className="w-4 h-4 text-muted-foreground" />
                         <span className="text-sm text-muted-foreground">
-                          Earning: ₦{(Number(order.total) * 0.1).toLocaleString()}
+                          Delivery Fee: ₦{(Number(order.delivery_fee) || 0).toLocaleString()}
                         </span>
                       </div>
                     ) : (
@@ -508,7 +508,7 @@ export default function RiderOrders() {
                       {order.vendors?.name} → {order.delivery_address_text?.split(',')[0]}
                     </p>
                     {canViewEarnings && !isAffiliated ? (
-                      <p className="font-medium">₦{(Number(order.total) * 0.1).toLocaleString()}</p>
+                      <p className="font-medium">₦{(Number(order.delivery_fee) || 0).toLocaleString()}</p>
                     ) : (
                       <Badge variant="secondary" className="text-xs">
                         <Lock className="w-3 h-3 mr-1" />
