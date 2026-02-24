@@ -106,7 +106,7 @@ export default function VendorOrders() {
   const [showManualAssignForOrder, setShowManualAssignForOrder] = useState<string | null>(null);
   const [riderAssignDialog, setRiderAssignDialog] = useState<{ open: boolean; order: OrderWithItems | null }>({ open: false, order: null });
   const [completedPage, setCompletedPage] = useState(1);
-  const { selectedOutletId, setSelectedOutletId } = usePersistedOutletId();
+  const { selectedOutletId, setSelectedOutletId, ready: outletReady } = usePersistedOutletId();
   const ITEMS_PER_PAGE = 10;
 
   const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendor?.id || null);
@@ -116,10 +116,17 @@ export default function VendorOrders() {
       navigate('/vendor/auth');
       return;
     }
-    if (user) {
-      fetchData();
+
+    if (!user || !outletReady) return;
+
+    if (!selectedOutletId) {
+      setOrders([]);
+      setLoading(false);
+      return;
     }
-  }, [user, authLoading, navigate, selectedOutletId]);
+
+    fetchData();
+  }, [user, authLoading, navigate, selectedOutletId, outletReady]);
 
   // Subscribe to real-time order updates
   useEffect(() => {
@@ -202,6 +209,14 @@ export default function VendorOrders() {
   }, [orders, loading]);
 
   const fetchData = async () => {
+    if (!selectedOutletId) {
+      setOrders([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+
     try {
       // First check if user is a vendor owner
       let vendorData = null;
@@ -235,18 +250,13 @@ export default function VendorOrders() {
       setVendor(vendorData);
 
       if (vendorData) {
-        // Fetch orders with their items
-        let ordersQuery = supabase
+        // Fetch orders with their items for selected outlet only
+        const { data: ordersData } = await supabase
           .from('orders')
           .select('*')
           .eq('vendor_id', vendorData.id)
+          .eq('outlet_id', selectedOutletId)
           .order('created_at', { ascending: false });
-
-        if (selectedOutletId) {
-          ordersQuery = ordersQuery.eq('outlet_id', selectedOutletId);
-        }
-
-        const { data: ordersData } = await ordersQuery;
 
         if (ordersData && ordersData.length > 0) {
           // Fetch all order items for these orders

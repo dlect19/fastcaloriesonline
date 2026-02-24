@@ -13,8 +13,14 @@ export function usePersistedOutletId() {
   // Resolve vendorId once
   useEffect(() => {
     const resolve = async () => {
+      setReady(false);
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setReady(true); return; }
+      if (!user) {
+        setVendorId(null);
+        setSelectedOutletId(null);
+        setReady(true);
+        return;
+      }
 
       const { data: vendor } = await supabase
         .from('vendors')
@@ -24,34 +30,96 @@ export function usePersistedOutletId() {
 
       if (vendor) {
         setVendorId(vendor.id);
-      } else {
-        const { data: staff } = await supabase
-          .from('vendor_staff')
-          .select('vendor_id')
-          .eq('user_id', user.id)
-          .eq('is_active', true)
-          .maybeSingle();
-        if (staff) setVendorId(staff.vendor_id);
+        return;
       }
+
+      const { data: staff } = await supabase
+        .from('vendor_staff')
+        .select('vendor_id')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (staff) {
+        setVendorId(staff.vendor_id);
+        return;
+      }
+
+      setVendorId(null);
+      setSelectedOutletId(null);
       setReady(true);
     };
+
     resolve();
   }, []);
 
-  // Read persisted outlet from localStorage when vendorId is known
+  // Resolve outlet from localStorage; fallback to default outlet for vendor
   useEffect(() => {
-    if (!vendorId) return;
-    const key = `selected_outlet_${vendorId}`;
-    try {
-      const stored = localStorage.getItem(key);
-      if (stored) setSelectedOutletId(stored);
-    } catch {}
+    const resolveOutlet = async () => {
+      if (!vendorId) return;
+
+      setReady(false);
+      const key = `selected_outlet_${vendorId}`;
+
+      try {
+        const storedOutletId = localStorage.getItem(key);
+
+        if (storedOutletId) {
+          const { data: storedOutlet } = await supabase
+            .from('vendor_outlets')
+            .select('id')
+            .eq('id', storedOutletId)
+            .eq('vendor_id', vendorId)
+            .maybeSingle();
+
+          if (storedOutlet) {
+            setSelectedOutletId(storedOutlet.id);
+            setReady(true);
+            return;
+          }
+        }
+
+        const { data: fallbackOutlet } = await supabase
+          .from('vendor_outlets')
+          .select('id')
+          .eq('vendor_id', vendorId)
+          .order('is_default', { ascending: false })
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle();
+
+        const fallbackOutletId = fallbackOutlet?.id ?? null;
+        setSelectedOutletId(fallbackOutletId);
+
+        if (fallbackOutletId) {
+          localStorage.setItem(key, fallbackOutletId);
+        }
+      } catch {
+        setSelectedOutletId(null);
+      } finally {
+        setReady(true);
+      }
+    };
+
+    resolveOutlet();
   }, [vendorId]);
 
   // Callback for sidebar's onOutletChange — keeps local state in sync
   const handleOutletChange = useCallback((outletId: string | null) => {
     setSelectedOutletId(outletId);
-  }, []);
+
+    if (!vendorId) return;
+
+    const key = `selected_outlet_${vendorId}`;
+    try {
+      if (outletId) {
+        localStorage.setItem(key, outletId);
+      } else {
+        localStorage.removeItem(key);
+      }
+    } catch {}
+  }, [vendorId]);
 
   return { selectedOutletId, setSelectedOutletId: handleOutletChange, ready };
 }
+
