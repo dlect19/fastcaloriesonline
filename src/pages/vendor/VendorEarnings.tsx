@@ -71,6 +71,7 @@ export default function VendorEarnings() {
   // Fetch order financials for breakdown
   const { data: financialBreakdown, loading: financialsLoading } = useOrderFinancials({
     vendorId: vendor?.id,
+    outletId: selectedOutletId,
     environment: isTestMode ? 'development' : 'production',
     dateRange,
   });
@@ -80,7 +81,7 @@ export default function VendorEarnings() {
       navigate('/vendor/auth');
       return;
     }
-    if (user) {
+    if (user && selectedOutletId !== null) {
       fetchData();
       setTxPage(1);
     }
@@ -136,28 +137,30 @@ export default function VendorEarnings() {
 
       const vendorOwnerId = vendorFull?.user_id;
 
-      // Get or create wallet for vendor - specifically the vendor wallet
-      let walletQuery = supabase
+      if (!selectedOutletId) {
+        setWallet(null);
+        setTransactions([]);
+        setAllTransactions([]);
+        return;
+      }
+
+      // Get or create outlet wallet for vendor
+      let { data: walletData } = await supabase
         .from('wallets')
         .select('*')
         .eq('user_id', vendorOwnerId)
-        .eq('wallet_type', 'vendor');
+        .eq('wallet_type', 'vendor')
+        .eq('outlet_id', selectedOutletId)
+        .maybeSingle();
 
-      if (selectedOutletId) {
-        walletQuery = walletQuery.eq('outlet_id', selectedOutletId);
-      } else {
-        walletQuery = walletQuery.is('outlet_id', null);
-      }
-
-      let { data: walletData } = await walletQuery.maybeSingle();
-
-      // Auto-create wallet if it doesn't exist for vendor
+      // Auto-create outlet wallet if it doesn't exist for vendor
       if (!walletData && vendorOwnerId) {
         const { data: newWallet, error: createError } = await supabase
           .from('wallets')
           .insert({
             user_id: vendorOwnerId,
             wallet_type: 'vendor',
+            outlet_id: selectedOutletId,
             balance: 0,
             eligible_balance: 0,
             pending_balance: 0,
@@ -166,7 +169,7 @@ export default function VendorEarnings() {
           })
           .select()
           .single();
-        
+
         if (!createError && newWallet) {
           walletData = newWallet;
         }
