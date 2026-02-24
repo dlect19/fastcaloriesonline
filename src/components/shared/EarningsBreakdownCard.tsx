@@ -71,39 +71,56 @@ export function EarningsBreakdownCard({
             <p className="text-xl font-bold text-success">{formatCurrency(grossAmount)}</p>
           </div>
 
-          {/* Deductions */}
-          {deductions.map((deduction, index) => (
-            <div key={index} className="flex items-center justify-between p-4 bg-destructive/5 rounded-xl">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-destructive/10 flex items-center justify-center">
-                  <ArrowUpRight className="w-5 h-5 text-destructive" />
-                </div>
-                <div className="flex items-center gap-2">
-                  <div>
-                    <p className="font-medium text-foreground">{deduction.label}</p>
-                    {deduction.percentage && (
-                      <p className="text-xs text-muted-foreground">
-                        {deduction.percentage}% of gross
-                      </p>
+          {/* Deductions & Bonuses */}
+          {deductions.map((deduction, index) => {
+            const isBonus = deduction.amount < 0;
+            return (
+              <div key={index} className={cn(
+                "flex items-center justify-between p-4 rounded-xl",
+                isBonus ? "bg-success/5" : "bg-destructive/5"
+              )}>
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "w-10 h-10 rounded-xl flex items-center justify-center",
+                    isBonus ? "bg-success/10" : "bg-destructive/10"
+                  )}>
+                    {isBonus 
+                      ? <ArrowDownLeft className="w-5 h-5 text-success" />
+                      : <ArrowUpRight className="w-5 h-5 text-destructive" />
+                    }
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div>
+                      <p className="font-medium text-foreground">{deduction.label}</p>
+                      {deduction.percentage != null && deduction.percentage > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          {deduction.percentage}% of gross
+                        </p>
+                      )}
+                    </div>
+                    {deduction.description && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <Info className="w-4 h-4 text-muted-foreground" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="max-w-xs">{deduction.description}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     )}
                   </div>
-                  {deduction.description && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger>
-                          <Info className="w-4 h-4 text-muted-foreground" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p className="max-w-xs">{deduction.description}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
                 </div>
+                <p className={cn(
+                  "text-xl font-bold",
+                  isBonus ? "text-success" : "text-destructive"
+                )}>
+                  {isBonus ? `+${formatCurrency(Math.abs(deduction.amount))}` : `-${formatCurrency(deduction.amount)}`}
+                </p>
               </div>
-              <p className="text-xl font-bold text-destructive">-{formatCurrency(deduction.amount)}</p>
-            </div>
-          ))}
+            );
+          })}
 
           {/* Net Amount */}
           <div className="flex items-center justify-between p-4 bg-primary/10 rounded-xl border-2 border-primary/20">
