@@ -133,7 +133,7 @@ export default function RiderOrders() {
       // Active orders (assigned to this rider, not delivered/cancelled)
       const { data: active } = await supabase
         .from('orders')
-        .select('*, vendors(name, address, phone, latitude, longitude)')
+        .select('*, vendors(name, address, phone, latitude, longitude), vendor_outlets(outlet_name, outlet_surname, address, city, state, latitude, longitude)')
         .eq('rider_id', user.id)
         .not('status', 'in', '("delivered","cancelled")')
         .order('created_at', { ascending: false });
@@ -141,7 +141,7 @@ export default function RiderOrders() {
       // Completed orders
       const { data: completed } = await supabase
         .from('orders')
-        .select('*, vendors(name, address, phone)')
+        .select('*, vendors(name, address, phone), vendor_outlets(outlet_name, outlet_surname, address, city, state, latitude, longitude)')
         .eq('rider_id', user.id)
         .in('status', ['delivered', 'cancelled'])
         .order('created_at', { ascending: false })
@@ -371,17 +371,21 @@ export default function RiderOrders() {
                       <div className="flex items-center justify-between">
                         <p className="text-sm font-medium">Pickup From</p>
                         <MapOptionsMenu 
-                          address={order.vendors?.address || ''} 
-                          latitude={order.vendors?.latitude}
-                          longitude={order.vendors?.longitude}
+                          address={(order.vendor_outlets?.address || order.vendors?.address) || ''} 
+                          latitude={order.vendor_outlets?.latitude || order.vendors?.latitude}
+                          longitude={order.vendor_outlets?.longitude || order.vendors?.longitude}
                           className="h-7 text-xs"
                         />
                       </div>
                       <div className="flex items-start gap-2 text-sm text-muted-foreground">
                         <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
                         <div className="min-w-0">
-                          <p className="font-medium text-foreground truncate">{order.vendors?.name}</p>
-                          <p className="break-words">{order.vendors?.address}</p>
+                          <p className="font-medium text-foreground truncate">
+                            {order.vendor_outlets?.outlet_surname 
+                              ? `${order.vendors?.name} – ${order.vendor_outlets.outlet_surname}`
+                              : order.vendors?.name}
+                          </p>
+                          <p className="break-words">{order.vendor_outlets?.address || order.vendors?.address}</p>
                         </div>
                       </div>
                       {order.vendors?.phone && (
