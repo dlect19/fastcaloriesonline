@@ -462,8 +462,8 @@ export default function VendorEarnings() {
                       {
                         label: 'Platform Delivery Fee',
                         amount: financialBreakdown.deliveryPlatformFee,
-                        percentage: 20,
-                        description: 'Platform takes 20% of delivery fees from vendor-affiliated riders.',
+                        percentage: financialBreakdown.deliveryPlatformFeeRate,
+                        description: `Platform takes ${financialBreakdown.deliveryPlatformFeeRate}% of delivery fees from vendor-affiliated riders.`,
                       },
                     ]}
                     netAmount={financialBreakdown.deliveryNetRevenue}

@@ -13,6 +13,7 @@ interface FinancialBreakdown {
   deliveryPlatformFee: number;
   deliveryNetRevenue: number;
   deliveryOrderCount: number;
+  deliveryPlatformFeeRate: number;
 }
 
 interface UseOrderFinancialsOptions {
@@ -82,6 +83,7 @@ export function useOrderFinancials({
           deliveryPlatformFee: 0,
           deliveryNetRevenue: 0,
           deliveryOrderCount: 0,
+          deliveryPlatformFeeRate: 20,
         });
         setLoading(false);
         return;
@@ -128,6 +130,15 @@ export function useOrderFinancials({
       let deliveryNetRevenue = 0;
       let deliveryOrderCount = 0;
 
+      // Fetch rider platform fee percentage dynamically
+      const { data: feeRateSetting } = await supabase
+        .from('platform_settings')
+        .select('value')
+        .eq('key', 'rider_platform_fee_pct')
+        .maybeSingle();
+      const riderPlatformFeePct = parseFloat(feeRateSetting?.value || '20');
+      const vendorShareFraction = (100 - riderPlatformFeePct) / 100;
+
       if (vendorInfo) {
         let walletQuery = supabase
           .from('wallets')
@@ -167,8 +178,10 @@ export function useOrderFinancials({
           if (riderTxs && riderTxs.length > 0) {
             deliveryNetRevenue = riderTxs.reduce((sum, tx) => sum + Number(tx.amount), 0);
             deliveryOrderCount = riderTxs.length;
-            // Vendor gets 80% of delivery fee, so gross = net / 0.8
-            deliveryGrossRevenue = Math.round(deliveryNetRevenue / 0.8 * 100) / 100;
+            // Reverse-calculate gross using actual platform fee rate
+            deliveryGrossRevenue = vendorShareFraction > 0
+              ? Math.round(deliveryNetRevenue / vendorShareFraction * 100) / 100
+              : deliveryNetRevenue;
           }
         }
       }
@@ -185,6 +198,7 @@ export function useOrderFinancials({
         deliveryPlatformFee,
         deliveryNetRevenue,
         deliveryOrderCount,
+        deliveryPlatformFeeRate: riderPlatformFeePct,
       });
     } catch (error) {
       console.error('Error fetching order financials:', error);
