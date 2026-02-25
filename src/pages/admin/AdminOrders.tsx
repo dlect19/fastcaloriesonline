@@ -8,9 +8,25 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Loader2, XCircle, Eye, Search } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, differenceInMinutes } from 'date-fns';
 import { AdminCancelOrderDialog } from '@/components/admin/AdminCancelOrderDialog';
 import { AdminOrderTrackingDialog } from '@/components/admin/AdminOrderTrackingDialog';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+
+const getAttentionLight = (order: any) => {
+  const needsAttention = ['pending', 'confirmed'].includes(order.status);
+  if (!needsAttention) return null;
+
+  const mins = differenceInMinutes(new Date(), new Date(order.created_at));
+
+  if (mins >= 5) {
+    return { color: 'bg-red-500', pulse: true, label: `${mins}m — Needs immediate attention!` };
+  } else if (mins >= 3) {
+    return { color: 'bg-yellow-400', pulse: false, label: `${mins}m — Approaching 5 min limit` };
+  } else {
+    return { color: 'bg-green-500', pulse: false, label: `${mins}m — Within time` };
+  }
+};
 
 export default function AdminOrders() {
   const navigate = useNavigate();
@@ -177,6 +193,7 @@ export default function AdminOrders() {
               <table className="w-full">
                 <thead>
                    <tr className="border-b">
+                     <th className="text-left py-3 px-4 font-medium w-8"></th>
                      <th className="text-left py-3 px-4 font-medium">Order #</th>
                      <th className="text-left py-3 px-4 font-medium">Customer</th>
                      <th className="text-left py-3 px-4 font-medium">Phone</th>
@@ -188,8 +205,22 @@ export default function AdminOrders() {
                    </tr>
                  </thead>
                  <tbody>
-                   {filteredOrders.map((order) => (
-                     <tr key={order.id} className="border-b hover:bg-secondary/50">
+                   {filteredOrders.map((order) => {
+                     const light = getAttentionLight(order);
+                     return (
+                     <tr key={order.id} className={`border-b hover:bg-secondary/50 ${light?.color === 'bg-red-500' ? 'bg-destructive/5' : ''}`}>
+                       <td className="py-3 px-4">
+                         {light && (
+                           <TooltipProvider>
+                             <Tooltip>
+                               <TooltipTrigger>
+                                 <span className={`inline-block w-3 h-3 rounded-full ${light.color} ${light.pulse ? 'animate-pulse' : ''}`} />
+                               </TooltipTrigger>
+                               <TooltipContent><p>{light.label}</p></TooltipContent>
+                             </Tooltip>
+                           </TooltipProvider>
+                         )}
+                       </td>
                        <td className="py-3 px-4 font-medium">{order.order_number}</td>
                        <td className="py-3 px-4">{order.customer_name}</td>
                        <td className="py-3 px-4 text-muted-foreground">{order.customer_phone}</td>
@@ -224,7 +255,8 @@ export default function AdminOrders() {
                           </div>
                        </td>
                      </tr>
-                   ))}
+                     );
+                   })}
                 </tbody>
               </table>
             </div>
