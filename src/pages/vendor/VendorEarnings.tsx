@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { TransactionHistory } from '@/components/shared/TransactionHistory';
 import { usePersistedOutletId } from '@/hooks/usePersistedOutletId';
 import { useNavigate } from 'react-router-dom';
 import { TrendingUp, Wallet, ArrowUpRight, ArrowDownRight, Calendar, Clock, AlertCircle, FlaskConical, Bike, UtensilsCrossed } from 'lucide-react';
@@ -690,83 +691,16 @@ export default function VendorEarnings() {
             </Card>
           )}
 
-          {/* Transaction History */}
-          <Card className="border-0 shadow-soft">
-            <CardHeader>
-              <div className="flex flex-col gap-4">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Calendar className="w-5 h-5" />
-                  Transaction History
-                </CardTitle>
-                <DateRangeFilter 
-                  dateRange={dateRange} 
-                  onDateRangeChange={setDateRange}
-                />
-              </div>
-            </CardHeader>
-            <CardContent>
-              {transactions.length === 0 ? (
-                <div className="text-center py-8">
-                  <Wallet className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-                  <p className="text-muted-foreground">No transactions yet</p>
-                  <p className="text-sm text-muted-foreground">Your earnings will appear here</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {transactions
-                    .slice((txPage - 1) * TX_PER_PAGE, txPage * TX_PER_PAGE)
-                    .map((tx) => (
-                    <div
-                      key={tx.id}
-                      className="flex items-center justify-between p-4 rounded-xl bg-muted/50"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                          tx.transaction_type === 'credit' 
-                            ? 'bg-success/10' 
-                            : 'bg-destructive/10'
-                        }`}>
-                          {tx.transaction_type === 'credit' ? (
-                            <ArrowDownRight className="w-5 h-5 text-success" />
-                          ) : (
-                            <ArrowUpRight className="w-5 h-5 text-destructive" />
-                          )}
-                        </div>
-                        <div>
-                          <p className="font-medium text-foreground">
-                            {getCategoryLabel(tx.category)}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {new Date(tx.created_at).toLocaleDateString('en-NG', {
-                              dateStyle: 'medium',
-                            })}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className={`font-semibold ${
-                          tx.transaction_type === 'credit' 
-                            ? 'text-success' 
-                            : 'text-destructive'
-                        }`}>
-                          {tx.transaction_type === 'credit' ? '+' : '-'}
-                          {formatCurrency(tx.amount)}
-                        </p>
-                        {getStatusBadge(tx.status)}
-                      </div>
-                    </div>
-                  ))}
-                  <PaginationControls
-                    currentPage={txPage}
-                    totalPages={Math.ceil(transactions.length / TX_PER_PAGE)}
-                    onPageChange={setTxPage}
-                    totalItems={transactions.length}
-                    itemsPerPage={TX_PER_PAGE}
-                  />
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {/* Transaction History - Using shared component with expandable details */}
+          <TransactionHistory
+            walletId={wallet?.id || null}
+            title="Transaction History"
+            showFilters={true}
+            limit={100}
+            externalDateRange={dateRange}
+            onDateRangeChange={setDateRange}
+            environment={isTestMode ? 'development' : 'production'}
+          />
         </div>
       </main>
     </div>
