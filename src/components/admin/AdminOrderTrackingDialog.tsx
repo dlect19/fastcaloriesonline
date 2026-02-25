@@ -135,6 +135,14 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
   const [customer, setCustomer] = useState<CustomerInfo | null>(null);
   const [rider, setRider] = useState<RiderInfo | null>(null);
   const [liveOrder, setLiveOrder] = useState<Order | null>(null);
+  const [orderFinancials, setOrderFinancials] = useState<{
+    vendor_payout: number;
+    vendor_commission_amount: number;
+    rider_commission_amount: number | null;
+    rider_share: number | null;
+    company_revenue: number;
+    service_fee_amount: number | null;
+  } | null>(null);
 
   // Vendor countdown
   const [vendorElapsed, setVendorElapsed] = useState(0);
@@ -212,6 +220,37 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
       fetchRider(o.rider_id);
     } else {
       setRider(null);
+    }
+
+    // Order financials (vendor payout, rider share, commissions)
+    const { data: fin } = await supabase
+      .from('order_financials')
+      .select('vendor_payout, vendor_commission_amount, rider_commission_amount, company_revenue, service_fee_amount')
+      .eq('order_id', o.id)
+      .maybeSingle();
+
+    if (fin) {
+      // Also get rider share from wallet_transactions
+      const { data: riderTx } = await supabase
+        .from('wallet_transactions')
+        .select('amount')
+        .eq('order_id', o.id)
+        .in('category', ['rider_share', 'vendor_rider_share', 'delivery_company_share'])
+        .eq('transaction_type', 'credit')
+        .eq('status', 'completed')
+        .limit(1)
+        .maybeSingle();
+
+      setOrderFinancials({
+        vendor_payout: fin.vendor_payout,
+        vendor_commission_amount: fin.vendor_commission_amount,
+        rider_commission_amount: fin.rider_commission_amount,
+        rider_share: riderTx?.amount ?? null,
+        company_revenue: fin.company_revenue,
+        service_fee_amount: fin.service_fee_amount,
+      });
+    } else {
+      setOrderFinancials(null);
     }
   }, []);
 
@@ -576,13 +615,40 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
 
         {/* ── Order Financials ── */}
         <Card>
-          <CardContent className="py-3 px-4">
+          <CardContent className="py-3 px-4 space-y-2">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
               <div><span className="text-muted-foreground">Subtotal</span><p className="font-medium">₦{Number(activeOrder.subtotal).toLocaleString()}</p></div>
               <div><span className="text-muted-foreground">Delivery Fee</span><p className="font-medium">₦{Number(activeOrder.delivery_fee || 0).toLocaleString()}</p></div>
               <div><span className="text-muted-foreground">Service Fee</span><p className="font-medium">₦{Number(activeOrder.service_fee || 0).toLocaleString()}</p></div>
               <div><span className="text-muted-foreground">Total</span><p className="font-semibold text-primary">₦{Number(activeOrder.total).toLocaleString()}</p></div>
             </div>
+
+            {orderFinancials && (
+              <>
+                <Separator />
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">After Platform Commission</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  <div>
+                    <span className="text-muted-foreground">Vendor Payout</span>
+                    <p className="font-semibold text-green-600">₦{Number(orderFinancials.vendor_payout).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Vendor Commission</span>
+                    <p className="font-medium text-destructive">₦{Number(orderFinancials.vendor_commission_amount).toLocaleString()}</p>
+                  </div>
+                  {orderFinancials.rider_share !== null && (
+                    <div>
+                      <span className="text-muted-foreground">Rider Share</span>
+                      <p className="font-semibold text-green-600">₦{Number(orderFinancials.rider_share).toLocaleString()}</p>
+                    </div>
+                  )}
+                  <div>
+                    <span className="text-muted-foreground">Platform Revenue</span>
+                    <p className="font-semibold text-primary">₦{Number(orderFinancials.company_revenue).toLocaleString()}</p>
+                  </div>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
