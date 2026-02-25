@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, XCircle, Eye } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Loader2, XCircle, Eye, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import { AdminCancelOrderDialog } from '@/components/admin/AdminCancelOrderDialog';
 import { AdminOrderTrackingDialog } from '@/components/admin/AdminOrderTrackingDialog';
@@ -18,6 +19,7 @@ export default function AdminOrders() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [cancelOrder, setCancelOrder] = useState<any | null>(null);
   const [trackOrder, setTrackOrder] = useState<any | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     checkAuth();
@@ -121,31 +123,54 @@ export default function AdminOrders() {
       <AdminSidebar />
       
       <main className="flex-1 p-8">
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Orders</h1>
             <p className="text-muted-foreground">View and manage all platform orders</p>
           </div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Filter by status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Orders</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="confirmed">Confirmed</SelectItem>
-              <SelectItem value="preparing">Preparing</SelectItem>
-              <SelectItem value="ready_for_pickup">Ready for Pickup</SelectItem>
-              <SelectItem value="on_the_way">On the Way</SelectItem>
-              <SelectItem value="delivered">Delivered</SelectItem>
-              <SelectItem value="cancelled">Cancelled</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search order #, customer..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 w-56"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Orders</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="confirmed">Confirmed</SelectItem>
+                <SelectItem value="preparing">Preparing</SelectItem>
+                <SelectItem value="ready_for_pickup">Ready for Pickup</SelectItem>
+                <SelectItem value="on_the_way">On the Way</SelectItem>
+                <SelectItem value="delivered">Delivered</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
-        <Card>
+        {(() => {
+          const q = searchQuery.toLowerCase().trim();
+          const filteredOrders = q
+            ? orders.filter(o =>
+                o.order_number?.toLowerCase().includes(q) ||
+                o.customer_name?.toLowerCase().includes(q) ||
+                o.customer_phone?.toLowerCase().includes(q) ||
+                o.vendors?.name?.toLowerCase().includes(q)
+              )
+            : orders;
+
+          return (
+          <Card>
           <CardHeader>
-            <CardTitle>Orders ({orders.length})</CardTitle>
+            <CardTitle>Orders ({filteredOrders.length})</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -163,7 +188,7 @@ export default function AdminOrders() {
                    </tr>
                  </thead>
                  <tbody>
-                   {orders.map((order) => (
+                   {filteredOrders.map((order) => (
                      <tr key={order.id} className="border-b hover:bg-secondary/50">
                        <td className="py-3 px-4 font-medium">{order.order_number}</td>
                        <td className="py-3 px-4">{order.customer_name}</td>
@@ -205,6 +230,8 @@ export default function AdminOrders() {
             </div>
           </CardContent>
         </Card>
+          );
+        })()}
 
         {/* Admin Cancel Order Dialog */}
         {cancelOrder && (
