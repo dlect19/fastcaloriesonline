@@ -30,6 +30,7 @@ interface EntityWallet {
   created_at: string;
   entity_name: string;
   entity_phone: string;
+  entity_email: string;
   entity_type_label: string;
 }
 
@@ -75,7 +76,7 @@ export default function AdminChargebacks() {
       const userIds = [...new Set(walletsData?.map(w => w.user_id) || [])];
 
       // Fetch entity names based on type
-      let entityMap: Record<string, { name: string; phone: string }> = {};
+      let entityMap: Record<string, { name: string; phone: string; email: string }> = {};
 
       if (walletType === 'vendor') {
         // For vendors, resolve name via outlet → vendor to handle multi-vendor users
@@ -83,7 +84,7 @@ export default function AdminChargebacks() {
         const walletsWithoutOutlet = walletsData?.filter(w => !w.outlet_id) || [];
 
         // Map outlet_id → vendor name
-        let outletVendorMap: Record<string, { name: string; phone: string }> = {};
+        let outletVendorMap: Record<string, { name: string; phone: string; email: string }> = {};
         if (outletIds.length > 0) {
           const { data: outlets } = await supabase
             .from('vendor_outlets')
@@ -91,7 +92,7 @@ export default function AdminChargebacks() {
             .in('id', outletIds);
           const vendorIdsFromOutlets = [...new Set(outlets?.map(o => o.vendor_id) || [])];
           const { data: vendors } = vendorIdsFromOutlets.length > 0
-            ? await supabase.from('vendors').select('id, name, user_id').in('id', vendorIdsFromOutlets)
+            ? await supabase.from('vendors').select('id, name, user_id, email, phone').in('id', vendorIdsFromOutlets)
             : { data: [] };
           const { data: profiles } = await supabase.from('profiles').select('user_id, phone').in('user_id', userIds);
           const vendorMap = new Map((vendors || []).map(v => [v.id, v]));
@@ -101,7 +102,7 @@ export default function AdminChargebacks() {
             const vendor = vendorMap.get(o.vendor_id);
             if (vendor) {
               const profile = profileMap.get(vendor.user_id);
-              outletVendorMap[o.id] = { name: vendor.name || 'Unknown Vendor', phone: profile?.phone || '' };
+              outletVendorMap[o.id] = { name: vendor.name || 'Unknown Vendor', phone: profile?.phone || vendor.phone || '', email: vendor.email || '' };
             }
           });
 
@@ -116,37 +117,41 @@ export default function AdminChargebacks() {
         // For wallets without outlet, fall back to user_id → first vendor
         if (walletsWithoutOutlet.length > 0) {
           const noOutletUserIds = [...new Set(walletsWithoutOutlet.map(w => w.user_id))];
-          const { data: vendors } = await supabase.from('vendors').select('user_id, name').in('user_id', noOutletUserIds);
+          const { data: vendors } = await supabase.from('vendors').select('user_id, name, email, phone').in('user_id', noOutletUserIds);
           const { data: profiles } = await supabase.from('profiles').select('user_id, phone').in('user_id', noOutletUserIds);
           const seen = new Set<string>();
           vendors?.forEach(v => {
             if (!seen.has(v.user_id)) {
               seen.add(v.user_id);
               const profile = profiles?.find(p => p.user_id === v.user_id);
-              // key by wallet id for wallets without outlet
               walletsWithoutOutlet.forEach(w => {
                 if (w.user_id === v.user_id) {
-                  entityMap[w.id] = { name: v.name || 'Unknown Vendor', phone: profile?.phone || '' };
+                  entityMap[w.id] = { name: v.name || 'Unknown Vendor', phone: profile?.phone || v.phone || '', email: v.email || '' };
                 }
               });
             }
           });
         }
       } else if (walletType === 'rider') {
+        const { data: riderProfiles } = await supabase
+          .from('rider_profiles')
+          .select('user_id, email')
+          .in('user_id', userIds);
         const { data: profiles } = await supabase
           .from('profiles')
           .select('user_id, full_name, phone')
           .in('user_id', userIds);
+        const riderEmailMap = new Map((riderProfiles || []).map(r => [r.user_id, r.email]));
         profiles?.forEach(p => {
-          entityMap[p.user_id] = { name: p.full_name || 'Unknown Rider', phone: p.phone || '' };
+          entityMap[p.user_id] = { name: p.full_name || 'Unknown Rider', phone: p.phone || '', email: riderEmailMap.get(p.user_id) || '' };
         });
       } else if (walletType === 'delivery_company') {
         const { data: companies } = await supabase
           .from('delivery_companies')
-          .select('user_id, name, phone')
+          .select('user_id, name, phone, email')
           .in('user_id', userIds);
         companies?.forEach(c => {
-          entityMap[c.user_id] = { name: c.name || 'Unknown Company', phone: c.phone || '' };
+          entityMap[c.user_id] = { name: c.name || 'Unknown Company', phone: c.phone || '', email: c.email || '' };
         });
       }
 
@@ -168,6 +173,7 @@ export default function AdminChargebacks() {
         created_at: w.created_at,
         entity_name: (walletType === 'vendor' ? entityMap[w.id]?.name : entityMap[w.user_id]?.name) || 'Unknown',
         entity_phone: (walletType === 'vendor' ? entityMap[w.id]?.phone : entityMap[w.user_id]?.phone) || '',
+        entity_email: (walletType === 'vendor' ? entityMap[w.id]?.email : entityMap[w.user_id]?.email) || '',
         entity_type_label: labelMap[walletType] || walletType,
       }));
 
@@ -335,7 +341,8 @@ export default function AdminChargebacks() {
                                   <TableCell>
                                     <div>
                                       <p className="font-medium">{w.entity_name}</p>
-                                      <p className="text-xs text-muted-foreground">{w.entity_phone}</p>
+                                      <p className="text-xs text-muted-foreground">{w.entity_phone || '—'}</p>
+                                      {w.entity_email && <p className="text-xs text-muted-foreground">{w.entity_email}</p>}
                                     </div>
                                   </TableCell>
                                   <TableCell>
