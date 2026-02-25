@@ -486,7 +486,7 @@ export default function AdminChargebacks() {
 
       {/* Chargeback Dialog */}
       <Dialog open={showDebitDialog} onOpenChange={setShowDebitDialog}>
-        <DialogContent>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive">
               <AlertTriangle className="w-5 h-5" />
