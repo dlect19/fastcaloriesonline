@@ -57,6 +57,7 @@ export default function AdminChargebacks() {
   const [orderLookup, setOrderLookup] = useState('');
   const [lookingUp, setLookingUp] = useState(false);
   const [orderInfo, setOrderInfo] = useState<{
+    order_id: string;
     order_number: string;
     vendor_payout: number;
     rider_share: number | null;
@@ -305,6 +306,7 @@ export default function AdminChargebacks() {
       const logisticsShare = riderTx?.find(t => t.category === 'delivery_company_share')?.amount ?? null;
 
       const info = {
+        order_id: order.id,
         order_number: order.order_number,
         vendor_payout: fin?.vendor_payout ?? 0,
         rider_share: riderShare,
@@ -347,11 +349,35 @@ export default function AdminChargebacks() {
 
     setDebiting(true);
     try {
+      // Build notes with order reference for traceability
+      const orderRef = orderInfo ? `Order #${orderInfo.order_number}` : '';
+      const chargebackNotes = orderRef 
+        ? `[CHARGEBACK] ${debitNotes} | ${orderRef}`
+        : `[CHARGEBACK] ${debitNotes}`;
+
+      // Final duplicate check at submission time (race condition guard)
+      if (orderInfo) {
+        const { data: dupCheck } = await supabase
+          .from('wallet_transactions')
+          .select('id')
+          .eq('wallet_id', selectedWallet.id)
+          .eq('transaction_type', 'debit')
+          .eq('category', 'admin_debit')
+          .ilike('notes', `%Order #${orderInfo.order_number}%`)
+          .limit(1);
+
+        if (dupCheck && dupCheck.length > 0) {
+          toast({ title: 'Duplicate Chargeback', description: `A chargeback for Order #${orderInfo.order_number} already exists on this wallet.`, variant: 'destructive' });
+          setDebiting(false);
+          return;
+        }
+      }
+
       const { data, error } = await supabase.rpc('admin_adjust_wallet_balance' as any, {
         p_wallet_id: selectedWallet.id,
         p_amount: amount,
         p_adjust_type: 'debit',
-        p_notes: `[CHARGEBACK] ${debitNotes}`,
+        p_notes: chargebackNotes,
         p_environment: isTestMode ? 'development' : 'production',
         p_reference: debitReference || null,
       });
