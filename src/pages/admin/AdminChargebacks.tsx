@@ -78,18 +78,60 @@ export default function AdminChargebacks() {
       let entityMap: Record<string, { name: string; phone: string }> = {};
 
       if (walletType === 'vendor') {
-        const { data: vendors } = await supabase
-          .from('vendors')
-          .select('user_id, name')
-          .in('user_id', userIds);
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('user_id, phone')
-          .in('user_id', userIds);
-        vendors?.forEach(v => {
-          const profile = profiles?.find(p => p.user_id === v.user_id);
-          entityMap[v.user_id] = { name: v.name || 'Unknown Vendor', phone: profile?.phone || '' };
-        });
+        // For vendors, resolve name via outlet → vendor to handle multi-vendor users
+        const outletIds = walletsData?.map(w => w.outlet_id).filter(Boolean) || [];
+        const walletsWithoutOutlet = walletsData?.filter(w => !w.outlet_id) || [];
+
+        // Map outlet_id → vendor name
+        let outletVendorMap: Record<string, { name: string; phone: string }> = {};
+        if (outletIds.length > 0) {
+          const { data: outlets } = await supabase
+            .from('vendor_outlets')
+            .select('id, vendor_id')
+            .in('id', outletIds);
+          const vendorIdsFromOutlets = [...new Set(outlets?.map(o => o.vendor_id) || [])];
+          const { data: vendors } = vendorIdsFromOutlets.length > 0
+            ? await supabase.from('vendors').select('id, name, user_id').in('id', vendorIdsFromOutlets)
+            : { data: [] };
+          const { data: profiles } = await supabase.from('profiles').select('user_id, phone').in('user_id', userIds);
+          const vendorMap = new Map((vendors || []).map(v => [v.id, v]));
+          const profileMap = new Map((profiles || []).map(p => [p.user_id, p]));
+
+          outlets?.forEach(o => {
+            const vendor = vendorMap.get(o.vendor_id);
+            if (vendor) {
+              const profile = profileMap.get(vendor.user_id);
+              outletVendorMap[o.id] = { name: vendor.name || 'Unknown Vendor', phone: profile?.phone || '' };
+            }
+          });
+
+          // For outlet-based wallets, map by outlet_id
+          walletsData?.forEach(w => {
+            if (w.outlet_id && outletVendorMap[w.outlet_id]) {
+              entityMap[w.id] = outletVendorMap[w.outlet_id]; // key by wallet id
+            }
+          });
+        }
+
+        // For wallets without outlet, fall back to user_id → first vendor
+        if (walletsWithoutOutlet.length > 0) {
+          const noOutletUserIds = [...new Set(walletsWithoutOutlet.map(w => w.user_id))];
+          const { data: vendors } = await supabase.from('vendors').select('user_id, name').in('user_id', noOutletUserIds);
+          const { data: profiles } = await supabase.from('profiles').select('user_id, phone').in('user_id', noOutletUserIds);
+          const seen = new Set<string>();
+          vendors?.forEach(v => {
+            if (!seen.has(v.user_id)) {
+              seen.add(v.user_id);
+              const profile = profiles?.find(p => p.user_id === v.user_id);
+              // key by wallet id for wallets without outlet
+              walletsWithoutOutlet.forEach(w => {
+                if (w.user_id === v.user_id) {
+                  entityMap[w.id] = { name: v.name || 'Unknown Vendor', phone: profile?.phone || '' };
+                }
+              });
+            }
+          });
+        }
       } else if (walletType === 'rider') {
         const { data: profiles } = await supabase
           .from('profiles')
@@ -124,8 +166,8 @@ export default function AdminChargebacks() {
         test_eligible_balance: Number(w.test_eligible_balance) || 0,
         outlet_id: w.outlet_id,
         created_at: w.created_at,
-        entity_name: entityMap[w.user_id]?.name || 'Unknown',
-        entity_phone: entityMap[w.user_id]?.phone || '',
+        entity_name: (walletType === 'vendor' ? entityMap[w.id]?.name : entityMap[w.user_id]?.name) || 'Unknown',
+        entity_phone: (walletType === 'vendor' ? entityMap[w.id]?.phone : entityMap[w.user_id]?.phone) || '',
         entity_type_label: labelMap[walletType] || walletType,
       }));
 
