@@ -214,13 +214,74 @@ export default function AdminChargebacks() {
       // Find order by order_number
       const { data: order, error } = await supabase
         .from('orders')
-        .select('id, order_number, total, status')
+        .select('id, order_number, total, status, vendor_id, rider_id, outlet_id')
         .eq('order_number', orderNum)
         .maybeSingle();
 
       if (error) throw error;
       if (!order) {
         toast({ title: 'Not Found', description: `Order #${orderNum} not found`, variant: 'destructive' });
+        return;
+      }
+
+      // --- Validate entity actually handled this order ---
+      if (activeTab === 'vendor') {
+        // Check vendor owns this order (via wallet's user_id → vendor → order.vendor_id)
+        const { data: vendorMatch } = await supabase
+          .from('vendors')
+          .select('id')
+          .eq('user_id', selectedWallet.user_id)
+          .eq('id', order.vendor_id)
+          .maybeSingle();
+        if (!vendorMatch) {
+          toast({ title: 'Mismatch', description: `${selectedWallet.entity_name} did not handle Order #${orderNum}. Select the correct vendor.`, variant: 'destructive' });
+          return;
+        }
+        // For multi-outlet: if wallet has outlet_id, verify it matches the order's outlet
+        if (selectedWallet.outlet_id && order.outlet_id && selectedWallet.outlet_id !== order.outlet_id) {
+          toast({ title: 'Outlet Mismatch', description: `This order belongs to a different outlet. Select the correct branch wallet.`, variant: 'destructive' });
+          return;
+        }
+      } else if (activeTab === 'rider') {
+        if (!order.rider_id || order.rider_id !== selectedWallet.user_id) {
+          toast({ title: 'Mismatch', description: `${selectedWallet.entity_name} was not the rider for Order #${orderNum}.`, variant: 'destructive' });
+          return;
+        }
+      } else if (activeTab === 'delivery_company') {
+        // Check rider on this order belongs to this delivery company
+        if (order.rider_id) {
+          const { data: rp } = await supabase
+            .from('rider_profiles')
+            .select('delivery_company_id')
+            .eq('user_id', order.rider_id)
+            .maybeSingle();
+          const { data: dc } = await supabase
+            .from('delivery_companies')
+            .select('id')
+            .eq('user_id', selectedWallet.user_id)
+            .maybeSingle();
+          if (!rp?.delivery_company_id || !dc || rp.delivery_company_id !== dc.id) {
+            toast({ title: 'Mismatch', description: `${selectedWallet.entity_name} did not handle delivery for Order #${orderNum}.`, variant: 'destructive' });
+            return;
+          }
+        } else {
+          toast({ title: 'No Rider', description: `Order #${orderNum} has no rider assigned.`, variant: 'destructive' });
+          return;
+        }
+      }
+
+      // --- Check for existing chargeback on this order for this wallet ---
+      const { data: existingChargeback } = await supabase
+        .from('wallet_transactions')
+        .select('id')
+        .eq('wallet_id', selectedWallet.id)
+        .eq('transaction_type', 'debit')
+        .eq('category', 'admin_debit')
+        .ilike('notes', `%Order #${order.order_number}%`)
+        .limit(1);
+
+      if (existingChargeback && existingChargeback.length > 0) {
+        toast({ title: 'Duplicate Chargeback', description: `A chargeback for Order #${order.order_number} has already been applied to this wallet.`, variant: 'destructive' });
         return;
       }
 
