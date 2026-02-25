@@ -15,7 +15,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TransactionHistory } from '@/components/shared/TransactionHistory';
 import { useToast } from '@/hooks/use-toast';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
-import { Search, Wallet, AlertCircle, Minus, Eye, AlertTriangle, Store, Bike, Truck, Loader2 } from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
+import { Search, Wallet, AlertCircle, Minus, Eye, AlertTriangle, Store, Bike, Truck, Loader2, SearchCheck } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface EntityWallet {
@@ -52,6 +53,17 @@ export default function AdminChargebacks() {
   const [debitNotes, setDebitNotes] = useState('');
   const [debitReference, setDebitReference] = useState('');
   const [debiting, setDebiting] = useState(false);
+  const [orderLookup, setOrderLookup] = useState('');
+  const [lookingUp, setLookingUp] = useState(false);
+  const [orderInfo, setOrderInfo] = useState<{
+    order_number: string;
+    vendor_payout: number;
+    rider_share: number | null;
+    logistics_share: number | null;
+    vendor_commission: number;
+    total: number;
+    status: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!permLoading && !isAdmin) navigate('/admin/auth');
@@ -186,6 +198,74 @@ export default function AdminChargebacks() {
     }
   };
 
+  const handleOrderLookup = async () => {
+    if (!orderLookup.trim() || !selectedWallet) return;
+    setLookingUp(true);
+    setOrderInfo(null);
+    try {
+      const orderNum = orderLookup.trim().replace(/^#/, '');
+      
+      // Find order by order_number
+      const { data: order, error } = await supabase
+        .from('orders')
+        .select('id, order_number, total, status')
+        .eq('order_number', orderNum)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!order) {
+        toast({ title: 'Not Found', description: `Order #${orderNum} not found`, variant: 'destructive' });
+        return;
+      }
+
+      // Get order financials
+      const { data: fin } = await supabase
+        .from('order_financials')
+        .select('vendor_payout, vendor_commission_amount, rider_commission_amount, company_revenue')
+        .eq('order_id', order.id)
+        .maybeSingle();
+
+      // Get rider/logistics share from wallet_transactions
+      const { data: riderTx } = await supabase
+        .from('wallet_transactions')
+        .select('amount, category')
+        .eq('order_id', order.id)
+        .in('category', ['rider_share', 'vendor_rider_share', 'delivery_company_share'])
+        .eq('transaction_type', 'credit')
+        .eq('status', 'completed');
+
+      const riderShare = riderTx?.find(t => t.category === 'rider_share' || t.category === 'vendor_rider_share')?.amount ?? null;
+      const logisticsShare = riderTx?.find(t => t.category === 'delivery_company_share')?.amount ?? null;
+
+      const info = {
+        order_number: order.order_number,
+        vendor_payout: fin?.vendor_payout ?? 0,
+        rider_share: riderShare,
+        logistics_share: logisticsShare,
+        vendor_commission: fin?.vendor_commission_amount ?? 0,
+        total: Number(order.total),
+        status: order.status,
+      };
+
+      setOrderInfo(info);
+      setDebitReference(`Order #${order.order_number}`);
+
+      // Auto-fill amount based on wallet type
+      if (activeTab === 'vendor') {
+        setDebitAmount(String(info.vendor_payout));
+      } else if (activeTab === 'rider') {
+        setDebitAmount(String(info.rider_share ?? 0));
+      } else if (activeTab === 'delivery_company') {
+        setDebitAmount(String(info.logistics_share ?? 0));
+      }
+    } catch (err: any) {
+      console.error('Order lookup error:', err);
+      toast({ title: 'Error', description: err.message || 'Failed to look up order', variant: 'destructive' });
+    } finally {
+      setLookingUp(false);
+    }
+  };
+
   const handleChargeback = async () => {
     if (!selectedWallet || !debitAmount || !debitNotes) {
       toast({ title: 'Missing Information', description: 'Please enter amount and reason', variant: 'destructive' });
@@ -236,6 +316,8 @@ export default function AdminChargebacks() {
       setDebitAmount('');
       setDebitNotes('');
       setDebitReference('');
+      setOrderLookup('');
+      setOrderInfo(null);
     } catch (error: any) {
       console.error('Error applying chargeback:', error);
       toast({ title: 'Error', description: error.message || 'Failed to apply chargeback', variant: 'destructive' });
@@ -426,6 +508,61 @@ export default function AdminChargebacks() {
               </p>
             </div>
 
+            {/* Order Lookup */}
+            <div className="space-y-2">
+              <Label>Look Up Order (Auto-fill amount)</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={orderLookup}
+                  onChange={(e) => setOrderLookup(e.target.value)}
+                  placeholder="Enter order number e.g. 12345"
+                  onKeyDown={(e) => e.key === 'Enter' && handleOrderLookup()}
+                />
+                <Button variant="secondary" size="sm" onClick={handleOrderLookup} disabled={lookingUp || !orderLookup.trim()}>
+                  {lookingUp ? <Loader2 className="w-4 h-4 animate-spin" /> : <SearchCheck className="w-4 h-4" />}
+                </Button>
+              </div>
+            </div>
+
+            {orderInfo && (
+              <div className="p-3 bg-accent/30 rounded-lg space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium">Order #{orderInfo.order_number}</p>
+                  <Badge variant="secondary" className="text-[10px]">{orderInfo.status}</Badge>
+                </div>
+                <Separator />
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span className="text-muted-foreground">Order Total</span>
+                    <p className="font-medium">₦{orderInfo.total.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Vendor Payout</span>
+                    <p className="font-semibold text-green-600">₦{orderInfo.vendor_payout.toLocaleString()}</p>
+                  </div>
+                  {orderInfo.rider_share !== null && (
+                    <div>
+                      <span className="text-muted-foreground">Rider Share</span>
+                      <p className="font-semibold text-green-600">₦{orderInfo.rider_share.toLocaleString()}</p>
+                    </div>
+                  )}
+                  {orderInfo.logistics_share !== null && (
+                    <div>
+                      <span className="text-muted-foreground">Logistics Share</span>
+                      <p className="font-semibold text-green-600">₦{orderInfo.logistics_share.toLocaleString()}</p>
+                    </div>
+                  )}
+                  <div>
+                    <span className="text-muted-foreground">Platform Commission</span>
+                    <p className="font-medium text-destructive">₦{orderInfo.vendor_commission.toLocaleString()}</p>
+                  </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground italic">
+                  Amount auto-filled with {activeTab === 'vendor' ? 'vendor payout' : activeTab === 'rider' ? 'rider share' : 'logistics share'} (editable)
+                </p>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label>Amount (₦)</Label>
               <Input
@@ -448,7 +585,7 @@ export default function AdminChargebacks() {
             </div>
 
             <div className="space-y-2">
-              <Label>Order/Reference (Optional)</Label>
+              <Label>Order/Reference</Label>
               <Input
                 value={debitReference}
                 onChange={(e) => setDebitReference(e.target.value)}
