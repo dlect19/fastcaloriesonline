@@ -22,6 +22,16 @@ interface Transaction {
   metadata?: any;
 }
 
+interface OrderDetail {
+  order_number: string;
+  total: number;
+  status: string;
+  menu_subtotal: number | null;
+  delivery_fee: number | null;
+  service_fee: number | null;
+  delivery_type: string | null;
+}
+
 interface TransactionHistoryProps {
   walletId: string | null;
   title?: string;
@@ -45,6 +55,7 @@ export function TransactionHistory({
   environment = null
 }: TransactionHistoryProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [orderDetails, setOrderDetails] = useState<Record<string, OrderDetail>>({});
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'credit' | 'debit'>('all');
   const [currentPage, setCurrentPage] = useState(1);
@@ -96,6 +107,32 @@ export function TransactionHistory({
       
       if (error) throw error;
       setTransactions(data || []);
+
+      // Fetch order details for transactions that have order_id
+      const orderIds = [...new Set((data || []).filter(t => t.order_id).map(t => t.order_id as string))];
+      if (orderIds.length > 0) {
+        const { data: orders } = await supabase
+          .from('orders')
+          .select('id, order_number, total, status, menu_subtotal, delivery_fee, service_fee, delivery_type')
+          .in('id', orderIds);
+        if (orders) {
+          const map: Record<string, OrderDetail> = {};
+          orders.forEach(o => {
+            map[o.id] = {
+              order_number: o.order_number,
+              total: Number(o.total),
+              status: o.status,
+              menu_subtotal: o.menu_subtotal ? Number(o.menu_subtotal) : null,
+              delivery_fee: o.delivery_fee ? Number(o.delivery_fee) : null,
+              service_fee: o.service_fee ? Number(o.service_fee) : null,
+              delivery_type: o.delivery_type,
+            };
+          });
+          setOrderDetails(map);
+        }
+      } else {
+        setOrderDetails({});
+      }
     } catch (error) {
       console.error('Error fetching transactions:', error);
     } finally {
@@ -271,6 +308,7 @@ export function TransactionHistory({
               const isExpanded = expandedTxId === tx.id;
               const tags = getTransactionTags(tx);
               const metadata = tx.metadata as Record<string, any> | null;
+              const linkedOrder = tx.order_id ? orderDetails[tx.order_id] : null;
               
               return (
                 <div
@@ -381,7 +419,50 @@ export function TransactionHistory({
                           <span className="text-muted-foreground">Category</span>
                           <p>{getCategoryLabel(tx.category)}</p>
                         </div>
-                        {tx.order_id && (
+                        {tx.order_id && linkedOrder && (
+                          <div className="col-span-2 p-2 bg-primary/5 rounded-lg">
+                            <p className="text-xs font-medium text-primary mb-1.5">Linked Order</p>
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div>
+                                <span className="text-muted-foreground">Order #</span>
+                                <p className="font-semibold">{linkedOrder.order_number}</p>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Order Status</span>
+                                <p className="capitalize">{linkedOrder.status}</p>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Order Total</span>
+                                <p className="font-medium">₦{linkedOrder.total.toLocaleString()}</p>
+                              </div>
+                              {linkedOrder.menu_subtotal != null && (
+                                <div>
+                                  <span className="text-muted-foreground">Menu Subtotal</span>
+                                  <p>₦{linkedOrder.menu_subtotal.toLocaleString()}</p>
+                                </div>
+                              )}
+                              {linkedOrder.delivery_fee != null && (
+                                <div>
+                                  <span className="text-muted-foreground">Delivery Fee</span>
+                                  <p>₦{linkedOrder.delivery_fee.toLocaleString()}</p>
+                                </div>
+                              )}
+                              {linkedOrder.service_fee != null && (
+                                <div>
+                                  <span className="text-muted-foreground">Service Fee</span>
+                                  <p>₦{linkedOrder.service_fee.toLocaleString()}</p>
+                                </div>
+                              )}
+                              {linkedOrder.delivery_type && (
+                                <div>
+                                  <span className="text-muted-foreground">Delivery Type</span>
+                                  <p className="capitalize">{linkedOrder.delivery_type}</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        {tx.order_id && !linkedOrder && (
                           <div>
                             <span className="text-muted-foreground">Order Linked</span>
                             <p className="text-primary">Yes</p>
