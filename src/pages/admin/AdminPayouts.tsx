@@ -43,6 +43,8 @@ interface PayoutRequest {
   withdrawal_source: string | null;
   wallet_id: string;
   entity_name?: string;
+  entity_phone?: string;
+  entity_email?: string;
 }
 
 const isRetryableFailure = (reason: string | null): boolean => {
@@ -152,24 +154,44 @@ export default function AdminPayouts() {
       
       if (userIds.length > 0) {
         // Fetch vendor names, delivery company names, and profile names in parallel
-        const [vendorsRes, companiesRes, profilesRes] = await Promise.all([
-          supabase.from('vendors').select('user_id, name').in('user_id', userIds),
-          supabase.from('delivery_companies').select('user_id, name').in('user_id', userIds),
-          supabase.from('profiles').select('user_id, full_name').in('user_id', userIds),
+        const [vendorsRes, companiesRes, profilesRes, riderProfilesRes] = await Promise.all([
+          supabase.from('vendors').select('user_id, name, phone, email').in('user_id', userIds),
+          supabase.from('delivery_companies').select('user_id, name, phone, email').in('user_id', userIds),
+          supabase.from('profiles').select('user_id, full_name, phone').in('user_id', userIds),
+          supabase.from('rider_profiles').select('user_id, email').in('user_id', userIds),
         ]);
 
-        const vendorMap = new Map((vendorsRes.data || []).map(v => [v.user_id, v.name]));
-        const companyMap = new Map((companiesRes.data || []).map(c => [c.user_id, c.name]));
-        const profileMap = new Map((profilesRes.data || []).map(p => [p.user_id, p.full_name]));
+        const vendorMap = new Map((vendorsRes.data || []).map(v => [v.user_id, v]));
+        const companyMap = new Map((companiesRes.data || []).map(c => [c.user_id, c]));
+        const profileMap = new Map((profilesRes.data || []).map(p => [p.user_id, p]));
+        const riderEmailMap = new Map((riderProfilesRes.data || []).map(r => [r.user_id, r.email]));
 
-        const enriched = requests.map(p => ({
-          ...p,
-          entity_name: 
-            (p.user_type === 'vendor' && vendorMap.get(p.user_id)) ||
-            (p.user_type === 'delivery_company' && companyMap.get(p.user_id)) ||
-            profileMap.get(p.user_id) ||
-            null,
-        }));
+        const enriched = requests.map(p => {
+          const vendor = vendorMap.get(p.user_id);
+          const company = companyMap.get(p.user_id);
+          const profile = profileMap.get(p.user_id);
+          const riderEmail = riderEmailMap.get(p.user_id);
+
+          let entity_name: string | null = null;
+          let entity_phone = '';
+          let entity_email = '';
+
+          if (p.user_type === 'vendor' && vendor) {
+            entity_name = vendor.name;
+            entity_phone = profile?.phone || vendor.phone || '';
+            entity_email = vendor.email || '';
+          } else if (p.user_type === 'delivery_company' && company) {
+            entity_name = company.name;
+            entity_phone = company.phone || '';
+            entity_email = company.email || '';
+          } else {
+            entity_name = profile?.full_name || null;
+            entity_phone = profile?.phone || '';
+            entity_email = riderEmail || '';
+          }
+
+          return { ...p, entity_name, entity_phone, entity_email };
+        });
         
         setPayouts(enriched);
         if (!skipAutoVerify) autoVerifyProcessing(enriched);
@@ -398,6 +420,11 @@ export default function AdminPayouts() {
               <div>
                 <p className="font-medium text-foreground">{payout.entity_name || payout.bank_account_name || 'Unknown'}</p>
                 <p className="text-xs text-muted-foreground capitalize">{payout.user_type}{payout.entity_name && payout.bank_account_name && payout.entity_name !== payout.bank_account_name ? ` · ${payout.bank_account_name}` : ''}</p>
+                {(payout.entity_phone || payout.entity_email) && (
+                  <p className="text-xs text-muted-foreground">
+                    {[payout.entity_phone, payout.entity_email].filter(Boolean).join(' • ')}
+                  </p>
+                )}
                 {payout.withdrawal_source && (
                   <Badge variant="outline" className="text-xs mt-0.5">
                     {payout.withdrawal_source === 'rider_revenue' ? 'Rider Revenue' : 'Menu Earnings'}

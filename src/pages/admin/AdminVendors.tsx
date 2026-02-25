@@ -55,8 +55,20 @@ export default function AdminVendors() {
         .select('*')
         .order('created_at', { ascending: false });
 
-      const verified = all?.filter(v => v.is_verified) || [];
-      const pending = all?.filter(v => !v.is_verified) || [];
+      // Fetch profile phone numbers for vendors
+      const userIds = [...new Set((all || []).map(v => v.user_id).filter(Boolean))];
+      const { data: profiles } = userIds.length > 0
+        ? await supabase.from('profiles').select('user_id, phone').in('user_id', userIds)
+        : { data: [] };
+      const profileMap = new Map((profiles || []).map(p => [p.user_id, p]));
+
+      const enriched = (all || []).map(v => ({
+        ...v,
+        profile_phone: profileMap.get(v.user_id)?.phone || v.phone || '',
+      }));
+
+      const verified = enriched.filter(v => v.is_verified);
+      const pending = enriched.filter(v => !v.is_verified);
 
       setVendors(verified);
       setPendingVendors(pending);
@@ -208,6 +220,9 @@ export default function AdminVendors() {
                           )}
                         </div>
                         <p className="text-sm text-muted-foreground">{vendor.category} • {vendor.city}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {vendor.profile_phone || vendor.phone || '—'} • {vendor.email || '—'}
+                        </p>
                       </div>
                       <div className="flex items-center gap-4">
                         <VendorCoordinateEditor vendor={vendor} onUpdate={fetchVendors} />

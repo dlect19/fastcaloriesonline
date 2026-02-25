@@ -62,6 +62,8 @@ export default function AdminRiders() {
             .in('user_id', userIds)
         : { data: [] };
 
+      // Fetch rider email from rider_profiles (already in riderData)
+
       // Merge profile info into riders
       const ridersWithProfiles = riderData?.map(rider => ({
         ...rider,
@@ -175,7 +177,7 @@ export default function AdminRiders() {
                         <div className="flex items-start justify-between">
                           <div>
                             <h3 className="font-medium text-lg">{rider.profile?.full_name || 'Unknown'}</h3>
-                            <p className="text-sm text-muted-foreground">{rider.profile?.phone}</p>
+                            <p className="text-sm text-muted-foreground">{rider.profile?.phone || '—'} • {rider.email || '—'}</p>
                           </div>
                           <div className="flex items-center gap-2">
                             <Button size="sm" onClick={() => approveRider(rider.id)}>
@@ -266,18 +268,21 @@ export default function AdminRiders() {
                     {riders.map((rider) => (
                       <div key={rider.id} className="flex items-center justify-between p-4 border rounded-lg">
                         <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-medium">{rider.profile?.full_name || 'Unknown'}</h3>
-                            {rider.is_test_rider && (
-                              <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-                                <FlaskConical className="w-3 h-3 mr-1" />
-                                Test
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="text-sm text-muted-foreground">
-                            {rider.vehicle_type} • {rider.vehicle_plate}
-                          </p>
+                           <div className="flex items-center gap-2">
+                             <h3 className="font-medium">{rider.profile?.full_name || 'Unknown'}</h3>
+                             {rider.is_test_rider && (
+                               <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                                 <FlaskConical className="w-3 h-3 mr-1" />
+                                 Test
+                               </Badge>
+                             )}
+                           </div>
+                           <p className="text-sm text-muted-foreground">
+                             {rider.profile?.phone || '—'} • {rider.email || '—'}
+                           </p>
+                           <p className="text-sm text-muted-foreground">
+                             {rider.vehicle_type} • {rider.vehicle_plate}
+                           </p>
                           <div className="flex items-center gap-4 text-sm">
                             <span>{rider.total_deliveries || 0} deliveries</span>
                             <span>⭐ {rider.rating?.toFixed(1) || '0.0'}</span>
