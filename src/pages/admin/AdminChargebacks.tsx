@@ -33,6 +33,7 @@ interface EntityWallet {
   entity_phone: string;
   entity_email: string;
   entity_type_label: string;
+  outlet_name: string | null;
 }
 
 export default function AdminChargebacks() {
@@ -89,6 +90,7 @@ export default function AdminChargebacks() {
 
       // Fetch entity names based on type
       let entityMap: Record<string, { name: string; phone: string; email: string }> = {};
+      let outletNameMap: Record<string, string> = {}; // wallet.id -> outlet name
 
       if (walletType === 'vendor') {
         // For vendors, resolve name via outlet → vendor to handle multi-vendor users
@@ -100,7 +102,7 @@ export default function AdminChargebacks() {
         if (outletIds.length > 0) {
           const { data: outlets } = await supabase
             .from('vendor_outlets')
-            .select('id, vendor_id')
+            .select('id, vendor_id, outlet_name, outlet_surname')
             .in('id', outletIds);
           const vendorIdsFromOutlets = [...new Set(outlets?.map(o => o.vendor_id) || [])];
           const { data: vendors } = vendorIdsFromOutlets.length > 0
@@ -115,6 +117,9 @@ export default function AdminChargebacks() {
             if (vendor) {
               const profile = profileMap.get(vendor.user_id);
               outletVendorMap[o.id] = { name: vendor.name || 'Unknown Vendor', phone: profile?.phone || vendor.phone || '', email: vendor.email || '' };
+              // Store outlet name for display
+              const oName = (o as any).outlet_surname || (o as any).outlet_name || null;
+              if (oName) outletNameMap[o.id] = oName;
             }
           });
 
@@ -187,6 +192,7 @@ export default function AdminChargebacks() {
         entity_phone: (walletType === 'vendor' ? entityMap[w.id]?.phone : entityMap[w.user_id]?.phone) || '',
         entity_email: (walletType === 'vendor' ? entityMap[w.id]?.email : entityMap[w.user_id]?.email) || '',
         entity_type_label: labelMap[walletType] || walletType,
+        outlet_name: w.outlet_id ? (outletNameMap[w.outlet_id] || null) : null,
       }));
 
       setWallets(enriched);
@@ -423,6 +429,9 @@ export default function AdminChargebacks() {
                                   <TableCell>
                                     <div>
                                       <p className="font-medium">{w.entity_name}</p>
+                                      {w.outlet_name && (
+                                        <p className="text-xs text-primary font-medium">📍 {w.outlet_name}</p>
+                                      )}
                                       <p className="text-xs text-muted-foreground">{w.entity_phone || '—'}</p>
                                       {w.entity_email && <p className="text-xs text-muted-foreground">{w.entity_email}</p>}
                                     </div>
@@ -493,7 +502,7 @@ export default function AdminChargebacks() {
               Apply Chargeback
             </DialogTitle>
             <DialogDescription>
-              Debit {selectedWallet?.entity_name}'s earnings for customer complaint
+              Debit {selectedWallet?.entity_name}'s earnings{selectedWallet?.outlet_name ? ` (${selectedWallet.outlet_name})` : ''} for customer complaint
             </DialogDescription>
           </DialogHeader>
 

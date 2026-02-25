@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { ArrowDownLeft, ArrowUpRight, Calendar, Filter, Loader2, Percent, Info } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Calendar, Filter, Loader2, Info, ChevronDown, ChevronUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -19,6 +19,7 @@ interface Transaction {
   created_at: string;
   notes: string | null;
   environment: string | null;
+  metadata?: any;
 }
 
 interface TransactionHistoryProps {
@@ -30,6 +31,9 @@ interface TransactionHistoryProps {
   onDateRangeChange?: (range: DateRange) => void;
   environment?: 'development' | 'production' | null;
 }
+
+/** Rebrand "Admin" → "FastCalories" in all user-facing labels */
+const brandName = 'FastCalories';
 
 export function TransactionHistory({ 
   walletId, 
@@ -46,8 +50,8 @@ export function TransactionHistory({
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
   const [internalDateRange, setInternalDateRange] = useState<DateRange>({ from: undefined, to: undefined });
+  const [expandedTxId, setExpandedTxId] = useState<string | null>(null);
   
-  // Use external date range if provided, otherwise use internal state
   const dateRange = externalDateRange ?? internalDateRange;
   const handleDateRangeChange = onDateRangeChange ?? setInternalDateRange;
 
@@ -75,17 +79,14 @@ export function TransactionHistory({
         query = query.eq('transaction_type', filter);
       }
 
-      // Apply environment filter if provided
       if (environment) {
         query = query.eq('environment', environment);
       }
 
-      // Apply date range filter
       if (dateRange.from) {
         query = query.gte('created_at', dateRange.from.toISOString());
       }
       if (dateRange.to) {
-        // End of day for the "to" date
         const endOfToDate = new Date(dateRange.to);
         endOfToDate.setHours(23, 59, 59, 999);
         query = query.lte('created_at', endOfToDate.toISOString());
@@ -106,8 +107,8 @@ export function TransactionHistory({
     const labels: Record<string, string> = {
       wallet_funding: 'Wallet Funding',
       dva_funding: 'Wallet Funding',
-      admin_credit: 'Admin Credit',
-      admin_debit: 'Admin Debit',
+      admin_credit: `${brandName} Credit`,
+      admin_debit: `${brandName} Debit`,
       vendor_share: 'Menu Sales Earnings',
       vendor_rider_share: 'Rider Delivery Revenue',
       rider_share: 'Delivery Earnings',
@@ -116,16 +117,37 @@ export function TransactionHistory({
       delivery_company_share: 'Delivery Company Revenue',
       service_fee: 'Service Fee',
       withdrawal: 'Withdrawal',
-      refund: 'Refund',
-      adjustment: 'Adjustment',
+      refund: `${brandName} Refund`,
+      adjustment: `${brandName} Adjustment`,
       payment: 'Payment',
       order_payment: 'Order Payment',
       promo_cost: 'Promo Discount Cost',
     };
-    return labels[category] || category.replace(/_/g, ' ');
+    return labels[category] || category.replace(/_/g, ' ').replace(/\badmin\b/gi, brandName);
   };
 
-  // Get commission context for transaction categories
+  /** Generate contextual tags for a transaction */
+  const getTransactionTags = (tx: Transaction): { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }[] => {
+    const tags: { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }[] = [];
+    
+    if (tx.notes?.includes('Reversal')) tags.push({ label: 'Reversal', variant: 'destructive' });
+    if (tx.notes?.includes('CHARGEBACK')) tags.push({ label: 'Chargeback', variant: 'destructive' });
+    if (tx.notes?.toLowerCase().includes('refund') || tx.category === 'refund') tags.push({ label: `${brandName} Refund`, variant: 'secondary' });
+    if (tx.notes?.includes('Cancelled')) tags.push({ label: 'Cancelled', variant: 'outline' });
+    if (tx.notes?.toLowerCase().includes('promo') || tx.category === 'promo_cost') tags.push({ label: 'Promo', variant: 'secondary' });
+    if (tx.category === 'admin_credit' || tx.category === 'admin_debit') tags.push({ label: `${brandName} Action`, variant: 'default' });
+    if (tx.notes?.toLowerCase().includes('withdrawal')) tags.push({ label: 'Withdrawal', variant: 'outline' });
+    if (tx.notes?.toLowerCase().includes('rescue bonus')) tags.push({ label: 'Rescue Bonus', variant: 'default' });
+    
+    return tags;
+  };
+
+  /** Format notes replacing "admin" with brandName */
+  const formatNotes = (notes: string | null): string => {
+    if (!notes) return '';
+    return notes.replace(/\badmin\b/gi, brandName).replace(/\bAdmin\b/g, brandName);
+  };
+
   const getCommissionContext = (category: string): string | null => {
     const contexts: Record<string, string> = {
       vendor_share: 'Net earnings after platform commission deduction',
@@ -147,6 +169,8 @@ export function TransactionHistory({
         return <Badge variant="secondary" className="bg-warning/20 text-warning border-0">Pending</Badge>;
       case 'failed':
         return <Badge variant="destructive">Failed</Badge>;
+      case 'cancelled':
+        return <Badge variant="outline" className="text-muted-foreground">Cancelled</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -170,7 +194,6 @@ export function TransactionHistory({
     return transactions.slice(start, start + ITEMS_PER_PAGE);
   }, [transactions, currentPage]);
 
-  // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [filter, dateRange]);
@@ -244,70 +267,163 @@ export function TransactionHistory({
           </div>
         ) : (
           <div className="space-y-3">
-            {paginatedTransactions.map((tx) => (
-              <div
-                key={tx.id}
-                className="flex items-center justify-between p-4 rounded-xl bg-muted/50"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                    tx.transaction_type === 'credit' 
-                      ? 'bg-success/10' 
-                      : 'bg-destructive/10'
-                  }`}>
-                    {tx.transaction_type === 'credit' ? (
-                      <ArrowDownLeft className="w-5 h-5 text-success" />
-                    ) : (
-                      <ArrowUpRight className="w-5 h-5 text-destructive" />
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium text-foreground truncate">
-                        {getCategoryLabel(tx.category)}
-                      </p>
-                      {getCommissionContext(tx.category) && (
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger>
-                              <Info className="w-3.5 h-3.5 text-muted-foreground" />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p className="max-w-xs text-xs">{getCommissionContext(tx.category)}</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
+            {paginatedTransactions.map((tx) => {
+              const isExpanded = expandedTxId === tx.id;
+              const tags = getTransactionTags(tx);
+              const metadata = tx.metadata as Record<string, any> | null;
+              
+              return (
+                <div
+                  key={tx.id}
+                  className="rounded-xl bg-muted/50 overflow-hidden"
+                >
+                  <div 
+                    className="flex items-center justify-between p-4 cursor-pointer hover:bg-muted/70 transition-colors"
+                    onClick={() => setExpandedTxId(isExpanded ? null : tx.id)}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                        tx.transaction_type === 'credit' 
+                          ? 'bg-success/10' 
+                          : 'bg-destructive/10'
+                      }`}>
+                        {tx.transaction_type === 'credit' ? (
+                          <ArrowDownLeft className="w-5 h-5 text-success" />
+                        ) : (
+                          <ArrowUpRight className="w-5 h-5 text-destructive" />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-medium text-foreground truncate">
+                            {getCategoryLabel(tx.category)}
+                          </p>
+                          {getCommissionContext(tx.category) && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger>
+                                  <Info className="w-3.5 h-3.5 text-muted-foreground" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="max-w-xs text-xs">{getCommissionContext(tx.category)}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                          {/* Inline tags */}
+                          {tags.slice(0, 2).map((tag, i) => (
+                            <Badge key={i} variant={tag.variant} className="text-[10px] px-1.5 py-0">
+                              {tag.label}
+                            </Badge>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <span>
+                            {new Date(tx.created_at).toLocaleDateString('en-NG', {
+                              dateStyle: 'medium',
+                            })}
+                          </span>
+                          {tx.environment === 'development' && (
+                            <Badge variant="outline" className="text-xs">Test</Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+                      <div className="text-right">
+                        <p className={`font-semibold ${
+                          tx.transaction_type === 'credit' 
+                            ? 'text-success' 
+                            : 'text-destructive'
+                        }`}>
+                          {tx.transaction_type === 'credit' ? '+' : '-'}₦{Number(tx.amount).toLocaleString()}
+                        </p>
+                        <div className="mt-1">
+                          {getStatusBadge(tx.status || 'completed')}
+                        </div>
+                      </div>
+                      {isExpanded ? (
+                        <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 text-muted-foreground" />
                       )}
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <span>
-                        {new Date(tx.created_at).toLocaleDateString('en-NG', {
-                          dateStyle: 'medium',
-                        })}
-                      </span>
-                      {tx.environment === 'development' && (
-                        <Badge variant="outline" className="text-xs">Test</Badge>
+                  </div>
+                  
+                  {/* Expanded Details */}
+                  {isExpanded && (
+                    <div className="px-4 pb-4 pt-0 border-t border-border/50 space-y-3">
+                      {/* All tags */}
+                      {tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 pt-3">
+                          {tags.map((tag, i) => (
+                            <Badge key={i} variant={tag.variant} className="text-xs">
+                              {tag.label}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                      
+                      <div className="grid grid-cols-2 gap-3 text-xs">
+                        <div>
+                          <span className="text-muted-foreground">Transaction ID</span>
+                          <p className="font-mono text-[10px] truncate">{tx.id}</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Date & Time</span>
+                          <p>{new Date(tx.created_at).toLocaleString('en-NG')}</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Type</span>
+                          <p className="capitalize">{tx.transaction_type}</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Category</span>
+                          <p>{getCategoryLabel(tx.category)}</p>
+                        </div>
+                        {tx.order_id && (
+                          <div>
+                            <span className="text-muted-foreground">Order Linked</span>
+                            <p className="text-primary">Yes</p>
+                          </div>
+                        )}
+                        {tx.environment && (
+                          <div>
+                            <span className="text-muted-foreground">Environment</span>
+                            <p className="capitalize">{tx.environment}</p>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Metadata breakdown (delivery fee, shares, etc.) */}
+                      {metadata && typeof metadata === 'object' && Object.keys(metadata).length > 0 && (
+                        <div className="p-2 bg-background rounded-lg">
+                          <p className="text-xs font-medium text-muted-foreground mb-1.5">Breakdown</p>
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            {Object.entries(metadata).map(([key, value]) => (
+                              <div key={key}>
+                                <span className="text-muted-foreground capitalize">{key.replace(/_/g, ' ')}</span>
+                                <p className="font-medium">
+                                  {typeof value === 'number' ? `₦${Number(value).toLocaleString()}` : String(value)}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Notes */}
+                      {tx.notes && (
+                        <div className="p-2 bg-background rounded-lg">
+                          <p className="text-xs font-medium text-muted-foreground mb-1">Notes</p>
+                          <p className="text-xs">{formatNotes(tx.notes)}</p>
+                        </div>
                       )}
                     </div>
-                    {tx.notes && (
-                      <p className="text-xs text-muted-foreground mt-1 truncate">{tx.notes}</p>
-                    )}
-                  </div>
+                  )}
                 </div>
-                <div className="text-right flex-shrink-0 ml-3">
-                  <p className={`font-semibold ${
-                    tx.transaction_type === 'credit' 
-                      ? 'text-success' 
-                      : 'text-destructive'
-                  }`}>
-                    {tx.transaction_type === 'credit' ? '+' : '-'}₦{Number(tx.amount).toLocaleString()}
-                  </p>
-                  <div className="mt-1">
-                    {getStatusBadge(tx.status || 'completed')}
-                  </div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
             <PaginationControls
               currentPage={currentPage}
               totalPages={totalPages}
