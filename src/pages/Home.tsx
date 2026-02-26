@@ -37,6 +37,7 @@ export default function Home() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [activeTab, setActiveTab] = useState('home');
   const [deliveryLocation, setDeliveryLocation] = useState<DeliveryLocation | null>(null);
+  const [locationDialogOpen, setLocationDialogOpen] = useState(false);
   const navigate = useNavigate();
 
   // Register Capacitor native push notifications on mobile
@@ -241,7 +242,8 @@ export default function Home() {
     <div className="min-h-screen bg-background pb-24">
       <Header 
         userName={user.user_metadata?.full_name || 'User'}
-        address="Lagos, Nigeria"
+        address={deliveryLocation?.label || 'Set your location'}
+        onLocationClick={() => setLocationDialogOpen(true)}
       />
 
       <PWAInstallBanner />
@@ -301,6 +303,8 @@ export default function Home() {
           onLocationSelect={handleLocationSelect}
           currentLocation={deliveryLocation}
           onClearLocation={handleClearLocation}
+          externalOpen={locationDialogOpen}
+          onExternalOpenChange={setLocationDialogOpen}
         />
 
         {/* Category Pills */}

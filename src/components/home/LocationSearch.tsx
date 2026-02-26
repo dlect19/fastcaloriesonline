@@ -12,12 +12,20 @@ interface LocationSearchProps {
   onLocationSelect: (lat: number, lon: number, label: string) => void;
   currentLocation: { lat: number | null; lon: number | null; label: string } | null;
   onClearLocation: () => void;
+  externalOpen?: boolean;
+  onExternalOpenChange?: (open: boolean) => void;
 }
 
-export function LocationSearch({ onLocationSelect, currentLocation, onClearLocation }: LocationSearchProps) {
+export function LocationSearch({ onLocationSelect, currentLocation, onClearLocation, externalOpen, onExternalOpenChange }: LocationSearchProps) {
   const { toast } = useToast();
   const { latitude, longitude, loading: geoLoading, error: geoError, getCurrentPosition } = useGeolocation();
-  const [isOpen, setIsOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  
+  const isOpen = externalOpen !== undefined ? externalOpen : internalOpen;
+  const setIsOpen = (open: boolean) => {
+    if (onExternalOpenChange) onExternalOpenChange(open);
+    setInternalOpen(open);
+  };
   const [searching, setSearching] = useState(false);
   const [waitingForGps, setWaitingForGps] = useState(false);
   const [formData, setFormData] = useState({
