@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Send, Loader2, Bell, Megaphone, Download, Users } from 'lucide-react';
+import { EmojiPicker } from '@/components/admin/EmojiPicker';
+import { ApkUploadCard } from '@/components/admin/ApkUploadCard';
 
 export default function AdminNotifications() {
   const { toast } = useToast();
@@ -18,7 +20,6 @@ export default function AdminNotifications() {
   const [url, setUrl] = useState('/');
   const [result, setResult] = useState<{ sent: number; failed: number } | null>(null);
 
-  // APK update fields
   const [apkAppType, setApkAppType] = useState<'customer' | 'rider'>('customer');
   const [apkVersion, setApkVersion] = useState('');
   const [apkChangelog, setApkChangelog] = useState('');
@@ -34,7 +35,6 @@ export default function AdminNotifications() {
     setResult(null);
 
     try {
-      // Get all user IDs with push subscriptions
       const { data: subs, error: subError } = await supabase
         .from('push_subscriptions')
         .select('user_id');
@@ -49,7 +49,6 @@ export default function AdminNotifications() {
         return;
       }
 
-      // Send in batches of 50
       let totalSent = 0;
       let totalFailed = 0;
       const batchSize = 50;
@@ -66,7 +65,6 @@ export default function AdminNotifications() {
         });
 
         if (error) {
-          console.error('Batch error:', error);
           totalFailed += batch.length;
         } else {
           totalSent += data?.sent || 0;
@@ -117,6 +115,10 @@ export default function AdminNotifications() {
     }
   };
 
+  const insertEmoji = (emoji: string, setter: React.Dispatch<React.SetStateAction<string>>) => {
+    setter(prev => prev + emoji);
+  };
+
   return (
     <div className="flex min-h-screen bg-background">
       <AdminSidebar />
@@ -142,22 +144,30 @@ export default function AdminNotifications() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="title">Notification Title</Label>
-                <Input
-                  id="title"
-                  placeholder="e.g. 🎉 Weekend Special!"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="title"
+                    placeholder="e.g. 🎉 Weekend Special!"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="flex-1"
+                  />
+                  <EmojiPicker onSelect={(emoji) => insertEmoji(emoji, setTitle)} />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="body">Message</Label>
-                <Textarea
-                  id="body"
-                  placeholder="e.g. Get 20% off all orders this weekend. Order now!"
-                  value={body}
-                  onChange={(e) => setBody(e.target.value)}
-                  rows={3}
-                />
+                <div className="flex gap-2 items-start">
+                  <Textarea
+                    id="body"
+                    placeholder="e.g. Get 20% off all orders this weekend. Order now!"
+                    value={body}
+                    onChange={(e) => setBody(e.target.value)}
+                    rows={3}
+                    className="flex-1"
+                  />
+                  <EmojiPicker onSelect={(emoji) => insertEmoji(emoji, setBody)} />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="url">Link (optional)</Label>
@@ -192,6 +202,9 @@ export default function AdminNotifications() {
               )}
             </CardContent>
           </Card>
+
+          {/* APK Upload */}
+          <ApkUploadCard />
 
           {/* APK Update Notification */}
           <Card>
