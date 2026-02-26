@@ -8,9 +8,10 @@ interface HeaderProps {
   userName?: string;
   address?: string;
   onSearch?: (query: string) => void;
+  onLocationClick?: () => void;
 }
 
-export function Header({ userName = 'Guest', address = 'Set your location', onSearch }: HeaderProps) {
+export function Header({ userName = 'Guest', address = 'Set your location', onSearch, onLocationClick }: HeaderProps) {
   const navigate = useNavigate();
   const [showQRDialog, setShowQRDialog] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -39,7 +40,7 @@ export function Header({ userName = 'Guest', address = 'Set your location', onSe
         <div className="container py-4">
           {/* Top row: Location & Notifications */}
           <div className="flex items-center justify-between mb-4">
-            <button className="flex items-center gap-2 text-left">
+            <button className="flex items-center gap-2 text-left" onClick={onLocationClick}>
               <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center">
                 <MapPin className="w-5 h-5 text-primary" />
               </div>
