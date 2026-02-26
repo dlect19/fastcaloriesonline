@@ -155,6 +155,11 @@ serve(async (req: Request): Promise<Response> => {
           continue;
         }
 
+        // Log transaction FIRST using DB unique index to prevent duplicates
+        const senderName = tx.authorization?.sender_name
+          || `${tx.customer?.first_name || ''} ${tx.customer?.last_name || ''}`.trim()
+          || 'Unknown';
+
         // Re-read current balance for accuracy
         const { data: currentWallet } = await supabaseAdmin
           .from("wallets")
@@ -167,24 +172,9 @@ serve(async (req: Request): Promise<Response> => {
           : Number(currentWallet?.balance) || 0;
 
         const newBalance = currentBalance + amount;
-        const updateField = isTestMode ? { test_balance: newBalance } : { balance: newBalance };
 
-        const { error: updateError } = await supabaseAdmin
-          .from("wallets")
-          .update({ ...updateField, updated_at: new Date().toISOString() })
-          .eq("id", wallet.id);
-
-        if (updateError) {
-          console.error(`Failed to update wallet for ${reference}:`, updateError);
-          continue;
-        }
-
-        // Log transaction
-        const senderName = tx.authorization?.sender_name
-          || `${tx.customer?.first_name || ''} ${tx.customer?.last_name || ''}`.trim()
-          || 'Unknown';
-
-        await supabaseAdmin.from("wallet_transactions").insert({
+        // Insert transaction first - unique index will reject duplicates
+        const { error: insertError } = await supabaseAdmin.from("wallet_transactions").insert({
           wallet_id: wallet.id,
           wallet_type: "customer",
           transaction_type: "credit",
@@ -206,6 +196,24 @@ serve(async (req: Request): Promise<Response> => {
             payment_channel: tx.channel,
           },
         });
+
+        if (insertError) {
+          // Unique constraint violation = already processed by webhook
+          console.log(`Transaction ${reference} already exists (constraint), skipping`);
+          continue;
+        }
+
+        // Only update wallet balance AFTER successful insert
+        const updateField = isTestMode ? { test_balance: newBalance } : { balance: newBalance };
+        const { error: updateError } = await supabaseAdmin
+          .from("wallets")
+          .update({ ...updateField, updated_at: new Date().toISOString() })
+          .eq("id", wallet.id);
+
+        if (updateError) {
+          console.error(`Failed to update wallet for ${reference}:`, updateError);
+          continue;
+        }
 
         processedCount++;
         totalAmount += amount;

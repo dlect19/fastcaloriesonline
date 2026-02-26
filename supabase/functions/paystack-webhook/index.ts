@@ -219,13 +219,13 @@ async function handleWalletFunding(supabase: SupabaseClient, data: any, environm
     return;
   }
 
-  // Idempotency check - see if this reference was already processed
+  // Idempotency check
   const { data: existingTx } = await supabase
     .from("wallet_transactions")
     .select("id")
     .eq("paystack_reference", reference)
     .eq("category", "wallet_funding")
-    .single();
+    .maybeSingle();
 
   if (existingTx) {
     console.log(`Wallet funding ${reference} already processed, skipping`);
@@ -267,27 +267,15 @@ async function handleWalletFunding(supabase: SupabaseClient, data: any, environm
     return;
   }
 
-  // Credit wallet
+  // Credit wallet - INSERT first for idempotency via unique index
   const currentBalance = isTestMode
     ? Number(customerWallet.test_balance) || 0
     : Number(customerWallet.balance) || 0;
 
   const newBalance = currentBalance + amount;
 
-  if (isTestMode) {
-    await supabase
-      .from("wallets")
-      .update({ test_balance: newBalance, updated_at: new Date().toISOString() })
-      .eq("id", customerWallet.id);
-  } else {
-    await supabase
-      .from("wallets")
-      .update({ balance: newBalance, updated_at: new Date().toISOString() })
-      .eq("id", customerWallet.id);
-  }
-
-  // Log wallet transaction
-  await supabase.from("wallet_transactions").insert({
+  // Insert transaction first - unique index prevents duplicates
+  const { error: insertError } = await supabase.from("wallet_transactions").insert({
     wallet_id: customerWallet.id,
     wallet_type: "customer",
     transaction_type: "credit",
@@ -304,6 +292,18 @@ async function handleWalletFunding(supabase: SupabaseClient, data: any, environm
       bank: data.authorization?.bank,
     },
   });
+
+  if (insertError) {
+    console.log(`Wallet funding ${reference} blocked by unique constraint, skipping`);
+    return;
+  }
+
+  // Only update balance after successful insert
+  const updateField = isTestMode ? { test_balance: newBalance } : { balance: newBalance };
+  await supabase
+    .from("wallets")
+    .update({ ...updateField, updated_at: new Date().toISOString() })
+    .eq("id", customerWallet.id);
 
   console.log(`Wallet funding successful: ${reference}, new balance: ${newBalance}`);
 }
@@ -485,6 +485,19 @@ async function handleDVAFunding(supabase: SupabaseClient, data: any, environment
     return;
   }
 
+  // Double-check with a short delay to handle race conditions
+  await new Promise(resolve => setTimeout(resolve, 500));
+  const { data: existingTx2 } = await supabase
+    .from("wallet_transactions")
+    .select("id")
+    .eq("paystack_reference", reference)
+    .in("category", ["dva_funding", "wallet_funding"])
+    .maybeSingle();
+
+  if (existingTx2) {
+    console.log(`DVA funding ${reference} already processed (second check), skipping`);
+    return;
+  }
   // Find wallet - try multiple strategies
   let wallet = null;
 
@@ -554,26 +567,19 @@ async function handleDVAFunding(supabase: SupabaseClient, data: any, environment
     return;
   }
 
-  // Credit wallet
-  const currentBalance = isTestMode
-    ? Number(wallet.test_balance) || 0
-    : Number(wallet.balance) || 0;
-
-  const newBalance = currentBalance + amount;
-  const updateField = isTestMode ? { test_balance: newBalance } : { balance: newBalance };
-
-  await supabase
-    .from("wallets")
-    .update({ ...updateField, updated_at: new Date().toISOString() })
-    .eq("id", wallet.id);
-
   // Extract sender info
   const senderName = data.authorization?.sender_name 
     || `${data.customer?.first_name || ''} ${data.customer?.last_name || ''}`.trim() 
     || 'Unknown';
 
-  // Log wallet transaction
-  await supabase.from("wallet_transactions").insert({
+  const currentBalance = isTestMode
+    ? Number(wallet.test_balance) || 0
+    : Number(wallet.balance) || 0;
+
+  const newBalance = currentBalance + amount;
+
+  // INSERT transaction FIRST - unique DB index prevents duplicates from race conditions
+  const { error: insertError } = await supabase.from("wallet_transactions").insert({
     wallet_id: wallet.id,
     wallet_type: "customer",
     transaction_type: "credit",
@@ -592,6 +598,18 @@ async function handleDVAFunding(supabase: SupabaseClient, data: any, environment
       dva_account_number: dvaAccountNumber,
     },
   });
+
+  if (insertError) {
+    console.log(`DVA funding ${reference} blocked by unique constraint, skipping duplicate`);
+    return;
+  }
+
+  // Only update wallet balance AFTER successful insert (no duplicate possible)
+  const updateField = isTestMode ? { test_balance: newBalance } : { balance: newBalance };
+  await supabase
+    .from("wallets")
+    .update({ ...updateField, updated_at: new Date().toISOString() })
+    .eq("id", wallet.id);
 
   console.log(`DVA funding successful: ${reference}, wallet ${wallet.id}, new balance: ${newBalance}`);
 }
