@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, Package, DollarSign, ArrowUpRight, Settings, LogOut, Power, MessageSquare } from 'lucide-react';
+import { Home, Package, DollarSign, ArrowUpRight, Settings, LogOut, Power, MessageSquare, Download } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -127,6 +127,23 @@ export function RiderSidebar({ isOnline = false, onToggleOnline, canViewEarnings
           })}
         </ul>
       </nav>
+
+      {/* Download App Banner */}
+      {!window.matchMedia('(display-mode: standalone)').matches && (
+        <div className="px-4 pb-2">
+          <a
+            href="/downloads/fastcalories-rider.apk"
+            download
+            className="flex items-center gap-2 p-3 rounded-lg bg-primary/10 border border-primary/20 hover:bg-primary/15 transition-colors"
+          >
+            <Download className="w-4 h-4 text-primary shrink-0" />
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-foreground">Download Rider App</p>
+              <p className="text-[10px] text-muted-foreground">For a better experience</p>
+            </div>
+          </a>
+        </div>
+      )}
 
       {/* Logout */}
       <div className="p-4 border-t border-border mt-0">
