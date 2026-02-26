@@ -462,45 +462,89 @@ async function handleDVAFunding(supabase: SupabaseClient, data: any, environment
   const amount = (data.amount as number) / 100; // Convert from kobo
   const customerCode = data.customer?.customer_code as string;
   const customerEmail = data.customer?.email as string;
+  const metadataUserId = data.metadata?.user_id as string;
+  const dvaAccountNumber = data.dedicated_account?.account_number as string;
 
-  console.log(`Processing DVA funding: ${reference}, amount: ${amount}, customer: ${customerCode || customerEmail}`);
+  console.log(`Processing DVA funding: ${reference}, amount: ${amount}, customer: ${customerCode || customerEmail}, dva: ${dvaAccountNumber}, metaUser: ${metadataUserId}`);
 
-  if (!customerCode && !customerEmail) {
+  if (!customerCode && !customerEmail && !metadataUserId && !dvaAccountNumber) {
     console.error("No customer identifier in DVA funding");
     return;
   }
 
-  // Idempotency check
+  // Idempotency check - use maybeSingle to avoid errors on no match
   const { data: existingTx } = await supabase
     .from("wallet_transactions")
     .select("id")
     .eq("paystack_reference", reference)
-    .eq("category", "dva_funding")
-    .single();
+    .in("category", ["dva_funding", "wallet_funding"])
+    .maybeSingle();
 
   if (existingTx) {
     console.log(`DVA funding ${reference} already processed, skipping`);
     return;
   }
 
-  // Find wallet by paystack_customer_code
-  let wallet;
-  if (customerCode) {
-    const { data: walletData, error: walletError } = await supabase
+  // Find wallet - try multiple strategies
+  let wallet = null;
+
+  // Strategy 1: Find by paystack_customer_code
+  if (!wallet && customerCode) {
+    const { data: walletData } = await supabase
       .from("wallets")
       .select("*")
       .eq("paystack_customer_code", customerCode)
       .eq("wallet_type", "customer")
-      .single();
-
-    if (walletError || !walletData) {
-      console.error("Wallet not found for customer:", customerCode);
-      return;
-    }
+      .maybeSingle();
     wallet = walletData;
-  } else {
-    // Fallback to finding by email through profiles
-    console.log("Customer code not found, cannot process DVA funding");
+  }
+
+  // Strategy 2: Find by dva_account_number
+  if (!wallet && dvaAccountNumber) {
+    const { data: walletData } = await supabase
+      .from("wallets")
+      .select("*")
+      .eq("dva_account_number", dvaAccountNumber)
+      .eq("wallet_type", "customer")
+      .maybeSingle();
+    wallet = walletData;
+    if (wallet) console.log("Found wallet by DVA account number fallback");
+  }
+
+  // Strategy 3: Find by metadata.user_id
+  if (!wallet && metadataUserId) {
+    const { data: walletData } = await supabase
+      .from("wallets")
+      .select("*")
+      .eq("user_id", metadataUserId)
+      .eq("wallet_type", "customer")
+      .maybeSingle();
+    wallet = walletData;
+    if (wallet) console.log("Found wallet by metadata user_id fallback");
+  }
+
+  // Strategy 4: Find by customer email through profiles
+  if (!wallet && customerEmail) {
+    const { data: authUser } = await supabase
+      .from("profiles")
+      .select("user_id")
+      .eq("email", customerEmail)
+      .maybeSingle();
+    
+    if (authUser?.user_id) {
+      const { data: walletData } = await supabase
+        .from("wallets")
+        .select("*")
+        .eq("user_id", authUser.user_id)
+        .eq("wallet_type", "customer")
+        .maybeSingle();
+      wallet = walletData;
+      if (wallet) console.log("Found wallet by customer email fallback");
+    }
+  }
+
+  if (!wallet) {
+    console.error(`No wallet found for DVA funding: customer_code=${customerCode}, dva=${dvaAccountNumber}, user_id=${metadataUserId}, email=${customerEmail}`);
     return;
   }
 
@@ -510,24 +554,23 @@ async function handleDVAFunding(supabase: SupabaseClient, data: any, environment
     return;
   }
 
-  // Credit wallet - DVA is production only but handle both for safety
+  // Credit wallet
   const currentBalance = isTestMode
     ? Number(wallet.test_balance) || 0
     : Number(wallet.balance) || 0;
 
   const newBalance = currentBalance + amount;
+  const updateField = isTestMode ? { test_balance: newBalance } : { balance: newBalance };
 
-  if (isTestMode) {
-    await supabase
-      .from("wallets")
-      .update({ test_balance: newBalance, updated_at: new Date().toISOString() })
-      .eq("id", wallet.id);
-  } else {
-    await supabase
-      .from("wallets")
-      .update({ balance: newBalance, updated_at: new Date().toISOString() })
-      .eq("id", wallet.id);
-  }
+  await supabase
+    .from("wallets")
+    .update({ ...updateField, updated_at: new Date().toISOString() })
+    .eq("id", wallet.id);
+
+  // Extract sender info
+  const senderName = data.authorization?.sender_name 
+    || `${data.customer?.first_name || ''} ${data.customer?.last_name || ''}`.trim() 
+    || 'Unknown';
 
   // Log wallet transaction
   await supabase.from("wallet_transactions").insert({
@@ -540,15 +583,17 @@ async function handleDVAFunding(supabase: SupabaseClient, data: any, environment
     paystack_reference: reference,
     status: "completed",
     environment,
-    notes: "Bank transfer funding via virtual account",
+    notes: `Wallet funding via Virtual Account from ${senderName}`,
     metadata: {
       payment_channel: "dedicated_nuban",
-      sender_bank: data.authorization?.bank,
-      sender_name: data.authorization?.sender_name,
+      sender_bank: data.authorization?.sender_bank || data.authorization?.bank || "Unknown",
+      sender_name: senderName,
+      customer_code: customerCode,
+      dva_account_number: dvaAccountNumber,
     },
   });
 
-  console.log(`DVA funding successful: ${reference}, new balance: ${newBalance}`);
+  console.log(`DVA funding successful: ${reference}, wallet ${wallet.id}, new balance: ${newBalance}`);
 }
 
 serve(handler);
