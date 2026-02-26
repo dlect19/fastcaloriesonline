@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
+import { usePlatformSettings } from '@/hooks/usePlatformSettings';
 import type { Tables } from '@/integrations/supabase/types';
 
 type WalletRow = Tables<'wallets'>;
@@ -15,6 +16,7 @@ interface DVADetails {
 export function useCustomerWallet() {
   const { user } = useAuth();
   const { isTestMode } = useEnvironmentConfig();
+  const { settings: platformSettings } = usePlatformSettings();
   const [wallet, setWallet] = useState<WalletRow | null>(null);
   const [profile, setProfile] = useState<{ full_name: string | null; phone: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -130,8 +132,11 @@ export function useCustomerWallet() {
     ? (isTestMode ? Number(wallet.test_balance) || 0 : Number(wallet.balance) || 0)
     : 0;
 
+  // Check if DVA system is enabled platform-wide
+  const dvaSystemEnabled = platformSettings['dva_enabled'] !== 'false';
+
   // Check if DVA is active
-  const hasDVA = wallet?.dva_active === true && !!wallet?.dva_account_number;
+  const hasDVA = dvaSystemEnabled && wallet?.dva_active === true && !!wallet?.dva_account_number;
 
   // Get DVA details if available
   const dvaDetails: DVADetails | null = hasDVA && wallet ? {
@@ -180,6 +185,7 @@ export function useCustomerWallet() {
     isDisabled: wallet?.is_disabled || false,
     hasDVA,
     dvaDetails,
+    dvaSystemEnabled,
     profileComplete,
     isTestMode,
     refetch: fetchWallet,

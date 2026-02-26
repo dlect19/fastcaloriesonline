@@ -10,7 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { MapPin, Bike, DollarSign, Settings2, Save, Loader2, CreditCard, Navigation, Clock, Store, Bell } from 'lucide-react';
+import { MapPin, Bike, DollarSign, Settings2, Save, Loader2, CreditCard, Navigation, Clock, Store, Bell, Building2 } from 'lucide-react';
 import { EnvironmentSwitch } from '@/components/admin/EnvironmentSwitch';
 import { AdminTestModeToggle } from '@/components/admin/AdminTestModeToggle';
 import { PaystackBalanceCard } from '@/components/admin/PaystackBalanceCard';
@@ -151,6 +151,16 @@ export default function AdminSettings() {
           key: 'show_rider_test_notification',
           value: settings['show_rider_test_notification'],
           description: 'Show test push notification button on rider dashboard',
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'key' });
+      }
+
+      // Save DVA enabled toggle
+      if (settings['dva_enabled'] !== undefined) {
+        await supabase.from('platform_settings').upsert({
+          key: 'dva_enabled',
+          value: settings['dva_enabled'],
+          description: 'Enable or disable DVA virtual account system for customers',
           updated_at: new Date().toISOString()
         }, { onConflict: 'key' });
       }
@@ -513,6 +523,51 @@ export default function AdminSettings() {
                   <p className="text-sm text-muted-foreground">
                     🛒 Market vendors: <span className="text-primary font-medium">{settings['settlement_hours_market'] === '0' ? 'Immediate' : `${settings['settlement_hours_market'] || '24'} hours`}</span>
                   </p>
+                </div>
+
+                <div className="flex justify-end">
+                  <Button onClick={handleSave} disabled={saving}>
+                    {saving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4 mr-2" />
+                        Save Settings
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* DVA (Virtual Account) Toggle */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="w-5 h-5 text-primary" />
+                  Virtual Account (DVA)
+                </CardTitle>
+                <CardDescription>
+                  Enable or disable the Dedicated Virtual Account system for customers
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between p-4 bg-secondary rounded-lg">
+                  <div className="space-y-1">
+                    <Label className="text-base">DVA System</Label>
+                    <p className="text-sm text-muted-foreground">
+                      {settings['dva_enabled'] === 'false'
+                        ? 'Virtual accounts are hidden. Customers will see a notice to use card payment instead.'
+                        : 'Customers can create and use virtual accounts for wallet funding via bank transfer.'}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={settings['dva_enabled'] !== 'false'}
+                    onCheckedChange={(checked) => handleSettingChange('dva_enabled', checked ? 'true' : 'false')}
+                  />
                 </div>
 
                 <div className="flex justify-end">

@@ -16,7 +16,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function WalletPage() {
   const { user, loading: authLoading } = useAuth();
-  const { wallet, balance, loading: walletLoading, isDisabled, hasDVA, dvaDetails, profileComplete, isTestMode, refetch } = useCustomerWallet();
+  const { wallet, balance, loading: walletLoading, isDisabled, hasDVA, dvaDetails, dvaSystemEnabled, profileComplete, isTestMode, refetch } = useCustomerWallet();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -163,7 +163,24 @@ export default function WalletPage() {
 
 
         {/* Virtual Account Section */}
-        {hasDVA && dvaDetails ? (
+        {!dvaSystemEnabled ? (
+          <Card className="border-0 shadow-soft border-l-4 border-l-yellow-500">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-yellow-500/10 flex items-center justify-center shrink-0">
+                  <Building2 className="w-5 h-5 text-yellow-500" />
+                </div>
+                <div className="space-y-1">
+                  <p className="font-medium text-sm">Virtual Account Temporarily Unavailable</p>
+                  <p className="text-sm text-muted-foreground">
+                    Bank transfer funding via virtual accounts is currently suspended due to maintenance. 
+                    Please use the <strong>"Add Money"</strong> button above to fund your wallet via card payment instead.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ) : hasDVA && dvaDetails ? (
           <VirtualAccountCard
             bankName={dvaDetails.bankName}
             accountNumber={dvaDetails.accountNumber}
