@@ -39,8 +39,9 @@ export default function ProfileSetup() {
           if (data.full_name) setFullName(data.full_name);
           if (data.phone) setPhone(data.phone);
 
-          // If already complete, redirect
-          if (data.full_name?.trim() && data.phone?.trim()) {
+          // If already complete (full name with first & last, and phone), redirect
+          const isComplete = data.full_name?.trim()?.includes(' ') && data.phone?.trim();
+          if (isComplete) {
             navigate(returnTo, { replace: true });
           }
         }
