@@ -2,6 +2,7 @@ import { Smartphone, Share, MoreVertical, Download, Plus, ArrowLeft, ExternalLin
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { downloadApk } from '@/lib/apkInstall';
 
 export default function Install() {
   const navigate = useNavigate();
@@ -71,7 +72,7 @@ export default function Install() {
               </div>
             </div>
             <Button asChild className="w-full h-12 text-base gap-2">
-              <a href={apkUrl} download>
+              <a href={apkUrl} download onClick={async (e) => { const ok = await downloadApk(apkUrl); if (ok) e.preventDefault(); }}>
                 <Download className="w-5 h-5" />
                 Download APK ({appLabel} App)
               </a>
@@ -85,13 +86,13 @@ export default function Install() {
         {/* Both APKs */}
         <div className="grid grid-cols-2 gap-3">
           <Button asChild variant="outline" className="h-auto py-3 flex-col gap-1">
-            <a href="/downloads/fastcalories-customer.apk" download>
+            <a href="/downloads/fastcalories-customer.apk" download onClick={async (e) => { const ok = await downloadApk('/downloads/fastcalories-customer.apk'); if (ok) e.preventDefault(); }}>
               <Download className="w-4 h-4" />
               <span className="text-xs font-medium">Customer App</span>
             </a>
           </Button>
           <Button asChild variant="outline" className="h-auto py-3 flex-col gap-1">
-            <a href="/downloads/fastcalories-rider.apk" download>
+            <a href="/downloads/fastcalories-rider.apk" download onClick={async (e) => { const ok = await downloadApk('/downloads/fastcalories-rider.apk'); if (ok) e.preventDefault(); }}>
               <Download className="w-4 h-4" />
               <span className="text-xs font-medium">Rider App</span>
             </a>

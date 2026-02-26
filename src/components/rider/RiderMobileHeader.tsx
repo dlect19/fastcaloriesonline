@@ -5,6 +5,7 @@ import { RiderSidebar } from './RiderSidebar';
 import { ApkUpdateBanner } from '@/components/shared/ApkUpdateBanner';
 import riderLogo from '@/assets/rider-logo.png';
 import { useState } from 'react';
+import { downloadApk } from '@/lib/apkInstall';
 
 interface RiderMobileHeaderProps {
   isOnline: boolean;
@@ -49,7 +50,7 @@ export function RiderMobileHeader({ isOnline, onToggleOnline }: RiderMobileHeade
           <Download className="w-4 h-4 text-primary shrink-0" />
           <p className="text-xs text-foreground flex-1">Get the <strong>Rider App</strong> for a better experience</p>
           <Button asChild size="sm" className="h-7 text-xs shrink-0">
-            <a href="/downloads/fastcalories-rider.apk" download>Download</a>
+            <a href="/downloads/fastcalories-rider.apk" download onClick={async (e) => { const ok = await downloadApk('/downloads/fastcalories-rider.apk'); if (ok) e.preventDefault(); }}>Download</a>
           </Button>
           <button onClick={handleDismiss} className="text-muted-foreground hover:text-foreground p-1">
             <span className="text-xs">✕</span>
