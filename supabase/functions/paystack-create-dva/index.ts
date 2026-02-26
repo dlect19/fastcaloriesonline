@@ -190,7 +190,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         customer: wallet.paystack_customer_code, // Use customer_code instead of ID
-        preferred_bank: "wema-bank",
+        preferred_bank: "titan-paystack",
       }),
     });
 
