@@ -21,6 +21,7 @@ import { LogOut, Flame, Star, ChevronRight, Sparkles, Heart, ShieldCheck, Buildi
 import { useNavigate } from 'react-router-dom';
 import { PushNotificationBanner } from '@/components/shared/PushNotificationBanner';
 import { useCapacitorPush } from '@/hooks/useCapacitorPush';
+import { useGeolocation } from '@/hooks/useGeolocation';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 import fastCaloriesFullLogo from '@/assets/fast-calories-full-logo.png';
 
@@ -40,6 +41,9 @@ export default function Home() {
   const [locationDialogOpen, setLocationDialogOpen] = useState(false);
   const navigate = useNavigate();
 
+  // Auto-fetch GPS location on app load for logged-in users
+  const { latitude: autoLat, longitude: autoLon, getCurrentPosition: autoGetPosition } = useGeolocation();
+
   // Register Capacitor native push notifications on mobile
   useCapacitorPush();
 
@@ -57,6 +61,19 @@ export default function Home() {
       navigate('/profile-setup', { state: { returnTo: '/' } });
     }
   }, [user, profileLoading, profileComplete, navigate]);
+
+  // Auto-set delivery location from GPS on first load (if user hasn't manually set one)
+  useEffect(() => {
+    if (user && !deliveryLocation) {
+      autoGetPosition();
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (autoLat && autoLon && !deliveryLocation) {
+      setDeliveryLocation({ lat: autoLat, lon: autoLon, label: 'My GPS Location' });
+    }
+  }, [autoLat, autoLon]);
 
   const handleSignOut = async () => {
     await signOut();
