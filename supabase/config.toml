@@ -134,3 +134,6 @@ verify_jwt = false
 
 [functions.auto-store-status]
 verify_jwt = false
+
+[functions.notify-apk-update]
+verify_jwt = false

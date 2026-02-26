@@ -2,6 +2,7 @@ import { Menu, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { RiderSidebar } from './RiderSidebar';
+import { ApkUpdateBanner } from '@/components/shared/ApkUpdateBanner';
 import riderLogo from '@/assets/rider-logo.png';
 import { useState } from 'react';
 
@@ -55,6 +56,9 @@ export function RiderMobileHeader({ isOnline, onToggleOnline }: RiderMobileHeade
           </button>
         </div>
       )}
+
+      {/* APK Update notification */}
+      <ApkUpdateBanner appType="rider" />
     </header>
   );
 }
