@@ -11,6 +11,7 @@ import { BottomNav } from '@/components/home/BottomNav';
 import { CartButton } from '@/components/cart/CartButton';
 import { ActionHints } from '@/components/home/ActionHints';
 import { PWAInstallBanner } from '@/components/home/PWAInstallBanner';
+import { ApkUpdateBanner } from '@/components/shared/ApkUpdateBanner';
 import { AIMealRecommendation } from '@/components/home/AIMealRecommendation';
 import { SpinWheelWidget } from '@/components/home/SpinWheelWidget';
 import { LocationSearch } from '@/components/home/LocationSearch';
@@ -242,6 +243,7 @@ export default function Home() {
       />
 
       <PWAInstallBanner />
+      <ApkUpdateBanner appType="customer" />
 
       <main className="container py-6 space-y-6">
         {/* Welcome message */}
