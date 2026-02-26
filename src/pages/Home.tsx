@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { usePlatformSettings } from '@/hooks/usePlatformSettings';
 import { useProfileCompletion } from '@/hooks/useProfileCompletion';
 import { getPortalRedirect } from '@/hooks/usePortalMemory';
 import { Header } from '@/components/home/Header';
@@ -16,7 +17,7 @@ import { AIMealRecommendation } from '@/components/home/AIMealRecommendation';
 import { SpinWheelWidget } from '@/components/home/SpinWheelWidget';
 import { LocationSearch } from '@/components/home/LocationSearch';
 import { Button } from '@/components/ui/button';
-import { LogOut, Flame, Star, ChevronRight, Sparkles, Heart, ShieldCheck } from 'lucide-react';
+import { LogOut, Flame, Star, ChevronRight, Sparkles, Heart, ShieldCheck, Building2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { PushNotificationBanner } from '@/components/shared/PushNotificationBanner';
 import { useCapacitorPush } from '@/hooks/useCapacitorPush';
@@ -32,6 +33,7 @@ interface DeliveryLocation {
 export default function Home() {
   const { user, signOut, loading } = useAuth();
   const { isComplete: profileComplete, loading: profileLoading } = useProfileCompletion(user?.id);
+  const { settings: platformSettings } = usePlatformSettings();
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [activeTab, setActiveTab] = useState('home');
   const [deliveryLocation, setDeliveryLocation] = useState<DeliveryLocation | null>(null);
@@ -267,6 +269,18 @@ export default function Home() {
         {/* Push Notification Banner */}
         <PushNotificationBanner />
 
+        {/* DVA Suspension Notice */}
+        {platformSettings['dva_enabled'] === 'false' && (
+          <div className="flex items-start gap-3 p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/20">
+            <Building2 className="w-5 h-5 text-yellow-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-yellow-700">Virtual Account Temporarily Unavailable</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Bank transfer wallet funding is currently suspended. Use card payment to fund your wallet instead.
+              </p>
+            </div>
+          </div>
+        )}
         {/* Action Hints - Orders & Next Steps */}
         <ActionHints />
 
