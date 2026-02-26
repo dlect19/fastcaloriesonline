@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, Save, Loader2, Bike, Users, Building2, Navigation, CheckCircle, Clock, Settings2, Megaphone, Heart, QrCode, Radar, Trash2 } from 'lucide-react';
+import { MapPin, Save, Loader2, Bike, Users, Building2, Navigation, CheckCircle, Clock, Settings2, Megaphone, Heart, QrCode, Radar, Trash2, Search } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,6 +31,7 @@ function VendorStoreSettingsInner() {
   const { hasPermission, loading: permLoading } = useVendorPermissions(vendorId);
   const { latitude: geoLat, longitude: geoLon, loading: geoLoading, getCurrentPosition } = useGeolocation();
   
+  const [geocodingAddress, setGeocodingAddress] = useState(false);
   const [saving, setSaving] = useState(false);
   const [gettingLocation, setGettingLocation] = useState(false);
   const [vendorName, setVendorName] = useState('');
@@ -243,7 +244,50 @@ function VendorStoreSettingsInner() {
               ) : (
                 <Navigation className="w-4 h-4" />
               )}
-              {selectedOutlet?.latitude ? 'Update Location' : 'Use Current Location'}
+              {selectedOutlet?.latitude ? 'Update via GPS' : 'Use Current GPS'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={async () => {
+                if (!formData.address.trim() || !formData.city.trim()) {
+                  toast({ title: 'Missing Info', description: 'Enter street address and city below first.', variant: 'destructive' });
+                  return;
+                }
+                if (!selectedOutlet) return;
+                setGeocodingAddress(true);
+                try {
+                  const { data, error } = await supabase.functions.invoke('geocode-address', {
+                    body: {
+                      address: formData.address,
+                      city: formData.city,
+                      state: formData.state || 'Lagos',
+                      country: 'Nigeria',
+                    },
+                  });
+                  if (error || data?.error) throw new Error(data?.error || 'Geocoding failed');
+                  const { error: updateErr } = await supabase
+                    .from('vendor_outlets')
+                    .update({ latitude: data.latitude, longitude: data.longitude })
+                    .eq('id', selectedOutlet.id);
+                  if (updateErr) throw updateErr;
+                  toast({ title: 'Location set from address', description: `📍 ${data.latitude.toFixed(4)}, ${data.longitude.toFixed(4)}` });
+                  await refreshOutlets();
+                } catch (err: any) {
+                  toast({ title: 'Address not found', description: 'Could not geocode that address. Try a more specific location.', variant: 'destructive' });
+                } finally {
+                  setGeocodingAddress(false);
+                }
+              }}
+              disabled={geocodingAddress}
+            >
+              {geocodingAddress ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Search className="w-4 h-4" />
+              )}
+              Set from Address
             </Button>
           </div>
 
