@@ -25,7 +25,7 @@ type Address = Tables<'addresses'>;
 
 export default function Profile() {
   const { user, loading: authLoading, signOut } = useAuth();
-  const { balance, hasDVA, dvaDetails, profileComplete, isTestMode, refetch: refetchWallet, isDisabled } = useCustomerWallet();
+  const { balance, hasDVA, dvaDetails, dvaSystemEnabled, profileComplete, isTestMode, refetch: refetchWallet, isDisabled } = useCustomerWallet();
   const navigate = useNavigate();
   const { toast } = useToast();
   
@@ -162,7 +162,17 @@ export default function Profile() {
             </div>
 
             {/* Virtual Account Info */}
-            {hasDVA && dvaDetails ? (
+            {!dvaSystemEnabled ? (
+              <div className="border-t border-border/50 pt-3">
+                <div className="flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-yellow-500" />
+                  <span className="text-xs font-medium text-yellow-600">Virtual Account Temporarily Unavailable</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Use the "Add Money" button to fund your wallet via card payment instead.
+                </p>
+              </div>
+            ) : hasDVA && dvaDetails ? (
               <div className="border-t border-border/50 pt-3">
                 <div className="flex items-center gap-2 mb-2">
                   <Building2 className="w-4 h-4 text-muted-foreground" />
