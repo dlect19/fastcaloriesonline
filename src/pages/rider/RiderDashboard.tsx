@@ -258,9 +258,17 @@ export default function RiderDashboard() {
 
         setRiderProfile(profile);
         setIsOnline(profile.is_online || false);
+
+        // Count actual delivered orders instead of stale total_deliveries column
+        const { count: deliveredCount } = await supabase
+          .from('orders')
+          .select('id', { count: 'exact', head: true })
+          .eq('rider_id', uid)
+          .eq('status', 'delivered');
+
         setStats(prev => ({
           ...prev,
-          totalDeliveries: profile.total_deliveries || 0,
+          totalDeliveries: deliveredCount || 0,
           rating: profile.rating || 0,
         }));
 
