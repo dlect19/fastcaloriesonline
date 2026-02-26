@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useCallback } from 'react';
+import { ReactNode, useEffect, useCallback, useState } from 'react';
 import { RiderSidebar } from './RiderSidebar';
 import { RiderBottomNav } from './RiderBottomNav';
 import { RiderMobileHeader } from './RiderMobileHeader';
@@ -6,6 +6,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { supabase } from '@/integrations/supabase/client';
 import { playGlobalNotificationSound } from '@/lib/globalAudio';
 import { useRiderNativeService } from '@/hooks/useRiderNativeService';
+import { useRiderLocation } from '@/hooks/useRiderLocation';
 
 interface RiderLayoutProps {
   children: ReactNode;
@@ -16,6 +17,17 @@ interface RiderLayoutProps {
 
 export function RiderLayout({ children, isOnline, onToggleOnline, canViewEarnings = true }: RiderLayoutProps) {
   const isMobile = useIsMobile();
+  const [riderId, setRiderId] = useState<string | null>(null);
+
+  // Fetch rider user id on mount for auto location tracking
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) setRiderId(user.id);
+    });
+  }, []);
+
+  // Auto-track rider GPS location and update DB every 30s when online
+  useRiderLocation({ riderId: riderId || undefined, enabled: isOnline && !!riderId });
 
   const handleToggleOffline = useCallback(() => {
     onToggleOnline(false);
