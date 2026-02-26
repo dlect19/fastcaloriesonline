@@ -191,8 +191,7 @@ export default function Profile() {
                       if (profileComplete) {
                         setDvaDialogOpen(true);
                       } else {
-                        // Scroll to profile form
-                        toast({ title: 'Update your full name (first & last) and phone number first' });
+                        navigate('/profile-setup', { state: { returnTo: '/profile' } });
                       }
                     }}
                     disabled={isDisabled}
