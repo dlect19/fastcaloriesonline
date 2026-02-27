@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { calculateDeliveryFee } from '@/lib/location';
+import { calculateDistance, calculateDeliveryFee } from '@/lib/location';
 import { useDeliverySettings } from './useDeliverySettings';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -163,14 +163,7 @@ export function useDeliveryFee({ vendorLat, vendorLon, customerLat, customerLon 
   // Calculate distance when coordinates are available
   useEffect(() => {
     if (vendorLat && vendorLon && customerLat && customerLon) {
-      const R = 6371;
-      const dLat = (customerLat - vendorLat) * Math.PI / 180;
-      const dLon = (customerLon - vendorLon) * Math.PI / 180;
-      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(vendorLat * Math.PI / 180) * Math.cos(customerLat * Math.PI / 180) *
-        Math.sin(dLon / 2) * Math.sin(dLon / 2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      setDistanceKm(R * c);
+      setDistanceKm(calculateDistance(customerLat, customerLon, vendorLat, vendorLon));
     } else {
       setDistanceKm(null);
     }

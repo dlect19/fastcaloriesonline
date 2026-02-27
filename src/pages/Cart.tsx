@@ -77,23 +77,52 @@ export default function Cart() {
     if (user && !authLoading) verifyFunding();
   }, [user, authLoading]);
 
-  // Fetch vendor locations
+  // Fetch vendor locations - prefer outlet coordinates for accurate distance
   useEffect(() => {
-    const vendorIds = vendorGroups.map(g => g.vendorId);
-    if (vendorIds.length === 0) return;
+    if (vendorGroups.length === 0) return;
 
-    supabase
-      .from('vendors')
-      .select('id, latitude, longitude, address')
-      .in('id', vendorIds)
-      .then(({ data }) => {
-        if (data) {
-          const locs: Record<string, VendorLocation> = {};
-          data.forEach(v => { locs[v.id] = { latitude: v.latitude, longitude: v.longitude, address: v.address }; });
-          setVendorLocations(locs);
-        }
-      });
-  }, [vendorGroups.map(g => g.vendorId).join(',')]);
+    const fetchLocations = async () => {
+      const locs: Record<string, VendorLocation> = {};
+
+      // First try to get outlet-level coordinates (most accurate)
+      const outletGroups = vendorGroups.filter(g => g.outletId);
+      const vendorOnlyGroups = vendorGroups.filter(g => !g.outletId);
+
+      if (outletGroups.length > 0) {
+        const outletIds = outletGroups.map(g => g.outletId!);
+        const { data: outlets } = await supabase
+          .from('vendor_outlets')
+          .select('id, vendor_id, latitude, longitude, address')
+          .in('id', outletIds);
+
+        outlets?.forEach(o => {
+          const group = outletGroups.find(g => g.outletId === o.id);
+          if (group) {
+            locs[group.vendorId] = { latitude: o.latitude, longitude: o.longitude, address: o.address };
+          }
+        });
+      }
+
+      // Fallback to vendor-level coordinates for groups without outlet
+      if (vendorOnlyGroups.length > 0) {
+        const vendorIds = vendorOnlyGroups.map(g => g.vendorId);
+        const { data: vendors } = await supabase
+          .from('vendors')
+          .select('id, latitude, longitude, address')
+          .in('id', vendorIds);
+
+        vendors?.forEach(v => {
+          if (!locs[v.id]) {
+            locs[v.id] = { latitude: v.latitude, longitude: v.longitude, address: v.address };
+          }
+        });
+      }
+
+      setVendorLocations(locs);
+    };
+
+    fetchLocations();
+  }, [vendorGroups.map(g => `${g.vendorId}-${g.outletId}`).join(',')]);
 
   useEffect(() => {
     if (!authLoading && !user) navigate('/auth');
