@@ -2737,6 +2737,44 @@ export type Database = {
           },
         ]
       }
+      rider_distance_logs: {
+        Row: {
+          created_at: string
+          distance_km: number
+          environment: string
+          id: string
+          log_date: string
+          order_id: string | null
+          rider_user_id: string
+        }
+        Insert: {
+          created_at?: string
+          distance_km?: number
+          environment?: string
+          id?: string
+          log_date?: string
+          order_id?: string | null
+          rider_user_id: string
+        }
+        Update: {
+          created_at?: string
+          distance_km?: number
+          environment?: string
+          id?: string
+          log_date?: string
+          order_id?: string | null
+          rider_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rider_distance_logs_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rider_payout_details: {
         Row: {
           created_at: string
