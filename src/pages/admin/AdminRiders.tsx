@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { AdminRiderDistanceBreakdown } from '@/components/admin/AdminRiderDistanceBreakdown';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -157,6 +158,7 @@ export default function AdminRiders() {
           <TabsList>
             <TabsTrigger value="pending">Pending ({pendingRiders.length})</TabsTrigger>
             <TabsTrigger value="approved">Verified ({riders.length})</TabsTrigger>
+            <TabsTrigger value="distance">Distance Tracking</TabsTrigger>
           </TabsList>
 
           <TabsContent value="pending">
@@ -313,6 +315,10 @@ export default function AdminRiders() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="distance">
+            <AdminRiderDistanceBreakdown />
           </TabsContent>
         </Tabs>
       </main>

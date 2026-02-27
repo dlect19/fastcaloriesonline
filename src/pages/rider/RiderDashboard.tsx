@@ -8,22 +8,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DateRangeFilter, DateRange } from '@/components/shared/DateRangeFilter';
-import { Package, DollarSign, Star, TrendingUp, Loader2, MapPin, Settings, Navigation, Bell, ArrowRight, Lock, Bike } from 'lucide-react';
+import { Package, DollarSign, Star, TrendingUp, Loader2, MapPin, Settings, Navigation, Bell, ArrowRight, Lock, Bike, Route } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useRiderRestrictions } from '@/hooks/useRiderRestrictions';
 import { PushNotificationBanner } from '@/components/shared/PushNotificationBanner';
+import { useRiderDistanceStats } from '@/hooks/useRiderDistanceStats';
+import { calculateDistance } from '@/lib/location';
 
-// Haversine formula for distance calculation
-const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-            Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c;
-};
+// Use shared calculateDistance from lib/location
 
 export default function RiderDashboard() {
   const navigate = useNavigate();
@@ -47,6 +39,13 @@ export default function RiderDashboard() {
   const [showTestNotification, setShowTestNotification] = useState(false);
 
   const { isAffiliated, affiliatedVendorId, isDeliveryCompanyRider, deliveryCompanyId, canViewEarnings } = useRiderRestrictions(riderProfile);
+
+  // Distance tracking stats
+  const { stats: distanceStats, loading: distanceLoading } = useRiderDistanceStats({
+    riderId: userId,
+    dateFrom: dateRange.from,
+    dateTo: dateRange.to,
+  });
 
   useEffect(() => {
     checkAuth();
@@ -545,7 +544,43 @@ export default function RiderDashboard() {
         </Card>
       </div>
 
-      {/* Work Location Card */}
+      {/* Distance Tracking Card */}
+      <Card className="mb-6 md:mb-8">
+        <CardHeader className="p-4 md:p-6">
+          <CardTitle className="text-lg md:text-xl flex items-center gap-2">
+            <Route className="w-5 h-5 text-primary" />
+            Distance Travelled
+          </CardTitle>
+          <CardDescription>Total kilometers covered on deliveries</CardDescription>
+        </CardHeader>
+        <CardContent className="p-4 md:p-6 pt-0">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+            <div className="bg-secondary/50 rounded-xl p-3 text-center">
+              <p className="text-xs text-muted-foreground mb-1">Today</p>
+              <p className="text-lg md:text-xl font-bold text-foreground">{distanceStats.today} km</p>
+            </div>
+            <div className="bg-secondary/50 rounded-xl p-3 text-center">
+              <p className="text-xs text-muted-foreground mb-1">This Week</p>
+              <p className="text-lg md:text-xl font-bold text-foreground">{distanceStats.thisWeek} km</p>
+            </div>
+            <div className="bg-secondary/50 rounded-xl p-3 text-center">
+              <p className="text-xs text-muted-foreground mb-1">This Month</p>
+              <p className="text-lg md:text-xl font-bold text-foreground">{distanceStats.thisMonth} km</p>
+            </div>
+            <div className="bg-secondary/50 rounded-xl p-3 text-center">
+              <p className="text-xs text-muted-foreground mb-1">This Year</p>
+              <p className="text-lg md:text-xl font-bold text-foreground">{distanceStats.thisYear} km</p>
+            </div>
+          </div>
+          {dateRange.from && (
+            <div className="mt-3 bg-primary/10 rounded-xl p-3 text-center">
+              <p className="text-xs text-primary mb-1">Filtered Period</p>
+              <p className="text-lg font-bold text-primary">{distanceStats.filtered} km</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <Card className="mb-6 md:mb-8">
         <CardHeader className="flex flex-row items-center justify-between p-4 md:p-6">
           <div>

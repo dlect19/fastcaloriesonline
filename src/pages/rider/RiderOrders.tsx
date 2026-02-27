@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { logDeliveryDistance } from '@/hooks/useRiderDistanceStats';
 import { RiderLayout } from '@/components/rider/RiderLayout';
 import { RiderFloatingWidget } from '@/components/rider/RiderFloatingWidget';
 import { ConfirmationCodeDialog } from '@/components/rider/ConfirmationCodeDialog';
@@ -249,7 +250,14 @@ export default function RiderOrders() {
         });
       } catch (calorieError) {
         console.error('Failed to log calories:', calorieError);
-        // Don't block delivery for calorie logging errors
+      }
+
+      // Log delivery distance for rider tracking
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        logDeliveryDistance(pendingDeliveryOrder.id, user.id).catch(err =>
+          console.error('Failed to log distance:', err)
+        );
       }
 
       toast({ title: '✅ Order delivered successfully!' });
