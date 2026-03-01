@@ -620,8 +620,11 @@ export default function AdminCustomerWallets() {
                                   <Button variant="ghost" size="sm" title="View Transactions" onClick={() => { setSelectedWallet(wallet); setShowTransactions(true); }}>
                                     <Eye className="w-4 h-4" />
                                   </Button>
+                                  <Button variant="ghost" size="sm" title="Load/Credit Wallet" onClick={() => { setSelectedWallet(wallet); setAdjustType('credit'); setShowAdjustDialog(true); }}>
+                                    <Plus className="w-4 h-4 text-green-500" />
+                                  </Button>
                                   <Button variant="ghost" size="sm" title="Refund to Wallet" onClick={() => { setSelectedWallet(wallet); setShowRefundDialog(true); }}>
-                                    <RotateCcw className="w-4 h-4 text-green-500" />
+                                    <RotateCcw className="w-4 h-4 text-blue-500" />
                                   </Button>
                                   <Button variant="ghost" size="sm" title="Debit Wallet" onClick={() => { setSelectedWallet(wallet); setAdjustType('debit'); setShowAdjustDialog(true); }}>
                                     <Minus className="w-4 h-4 text-destructive" />
