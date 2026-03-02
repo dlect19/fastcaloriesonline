@@ -950,6 +950,113 @@ export type Database = {
           },
         ]
       }
+      disputes: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          created_by: string
+          customer_id: string | null
+          customer_name: string | null
+          customer_refund_reference: string | null
+          delivery_fee: number | null
+          environment: string
+          fault_party: string
+          id: string
+          notes: string | null
+          order_id: string
+          order_number: string
+          order_total: number | null
+          platform_debit_reference: string | null
+          platform_deduction: number
+          reason: string
+          refund_amount: number
+          rejection_reason: string | null
+          rider_debit_reference: string | null
+          rider_deduction: number
+          rider_id: string | null
+          rider_name: string | null
+          status: string
+          updated_at: string
+          vendor_debit_reference: string | null
+          vendor_deduction: number
+          vendor_id: string | null
+          vendor_name: string | null
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          created_by: string
+          customer_id?: string | null
+          customer_name?: string | null
+          customer_refund_reference?: string | null
+          delivery_fee?: number | null
+          environment?: string
+          fault_party: string
+          id?: string
+          notes?: string | null
+          order_id: string
+          order_number: string
+          order_total?: number | null
+          platform_debit_reference?: string | null
+          platform_deduction?: number
+          reason: string
+          refund_amount: number
+          rejection_reason?: string | null
+          rider_debit_reference?: string | null
+          rider_deduction?: number
+          rider_id?: string | null
+          rider_name?: string | null
+          status?: string
+          updated_at?: string
+          vendor_debit_reference?: string | null
+          vendor_deduction?: number
+          vendor_id?: string | null
+          vendor_name?: string | null
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          created_by?: string
+          customer_id?: string | null
+          customer_name?: string | null
+          customer_refund_reference?: string | null
+          delivery_fee?: number | null
+          environment?: string
+          fault_party?: string
+          id?: string
+          notes?: string | null
+          order_id?: string
+          order_number?: string
+          order_total?: number | null
+          platform_debit_reference?: string | null
+          platform_deduction?: number
+          reason?: string
+          refund_amount?: number
+          rejection_reason?: string | null
+          rider_debit_reference?: string | null
+          rider_deduction?: number
+          rider_id?: string | null
+          rider_name?: string | null
+          status?: string
+          updated_at?: string
+          vendor_debit_reference?: string | null
+          vendor_deduction?: number
+          vendor_id?: string | null
+          vendor_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "disputes_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       drug_reminders: {
         Row: {
           created_at: string

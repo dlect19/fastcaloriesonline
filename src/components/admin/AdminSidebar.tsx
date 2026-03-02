@@ -1,6 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { Home, Package, Store, Bike, Ticket, Users, Settings, LogOut, Image, Activity, Banknote, Wallet, ArrowDownLeft, Gift, Truck, UserCheck, Star, MessageSquare, DollarSign, UserPlus, Receipt, ClipboardList, Scale, HelpCircle, Percent, ShieldAlert, Megaphone } from 'lucide-react';
+import { Home, Package, Store, Bike, Ticket, Users, Settings, LogOut, Image, Activity, Banknote, Wallet, ArrowDownLeft, Gift, Truck, UserCheck, Star, MessageSquare, DollarSign, UserPlus, Receipt, ClipboardList, Scale, HelpCircle, Percent, ShieldAlert, Megaphone, Gavel } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -30,6 +30,7 @@ const menuItems: MenuItem[] = [
   { icon: ArrowDownLeft, label: 'Wallet Funding', path: '/admin/wallet-funding', requiredPermission: 'manage_users' },
   { icon: ShieldAlert, label: 'Chargebacks', path: '/admin/chargebacks', requiredPermission: 'process_withdrawals' },
   { icon: Receipt, label: 'Refund Audit', path: '/admin/refund-audit', requiredPermission: 'process_withdrawals' },
+  { icon: Gavel, label: 'Disputes', path: '/admin/disputes', requiredPermission: 'process_withdrawals' },
   { icon: Activity, label: 'Nutrition', path: '/admin/nutrition', requiredPermission: 'view_reports' },
   { icon: Ticket, label: 'Promo Codes', path: '/admin/promos', requiredPermission: 'manage_promos' },
   { icon: Percent, label: 'Commission Promos', path: '/admin/commission-promos', requiredPermission: 'manage_promos' },
