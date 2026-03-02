@@ -18,7 +18,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { VendorSidebar } from '@/components/vendor/VendorSidebar';
+import { VendorLayout } from '@/components/vendor/VendorLayout';
 import { AccessDenied } from '@/components/vendor/AccessDenied';
 import { OrderRiderInfo } from '@/components/vendor/OrderRiderInfo';
 import { SelfPickupVerifyDialog } from '@/components/vendor/SelfPickupVerifyDialog';
@@ -398,30 +398,24 @@ export default function VendorOrders() {
 
   if (authLoading || loading || permLoading) {
     return (
-      <div className="min-h-screen bg-background">
-        <VendorSidebar onOutletChange={setSelectedOutletId} selectedOutletId={selectedOutletId} />
-        <main className="lg:ml-64 pt-14 lg:pt-0">
-          <div className="p-6 space-y-6">
-            <Skeleton className="h-8 w-48" />
-            <div className="space-y-4">
-              {[1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-32 rounded-xl" />
-              ))}
-            </div>
+      <VendorLayout onOutletChange={setSelectedOutletId}>
+        <div className="p-6 space-y-6">
+          <Skeleton className="h-8 w-48" />
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-32 rounded-xl" />
+            ))}
           </div>
-        </main>
-      </div>
+        </div>
+      </VendorLayout>
     );
   }
 
   if (!hasPermission('process_orders')) {
     return (
-      <div className="min-h-screen bg-background">
-        <VendorSidebar vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId} selectedOutletId={selectedOutletId} />
-        <main className="lg:ml-64 pt-14 lg:pt-0">
-          <AccessDenied message="You don't have permission to manage orders." />
-        </main>
-      </div>
+      <VendorLayout vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId}>
+        <AccessDenied message="You don't have permission to manage orders." />
+      </VendorLayout>
     );
   }
 
@@ -752,11 +746,8 @@ export default function VendorOrders() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <VendorSidebar vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId} selectedOutletId={selectedOutletId} />
-
-      <main className="lg:ml-64 pt-14 lg:pt-0">
-        <div className="p-6 space-y-6">
+    <VendorLayout vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId}>
+      <div className="p-6 space-y-6">
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
@@ -885,8 +876,7 @@ export default function VendorOrders() {
               setRiderAssignDialog({ open: false, order: null });
             }}
           />
-        </div>
-      </main>
-    </div>
+      </div>
+    </VendorLayout>
   );
 }

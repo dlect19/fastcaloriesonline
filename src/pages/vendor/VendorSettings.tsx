@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
-import { VendorSidebar } from '@/components/vendor/VendorSidebar';
+import { VendorLayout } from '@/components/vendor/VendorLayout';
 import { AccessDenied } from '@/components/vendor/AccessDenied';
 import { useAuth } from '@/hooks/useAuth';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
@@ -204,35 +204,26 @@ export default function VendorSettings() {
 
   if (authLoading || loading || permLoading) {
     return (
-      <div className="min-h-screen bg-background">
-        <VendorSidebar />
-        <main className="lg:ml-64 pt-14 lg:pt-0">
-          <div className="p-6 space-y-6">
-            <Skeleton className="h-8 w-48" />
-            <Skeleton className="h-96 rounded-2xl" />
-          </div>
-        </main>
-      </div>
+      <VendorLayout>
+        <div className="p-6 space-y-6">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-96 rounded-2xl" />
+        </div>
+      </VendorLayout>
     );
   }
 
   if (!hasPermission('edit_settings')) {
     return (
-      <div className="min-h-screen bg-background">
-        <VendorSidebar vendorName={vendor?.name} permissions={permissions} />
-        <main className="lg:ml-64 pt-14 lg:pt-0">
-          <AccessDenied message="You don't have permission to edit settings." />
-        </main>
-      </div>
+      <VendorLayout vendorName={vendor?.name} permissions={permissions}>
+        <AccessDenied message="You don't have permission to edit settings." />
+      </VendorLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <VendorSidebar vendorName={vendor?.name} permissions={permissions} />
-
-      <main className="lg:ml-64 pt-14 lg:pt-0">
-        <div className="p-6 space-y-6">
+    <VendorLayout vendorName={vendor?.name} permissions={permissions}>
+      <div className="p-6 space-y-6">
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
@@ -411,8 +402,7 @@ export default function VendorSettings() {
               </CardContent>
             </Card>
           )}
-        </div>
-      </main>
-    </div>
+      </div>
+    </VendorLayout>
   );
 }

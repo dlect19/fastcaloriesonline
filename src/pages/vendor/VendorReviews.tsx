@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Star, MessageSquare } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { VendorSidebar } from '@/components/vendor/VendorSidebar';
+import { VendorLayout } from '@/components/vendor/VendorLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
@@ -102,23 +102,17 @@ export default function VendorReviews() {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen bg-background">
-        <VendorSidebar permissions={permissions} onOutletChange={setSelectedOutletId} />
-        <main className="lg:ml-64 pt-14 lg:pt-0">
-          <div className="p-6 space-y-6">
-            <Skeleton className="h-8 w-48" />
-            <Skeleton className="h-48 rounded-2xl" />
-          </div>
-        </main>
-      </div>
+      <VendorLayout permissions={permissions} onOutletChange={setSelectedOutletId}>
+        <div className="p-6 space-y-6">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-48 rounded-2xl" />
+        </div>
+      </VendorLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <VendorSidebar vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId} />
-
-      <main className="lg:ml-64 pt-14 lg:pt-0">
+    <VendorLayout vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId}>
         <div className="p-6 space-y-6">
           {/* Header */}
           <div>
@@ -219,11 +213,9 @@ export default function VendorReviews() {
                     </div>
                   ))}
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
         </div>
-      </main>
-    </div>
+    </VendorLayout>
   );
 }

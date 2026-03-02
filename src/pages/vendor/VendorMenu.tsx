@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { VendorSidebar } from '@/components/vendor/VendorSidebar';
+import { VendorLayout } from '@/components/vendor/VendorLayout';
 import { AccessDenied } from '@/components/vendor/AccessDenied';
 import { ComboManagement } from '@/components/vendor/ComboManagement';
 import { AddonGroupManager } from '@/components/vendor/AddonGroupManager';
@@ -611,39 +611,30 @@ export default function VendorMenu() {
 
   if (authLoading || loading || permLoading || !outletReady) {
     return (
-      <div className="min-h-screen bg-background">
-        <VendorSidebar onOutletChange={setSelectedOutletId} />
-        <main className="lg:ml-64 pt-14 lg:pt-0">
-          <div className="p-6 space-y-6">
-            <Skeleton className="h-8 w-48" />
-            <div className="grid gap-4">
-              {[1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-24 rounded-xl" />
-              ))}
-            </div>
+      <VendorLayout onOutletChange={setSelectedOutletId}>
+        <div className="p-6 space-y-6">
+          <Skeleton className="h-8 w-48" />
+          <div className="grid gap-4">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-24 rounded-xl" />
+            ))}
           </div>
-        </main>
-      </div>
+        </div>
+      </VendorLayout>
     );
   }
 
   if (!hasPermission('manage_menu')) {
     return (
-      <div className="min-h-screen bg-background">
-        <VendorSidebar vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId} />
-        <main className="lg:ml-64 pt-14 lg:pt-0">
-          <AccessDenied message="You don't have permission to manage the menu." />
-        </main>
-      </div>
+      <VendorLayout vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId}>
+        <AccessDenied message="You don't have permission to manage the menu." />
+      </VendorLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <VendorSidebar vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId} />
-
-      <main className="lg:ml-64 pt-14 lg:pt-0">
-        <div className="p-6 space-y-6">
+    <VendorLayout vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId}>
+      <div className="p-6 space-y-6">
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
@@ -1225,8 +1216,7 @@ export default function VendorMenu() {
               </DialogContent>
             </Dialog>
           )}
-        </div>
-      </main>
-    </div>
+      </div>
+    </VendorLayout>
   );
 }

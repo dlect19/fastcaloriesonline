@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { VendorSidebar } from '@/components/vendor/VendorSidebar';
+import { VendorLayout } from '@/components/vendor/VendorLayout';
 import { AccessDenied } from '@/components/vendor/AccessDenied';
 import { useAuth } from '@/hooks/useAuth';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
@@ -231,38 +231,29 @@ export default function VendorPromos() {
 
   if (authLoading || loading || permLoading) {
     return (
-      <div className="min-h-screen bg-background">
-        <VendorSidebar onOutletChange={setSelectedOutletId} />
-        <main className="lg:ml-64 pt-14 lg:pt-0">
-          <div className="p-6 space-y-6">
-            <Skeleton className="h-8 w-48" />
-            <div className="grid gap-4">
-              {[1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-32 rounded-2xl" />
-              ))}
-            </div>
+      <VendorLayout onOutletChange={setSelectedOutletId}>
+        <div className="p-6 space-y-6">
+          <Skeleton className="h-8 w-48" />
+          <div className="grid gap-4">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-32 rounded-2xl" />
+            ))}
           </div>
-        </main>
-      </div>
+        </div>
+      </VendorLayout>
     );
   }
 
   if (!hasPermission('manage_promos')) {
     return (
-      <div className="min-h-screen bg-background">
-        <VendorSidebar vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId} />
-        <main className="lg:ml-64 pt-14 lg:pt-0">
-          <AccessDenied message="You don't have permission to manage promo codes." />
-        </main>
-      </div>
+      <VendorLayout vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId}>
+        <AccessDenied message="You don't have permission to manage promo codes." />
+      </VendorLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <VendorSidebar vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId} />
-
-      <main className="lg:ml-64 pt-14 lg:pt-0">
+    <VendorLayout vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId}>
         <div className="p-6 space-y-6">
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -475,11 +466,8 @@ export default function VendorPromos() {
                     </div>
                   </CardContent>
                 </Card>
-              ))}
-            </div>
-          )}
+              )}
         </div>
-      </main>
-    </div>
+    </VendorLayout>
   );
 }

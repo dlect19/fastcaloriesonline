@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { VendorSidebar } from '@/components/vendor/VendorSidebar';
+import { VendorLayout } from '@/components/vendor/VendorLayout';
 import { SupportPage } from '@/components/support/SupportPage';
 import { Leaf } from 'lucide-react';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
@@ -72,11 +72,10 @@ export default function VendorSupport() {
   if (!userId) return null;
 
   return (
-    <div className="min-h-screen bg-background flex">
-      <VendorSidebar vendorName={vendorName} permissions={permissions} vendorId={vendorId || undefined} />
-      <main className="flex-1 lg:ml-64 p-6 pt-20 lg:pt-6">
+    <VendorLayout vendorName={vendorName} vendorId={vendorId || undefined} permissions={permissions}>
+      <div className="p-6 pt-6">
         <SupportPage userId={userId} userType="vendor" />
-      </main>
-    </div>
+      </div>
+    </VendorLayout>
   );
 }
