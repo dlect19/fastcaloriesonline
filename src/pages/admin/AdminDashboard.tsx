@@ -7,6 +7,7 @@ import { CompanyProfitCard } from '@/components/admin/CompanyProfitCard';
 import { FinancialResetDialog } from '@/components/admin/FinancialResetDialog';
 import { FinancialPerformanceChart } from '@/components/admin/FinancialPerformanceChart';
 import { AdminRiderBreakdown } from '@/components/admin/AdminRiderBreakdown';
+import { AdminBalanceBreakdown } from '@/components/admin/AdminBalanceBreakdown';
 import { DateRangeFilter, DateRange } from '@/components/shared/DateRangeFilter';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -576,6 +577,12 @@ export default function AdminDashboard() {
               </CardContent>
             </Card>
           </div>
+        </section>
+
+        {/* Individual Balance Breakdown */}
+        <section>
+          <h2 className="text-lg font-semibold text-foreground mb-4">Individual Withdrawable Balances</h2>
+          <AdminBalanceBreakdown isTestMode={isTestMode} />
         </section>
 
         {/* Platform Financial Position */}
