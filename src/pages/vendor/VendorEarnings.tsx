@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { VendorSidebar } from '@/components/vendor/VendorSidebar';
+import { VendorLayout } from '@/components/vendor/VendorLayout';
 import { AccessDenied } from '@/components/vendor/AccessDenied';
 import { DateRangeFilter, DateRange } from '@/components/shared/DateRangeFilter';
 import { EarningsBreakdownCard } from '@/components/shared/EarningsBreakdownCard';
@@ -349,41 +349,32 @@ export default function VendorEarnings() {
 
   if (authLoading || loading || permLoading) {
     return (
-      <div className="min-h-screen bg-background">
-        <VendorSidebar onOutletChange={setSelectedOutletId} />
-        <main className="lg:ml-64 pt-14 lg:pt-0">
-          <div className="p-6 space-y-6">
-            <Skeleton className="h-8 w-48" />
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {[1, 2, 3, 4].map((i) => (
-                <Skeleton key={i} className="h-32 rounded-2xl" />
-              ))}
-            </div>
+      <VendorLayout onOutletChange={setSelectedOutletId}>
+        <div className="p-6 space-y-6">
+          <Skeleton className="h-8 w-48" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <Skeleton key={i} className="h-32 rounded-2xl" />
+            ))}
           </div>
-        </main>
-      </div>
+        </div>
+      </VendorLayout>
     );
   }
 
   if (!hasPermission('view_earnings')) {
     return (
-      <div className="min-h-screen bg-background">
-        <VendorSidebar vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId} />
-        <main className="lg:ml-64 pt-14 lg:pt-0">
-          <AccessDenied message="You don't have permission to view earnings." />
-        </main>
-      </div>
+      <VendorLayout vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId}>
+        <AccessDenied message="You don't have permission to view earnings." />
+      </VendorLayout>
     );
   }
 
   const commissionRate = vendor?.commission_rate || 15;
 
   return (
-    <div className="min-h-screen bg-background">
-      <VendorSidebar vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId} />
-
-      <main className="lg:ml-64 pt-14 lg:pt-0">
-        <div className="p-6 space-y-6">
+    <VendorLayout vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId}>
+      <div className="p-6 space-y-6">
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
@@ -697,12 +688,8 @@ export default function VendorEarnings() {
             title="Transaction History"
             showFilters={true}
             limit={100}
-            externalDateRange={dateRange}
-            onDateRangeChange={setDateRange}
-            environment={isTestMode ? 'development' : 'production'}
           />
         </div>
-      </main>
-    </div>
+      </VendorLayout>
   );
 }

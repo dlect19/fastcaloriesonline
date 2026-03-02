@@ -10,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { VendorSidebar } from '@/components/vendor/VendorSidebar';
+import { VendorLayout } from '@/components/vendor/VendorLayout';
 import { VendorRiderCard } from '@/components/vendor/VendorRiderCard';
 import { AccessDenied } from '@/components/vendor/AccessDenied';
 import { useAuth } from '@/hooks/useAuth';
@@ -384,39 +384,30 @@ export default function VendorRiders() {
 
   if (authLoading || loading || permLoading) {
     return (
-      <div className="min-h-screen bg-background">
-        <VendorSidebar onOutletChange={setSelectedOutletId} />
-        <main className="lg:ml-64 pt-14 lg:pt-0">
-          <div className="p-6 space-y-6">
-            <Skeleton className="h-8 w-48" />
-            <div className="grid gap-4">
-              {[1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-24 rounded-2xl" />
-              ))}
-            </div>
+      <VendorLayout onOutletChange={setSelectedOutletId}>
+        <div className="p-6 space-y-6">
+          <Skeleton className="h-8 w-48" />
+          <div className="grid gap-4">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-24 rounded-2xl" />
+            ))}
           </div>
-        </main>
-      </div>
+        </div>
+      </VendorLayout>
     );
   }
 
   if (!hasPermission('manage_riders')) {
     return (
-      <div className="min-h-screen bg-background">
-        <VendorSidebar vendorName={vendor?.name} permissions={permissions} />
-        <main className="lg:ml-64 pt-14 lg:pt-0">
-          <AccessDenied message="You don't have permission to manage riders." />
-        </main>
-      </div>
+      <VendorLayout vendorName={vendor?.name} permissions={permissions}>
+        <AccessDenied message="You don't have permission to manage riders." />
+      </VendorLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <VendorSidebar vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId} />
-
-      <main className="lg:ml-64 pt-14 lg:pt-0">
-        <div className="p-6 space-y-6">
+    <VendorLayout vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId}>
+      <div className="p-6 space-y-6">
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
@@ -621,35 +612,34 @@ export default function VendorRiders() {
             </CardContent>
           </Card>
         </div>
-      </main>
 
-      {/* QR Code Dialog */}
-      <Dialog open={qrDialogOpen} onOpenChange={setQrDialogOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Rider Invite QR Code</DialogTitle>
-            <DialogDescription>
-              Share this QR code with your rider to join your team
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col items-center gap-4 py-4">
-            {qrCodeUrl && (
-              <img src={qrCodeUrl} alt="Invite QR Code" className="w-64 h-64" />
-            )}
-            <p className="text-xs text-muted-foreground text-center break-all">
-              {currentInviteLink}
-            </p>
-            <Button
-              variant="outline"
-              className="gap-2"
-              onClick={() => navigator.clipboard.writeText(currentInviteLink)}
-            >
-              <Copy className="w-4 h-4" />
-              Copy Link
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
+        {/* QR Code Dialog */}
+        <Dialog open={qrDialogOpen} onOpenChange={setQrDialogOpen}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Rider Invite QR Code</DialogTitle>
+              <DialogDescription>
+                Share this QR code with your rider to join your team
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col items-center gap-4 py-4">
+              {qrCodeUrl && (
+                <img src={qrCodeUrl} alt="Invite QR Code" className="w-64 h-64" />
+              )}
+              <p className="text-xs text-muted-foreground text-center break-all">
+                {currentInviteLink}
+              </p>
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={() => navigator.clipboard.writeText(currentInviteLink)}
+              >
+                <Copy className="w-4 h-4" />
+                Copy Link
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+    </VendorLayout>
   );
 }
