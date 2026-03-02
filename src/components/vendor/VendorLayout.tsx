@@ -1,4 +1,4 @@
-import { ReactNode, useCallback, useState, useEffect } from 'react';
+import { ReactNode, useCallback, useState, useEffect, useRef } from 'react';
 import { VendorSidebar } from '@/components/vendor/VendorSidebar';
 import { VendorBottomNav } from '@/components/vendor/VendorBottomNav';
 import { VendorMobileHeader } from '@/components/vendor/VendorMobileHeader';
@@ -6,7 +6,9 @@ import { AddOutletDialog } from '@/components/vendor/AddOutletDialog';
 import { OutletProvider, useOutletContext } from '@/hooks/useOutletContext';
 import { VendorPermission } from '@/hooks/useVendorPermissions';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useVendorNotificationSound } from '@/hooks/useVendorNotificationSound';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface VendorLayoutProps {
   children: ReactNode;
@@ -22,6 +24,8 @@ function VendorLayoutContent({ children, vendorName, vendorId, permissions, onOu
   const [addOutletOpen, setAddOutletOpen] = useState(false);
   const [newOrderCount, setNewOrderCount] = useState(0);
   const [resolvedVendorId, setResolvedVendorId] = useState<string | null>(vendorId || null);
+  const { playNotification, soundEnabled, setSoundEnabled } = useVendorNotificationSound();
+  const prevOrderCountRef = useRef<number | null>(null);
 
   const handleOutletChange = useCallback((outletId: string | null) => {
     if (outletId) setSelectedOutletId(outletId);
@@ -49,12 +53,25 @@ function VendorLayoutContent({ children, vendorName, vendorId, permissions, onOu
     const fetchCount = async () => {
       const { count } = await supabase.from('orders').select('*', { count: 'exact', head: true })
         .eq('vendor_id', resolvedVendorId).eq('outlet_id', outletId).in('status', ['pending', 'confirmed']);
-      if (count !== null) setNewOrderCount(count);
+      if (count !== null) {
+        setNewOrderCount(prev => {
+          // Play sound + toast when count increases (new order arrived)
+          if (prevOrderCountRef.current !== null && count > prevOrderCountRef.current) {
+            playNotification();
+            toast.success('🔔 New Order!', {
+              description: 'A new paid order has come in. Check your orders page.',
+              duration: 8000,
+            });
+          }
+          prevOrderCountRef.current = count;
+          return count;
+        });
+      }
     };
     fetchCount();
     const channel = supabase.channel('vendor-layout-orders').on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `vendor_id=eq.${resolvedVendorId}` }, () => fetchCount()).subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [resolvedVendorId, selectedOutlet?.id]);
+  }, [resolvedVendorId, selectedOutlet?.id, playNotification]);
 
   return (
     <div className="min-h-screen bg-background">
