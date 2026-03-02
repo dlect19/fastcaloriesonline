@@ -74,14 +74,14 @@ serve(async (req: Request) => {
     let riderName = null;
     let riderUserId = order.rider_id;
     if (riderUserId) {
-      const { data: riderProfile } = await admin.from("profiles").select("full_name").eq("id", riderUserId).single();
+      const { data: riderProfile } = await admin.from("profiles").select("full_name").eq("user_id", riderUserId).single();
       riderName = riderProfile?.full_name || "Unknown Rider";
     }
 
     // Get customer info
     let customerName = null;
     if (order.user_id) {
-      const { data: custProfile } = await admin.from("profiles").select("full_name").eq("id", order.user_id).single();
+      const { data: custProfile } = await admin.from("profiles").select("full_name").eq("user_id", order.user_id).single();
       customerName = custProfile?.full_name || "Unknown Customer";
     }
 
