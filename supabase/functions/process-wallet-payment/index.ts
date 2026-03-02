@@ -135,10 +135,28 @@ serve(async (req: Request) => {
       const reference = orders.length === 1
         ? `WP-${order.id.slice(0, 8)}-${Date.now()}`
         : `${batchRef}-${order.id.slice(0, 8)}`;
-      
+
+      // SAFETY: Update order FIRST — if this fails, wallet is untouched
+      const { error: orderUpdateError } = await supabaseAdmin
+        .from("orders")
+        .update({
+          payment_status: "paid",
+          status: "confirmed",
+          payment_method: "wallet",
+          payment_reference: reference,
+          environment,
+        })
+        .eq("id", order.id);
+
+      if (orderUpdateError) {
+        console.error(`Order update failed for ${order.order_number}:`, orderUpdateError.message);
+        // Skip this order entirely — do NOT debit the wallet
+        continue;
+      }
+
       runningBalance -= orderTotal;
 
-      // Log wallet debit transaction for this order
+      // Log wallet debit transaction AFTER successful order update
       await supabaseAdmin.from("wallet_transactions").insert({
         wallet_id: customerWallet.id,
         wallet_type: "customer",
@@ -152,18 +170,6 @@ serve(async (req: Request) => {
         environment,
         notes: `Payment for order #${order.order_number}${orders.length > 1 ? ` (batch: ${batchRef})` : ''}`,
       });
-
-      // Update order payment status and set status to confirmed
-      await supabaseAdmin
-        .from("orders")
-        .update({
-          payment_status: "paid",
-          status: "confirmed",
-          payment_method: "wallet",
-          payment_reference: reference,
-          environment,
-        })
-        .eq("id", order.id);
 
       // Log promo usage if discount was applied
       if (Number(order.discount) > 0) {
@@ -199,7 +205,15 @@ serve(async (req: Request) => {
       results.push({ orderId: order.id, orderNumber: order.order_number, reference, amount: orderTotal });
     }
 
-    // Debit the full amount from wallet in one update
+    // If no orders were successfully processed, return error
+    if (results.length === 0) {
+      return new Response(
+        JSON.stringify({ error: "All order updates failed — wallet was NOT debited. Please try again." }),
+        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Debit the full amount from wallet in one update (only for successfully processed orders)
     if (isTestMode) {
       await supabaseAdmin
         .from("wallets")
