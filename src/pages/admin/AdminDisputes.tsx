@@ -14,7 +14,7 @@ import { DateRangeFilter, DateRange } from '@/components/shared/DateRangeFilter'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { useAdminTestMode } from '@/hooks/useAdminTestMode';
+import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 import {
   Gavel, Search, AlertTriangle, Building2, Bike, Landmark, ArrowUpRight,
   FileText, Plus, Loader2, CheckCircle2, XCircle
@@ -72,8 +72,8 @@ const FAULT_COLORS: Record<string, string> = {
 
 export default function AdminDisputes() {
   const { toast } = useToast();
-  const { isAdminTestMode } = useAdminTestMode();
-  const environment = isAdminTestMode ? 'development' : 'production';
+  const { effectiveEnvironment } = useEnvironmentConfig();
+  const environment = effectiveEnvironment;
 
   // Create dispute state
   const [orderSearch, setOrderSearch] = useState('');
