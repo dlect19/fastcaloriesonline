@@ -110,8 +110,7 @@ export default function AdminDashboard() {
       navigate('/admin/auth');
       return;
     }
-
-    await Promise.all([fetchStats(), fetchFinancialStats()]);
+    // Don't fetch data here — let the environment-aware useEffect handle it
   };
  
   const handleResetComplete = () => {
