@@ -165,7 +165,8 @@ export default function AdminDashboard() {
         .from('orders')
         .select('total, subtotal, delivery_fee, service_fee, vendor_id')
         .eq('environment', envFilter)
-        .eq('payment_status', 'paid');
+        .eq('payment_status', 'paid')
+        .not('status', 'eq', 'cancelled');
 
       if (dateRange.from) {
         orderQuery = orderQuery.gte('created_at', dateRange.from.toISOString());
