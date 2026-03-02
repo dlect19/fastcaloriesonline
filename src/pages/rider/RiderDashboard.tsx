@@ -335,6 +335,43 @@ export default function RiderDashboard() {
       return;
     }
 
+    // Check operating hours before going online
+    if (online) {
+      try {
+        const { data: hourSettings } = await supabase
+          .from('platform_settings')
+          .select('key, value')
+          .in('key', ['rider_operating_hours_enabled', 'rider_opening_hour', 'rider_closing_hour']);
+        
+        const sm: Record<string, string> = {};
+        hourSettings?.forEach(s => { sm[s.key] = s.value; });
+        
+        if (sm.rider_operating_hours_enabled !== 'false') {
+          const openHour = parseInt(sm.rider_opening_hour || '8');
+          const closeHour = parseInt(sm.rider_closing_hour || '22');
+          const currentHour = new Date().getHours();
+          
+          let withinHours = true;
+          if (openHour < closeHour) {
+            withinHours = currentHour >= openHour && currentHour < closeHour;
+          } else {
+            withinHours = currentHour >= openHour || currentHour < closeHour;
+          }
+          
+          if (!withinHours) {
+            toast({
+              title: 'Outside operating hours',
+              description: `Rider operations are available from ${openHour}:00 to ${closeHour}:00. Please try again during operating hours.`,
+              variant: 'destructive',
+            });
+            return;
+          }
+        }
+      } catch (err) {
+        console.error('Error checking operating hours:', err);
+      }
+    }
+
     try {
       await supabase
         .from('rider_profiles')

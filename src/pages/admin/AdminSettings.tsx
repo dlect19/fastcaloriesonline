@@ -18,6 +18,7 @@ import { RiderPayoutSettings } from '@/components/admin/RiderPayoutSettings';
 import { ServiceFeeSettings } from '@/components/admin/ServiceFeeSettings';
 import { VehicleTypeSettings } from '@/components/admin/VehicleTypeSettings';
 import { CommissionOverrideManager } from '@/components/admin/CommissionOverrideManager';
+import { RiderOperationsSettings } from '@/components/admin/RiderOperationsSettings';
 
 interface DeliverySetting {
   key: string;
@@ -729,6 +730,14 @@ export default function AdminSettings() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Rider Operations (Hours, Supply Surge, Live Status) */}
+            <RiderOperationsSettings
+              settings={settings}
+              onSettingChange={handleSettingChange}
+              onSave={handleSave}
+              saving={saving}
+            />
 
             {/* Rider Payout Model */}
             <RiderPayoutSettings
