@@ -24,6 +24,7 @@ interface FinancialStats {
   pendingPayouts: number;
   vendorBalances: number;
   riderBalances: number;
+  deliveryCompanyBalances: number;
   platformBalance: number;
   totalEarned: number;
 }
@@ -66,6 +67,7 @@ export default function AdminDashboard() {
     pendingPayouts: 0,
     vendorBalances: 0,
     riderBalances: 0,
+    deliveryCompanyBalances: 0,
     platformBalance: 0,
     totalEarned: 0,
   });
@@ -261,6 +263,7 @@ export default function AdminDashboard() {
       const balanceField = isTestMode ? 'test_eligible_balance' : 'eligible_balance';
       const vendorBalances = wallets?.filter(w => w.wallet_type === 'vendor').reduce((sum, w) => sum + (Number(w[balanceField]) || 0), 0) || 0;
       const riderBalances = wallets?.filter(w => w.wallet_type === 'rider').reduce((sum, w) => sum + (Number(w[balanceField]) || 0), 0) || 0;
+      const deliveryCompanyBalances = wallets?.filter(w => w.wallet_type === 'delivery_company').reduce((sum, w) => sum + (Number(w[balanceField]) || 0), 0) || 0;
 
       const platformBalance = isTestMode 
         ? Number(platformWallet?.test_balance) || 0 
@@ -275,6 +278,7 @@ export default function AdminDashboard() {
         pendingPayouts,
         vendorBalances,
         riderBalances,
+        deliveryCompanyBalances,
         platformBalance,
         totalEarned: isTestMode ? platformBalance : Number(platformWallet?.total_earned) || 0,
       });
@@ -516,7 +520,7 @@ export default function AdminDashboard() {
         {/* Payouts & Balances */}
         <section>
           <h2 className="text-lg font-semibold text-foreground mb-4">Payouts & Balances</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Total Payouts</CardTitle>
@@ -557,6 +561,17 @@ export default function AdminDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{formatCurrency(financialStats.riderBalances)}</div>
+                <p className="text-xs text-muted-foreground">Eligible for withdrawal</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Logistics Balances</CardTitle>
+                <Truck className="w-4 h-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{formatCurrency(financialStats.deliveryCompanyBalances)}</div>
                 <p className="text-xs text-muted-foreground">Eligible for withdrawal</p>
               </CardContent>
             </Card>
