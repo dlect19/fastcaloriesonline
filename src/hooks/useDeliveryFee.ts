@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { calculateDistance, calculateDeliveryFee } from '@/lib/location';
 import { useDeliverySettings } from './useDeliverySettings';
+import { useRiderAvailability } from './useRiderAvailability';
 import { supabase } from '@/integrations/supabase/client';
 
 interface UseDeliveryFeeOptions {
@@ -100,6 +101,7 @@ function calculateSurge(ss: SurgeSettings, weatherCondition: string): { surgeFee
 
 export function useDeliveryFee({ vendorLat, vendorLon, customerLat, customerLon }: UseDeliveryFeeOptions) {
   const { settings, loading: settingsLoading } = useDeliverySettings();
+  const riderAvailability = useRiderAvailability();
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
   const [surgeSettings, setSurgeSettings] = useState<SurgeSettings>(defaultSurgeSettings);
   const [surgeLoading, setSurgeLoading] = useState(true);
@@ -183,7 +185,13 @@ export function useDeliveryFee({ vendorLat, vendorLon, customerLat, customerLon 
     );
   }, [distanceKm, settings, settingsLoading]);
 
-  const fee = baseFee + surge.surgeFee;
+  // Add supply-based surge on top
+  const supplySurgeFee = useMemo(() => {
+    if (!riderAvailability.supplyBasedSurge.isActive) return 0;
+    return Math.round(baseFee * (riderAvailability.supplyBasedSurge.currentSurgePct / 100));
+  }, [baseFee, riderAvailability.supplyBasedSurge]);
+
+  const fee = baseFee + surge.surgeFee + supplySurgeFee;
 
   const isOutOfRange = useMemo(() => {
     if (distanceKm === null) return false;
@@ -193,9 +201,11 @@ export function useDeliveryFee({ vendorLat, vendorLon, customerLat, customerLon 
   return {
     fee,
     baseFee,
-    surgeFee: surge.surgeFee,
+    surgeFee: surge.surgeFee + supplySurgeFee,
     timePeriod: surge.timePeriod,
     weatherCondition: surge.weatherCondition,
+    supplySurgeActive: riderAvailability.supplyBasedSurge.isActive,
+    supplySurgePct: riderAvailability.supplyBasedSurge.currentSurgePct,
     distanceKm,
     isOutOfRange,
     loading: settingsLoading || surgeLoading,

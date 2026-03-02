@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import {
-  Store, Phone, MapPin, Navigation, Wallet, Loader2, AlertTriangle,
+  Store, Phone, MapPin, Navigation, Wallet, Loader2, AlertTriangle, TrendingUp,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { usePromoCode } from '@/hooks/usePromoCode';
@@ -23,7 +23,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { geocodeAddressWithSuggestions, updateAddressCoordinates, GeocodeSuggestion } from '@/lib/geocoding';
 import type { Tables } from '@/integrations/supabase/types';
 import { useServiceFee } from '@/hooks/useServiceFee';
-
+import { useRiderAvailability } from '@/hooks/useRiderAvailability';
 type Address = Tables<'addresses'>;
 
 interface VendorLocation {
@@ -100,6 +100,7 @@ export function VendorCheckoutSection({
   const [selectingSuggestion, setSelectingSuggestion] = useState(false);
 
   const { calculateServiceFee, loading: serviceFeeLoading } = useServiceFee();
+  const riderAvailability = useRiderAvailability();
   const serviceFee = calculateServiceFee(group.subtotal);
   const deliveryFee = deliveryType === 'self_pickup' ? 0 : vendorFees.deliveryFee;
   const surgeFee = deliveryType === 'self_pickup' ? 0 : vendorFees.surgeFee;
@@ -172,6 +173,11 @@ export function VendorCheckoutSection({
   const addressMissingCoords = deliveryType === 'delivery' && selectedAddress && (!selectedAddress.latitude || !selectedAddress.longitude);
 
   const handleCheckout = async () => {
+    // Check rider availability for delivery orders
+    if (deliveryType === 'delivery' && !riderAvailability.deliveryAllowed) {
+      toast({ title: 'Delivery Unavailable', description: riderAvailability.blockReason || 'Please select Self Pickup.', variant: 'destructive' });
+      return;
+    }
     if (deliveryType === 'delivery' && !selectedAddress) {
       toast({ title: 'No delivery address', description: 'Please select or add a delivery address', variant: 'destructive' });
       return;
@@ -382,6 +388,24 @@ export function VendorCheckoutSection({
               onCheckedChange={(checked) => setDeliveryType(checked ? 'self_pickup' : 'delivery')}
             />
           </div>
+
+          {/* Rider availability warning */}
+          {deliveryType === 'delivery' && !riderAvailability.loading && !riderAvailability.deliveryAllowed && (
+            <div className="flex items-center gap-2 p-3 bg-destructive/10 rounded-lg border border-destructive/20">
+              <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
+              <p className="text-sm text-destructive">{riderAvailability.blockReason}</p>
+            </div>
+          )}
+
+          {/* Supply surge notice */}
+          {deliveryType === 'delivery' && !riderAvailability.loading && riderAvailability.deliveryAllowed && riderAvailability.supplyBasedSurge.isActive && (
+            <div className="flex items-center gap-2 p-3 bg-warning/10 rounded-lg border border-warning/20">
+              <TrendingUp className="w-4 h-4 text-warning shrink-0" />
+              <p className="text-sm text-warning">
+                Delivery surge applied due to limited rider availability (+{riderAvailability.supplyBasedSurge.currentSurgePct}%)
+              </p>
+            </div>
+          )}
 
           {deliveryType === 'delivery' && (
             <>
