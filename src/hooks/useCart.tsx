@@ -45,6 +45,7 @@ interface CartContextType {
   addItem: (item: Omit<CartItem, 'id'>) => void;
   removeItem: (itemId: string) => void;
   updateQuantity: (itemId: string, quantity: number) => void;
+  updateItem: (itemId: string, updates: Partial<Omit<CartItem, 'id'>>) => void;
   clearCart: () => void;
   clearVendorGroup: (vendorId: string, outletId?: string) => void;
   subtotal: number;
@@ -130,6 +131,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
     ));
   };
 
+  const updateItem = (itemId: string, updates: Partial<Omit<CartItem, 'id'>>) => {
+    setItems(items.map(i => 
+      i.id === itemId ? { ...i, ...updates } : i
+    ));
+  };
+
   const clearCart = () => {
     setItems([]);
   };
@@ -185,6 +192,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       addItem,
       removeItem,
       updateQuantity,
+      updateItem,
       clearCart,
       clearVendorGroup,
       subtotal,

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useCart } from '@/hooks/useCart';
+import { useCart, CartItem } from '@/hooks/useCart';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -71,11 +71,13 @@ interface ProductCustomizationDialogProps {
   outletId?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** If provided, dialog is in "edit" mode — updates existing cart item instead of adding new */
+  editItem?: CartItem;
 }
 
-export function ProductCustomizationDialog({ product, vendor, outletId, open, onOpenChange }: ProductCustomizationDialogProps) {
+export function ProductCustomizationDialog({ product, vendor, outletId, open, onOpenChange, editItem }: ProductCustomizationDialogProps) {
   const { user } = useAuth();
-  const { addItem, vendorId } = useCart();
+  const { addItem, updateItem, vendorId } = useCart();
   const { toast } = useToast();
   const navigate = useNavigate();
   
@@ -90,13 +92,51 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
 
   useEffect(() => {
     if (open && product.id) {
-      fetchAddons();
-      setQuantity(1);
-      setSelectedAddons({});
-      setAddonQuantities({});
-      setSelectedChoices({});
+      fetchAddons().then(() => {
+        if (editItem) {
+          // Pre-populate from existing cart item
+          setQuantity(editItem.quantity);
+          // Addon selections will be restored after addon groups are loaded
+        } else {
+          setQuantity(1);
+          setSelectedAddons({});
+          setAddonQuantities({});
+          setSelectedChoices({});
+        }
+      });
+      if (!editItem) {
+        setQuantity(1);
+        setSelectedAddons({});
+        setAddonQuantities({});
+        setSelectedChoices({});
+      }
     }
   }, [open, product.id]);
+
+  // Restore addon selections when editing and addon groups are loaded
+  useEffect(() => {
+    if (!editItem || !open || addonGroups.length === 0 || !editItem.addons?.length) return;
+
+    const newSelectedAddons: Record<string, string[]> = {};
+    const newAddonQuantities: Record<string, number> = {};
+
+    for (const cartAddon of editItem.addons) {
+      for (const group of addonGroups) {
+        const matchingItem = group.items.find(i => i.name === cartAddon.itemName);
+        if (matchingItem) {
+          if (!newSelectedAddons[group.id]) newSelectedAddons[group.id] = [];
+          newSelectedAddons[group.id].push(matchingItem.id);
+          if (cartAddon.quantity > 1) {
+            newAddonQuantities[matchingItem.id] = cartAddon.quantity;
+          }
+          break;
+        }
+      }
+    }
+
+    setSelectedAddons(newSelectedAddons);
+    setAddonQuantities(newAddonQuantities);
+  }, [editItem, addonGroups, open]);
 
   const fetchAddons = async () => {
     setLoadingAddons(true);
@@ -374,7 +414,7 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
       return;
     }
 
-    if (vendorId && vendorId !== vendor.id) {
+    if (!editItem && vendorId && vendorId !== vendor.id) {
       toast({
         title: 'Cart cleared',
         description: `Starting new order from ${vendor.name}`,
@@ -395,7 +435,7 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
         }).join(', ')
       : undefined;
 
-    addItem({
+    const itemData = {
       productId: product.id,
       productName: product.name,
       vendorId: vendor.id,
@@ -415,12 +455,21 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
         pricingType: a.pricingType,
       })) : undefined,
       addonsDescription,
-    });
+    };
 
-    toast({
-      title: 'Added to cart',
-      description: `${quantity}x ${product.name}${addonsDescription ? ` (${addonsDescription})` : ''}`,
-    });
+    if (editItem) {
+      updateItem(editItem.id, itemData);
+      toast({
+        title: 'Cart updated',
+        description: `${quantity}x ${product.name}${addonsDescription ? ` (${addonsDescription})` : ''}`,
+      });
+    } else {
+      addItem(itemData);
+      toast({
+        title: 'Added to cart',
+        description: `${quantity}x ${product.name}${addonsDescription ? ` (${addonsDescription})` : ''}`,
+      });
+    }
 
     setAdding(false);
     onOpenChange(false);
@@ -800,7 +849,7 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
               <Loader2 className="w-5 h-5 animate-spin" />
             ) : (
               <>
-                Add to Cart • ₦{totalPrice.toLocaleString()}
+                {editItem ? 'Update Cart' : 'Add to Cart'} • ₦{totalPrice.toLocaleString()}
               </>
             )}
           </Button>
