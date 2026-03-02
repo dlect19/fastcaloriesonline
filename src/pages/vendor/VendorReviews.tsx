@@ -113,7 +113,7 @@ export default function VendorReviews() {
 
   return (
     <VendorLayout vendorName={vendor?.name} permissions={permissions} onOutletChange={setSelectedOutletId}>
-        <div className="p-6 space-y-6">
+      <div className="p-6 space-y-6">
           {/* Header */}
           <div>
             <h1 className="text-2xl font-bold text-foreground">Reviews</h1>
@@ -213,8 +213,9 @@ export default function VendorReviews() {
                     </div>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
+              )}
+            </CardContent>
+          </Card>
         </div>
     </VendorLayout>
   );
