@@ -49,10 +49,14 @@ serve(async (req: Request) => {
       return json({ error: "Order was not paid — no refund applicable" }, 400);
     }
 
-    // Check for existing dispute
-    const { data: existingDispute } = await admin.from("disputes")
-      .select("id").eq("order_id", order.id).eq("status", "approved").single();
-    if (existingDispute) return json({ error: "A dispute has already been approved for this order" }, 400);
+    // Check for existing dispute (any status - prevent duplicates)
+    const { data: existingDisputes } = await admin.from("disputes")
+      .select("id, status, fault_party")
+      .eq("order_id", order.id);
+    if (existingDisputes && existingDisputes.length > 0) {
+      const existing = existingDisputes[0];
+      return json({ error: `A dispute (${existing.status}) already exists for this order. Duplicate disputes are not allowed.` }, 400);
+    }
 
     // Get environment
     const { data: envSetting } = await admin.from("platform_settings").select("value").eq("key", "platform_environment").single();
@@ -267,7 +271,7 @@ serve(async (req: Request) => {
           platform_wallet_id: platformWallet.id, wallet_type: "platform",
           transaction_type: "debit", category: "dispute_deduction",
           amount: platformDeduction, balance_after: newPBal,
-          order_id: order.id, status: "completed", environment,
+          reference: platformDebitRef, order_id: order.id, status: "completed", environment,
           notes: `[DISPUTE] Platform absorbs ₦${platformDeduction} for order #${order.order_number}: ${reason}`,
           metadata: { dispute: true, fault_party: faultParty },
         });

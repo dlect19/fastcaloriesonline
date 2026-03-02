@@ -127,6 +127,15 @@ export default function AdminDisputes() {
       const { data: fin } = await supabase.from('order_financials').select('vendor_payout').eq('order_id', order.id).single();
       enriched.vendor_payout = fin ? Number(fin.vendor_payout) : 0;
 
+      // Check for existing disputes on this order
+      const { data: existingDisputes } = await supabase.from('disputes').select('id, status, fault_party').eq('order_id', order.id);
+      if (existingDisputes && existingDisputes.length > 0) {
+        const d = existingDisputes[0];
+        toast({ title: 'Duplicate dispute', description: `A dispute (${d.status}) already exists for order #${order.order_number}. Cannot create another.`, variant: 'destructive' });
+        setLookupLoading(false);
+        return;
+      }
+
       setFoundOrder(enriched);
     } catch (e) {
       console.error(e);
