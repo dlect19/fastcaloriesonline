@@ -117,11 +117,11 @@ export default function AdminDisputes() {
       enriched.vendor_name = vendor?.name || 'Unknown';
 
       if (order.rider_id) {
-        const { data: rp } = await supabase.from('profiles').select('full_name').eq('id', order.rider_id).single();
+        const { data: rp } = await supabase.from('profiles').select('full_name').eq('user_id', order.rider_id).single();
         enriched.rider_name = rp?.full_name || 'Unknown';
       }
 
-      const { data: cp } = await supabase.from('profiles').select('full_name').eq('id', order.user_id).single();
+      const { data: cp } = await supabase.from('profiles').select('full_name').eq('user_id', order.user_id).single();
       enriched.customer_name = cp?.full_name || 'Unknown';
 
       const { data: fin } = await supabase.from('order_financials').select('vendor_payout').eq('order_id', order.id).single();
