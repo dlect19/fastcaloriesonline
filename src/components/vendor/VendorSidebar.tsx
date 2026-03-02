@@ -169,26 +169,13 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
 
   return (
     <>
-      {/* Mobile Header */}
-      <header className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-background border-b border-border h-14 flex items-center px-4">
-        <Button variant="ghost" size="icon" onClick={() => setCollapsed(!collapsed)}>
-          <Menu className="w-5 h-5" />
-        </Button>
-        <div className="flex items-center gap-2 ml-3">
-          <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
-            <Store className="w-5 h-5 text-primary-foreground" />
-          </div>
-          <span className="font-semibold text-sm truncate">{vendorName}</span>
-        </div>
-      </header>
+      {/* Mobile Header - hidden since VendorLayout handles mobile via VendorMobileHeader */}
 
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed top-0 left-0 z-40 h-screen bg-card border-r border-border transition-all duration-300',
+          'fixed top-0 left-0 z-40 h-screen bg-card border-r border-border transition-all duration-300 hidden lg:block',
           collapsed ? 'w-16' : 'w-64',
-          'lg:translate-x-0',
-          collapsed ? '-translate-x-full lg:translate-x-0' : 'translate-x-0'
         )}
       >
         {/* Logo */}
@@ -268,13 +255,7 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
         </div>
       </aside>
 
-      {/* Mobile Overlay */}
-      {!collapsed && (
-        <div
-          className="lg:hidden fixed inset-0 bg-black/50 z-30"
-          onClick={() => setCollapsed(true)}
-        />
-      )}
+      {/* Mobile overlay removed - sidebar is desktop only now */}
 
       {/* Add Outlet Dialog */}
       {resolvedVendorId && (
