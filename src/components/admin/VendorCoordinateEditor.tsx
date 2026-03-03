@@ -128,8 +128,8 @@ import { useToast } from '@/hooks/use-toast';
          onClick={() => setOpen(true)}
          className="gap-1"
        >
-         <MapPin className="w-3 h-3" />
-         GPS
+          <MapPin className="w-3 h-3" />
+          Set Location
        </Button>
  
        <Dialog open={open} onOpenChange={handleOpenChange}>
