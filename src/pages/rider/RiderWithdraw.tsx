@@ -330,6 +330,23 @@ export default function RiderWithdraw() {
         throw new Error('Invalid or expired OTP');
       }
 
+      // CRITICAL: Re-check balance server-side to prevent race conditions
+      const { data: freshWallet } = await supabase
+        .from('wallets')
+        .select('eligible_balance, test_eligible_balance')
+        .eq('id', wallet!.id)
+        .single();
+
+      if (!freshWallet) throw new Error('Wallet not found');
+
+      const freshBalance = isTestMode
+        ? Number(freshWallet.test_eligible_balance) || 0
+        : Number(freshWallet.eligible_balance) || 0;
+
+      if (amount > freshBalance) {
+        throw new Error('Insufficient balance. Your available balance may have changed.');
+      }
+
       // Process withdrawal - insert into payout_requests table
       const { data: insertedPayout, error } = await supabase
         .from('payout_requests')
