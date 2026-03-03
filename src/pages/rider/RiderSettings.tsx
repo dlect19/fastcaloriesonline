@@ -6,13 +6,14 @@ import { RiderFloatingWidget } from '@/components/rider/RiderFloatingWidget';
 import { EmailVerificationOTP } from '@/components/rider/EmailVerificationOTP';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Save, MapPin, Volume2, Smartphone, ShieldCheck, Mail, CheckCircle, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Loader2, Save, MapPin, Volume2, Smartphone, ShieldCheck, Mail, CheckCircle, AlertTriangle, RefreshCw, Upload, FileImage } from 'lucide-react';
 import { DeleteAccountDialog } from '@/components/shared/DeleteAccountDialog';
 import { CommissionDisplay } from '@/components/shared/CommissionDisplay';
 import { useToast } from '@/hooks/use-toast';
@@ -50,6 +51,7 @@ export default function RiderSettings() {
   // NIN state
   const [ninNumber, setNinNumber] = useState('');
   const [savingNin, setSavingNin] = useState(false);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
 
   useEffect(() => {
     // Prefill input if we already have a submitted NIN (e.g. under review)
@@ -313,6 +315,47 @@ export default function RiderSettings() {
     }
   };
 
+  const handleUploadNinDocument = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !userId) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: 'File too large', description: 'Maximum file size is 5MB', variant: 'destructive' });
+      return;
+    }
+
+    setUploadingDoc(true);
+    try {
+      const ext = file.name.split('.').pop();
+      const filePath = `${userId}/nin-document.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('rider-documents')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('rider-documents')
+        .getPublicUrl(filePath);
+
+      const { error: updateError } = await supabase
+        .from('rider_profiles')
+        .update({ id_document_url: publicUrl })
+        .eq('user_id', userId);
+
+      if (updateError) throw updateError;
+
+      setRiderProfile((prev: any) => ({ ...prev, id_document_url: publicUrl }));
+      toast({ title: 'NIN document uploaded successfully!' });
+    } catch (error: any) {
+      console.error('Error uploading NIN document:', error);
+      toast({ title: 'Upload failed', description: error.message, variant: 'destructive' });
+    } finally {
+      setUploadingDoc(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -382,6 +425,40 @@ export default function RiderSettings() {
                 />
               </div>
 
+              {/* NIN Document Upload */}
+              <div className="space-y-2">
+                <Label>Upload NIN Slip/Card (Photo)</Label>
+                <div className="flex items-center gap-3">
+                  <label className="flex-1 cursor-pointer">
+                    <div className="flex items-center justify-center gap-2 border-2 border-dashed border-border rounded-lg p-3 hover:bg-muted/50 transition-colors">
+                      {uploadingDoc ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Upload className="w-4 h-4 text-muted-foreground" />
+                      )}
+                      <span className="text-sm text-muted-foreground">
+                        {riderProfile?.id_document_url ? 'Replace document' : 'Upload NIN slip/card'}
+                      </span>
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleUploadNinDocument}
+                      disabled={uploadingDoc}
+                    />
+                  </label>
+                  {riderProfile?.id_document_url && (
+                    <a href={riderProfile.id_document_url} target="_blank" rel="noopener noreferrer">
+                      <Badge variant="outline" className="gap-1">
+                        <FileImage className="w-3 h-3" />
+                        View
+                      </Badge>
+                    </a>
+                  )}
+                </div>
+              </div>
+
               <Button
                 onClick={handleSubmitNin}
                 disabled={savingNin || ninNumber.length !== 11}
@@ -394,6 +471,44 @@ export default function RiderSettings() {
                 )}
                 Submit NIN for Verification
               </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* NIN Document Upload for riders who already submitted NIN but no document */}
+      {riderProfile?.nin_number && !riderProfile?.id_document_url && (
+        <div className="max-w-2xl mb-4 md:mb-6">
+          <Card className="border-yellow-500/30 bg-yellow-500/5">
+            <CardHeader className="p-4 md:p-6">
+              <CardTitle className="text-lg md:text-xl flex items-center gap-2">
+                <FileImage className="w-5 h-5" />
+                Upload NIN Document
+              </CardTitle>
+              <CardDescription>
+                Upload a photo of your NIN slip or card to speed up verification.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-4 md:p-6 pt-0">
+              <label className="cursor-pointer">
+                <div className="flex items-center justify-center gap-2 border-2 border-dashed border-border rounded-lg p-4 hover:bg-muted/50 transition-colors">
+                  {uploadingDoc ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Upload className="w-4 h-4 text-muted-foreground" />
+                  )}
+                  <span className="text-sm text-muted-foreground">
+                    Click to upload NIN slip/card photo
+                  </span>
+                </div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleUploadNinDocument}
+                  disabled={uploadingDoc}
+                />
+              </label>
             </CardContent>
           </Card>
         </div>
