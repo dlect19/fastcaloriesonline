@@ -63,10 +63,23 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
 
     (async () => {
       try {
-        const { data } = await supabase.functions.invoke('get-google-maps-key');
-        if (cancelled || !data?.key) { setError('Google Maps key not available'); setLoading(false); return; }
+        const { data, error: fnError } = await supabase.functions.invoke('get-google-maps-key');
+        console.log('Maps key response:', { data, fnError, type: typeof data });
+        
+        // Handle various response formats
+        let apiKey: string | null = null;
+        if (data && typeof data === 'object' && 'key' in data) {
+          apiKey = data.key;
+        } else if (typeof data === 'string') {
+          try {
+            const parsed = JSON.parse(data);
+            apiKey = parsed.key;
+          } catch { /* not JSON string */ }
+        }
+        
+        if (cancelled || !apiKey) { setError('Google Maps key not available'); setLoading(false); return; }
 
-        await loadGoogleMaps(data.key);
+        await loadGoogleMaps(apiKey);
         if (cancelled || !mapRef.current) return;
 
         const center = { lat: defaultLat, lng: defaultLng };
