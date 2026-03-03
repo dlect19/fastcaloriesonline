@@ -60,6 +60,7 @@ serve(async (req) => {
       title: string;
       body: string;
       url: string;
+      data?: Record<string, string>;
     }> = [];
 
     // 1. Payment successful → Notify vendor
@@ -85,6 +86,13 @@ serve(async (req) => {
         title: '💰 New Paid Order!',
         body: `Order #${order.order_number} - ₦${order.total.toLocaleString()} has been paid`,
         url: `/vendor/orders`,
+        data: {
+          type: 'CALL',
+          role: 'vendor',
+          order_id: order.id,
+          order_number: order.order_number,
+          order_total: String(order.total),
+        },
       });
     }
 
@@ -217,7 +225,11 @@ serve(async (req) => {
               title: notif.title,
               body: notif.body,
               url: notif.url,
-              data: { order_id: order.id, order_number: order.order_number },
+              data: {
+                order_id: order.id,
+                order_number: order.order_number,
+                ...(notif.data || {}),
+              },
             }),
           }
         );

@@ -9,6 +9,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useRepeatingNotificationSound } from '@/hooks/useRepeatingNotificationSound';
 import { SoundEnableBanner } from '@/components/shared/SoundEnableBanner';
 import { useCapacitorPush } from '@/hooks/useCapacitorPush';
+import { IncomingOrderCall } from '@/components/vendor/IncomingOrderCall';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ApkUpdateBanner } from '@/components/shared/ApkUpdateBanner';
@@ -27,11 +28,60 @@ function VendorLayoutContent({ children, vendorName, vendorId, permissions, onOu
   const [addOutletOpen, setAddOutletOpen] = useState(false);
   const [newOrderCount, setNewOrderCount] = useState(0);
   const [resolvedVendorId, setResolvedVendorId] = useState<string | null>(vendorId || null);
+  const [callData, setCallData] = useState<{ orderNumber?: string; orderTotal?: string; orderId?: string } | null>(null);
   const { playOnce, startRepeating, stopRepeating, isPlaying, soundEnabled, isBlocked, setSoundEnabled, unlock } = useRepeatingNotificationSound({
     intervalMs: 8000,
     storageKey: 'vendor-notification-sound',
   });
   useCapacitorPush();
+
+  // Listen for CALL-type push notifications (Capacitor native + PWA service worker)
+  useEffect(() => {
+    let nativeCleanup: (() => void) | undefined;
+
+    // Native Capacitor listener
+    const setupNative = async () => {
+      try {
+        const { Capacitor } = await import('@capacitor/core');
+        if (!Capacitor.isNativePlatform()) return;
+        const { PushNotifications } = await import('@capacitor/push-notifications');
+        const listener = await PushNotifications.addListener('pushNotificationReceived', (notification) => {
+          const data = notification.data;
+          if (data?.type === 'CALL') {
+            setCallData({
+              orderNumber: data.order_number,
+              orderTotal: data.order_total,
+              orderId: data.order_id,
+            });
+            startRepeating();
+          }
+        });
+        nativeCleanup = () => listener.remove();
+      } catch {
+        // Not in Capacitor environment
+      }
+    };
+    setupNative();
+
+    // PWA service worker message listener
+    const handleSwMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'INCOMING_ORDER_CALL') {
+        const d = event.data.data;
+        setCallData({
+          orderNumber: d?.order_number,
+          orderTotal: d?.order_total,
+          orderId: d?.order_id,
+        });
+        startRepeating();
+      }
+    };
+    navigator.serviceWorker?.addEventListener('message', handleSwMessage);
+
+    return () => {
+      nativeCleanup?.();
+      navigator.serviceWorker?.removeEventListener('message', handleSwMessage);
+    };
+  }, [startRepeating]);
 
   const handleOutletChange = useCallback((outletId: string | null) => {
     if (outletId) setSelectedOutletId(outletId);
@@ -90,6 +140,14 @@ function VendorLayoutContent({ children, vendorName, vendorId, permissions, onOu
 
   return (
     <div className="min-h-screen bg-background">
+      <IncomingOrderCall
+        visible={!!callData}
+        orderNumber={callData?.orderNumber}
+        orderTotal={callData?.orderTotal}
+        orderId={callData?.orderId}
+        onAccept={() => { setCallData(null); stopRepeating(); }}
+        onDismiss={() => { setCallData(null); stopRepeating(); }}
+      />
       {/* Desktop: full sidebar */}
       {!isMobile && (
         <VendorSidebar

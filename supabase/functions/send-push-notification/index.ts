@@ -218,10 +218,12 @@ async function sendFcmNotification(
       notification: { title, body },
       android: {
         priority: 'high',
+        ttl: '0s',
         notification: {
           sound: data?.role === 'rider' ? 'fastcaloriesrider' : 'fastcaloriesvendor',
-          channel_id: data?.role === 'rider' ? 'rider-orders' : 'vendor-orders-v3',
+          channel_id: data?.type === 'CALL' ? 'vendor-orders-v3' : (data?.role === 'rider' ? 'rider-orders' : 'vendor-orders-v3'),
           icon: 'ic_notification',
+          ...(data?.type === 'CALL' ? { tag: 'call_notification', click_action: 'OPEN_MAIN_ACTIVITY' } : {}),
         },
       },
     },
