@@ -7,6 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Check, X, MapPin, Loader2, Store, ChevronDown, ChevronRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { OutletGeoLockManager } from './OutletGeoLockManager';
+import { OutletCoordinateEditor } from './OutletCoordinateEditor';
 
 interface AdminOutletListProps {
   vendors: any[];
@@ -121,6 +122,10 @@ export function AdminOutletList({ vendors, onRefresh }: AdminOutletListProps) {
                           </p>
                         </div>
                         <div className="flex items-center gap-3">
+                          <OutletCoordinateEditor
+                            outlet={outlet}
+                            onUpdate={() => toggleExpand(vendor.id)}
+                          />
                           <Button
                             variant="outline"
                             size="sm"
