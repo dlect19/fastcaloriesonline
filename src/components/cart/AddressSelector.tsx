@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { geocodeAndUpdateAddress } from '@/lib/geocoding';
 import { useGeolocation } from '@/hooks/useGeolocation';
@@ -9,10 +9,17 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Skeleton } from '@/components/ui/skeleton';
-import { MapPin, Plus, Home, Briefcase, ChevronRight, Loader2, Navigation, CheckCircle } from 'lucide-react';
+import { MapPin, Plus, Home, Briefcase, ChevronRight, Loader2, Navigation, CheckCircle, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { GpsConfirmDialog } from './GpsConfirmDialog';
 import type { Tables } from '@/integrations/supabase/types';
+
+interface PlacePrediction {
+  place_id: string;
+  description: string;
+  main_text: string;
+  secondary_text: string;
+}
 
 type Address = Tables<'addresses'>;
 
@@ -48,6 +55,11 @@ export function AddressSelector({
   const [updatingGps, setUpdatingGps] = useState<string | null>(null);
   const [pendingGpsUpdate, setPendingGpsUpdate] = useState<string | null>(null);
   const [waitingForGps, setWaitingForGps] = useState<'new' | null>(null);
+  const [placeSearch, setPlaceSearch] = useState('');
+  const [placePredictions, setPlacePredictions] = useState<PlacePrediction[]>([]);
+  const [searchingPlaces, setSearchingPlaces] = useState(false);
+  const sessionTokenRef = useRef(crypto.randomUUID());
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const [formData, setFormData] = useState({
     label: 'Home',
     address_line: '',
@@ -138,6 +150,61 @@ export function AddressSelector({
     };
     updateAddress();
   }, [geoLat, geoLon, geoLoading, geoError, pendingGpsUpdate, addresses, selectedAddress, onSelect, onAddressAdded, toast]);
+
+  // Debounced Google Places search
+  const handlePlaceSearch = useCallback((value: string) => {
+    setPlaceSearch(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    
+    if (value.trim().length < 3) {
+      setPlacePredictions([]);
+      return;
+    }
+    
+    debounceRef.current = setTimeout(async () => {
+      setSearchingPlaces(true);
+      try {
+        const { data } = await supabase.functions.invoke('google-places-autocomplete', {
+          body: { input: value, sessionToken: sessionTokenRef.current },
+        });
+        if (data?.predictions) setPlacePredictions(data.predictions);
+      } catch (err) {
+        console.error('Autocomplete error:', err);
+      } finally {
+        setSearchingPlaces(false);
+      }
+    }, 300);
+  }, []);
+
+  // Handle selecting a place from autocomplete
+  const handleSelectPlacePrediction = async (prediction: PlacePrediction) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('google-place-details', {
+        body: { place_id: prediction.place_id, sessionToken: sessionTokenRef.current },
+      });
+
+      if (error || !data?.latitude) return;
+
+      sessionTokenRef.current = crypto.randomUUID();
+      
+      setFormData({
+        ...formData,
+        address_line: data.street_address || prediction.main_text || data.name || '',
+        city: data.city || '',
+        state: data.state || '',
+      });
+      setGpsLocation({ lat: data.latitude, lon: data.longitude });
+      setPlacePredictions([]);
+      setPlaceSearch('');
+      
+      toast({
+        title: 'Address Found',
+        description: `${prediction.main_text} — coordinates captured automatically.`,
+      });
+    } catch (err) {
+      console.error('Place details error:', err);
+    }
+  };
 
   // Get GPS location for new address
   const handleGetGpsLocation = () => {
@@ -285,12 +352,47 @@ export function AddressSelector({
                 <DialogTitle>Add New Address</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 pt-4">
+                {/* Google Places Search */}
+                <div className="relative">
+                  <Label className="mb-2 block">Search Address</Label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      value={placeSearch}
+                      onChange={(e) => handlePlaceSearch(e.target.value)}
+                      placeholder="Search for an address or landmark..."
+                      className="pl-9"
+                      autoFocus
+                    />
+                    {searchingPlaces && (
+                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />
+                    )}
+                  </div>
+                  {placePredictions.length > 0 && (
+                    <div className="mt-1 rounded-lg border border-border bg-background shadow-lg overflow-hidden max-h-48 overflow-y-auto">
+                      {placePredictions.map((p) => (
+                        <button
+                          key={p.place_id}
+                          onClick={() => handleSelectPlacePrediction(p)}
+                          className="w-full flex items-start gap-2 px-3 py-2 hover:bg-secondary/50 transition-colors text-left border-b border-border last:border-b-0"
+                        >
+                          <MapPin className="w-3.5 h-3.5 text-primary mt-0.5 shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-foreground">{p.main_text}</p>
+                            <p className="text-xs text-muted-foreground truncate">{p.secondary_text}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 {/* GPS Location Button */}
                 <div className="p-3 rounded-lg bg-secondary/50 border border-border">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Navigation className="w-4 h-4 text-primary" />
-                      <span className="text-sm font-medium">Use GPS Location</span>
+                      <span className="text-sm font-medium">Or use GPS</span>
                     </div>
                     {gpsLocation ? (
                       <div className="flex items-center gap-1 text-green-600">
@@ -310,9 +412,6 @@ export function AddressSelector({
                       </Button>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    For accurate delivery fee calculation
-                  </p>
                 </div>
 
                 <div className="space-y-2">
@@ -340,7 +439,7 @@ export function AddressSelector({
                     id="address_line"
                     value={formData.address_line}
                     onChange={(e) => setFormData({ ...formData, address_line: e.target.value })}
-                    placeholder="123 Main Street, Lekki"
+                    placeholder="Auto-filled from search above"
                   />
                 </div>
 
@@ -471,12 +570,46 @@ export function AddressSelector({
                     <DialogTitle>Add New Address</DialogTitle>
                   </DialogHeader>
                   <div className="space-y-4 pt-4">
+                    {/* Google Places Search */}
+                    <div className="relative">
+                      <Label className="mb-2 block">Search Address</Label>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          value={placeSearch}
+                          onChange={(e) => handlePlaceSearch(e.target.value)}
+                          placeholder="Search for an address or landmark..."
+                          className="pl-9"
+                        />
+                        {searchingPlaces && (
+                          <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />
+                        )}
+                      </div>
+                      {placePredictions.length > 0 && (
+                        <div className="mt-1 rounded-lg border border-border bg-background shadow-lg overflow-hidden max-h-48 overflow-y-auto">
+                          {placePredictions.map((p) => (
+                            <button
+                              key={p.place_id}
+                              onClick={() => handleSelectPlacePrediction(p)}
+                              className="w-full flex items-start gap-2 px-3 py-2 hover:bg-secondary/50 transition-colors text-left border-b border-border last:border-b-0"
+                            >
+                              <MapPin className="w-3.5 h-3.5 text-primary mt-0.5 shrink-0" />
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-foreground">{p.main_text}</p>
+                                <p className="text-xs text-muted-foreground truncate">{p.secondary_text}</p>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
                     {/* GPS Location Button */}
                     <div className="p-3 rounded-lg bg-secondary/50 border border-border">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Navigation className="w-4 h-4 text-primary" />
-                          <span className="text-sm font-medium">Use GPS Location</span>
+                          <span className="text-sm font-medium">Or use GPS</span>
                         </div>
                         {gpsLocation ? (
                           <div className="flex items-center gap-1 text-green-600">
@@ -496,9 +629,6 @@ export function AddressSelector({
                           </Button>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        For accurate delivery fee calculation
-                      </p>
                     </div>
 
                     <div className="space-y-2">
@@ -526,7 +656,7 @@ export function AddressSelector({
                         id="address_line_modal"
                         value={formData.address_line}
                         onChange={(e) => setFormData({ ...formData, address_line: e.target.value })}
-                        placeholder="123 Main Street, Lekki"
+                        placeholder="Auto-filled from search above"
                       />
                     </div>
 

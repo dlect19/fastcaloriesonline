@@ -1,12 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { MapPin, Search, Loader2, Navigation, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useGeolocation } from '@/hooks/useGeolocation';
+
+interface PlacePrediction {
+  place_id: string;
+  description: string;
+  main_text: string;
+  secondary_text: string;
+}
 
 interface LocationSearchProps {
   onLocationSelect: (lat: number, lon: number, label: string) => void;
@@ -26,23 +32,42 @@ export function LocationSearch({ onLocationSelect, currentLocation, onClearLocat
     if (onExternalOpenChange) onExternalOpenChange(open);
     setInternalOpen(open);
   };
-  const [searching, setSearching] = useState(false);
+
   const [waitingForGps, setWaitingForGps] = useState(false);
-  const [formData, setFormData] = useState({
-    address: '',
-    city: '',
-    state: 'Lagos',
-  });
+  const [reversingGps, setReversingGps] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [predictions, setPredictions] = useState<PlacePrediction[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [selectingPlace, setSelectingPlace] = useState(false);
+  const sessionTokenRef = useRef(crypto.randomUUID());
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   // Watch for GPS coordinates when waiting
   useEffect(() => {
     if (waitingForGps && latitude && longitude) {
-      onLocationSelect(latitude, longitude, 'My Location');
-      setIsOpen(false);
       setWaitingForGps(false);
-      toast({
-        title: 'Location Set',
-        description: 'Showing vendors near your current location.',
+      setReversingGps(true);
+      
+      // Reverse geocode to get actual address
+      supabase.functions.invoke('google-reverse-geocode', {
+        body: { latitude, longitude },
+      }).then(({ data, error }) => {
+        setReversingGps(false);
+        
+        if (error || !data) {
+          onLocationSelect(latitude, longitude, 'My Location');
+        } else {
+          const label = data.address_label 
+            ? `${data.address_label}${data.neighborhood ? ', ' + data.neighborhood : ''}`
+            : data.formatted_address?.split(',').slice(0, 2).join(',') || 'My Location';
+          onLocationSelect(latitude, longitude, label);
+        }
+        
+        setIsOpen(false);
+        toast({
+          title: 'Location Set',
+          description: 'Showing vendors near your current location.',
+        });
       });
     } else if (waitingForGps && geoError) {
       setWaitingForGps(false);
@@ -59,47 +84,72 @@ export function LocationSearch({ onLocationSelect, currentLocation, onClearLocat
     getCurrentPosition();
   };
 
-  const handleSearchAddress = async () => {
-    if (!formData.address.trim() || !formData.city.trim()) {
-      toast({
-        title: 'Missing Information',
-        description: 'Please enter at least an address and city.',
-        variant: 'destructive',
-      });
+  // Debounced autocomplete search
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchQuery(value);
+    
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    
+    if (value.trim().length < 3) {
+      setPredictions([]);
       return;
     }
+    
+    debounceRef.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const { data, error } = await supabase.functions.invoke('google-places-autocomplete', {
+          body: { input: value, sessionToken: sessionTokenRef.current },
+        });
 
-    setSearching(true);
+        if (!error && data?.predictions) {
+          setPredictions(data.predictions);
+        }
+      } catch (err) {
+        console.error('Autocomplete error:', err);
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+  }, []);
+
+  // Handle selecting a place prediction
+  const handleSelectPlace = async (prediction: PlacePrediction) => {
+    setSelectingPlace(true);
     try {
-      const { data, error } = await supabase.functions.invoke('geocode-address', {
-        body: {
-          address: formData.address,
-          city: formData.city,
-          state: formData.state || 'Lagos',
-          country: 'Nigeria',
-        },
+      const { data, error } = await supabase.functions.invoke('google-place-details', {
+        body: { place_id: prediction.place_id, sessionToken: sessionTokenRef.current },
       });
 
-      if (error || data?.error) {
-        throw new Error(data?.error || 'Geocoding failed');
+      if (error || !data?.latitude || !data?.longitude) {
+        throw new Error('Failed to get place details');
       }
 
-      onLocationSelect(data.latitude, data.longitude, `${formData.address}, ${formData.city}`);
+      // Generate a new session token for next autocomplete session
+      sessionTokenRef.current = crypto.randomUUID();
+
+      const label = prediction.main_text || prediction.description.split(',')[0];
+      onLocationSelect(data.latitude, data.longitude, label);
       setIsOpen(false);
+      setPredictions([]);
+      setSearchQuery('');
+      
       toast({
         title: 'Location Set',
-        description: `Showing vendors near ${formData.address}, ${formData.city}`,
+        description: `Showing vendors near ${label}`,
       });
-    } catch (error) {
+    } catch (err) {
       toast({
-        title: 'Address Not Found',
-        description: 'Could not find that address. Try a more specific location.',
+        title: 'Error',
+        description: 'Could not get location details. Please try again.',
         variant: 'destructive',
       });
     } finally {
-      setSearching(false);
+      setSelectingPlace(false);
     }
   };
+
+  const isLoadingGps = geoLoading || waitingForGps || reversingGps;
 
   return (
     <div className="w-full">
@@ -121,12 +171,14 @@ export function LocationSearch({ onLocationSelect, currentLocation, onClearLocat
                 <DialogTitle>Set Delivery Location</DialogTitle>
               </DialogHeader>
               <LocationForm
-                formData={formData}
-                setFormData={setFormData}
+                searchQuery={searchQuery}
+                onSearchChange={handleSearchChange}
+                predictions={predictions}
                 searching={searching}
-                geoLoading={geoLoading || waitingForGps}
+                selectingPlace={selectingPlace}
+                geoLoading={isLoadingGps}
                 onUseMyLocation={handleUseMyLocation}
-                onSearchAddress={handleSearchAddress}
+                onSelectPlace={handleSelectPlace}
               />
             </DialogContent>
           </Dialog>
@@ -144,12 +196,14 @@ export function LocationSearch({ onLocationSelect, currentLocation, onClearLocat
               <DialogTitle>Set Delivery Location</DialogTitle>
             </DialogHeader>
             <LocationForm
-              formData={formData}
-              setFormData={setFormData}
+              searchQuery={searchQuery}
+              onSearchChange={handleSearchChange}
+              predictions={predictions}
               searching={searching}
-              geoLoading={geoLoading || waitingForGps}
+              selectingPlace={selectingPlace}
+              geoLoading={isLoadingGps}
               onUseMyLocation={handleUseMyLocation}
-              onSearchAddress={handleSearchAddress}
+              onSelectPlace={handleSelectPlace}
             />
           </DialogContent>
         </Dialog>
@@ -159,21 +213,25 @@ export function LocationSearch({ onLocationSelect, currentLocation, onClearLocat
 }
 
 interface LocationFormProps {
-  formData: { address: string; city: string; state: string };
-  setFormData: (data: { address: string; city: string; state: string }) => void;
+  searchQuery: string;
+  onSearchChange: (value: string) => void;
+  predictions: PlacePrediction[];
   searching: boolean;
+  selectingPlace: boolean;
   geoLoading: boolean;
   onUseMyLocation: () => void;
-  onSearchAddress: () => void;
+  onSelectPlace: (prediction: PlacePrediction) => void;
 }
 
 function LocationForm({
-  formData,
-  setFormData,
+  searchQuery,
+  onSearchChange,
+  predictions,
   searching,
+  selectingPlace,
   geoLoading,
   onUseMyLocation,
-  onSearchAddress,
+  onSelectPlace,
 }: LocationFormProps) {
   return (
     <div className="space-y-4 pt-4">
@@ -189,58 +247,60 @@ function LocationForm({
         ) : (
           <Navigation className="w-4 h-4" />
         )}
-        Use My Current Location
+        {geoLoading ? 'Getting your location...' : 'Use My Current Location'}
       </Button>
 
       <div className="relative flex items-center justify-center">
         <div className="absolute inset-0 flex items-center">
           <div className="w-full border-t border-border" />
         </div>
-        <span className="relative bg-background px-2 text-xs text-muted-foreground">or enter address</span>
+        <span className="relative bg-background px-2 text-xs text-muted-foreground">or search address</span>
       </div>
 
-      {/* Manual Address Entry */}
-      <div className="space-y-3">
-        <div className="space-y-2">
-          <Label htmlFor="address">Street Address</Label>
+      {/* Google Places Autocomplete Search */}
+      <div className="relative">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
-            id="address"
-            value={formData.address}
-            onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-            placeholder="e.g., 123 Main Street, Lekki"
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Search for an address or landmark..."
+            className="pl-9 pr-9"
+            autoFocus
           />
+          {searching && (
+            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />
+          )}
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-2">
-            <Label htmlFor="city">City</Label>
-            <Input
-              id="city"
-              value={formData.city}
-              onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-              placeholder="e.g., Lagos"
-            />
+        {/* Predictions dropdown */}
+        {predictions.length > 0 && (
+          <div className="mt-2 rounded-lg border border-border bg-background shadow-lg overflow-hidden">
+            {predictions.map((prediction) => (
+              <button
+                key={prediction.place_id}
+                onClick={() => onSelectPlace(prediction)}
+                disabled={selectingPlace}
+                className="w-full flex items-start gap-3 px-3 py-3 hover:bg-secondary/50 transition-colors text-left border-b border-border last:border-b-0 disabled:opacity-50"
+              >
+                <MapPin className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm text-foreground">{prediction.main_text}</p>
+                  <p className="text-xs text-muted-foreground truncate">{prediction.secondary_text}</p>
+                </div>
+                {selectingPlace && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground shrink-0" />}
+              </button>
+            ))}
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="state">State</Label>
-            <Input
-              id="state"
-              value={formData.state}
-              onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-              placeholder="e.g., Lagos"
-            />
-          </div>
-        </div>
-      </div>
-
-      <Button className="w-full gap-2" onClick={onSearchAddress} disabled={searching}>
-        {searching ? (
-          <Loader2 className="w-4 h-4 animate-spin" />
-        ) : (
-          <Search className="w-4 h-4" />
         )}
-        Find Vendors Near This Address
-      </Button>
+
+        {/* No results message */}
+        {searchQuery.length >= 3 && !searching && predictions.length === 0 && (
+          <p className="mt-2 text-sm text-muted-foreground text-center py-3">
+            No addresses found. Try a different search term.
+          </p>
+        )}
+      </div>
     </div>
   );
 }
