@@ -12,7 +12,7 @@ import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Save, MapPin, Volume2, Smartphone, ShieldCheck, Mail, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Loader2, Save, MapPin, Volume2, Smartphone, ShieldCheck, Mail, CheckCircle, AlertTriangle, RefreshCw } from 'lucide-react';
 import { DeleteAccountDialog } from '@/components/shared/DeleteAccountDialog';
 import { CommissionDisplay } from '@/components/shared/CommissionDisplay';
 import { useToast } from '@/hooks/use-toast';
@@ -584,6 +584,41 @@ export default function RiderSettings() {
                 Test Sound
               </Button>
             )}
+
+            {/* Check for Updates */}
+            <div className="pt-2 border-t border-border">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-sm md:text-base flex items-center gap-2">
+                    <RefreshCw className="w-4 h-4" />
+                    App Updates
+                  </p>
+                  <p className="text-xs md:text-sm text-muted-foreground">Check if a newer version is available</p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                      navigator.serviceWorker.getRegistration().then(reg => {
+                        if (reg) {
+                          reg.update().then(() => {
+                            toast({ title: 'Checking for updates...', description: 'If an update is found, you\'ll be prompted to refresh.' });
+                          });
+                        } else {
+                          toast({ title: 'No service worker found', description: 'Try reloading the page.', variant: 'destructive' });
+                        }
+                      });
+                    } else {
+                      window.location.reload();
+                    }
+                  }}
+                >
+                  <RefreshCw className="w-4 h-4 mr-1" />
+                  Check Now
+                </Button>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
