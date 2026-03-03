@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
-import { Check, X, Loader2, ShieldCheck, Mail, AlertCircle, FlaskConical } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Check, X, Loader2, ShieldCheck, Mail, AlertCircle, FlaskConical, FileImage, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 
@@ -19,6 +20,7 @@ export default function AdminRiders() {
   const [loading, setLoading] = useState(true);
   const [riders, setRiders] = useState<any[]>([]);
   const [pendingRiders, setPendingRiders] = useState<any[]>([]);
+  const [viewingDocument, setViewingDocument] = useState<{ url: string; name: string } | null>(null);
 
   useEffect(() => {
     checkAuth();
@@ -119,7 +121,7 @@ export default function AdminRiders() {
 
   const maskNIN = (nin: string | null) => {
     if (!nin) return 'Not provided';
-    return `${nin.slice(0, 3)}****${nin.slice(-4)}`;
+    return nin; // Show full NIN to admins
   };
 
   if (loading) {
@@ -241,6 +243,20 @@ export default function AdminRiders() {
                           </div>
                         </div>
 
+                        {/* NIN Document */}
+                        {rider.id_document_url && (
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setViewingDocument({ url: rider.id_document_url, name: rider.profile?.full_name || 'Rider' })}
+                            >
+                              <FileImage className="w-4 h-4 mr-1" />
+                              View NIN Document
+                            </Button>
+                          </div>
+                        )}
+
                         {/* Warning if NIN not provided */}
                         {!rider.nin_number && (
                           <div className="flex items-center gap-2 p-3 bg-destructive/10 rounded-lg text-sm">
@@ -288,7 +304,18 @@ export default function AdminRiders() {
                           <div className="flex items-center gap-4 text-sm">
                             <span>{rider.total_deliveries || 0} deliveries</span>
                             <span>⭐ {rider.rating?.toFixed(1) || '0.0'}</span>
-                            <span className="text-muted-foreground">NIN: {maskNIN(rider.nin_number)}</span>
+                            <span className="text-muted-foreground font-mono">NIN: {maskNIN(rider.nin_number)}</span>
+                            {rider.id_document_url && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 px-2 text-xs"
+                                onClick={() => setViewingDocument({ url: rider.id_document_url, name: rider.profile?.full_name || 'Rider' })}
+                              >
+                                <Eye className="w-3 h-3 mr-1" />
+                                NIN Doc
+                              </Button>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-4">
@@ -321,6 +348,32 @@ export default function AdminRiders() {
             <AdminRiderDistanceBreakdown />
           </TabsContent>
         </Tabs>
+
+        {/* NIN Document Viewer Dialog */}
+        <Dialog open={!!viewingDocument} onOpenChange={() => setViewingDocument(null)}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>NIN Document - {viewingDocument?.name}</DialogTitle>
+            </DialogHeader>
+            {viewingDocument && (
+              <div className="space-y-3">
+                <img 
+                  src={viewingDocument.url} 
+                  alt="NIN Document" 
+                  className="w-full rounded-lg border border-border"
+                />
+                <a 
+                  href={viewingDocument.url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-sm text-primary hover:underline"
+                >
+                  Open in new tab
+                </a>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );
