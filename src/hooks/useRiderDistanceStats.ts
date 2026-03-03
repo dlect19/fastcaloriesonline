@@ -79,9 +79,42 @@ export function useRiderDistanceStats({ riderId, dateFrom, dateTo }: UseRiderDis
   return { stats, loading, refetch: fetchStats };
 }
 
+/** Haversine fallback for when Google Maps API is unavailable */
+function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/** Try Google Maps Distance Matrix API for accurate road distance */
+async function getGoogleMapsDistance(
+  originLat: number, originLng: number, destLat: number, destLng: number
+): Promise<{ distanceKm: number; durationMinutes: number } | null> {
+  try {
+    const { data, error } = await supabase.functions.invoke('calculate-distance', {
+      body: { originLat, originLng, destLat, destLng },
+    });
+
+    if (error || !data?.distanceInKm) {
+      console.warn('Google Maps distance failed, using fallback:', error || data?.error);
+      return null;
+    }
+
+    return { distanceKm: data.distanceInKm, durationMinutes: data.durationInMinutes };
+  } catch (err) {
+    console.warn('Google Maps distance call error:', err);
+    return null;
+  }
+}
+
 /**
  * Log delivery distance when a rider completes a delivery.
- * Fetches distance from the dispatch_offers table.
+ * Uses Google Maps Distance Matrix API for accurate road distance,
+ * with Haversine as fallback.
  */
 export async function logDeliveryDistance(orderId: string, riderId: string) {
   try {
@@ -96,6 +129,10 @@ export async function logDeliveryDistance(orderId: string, riderId: string) {
     if (existing) return; // Already logged
 
     let distanceKm = 0;
+    let originLat: number | null = null;
+    let originLng: number | null = null;
+    let destLat: number | null = null;
+    let destLng: number | null = null;
 
     // Step 1: Find the dispatch_request for this order
     const { data: request } = await supabase
@@ -117,19 +154,16 @@ export async function logDeliveryDistance(orderId: string, riderId: string) {
       distanceKm = offer?.distance_km || 0;
     }
 
-    // Step 3: Fallback — calculate from coordinates via Haversine
-    if (!distanceKm && request?.vendor_latitude && request?.vendor_longitude && request?.customer_latitude && request?.customer_longitude) {
-      const R = 6371;
-      const dLat = (request.customer_latitude - request.vendor_latitude) * Math.PI / 180;
-      const dLon = (request.customer_longitude - request.vendor_longitude) * Math.PI / 180;
-      const a = Math.sin(dLat / 2) ** 2 +
-        Math.cos(request.vendor_latitude * Math.PI / 180) * Math.cos(request.customer_latitude * Math.PI / 180) *
-        Math.sin(dLon / 2) ** 2;
-      distanceKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    // Collect coordinates for Google Maps / Haversine calculation
+    if (request?.vendor_latitude && request?.vendor_longitude && request?.customer_latitude && request?.customer_longitude) {
+      originLat = request.vendor_latitude;
+      originLng = request.vendor_longitude;
+      destLat = request.customer_latitude;
+      destLng = request.customer_longitude;
     }
 
-    // Step 4: Last resort — estimate from the order's delivery address vs vendor
-    if (!distanceKm) {
+    // Step 3: If no coordinates from dispatch_request, try order's address vs vendor
+    if (!originLat && !distanceKm) {
       const { data: order } = await supabase
         .from('orders')
         .select('vendor_id, delivery_address_id')
@@ -143,14 +177,24 @@ export async function logDeliveryDistance(orderId: string, riderId: string) {
         ]);
 
         if (address?.latitude && address?.longitude && vendor?.latitude && vendor?.longitude) {
-          const R = 6371;
-          const dLat = (address.latitude - vendor.latitude) * Math.PI / 180;
-          const dLon = (address.longitude - vendor.longitude) * Math.PI / 180;
-          const a = Math.sin(dLat / 2) ** 2 +
-            Math.cos(vendor.latitude * Math.PI / 180) * Math.cos(address.latitude * Math.PI / 180) *
-            Math.sin(dLon / 2) ** 2;
-          distanceKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          originLat = vendor.latitude;
+          originLng = vendor.longitude;
+          destLat = address.latitude;
+          destLng = address.longitude;
         }
+      }
+    }
+
+    // Step 4: Use Google Maps API for accurate road distance (primary), Haversine (fallback)
+    if (!distanceKm && originLat && originLng && destLat && destLng) {
+      const googleResult = await getGoogleMapsDistance(originLat, originLng, destLat, destLng);
+
+      if (googleResult) {
+        distanceKm = googleResult.distanceKm;
+        console.log(`Google Maps distance for order ${orderId}: ${distanceKm} km (${googleResult.durationMinutes} min)`);
+      } else {
+        distanceKm = haversineDistance(originLat, originLng, destLat, destLng);
+        console.log(`Haversine fallback distance for order ${orderId}: ${Math.round(distanceKm * 10) / 10} km`);
       }
     }
 
