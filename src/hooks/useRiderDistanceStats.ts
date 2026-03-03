@@ -95,36 +95,62 @@ export async function logDeliveryDistance(orderId: string, riderId: string) {
 
     if (existing) return; // Already logged
 
-    // Get distance from dispatch_offers
-    const { data: offer } = await supabase
-      .from('dispatch_offers')
-      .select('distance_km')
-      .eq('rider_user_id', riderId)
-      .eq('status', 'accepted')
-      .eq('dispatch_request_id', (
-        await supabase.from('dispatch_requests').select('id').eq('order_id', orderId).single()
-      ).data?.id || '')
+    let distanceKm = 0;
+
+    // Step 1: Find the dispatch_request for this order
+    const { data: request } = await supabase
+      .from('dispatch_requests')
+      .select('id, vendor_latitude, vendor_longitude, customer_latitude, customer_longitude')
+      .eq('order_id', orderId)
       .maybeSingle();
 
-    // Fallback: get distance from order's delivery address and vendor
-    let distanceKm = offer?.distance_km || 0;
-
-    if (!distanceKm) {
-      // Try getting from dispatch_requests directly
-      const { data: request } = await supabase
-        .from('dispatch_requests')
-        .select('vendor_latitude, vendor_longitude, customer_latitude, customer_longitude')
-        .eq('order_id', orderId)
+    // Step 2: If we have a dispatch request, try to get distance from the accepted offer
+    if (request?.id) {
+      const { data: offer } = await supabase
+        .from('dispatch_offers')
+        .select('distance_km')
+        .eq('rider_user_id', riderId)
+        .eq('dispatch_request_id', request.id)
+        .in('status', ['accepted', 'completed'])
         .maybeSingle();
 
-      if (request?.vendor_latitude && request?.vendor_longitude && request?.customer_latitude && request?.customer_longitude) {
-        const R = 6371;
-        const dLat = (request.customer_latitude - request.vendor_latitude) * Math.PI / 180;
-        const dLon = (request.customer_longitude - request.vendor_longitude) * Math.PI / 180;
-        const a = Math.sin(dLat / 2) ** 2 +
-          Math.cos(request.vendor_latitude * Math.PI / 180) * Math.cos(request.customer_latitude * Math.PI / 180) *
-          Math.sin(dLon / 2) ** 2;
-        distanceKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      distanceKm = offer?.distance_km || 0;
+    }
+
+    // Step 3: Fallback — calculate from coordinates via Haversine
+    if (!distanceKm && request?.vendor_latitude && request?.vendor_longitude && request?.customer_latitude && request?.customer_longitude) {
+      const R = 6371;
+      const dLat = (request.customer_latitude - request.vendor_latitude) * Math.PI / 180;
+      const dLon = (request.customer_longitude - request.vendor_longitude) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) ** 2 +
+        Math.cos(request.vendor_latitude * Math.PI / 180) * Math.cos(request.customer_latitude * Math.PI / 180) *
+        Math.sin(dLon / 2) ** 2;
+      distanceKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    // Step 4: Last resort — estimate from the order's delivery address vs vendor
+    if (!distanceKm) {
+      const { data: order } = await supabase
+        .from('orders')
+        .select('vendor_id, delivery_address_id')
+        .eq('id', orderId)
+        .maybeSingle();
+
+      if (order?.delivery_address_id && order?.vendor_id) {
+        const [{ data: address }, { data: vendor }] = await Promise.all([
+          supabase.from('addresses').select('latitude, longitude').eq('id', order.delivery_address_id).maybeSingle(),
+          supabase.from('vendors').select('latitude, longitude').eq('id', order.vendor_id).maybeSingle(),
+        ]);
+
+        if (address?.latitude && address?.longitude && vendor?.latitude && vendor?.longitude) {
+          const R = 6371;
+          const dLat = (address.latitude - vendor.latitude) * Math.PI / 180;
+          const dLon = (address.longitude - vendor.longitude) * Math.PI / 180;
+          const a = Math.sin(dLat / 2) ** 2 +
+            Math.cos(vendor.latitude * Math.PI / 180) * Math.cos(address.latitude * Math.PI / 180) *
+            Math.sin(dLon / 2) ** 2;
+          distanceKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        }
       }
     }
 
@@ -137,6 +163,10 @@ export async function logDeliveryDistance(orderId: string, riderId: string) {
         distance_km: Math.round(distanceKm * 10) / 10,
         environment: env,
       });
+
+      console.log(`Distance logged for order ${orderId}: ${Math.round(distanceKm * 10) / 10} km`);
+    } else {
+      console.warn(`Could not determine distance for order ${orderId} — no coordinates available`);
     }
   } catch (err) {
     console.error('Error logging delivery distance:', err);
