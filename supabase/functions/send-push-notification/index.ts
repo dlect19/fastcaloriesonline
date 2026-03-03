@@ -220,7 +220,7 @@ async function sendFcmNotification(
         priority: 'high',
         notification: {
           sound: data?.role === 'rider' ? 'fastcaloriesrider' : 'fastcaloriesvendor',
-          channel_id: data?.role === 'rider' ? 'rider-orders' : 'vendor-orders-v2',
+          channel_id: data?.role === 'rider' ? 'rider-orders' : 'vendor-orders-v3',
           icon: 'ic_notification',
         },
       },
