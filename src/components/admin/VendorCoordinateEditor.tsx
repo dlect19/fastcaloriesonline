@@ -12,6 +12,7 @@ import {
 import { MapPin, Loader2, Search } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { MapLocationPicker } from '@/components/shared/MapLocationPicker';
  
  interface VendorCoordinateEditorProps {
    vendor: {
@@ -166,11 +167,25 @@ import { useToast } from '@/hooks/use-toast';
                 )}
               </div>
 
-              <div className="relative flex items-center gap-2 py-1">
-                <div className="flex-1 border-t" />
-                <span className="text-xs text-muted-foreground">or enter manually</span>
-                <div className="flex-1 border-t" />
-              </div>
+               <div className="space-y-2">
+                 <Label>Pick on Map</Label>
+                 <MapLocationPicker
+                   latitude={latitude ? parseFloat(latitude) : undefined}
+                   longitude={longitude ? parseFloat(longitude) : undefined}
+                   onLocationSelect={(lat, lng) => {
+                     setLatitude(lat.toFixed(6));
+                     setLongitude(lng.toFixed(6));
+                   }}
+                   height="250px"
+                 />
+                 <p className="text-xs text-muted-foreground">Click on the map or drag the marker to set location</p>
+               </div>
+
+               <div className="relative flex items-center gap-2 py-1">
+                 <div className="flex-1 border-t" />
+                 <span className="text-xs text-muted-foreground">or enter manually</span>
+                 <div className="flex-1 border-t" />
+               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="latitude">Latitude</Label>
