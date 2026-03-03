@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Store, Mail, Phone, Save, Camera, ImageIcon, Loader2, CheckCircle } from 'lucide-react';
+import { Store, Mail, Phone, Save, Camera, ImageIcon, Loader2, CheckCircle, Users, LogOut } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DeleteAccountDialog } from '@/components/shared/DeleteAccountDialog';
 import { VendorDocumentUpload } from '@/components/vendor/VendorDocumentUpload';
@@ -384,6 +384,40 @@ export default function VendorSettings() {
           {/* Verification Documents */}
           {vendor && user && (
             <VendorDocumentUpload vendorId={vendor.id} userId={user.id} />
+          )}
+
+          {/* Staff Workspace Login */}
+          {vendor?.slug && (
+            <Card className="border-0 shadow-soft">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Users className="w-5 h-5" />
+                  Staff Access
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Hand this device to a staff member. You will be logged out and redirected to the staff workspace login page.
+                </p>
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50">
+                  <code className="text-xs text-primary break-all flex-1">
+                    {window.location.origin}/workspace/{vendor.slug}
+                  </code>
+                </div>
+                <Button
+                  variant="outline"
+                  className="w-full gap-2"
+                  onClick={async () => {
+                    const slug = vendor.slug;
+                    await signOut?.();
+                    navigate(`/workspace/${slug}`);
+                  }}
+                >
+                  <LogOut className="w-4 h-4" />
+                  Switch to Staff Login
+                </Button>
+              </CardContent>
+            </Card>
           )}
 
           {/* Delete Account */}

@@ -8,7 +8,7 @@ interface ApkUpdateInfo {
   downloadUrl: string;
 }
 
-export function useApkUpdateCheck(appType: 'customer' | 'rider') {
+export function useApkUpdateCheck(appType: 'customer' | 'rider' | 'vendor') {
   const [updateInfo, setUpdateInfo] = useState<ApkUpdateInfo | null>(null);
 
   useEffect(() => {
@@ -17,6 +17,8 @@ export function useApkUpdateCheck(appType: 'customer' | 'rider') {
     const localStorageKey = `${appType}_apk_dismissed_version`;
     const downloadUrl = appType === 'rider'
       ? '/downloads/fastcalories-rider.apk'
+      : appType === 'vendor'
+      ? '/downloads/fastcalories-vendor.apk'
       : '/downloads/fastcalories-customer.apk';
 
     const checkUpdate = async () => {
