@@ -1,6 +1,6 @@
 /// <reference types="google.maps" />
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+
 import { Loader2 } from 'lucide-react';
 
 interface MapLocationPickerProps {
@@ -63,21 +63,35 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
 
     (async () => {
       try {
-        const { data, error: fnError } = await supabase.functions.invoke('get-google-maps-key');
-        console.log('Maps key response:', { data, fnError, type: typeof data });
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
         
-        // Handle various response formats
-        let apiKey: string | null = null;
-        if (data && typeof data === 'object' && 'key' in data) {
-          apiKey = data.key;
-        } else if (typeof data === 'string') {
-          try {
-            const parsed = JSON.parse(data);
-            apiKey = parsed.key;
-          } catch { /* not JSON string */ }
+        const response = await fetch(`${supabaseUrl}/functions/v1/get-google-maps-key`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${supabaseAnonKey}`,
+            'apikey': supabaseAnonKey,
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (!response.ok) {
+          console.error('Maps key fetch failed:', response.status, response.statusText);
+          if (!cancelled) { setError('Failed to fetch API key'); setLoading(false); }
+          return;
         }
         
-        if (cancelled || !apiKey) { setError('Google Maps key not available'); setLoading(false); return; }
+        const data = await response.json();
+        console.log('Maps key response:', data);
+        const apiKey = data?.key;
+        
+        if (!apiKey) {
+          console.error('No API key in response:', data);
+          if (!cancelled) { setError('API key not configured'); setLoading(false); }
+          return;
+        }
+        
+        if (cancelled) return;
 
         await loadGoogleMaps(apiKey);
         if (cancelled || !mapRef.current) return;
@@ -105,8 +119,9 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
         });
 
         setLoading(false);
-      } catch {
-        if (!cancelled) { setError('Failed to load map'); setLoading(false); }
+      } catch (err) {
+        console.error('Map init error:', err);
+        if (!cancelled) { setError('Failed to load Google Maps script'); setLoading(false); }
       }
     })();
 
