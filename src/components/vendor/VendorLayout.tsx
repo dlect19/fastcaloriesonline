@@ -6,7 +6,8 @@ import { AddOutletDialog } from '@/components/vendor/AddOutletDialog';
 import { OutletProvider, useOutletContext } from '@/hooks/useOutletContext';
 import { VendorPermission } from '@/hooks/useVendorPermissions';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { useVendorNotificationSound } from '@/hooks/useVendorNotificationSound';
+import { useRepeatingNotificationSound } from '@/hooks/useRepeatingNotificationSound';
+import { SoundEnableBanner } from '@/components/shared/SoundEnableBanner';
 import { useCapacitorPush } from '@/hooks/useCapacitorPush';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -26,9 +27,11 @@ function VendorLayoutContent({ children, vendorName, vendorId, permissions, onOu
   const [addOutletOpen, setAddOutletOpen] = useState(false);
   const [newOrderCount, setNewOrderCount] = useState(0);
   const [resolvedVendorId, setResolvedVendorId] = useState<string | null>(vendorId || null);
-  const { playNotification, soundEnabled, setSoundEnabled } = useVendorNotificationSound();
+  const { playOnce, startRepeating, stopRepeating, isPlaying, soundEnabled, isBlocked, setSoundEnabled, unlock } = useRepeatingNotificationSound({
+    intervalMs: 8000,
+    storageKey: 'vendor-notification-sound',
+  });
   useCapacitorPush();
-  const prevOrderCountRef = useRef<number | null>(null);
 
   const handleOutletChange = useCallback((outletId: string | null) => {
     if (outletId) setSelectedOutletId(outletId);
@@ -49,7 +52,9 @@ function VendorLayoutContent({ children, vendorName, vendorId, permissions, onOu
     resolve();
   }, [vendorId]);
 
-  // Order count for badge
+  // Track previous order count to detect new orders
+  const prevOrderCountRef = useRef<number | null>(null);
+
   useEffect(() => {
     if (!resolvedVendorId || !selectedOutlet?.id) { setNewOrderCount(0); return; }
     const outletId = selectedOutlet.id;
@@ -58,13 +63,20 @@ function VendorLayoutContent({ children, vendorName, vendorId, permissions, onOu
         .eq('vendor_id', resolvedVendorId).eq('outlet_id', outletId).in('status', ['pending', 'confirmed']);
       if (count !== null) {
         setNewOrderCount(prev => {
-          // Play sound + toast when count increases (new order arrived)
+          // Start repeating sound when new order arrives
           if (prevOrderCountRef.current !== null && count > prevOrderCountRef.current) {
-            playNotification();
+            startRepeating();
             toast.success('🔔 New Order!', {
               description: 'A new paid order has come in. Check your orders page.',
               duration: 8000,
             });
+          }
+          // Stop sound when orders are handled (count decreases or reaches 0)
+          if (prevOrderCountRef.current !== null && count < prevOrderCountRef.current) {
+            stopRepeating();
+          }
+          if (count === 0 && isPlaying) {
+            stopRepeating();
           }
           prevOrderCountRef.current = count;
           return count;
@@ -74,7 +86,7 @@ function VendorLayoutContent({ children, vendorName, vendorId, permissions, onOu
     fetchCount();
     const channel = supabase.channel('vendor-layout-orders').on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `vendor_id=eq.${resolvedVendorId}` }, () => fetchCount()).subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [resolvedVendorId, selectedOutlet?.id, playNotification]);
+  }, [resolvedVendorId, selectedOutlet?.id, startRepeating, stopRepeating, isPlaying]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -103,6 +115,13 @@ function VendorLayoutContent({ children, vendorName, vendorId, permissions, onOu
 
       <main className={isMobile ? 'pt-24 pb-20 px-2' : 'lg:ml-64 pt-0'}>
         <ApkUpdateBanner appType="vendor" />
+        <SoundEnableBanner
+          soundEnabled={soundEnabled}
+          isBlocked={isBlocked}
+          onToggleSound={setSoundEnabled}
+          onUnlock={unlock}
+          onTestSound={playOnce}
+        />
         {children}
       </main>
 
