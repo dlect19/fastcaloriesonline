@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, Save, Loader2, Bike, Users, Building2, Navigation, CheckCircle, Clock, Settings2, Megaphone, Heart, QrCode, Radar, Trash2, Search } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,6 +21,7 @@ import { useOutletContext } from '@/hooks/useOutletContext';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { MapLocationPicker } from '@/components/shared/MapLocationPicker';
 
 function VendorStoreSettingsInner() {
   const { user, loading: authLoading } = useAuth();
@@ -38,6 +39,53 @@ function VendorStoreSettingsInner() {
   const [vendorData, setVendorData] = useState<{ logo_url: string | null } | null>(null);
   const [maxSalesRadius, setMaxSalesRadius] = useState(50);
   const [deletingOutlet, setDeletingOutlet] = useState(false);
+  const [addressQuery, setAddressQuery] = useState('');
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const sessionTokenRef = useRef(crypto.randomUUID());
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+
+  const searchAddress = async (input: string) => {
+    setAddressQuery(input);
+    if (input.length < 3) { setSuggestions([]); return; }
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      setSearchLoading(true);
+      try {
+        const { data } = await supabase.functions.invoke('google-places-autocomplete', {
+          body: { input, sessionToken: sessionTokenRef.current },
+        });
+        setSuggestions(data?.predictions || []);
+      } catch { setSuggestions([]); }
+      setSearchLoading(false);
+    }, 300);
+  };
+
+  const selectPlace = async (placeId: string) => {
+    setSuggestions([]);
+    setSearchLoading(true);
+    try {
+      const { data } = await supabase.functions.invoke('google-place-details', {
+        body: { place_id: placeId, sessionToken: sessionTokenRef.current },
+      });
+      if (data?.latitude && data?.longitude && selectedOutlet) {
+        const { error } = await supabase
+          .from('vendor_outlets')
+          .update({ latitude: data.latitude, longitude: data.longitude })
+          .eq('id', selectedOutlet.id);
+        if (error) throw error;
+        setAddressQuery(data.formatted_address || '');
+        toast({ title: 'Location set', description: `📍 ${data.latitude.toFixed(4)}, ${data.longitude.toFixed(4)}` });
+        await refreshOutlets();
+      } else {
+        toast({ title: 'Could not resolve coordinates', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Lookup failed', variant: 'destructive' });
+    }
+    setSearchLoading(false);
+    sessionTokenRef.current = crypto.randomUUID();
+  };
 
   const [formData, setFormData] = useState({
     outlet_name: '',
@@ -214,7 +262,66 @@ function VendorStoreSettingsInner() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* GPS */}
+          {/* Search Address */}
+          <div className="space-y-2">
+            <Label>Search Address</Label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Type an address to lookup coordinates…"
+                value={addressQuery}
+                onChange={(e) => searchAddress(e.target.value)}
+                className="pl-9"
+              />
+              {searchLoading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin" />}
+            </div>
+            {suggestions.length > 0 && (
+              <div className="border rounded-md max-h-40 overflow-y-auto divide-y">
+                {suggestions.map((s: any) => (
+                  <button
+                    key={s.place_id}
+                    onClick={() => selectPlace(s.place_id)}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors"
+                  >
+                    {s.description}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Map Picker */}
+          <div className="space-y-2">
+            <Label>Pick on Map</Label>
+            <MapLocationPicker
+              latitude={selectedOutlet?.latitude ?? undefined}
+              longitude={selectedOutlet?.longitude ?? undefined}
+              onLocationSelect={async (lat, lng) => {
+                if (!selectedOutlet) return;
+                try {
+                  const { error } = await supabase
+                    .from('vendor_outlets')
+                    .update({ latitude: lat, longitude: lng })
+                    .eq('id', selectedOutlet.id);
+                  if (error) throw error;
+                  toast({ title: 'Location updated', description: `📍 ${lat.toFixed(4)}, ${lng.toFixed(4)}` });
+                  await refreshOutlets();
+                } catch {
+                  toast({ title: 'Failed to save location', variant: 'destructive' });
+                }
+              }}
+              height="250px"
+            />
+            <p className="text-xs text-muted-foreground">Click on the map or drag the marker to set location</p>
+          </div>
+
+          {/* GPS & Address Geocode buttons */}
+          <div className="relative flex items-center gap-2 py-1">
+            <div className="flex-1 border-t" />
+            <span className="text-xs text-muted-foreground">or use other methods</span>
+            <div className="flex-1 border-t" />
+          </div>
+
           <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg space-y-3">
             <div className="flex items-center justify-between">
               <div>
@@ -229,66 +336,68 @@ function VendorStoreSettingsInner() {
                 <CheckCircle className="w-5 h-5 text-primary shrink-0" />
               )}
             </div>
-            <Button
-              variant={selectedOutlet?.latitude ? 'outline' : 'default'}
-              size="sm"
-              className="gap-2"
-              onClick={async () => {
-                setGettingLocation(true);
-                getCurrentPosition();
-              }}
-              disabled={geoLoading || gettingLocation}
-            >
-              {(geoLoading || gettingLocation) ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Navigation className="w-4 h-4" />
-              )}
-              {selectedOutlet?.latitude ? 'Update via GPS' : 'Use Current GPS'}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2"
-              onClick={async () => {
-                if (!formData.address.trim() || !formData.city.trim()) {
-                  toast({ title: 'Missing Info', description: 'Enter street address and city below first.', variant: 'destructive' });
-                  return;
-                }
-                if (!selectedOutlet) return;
-                setGeocodingAddress(true);
-                try {
-                  const { data, error } = await supabase.functions.invoke('geocode-address', {
-                    body: {
-                      address: formData.address,
-                      city: formData.city,
-                      state: formData.state || 'Lagos',
-                      country: 'Nigeria',
-                    },
-                  });
-                  if (error || data?.error) throw new Error(data?.error || 'Geocoding failed');
-                  const { error: updateErr } = await supabase
-                    .from('vendor_outlets')
-                    .update({ latitude: data.latitude, longitude: data.longitude })
-                    .eq('id', selectedOutlet.id);
-                  if (updateErr) throw updateErr;
-                  toast({ title: 'Location set from address', description: `📍 ${data.latitude.toFixed(4)}, ${data.longitude.toFixed(4)}` });
-                  await refreshOutlets();
-                } catch (err: any) {
-                  toast({ title: 'Address not found', description: 'Could not geocode that address. Try a more specific location.', variant: 'destructive' });
-                } finally {
-                  setGeocodingAddress(false);
-                }
-              }}
-              disabled={geocodingAddress}
-            >
-              {geocodingAddress ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Search className="w-4 h-4" />
-              )}
-              Set from Address
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant={selectedOutlet?.latitude ? 'outline' : 'default'}
+                size="sm"
+                className="gap-2"
+                onClick={async () => {
+                  setGettingLocation(true);
+                  getCurrentPosition();
+                }}
+                disabled={geoLoading || gettingLocation}
+              >
+                {(geoLoading || gettingLocation) ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Navigation className="w-4 h-4" />
+                )}
+                {selectedOutlet?.latitude ? 'Update via GPS' : 'Use Current GPS'}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={async () => {
+                  if (!formData.address.trim() || !formData.city.trim()) {
+                    toast({ title: 'Missing Info', description: 'Enter street address and city below first.', variant: 'destructive' });
+                    return;
+                  }
+                  if (!selectedOutlet) return;
+                  setGeocodingAddress(true);
+                  try {
+                    const { data, error } = await supabase.functions.invoke('geocode-address', {
+                      body: {
+                        address: formData.address,
+                        city: formData.city,
+                        state: formData.state || 'Lagos',
+                        country: 'Nigeria',
+                      },
+                    });
+                    if (error || data?.error) throw new Error(data?.error || 'Geocoding failed');
+                    const { error: updateErr } = await supabase
+                      .from('vendor_outlets')
+                      .update({ latitude: data.latitude, longitude: data.longitude })
+                      .eq('id', selectedOutlet.id);
+                    if (updateErr) throw updateErr;
+                    toast({ title: 'Location set from address', description: `📍 ${data.latitude.toFixed(4)}, ${data.longitude.toFixed(4)}` });
+                    await refreshOutlets();
+                  } catch (err: any) {
+                    toast({ title: 'Address not found', description: 'Could not geocode that address. Try a more specific location.', variant: 'destructive' });
+                  } finally {
+                    setGeocodingAddress(false);
+                  }
+                }}
+                disabled={geocodingAddress}
+              >
+                {geocodingAddress ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Search className="w-4 h-4" />
+                )}
+                Set from Address
+              </Button>
+            </div>
           </div>
 
           {/* Auto-save GPS */}
