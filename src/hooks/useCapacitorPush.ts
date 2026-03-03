@@ -19,8 +19,8 @@ export function useCapacitorPush() {
 
         // Create order-calls channel (used by CALL-type notifications from backend)
         await PushNotifications.createChannel({
-          id: 'order-calls-v5',
-          name: 'Incoming Order Calls',
+          id: 'order-calls-v6',
+          name: 'Urgent Order Calls',
           description: 'Full-screen urgent alerts for new orders',
           sound: 'fastcaloriesvendor',
           importance: 5,
