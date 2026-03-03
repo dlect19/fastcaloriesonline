@@ -10,7 +10,7 @@ import { Upload, Loader2, FileDown, CheckCircle } from 'lucide-react';
 
 export function ApkUploadCard() {
   const { toast } = useToast();
-  const [appType, setAppType] = useState<'customer' | 'rider'>('customer');
+  const [appType, setAppType] = useState<'customer' | 'rider' | 'vendor'>('customer');
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
@@ -27,6 +27,8 @@ export function ApkUploadCard() {
     try {
       const fileName = appType === 'rider'
         ? 'fastcalories-rider.apk'
+        : appType === 'vendor'
+        ? 'fastcalories-vendor.apk'
         : 'fastcalories-customer.apk';
 
       // Upload to storage bucket (overwrite existing)
@@ -71,13 +73,14 @@ export function ApkUploadCard() {
       <CardContent className="space-y-4">
         <div className="space-y-2">
           <Label>App Type</Label>
-          <Select value={appType} onValueChange={(v) => setAppType(v as 'customer' | 'rider')}>
+          <Select value={appType} onValueChange={(v) => setAppType(v as 'customer' | 'rider' | 'vendor')}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="customer">Customer App</SelectItem>
               <SelectItem value="rider">Rider App</SelectItem>
+              <SelectItem value="vendor">Vendor App</SelectItem>
             </SelectContent>
           </Select>
         </div>

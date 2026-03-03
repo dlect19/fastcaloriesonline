@@ -4,7 +4,7 @@ import { useApkUpdateCheck } from '@/hooks/useApkUpdateCheck';
 import { downloadApk } from '@/lib/apkInstall';
 
 interface ApkUpdateBannerProps {
-  appType: 'customer' | 'rider';
+  appType: 'customer' | 'rider' | 'vendor';
 }
 
 export function ApkUpdateBanner({ appType }: ApkUpdateBannerProps) {
