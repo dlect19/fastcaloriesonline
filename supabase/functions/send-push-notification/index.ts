@@ -212,26 +212,36 @@ async function sendFcmNotification(
   
   const accessToken = await getFirebaseAccessToken();
   
-  const message: any = {
-    message: {
-      token: fcmToken,
-      notification: { title, body },
-      android: {
-        priority: 'high',
-        ttl: '0s',
-        notification: {
-          sound: data?.role === 'rider' ? 'fastcaloriesrider' : 'fastcaloriesvendor',
-          channel_id: data?.type === 'CALL' ? 'order-calls-v6' : (data?.role === 'rider' ? 'rider-orders' : 'vendor-orders-v3'),
-          icon: 'ic_notification',
-          ...(data?.type === 'CALL' ? { tag: 'call_notification', click_action: 'OPEN_MAIN_ACTIVITY' } : {}),
+    const isCallType = data?.type === 'CALL';
+    
+    const message: any = {
+      message: {
+        token: fcmToken,
+        android: {
+          priority: 'high',
+          ttl: '0s',
+          ...(isCallType ? {} : {
+            notification: {
+              title,
+              body,
+              sound: data?.role === 'rider' ? 'fastcaloriesrider' : 'fastcaloriesvendor',
+              channel_id: data?.role === 'rider' ? 'rider-orders' : 'vendor-orders-v3',
+              icon: 'ic_notification',
+            },
+          }),
+        },
+        // For non-CALL types, include top-level notification for iOS/web fallback
+        ...(isCallType ? {} : { notification: { title, body } }),
+        // Data payload always included — for CALL types this is the ONLY payload (data-only message)
+        data: {
+          ...(data ? Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)])) : {}),
+          title: title,
+          body: body,
+          // Include channel info in data so native code can use it
+          ...(isCallType ? { channel_id: 'order-calls-v6' } : {}),
         },
       },
-    },
-  };
-  
-  if (data) {
-    message.message.data = data;
-  }
+    };
   
   const response = await fetch(
     `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
