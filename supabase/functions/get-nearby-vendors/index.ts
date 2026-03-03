@@ -1,29 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getGoogleMapsDistance, haversineDistance } from "../_shared/google-maps.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
-
-function calculateHaversineDistance(
-  lat1: number, lon1: number, lat2: number, lon2: number
-): number {
-  const R = 6371;
-  const dLat = toRadians(lat2 - lat1);
-  const dLon = toRadians(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
-function toRadians(degrees: number): number {
-  return degrees * (Math.PI / 180);
-}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -92,7 +75,6 @@ serve(async (req) => {
         .eq("is_approved", true)
         .eq("is_active", true);
 
-      // If a specific outlet was requested, filter to just that one
       if (outlet_id) {
         outletQuery = outletQuery.eq("id", outlet_id);
       }
@@ -106,13 +88,13 @@ serve(async (req) => {
         );
       }
 
-      // Find closest outlet with coordinates
+      // Find closest outlet — use Haversine for quick filtering first
       let closestOutlet = null;
       let closestDistance = Infinity;
 
       for (const outlet of outlets) {
         if (!outlet.latitude || !outlet.longitude) continue;
-        const dist = calculateHaversineDistance(customer_lat, customer_lon, outlet.latitude, outlet.longitude);
+        const dist = haversineDistance(customer_lat, customer_lon, outlet.latitude, outlet.longitude);
         if (dist < closestDistance) {
           closestDistance = dist;
           closestOutlet = outlet;
@@ -125,6 +107,13 @@ serve(async (req) => {
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+
+      // Now get accurate Google Maps distance for the closest outlet
+      const gmResult = await getGoogleMapsDistance(
+        customer_lat, customer_lon, closestOutlet.latitude, closestOutlet.longitude
+      );
+      closestDistance = gmResult.distanceKm;
+      console.log(`Vendor distance (${gmResult.source}): ${closestDistance} km`);
 
       const outletRadius = closestOutlet.sales_radius ?? maxVisibilityRadius;
 
@@ -169,9 +158,11 @@ serve(async (req) => {
             outlet_address: closestOutlet.address,
             outlet_city: closestOutlet.city,
             outlet_state: closestOutlet.state,
-            distance: Math.round(closestDistance * 10) / 10,
+            distance: closestDistance,
             dynamic_delivery_fee: dynamicDeliveryFee,
             display_name: outletDisplayName,
+            estimated_delivery_minutes: gmResult.durationMinutes,
+            distance_source: gmResult.source,
           },
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -200,68 +191,74 @@ serve(async (req) => {
       filteredOutlets = filteredOutlets.filter((o: any) => o.vendors?.category === category);
     }
 
-    // Filter by distance using per-outlet sales_radius
-    const nearbyVendors = filteredOutlets
-      .filter((outlet: any) => {
-        if (!outlet.latitude || !outlet.longitude) {
-          console.log(`Outlet ${outlet.vendors?.name} – ${outlet.outlet_surname} excluded: no coordinates`);
-          return false;
-        }
-        const distance = calculateHaversineDistance(customer_lat, customer_lon, outlet.latitude, outlet.longitude);
-        const outletRadius = outlet.sales_radius ?? maxVisibilityRadius;
-        const withinRadius = distance <= outletRadius;
-        if (!withinRadius) {
-          console.log(`Outlet ${outlet.vendors?.name} – ${outlet.outlet_surname} excluded: ${distance.toFixed(2)}km > ${outletRadius}km`);
-        }
-        return withinRadius;
-      })
-      .map((outlet: any) => {
-        const vendor = outlet.vendors;
-        const distance = calculateHaversineDistance(customer_lat, customer_lon, outlet.latitude, outlet.longitude);
-        const dynamicDeliveryFee = distance <= baseDeliveryDistanceKm
-          ? baseDeliveryFee
-          : Math.round(baseDeliveryFee + (distance - baseDeliveryDistanceKm) * perKmFee);
+    // First pass: quick Haversine filter to get candidates within max radius
+    const candidates = filteredOutlets.filter((outlet: any) => {
+      if (!outlet.latitude || !outlet.longitude) return false;
+      const distance = haversineDistance(customer_lat, customer_lon, outlet.latitude, outlet.longitude);
+      const outletRadius = outlet.sales_radius ?? maxVisibilityRadius;
+      // Use generous 1.5x multiplier for initial filter (road distance > straight line)
+      return distance <= outletRadius * 1.5;
+    });
 
-        return {
-          // Vendor-level fields (for backward compatibility)
-          id: vendor.id,
-          name: vendor.name,
-          description: vendor.description,
-          logo_url: vendor.logo_url,
-          banner_url: vendor.banner_url,
-          category: vendor.category,
-          rating: outlet.rating ?? vendor.rating,
-          total_ratings: outlet.total_ratings ?? vendor.total_ratings,
-          is_active: true,
-          is_open: outlet.is_open,
-          phone: vendor.phone,
-          email: vendor.email,
-          slug: vendor.slug,
-          // Outlet-specific fields
-          outlet_id: outlet.id,
-          outlet_name: outlet.outlet_name,
-          outlet_surname: outlet.outlet_surname,
-          address: outlet.address,
-          city: outlet.city,
-          state: outlet.state,
-          latitude: outlet.latitude,
-          longitude: outlet.longitude,
-          delivery_mode: outlet.delivery_mode,
-          // Computed fields
-          distance: Math.round(distance * 10) / 10,
-          dynamic_delivery_fee: dynamicDeliveryFee,
-          // Display name for customer UI
-          display_name: outlet.outlet_surname
-            ? `${vendor.name} – ${outlet.outlet_surname}`
-            : vendor.name,
-        };
-      })
-      .sort((a: any, b: any) => {
-        if (a.is_open !== b.is_open) return a.is_open ? -1 : 1;
-        return a.distance - b.distance;
+    // Second pass: get accurate Google Maps distances for candidates
+    const nearbyVendors = [];
+    for (const outlet of candidates) {
+      const vendor = (outlet as any).vendors;
+      const gmResult = await getGoogleMapsDistance(
+        customer_lat, customer_lon, outlet.latitude, outlet.longitude
+      );
+      const distance = gmResult.distanceKm;
+      const outletRadius = outlet.sales_radius ?? maxVisibilityRadius;
+
+      if (distance > outletRadius) {
+        console.log(`Outlet ${vendor?.name} – ${outlet.outlet_surname} excluded: ${distance}km (${gmResult.source}) > ${outletRadius}km`);
+        continue;
+      }
+
+      const dynamicDeliveryFee = distance <= baseDeliveryDistanceKm
+        ? baseDeliveryFee
+        : Math.round(baseDeliveryFee + (distance - baseDeliveryDistanceKm) * perKmFee);
+
+      nearbyVendors.push({
+        id: vendor.id,
+        name: vendor.name,
+        description: vendor.description,
+        logo_url: vendor.logo_url,
+        banner_url: vendor.banner_url,
+        category: vendor.category,
+        rating: outlet.rating ?? vendor.rating,
+        total_ratings: outlet.total_ratings ?? vendor.total_ratings,
+        is_active: true,
+        is_open: outlet.is_open,
+        phone: vendor.phone,
+        email: vendor.email,
+        slug: vendor.slug,
+        outlet_id: outlet.id,
+        outlet_name: outlet.outlet_name,
+        outlet_surname: outlet.outlet_surname,
+        address: outlet.address,
+        city: outlet.city,
+        state: outlet.state,
+        latitude: outlet.latitude,
+        longitude: outlet.longitude,
+        delivery_mode: outlet.delivery_mode,
+        distance: distance,
+        dynamic_delivery_fee: dynamicDeliveryFee,
+        estimated_delivery_minutes: gmResult.durationMinutes,
+        distance_source: gmResult.source,
+        display_name: outlet.outlet_surname
+          ? `${vendor.name} – ${outlet.outlet_surname}`
+          : vendor.name,
       });
+    }
 
-    console.log(`Found ${nearbyVendors.length} outlets within radius`);
+    // Sort: open first, then by distance
+    nearbyVendors.sort((a: any, b: any) => {
+      if (a.is_open !== b.is_open) return a.is_open ? -1 : 1;
+      return a.distance - b.distance;
+    });
+
+    console.log(`Found ${nearbyVendors.length} outlets within radius (Google Maps enhanced)`);
 
     return new Response(
       JSON.stringify({

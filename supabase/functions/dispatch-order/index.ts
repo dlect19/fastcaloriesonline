@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
+import { getGoogleMapsDistance, haversineDistance } from '../_shared/google-maps.ts';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -61,21 +61,10 @@ interface PayoutBreakdown {
   timePeriod: string;
 }
 
-// Haversine formula for distance calculation
+// Use shared haversineDistance for quick rider proximity filtering
+// Google Maps is used for the final delivery distance calculation
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371;
-  const dLat = toRadians(lat2 - lat1);
-  const dLon = toRadians(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
-function toRadians(degrees: number): number {
-  return degrees * (Math.PI / 180);
+  return haversineDistance(lat1, lon1, lat2, lon2);
 }
 
 /**
@@ -439,13 +428,17 @@ Deno.serve(async (req) => {
 
     const payoutSettings = getPayoutSettings(settingsMap);
 
-    // Calculate delivery distance early (needed for vehicle type filtering)
+    // Calculate delivery distance using Google Maps for accuracy
     const address = order.addresses as any;
     const customerLat = address?.latitude || null;
     const customerLon = address?.longitude || null;
     let deliveryDistanceKm = 0;
+    let estimatedDeliveryMinutes = 0;
     if (customerLat && customerLon) {
-      deliveryDistanceKm = calculateDistance(pickupLat, pickupLng, customerLat, customerLon);
+      const gmResult = await getGoogleMapsDistance(pickupLat, pickupLng, customerLat, customerLon);
+      deliveryDistanceKm = gmResult.distanceKm;
+      estimatedDeliveryMinutes = gmResult.durationMinutes;
+      console.log(`Delivery distance (${gmResult.source}): ${deliveryDistanceKm} km, ETA: ${estimatedDeliveryMinutes} min`);
     }
 
     // Find eligible riders from ALL tiers with vehicle distance enforcement

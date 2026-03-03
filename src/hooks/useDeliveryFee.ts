@@ -162,10 +162,27 @@ export function useDeliveryFee({ vendorLat, vendorLon, customerLat, customerLon 
     }
   }, [customerLat, customerLon]);
 
-  // Calculate distance when coordinates are available
+  // Calculate distance using Google Maps API (primary) with Haversine fallback
+  const [distanceLoading, setDistanceLoading] = useState(false);
+
   useEffect(() => {
     if (vendorLat && vendorLon && customerLat && customerLon) {
-      setDistanceKm(calculateDistance(customerLat, customerLon, vendorLat, vendorLon));
+      setDistanceLoading(true);
+      // Try Google Maps via edge function
+      supabase.functions.invoke('calculate-distance', {
+        body: { originLat: vendorLat, originLng: vendorLon, destLat: customerLat, destLng: customerLon },
+      }).then(({ data, error }) => {
+        if (data?.distanceInKm && !error) {
+          console.log(`Google Maps distance: ${data.distanceInKm} km`);
+          setDistanceKm(data.distanceInKm);
+        } else {
+          // Haversine fallback
+          console.log('Using Haversine fallback for delivery fee');
+          setDistanceKm(calculateDistance(customerLat!, customerLon!, vendorLat!, vendorLon!));
+        }
+      }).catch(() => {
+        setDistanceKm(calculateDistance(customerLat!, customerLon!, vendorLat!, vendorLon!));
+      }).finally(() => setDistanceLoading(false));
     } else {
       setDistanceKm(null);
     }
@@ -208,7 +225,7 @@ export function useDeliveryFee({ vendorLat, vendorLon, customerLat, customerLon 
     supplySurgePct: riderAvailability.supplyBasedSurge.currentSurgePct,
     distanceKm,
     isOutOfRange,
-    loading: settingsLoading || surgeLoading,
+    loading: settingsLoading || surgeLoading || distanceLoading,
     hasCoordinates: vendorLat !== null && vendorLon !== null && customerLat !== null && customerLon !== null,
   };
 }
