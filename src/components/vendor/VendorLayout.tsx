@@ -7,6 +7,7 @@ import { OutletProvider, useOutletContext } from '@/hooks/useOutletContext';
 import { VendorPermission } from '@/hooks/useVendorPermissions';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useVendorNotificationSound } from '@/hooks/useVendorNotificationSound';
+import { useCapacitorPush } from '@/hooks/useCapacitorPush';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -25,6 +26,7 @@ function VendorLayoutContent({ children, vendorName, vendorId, permissions, onOu
   const [newOrderCount, setNewOrderCount] = useState(0);
   const [resolvedVendorId, setResolvedVendorId] = useState<string | null>(vendorId || null);
   const { playNotification, soundEnabled, setSoundEnabled } = useVendorNotificationSound();
+  useCapacitorPush();
   const prevOrderCountRef = useRef<number | null>(null);
 
   const handleOutletChange = useCallback((outletId: string | null) => {
