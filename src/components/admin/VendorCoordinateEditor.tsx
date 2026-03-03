@@ -1,17 +1,17 @@
- import { useState } from 'react';
- import { Button } from '@/components/ui/button';
- import { Input } from '@/components/ui/input';
- import { Label } from '@/components/ui/label';
- import {
-   Dialog,
-   DialogContent,
-   DialogHeader,
-   DialogTitle,
-   DialogFooter,
- } from '@/components/ui/dialog';
- import { MapPin, Loader2 } from 'lucide-react';
- import { supabase } from '@/integrations/supabase/client';
- import { useToast } from '@/hooks/use-toast';
+import { useState, useRef } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { MapPin, Loader2, Search } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
  
  interface VendorCoordinateEditorProps {
    vendor: {
@@ -24,11 +24,54 @@
  }
  
  export function VendorCoordinateEditor({ vendor, onUpdate }: VendorCoordinateEditorProps) {
-   const { toast } = useToast();
-   const [open, setOpen] = useState(false);
-   const [loading, setLoading] = useState(false);
-   const [latitude, setLatitude] = useState(vendor.latitude?.toString() || '');
-   const [longitude, setLongitude] = useState(vendor.longitude?.toString() || '');
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [latitude, setLatitude] = useState(vendor.latitude?.toString() || '');
+  const [longitude, setLongitude] = useState(vendor.longitude?.toString() || '');
+  const [addressQuery, setAddressQuery] = useState('');
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const sessionTokenRef = useRef(crypto.randomUUID());
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+
+  const searchAddress = async (input: string) => {
+    setAddressQuery(input);
+    if (input.length < 3) { setSuggestions([]); return; }
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      setSearchLoading(true);
+      try {
+        const { data } = await supabase.functions.invoke('google-places-autocomplete', {
+          body: { input, sessionToken: sessionTokenRef.current },
+        });
+        setSuggestions(data?.predictions || []);
+      } catch { setSuggestions([]); }
+      setSearchLoading(false);
+    }, 300);
+  };
+
+  const selectPlace = async (placeId: string) => {
+    setSuggestions([]);
+    setSearchLoading(true);
+    try {
+      const { data } = await supabase.functions.invoke('google-place-details', {
+        body: { place_id: placeId, sessionToken: sessionTokenRef.current },
+      });
+      if (data?.latitude && data?.longitude) {
+        setLatitude(data.latitude.toString());
+        setLongitude(data.longitude.toString());
+        setAddressQuery(data.formatted_address || '');
+        toast({ title: 'Coordinates found', description: `${data.latitude}, ${data.longitude}` });
+      } else {
+        toast({ title: 'Could not resolve coordinates', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Lookup failed', variant: 'destructive' });
+    }
+    setSearchLoading(false);
+    sessionTokenRef.current = crypto.randomUUID();
+  };
  
    const handleSave = async () => {
      const lat = parseFloat(latitude);
@@ -95,50 +138,83 @@
              <DialogTitle>Edit Coordinates: {vendor.name}</DialogTitle>
            </DialogHeader>
  
-           <div className="space-y-4 py-4">
-             <div className="space-y-2">
-               <Label htmlFor="latitude">Latitude</Label>
-               <Input
-                 id="latitude"
-                 type="number"
-                 step="any"
-                 placeholder="e.g. 6.5244"
-                 value={latitude}
-                 onChange={(e) => setLatitude(e.target.value)}
-               />
-               <p className="text-xs text-muted-foreground">Range: -90 to 90</p>
-             </div>
- 
-             <div className="space-y-2">
-               <Label htmlFor="longitude">Longitude</Label>
-               <Input
-                 id="longitude"
-                 type="number"
-                 step="any"
-                 placeholder="e.g. 3.3792"
-                 value={longitude}
-                 onChange={(e) => setLongitude(e.target.value)}
-               />
-               <p className="text-xs text-muted-foreground">Range: -180 to 180</p>
-             </div>
- 
-             {vendor.latitude && vendor.longitude && (
-               <div className="p-3 bg-muted rounded-lg text-sm">
-                 <p className="font-medium">Current coordinates:</p>
-                 <p className="text-muted-foreground">
-                   {vendor.latitude}, {vendor.longitude}
-                 </p>
-               </div>
-             )}
- 
-             {(!vendor.latitude || !vendor.longitude) && (
-               <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-sm">
-                 <p className="text-destructive">
-                   ⚠️ This vendor has no coordinates set. They won't appear in nearby searches.
-                 </p>
-               </div>
-             )}
-           </div>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Search Address</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Type an address to lookup coordinates…"
+                    value={addressQuery}
+                    onChange={(e) => searchAddress(e.target.value)}
+                    className="pl-9"
+                  />
+                  {searchLoading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin" />}
+                </div>
+                {suggestions.length > 0 && (
+                  <div className="border rounded-md max-h-40 overflow-y-auto divide-y">
+                    {suggestions.map((s: any) => (
+                      <button
+                        key={s.place_id}
+                        onClick={() => selectPlace(s.place_id)}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors"
+                      >
+                        {s.description}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="relative flex items-center gap-2 py-1">
+                <div className="flex-1 border-t" />
+                <span className="text-xs text-muted-foreground">or enter manually</span>
+                <div className="flex-1 border-t" />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="latitude">Latitude</Label>
+                <Input
+                  id="latitude"
+                  type="number"
+                  step="any"
+                  placeholder="e.g. 6.5244"
+                  value={latitude}
+                  onChange={(e) => setLatitude(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">Range: -90 to 90</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="longitude">Longitude</Label>
+                <Input
+                  id="longitude"
+                  type="number"
+                  step="any"
+                  placeholder="e.g. 3.3792"
+                  value={longitude}
+                  onChange={(e) => setLongitude(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">Range: -180 to 180</p>
+              </div>
+
+              {vendor.latitude && vendor.longitude && (
+                <div className="p-3 bg-muted rounded-lg text-sm">
+                  <p className="font-medium">Current coordinates:</p>
+                  <p className="text-muted-foreground">
+                    {vendor.latitude}, {vendor.longitude}
+                  </p>
+                </div>
+              )}
+
+              {(!vendor.latitude || !vendor.longitude) && (
+                <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-sm">
+                  <p className="text-destructive">
+                    ⚠️ This vendor has no coordinates set. They won't appear in nearby searches.
+                  </p>
+                </div>
+              )}
+            </div>
  
            <DialogFooter>
              <Button variant="outline" onClick={() => setOpen(false)}>
