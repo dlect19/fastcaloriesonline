@@ -85,6 +85,17 @@ export function useCapacitorPush() {
         PushNotifications.addListener('pushNotificationReceived', (notification) => {
           console.log('Push received in foreground:', notification);
         });
+
+        // Handle notification tap / action button press
+        PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+          const data = action.notification.data;
+          console.log('Push action performed:', data);
+          if (data?.type === 'CALL' && data?.orderId) {
+            window.location.href = '/vendor/orders';
+          } else if (data?.url) {
+            window.location.href = data.url;
+          }
+        });
       } catch {
         // Not in Capacitor environment
       }
