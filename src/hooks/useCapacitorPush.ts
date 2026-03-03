@@ -19,9 +19,9 @@ export function useCapacitorPush() {
 
         // Create vendor orders channel with custom sound
         await PushNotifications.createChannel({
-          id: 'vendor-orders',
-          name: 'New Orders',
-          description: 'Notifications for new vendor orders',
+          id: 'vendor-orders-v2',
+          name: 'New Orders Sound',
+          description: 'Vendor order alerts',
           sound: 'fastcaloriesvendor',
           importance: 5,
           visibility: 1,
