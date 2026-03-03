@@ -21,8 +21,8 @@ export function useCapacitorPush() {
         await PushNotifications.createChannel({
           id: 'vendor-orders',
           name: 'New Orders',
-          description: 'Notifications with sound for new vendor orders',
-          sound: 'order_sound',
+          description: 'Notifications for new vendor orders',
+          sound: 'fastcaloriesvendor',
           importance: 5,
           visibility: 1,
           vibration: true,
@@ -32,8 +32,8 @@ export function useCapacitorPush() {
         await PushNotifications.createChannel({
           id: 'rider-orders',
           name: 'Rider Dispatch',
-          description: 'Notifications with sound for new rider dispatch offers',
-          sound: 'order_sound',
+          description: 'Notifications for new rider dispatch offers',
+          sound: 'fastcaloriesrider',
           importance: 5,
           visibility: 1,
           vibration: true,

@@ -219,7 +219,7 @@ async function sendFcmNotification(
       android: {
         priority: 'high',
         notification: {
-          sound: 'order_sound',
+          sound: data?.role === 'rider' ? 'fastcaloriesrider' : 'fastcaloriesvendor',
           channel_id: data?.role === 'rider' ? 'rider-orders' : 'vendor-orders',
           icon: 'ic_notification',
         },
