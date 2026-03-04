@@ -1,4 +1,5 @@
-import { Download, X, Sparkles } from 'lucide-react';
+import { useState } from 'react';
+import { Download, X, Sparkles, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useApkUpdateCheck } from '@/hooks/useApkUpdateCheck';
 import { downloadApk } from '@/lib/apkInstall';
@@ -9,12 +10,19 @@ interface ApkUpdateBannerProps {
 
 export function ApkUpdateBanner({ appType }: ApkUpdateBannerProps) {
   const { updateInfo, dismiss } = useApkUpdateCheck(appType);
+  const [downloading, setDownloading] = useState(false);
 
   if (!updateInfo) return null;
 
   const handleUpdate = async (e: React.MouseEvent) => {
-    const handled = await downloadApk(updateInfo.downloadUrl);
-    if (handled) e.preventDefault();
+    e.preventDefault();
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      await downloadApk(updateInfo.downloadUrl);
+    } finally {
+      setTimeout(() => setDownloading(false), 3000);
+    }
   };
 
   return (
@@ -28,11 +36,13 @@ export function ApkUpdateBanner({ appType }: ApkUpdateBannerProps) {
         </p>
         <p className="text-xs text-muted-foreground truncate">{updateInfo.changelog}</p>
       </div>
-      <Button asChild size="sm" className="shrink-0 h-8 text-xs">
-        <a href={updateInfo.downloadUrl} download onClick={handleUpdate}>
+      <Button size="sm" className="shrink-0 h-8 text-xs" disabled={downloading} onClick={handleUpdate}>
+        {downloading ? (
+          <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+        ) : (
           <Download className="w-3.5 h-3.5 mr-1" />
-          Update
-        </a>
+        )}
+        {downloading ? 'Opening...' : 'Update'}
       </Button>
       <button
         onClick={() => dismiss(updateInfo.version)}
