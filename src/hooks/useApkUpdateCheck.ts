@@ -14,23 +14,21 @@ export function useApkUpdateCheck(appType: 'customer' | 'rider' | 'vendor') {
   useEffect(() => {
     const versionKey = `${appType}_apk_version`;
     const changelogKey = `${appType}_apk_changelog`;
+    const downloadUrlKey = `${appType}_apk_download_url`;
     const localStorageKey = `${appType}_apk_dismissed_version`;
-    const downloadUrl = appType === 'rider'
-      ? '/downloads/fastcalories-rider.apk'
-      : appType === 'vendor'
-      ? '/downloads/fastcalories-vendor.apk'
-      : '/downloads/fastcalories-customer.apk';
 
     const checkUpdate = async () => {
       const { data, error } = await supabase
         .from('platform_settings')
         .select('key, value')
-        .in('key', [versionKey, changelogKey]);
+        .in('key', [versionKey, changelogKey, downloadUrlKey]);
 
       if (error || !data) return;
 
       const version = data.find(d => d.key === versionKey)?.value || '1.0.0';
       const changelog = data.find(d => d.key === changelogKey)?.value || 'Performance improvements';
+      const downloadUrl = data.find(d => d.key === downloadUrlKey)?.value
+        || `/downloads/fastcalories-${appType}.apk`;
 
       const dismissedVersion = localStorage.getItem(localStorageKey);
       if (dismissedVersion === version) return;
