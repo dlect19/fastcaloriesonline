@@ -36,83 +36,27 @@ export default function AdminNotifications() {
     setResult(null);
 
     try {
-      // Step 1: Get all push subscriber user_ids
-      const { data: subs, error: subError } = await supabase
-        .from('push_subscriptions')
-        .select('user_id');
+      const { data, error } = await supabase.functions.invoke('broadcast-notification', {
+        body: {
+          title: title.trim(),
+          body: body.trim(),
+          url: url.trim() || '/',
+          target: broadcastTarget,
+        },
+      });
 
-      if (subError) throw subError;
+      if (error) throw error;
 
-      let allSubUserIds = [...new Set((subs || []).map(s => s.user_id).filter(Boolean))];
-
-      if (allSubUserIds.length === 0) {
-        toast({ title: 'No subscribers found', description: 'No users have enabled push notifications yet.', variant: 'destructive' });
-        setSending(false);
-        return;
+      if (data?.sent === 0 && data?.total_targeted === 0) {
+        toast({ title: `No ${broadcastTarget} subscribers found`, variant: 'destructive' });
+      } else {
+        setResult({ sent: data?.sent || 0, failed: data?.failed || 0 });
+        const targetLabel = broadcastTarget === 'all' ? '' : ` ${broadcastTarget}`;
+        toast({ title: `Notification sent to ${data?.sent || 0}${targetLabel} users` });
+        setTitle('');
+        setBody('');
+        setUrl('/');
       }
-
-      // Step 2: Filter by target audience
-      let targetUserIds: string[] = allSubUserIds;
-
-      if (broadcastTarget !== 'all') {
-        // Fetch rider and vendor user_ids for filtering
-        const { data: riders } = await supabase.from('rider_profiles').select('user_id');
-        const riderIds = new Set((riders || []).map(r => r.user_id).filter(Boolean));
-
-        const { data: vendors } = await supabase.from('vendors').select('user_id');
-        const vendorOwnerIds = new Set((vendors || []).map(v => v.user_id).filter(Boolean));
-
-        const { data: vendorStaff } = await supabase.from('vendor_staff').select('user_id').eq('is_active', true);
-        const vendorStaffIds = new Set((vendorStaff || []).map(s => s.user_id).filter(Boolean));
-
-        const allVendorIds = new Set([...vendorOwnerIds, ...vendorStaffIds]);
-
-        if (broadcastTarget === 'customers') {
-          targetUserIds = allSubUserIds.filter(id => !riderIds.has(id) && !allVendorIds.has(id));
-        } else if (broadcastTarget === 'riders') {
-          targetUserIds = allSubUserIds.filter(id => riderIds.has(id));
-        } else if (broadcastTarget === 'vendors') {
-          targetUserIds = allSubUserIds.filter(id => allVendorIds.has(id));
-        }
-      }
-
-      if (targetUserIds.length === 0) {
-        const label = broadcastTarget === 'all' ? '' : ` ${broadcastTarget}`;
-        toast({ title: `No${label} subscribers found`, variant: 'destructive' });
-        setSending(false);
-        return;
-      }
-
-      // Step 3: Send in batches
-      let totalSent = 0;
-      let totalFailed = 0;
-      const batchSize = 50;
-
-      for (let i = 0; i < targetUserIds.length; i += batchSize) {
-        const batch = targetUserIds.slice(i, i + batchSize);
-        const { data, error } = await supabase.functions.invoke('send-push-notification', {
-          body: {
-            user_ids: batch,
-            title: title.trim(),
-            body: body.trim(),
-            url: url.trim() || '/',
-          },
-        });
-
-        if (error) {
-          totalFailed += batch.length;
-        } else {
-          totalSent += data?.sent || 0;
-          totalFailed += data?.failed || 0;
-        }
-      }
-
-      setResult({ sent: totalSent, failed: totalFailed });
-      const targetLabel = broadcastTarget === 'all' ? '' : ` ${broadcastTarget}`;
-      toast({ title: `Notification sent to ${totalSent}${targetLabel} users` });
-      setTitle('');
-      setBody('');
-      setUrl('/');
     } catch (error: any) {
       toast({ title: 'Failed to send', description: error.message, variant: 'destructive' });
     } finally {
