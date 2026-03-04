@@ -20,7 +20,7 @@ export default function AdminNotifications() {
   const [url, setUrl] = useState('/');
   const [result, setResult] = useState<{ sent: number; failed: number } | null>(null);
 
-  const [apkAppType, setApkAppType] = useState<'customer' | 'rider'>('customer');
+  const [apkAppType, setApkAppType] = useState<'customer' | 'rider' | 'vendor'>('customer');
   const [apkVersion, setApkVersion] = useState('');
   const [apkChangelog, setApkChangelog] = useState('');
   const [sendingApk, setSendingApk] = useState(false);
@@ -218,13 +218,14 @@ export default function AdminNotifications() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label>App Type</Label>
-                <Select value={apkAppType} onValueChange={(v) => setApkAppType(v as 'customer' | 'rider')}>
+                <Select value={apkAppType} onValueChange={(v) => setApkAppType(v as 'customer' | 'rider' | 'vendor')}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="customer">Customer App</SelectItem>
                     <SelectItem value="rider">Rider App</SelectItem>
+                    <SelectItem value="vendor">Vendor App</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
