@@ -40,12 +40,15 @@ serve(async (req) => {
     // Get targeted user IDs based on app_type
     let targetUserIds: string[] = [];
 
+    console.log(`APK update notification for app_type: "${app_type}", version: "${version}"`);
+
     if (app_type === 'rider') {
       // Only notify users who are riders
       const { data: riders } = await supabase
         .from('rider_profiles')
         .select('user_id');
       targetUserIds = (riders || []).map(r => r.user_id).filter(Boolean);
+      console.log(`Found ${targetUserIds.length} rider user IDs`);
 
     } else if (app_type === 'vendor') {
       // Only notify vendor owners + vendor staff
@@ -53,23 +56,26 @@ serve(async (req) => {
         .from('vendors')
         .select('user_id');
       const vendorOwnerIds = (vendors || []).map(v => v.user_id).filter(Boolean);
+      console.log(`Found ${vendorOwnerIds.length} vendor owner IDs`);
 
       const { data: staff } = await supabase
         .from('vendor_staff')
         .select('user_id')
         .eq('is_active', true);
       const staffIds = (staff || []).map(s => s.user_id).filter(Boolean);
+      console.log(`Found ${staffIds.length} vendor staff IDs`);
 
       targetUserIds = [...new Set([...vendorOwnerIds, ...staffIds])];
+      console.log(`Total unique vendor targets: ${targetUserIds.length}`);
 
     } else {
       // Customer: notify users who are NOT riders and NOT vendors
-      // Get all subscriber user_ids first, then exclude riders & vendors
       const { data: subs } = await supabase
         .from('push_subscriptions')
         .select('user_id')
         .not('user_id', 'is', null);
       const allSubIds = [...new Set((subs || []).map(s => s.user_id).filter(Boolean))];
+      console.log(`Total push subscribers: ${allSubIds.length}`);
 
       const { data: riders } = await supabase
         .from('rider_profiles')
@@ -88,6 +94,7 @@ serve(async (req) => {
       (staff || []).forEach(s => { if (s.user_id) vendorIds.add(s.user_id); });
 
       targetUserIds = allSubIds.filter(id => !riderIds.has(id) && !vendorIds.has(id));
+      console.log(`Customer targets (excluding ${riderIds.size} riders, ${vendorIds.size} vendors): ${targetUserIds.length}`);
     }
 
     if (targetUserIds.length === 0) {
