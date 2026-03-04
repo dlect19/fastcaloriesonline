@@ -1,8 +1,30 @@
-import { Smartphone, Share, MoreVertical, Download, Plus, ArrowLeft, ExternalLink } from 'lucide-react';
+import { useState } from 'react';
+import { Smartphone, Share, Download, Plus, ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { downloadApk } from '@/lib/apkInstall';
+
+function DownloadButton({ url, label, variant = 'default', className = '' }: { url: string; label: string; variant?: 'default' | 'outline'; className?: string }) {
+  const [downloading, setDownloading] = useState(false);
+
+  const handleClick = async () => {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      await downloadApk(url);
+    } finally {
+      setTimeout(() => setDownloading(false), 3000);
+    }
+  };
+
+  return (
+    <Button variant={variant} className={className} disabled={downloading} onClick={handleClick}>
+      {downloading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Download className="w-5 h-5 mr-2" />}
+      {downloading ? 'Opening...' : label}
+    </Button>
+  );
+}
 
 export default function Install() {
   const navigate = useNavigate();
@@ -71,32 +93,18 @@ export default function Install() {
                 </div>
               </div>
             </div>
-            <Button asChild className="w-full h-12 text-base gap-2">
-              <a href={apkUrl} download onClick={async (e) => { const ok = await downloadApk(apkUrl); if (ok) e.preventDefault(); }}>
-                <Download className="w-5 h-5" />
-                Download APK ({appLabel} App)
-              </a>
-            </Button>
+            <DownloadButton url={apkUrl} label={`Download APK (${appLabel} App)`} className="w-full h-12 text-base gap-2" />
             <p className="text-xs text-muted-foreground text-center">
               After downloading, tap the file to install. You may need to allow "Install from unknown sources" in your phone settings.
             </p>
           </CardContent>
         </Card>
 
-        {/* Both APKs */}
-        <div className="grid grid-cols-2 gap-3">
-          <Button asChild variant="outline" className="h-auto py-3 flex-col gap-1">
-            <a href="/downloads/fastcalories-customer.apk" download onClick={async (e) => { const ok = await downloadApk('/downloads/fastcalories-customer.apk'); if (ok) e.preventDefault(); }}>
-              <Download className="w-4 h-4" />
-              <span className="text-xs font-medium">Customer App</span>
-            </a>
-          </Button>
-          <Button asChild variant="outline" className="h-auto py-3 flex-col gap-1">
-            <a href="/downloads/fastcalories-rider.apk" download onClick={async (e) => { const ok = await downloadApk('/downloads/fastcalories-rider.apk'); if (ok) e.preventDefault(); }}>
-              <Download className="w-4 h-4" />
-              <span className="text-xs font-medium">Rider App</span>
-            </a>
-          </Button>
+        {/* All APKs */}
+        <div className="grid grid-cols-3 gap-3">
+          <DownloadButton url="/downloads/fastcalories-customer.apk" label="Customer App" variant="outline" className="h-auto py-3 flex-col gap-1 text-xs" />
+          <DownloadButton url="/downloads/fastcalories-rider.apk" label="Rider App" variant="outline" className="h-auto py-3 flex-col gap-1 text-xs" />
+          <DownloadButton url="/downloads/fastcalories-vendor.apk" label="Vendor App" variant="outline" className="h-auto py-3 flex-col gap-1 text-xs" />
         </div>
 
         {/* Benefits */}
@@ -146,9 +154,7 @@ export default function Install() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-start gap-3">
-              <div className="w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0 text-sm font-bold">
-                1
-              </div>
+              <div className="w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0 text-sm font-bold">1</div>
               <div className="flex items-center gap-2 text-foreground">
                 <span>Tap the Share button</span>
                 <Share className="w-5 h-5 text-muted-foreground" />
@@ -156,15 +162,11 @@ export default function Install() {
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <div className="w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0 text-sm font-bold">
-                2
-              </div>
+              <div className="w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0 text-sm font-bold">2</div>
               <p className="text-foreground">Scroll down and tap "Add to Home Screen"</p>
             </div>
             <div className="flex items-start gap-3">
-              <div className="w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0 text-sm font-bold">
-                3
-              </div>
+              <div className="w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0 text-sm font-bold">3</div>
               <p className="text-foreground">Tap "Add" in the top right corner</p>
             </div>
           </CardContent>
