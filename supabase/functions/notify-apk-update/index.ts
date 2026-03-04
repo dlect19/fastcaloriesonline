@@ -37,30 +37,86 @@ serve(async (req) => {
       { onConflict: 'key' }
     );
 
-    // Get all user IDs with push subscriptions
-    const { data: subs, error: subError } = await supabase
-      .from('push_subscriptions')
-      .select('user_id')
-      .not('user_id', 'is', null);
+    // Get targeted user IDs based on app_type
+    let targetUserIds: string[] = [];
 
-    if (subError) throw subError;
+    if (app_type === 'rider') {
+      // Only notify users who are riders
+      const { data: riders } = await supabase
+        .from('rider_profiles')
+        .select('user_id');
+      targetUserIds = (riders || []).map(r => r.user_id).filter(Boolean);
 
-    const uniqueUserIds = [...new Set((subs || []).map(s => s.user_id).filter(Boolean))];
+    } else if (app_type === 'vendor') {
+      // Only notify vendor owners + vendor staff
+      const { data: vendors } = await supabase
+        .from('vendors')
+        .select('user_id');
+      const vendorOwnerIds = (vendors || []).map(v => v.user_id).filter(Boolean);
 
-    if (uniqueUserIds.length === 0) {
-      return new Response(JSON.stringify({ sent: 0, message: 'No subscribers' }), {
+      const { data: staff } = await supabase
+        .from('vendor_staff')
+        .select('user_id')
+        .eq('is_active', true);
+      const staffIds = (staff || []).map(s => s.user_id).filter(Boolean);
+
+      targetUserIds = [...new Set([...vendorOwnerIds, ...staffIds])];
+
+    } else {
+      // Customer: notify users who are NOT riders and NOT vendors
+      // Get all subscriber user_ids first, then exclude riders & vendors
+      const { data: subs } = await supabase
+        .from('push_subscriptions')
+        .select('user_id')
+        .not('user_id', 'is', null);
+      const allSubIds = [...new Set((subs || []).map(s => s.user_id).filter(Boolean))];
+
+      const { data: riders } = await supabase
+        .from('rider_profiles')
+        .select('user_id');
+      const riderIds = new Set((riders || []).map(r => r.user_id));
+
+      const { data: vendors } = await supabase
+        .from('vendors')
+        .select('user_id');
+      const vendorIds = new Set((vendors || []).map(v => v.user_id));
+
+      const { data: staff } = await supabase
+        .from('vendor_staff')
+        .select('user_id')
+        .eq('is_active', true);
+      (staff || []).forEach(s => { if (s.user_id) vendorIds.add(s.user_id); });
+
+      targetUserIds = allSubIds.filter(id => !riderIds.has(id) && !vendorIds.has(id));
+    }
+
+    if (targetUserIds.length === 0) {
+      return new Response(JSON.stringify({ sent: 0, message: `No ${app_type} subscribers found` }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const appLabel = app_type === 'rider' ? 'Rider' : 'Customer';
+    // Filter to only those with push subscriptions
+    const { data: subs } = await supabase
+      .from('push_subscriptions')
+      .select('user_id')
+      .in('user_id', targetUserIds);
+    const subscribedUserIds = [...new Set((subs || []).map(s => s.user_id).filter(Boolean))];
+
+    if (subscribedUserIds.length === 0) {
+      return new Response(JSON.stringify({ sent: 0, message: `No ${app_type} users with push enabled` }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const appLabel = app_type === 'rider' ? 'Rider' : app_type === 'vendor' ? 'Vendor' : 'Customer';
 
     // Send push notifications in batches of 50
     let totalSent = 0;
     const batchSize = 50;
 
-    for (let i = 0; i < uniqueUserIds.length; i += batchSize) {
-      const batch = uniqueUserIds.slice(i, i + batchSize);
+    for (let i = 0; i < subscribedUserIds.length; i += batchSize) {
+      const batch = subscribedUserIds.slice(i, i + batchSize);
 
       const pushRes = await fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
         method: 'POST',
@@ -86,7 +142,8 @@ serve(async (req) => {
     return new Response(JSON.stringify({ 
       success: true, 
       notified: totalSent,
-      total_subscribers: uniqueUserIds.length,
+      total_targeted: subscribedUserIds.length,
+      app_type,
       version 
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

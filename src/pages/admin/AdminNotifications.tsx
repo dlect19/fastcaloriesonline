@@ -102,9 +102,10 @@ export default function AdminNotifications() {
 
       if (error) throw error;
 
+      const appLabel = apkAppType === 'rider' ? 'Rider' : apkAppType === 'vendor' ? 'Vendor' : 'Customer';
       toast({
-        title: `APK update notification sent!`,
-        description: `Notified ${data?.notified || 0} of ${data?.total_subscribers || 0} subscribers`,
+        title: `${appLabel} APK update notification sent!`,
+        description: `Notified ${data?.notified || 0} of ${data?.total_targeted || 0} ${appLabel.toLowerCase()} users`,
       });
       setApkVersion('');
       setApkChangelog('');
