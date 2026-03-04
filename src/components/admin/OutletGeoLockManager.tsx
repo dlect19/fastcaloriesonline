@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { MapPin, Lock, Unlock, Sliders, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { MapPin, Lock, Unlock, Sliders, CheckCircle, XCircle, Loader2, FileText, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -29,6 +29,7 @@ export function OutletGeoLockManager({ outletId, outletName, open, onClose, onUp
   const [outlet, setOutlet] = useState<any>(null);
   const [logs, setLogs] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
+  const [docs, setDocs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [toleranceInput, setToleranceInput] = useState('');
   const [adminNotes, setAdminNotes] = useState('');
@@ -40,14 +41,20 @@ export function OutletGeoLockManager({ outletId, outletName, open, onClose, onUp
 
   const fetchAll = async () => {
     setLoading(true);
-    const [outletRes, logsRes, reqRes] = await Promise.all([
-      supabase.from('vendor_outlets').select('*').eq('id', outletId).single(),
+    const outletRes = await supabase.from('vendor_outlets').select('*').eq('id', outletId).single();
+    const vendorId = outletRes.data?.vendor_id;
+
+    const [logsRes, reqRes, docsRes] = await Promise.all([
       supabase.from('vendor_location_logs').select('*').eq('vendor_id', outletId).order('created_at', { ascending: false }).limit(50),
-      supabase.from('vendor_reverification_requests').select('*').eq('vendor_id', outletId).order('created_at', { ascending: false }),
+      supabase.from('vendor_reverification_requests').select('*').eq('vendor_id', vendorId || outletId).order('created_at', { ascending: false }),
+      vendorId
+        ? supabase.from('vendor_verification_documents').select('*').eq('vendor_id', vendorId).order('created_at', { ascending: false })
+        : Promise.resolve({ data: [] }),
     ]);
     setOutlet(outletRes.data);
     setLogs(logsRes.data || []);
     setRequests(reqRes.data || []);
+    setDocs((docsRes as any).data || []);
     setToleranceInput(String(outletRes.data?.tolerance_radius_m || 100));
     setLoading(false);
   };
@@ -136,6 +143,29 @@ export function OutletGeoLockManager({ outletId, outletName, open, onClose, onUp
     onUpdate();
   };
 
+  const handleDocReview = async (docId: string, action: 'approved' | 'rejected') => {
+    const userId = (await supabase.auth.getUser()).data.user?.id;
+    await supabase.from('vendor_verification_documents').update({
+      status: action,
+      reviewed_by: userId,
+      reviewed_at: new Date().toISOString(),
+      rejection_reason: action === 'rejected' ? 'Document rejected by admin' : null,
+    }).eq('id', docId);
+    toast({ title: `Document ${action}` });
+    fetchAll();
+  };
+
+  const getDocUrl = async (filePath: string) => {
+    const { data } = await supabase.storage
+      .from('vendor-verification-docs')
+      .createSignedUrl(filePath, 3600);
+    if (data?.signedUrl) {
+      window.open(data.signedUrl, '_blank');
+    } else {
+      toast({ title: 'Failed to generate document URL', variant: 'destructive' });
+    }
+  };
+
   const geoStatusColor = (status: string) => {
     switch (status) {
       case 'verified': return 'bg-green-500/10 text-green-600 border-green-500/30';
@@ -162,9 +192,10 @@ export function OutletGeoLockManager({ outletId, outletName, open, onClose, onUp
           <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin" /></div>
         ) : (
           <Tabs defaultValue="overview">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="requests">Requests ({requests.filter(r => r.status === 'pending').length})</TabsTrigger>
+              <TabsTrigger value="documents">Documents ({docs.length})</TabsTrigger>
               <TabsTrigger value="logs">Logs ({logs.length})</TabsTrigger>
             </TabsList>
 
@@ -254,6 +285,45 @@ export function OutletGeoLockManager({ outletId, outletName, open, onClose, onUp
                   </CardContent>
                 </Card>
               ))}
+            </TabsContent>
+
+            <TabsContent value="documents" className="space-y-3">
+              {docs.length === 0 ? (
+                <p className="text-center text-muted-foreground py-4">No documents uploaded</p>
+              ) : (
+                docs.map(doc => (
+                  <div key={doc.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">{(doc.document_type || '').replace(/_/g, ' ')}</p>
+                      <p className="text-xs text-muted-foreground">{doc.file_name}</p>
+                      <Badge variant="outline" className={
+                        doc.status === 'approved' ? 'bg-green-500/10 text-green-600 mt-1' :
+                        doc.status === 'rejected' ? 'bg-destructive/10 text-destructive mt-1' : 'mt-1'
+                      }>
+                        {doc.status}
+                      </Badge>
+                      {doc.rejection_reason && (
+                        <p className="text-xs text-destructive">{doc.rejection_reason}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="outline" onClick={() => getDocUrl(doc.file_url)} className="gap-1">
+                        <ExternalLink className="w-3 h-3" /> View
+                      </Button>
+                      {doc.status === 'pending' && (
+                        <>
+                          <Button size="sm" variant="outline" onClick={() => handleDocReview(doc.id, 'approved')}>
+                            <CheckCircle className="w-4 h-4 text-green-600" />
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => handleDocReview(doc.id, 'rejected')}>
+                            <XCircle className="w-4 h-4 text-destructive" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
             </TabsContent>
 
             <TabsContent value="logs">
