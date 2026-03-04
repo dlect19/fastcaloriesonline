@@ -19,6 +19,7 @@ export default function AdminNotifications() {
   const [body, setBody] = useState('');
   const [url, setUrl] = useState('/');
   const [result, setResult] = useState<{ sent: number; failed: number } | null>(null);
+  const [broadcastTarget, setBroadcastTarget] = useState<'all' | 'customers' | 'riders' | 'vendors'>('all');
 
   const [apkAppType, setApkAppType] = useState<'customer' | 'rider' | 'vendor'>('customer');
   const [apkVersion, setApkVersion] = useState('');
@@ -35,26 +36,60 @@ export default function AdminNotifications() {
     setResult(null);
 
     try {
+      // Step 1: Get all push subscriber user_ids
       const { data: subs, error: subError } = await supabase
         .from('push_subscriptions')
         .select('user_id');
 
       if (subError) throw subError;
 
-      const uniqueUserIds = [...new Set((subs || []).map(s => s.user_id).filter(Boolean))];
+      let allSubUserIds = [...new Set((subs || []).map(s => s.user_id).filter(Boolean))];
 
-      if (uniqueUserIds.length === 0) {
+      if (allSubUserIds.length === 0) {
         toast({ title: 'No subscribers found', description: 'No users have enabled push notifications yet.', variant: 'destructive' });
         setSending(false);
         return;
       }
 
+      // Step 2: Filter by target audience
+      let targetUserIds: string[] = allSubUserIds;
+
+      if (broadcastTarget !== 'all') {
+        // Fetch rider and vendor user_ids for filtering
+        const { data: riders } = await supabase.from('rider_profiles').select('user_id');
+        const riderIds = new Set((riders || []).map(r => r.user_id).filter(Boolean));
+
+        const { data: vendors } = await supabase.from('vendors').select('user_id');
+        const vendorOwnerIds = new Set((vendors || []).map(v => v.user_id).filter(Boolean));
+
+        const { data: vendorStaff } = await supabase.from('vendor_staff').select('user_id').eq('is_active', true);
+        const vendorStaffIds = new Set((vendorStaff || []).map(s => s.user_id).filter(Boolean));
+
+        const allVendorIds = new Set([...vendorOwnerIds, ...vendorStaffIds]);
+
+        if (broadcastTarget === 'customers') {
+          targetUserIds = allSubUserIds.filter(id => !riderIds.has(id) && !allVendorIds.has(id));
+        } else if (broadcastTarget === 'riders') {
+          targetUserIds = allSubUserIds.filter(id => riderIds.has(id));
+        } else if (broadcastTarget === 'vendors') {
+          targetUserIds = allSubUserIds.filter(id => allVendorIds.has(id));
+        }
+      }
+
+      if (targetUserIds.length === 0) {
+        const label = broadcastTarget === 'all' ? '' : ` ${broadcastTarget}`;
+        toast({ title: `No${label} subscribers found`, variant: 'destructive' });
+        setSending(false);
+        return;
+      }
+
+      // Step 3: Send in batches
       let totalSent = 0;
       let totalFailed = 0;
       const batchSize = 50;
 
-      for (let i = 0; i < uniqueUserIds.length; i += batchSize) {
-        const batch = uniqueUserIds.slice(i, i + batchSize);
+      for (let i = 0; i < targetUserIds.length; i += batchSize) {
+        const batch = targetUserIds.slice(i, i + batchSize);
         const { data, error } = await supabase.functions.invoke('send-push-notification', {
           body: {
             user_ids: batch,
@@ -73,7 +108,8 @@ export default function AdminNotifications() {
       }
 
       setResult({ sent: totalSent, failed: totalFailed });
-      toast({ title: `Notification sent to ${totalSent} users` });
+      const targetLabel = broadcastTarget === 'all' ? '' : ` ${broadcastTarget}`;
+      toast({ title: `Notification sent to ${totalSent}${targetLabel} users` });
       setTitle('');
       setBody('');
       setUrl('/');
@@ -120,6 +156,10 @@ export default function AdminNotifications() {
     setter(prev => prev + emoji);
   };
 
+  const sendButtonLabel = broadcastTarget === 'all'
+    ? 'Send to All Users'
+    : `Send to ${broadcastTarget.charAt(0).toUpperCase() + broadcastTarget.slice(1)}`;
+
   return (
     <div className="flex min-h-screen bg-background">
       <AdminSidebar />
@@ -130,7 +170,7 @@ export default function AdminNotifications() {
               <Megaphone className="w-8 h-8 text-primary" />
               Push Notifications
             </h1>
-            <p className="text-muted-foreground mt-1">Send push notifications to all app users</p>
+            <p className="text-muted-foreground mt-1">Send push notifications to app users</p>
           </div>
 
           {/* Broadcast Notification */}
@@ -140,9 +180,23 @@ export default function AdminNotifications() {
                 <Bell className="w-5 h-5 text-primary" />
                 Broadcast Message
               </CardTitle>
-              <CardDescription>Send a custom push notification to all users with notifications enabled</CardDescription>
+              <CardDescription>Send a custom push notification to users with notifications enabled</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Target Audience</Label>
+                <Select value={broadcastTarget} onValueChange={(v) => setBroadcastTarget(v as any)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Users</SelectItem>
+                    <SelectItem value="customers">Customers Only</SelectItem>
+                    <SelectItem value="riders">Riders Only</SelectItem>
+                    <SelectItem value="vendors">Vendors Only</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="title">Notification Title</Label>
                 <div className="flex gap-2">
@@ -189,7 +243,7 @@ export default function AdminNotifications() {
                 {sending ? (
                   <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Sending...</>
                 ) : (
-                  <><Send className="w-4 h-4 mr-2" /> Send to All Users</>
+                  <><Send className="w-4 h-4 mr-2" /> {sendButtonLabel}</>
                 )}
               </Button>
 
