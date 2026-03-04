@@ -36,8 +36,10 @@ function VendorLayoutContent({ children, vendorName, vendorId, permissions, onOu
   useCapacitorPush();
 
   // Listen for CALL-type push notifications (Capacitor native + PWA service worker)
+  // Only trigger sound/call UI if the notification's outlet matches the currently selected outlet
   useEffect(() => {
     let nativeCleanup: (() => void) | undefined;
+    const currentOutletId = selectedOutlet?.id;
 
     // Native Capacitor listener
     const setupNative = async () => {
@@ -48,6 +50,8 @@ function VendorLayoutContent({ children, vendorName, vendorId, permissions, onOu
         const listener = await PushNotifications.addListener('pushNotificationReceived', (notification) => {
           const data = notification.data;
           if (data?.type === 'CALL') {
+            // Skip if order is for a different outlet
+            if (currentOutletId && data.outlet_id && data.outlet_id !== currentOutletId) return;
             setCallData({
               orderNumber: data.order_number,
               orderTotal: data.order_total,
@@ -67,6 +71,8 @@ function VendorLayoutContent({ children, vendorName, vendorId, permissions, onOu
     const handleSwMessage = (event: MessageEvent) => {
       if (event.data?.type === 'INCOMING_ORDER_CALL') {
         const d = event.data.data;
+        // Skip if order is for a different outlet
+        if (currentOutletId && d?.outlet_id && d.outlet_id !== currentOutletId) return;
         setCallData({
           orderNumber: d?.order_number,
           orderTotal: d?.order_total,
@@ -81,7 +87,7 @@ function VendorLayoutContent({ children, vendorName, vendorId, permissions, onOu
       nativeCleanup?.();
       navigator.serviceWorker?.removeEventListener('message', handleSwMessage);
     };
-  }, [startRepeating]);
+  }, [startRepeating, selectedOutlet?.id]);
 
   const handleOutletChange = useCallback((outletId: string | null) => {
     if (outletId) setSelectedOutletId(outletId);
@@ -104,39 +110,41 @@ function VendorLayoutContent({ children, vendorName, vendorId, permissions, onOu
 
   // Track previous order count to detect new orders
   const prevOrderCountRef = useRef<number | null>(null);
+  const isPlayingRef = useRef(isPlaying);
+  useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
 
   useEffect(() => {
-    if (!resolvedVendorId || !selectedOutlet?.id) { setNewOrderCount(0); return; }
+    if (!resolvedVendorId || !selectedOutlet?.id) { setNewOrderCount(0); stopRepeating(); return; }
     const outletId = selectedOutlet.id;
+    // Reset previous count when outlet changes so we don't trigger false alerts
+    prevOrderCountRef.current = null;
     const fetchCount = async () => {
       const { count } = await supabase.from('orders').select('*', { count: 'exact', head: true })
         .eq('vendor_id', resolvedVendorId).eq('outlet_id', outletId).in('status', ['pending', 'confirmed']);
       if (count !== null) {
-        setNewOrderCount(prev => {
-          // Start repeating sound when new order arrives
-          if (prevOrderCountRef.current !== null && count > prevOrderCountRef.current) {
-            startRepeating();
-            toast.success('🔔 New Order!', {
-              description: 'A new paid order has come in. Check your orders page.',
-              duration: 8000,
-            });
-          }
-          // Stop sound when orders are handled (count decreases or reaches 0)
-          if (prevOrderCountRef.current !== null && count < prevOrderCountRef.current) {
-            stopRepeating();
-          }
-          if (count === 0 && isPlaying) {
-            stopRepeating();
-          }
-          prevOrderCountRef.current = count;
-          return count;
-        });
+        // Start repeating sound when new order arrives
+        if (prevOrderCountRef.current !== null && count > prevOrderCountRef.current) {
+          startRepeating();
+          toast.success('🔔 New Order!', {
+            description: 'A new paid order has come in. Check your orders page.',
+            duration: 8000,
+          });
+        }
+        // Stop sound when orders are handled (count decreases or reaches 0)
+        if (prevOrderCountRef.current !== null && count < prevOrderCountRef.current) {
+          stopRepeating();
+        }
+        if (count === 0 && isPlayingRef.current) {
+          stopRepeating();
+        }
+        prevOrderCountRef.current = count;
+        setNewOrderCount(count);
       }
     };
     fetchCount();
-    const channel = supabase.channel('vendor-layout-orders').on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `vendor_id=eq.${resolvedVendorId}` }, () => fetchCount()).subscribe();
+    const channel = supabase.channel(`vendor-layout-orders-${outletId}`).on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `outlet_id=eq.${outletId}` }, () => fetchCount()).subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [resolvedVendorId, selectedOutlet?.id, startRepeating, stopRepeating, isPlaying]);
+  }, [resolvedVendorId, selectedOutlet?.id, startRepeating, stopRepeating]);
 
   return (
     <div className="min-h-screen bg-background">
