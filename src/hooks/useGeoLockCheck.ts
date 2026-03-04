@@ -10,30 +10,30 @@ interface GeoLockCheckResult {
 }
 
 /**
- * Hook for performing geo-lock checks on vendor actions.
- * Checks device GPS against verified vendor coordinates.
- * If distance exceeds tolerance, auto-locks the store.
+ * Hook for performing geo-lock checks on outlet actions.
+ * Checks device GPS against verified outlet coordinates.
+ * If distance exceeds tolerance, auto-locks the outlet.
  */
 export function useGeoLockCheck() {
   const { toast } = useToast();
 
   const checkGeoLock = useCallback(async (
-    vendorId: string,
+    outletId: string,
     action: 'store_open_check' | 'order_accept_check'
   ): Promise<GeoLockCheckResult> => {
-    // Fetch vendor's verified location and tolerance
-    const { data: vendor } = await supabase
-      .from('vendors')
-      .select('verified_latitude, verified_longitude, tolerance_radius_m, geo_verification_status, user_id')
-      .eq('id', vendorId)
+    // Fetch outlet's verified location and tolerance
+    const { data: outlet } = await supabase
+      .from('vendor_outlets')
+      .select('verified_latitude, verified_longitude, tolerance_radius_m, geo_verification_status, vendor_id')
+      .eq('id', outletId)
       .single();
 
-    if (!vendor) {
+    if (!outlet) {
       return { passed: true, distanceM: 0, locked: false };
     }
 
     // If not verified yet, skip check
-    if (!vendor.verified_latitude || !vendor.verified_longitude || vendor.geo_verification_status !== 'verified') {
+    if (!outlet.verified_latitude || !outlet.verified_longitude || outlet.geo_verification_status !== 'verified') {
       return { passed: true, distanceM: 0, locked: false };
     }
 
@@ -54,51 +54,55 @@ export function useGeoLockCheck() {
     const deviceLon = position.coords.longitude;
     const distanceKm = calculateDistance(
       deviceLat, deviceLon,
-      vendor.verified_latitude, vendor.verified_longitude
+      outlet.verified_latitude, outlet.verified_longitude
     );
     const distanceM = Math.round(distanceKm * 1000);
-    const toleranceM = vendor.tolerance_radius_m || 100;
+    const toleranceM = outlet.tolerance_radius_m || 500;
 
     const userId = (await supabase.auth.getUser()).data.user?.id;
 
     // Log the check
     await supabase.from('vendor_location_logs').insert({
-      vendor_id: vendorId,
+      vendor_id: outlet.vendor_id,
       action,
       device_latitude: deviceLat,
       device_longitude: deviceLon,
-      verified_latitude: vendor.verified_latitude,
-      verified_longitude: vendor.verified_longitude,
+      verified_latitude: outlet.verified_latitude,
+      verified_longitude: outlet.verified_longitude,
       distance_m: distanceM,
       result: distanceM <= toleranceM ? 'passed' : 'failed',
       performed_by: userId || null,
     });
 
     if (distanceM > toleranceM) {
-      // Auto-lock the store
-      await supabase.from('vendors').update({
+      // Auto-lock the outlet
+      await supabase.from('vendor_outlets').update({
         geo_verification_status: 'locked_pending_reverify',
         geo_locked_at: new Date().toISOString(),
         geo_lock_reason: `Device location ${distanceM}m from verified location (tolerance: ${toleranceM}m) during ${action}`,
         is_open: false,
-      }).eq('id', vendorId);
+      }).eq('id', outletId);
 
       toast({
-        title: '🔒 Store Geo-Locked',
-        description: `Your device is ${distanceM}m from your verified location. Store has been locked. Please submit a reverification request.`,
+        title: '🔒 Outlet Geo-Locked',
+        description: `Your device is ${distanceM}m from your verified location. Outlet has been locked. Please submit a reverification request.`,
         variant: 'destructive',
       });
 
       // Send red flag notifications to admin and vendor
       try {
-        // Get vendor name for notification context
+        const { data: outletInfo } = await supabase
+          .from('vendor_outlets')
+          .select('outlet_name, vendor_id')
+          .eq('id', outletId)
+          .single();
+
         const { data: vendorInfo } = await supabase
           .from('vendors')
           .select('name, user_id')
-          .eq('id', vendorId)
+          .eq('id', outlet.vendor_id)
           .single();
 
-        // Get all active admin user IDs
         const { data: admins } = await supabase
           .from('admin_staff')
           .select('user_id')
@@ -106,31 +110,30 @@ export function useGeoLockCheck() {
           .eq('is_active', true);
 
         const adminUserIds = admins?.map(a => a.user_id) || [];
+        const outletName = outletInfo?.outlet_name || 'Unknown Outlet';
         const vendorName = vendorInfo?.name || 'Unknown Vendor';
-        const actionLabel = action === 'store_open_check' ? 'opening their store' : 'accepting an order';
+        const actionLabel = action === 'store_open_check' ? 'opening the outlet' : 'accepting an order';
 
-        // Red flag notification to admins
         if (adminUserIds.length > 0) {
           await supabase.functions.invoke('send-push-notification', {
             body: {
               user_ids: adminUserIds,
               title: '🚩 RED FLAG: Geo-Lock Violation',
-              body: `Vendor "${vendorName}" triggered a geo-lock violation while ${actionLabel}. Device was ${distanceM}m from verified location (tolerance: ${toleranceM}m). Store has been auto-locked.`,
+              body: `Outlet "${outletName}" (${vendorName}) triggered a geo-lock violation while ${actionLabel}. Device was ${distanceM}m from verified location (tolerance: ${toleranceM}m). Outlet has been auto-locked.`,
               url: '/admin/vendors',
-              data: { vendor_id: vendorId, distance_m: distanceM, action },
+              data: { outlet_id: outletId, vendor_id: outlet.vendor_id, distance_m: distanceM, action },
             },
           });
         }
 
-        // Red flag notification to vendor owner
         if (vendorInfo?.user_id) {
           await supabase.functions.invoke('send-push-notification', {
             body: {
               user_ids: [vendorInfo.user_id],
               title: '🚩 Geo-Lock Violation Alert',
-              body: `Your store "${vendorName}" has been locked. Your device was detected ${distanceM}m away from the verified location (allowed: ${toleranceM}m). This violation has been reported to the administration. Submit a reverification request to unlock your store.`,
+              body: `Your outlet "${outletName}" has been locked. Your device was detected ${distanceM}m away from the verified location (allowed: ${toleranceM}m). This violation has been reported to the administration. Submit a reverification request to unlock your outlet.`,
               url: '/vendor/settings',
-              data: { vendor_id: vendorId, distance_m: distanceM },
+              data: { outlet_id: outletId, distance_m: distanceM },
             },
           });
         }

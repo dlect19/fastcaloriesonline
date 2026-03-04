@@ -7,10 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
-import { Check, X, Loader2, FlaskConical, ShieldCheck, MapPin } from 'lucide-react';
+import { Check, X, Loader2, FlaskConical, ShieldCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { VendorCoordinateEditor } from '@/components/admin/VendorCoordinateEditor';
-import { VendorGeoLockManager } from '@/components/admin/VendorGeoLockManager';
+
 import { AdminVendorNameEditor } from '@/components/admin/AdminVendorNameEditor';
 import { AdminOutletList } from '@/components/admin/AdminOutletList';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
@@ -22,7 +22,7 @@ export default function AdminVendors() {
   const [loading, setLoading] = useState(true);
   const [vendors, setVendors] = useState<any[]>([]);
   const [pendingVendors, setPendingVendors] = useState<any[]>([]);
-  const [geoLockVendor, setGeoLockVendor] = useState<any | null>(null);
+  
 
   useEffect(() => {
     checkAuth();
@@ -212,12 +212,6 @@ export default function AdminVendors() {
                               Live Approved
                             </Badge>
                           )}
-                          {vendor.geo_verification_status === 'locked_pending_reverify' && (
-                            <Badge variant="destructive" className="gap-1">
-                              <MapPin className="w-3 h-3" />
-                              Geo-Locked
-                            </Badge>
-                          )}
                         </div>
                         <p className="text-sm text-muted-foreground">{vendor.category} • {vendor.city}</p>
                         <p className="text-sm text-muted-foreground">
@@ -226,15 +220,6 @@ export default function AdminVendors() {
                       </div>
                       <div className="flex items-center gap-4">
                         <VendorCoordinateEditor vendor={vendor} onUpdate={fetchVendors} />
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setGeoLockVendor(vendor)}
-                          className="gap-1"
-                        >
-                          <MapPin className="w-4 h-4" />
-                          Geo-Lock
-                        </Button>
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-muted-foreground">Test Store</span>
                           <Switch
@@ -323,16 +308,6 @@ export default function AdminVendors() {
             <AdminOutletList vendors={vendors} onRefresh={fetchVendors} />
           </TabsContent>
         </Tabs>
-        {/* Geo-Lock Manager Dialog */}
-        {geoLockVendor && (
-          <VendorGeoLockManager
-            vendorId={geoLockVendor.id}
-            vendorName={geoLockVendor.name}
-            open={!!geoLockVendor}
-            onClose={() => setGeoLockVendor(null)}
-            onUpdate={fetchVendors}
-          />
-        )}
       </main>
     </div>
   );
