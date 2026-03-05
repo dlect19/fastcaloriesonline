@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { VendorGroup, useCart } from '@/hooks/useCart';
 import { VendorGroupCard } from '@/components/cart/VendorGroupCard';
 import { OrderSummary } from '@/components/cart/OrderSummary';
-import { AddressSelector } from '@/components/cart/AddressSelector';
 import { PromoCodeInput } from '@/components/cart/PromoCodeInput';
 import { ActiveDiscountSelector } from '@/components/cart/ActiveDiscountSelector';
 import { FundWalletDialog } from '@/components/profile/FundWalletDialog';
@@ -20,16 +19,21 @@ import { usePromoCode } from '@/hooks/usePromoCode';
 import { useSpinWheel } from '@/hooks/useSpinWheel';
 import { usePlatformPromos } from '@/hooks/usePlatformPromos';
 import { supabase } from '@/integrations/supabase/client';
-import { geocodeAddressWithSuggestions, updateAddressCoordinates, GeocodeSuggestion } from '@/lib/geocoding';
-import type { Tables } from '@/integrations/supabase/types';
 import { useServiceFee } from '@/hooks/useServiceFee';
 import { useRiderAvailability } from '@/hooks/useRiderAvailability';
-type Address = Tables<'addresses'>;
+import { useGeolocation } from '@/hooks/useGeolocation';
 
 interface VendorLocation {
   latitude: number | null;
   longitude: number | null;
   address: string | null;
+}
+
+interface DeliveryLocation {
+  lat: number | null;
+  lon: number | null;
+  label: string;
+  state?: string | null;
 }
 
 interface VendorFees {
@@ -44,12 +48,8 @@ type DeliveryType = 'delivery' | 'self_pickup';
 interface VendorCheckoutSectionProps {
   group: VendorGroup;
   vendorLocation: VendorLocation;
-  addresses: Address[];
-  selectedAddress: Address | null;
-  onSelectAddress: (addr: Address | null) => void;
-  loadingAddresses: boolean;
+  deliveryLocation: DeliveryLocation | null;
   userId: string;
-  onAddressAdded: () => void;
   walletBalance: number;
   isWalletDisabled: boolean;
   hasDVA: boolean;
@@ -59,16 +59,11 @@ interface VendorCheckoutSectionProps {
   placingOrderForVendor: string | null;
   onPlacingChange: (vendorId: string | null) => void;
 }
-
 export function VendorCheckoutSection({
   group,
   vendorLocation,
-  addresses,
-  selectedAddress,
-  onSelectAddress,
-  loadingAddresses,
+  deliveryLocation,
   userId,
-  onAddressAdded,
   walletBalance,
   isWalletDisabled,
   hasDVA,
@@ -84,6 +79,7 @@ export function VendorCheckoutSection({
   const { appliedPromo, incrementUsage, resetAfterOrder } = usePromoCode();
   const { activeDiscounts, getBestDiscount, useDiscount } = useSpinWheel();
   const { eligibility, getBestPlatformPromo, markFirstOrderUsed } = usePlatformPromos();
+  const { latitude: gpsLat, longitude: gpsLon, getCurrentPosition, loading: gpsLoading } = useGeolocation();
 
   const [deliveryType, setDeliveryType] = useState<DeliveryType>('delivery');
   const [receiverPhone, setReceiverPhone] = useState('');
@@ -93,11 +89,6 @@ export function VendorCheckoutSection({
   const [selectedSpinDiscountId, setSelectedSpinDiscountId] = useState<string | null>(null);
   const [vendorFees, setVendorFees] = useState<VendorFees>({ deliveryFee: 0, packagingFee: 0, distanceKm: null, surgeFee: 0 });
   const [showFundDialog, setShowFundDialog] = useState(false);
-
-  // Geocoding state
-  const [geocodingAddress, setGeocodingAddress] = useState(false);
-  const [locationSuggestions, setLocationSuggestions] = useState<GeocodeSuggestion[]>([]);
-  const [selectingSuggestion, setSelectingSuggestion] = useState(false);
 
   const { calculateServiceFee, loading: serviceFeeLoading } = useServiceFee();
   const riderAvailability = useRiderAvailability();
@@ -111,6 +102,8 @@ export function VendorCheckoutSection({
   const isPlacing = placingOrderForVendor === group.vendorId;
   const isOtherPlacing = placingOrderForVendor !== null && placingOrderForVendor !== group.vendorId;
 
+  const hasDeliveryLocation = deliveryLocation && deliveryLocation.lat !== null && deliveryLocation.lon !== null;
+
   const handleFeesCalculated = useCallback((_vendorId: string, df: number, pf: number, dk: number | null, sf: number) => {
     setVendorFees(prev => {
       if (prev.deliveryFee === df && prev.packagingFee === pf && prev.surgeFee === sf) return prev;
@@ -123,54 +116,20 @@ export function VendorCheckoutSection({
     setAppliedPromoCode(code);
   };
 
-  // Auto-geocode selected address
-  useEffect(() => {
-    const geocodeIfNeeded = async () => {
-      if (
-        selectedAddress &&
-        deliveryType === 'delivery' &&
-        (!selectedAddress.latitude || !selectedAddress.longitude)
-      ) {
-        setGeocodingAddress(true);
-        setLocationSuggestions([]);
-
-        const { result, suggestions } = await geocodeAddressWithSuggestions(
-          selectedAddress.address_line,
-          selectedAddress.city,
-          selectedAddress.state
-        );
-
-        if (result) {
-          await updateAddressCoordinates(selectedAddress.id, result.latitude, result.longitude);
-          onSelectAddress({ ...selectedAddress, latitude: result.latitude, longitude: result.longitude });
-          toast({ title: 'Distance Calculated', description: 'Delivery fee updated based on your address.' });
-        } else if (suggestions.length > 0) {
-          setLocationSuggestions(suggestions);
-        } else {
-          toast({ title: 'Location Not Found', description: 'Use the GPS icon to capture your exact location.', variant: 'destructive' });
-        }
-        setGeocodingAddress(false);
-      }
-    };
-    geocodeIfNeeded();
-  }, [selectedAddress?.id, deliveryType]);
-
-  const handleSelectSuggestion = async (suggestion: GeocodeSuggestion) => {
-    if (!selectedAddress) return;
-    setSelectingSuggestion(true);
-    try {
-      await updateAddressCoordinates(selectedAddress.id, suggestion.latitude, suggestion.longitude);
-      onSelectAddress({ ...selectedAddress, latitude: suggestion.latitude, longitude: suggestion.longitude });
-      setLocationSuggestions([]);
-      toast({ title: 'Location Set', description: `Set to: ${suggestion.display_name}` });
-    } catch {
-      toast({ title: 'Error', description: 'Failed to set location', variant: 'destructive' });
-    } finally {
-      setSelectingSuggestion(false);
-    }
+  // Handle GPS prompt for customers who haven't set location
+  const handlePromptGps = () => {
+    getCurrentPosition();
   };
 
-  const addressMissingCoords = deliveryType === 'delivery' && selectedAddress && (!selectedAddress.latitude || !selectedAddress.longitude);
+  // Auto-set delivery location from GPS if prompted
+  useEffect(() => {
+    if (gpsLat && gpsLon && !hasDeliveryLocation && !gpsLoading) {
+      const loc = { lat: gpsLat, lon: gpsLon, label: 'My GPS Location', state: null as string | null };
+      localStorage.setItem('fc_delivery_location', JSON.stringify(loc));
+      // Force page reload to pick up the new location
+      window.location.reload();
+    }
+  }, [gpsLat, gpsLon, gpsLoading, hasDeliveryLocation]);
 
   const handleCheckout = async () => {
     // Check rider availability for delivery orders
@@ -178,12 +137,8 @@ export function VendorCheckoutSection({
       toast({ title: 'Delivery Unavailable', description: riderAvailability.blockReason || 'Please select Self Pickup.', variant: 'destructive' });
       return;
     }
-    if (deliveryType === 'delivery' && !selectedAddress) {
-      toast({ title: 'No delivery address', description: 'Please select or add a delivery address', variant: 'destructive' });
-      return;
-    }
-    if (addressMissingCoords) {
-      toast({ title: 'GPS Location Required', description: 'Tap the navigation icon to capture your exact location.', variant: 'destructive' });
+    if (deliveryType === 'delivery' && !hasDeliveryLocation) {
+      toast({ title: 'No delivery location', description: 'Please set your delivery location from the home screen header.', variant: 'destructive' });
       return;
     }
     if (isWalletDisabled) {
@@ -239,9 +194,9 @@ export function VendorCheckoutSection({
           service_fee: serviceFee,
           total: groupTotal,
           total_calories: group.totalCalories,
-          delivery_address_id: deliveryType === 'delivery' ? selectedAddress?.id : null,
+          delivery_address_id: null,
           delivery_address_text: deliveryType === 'delivery'
-            ? `${selectedAddress?.address_line}, ${selectedAddress?.city}, ${selectedAddress?.state}`
+            ? deliveryLocation?.label || 'GPS Location'
             : `Self-pickup at ${group.vendorName}`,
           delivery_instructions: deliveryInstructions,
           delivery_type: deliveryType,
@@ -359,8 +314,8 @@ export function VendorCheckoutSection({
       <VendorGroupCard
         group={group}
         vendorLocation={vendorLocation}
-        customerLat={selectedAddress?.latitude ?? null}
-        customerLon={selectedAddress?.longitude ?? null}
+        customerLat={deliveryLocation?.lat ?? null}
+        customerLon={deliveryLocation?.lon ?? null}
         deliveryType={deliveryType}
         onClearGroup={clearVendorGroup}
         onFeesCalculated={handleFeesCalculated}
@@ -410,54 +365,43 @@ export function VendorCheckoutSection({
           {deliveryType === 'delivery' && (
             <>
               <div className="border-t border-border pt-4">
-                <AddressSelector
-                  addresses={addresses}
-                  selectedAddress={selectedAddress}
-                  onSelect={onSelectAddress}
-                  loading={loadingAddresses}
-                  userId={userId}
-                  onAddressAdded={onAddressAdded}
-                />
-              </div>
-
-              {geocodingAddress && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground bg-secondary/50 p-3 rounded-lg">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Calculating delivery distance...</span>
-                </div>
-              )}
-
-              {!geocodingAddress && addressMissingCoords && (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-lg">
-                    <AlertTriangle className="w-4 h-4 shrink-0" />
-                    <span>We couldn't find your exact address. Select a nearby location or <strong>tap the navigation icon</strong>.</span>
-                  </div>
-                  {locationSuggestions.length > 0 && (
-                    <div className="bg-secondary/50 rounded-lg border border-border p-3 space-y-2">
-                      <p className="text-sm font-medium text-foreground flex items-center gap-2">
-                        <Navigation className="w-4 h-4 text-primary" />
-                        Select a nearby location:
-                      </p>
-                      <div className="space-y-2">
-                        {locationSuggestions.map((suggestion, index) => (
-                          <button
-                            key={index}
-                            onClick={() => handleSelectSuggestion(suggestion)}
-                            disabled={selectingSuggestion}
-                            className="w-full text-left p-2 rounded-md bg-background hover:bg-primary/10 border border-border transition-colors disabled:opacity-50"
-                          >
-                            <p className="text-sm font-medium text-foreground truncate">
-                              {suggestion.name || suggestion.display_name.split(',')[0]}
-                            </p>
-                            <p className="text-xs text-muted-foreground truncate">{suggestion.display_name}</p>
-                          </button>
-                        ))}
-                      </div>
+                {hasDeliveryLocation ? (
+                  <div className="flex items-center gap-3 p-3 bg-primary/5 rounded-xl border border-primary/20">
+                    <MapPin className="w-5 h-5 text-primary shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground">Delivering to</p>
+                      <p className="text-sm font-medium text-foreground truncate">{deliveryLocation?.label}</p>
                     </div>
-                  )}
-                </div>
-              )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="shrink-0 text-xs"
+                      onClick={() => navigate('/')}
+                    >
+                      Change
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 p-3 bg-warning/10 rounded-lg border border-warning/20">
+                      <AlertTriangle className="w-4 h-4 text-warning shrink-0" />
+                      <p className="text-sm text-warning">
+                        No delivery location set. Please set your location from the home screen.
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" className="flex-1 gap-2" onClick={handlePromptGps} disabled={gpsLoading}>
+                        {gpsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Navigation className="w-4 h-4" />}
+                        {gpsLoading ? 'Getting location...' : 'Use My GPS'}
+                      </Button>
+                      <Button variant="default" className="flex-1 gap-2" onClick={() => navigate('/')}>
+                        <MapPin className="w-4 h-4" />
+                        Set Location
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Receiver Phone */}
               <div className="border-t border-border pt-4">
@@ -584,7 +528,7 @@ export function VendorCheckoutSection({
       <Button
         className="w-full h-14 text-base font-semibold shadow-button gradient-primary border-0"
         onClick={handleCheckout}
-        disabled={isPlacing || isOtherPlacing || isWalletDisabled || (deliveryType === 'delivery' && (!selectedAddress || !!addressMissingCoords || geocodingAddress))}
+        disabled={isPlacing || isOtherPlacing || isWalletDisabled || (deliveryType === 'delivery' && !hasDeliveryLocation)}
       >
         {isPlacing ? (
           <>
