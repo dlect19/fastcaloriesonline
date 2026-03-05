@@ -216,14 +216,20 @@ serve(async (req) => {
       const googleKey = Deno.env.get("GOOGLE_MAPS_API_KEY");
       if (googleKey) {
         const geoRes = await fetch(
-          `https://maps.googleapis.com/maps/api/geocode/json?latlng=${customer_lat},${customer_lon}&key=${googleKey}&result_type=administrative_area_level_1`
+          `https://maps.googleapis.com/maps/api/geocode/json?latlng=${customer_lat},${customer_lon}&key=${googleKey}`
         );
         const geoData = await geoRes.json();
-        const stateComponent = geoData?.results?.[0]?.address_components?.find(
-          (c: any) => c.types?.includes("administrative_area_level_1")
-        );
-        if (stateComponent) {
-          customerState = stateComponent.long_name?.toLowerCase() || null;
+        console.log("Reverse geocode status:", geoData?.status, "results count:", geoData?.results?.length);
+        // Search through all results for administrative_area_level_1
+        for (const result of (geoData?.results || [])) {
+          const stateComponent = result?.address_components?.find(
+            (c: any) => c.types?.includes("administrative_area_level_1")
+          );
+          if (stateComponent) {
+            customerState = stateComponent.long_name?.toLowerCase() || null;
+            console.log("Found customer state:", customerState);
+            break;
+          }
         }
       }
     } catch (e) {
