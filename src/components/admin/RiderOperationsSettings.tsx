@@ -9,7 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useRiderAvailability } from '@/hooks/useRiderAvailability';
-import { Clock, Bike, TrendingUp, Save, Loader2, Users, Activity, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Clock, Bike, TrendingUp, Save, Loader2, Users, Activity, AlertTriangle, CheckCircle, Package } from 'lucide-react';
 
 interface RiderOperationsSettingsProps {
   settings: Record<string, string>;
@@ -27,7 +27,7 @@ export function RiderOperationsSettings({ settings, onSettingChange, onSave, sav
       'rider_operating_hours_enabled', 'rider_opening_hour', 'rider_closing_hour',
       'rider_supply_surge_enabled', 'rider_supply_min_threshold', 'rider_supply_surge_pct',
       'rider_supply_critical_threshold', 'rider_supply_emergency_surge_pct',
-      'rider_checkout_availability_check',
+      'rider_checkout_availability_check', 'rider_max_concurrent_orders',
     ];
     try {
       for (const key of keys) {
@@ -191,6 +191,46 @@ export function RiderOperationsSettings({ settings, onSettingChange, onSave, sav
               checked={settings['rider_checkout_availability_check'] !== 'false'}
               onCheckedChange={(checked) => onSettingChange('rider_checkout_availability_check', checked ? 'true' : 'false')}
             />
+          </div>
+
+          <Separator />
+
+          {/* Multi-Pickup / Concurrent Order Limit */}
+          <div>
+            <h3 className="text-base font-semibold text-foreground mb-4 flex items-center gap-2">
+              <Package className="w-5 h-5 text-primary" />
+              Multi-Pickup Order Limit
+            </h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Control how many active orders a rider can carry simultaneously. Riders can batch pickups along their route up to this limit.
+            </p>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Max Concurrent Orders per Rider</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={settings['rider_max_concurrent_orders'] || '1'}
+                  onChange={(e) => onSettingChange('rider_max_concurrent_orders', e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Set to 1 for single-order mode. Higher values allow multi-pickup batching.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-secondary rounded-lg mt-4">
+              <h4 className="text-sm font-medium text-foreground mb-2">How it works</h4>
+              <p className="text-sm text-muted-foreground">
+                When set to <span className="text-primary font-medium">{settings['rider_max_concurrent_orders'] || '1'}</span>, 
+                riders {parseInt(settings['rider_max_concurrent_orders'] || '1') > 1 
+                  ? `can carry up to ${settings['rider_max_concurrent_orders']} orders at the same time` 
+                  : 'must complete their current delivery before receiving a new one'}. 
+                This limit is enforced across dispatch offers, manual assignments, and rider acceptance.
+              </p>
+            </div>
           </div>
 
           <Separator />
