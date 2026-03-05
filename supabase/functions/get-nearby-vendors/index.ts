@@ -230,6 +230,8 @@ serve(async (req) => {
       console.log("Could not resolve customer state:", e);
     }
 
+    console.log("Resolved customer state:", customerState);
+
     // Separate online outlets (state-matched, no distance limit) from physical outlets
     const onlineOutlets: any[] = [];
     const physicalOutlets: any[] = [];
@@ -238,10 +240,18 @@ serve(async (req) => {
       const storeType = outlet.store_type || 'physical';
       if (storeType === 'online' || storeType === 'both') {
         // Online outlets: match by state (case-insensitive)
-        const outletState = (outlet.state || '').toLowerCase();
-        if (customerState && outletState && outletState.includes(customerState.replace(' state', '').trim())) {
-          onlineOutlets.push(outlet);
-        } else if (customerState && outletState.replace(' state', '').trim() === customerState.replace(' state', '').trim()) {
+        const outletState = (outlet.state || '').toLowerCase().replace(/\s*state\s*/i, '').trim();
+        const normalizedCustomerState = (customerState || '').replace(/\s*state\s*/i, '').trim();
+        
+        console.log(`Online outlet "${outlet.outlet_name}" state="${outletState}" vs customer="${normalizedCustomerState}"`);
+        
+        const stateMatch = normalizedCustomerState && outletState && (
+          outletState === normalizedCustomerState ||
+          outletState.includes(normalizedCustomerState) ||
+          normalizedCustomerState.includes(outletState)
+        );
+        
+        if (stateMatch) {
           onlineOutlets.push(outlet);
         }
         // If store_type is 'both', also check distance for physical discovery
