@@ -94,16 +94,14 @@ serve(async (req) => {
       const isOnlineOutlet = (o: any) => o.store_type === 'online' || o.store_type === 'both';
 
       for (const outlet of outlets) {
-        // Online outlets: match by state, no distance limit
-        if (isOnlineOutlet(outlet)) {
-          // We'll use state matching; if no coords just pick it
-          if (!closestOutlet || closestDistance > 0) {
+        if (!outlet.latitude || !outlet.longitude) {
+          // Online outlet without coords — still selectable but can't calc distance
+          if (isOnlineOutlet(outlet) && !closestOutlet) {
             closestOutlet = outlet;
-            closestDistance = 0;
+            closestDistance = Infinity;
           }
           continue;
         }
-        if (!outlet.latitude || !outlet.longitude) continue;
         const dist = haversineDistance(customer_lat, customer_lon, outlet.latitude, outlet.longitude);
         if (dist < closestDistance) {
           closestDistance = dist;
@@ -118,22 +116,21 @@ serve(async (req) => {
         );
       }
 
-      // Online outlets bypass distance check — only need same state
       const outletIsOnline = isOnlineOutlet(closestOutlet);
+      let gmResult = { distanceKm: 0, durationMinutes: null as number | null, source: 'none' };
 
-      if (outletIsOnline) {
-        // No distance restriction for online outlets in same state
-        closestDistance = 0;
-      } else {
-        // Now get accurate Google Maps distance for the closest outlet
-        const gmResult = await getGoogleMapsDistance(
+      if (closestOutlet.latitude && closestOutlet.longitude) {
+        // Calculate actual distance for delivery fee — even for online outlets
+        gmResult = await getGoogleMapsDistance(
           customer_lat, customer_lon, closestOutlet.latitude, closestOutlet.longitude
         );
         closestDistance = gmResult.distanceKm;
         console.log(`Vendor distance (${gmResult.source}): ${closestDistance} km`);
+      }
 
+      // Only enforce radius restriction for physical outlets
+      if (!outletIsOnline) {
         const outletRadius = closestOutlet.sales_radius ?? maxVisibilityRadius;
-
         if (closestDistance > outletRadius) {
           return new Response(
             JSON.stringify({
@@ -146,11 +143,9 @@ serve(async (req) => {
         }
       }
 
-      const dynamicDeliveryFee = outletIsOnline ? baseDeliveryFee : (
-        closestDistance <= baseDeliveryDistanceKm
-          ? baseDeliveryFee
-          : Math.round(baseDeliveryFee + (closestDistance - baseDeliveryDistanceKm) * perKmFee)
-      );
+      const dynamicDeliveryFee = closestDistance <= baseDeliveryDistanceKm
+        ? baseDeliveryFee
+        : Math.round(baseDeliveryFee + (closestDistance - baseDeliveryDistanceKm) * perKmFee);
 
       const outletDisplayName = closestOutlet.outlet_surname
         ? `${vendor.name} – ${closestOutlet.outlet_surname}`
@@ -181,8 +176,8 @@ serve(async (req) => {
             distance: closestDistance,
             dynamic_delivery_fee: dynamicDeliveryFee,
             display_name: outletDisplayName,
-            estimated_delivery_minutes: outletIsOnline ? null : undefined,
-            distance_source: outletIsOnline ? 'online' : undefined,
+            estimated_delivery_minutes: gmResult.durationMinutes,
+            distance_source: gmResult.source,
             store_type: closestOutlet.store_type,
             social_media_handles: closestOutlet.social_media_handles,
           },
@@ -323,9 +318,27 @@ serve(async (req) => {
 
     // Add online outlets (state-matched, no distance restriction)
     for (const outlet of onlineOutlets) {
-      if (addedOutletIds.has(outlet.id)) continue; // already added as physical
+      if (addedOutletIds.has(outlet.id)) continue;
       addedOutletIds.add(outlet.id);
       const vendor = (outlet as any).vendors;
+
+      // Calculate actual distance for delivery fee if coords available
+      let onlineDistance = 0;
+      let onlineFee = baseDeliveryFee;
+      let onlineEta: number | null = null;
+      let onlineSource = 'online';
+
+      if (outlet.latitude && outlet.longitude) {
+        const onlineGm = await getGoogleMapsDistance(
+          customer_lat, customer_lon, outlet.latitude, outlet.longitude
+        );
+        onlineDistance = onlineGm.distanceKm;
+        onlineEta = onlineGm.durationMinutes;
+        onlineSource = onlineGm.source;
+        onlineFee = onlineDistance <= baseDeliveryDistanceKm
+          ? baseDeliveryFee
+          : Math.round(baseDeliveryFee + (onlineDistance - baseDeliveryDistanceKm) * perKmFee);
+      }
 
       nearbyVendors.push({
         id: vendor.id,
@@ -350,10 +363,10 @@ serve(async (req) => {
         latitude: outlet.latitude,
         longitude: outlet.longitude,
         delivery_mode: outlet.delivery_mode,
-        distance: 0,
-        dynamic_delivery_fee: baseDeliveryFee,
-        estimated_delivery_minutes: null,
-        distance_source: 'online',
+        distance: onlineDistance,
+        dynamic_delivery_fee: onlineFee,
+        estimated_delivery_minutes: onlineEta,
+        distance_source: onlineSource,
         display_name: outlet.outlet_surname
           ? `${vendor.name} – ${outlet.outlet_surname}`
           : vendor.name,
