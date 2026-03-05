@@ -57,12 +57,12 @@ export default function AdminVendorMenus() {
         .from('products')
         .select('*')
         .eq('vendor_id', vendorId)
-        .order('sort_order', { ascending: true }),
+        .order('name', { ascending: true }),
       supabase
         .from('product_categories')
         .select('*')
         .eq('vendor_id', vendorId)
-        .order('sort_order', { ascending: true }),
+        .order('name', { ascending: true }),
     ]);
 
     setProducts(prods || []);
