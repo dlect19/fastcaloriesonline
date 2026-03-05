@@ -104,7 +104,7 @@ export function SocialMediaBadges({ handles }: { handles?: SocialMediaHandles | 
       {active.map(({ key, icon, label }) => (
         <span
           key={key}
-          className="w-5 h-5 flex items-center justify-center rounded-full bg-secondary text-[10px] leading-none"
+          className="w-7 h-7 flex items-center justify-center rounded-full bg-secondary text-sm leading-none"
           title={`${label}: ${(handles as any)[key]}`}
         >
           {icon}
