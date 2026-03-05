@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Loader2, Search, UtensilsCrossed } from 'lucide-react';
+import { Loader2, Search, UtensilsCrossed, Store } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Switch } from '@/components/ui/switch';
 import { AdminMenuProductCard } from '@/components/admin/AdminMenuProductCard';
@@ -25,12 +25,16 @@ export default function AdminVendorMenus() {
   const [loading, setLoading] = useState(true);
   const [vendors, setVendors] = useState<any[]>([]);
   const [selectedVendorId, setSelectedVendorId] = useState<string>('');
+  const [outlets, setOutlets] = useState<any[]>([]);
+  const [selectedOutletId, setSelectedOutletId] = useState<string>('');
+  const [outletOverrides, setOutletOverrides] = useState<Record<string, boolean>>({});
   const [products, setProducts] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [availabilityFilter, setAvailabilityFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [loadingProducts, setLoadingProducts] = useState(false);
+  const [loadingOutlets, setLoadingOutlets] = useState(false);
   const [cuisineCategories, setCuisineCategories] = useState<CuisineCategory[]>([]);
 
   useEffect(() => {
@@ -65,10 +69,38 @@ export default function AdminVendorMenus() {
     setLoading(false);
   };
 
-  const fetchMenu = async (vendorId: string) => {
-    setLoadingProducts(true);
+  const handleVendorSelect = async (vendorId: string) => {
     setSelectedVendorId(vendorId);
+    setSelectedOutletId('');
+    setProducts([]);
+    setCategories([]);
+    setOutletOverrides({});
+    setLoadingOutlets(true);
+
+    const { data: outletList } = await supabase
+      .from('vendor_outlets')
+      .select('id, surname, is_active')
+      .eq('vendor_id', vendorId)
+      .order('surname');
+
+    setOutlets(outletList || []);
+    setLoadingOutlets(false);
+
+    // If no outlets, load global menu directly
+    if (!outletList || outletList.length === 0) {
+      fetchMenu(vendorId, '');
+    }
+  };
+
+  const handleOutletSelect = async (outletId: string) => {
+    setSelectedOutletId(outletId);
+    fetchMenu(selectedVendorId, outletId);
+  };
+
+  const fetchMenu = async (vendorId: string, outletId: string) => {
+    setLoadingProducts(true);
     setSelectedCategory('all');
+    setAvailabilityFilter('all');
 
     const [{ data: prods }, { data: cats }] = await Promise.all([
       supabase
@@ -85,12 +117,50 @@ export default function AdminVendorMenus() {
 
     setProducts(prods || []);
     setCategories(cats || []);
+
+    // Fetch outlet-specific overrides if an outlet is selected
+    if (outletId) {
+      const { data: overrides } = await supabase
+        .from('outlet_product_overrides')
+        .select('product_id, is_available')
+        .eq('outlet_id', outletId);
+
+      const overrideMap: Record<string, boolean> = {};
+      (overrides || []).forEach((o: any) => {
+        overrideMap[o.product_id] = o.is_available;
+      });
+      setOutletOverrides(overrideMap);
+    } else {
+      setOutletOverrides({});
+    }
+
     setLoadingProducts(false);
   };
 
+  // Get effective availability: outlet override > global
+  const getEffectiveAvailability = (product: any) => {
+    if (selectedOutletId && outletOverrides.hasOwnProperty(product.id)) {
+      return outletOverrides[product.id];
+    }
+    return product.is_available;
+  };
+
   const toggleAvailability = async (productId: string, currentAvail: boolean) => {
-    await supabase.from('products').update({ is_available: !currentAvail }).eq('id', productId);
-    setProducts(prev => prev.map(p => p.id === productId ? { ...p, is_available: !currentAvail } : p));
+    if (selectedOutletId) {
+      // Toggle outlet-level override
+      await supabase
+        .from('outlet_product_overrides')
+        .upsert({
+          outlet_id: selectedOutletId,
+          product_id: productId,
+          is_available: !currentAvail,
+        }, { onConflict: 'outlet_id,product_id' });
+      setOutletOverrides(prev => ({ ...prev, [productId]: !currentAvail }));
+    } else {
+      // Toggle global availability
+      await supabase.from('products').update({ is_available: !currentAvail }).eq('id', productId);
+      setProducts(prev => prev.map(p => p.id === productId ? { ...p, is_available: !currentAvail } : p));
+    }
     toast({ title: `Item ${!currentAvail ? 'enabled' : 'disabled'}` });
   };
 
@@ -101,17 +171,22 @@ export default function AdminVendorMenus() {
     toast({ title: 'Cuisine category updated' });
   };
 
-  const filtered = products.filter(p => {
+  const productsWithEffectiveAvail = products.map(p => ({
+    ...p,
+    _effective_available: getEffectiveAvailability(p),
+  }));
+
+  const filtered = productsWithEffectiveAvail.filter(p => {
     const matchCat = selectedCategory === 'all' || p.category_id === selectedCategory;
     const matchSearch = !searchQuery || p.name?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchAvail = availabilityFilter === 'all' || 
-      (availabilityFilter === 'available' && p.is_available) || 
-      (availabilityFilter === 'unavailable' && !p.is_available);
+      (availabilityFilter === 'available' && p._effective_available) || 
+      (availabilityFilter === 'unavailable' && !p._effective_available);
     return matchCat && matchSearch && matchAvail;
   });
 
-  const availableCount = products.filter(p => p.is_available).length;
-  const unavailableCount = products.filter(p => !p.is_available).length;
+  const availableCount = productsWithEffectiveAvail.filter(p => p._effective_available).length;
+  const unavailableCount = productsWithEffectiveAvail.filter(p => !p._effective_available).length;
 
   // Group cuisine categories: parents and their children
   const parentCategories = cuisineCategories.filter(c => !c.parent_id);
@@ -135,7 +210,7 @@ export default function AdminVendorMenus() {
         </div>
 
         <div className="flex flex-col sm:flex-row gap-4 mb-6">
-          <Select value={selectedVendorId} onValueChange={fetchMenu}>
+          <Select value={selectedVendorId} onValueChange={handleVendorSelect}>
             <SelectTrigger className="w-full sm:w-[300px]">
               <SelectValue placeholder="Select a vendor" />
             </SelectTrigger>
@@ -148,7 +223,23 @@ export default function AdminVendorMenus() {
             </SelectContent>
           </Select>
 
-          {selectedVendorId && (
+          {selectedVendorId && outlets.length > 0 && (
+            <Select value={selectedOutletId} onValueChange={handleOutletSelect}>
+              <SelectTrigger className="w-full sm:w-[250px]">
+                <Store className="w-4 h-4 mr-2 text-muted-foreground" />
+                <SelectValue placeholder="Select an outlet/branch" />
+              </SelectTrigger>
+              <SelectContent>
+                {outlets.map(o => (
+                  <SelectItem key={o.id} value={o.id}>
+                    {o.surname || 'Main Branch'} {!o.is_active && '(Inactive)'}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          {selectedVendorId && (outlets.length === 0 || selectedOutletId) && (
             <>
               <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                 <SelectTrigger className="w-full sm:w-[200px]">
@@ -195,6 +286,15 @@ export default function AdminVendorMenus() {
           </Card>
         )}
 
+        {selectedVendorId && outlets.length > 0 && !selectedOutletId && !loadingOutlets && (
+          <Card>
+            <CardContent className="py-16 text-center text-muted-foreground">
+              <Store className="w-12 h-12 mx-auto mb-4 opacity-40" />
+              <p>This vendor has {outlets.length} outlet(s). Select a branch to view its menu.</p>
+            </CardContent>
+          </Card>
+        )}
+
         {loadingProducts && (
           <div className="flex justify-center py-12">
             <Loader2 className="w-6 h-6 animate-spin text-primary" />
@@ -217,10 +317,10 @@ export default function AdminVendorMenus() {
                   {filtered.map(product => (
                     <AdminMenuProductCard
                       key={product.id}
-                      product={product}
+                      product={{ ...product, is_available: product._effective_available }}
                       parentCategories={parentCategories}
                       getSubCategories={getSubCategories}
-                      onToggleAvailability={toggleAvailability}
+                      onToggleAvailability={(id, _current) => toggleAvailability(id, product._effective_available)}
                       onAssignCuisine={assignCuisineCategory}
                     />
                   ))}
