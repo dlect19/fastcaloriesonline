@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, Save, Loader2, Bike, Users, Building2, Navigation, CheckCircle, Clock, Settings2, Megaphone, Heart, QrCode, Radar, Trash2, Search } from 'lucide-react';
+import { MapPin, Save, Loader2, Bike, Users, Building2, Navigation, CheckCircle, Clock, Settings2, Megaphone, Heart, QrCode, Radar, Trash2, Search, Share2 } from 'lucide-react';
 import { StoreTypeField, type StoreType, type SocialMediaHandles } from '@/components/vendor/StoreTypeField';
+import { SocialMediaMarketingBanner } from '@/components/vendor/SocialMediaMarketingBanner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -578,7 +579,8 @@ function VendorStoreSettingsInner() {
         </Card>
       )}
 
-      {/* Delivery Coverage */}
+      {/* Delivery Coverage — hidden for online-only outlets */}
+      {outletStoreType !== 'online' && (
       <Card className="border-0 shadow-soft">
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
@@ -610,9 +612,10 @@ function VendorStoreSettingsInner() {
           </div>
         </CardContent>
       </Card>
+      )}
 
-      {/* Marketing Materials */}
-      {selectedOutlet && (
+      {/* Marketing Materials — physical/both outlets */}
+      {selectedOutlet && outletStoreType !== 'online' && (
         <Card className="border-0 shadow-soft">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
@@ -633,6 +636,28 @@ function VendorStoreSettingsInner() {
                 state: selectedOutlet.state || '',
                 logo_url: vendorData?.logo_url || null,
               }}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Social Media Marketing Card — online/both outlets */}
+      {selectedOutlet && vendorId && (outletStoreType === 'online' || outletStoreType === 'both') && (
+        <Card className="border-0 shadow-soft">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Share2 className="w-5 h-5" />
+              Social Media Marketing Card
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <SocialMediaMarketingBanner
+              vendorName={vendorName}
+              outletDisplayName={outletDisplayName}
+              logoUrl={vendorData?.logo_url || null}
+              socialHandles={outletSocialHandles}
+              vendorId={vendorId}
+              outletId={selectedOutlet.id}
             />
           </CardContent>
         </Card>
