@@ -11,11 +11,11 @@ interface DeliverySettings {
 }
 
 const defaultSettings: DeliverySettings = {
-  vendorDeliveryRadiusKm: 10,
+  vendorDeliveryRadiusKm: 20,
   riderSearchRadiusKm: 5,
   baseDeliveryFee: 500,
-  baseDeliveryDistanceKm: 3,
-  perKmFee: 100,
+  baseDeliveryDistanceKm: 1,
+  perKmFee: 300,
   maxDeliveryDistanceKm: 15,
 };
 

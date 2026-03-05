@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { getGoogleMapsDistance } from "../_shared/google-maps.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -11,14 +12,6 @@ serve(async (req) => {
   }
 
   try {
-    const apiKey = Deno.env.get('GOOGLE_MAPS_KEY');
-    if (!apiKey) {
-      return new Response(
-        JSON.stringify({ error: 'GOOGLE_MAPS_KEY not configured' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     const { originLat, originLng, destLat, destLng } = await req.json();
 
     if (!originLat || !originLng || !destLat || !destLng) {
@@ -28,36 +21,20 @@ serve(async (req) => {
       );
     }
 
-    const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${originLat},${originLng}&destinations=${destLat},${destLng}&key=${apiKey}`;
+    console.log(`calculate-distance: ${originLat},${originLng} → ${destLat},${destLng}`);
 
-    const response = await fetch(url);
-    const data = await response.json();
+    // Use shared helper which has Google Maps with automatic Haversine fallback
+    const result = await getGoogleMapsDistance(originLat, originLng, destLat, destLng);
 
-    if (data.status !== 'OK') {
-      return new Response(
-        JSON.stringify({ error: 'Google Maps API error', details: data.status, error_message: data.error_message }),
-        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const element = data.rows?.[0]?.elements?.[0];
-    if (!element || element.status !== 'OK') {
-      return new Response(
-        JSON.stringify({ error: 'No route found', element_status: element?.status }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const distanceInMeters = element.distance.value;
-    const durationInSeconds = element.duration.value;
+    console.log(`Result: ${result.distanceKm}km via ${result.source}`);
 
     return new Response(
       JSON.stringify({
-        distanceInMeters,
-        distanceInKm: Math.round((distanceInMeters / 1000) * 10) / 10,
-        durationInMinutes: Math.round(durationInSeconds / 60),
-        distanceText: element.distance.text,
-        durationText: element.duration.text,
+        distanceInKm: result.distanceKm,
+        durationInMinutes: result.durationMinutes,
+        distanceText: `${result.distanceKm} km`,
+        durationText: `${result.durationMinutes} min`,
+        source: result.source,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

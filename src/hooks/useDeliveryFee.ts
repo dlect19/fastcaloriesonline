@@ -168,20 +168,27 @@ export function useDeliveryFee({ vendorLat, vendorLon, customerLat, customerLon 
   useEffect(() => {
     if (vendorLat && vendorLon && customerLat && customerLon) {
       setDistanceLoading(true);
-      // Try Google Maps via edge function
+      // Try Google Maps via edge function (uses shared helper with automatic Haversine fallback)
       supabase.functions.invoke('calculate-distance', {
         body: { originLat: vendorLat, originLng: vendorLon, destLat: customerLat, destLng: customerLon },
       }).then(({ data, error }) => {
         if (data?.distanceInKm && !error) {
-          console.log(`Google Maps distance: ${data.distanceInKm} km`);
+          console.log(`Distance: ${data.distanceInKm} km (source: ${data.source || 'edge_function'})`);
           setDistanceKm(data.distanceInKm);
         } else {
-          // Haversine fallback
-          console.log('Using Haversine fallback for delivery fee');
-          setDistanceKm(calculateDistance(customerLat!, customerLon!, vendorLat!, vendorLon!));
+          // Client-side Haversine fallback (only if edge function completely fails)
+          console.warn('Edge function failed, using client Haversine fallback:', error);
+          const haversineDist = calculateDistance(customerLat!, customerLon!, vendorLat!, vendorLon!);
+          // Apply 1.3x multiplier to approximate road distance from straight-line
+          const adjustedDist = Math.round(haversineDist * 1.3 * 10) / 10;
+          console.log(`Haversine: ${haversineDist.toFixed(1)}km → adjusted: ${adjustedDist}km`);
+          setDistanceKm(adjustedDist);
         }
-      }).catch(() => {
-        setDistanceKm(calculateDistance(customerLat!, customerLon!, vendorLat!, vendorLon!));
+      }).catch((err) => {
+        console.warn('calculate-distance invocation failed:', err);
+        const haversineDist = calculateDistance(customerLat!, customerLon!, vendorLat!, vendorLon!);
+        const adjustedDist = Math.round(haversineDist * 1.3 * 10) / 10;
+        setDistanceKm(adjustedDist);
       }).finally(() => setDistanceLoading(false));
     } else {
       setDistanceKm(null);
