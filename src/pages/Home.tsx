@@ -358,6 +358,8 @@ export default function Home() {
           externalLat={deliveryLocation?.lat}
           externalLon={deliveryLocation?.lon}
           addressState={deliveryLocation?.state}
+          gpsLat={autoLat}
+          gpsLon={autoLon}
         />
       </main>
 

@@ -4,7 +4,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { MapPin, Navigation, AlertCircle } from 'lucide-react';
 import { useLocationBasedVendors, VendorWithDistance } from '@/hooks/useLocationBasedVendors';
-import { formatDistance } from '@/lib/location';
+import { formatDistance, calculateDistance } from '@/lib/location';
 
 interface VendorGridProps {
   title?: string;
@@ -14,6 +14,9 @@ interface VendorGridProps {
   externalLon?: number | null;
   /** Address state for online vendor matching (e.g., "Lagos") */
   addressState?: string | null;
+  /** Live GPS coordinates for accurate distance display on vendor cards */
+  gpsLat?: number | null;
+  gpsLon?: number | null;
 }
 
 export function VendorGrid({ 
@@ -22,6 +25,8 @@ export function VendorGrid({
   externalLat,
   externalLon,
   addressState,
+  gpsLat,
+  gpsLon,
 }: VendorGridProps) {
   const {
     vendors,
@@ -139,23 +144,30 @@ export function VendorGrid({
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {vendors.map((vendor) => (
-            <VendorCard
-              key={vendor.outlet_id || vendor.id}
-              id={vendor.id}
-              outletId={vendor.outlet_id}
-              name={(vendor as any).display_name || vendor.name}
-              category={vendor.description || `${vendor.category}`}
-              rating={vendor.rating || 0}
-              deliveryTime={vendor.estimated_delivery_minutes || 30}
-              deliveryFee={vendor.dynamic_delivery_fee}
-              isOpen={vendor.is_open ?? true}
-              imageUrl={vendor.banner_url || undefined}
-              distance={formatDistance(vendor.distance)}
-              storeType={(vendor as any).store_type}
-              socialMediaHandles={(vendor as any).social_media_handles}
-            />
-          ))}
+          {vendors.map((vendor) => {
+            // Use live GPS for display distance if available, otherwise use backend distance
+            const displayDistance = (gpsLat && gpsLon && vendor.latitude && vendor.longitude)
+              ? calculateDistance(gpsLat, gpsLon, vendor.latitude, vendor.longitude)
+              : vendor.distance;
+            
+            return (
+              <VendorCard
+                key={vendor.outlet_id || vendor.id}
+                id={vendor.id}
+                outletId={vendor.outlet_id}
+                name={(vendor as any).display_name || vendor.name}
+                category={vendor.description || `${vendor.category}`}
+                rating={vendor.rating || 0}
+                deliveryTime={(vendor as any).estimated_delivery_minutes || 30}
+                deliveryFee={vendor.dynamic_delivery_fee}
+                isOpen={vendor.is_open ?? true}
+                imageUrl={vendor.banner_url || undefined}
+                distance={formatDistance(displayDistance)}
+                storeType={(vendor as any).store_type}
+                socialMediaHandles={(vendor as any).social_media_handles}
+              />
+            );
+          })}
         </div>
       )}
     </section>
