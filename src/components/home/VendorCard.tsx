@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { Star, Clock, Bike, MapPin } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { SocialMediaBadges, type SocialMediaHandles } from '@/components/vendor/StoreTypeField';
 
 interface VendorCardProps {
   id: string;
@@ -14,6 +15,8 @@ interface VendorCardProps {
   isOpen?: boolean;
   distance?: string;
   onClick?: () => void;
+  storeType?: string;
+  socialMediaHandles?: SocialMediaHandles | null;
 }
 
 export function VendorCard({
@@ -27,6 +30,8 @@ export function VendorCard({
   deliveryFee,
   isOpen = true,
   distance,
+  storeType,
+  socialMediaHandles,
 }: VendorCardProps) {
   const navigate = useNavigate();
 
@@ -81,9 +86,13 @@ export function VendorCard({
         )}
       </div>
 
-      {/* Content */}
       <div className="p-4">
-        <h3 className="font-semibold text-foreground mb-1 truncate">{name}</h3>
+        <div className="flex items-center gap-2 mb-1">
+          <h3 className="font-semibold text-foreground truncate flex-1">{name}</h3>
+          {(storeType === 'online' || storeType === 'both') && socialMediaHandles && (
+            <SocialMediaBadges handles={socialMediaHandles} />
+          )}
+        </div>
         <p className="text-sm text-muted-foreground mb-3">{category}</p>
 
         <div className="flex items-center gap-4 text-sm text-muted-foreground">

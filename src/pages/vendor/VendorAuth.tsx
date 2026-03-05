@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from 'react-router-dom';
 import { Store, Mail, Lock, User, Phone, MapPin, Eye, EyeOff, Link2 } from 'lucide-react';
+import { StoreTypeField, type StoreType, type SocialMediaHandles } from '@/components/vendor/StoreTypeField';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -40,6 +41,8 @@ export default function VendorAuth() {
   const [address, setAddress] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('Lagos');
+  const [storeType, setStoreType] = useState<StoreType>('physical');
+  const [socialHandles, setSocialHandles] = useState<SocialMediaHandles>({});
 
   // Link account state
   const [linkEmail, setLinkEmail] = useState('');
@@ -51,6 +54,8 @@ export default function VendorAuth() {
   const [linkCity, setLinkCity] = useState('');
   const [linkState, setLinkState] = useState('Lagos');
   const [linkPhone, setLinkPhone] = useState('');
+  const [linkStoreType, setLinkStoreType] = useState<StoreType>('physical');
+  const [linkSocialHandles, setLinkSocialHandles] = useState<SocialMediaHandles>({});
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -194,8 +199,10 @@ export default function VendorAuth() {
           state: state,
           phone: phone,
           email: signupEmail,
-          is_active: false, // Needs admin approval
-        });
+          is_active: false,
+          store_type: storeType,
+          social_media_handles: socialHandles,
+        } as any);
 
       if (vendorError) throw vendorError;
 
@@ -275,8 +282,10 @@ export default function VendorAuth() {
           state: linkState,
           phone: linkPhone || null,
           email: linkEmail,
-          is_active: false, // Needs admin approval
-        });
+          is_active: false,
+          store_type: linkStoreType,
+          social_media_handles: linkSocialHandles,
+        } as any);
 
       if (vendorError) throw vendorError;
 
@@ -558,8 +567,16 @@ export default function VendorAuth() {
                   </div>
                 </div>
 
+                <StoreTypeField
+                  storeType={storeType}
+                  onStoreTypeChange={setStoreType}
+                  socialHandles={socialHandles}
+                  onSocialHandlesChange={setSocialHandles}
+                  compact
+                />
+
                 <div className="space-y-2">
-                  <Label htmlFor="address">Business Address</Label>
+                  <Label htmlFor="address">Business Address {storeType === 'online' ? '(Optional)' : ''}</Label>
                   <div className="relative">
                     <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                     <Input
@@ -568,7 +585,7 @@ export default function VendorAuth() {
                       value={address}
                       onChange={(e) => setAddress(e.target.value)}
                       className="pl-10"
-                      required
+                      required={storeType !== 'online'}
                     />
                   </div>
                 </div>
@@ -700,8 +717,16 @@ export default function VendorAuth() {
                   </div>
                 </div>
 
+                <StoreTypeField
+                  storeType={linkStoreType}
+                  onStoreTypeChange={setLinkStoreType}
+                  socialHandles={linkSocialHandles}
+                  onSocialHandlesChange={setLinkSocialHandles}
+                  compact
+                />
+
                 <div className="space-y-2">
-                  <Label htmlFor="link-address">Business Address</Label>
+                  <Label htmlFor="link-address">Business Address {linkStoreType === 'online' ? '(Optional)' : ''}</Label>
                   <div className="relative">
                     <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                     <Input
@@ -710,7 +735,7 @@ export default function VendorAuth() {
                       value={linkAddress}
                       onChange={(e) => setLinkAddress(e.target.value)}
                       className="pl-10"
-                      required
+                      required={linkStoreType !== 'online'}
                     />
                   </div>
                 </div>
