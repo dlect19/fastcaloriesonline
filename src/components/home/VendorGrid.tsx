@@ -4,8 +4,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { MapPin, Navigation, AlertCircle } from 'lucide-react';
 import { useLocationBasedVendors, VendorWithDistance } from '@/hooks/useLocationBasedVendors';
-import { formatDistance } from '@/lib/location';
-import { supabase } from '@/integrations/supabase/client';
+import { formatDistance, calculateDistance } from '@/lib/location';
 
 interface VendorGridProps {
   title?: string;
@@ -29,9 +28,6 @@ export function VendorGrid({
   gpsLat,
   gpsLon,
 }: VendorGridProps) {
-  const [gpsDistances, setGpsDistances] = useState<Record<string, number>>({});
-  const prevGpsKey = useRef('');
-
   const {
     vendors,
     loading,
@@ -49,40 +45,19 @@ export function VendorGrid({
     addressState,
   });
 
-  // Fetch road distances from GPS to each vendor via Google Maps
-  useEffect(() => {
-    if (!gpsLat || !gpsLon || vendors.length === 0) return;
-    const gpsKey = `${gpsLat.toFixed(4)},${gpsLon.toFixed(4)},${vendors.map(v => v.outlet_id || v.id).join(',')}`;
-    if (gpsKey === prevGpsKey.current) return;
-    prevGpsKey.current = gpsKey;
-
-    const fetchDistances = async () => {
-      const results: Record<string, number> = {};
-      // Fetch in parallel but limit concurrency
-      await Promise.all(
-        vendors
-          .filter(v => v.latitude && v.longitude)
-          .map(async (vendor) => {
-            try {
-              const { data } = await supabase.functions.invoke('calculate-distance', {
-                body: {
-                  originLat: gpsLat,
-                  originLng: gpsLon,
-                  destLat: vendor.latitude,
-                  destLng: vendor.longitude,
-                },
-              });
-              if (data?.distanceInKm != null) {
-                results[vendor.outlet_id || vendor.id] = data.distanceInKm;
-              }
-            } catch (e) {
-              // Silently fall back to backend distance
-            }
-          })
-      );
-      setGpsDistances(results);
-    };
-    fetchDistances();
+  // Compute GPS distances client-side using Haversine (instant, no network calls)
+  const gpsDistances = useMemo(() => {
+    if (!gpsLat || !gpsLon || vendors.length === 0) return {};
+    const results: Record<string, number> = {};
+    for (const vendor of vendors) {
+      if (vendor.latitude && vendor.longitude) {
+        const key = vendor.outlet_id || vendor.id;
+        const dist = calculateDistance(gpsLat, gpsLon, vendor.latitude, vendor.longitude);
+        // Round to 1 decimal
+        results[key] = Math.round(dist * 10) / 10;
+      }
+    }
+    return results;
   }, [gpsLat, gpsLon, vendors]);
 
   if (loading) {
