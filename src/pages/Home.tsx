@@ -39,7 +39,12 @@ export default function Home() {
   const { settings: platformSettings } = usePlatformSettings();
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [activeTab, setActiveTab] = useState('home');
-  const [deliveryLocation, setDeliveryLocation] = useState<DeliveryLocation | null>(null);
+  const [deliveryLocation, setDeliveryLocation] = useState<DeliveryLocation | null>(() => {
+    try {
+      const stored = localStorage.getItem('fc_delivery_location');
+      return stored ? JSON.parse(stored) : null;
+    } catch { return null; }
+  });
   const [locationDialogOpen, setLocationDialogOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -73,14 +78,20 @@ export default function Home() {
 
   useEffect(() => {
     if (autoLat && autoLon && !deliveryLocation) {
-      // GPS auto-detect: reverse-geocode to get the state for online vendor matching
-      setDeliveryLocation({ lat: autoLat, lon: autoLon, label: 'My GPS Location', state: null });
+      const loc = { lat: autoLat, lon: autoLon, label: 'My GPS Location', state: null };
+      setDeliveryLocation(loc);
+      localStorage.setItem('fc_delivery_location', JSON.stringify(loc));
       // Reverse-geocode in background to get state
       supabase.functions.invoke('google-reverse-geocode', {
         body: { latitude: autoLat, longitude: autoLon },
       }).then(({ data }) => {
         if (data?.state) {
-          setDeliveryLocation(prev => prev ? { ...prev, state: data.state } : prev);
+          setDeliveryLocation(prev => {
+            if (!prev) return prev;
+            const updated = { ...prev, state: data.state };
+            localStorage.setItem('fc_delivery_location', JSON.stringify(updated));
+            return updated;
+          });
         }
       }).catch(() => {});
     }
@@ -92,11 +103,14 @@ export default function Home() {
   };
 
   const handleLocationSelect = (lat: number, lon: number, label: string, state?: string | null) => {
-    setDeliveryLocation({ lat, lon, label, state });
+    const loc = { lat, lon, label, state };
+    setDeliveryLocation(loc);
+    localStorage.setItem('fc_delivery_location', JSON.stringify(loc));
   };
 
   const handleClearLocation = () => {
     setDeliveryLocation(null);
+    localStorage.removeItem('fc_delivery_location');
   };
 
   if (loading) {

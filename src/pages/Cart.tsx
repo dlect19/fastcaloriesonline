@@ -11,9 +11,13 @@ import { ArrowLeft, ShoppingBag, Leaf } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useLegalAcceptance } from '@/hooks/useLegalAcceptance';
 import { LegalAcceptanceDialog } from '@/components/shared/LegalAcceptanceDialog';
-import type { Tables } from '@/integrations/supabase/types';
 
-type Address = Tables<'addresses'>;
+interface DeliveryLocation {
+  lat: number | null;
+  lon: number | null;
+  label: string;
+  state?: string | null;
+}
 
 interface VendorLocation {
   latitude: number | null;
@@ -31,9 +35,13 @@ export default function Cart() {
 
   const { pendingDocuments, hasPendingAcceptance, loading: legalLoading, accepting: legalAccepting, acceptAll } = useLegalAcceptance(user?.id, 'customer');
 
-  const [addresses, setAddresses] = useState<Address[]>([]);
-  const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
-  const [loadingAddresses, setLoadingAddresses] = useState(true);
+  // Read delivery location from localStorage (set in Home header)
+  const [deliveryLocation, setDeliveryLocation] = useState<DeliveryLocation | null>(() => {
+    try {
+      const stored = localStorage.getItem('fc_delivery_location');
+      return stored ? JSON.parse(stored) : null;
+    } catch { return null; }
+  });
   // Key format: "vendorId|outletId" to prevent coordinate mixups between outlets of the same vendor
   const [vendorLocations, setVendorLocations] = useState<Record<string, VendorLocation>>({});
   const [placingOrderForVendor, setPlacingOrderForVendor] = useState<string | null>(null);
@@ -132,29 +140,6 @@ export default function Cart() {
     if (!authLoading && !user) navigate('/auth');
   }, [user, authLoading, navigate]);
 
-  useEffect(() => {
-    if (user) fetchAddresses();
-  }, [user]);
-
-  const fetchAddresses = async () => {
-    if (!user) return;
-    try {
-      const { data, error } = await supabase
-        .from('addresses')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('is_default', { ascending: false });
-      if (error) throw error;
-      setAddresses(data || []);
-      const defaultAddr = data?.find(a => a.is_default) || data?.[0];
-      if (defaultAddr) setSelectedAddress(defaultAddr);
-    } catch (error) {
-      console.error('Error fetching addresses:', error);
-    } finally {
-      setLoadingAddresses(false);
-    }
-  };
-
   const handleOrderPlaced = (vendorId: string, orderId: string) => {
     setCompletedOrders(prev => [...prev, { vendorId, orderId }]);
   };
@@ -252,12 +237,8 @@ export default function Cart() {
                 key={`${group.vendorId}-${group.outletId || ''}`}
                 group={group}
                 vendorLocation={vendorLocations[`${group.vendorId}|${group.outletId || ''}`] || { latitude: null, longitude: null, address: null }}
-                addresses={addresses}
-                selectedAddress={selectedAddress}
-                onSelectAddress={setSelectedAddress}
-                loadingAddresses={loadingAddresses}
+                deliveryLocation={deliveryLocation}
                 userId={user.id}
-                onAddressAdded={fetchAddresses}
                 walletBalance={walletBalance}
                 isWalletDisabled={isWalletDisabled}
                 hasDVA={hasDVA}
