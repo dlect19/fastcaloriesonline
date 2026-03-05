@@ -316,7 +316,7 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
     return missing;
   }, [selectedAddons, addonGroups, selectedChoices]);
 
-  const canAddToCart = missingRequiredGroups.length === 0 && missingRequiredChoices.length === 0;
+  const canAddToCart = !loadingAddons && missingRequiredGroups.length === 0 && missingRequiredChoices.length === 0;
 
   const handleSingleSelect = (groupId: string, itemId: string) => {
     setSelectedAddons(prev => ({ ...prev, [groupId]: [itemId] }));
