@@ -77,38 +77,52 @@ export default function Home() {
   }, [user]);
 
   useEffect(() => {
-    if (autoLat && autoLon && !deliveryLocation) {
-      // Skip auto-setting delivery location if GPS accuracy is too poor (>500m)
-      if (gpsAccuracy && gpsAccuracy > 500) {
-        console.warn(`GPS accuracy too low (${Math.round(gpsAccuracy)}m), skipping auto-location`);
-        return;
-      }
-      const loc = { lat: autoLat, lon: autoLon, label: 'My GPS Location', state: null };
-      setDeliveryLocation(loc);
-      localStorage.setItem('fc_delivery_location', JSON.stringify(loc));
-      // Reverse-geocode in background to get state
-      supabase.functions.invoke('google-reverse-geocode', {
-        body: { latitude: autoLat, longitude: autoLon },
-      }).then(({ data }) => {
-        if (data?.state) {
-          setDeliveryLocation(prev => {
-            if (!prev) return prev;
-            const updated = { ...prev, state: data.state };
-            localStorage.setItem('fc_delivery_location', JSON.stringify(updated));
-            return updated;
-          });
-        }
-        // Also update the label with the real address from geocoding
-        if (data?.address_label) {
-          setDeliveryLocation(prev => {
-            if (!prev) return prev;
-            const updated = { ...prev, label: data.address_label };
-            localStorage.setItem('fc_delivery_location', JSON.stringify(updated));
-            return updated;
-          });
-        }
-      }).catch(() => {});
+    if (!autoLat || !autoLon) return;
+    
+    // Skip if GPS accuracy is too poor (>500m)
+    if (gpsAccuracy && gpsAccuracy > 500) {
+      console.warn(`GPS accuracy too low (${Math.round(gpsAccuracy)}m), skipping auto-location`);
+      return;
     }
+
+    // If no location set, OR current location was auto-detected (GPS), update it
+    const isAutoDetected = !deliveryLocation || deliveryLocation.label === 'My GPS Location' || deliveryLocation.label === 'Detecting...';
+    // Also update if the GPS coords have shifted significantly (>100m)
+    const hasMovedSignificantly = deliveryLocation?.lat && deliveryLocation?.lon
+      ? Math.abs(deliveryLocation.lat - autoLat) > 0.001 || Math.abs(deliveryLocation.lon - autoLon) > 0.001
+      : true;
+
+    if (!isAutoDetected && !hasMovedSignificantly) return;
+    // Don't overwrite manually-selected addresses
+    if (deliveryLocation && !isAutoDetected) return;
+
+    const loc = { lat: autoLat, lon: autoLon, label: 'Detecting...', state: null };
+    setDeliveryLocation(loc);
+    localStorage.setItem('fc_delivery_location', JSON.stringify(loc));
+    
+    // Reverse-geocode to get real address
+    supabase.functions.invoke('google-reverse-geocode', {
+      body: { latitude: autoLat, longitude: autoLon },
+    }).then(({ data }) => {
+      setDeliveryLocation(prev => {
+        if (!prev) return prev;
+        const updated = {
+          ...prev,
+          state: data?.state || prev.state,
+          label: data?.address_label || 'My GPS Location',
+        };
+        localStorage.setItem('fc_delivery_location', JSON.stringify(updated));
+        return updated;
+      });
+    }).catch(() => {
+      // If geocode fails, at least show a fallback label
+      setDeliveryLocation(prev => {
+        if (!prev || prev.label !== 'Detecting...') return prev;
+        const updated = { ...prev, label: 'My GPS Location' };
+        localStorage.setItem('fc_delivery_location', JSON.stringify(updated));
+        return updated;
+      });
+    });
   }, [autoLat, autoLon, gpsAccuracy]);
 
   const handleSignOut = async () => {
