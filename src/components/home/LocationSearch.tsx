@@ -262,31 +262,40 @@ export function LocationSearch({ onLocationSelect, currentLocation, onClearLocat
         </DialogTitle>
       </DialogHeader>
       {showMapPicker ? (
-        <div className="space-y-4 pt-2">
-          <p className="text-sm text-muted-foreground">
-            Tap on the map or drag the pin to your exact delivery location.
-          </p>
-          <MapLocationPicker
-            latitude={mapPin?.lat || latitude || undefined}
-            longitude={mapPin?.lng || longitude || undefined}
-            onLocationSelect={handleMapLocationSelect}
-            height="300px"
-          />
-          {mapPin && (
-            <p className="text-xs text-muted-foreground text-center">
-              📍 {mapPin.lat.toFixed(5)}, {mapPin.lng.toFixed(5)}
-            </p>
-          )}
-          <div className="flex gap-2">
+        <div className="fixed inset-0 z-50 flex flex-col bg-background md:relative md:inset-auto md:z-auto md:rounded-lg md:border">
+          {/* Top bar */}
+          <div className="flex items-center gap-3 px-4 py-3 border-b bg-background shrink-0">
             <Button
-              variant="outline"
-              className="flex-1"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
               onClick={() => { setShowMapPicker(false); setMapPin(null); }}
             >
-              Back
+              <X className="w-5 h-5" />
             </Button>
+            <h2 className="font-semibold text-foreground">Pin Your Delivery Location</h2>
+          </div>
+
+          {/* Map — fills remaining space */}
+          <div className="flex-1 relative">
+            <MapLocationPicker
+              latitude={mapPin?.lat || latitude || undefined}
+              longitude={mapPin?.lng || longitude || undefined}
+              onLocationSelect={handleMapLocationSelect}
+              height="100%"
+              markerColor="#f97316"
+            />
+          </div>
+
+          {/* Bottom action bar */}
+          <div className="shrink-0 px-4 py-3 border-t bg-background space-y-2">
+            {mapPin && (
+              <p className="text-xs text-muted-foreground text-center">
+                📍 {mapPin.lat.toFixed(5)}, {mapPin.lng.toFixed(5)}
+              </p>
+            )}
             <Button
-              className="flex-1 gap-2"
+              className="w-full gap-2 bg-[hsl(38,92%,50%)] hover:bg-[hsl(38,92%,45%)] text-white"
               onClick={handleConfirmMapPin}
               disabled={!mapPin || reversingPin}
             >
