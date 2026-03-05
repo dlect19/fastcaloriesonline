@@ -148,6 +148,8 @@ export function VendorGrid({
               isOpen={vendor.is_open ?? true}
               imageUrl={vendor.banner_url || undefined}
               distance={formatDistance(vendor.distance)}
+              storeType={(vendor as any).store_type}
+              socialMediaHandles={(vendor as any).social_media_handles}
             />
           ))}
         </div>

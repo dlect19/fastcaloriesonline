@@ -4075,7 +4075,9 @@ export type Database = {
           rating: number | null
           sales_radius: number | null
           slug: string | null
+          social_media_handles: Json | null
           state: string
+          store_type: string
           tolerance_radius_m: number | null
           total_ratings: number | null
           updated_at: string
@@ -4116,7 +4118,9 @@ export type Database = {
           rating?: number | null
           sales_radius?: number | null
           slug?: string | null
+          social_media_handles?: Json | null
           state: string
+          store_type?: string
           tolerance_radius_m?: number | null
           total_ratings?: number | null
           updated_at?: string
@@ -4157,7 +4161,9 @@ export type Database = {
           rating?: number | null
           sales_radius?: number | null
           slug?: string | null
+          social_media_handles?: Json | null
           state?: string
+          store_type?: string
           tolerance_radius_m?: number | null
           total_ratings?: number | null
           updated_at?: string

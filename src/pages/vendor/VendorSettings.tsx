@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Store, Mail, Phone, Save, Camera, ImageIcon, Loader2, CheckCircle, Users, LogOut } from 'lucide-react';
+import { StoreTypeField, type StoreType, type SocialMediaHandles } from '@/components/vendor/StoreTypeField';
+import { Store, Mail, Phone, Save, Camera, ImageIcon, Loader2, CheckCircle, Users, LogOut, Globe } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DeleteAccountDialog } from '@/components/shared/DeleteAccountDialog';
 import { VendorDocumentUpload } from '@/components/vendor/VendorDocumentUpload';
@@ -41,6 +42,8 @@ export default function VendorSettings() {
     email: '',
     logo_url: '',
     banner_url: '',
+    store_type: 'physical' as StoreType,
+    social_media_handles: {} as SocialMediaHandles,
   });
 
   useEffect(() => {
@@ -92,6 +95,8 @@ export default function VendorSettings() {
           email: vendorData.email || '',
           logo_url: vendorData.logo_url || '',
           banner_url: vendorData.banner_url || '',
+          store_type: ((vendorData as any).store_type || 'physical') as StoreType,
+          social_media_handles: ((vendorData as any).social_media_handles || {}) as SocialMediaHandles,
         });
       }
     } catch (error) {
@@ -181,6 +186,8 @@ export default function VendorSettings() {
         email: formData.email || null,
         logo_url: formData.logo_url || null,
         banner_url: formData.banner_url || null,
+        store_type: formData.store_type,
+        social_media_handles: formData.social_media_handles,
       };
 
       if (!vendor.is_verified) {
@@ -354,6 +361,24 @@ export default function VendorSettings() {
                   placeholder="Tell customers about your business..."
                 />
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Store Type & Social Media */}
+          <Card className="border-0 shadow-soft">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Globe className="w-5 h-5" />
+                Store Type & Social Media
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <StoreTypeField
+                storeType={formData.store_type}
+                onStoreTypeChange={(t) => setFormData({ ...formData, store_type: t })}
+                socialHandles={formData.social_media_handles}
+                onSocialHandlesChange={(h) => setFormData({ ...formData, social_media_handles: h })}
+              />
             </CardContent>
           </Card>
 
