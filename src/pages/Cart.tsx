@@ -34,6 +34,7 @@ export default function Cart() {
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
   const [loadingAddresses, setLoadingAddresses] = useState(true);
+  // Key format: "vendorId|outletId" to prevent coordinate mixups between outlets of the same vendor
   const [vendorLocations, setVendorLocations] = useState<Record<string, VendorLocation>>({});
   const [placingOrderForVendor, setPlacingOrderForVendor] = useState<string | null>(null);
   const [completedOrders, setCompletedOrders] = useState<{ vendorId: string; orderId: string }[]>([]);
@@ -82,7 +83,7 @@ export default function Cart() {
     if (vendorGroups.length === 0) return;
 
     const fetchLocations = async () => {
-      const locs: Record<string, VendorLocation> = {};
+      const locs: Record<string, VendorLocation> = {}; // keyed by "vendorId|outletId"
 
       // First try to get outlet-level coordinates (most accurate)
       const outletGroups = vendorGroups.filter(g => g.outletId);
@@ -98,7 +99,8 @@ export default function Cart() {
         outlets?.forEach(o => {
           const group = outletGroups.find(g => g.outletId === o.id);
           if (group) {
-            locs[group.vendorId] = { latitude: o.latitude, longitude: o.longitude, address: o.address };
+            const key = `${group.vendorId}|${group.outletId || ''}`;
+            locs[key] = { latitude: o.latitude, longitude: o.longitude, address: o.address };
           }
         });
       }
@@ -112,8 +114,10 @@ export default function Cart() {
           .in('id', vendorIds);
 
         vendors?.forEach(v => {
-          if (!locs[v.id]) {
-            locs[v.id] = { latitude: v.latitude, longitude: v.longitude, address: v.address };
+          // Only set if no outlet-specific coordinates exist for this vendor
+          const fallbackKey = `${v.id}|`;
+          if (!Object.keys(locs).some(k => k.startsWith(`${v.id}|`) && locs[k].latitude !== null)) {
+            locs[fallbackKey] = { latitude: v.latitude, longitude: v.longitude, address: v.address };
           }
         });
       }
@@ -245,9 +249,9 @@ export default function Cart() {
             {/* Per-vendor checkout sections */}
             {vendorGroups.map((group) => (
               <VendorCheckoutSection
-                key={group.vendorId}
+                key={`${group.vendorId}-${group.outletId || ''}`}
                 group={group}
-                vendorLocation={vendorLocations[group.vendorId] || { latitude: null, longitude: null, address: null }}
+                vendorLocation={vendorLocations[`${group.vendorId}|${group.outletId || ''}`] || { latitude: null, longitude: null, address: null }}
                 addresses={addresses}
                 selectedAddress={selectedAddress}
                 onSelectAddress={setSelectedAddress}
