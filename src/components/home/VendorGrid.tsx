@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { VendorCard } from './VendorCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { MapPin, Navigation, AlertCircle } from 'lucide-react';
 import { useLocationBasedVendors, VendorWithDistance } from '@/hooks/useLocationBasedVendors';
-import { formatDistance, calculateDistance } from '@/lib/location';
+import { formatDistance } from '@/lib/location';
+import { supabase } from '@/integrations/supabase/client';
 
 interface VendorGridProps {
   title?: string;
@@ -28,6 +29,9 @@ export function VendorGrid({
   gpsLat,
   gpsLon,
 }: VendorGridProps) {
+  const [gpsDistances, setGpsDistances] = useState<Record<string, number>>({});
+  const prevGpsKey = useRef('');
+
   const {
     vendors,
     loading,
@@ -44,6 +48,42 @@ export function VendorGrid({
     externalLon,
     addressState,
   });
+
+  // Fetch road distances from GPS to each vendor via Google Maps
+  useEffect(() => {
+    if (!gpsLat || !gpsLon || vendors.length === 0) return;
+    const gpsKey = `${gpsLat.toFixed(4)},${gpsLon.toFixed(4)},${vendors.map(v => v.outlet_id || v.id).join(',')}`;
+    if (gpsKey === prevGpsKey.current) return;
+    prevGpsKey.current = gpsKey;
+
+    const fetchDistances = async () => {
+      const results: Record<string, number> = {};
+      // Fetch in parallel but limit concurrency
+      await Promise.all(
+        vendors
+          .filter(v => v.latitude && v.longitude)
+          .map(async (vendor) => {
+            try {
+              const { data } = await supabase.functions.invoke('calculate-distance', {
+                body: {
+                  originLat: gpsLat,
+                  originLng: gpsLon,
+                  destLat: vendor.latitude,
+                  destLng: vendor.longitude,
+                },
+              });
+              if (data?.distanceInKm != null) {
+                results[vendor.outlet_id || vendor.id] = data.distanceInKm;
+              }
+            } catch (e) {
+              // Silently fall back to backend distance
+            }
+          })
+      );
+      setGpsDistances(results);
+    };
+    fetchDistances();
+  }, [gpsLat, gpsLon, vendors]);
 
   if (loading) {
     return (
@@ -145,10 +185,8 @@ export function VendorGrid({
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {vendors.map((vendor) => {
-            // Use live GPS for display distance if available, otherwise use backend distance
-            const displayDistance = (gpsLat && gpsLon && vendor.latitude && vendor.longitude)
-              ? calculateDistance(gpsLat, gpsLon, vendor.latitude, vendor.longitude)
-              : vendor.distance;
+            const vendorKey = vendor.outlet_id || vendor.id;
+            const displayDistance = gpsDistances[vendorKey] ?? vendor.distance;
             
             return (
               <VendorCard
