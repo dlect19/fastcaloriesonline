@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit2, Trash2, Search, Flame, Wheat, Drumstick, Droplets, Leaf, Droplet, Apple, Gem, ImagePlus, X, Loader2, Sparkles, Settings2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, Flame, Wheat, Drumstick, Droplets, Leaf, Droplet, Apple, Gem, ImagePlus, X, Loader2, Sparkles, Settings2, ChefHat } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +14,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { VendorLayout } from '@/components/vendor/VendorLayout';
@@ -93,6 +94,7 @@ export default function VendorMenu() {
   const [outletOverrides, setOutletOverrides] = useState<Record<string, boolean>>({});
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [cuisineCategories, setCuisineCategories] = useState<any[]>([]);
 
   const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendor?.id || null);
 
@@ -134,6 +136,7 @@ export default function VendorMenu() {
     calorie_classes: [] as CalorieClass[],
     nutrient_tags: [] as NutrientTag[],
     image_url: '' as string,
+    cuisine_category_id: '' as string,
   });
 
   // Auto-calculate calories from macros (fiber ~2 kcal/g)
@@ -205,6 +208,12 @@ export default function VendorMenu() {
 
   const fetchData = async () => {
     try {
+      // Fetch cuisine categories in parallel
+      const cuisinePromise = supabase
+        .from('cuisine_categories')
+        .select('*')
+        .order('sort_order', { ascending: true });
+
       // Check if owner
       const { data: vendorRows } = await supabase
         .from('vendors')
@@ -235,6 +244,9 @@ export default function VendorMenu() {
       }
 
       setVendor(vendorData);
+
+      const { data: cuisineCats } = await cuisinePromise;
+      setCuisineCategories(cuisineCats || []);
 
       if (vendorData) {
         const { data: productsData } = await supabase
@@ -372,6 +384,7 @@ export default function VendorMenu() {
         calorie_classes: formData.calorie_classes.length > 0 ? formData.calorie_classes : null,
         nutrient_tags: formData.nutrient_tags.length > 0 ? formData.nutrient_tags : null,
         image_url: imageUrl,
+        cuisine_category_id: formData.cuisine_category_id || null,
       };
 
       if (editingProduct) {
@@ -420,6 +433,7 @@ export default function VendorMenu() {
       calorie_classes: (product.calorie_classes as CalorieClass[]) || [],
       nutrient_tags: (product.nutrient_tags as NutrientTag[]) || [],
       image_url: product.image_url || '',
+      cuisine_category_id: (product as any).cuisine_category_id || '',
     });
     // Set image preview from existing URL
     if (product.image_url) {
@@ -587,6 +601,7 @@ export default function VendorMenu() {
       calorie_classes: [],
       nutrient_tags: [],
       image_url: '',
+      cuisine_category_id: '',
     });
   };
 
@@ -842,6 +857,40 @@ export default function VendorMenu() {
                           </option>
                         ))}
                       </select>
+                    </div>
+                  )}
+
+                  {/* Cuisine Category */}
+                  {vendor?.category === 'restaurant' && cuisineCategories.length > 0 && (
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-1.5">
+                        <ChefHat className="w-4 h-4" /> Cuisine Category
+                      </Label>
+                      <Select
+                        value={formData.cuisine_category_id || 'none'}
+                        onValueChange={(val) => setFormData({ ...formData, cuisine_category_id: val === 'none' ? '' : val })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select cuisine category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No category</SelectItem>
+                          {cuisineCategories.filter(c => !c.parent_id).map(parent => {
+                            const subs = cuisineCategories.filter(c => c.parent_id === parent.id);
+                            if (subs.length === 0) {
+                              return <SelectItem key={parent.id} value={parent.id}>{parent.icon} {parent.name}</SelectItem>;
+                            }
+                            return (
+                              <SelectGroup key={parent.id}>
+                                <SelectLabel className="text-xs font-semibold">{parent.icon} {parent.name}</SelectLabel>
+                                {subs.map(sub => (
+                                  <SelectItem key={sub.id} value={sub.id}>{sub.icon} {sub.name}</SelectItem>
+                                ))}
+                              </SelectGroup>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
                     </div>
                   )}
 
@@ -1120,6 +1169,17 @@ export default function VendorMenu() {
                           </div>
                         )}
                       </div>
+                      {/* Cuisine category badge */}
+                      {(product as any).cuisine_category_id && (() => {
+                        const cat = cuisineCategories.find(c => c.id === (product as any).cuisine_category_id);
+                        const parent = cat?.parent_id ? cuisineCategories.find(c => c.id === cat.parent_id) : null;
+                        return cat ? (
+                          <Badge variant="outline" className="text-xs gap-1 mt-0.5">
+                            <ChefHat className="w-3 h-3" />
+                            {parent ? `${parent.icon} ` : ''}{cat.icon} {cat.name}
+                          </Badge>
+                        ) : null;
+                      })()}
                       <p className="text-sm text-muted-foreground line-clamp-1">
                         {product.description || 'No description'}
                       </p>
