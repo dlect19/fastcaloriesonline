@@ -143,9 +143,11 @@ serve(async (req) => {
         }
       }
 
-      const dynamicDeliveryFee = closestDistance <= baseDeliveryDistanceKm
+      // GPS drift compensation: treat distances under 500m as 0
+      const effectiveDistance = closestDistance < 0.5 ? 0 : closestDistance;
+      const dynamicDeliveryFee = effectiveDistance <= baseDeliveryDistanceKm
         ? baseDeliveryFee
-        : Math.round(baseDeliveryFee + (closestDistance - baseDeliveryDistanceKm) * perKmFee);
+        : Math.round(baseDeliveryFee + (effectiveDistance - baseDeliveryDistanceKm) * perKmFee);
 
       const outletDisplayName = closestOutlet.outlet_surname
         ? `${vendor.name} – ${closestOutlet.outlet_surname}`
@@ -276,9 +278,11 @@ serve(async (req) => {
         continue;
       }
 
-      const dynamicDeliveryFee = distance <= baseDeliveryDistanceKm
+      // GPS drift compensation: treat distances under 500m as 0
+      const effectiveDistance = distance < 0.5 ? 0 : distance;
+      const dynamicDeliveryFee = effectiveDistance <= baseDeliveryDistanceKm
         ? baseDeliveryFee
-        : Math.round(baseDeliveryFee + (distance - baseDeliveryDistanceKm) * perKmFee);
+        : Math.round(baseDeliveryFee + (effectiveDistance - baseDeliveryDistanceKm) * perKmFee);
 
       addedOutletIds.add(outlet.id);
       nearbyVendors.push({
@@ -335,9 +339,10 @@ serve(async (req) => {
         onlineDistance = onlineGm.distanceKm;
         onlineEta = onlineGm.durationMinutes;
         onlineSource = onlineGm.source;
-        onlineFee = onlineDistance <= baseDeliveryDistanceKm
+        const effectiveOnlineDist = onlineDistance < 0.5 ? 0 : onlineDistance;
+        onlineFee = effectiveOnlineDist <= baseDeliveryDistanceKm
           ? baseDeliveryFee
-          : Math.round(baseDeliveryFee + (onlineDistance - baseDeliveryDistanceKm) * perKmFee);
+          : Math.round(baseDeliveryFee + (effectiveOnlineDist - baseDeliveryDistanceKm) * perKmFee);
       }
 
       nearbyVendors.push({

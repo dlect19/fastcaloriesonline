@@ -165,29 +165,40 @@ export function useDeliveryFee({ vendorLat, vendorLon, customerLat, customerLon 
   // Calculate distance using Google Maps API (primary) with Haversine fallback
   const [distanceLoading, setDistanceLoading] = useState(false);
 
+  // Close-proximity threshold: distances under 0.5km are treated as 0 (GPS drift compensation)
+  const PROXIMITY_THRESHOLD_KM = 0.5;
+
   useEffect(() => {
     if (vendorLat && vendorLon && customerLat && customerLon) {
       setDistanceLoading(true);
+
+      // Quick Haversine pre-check: if straight-line < threshold, skip API call
+      const quickDist = calculateDistance(customerLat, customerLon, vendorLat, vendorLon);
+      if (quickDist < PROXIMITY_THRESHOLD_KM) {
+        console.log(`Close proximity (${(quickDist * 1000).toFixed(0)}m) — treating as 0km`);
+        setDistanceKm(0);
+        setDistanceLoading(false);
+        return;
+      }
+
       // Try Google Maps via edge function (uses shared helper with automatic Haversine fallback)
       supabase.functions.invoke('calculate-distance', {
         body: { originLat: vendorLat, originLng: vendorLon, destLat: customerLat, destLng: customerLon },
       }).then(({ data, error }) => {
         if (data?.distanceInKm && !error) {
-          console.log(`Distance: ${data.distanceInKm} km (source: ${data.source || 'edge_function'})`);
-          setDistanceKm(data.distanceInKm);
+          const dist = data.distanceInKm < PROXIMITY_THRESHOLD_KM ? 0 : data.distanceInKm;
+          console.log(`Distance: ${data.distanceInKm}km → ${dist}km (source: ${data.source || 'edge_function'})`);
+          setDistanceKm(dist);
         } else {
-          // Client-side Haversine fallback (only if edge function completely fails)
           console.warn('Edge function failed, using client Haversine fallback:', error);
           const haversineDist = calculateDistance(customerLat!, customerLon!, vendorLat!, vendorLon!);
-          // Apply 1.3x multiplier to approximate road distance from straight-line
-          const adjustedDist = Math.round(haversineDist * 1.3 * 10) / 10;
-          console.log(`Haversine: ${haversineDist.toFixed(1)}km → adjusted: ${adjustedDist}km`);
+          const adjustedDist = haversineDist < PROXIMITY_THRESHOLD_KM ? 0 : Math.round(haversineDist * 1.3 * 10) / 10;
           setDistanceKm(adjustedDist);
         }
       }).catch((err) => {
         console.warn('calculate-distance invocation failed:', err);
         const haversineDist = calculateDistance(customerLat!, customerLon!, vendorLat!, vendorLon!);
-        const adjustedDist = Math.round(haversineDist * 1.3 * 10) / 10;
+        const adjustedDist = haversineDist < PROXIMITY_THRESHOLD_KM ? 0 : Math.round(haversineDist * 1.3 * 10) / 10;
         setDistanceKm(adjustedDist);
       }).finally(() => setDistanceLoading(false));
     } else {
