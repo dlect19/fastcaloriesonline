@@ -57,13 +57,50 @@ export function useGeolocation(options: UseGeolocationOptions = {}) {
     }));
   }, []);
 
+  const getBrowserPosition = useCallback(() => {
+    if (!navigator.geolocation) {
+      handleError('Geolocation is not supported by your browser');
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        updatePosition(
+          position.coords.latitude,
+          position.coords.longitude,
+          position.coords.accuracy,
+          position.timestamp,
+        );
+      },
+      (error) => {
+        let errorMessage = 'Unable to get your location';
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage = 'Location permission denied. Please enable location access.';
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMessage = 'Location information is unavailable.';
+            break;
+          case error.TIMEOUT:
+            errorMessage = 'Location request timed out.';
+            break;
+        }
+        handleError(errorMessage);
+      },
+      {
+        enableHighAccuracy: opts.enableHighAccuracy,
+        timeout: opts.timeout,
+        maximumAge: opts.maximumAge,
+      }
+    );
+  }, [opts.enableHighAccuracy, opts.timeout, opts.maximumAge, updatePosition, handleError]);
+
   const getCurrentPosition = useCallback(async () => {
     setState(prev => ({ ...prev, loading: true, error: null }));
 
     if (isNative) {
-      // Use Capacitor native GPS — accesses the actual device GPS chip
+      // Try Capacitor native GPS first, fall back to browser if plugin not available
       try {
-        // Request permissions first on native
         const permStatus = await Geolocation.checkPermissions();
         if (permStatus.location === 'denied') {
           const requestResult = await Geolocation.requestPermissions();
@@ -86,48 +123,20 @@ export function useGeolocation(options: UseGeolocationOptions = {}) {
           position.timestamp,
         );
       } catch (err: any) {
-        console.error('Capacitor Geolocation error:', err);
-        handleError(err?.message || 'Unable to get your location from device GPS');
+        const msg = err?.message || '';
+        // If plugin is not implemented/available, fall back to browser geolocation
+        if (msg.includes('not implemented') || msg.includes('not available') || msg.includes('plugin')) {
+          console.warn('Capacitor Geolocation plugin not available, falling back to browser:', msg);
+          getBrowserPosition();
+        } else {
+          console.error('Capacitor Geolocation error:', err);
+          handleError(msg || 'Unable to get your location from device GPS');
+        }
       }
     } else {
-      // Fallback to browser geolocation API
-      if (!navigator.geolocation) {
-        handleError('Geolocation is not supported by your browser');
-        return;
-      }
-
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          updatePosition(
-            position.coords.latitude,
-            position.coords.longitude,
-            position.coords.accuracy,
-            position.timestamp,
-          );
-        },
-        (error) => {
-          let errorMessage = 'Unable to get your location';
-          switch (error.code) {
-            case error.PERMISSION_DENIED:
-              errorMessage = 'Location permission denied. Please enable location access.';
-              break;
-            case error.POSITION_UNAVAILABLE:
-              errorMessage = 'Location information is unavailable.';
-              break;
-            case error.TIMEOUT:
-              errorMessage = 'Location request timed out.';
-              break;
-          }
-          handleError(errorMessage);
-        },
-        {
-          enableHighAccuracy: opts.enableHighAccuracy,
-          timeout: opts.timeout,
-          maximumAge: opts.maximumAge,
-        }
-      );
+      getBrowserPosition();
     }
-  }, [isNative, opts.enableHighAccuracy, opts.timeout, opts.maximumAge, updatePosition, handleError]);
+  }, [isNative, opts.enableHighAccuracy, opts.timeout, opts.maximumAge, updatePosition, handleError, getBrowserPosition]);
 
   // Watch position if enabled
   useEffect(() => {
@@ -135,61 +144,42 @@ export function useGeolocation(options: UseGeolocationOptions = {}) {
 
     setState(prev => ({ ...prev, loading: true }));
 
+    const startBrowserWatch = () => {
+      if (!navigator.geolocation) return undefined;
+      const id = navigator.geolocation.watchPosition(
+        (position) => {
+          updatePosition(position.coords.latitude, position.coords.longitude, position.coords.accuracy, position.timestamp);
+        },
+        (error) => { handleError(error.message || 'Watch position error'); },
+        { enableHighAccuracy: opts.enableHighAccuracy, timeout: opts.timeout, maximumAge: opts.maximumAge }
+      );
+      return () => { navigator.geolocation.clearWatch(id); };
+    };
+
     if (isNative) {
       let watchId: string | null = null;
+      let fallbackCleanup: (() => void) | undefined;
       
       Geolocation.watchPosition(
-        {
-          enableHighAccuracy: opts.enableHighAccuracy,
-          timeout: opts.timeout,
-          maximumAge: opts.maximumAge,
-        },
+        { enableHighAccuracy: opts.enableHighAccuracy, timeout: opts.timeout, maximumAge: opts.maximumAge },
         (position, err) => {
-          if (err) {
-            handleError(err.message || 'Watch position error');
-            return;
-          }
+          if (err) { handleError(err.message || 'Watch position error'); return; }
           if (position) {
-            updatePosition(
-              position.coords.latitude,
-              position.coords.longitude,
-              position.coords.accuracy,
-              position.timestamp,
-            );
+            updatePosition(position.coords.latitude, position.coords.longitude, position.coords.accuracy, position.timestamp);
           }
         }
-      ).then(id => { watchId = id; });
+      ).then(id => { watchId = id; }).catch((err) => {
+        console.warn('Capacitor watch not available, falling back to browser:', err?.message);
+        fallbackCleanup = startBrowserWatch();
+      });
 
       return () => {
-        if (watchId) {
-          Geolocation.clearWatch({ id: watchId });
-        }
+        if (watchId) { Geolocation.clearWatch({ id: watchId }); }
+        if (fallbackCleanup) { fallbackCleanup(); }
       };
     } else {
-      if (!navigator.geolocation) return;
-
-      const watchId = navigator.geolocation.watchPosition(
-        (position) => {
-          updatePosition(
-            position.coords.latitude,
-            position.coords.longitude,
-            position.coords.accuracy,
-            position.timestamp,
-          );
-        },
-        (error) => {
-          handleError(error.message || 'Watch position error');
-        },
-        {
-          enableHighAccuracy: opts.enableHighAccuracy,
-          timeout: opts.timeout,
-          maximumAge: opts.maximumAge,
-        }
-      );
-
-      return () => {
-        navigator.geolocation.clearWatch(watchId);
-      };
+      const cleanup = startBrowserWatch();
+      return cleanup;
     }
   }, [opts.watch, isNative, opts.enableHighAccuracy, opts.timeout, opts.maximumAge, updatePosition, handleError]);
 
