@@ -3612,7 +3612,9 @@ export type Database = {
           outlet_surname: string | null
           rating: number | null
           sales_radius: number | null
+          social_media_handles: Json | null
           state: string | null
+          store_type: string | null
           tolerance_radius_m: number | null
           total_ratings: number | null
           updated_at: string
@@ -3645,7 +3647,9 @@ export type Database = {
           outlet_surname?: string | null
           rating?: number | null
           sales_radius?: number | null
+          social_media_handles?: Json | null
           state?: string | null
+          store_type?: string | null
           tolerance_radius_m?: number | null
           total_ratings?: number | null
           updated_at?: string
@@ -3678,7 +3682,9 @@ export type Database = {
           outlet_surname?: string | null
           rating?: number | null
           sales_radius?: number | null
+          social_media_handles?: Json | null
           state?: string | null
+          store_type?: string | null
           tolerance_radius_m?: number | null
           total_ratings?: number | null
           updated_at?: string

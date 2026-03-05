@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useOutletContext } from '@/hooks/useOutletContext';
+import { StoreTypeField, type StoreType, type SocialMediaHandles } from '@/components/vendor/StoreTypeField';
 
 interface AddOutletDialogProps {
   open: boolean;
@@ -31,6 +32,9 @@ export function AddOutletDialog({ open, onOpenChange, vendorId }: AddOutletDialo
 
   const defaultOutlet = outlets.find(o => o.is_default);
   const nextCode = `Store ${outlets.length + 1}`;
+
+  const [storeType, setStoreType] = useState<StoreType>('physical');
+  const [socialHandles, setSocialHandles] = useState<SocialMediaHandles>({});
 
   const [formData, setFormData] = useState({
     outlet_name: '',
@@ -53,11 +57,14 @@ export function AddOutletDialog({ open, onOpenChange, vendorId }: AddOutletDialo
     } else {
       setFormData({ outlet_name: '', outlet_surname: '', address: '', city: '', state: '' });
     }
+    setStoreType('physical');
+    setSocialHandles({});
     setStep('form');
   };
 
   const handleSubmit = async () => {
-    if (!formData.outlet_name || !formData.address || !formData.city || !formData.state) {
+    const addressRequired = storeType !== 'online';
+    if (!formData.outlet_name || (addressRequired && (!formData.address || !formData.city || !formData.state))) {
       toast({ title: 'Please fill all required fields', variant: 'destructive' });
       return;
     }
@@ -80,11 +87,13 @@ export function AddOutletDialog({ open, onOpenChange, vendorId }: AddOutletDialo
         logo_url: (mode === 'copy' && defaultOutlet?.logo_url) ? defaultOutlet.logo_url : undefined,
         banner_url: (mode === 'copy' && defaultOutlet?.banner_url) ? defaultOutlet.banner_url : undefined,
         description: (mode === 'copy' && defaultOutlet?.description) ? defaultOutlet.description : undefined,
+        store_type: storeType,
+        social_media_handles: Object.keys(socialHandles).length > 0 ? socialHandles : undefined,
       };
 
       const { data: newOutlet, error } = await supabase
         .from('vendor_outlets')
-        .insert(insertPayload)
+        .insert(insertPayload as any)
         .select()
         .single();
 
@@ -175,30 +184,41 @@ export function AddOutletDialog({ open, onOpenChange, vendorId }: AddOutletDialo
                 This appears after your vendor name: "YourBrand – {formData.outlet_surname || 'Branch'}"
               </p>
             </div>
-            <div className="space-y-2">
-              <Label className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> Address *</Label>
-              <Input
-                value={formData.address}
-                onChange={e => setFormData({ ...formData, address: e.target.value })}
-                placeholder="Street address"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>City *</Label>
-                <Input
-                  value={formData.city}
-                  onChange={e => setFormData({ ...formData, city: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>State *</Label>
-                <Input
-                  value={formData.state}
-                  onChange={e => setFormData({ ...formData, state: e.target.value })}
-                />
-              </div>
-            </div>
+            <StoreTypeField
+              storeType={storeType}
+              onStoreTypeChange={setStoreType}
+              socialHandles={socialHandles}
+              onSocialHandlesChange={setSocialHandles}
+              compact
+            />
+            {storeType !== 'online' && (
+              <>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> Address *</Label>
+                  <Input
+                    value={formData.address}
+                    onChange={e => setFormData({ ...formData, address: e.target.value })}
+                    placeholder="Street address"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>City *</Label>
+                    <Input
+                      value={formData.city}
+                      onChange={e => setFormData({ ...formData, city: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>State *</Label>
+                    <Input
+                      value={formData.state}
+                      onChange={e => setFormData({ ...formData, state: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
             <p className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg">
               ⏳ New outlets require admin approval before they can accept orders or be visible to customers.
             </p>

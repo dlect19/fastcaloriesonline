@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, Save, Loader2, Bike, Users, Building2, Navigation, CheckCircle, Clock, Settings2, Megaphone, Heart, QrCode, Radar, Trash2, Search } from 'lucide-react';
+import { StoreTypeField, type StoreType, type SocialMediaHandles } from '@/components/vendor/StoreTypeField';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -87,6 +88,9 @@ function VendorStoreSettingsInner() {
     sessionTokenRef.current = crypto.randomUUID();
   };
 
+  const [outletStoreType, setOutletStoreType] = useState<StoreType>('physical');
+  const [outletSocialHandles, setOutletSocialHandles] = useState<SocialMediaHandles>({});
+
   const [formData, setFormData] = useState({
     outlet_name: '',
     outlet_surname: '',
@@ -129,6 +133,8 @@ function VendorStoreSettingsInner() {
       own_rider_priority: true,
       sales_radius: (selectedOutlet as any).sales_radius || 10,
     });
+    setOutletStoreType(((selectedOutlet as any).store_type as StoreType) || 'physical');
+    setOutletSocialHandles(((selectedOutlet as any).social_media_handles as SocialMediaHandles) || {});
   }, [selectedOutlet?.id]);
 
   useEffect(() => {
@@ -149,7 +155,9 @@ function VendorStoreSettingsInner() {
           state: formData.state,
           delivery_mode: formData.delivery_mode,
           sales_radius: Math.min(maxSalesRadius, Math.max(1, formData.sales_radius)),
-        })
+          store_type: outletStoreType,
+          social_media_handles: outletSocialHandles,
+        } as any)
         .eq('id', selectedOutlet.id);
 
       if (error) throw error;
@@ -250,6 +258,23 @@ function VendorStoreSettingsInner() {
               </p>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Store Type & Social Media */}
+      <Card className="border-0 shadow-soft">
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            Store Type & Social Media
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <StoreTypeField
+            storeType={outletStoreType}
+            onStoreTypeChange={setOutletStoreType}
+            socialHandles={outletSocialHandles}
+            onSocialHandlesChange={setOutletSocialHandles}
+          />
         </CardContent>
       </Card>
 
