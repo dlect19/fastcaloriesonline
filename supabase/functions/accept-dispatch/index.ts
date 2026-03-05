@@ -95,6 +95,28 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Check concurrent order limit before accepting
+    const { data: maxConcurrentSetting } = await supabase
+      .from('platform_settings')
+      .select('value')
+      .eq('key', 'rider_max_concurrent_orders')
+      .single();
+
+    const maxConcurrent = parseInt(maxConcurrentSetting?.value || '1');
+
+    const { count: activeOrderCount } = await supabase
+      .from('orders')
+      .select('id', { count: 'exact', head: true })
+      .eq('rider_id', user.id)
+      .in('status', ['assigned', 'picked_up', 'preparing', 'confirmed', 'searching_for_rider']);
+
+    if ((activeOrderCount || 0) >= maxConcurrent) {
+      return new Response(
+        JSON.stringify({ error: `You already have ${activeOrderCount} active order(s). Maximum allowed: ${maxConcurrent}` }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const dispatchRequest = offer.dispatch_requests as any;
 
     if (dispatchRequest.status !== 'pending') {

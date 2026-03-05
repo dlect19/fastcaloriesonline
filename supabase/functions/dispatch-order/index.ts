@@ -218,6 +218,20 @@ async function getVehicleTypeConfigs(supabase: any): Promise<Record<string, numb
   return configs;
 }
 
+async function getRiderActiveOrderCount(supabase: any, riderUserId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('orders')
+    .select('id', { count: 'exact', head: true })
+    .eq('rider_id', riderUserId)
+    .in('status', ['assigned', 'picked_up', 'preparing', 'confirmed', 'searching_for_rider']);
+
+  if (error) {
+    console.error('Error counting rider active orders:', error);
+    return 0;
+  }
+  return count || 0;
+}
+
 async function findEligibleRiders(
   supabase: any,
   vendorId: string,
@@ -225,9 +239,10 @@ async function findEligibleRiders(
   vendorLon: number,
   radiusKm: number,
   priorityTier: string,
-  deliveryDistanceKm: number
+  deliveryDistanceKm: number,
+  maxConcurrentOrders: number
 ): Promise<EligibleRider[]> {
-  console.log(`Finding ${priorityTier} riders within ${radiusKm}km of vendor (delivery distance: ${deliveryDistanceKm.toFixed(1)}km)`);
+  console.log(`Finding ${priorityTier} riders within ${radiusKm}km of vendor (delivery distance: ${deliveryDistanceKm.toFixed(1)}km, maxConcurrent: ${maxConcurrentOrders})`);
 
   // Fetch vehicle type configs for distance enforcement
   const vehicleMaxDistances = await getVehicleTypeConfigs(supabase);
@@ -255,6 +270,7 @@ async function findEligibleRiders(
 
   const eligibleRiders: EligibleRider[] = [];
   let skippedVehicle = 0;
+  let skippedCapacity = 0;
 
   for (const rider of riders) {
     // Vehicle type distance enforcement
@@ -280,6 +296,13 @@ async function findEligibleRiders(
     const riderLon = rider.current_longitude || rider.preferred_longitude;
     if (!riderLat || !riderLon) continue;
 
+    // Check concurrent order limit
+    const activeCount = await getRiderActiveOrderCount(supabase, rider.user_id);
+    if (activeCount >= maxConcurrentOrders) {
+      skippedCapacity++;
+      continue;
+    }
+
     const distance = calculateDistance(vendorLat, vendorLon, riderLat, riderLon);
     const riderWorkRadius = rider.work_radius_km || radiusKm;
     if (distance <= radiusKm && distance <= riderWorkRadius) {
@@ -298,6 +321,9 @@ async function findEligibleRiders(
 
   if (skippedVehicle > 0) {
     console.log(`Skipped ${skippedVehicle} riders due to vehicle type distance limits`);
+  }
+  if (skippedCapacity > 0) {
+    console.log(`Skipped ${skippedCapacity} riders due to concurrent order limit (max: ${maxConcurrentOrders})`);
   }
 
   return eligibleRiders.sort((a, b) => a.distance_km - b.distance_km);
@@ -441,11 +467,14 @@ Deno.serve(async (req) => {
       console.log(`Delivery distance (${gmResult.source}): ${deliveryDistanceKm} km, ETA: ${estimatedDeliveryMinutes} min`);
     }
 
-    // Find eligible riders from ALL tiers with vehicle distance enforcement
+    // Get max concurrent orders setting
+    const maxConcurrentOrders = parseInt(settingsMap.rider_max_concurrent_orders || '1');
+
+    // Find eligible riders from ALL tiers with vehicle distance enforcement and capacity check
     const searchTier = 'all';
     const eligibleRiders = await findEligibleRiders(
       supabase, order.vendor_id, pickupLat, pickupLng,
-      dispatchSettings.initialRadiusKm, searchTier, deliveryDistanceKm
+      dispatchSettings.initialRadiusKm, searchTier, deliveryDistanceKm, maxConcurrentOrders
     );
 
     console.log(`Found ${eligibleRiders.length} eligible riders`);
