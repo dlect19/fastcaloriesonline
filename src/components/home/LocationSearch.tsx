@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useGeolocation } from '@/hooks/useGeolocation';
+import { useAuth } from '@/hooks/useAuth';
 
 interface PlacePrediction {
   place_id: string;
@@ -22,8 +23,20 @@ interface LocationSearchProps {
   onExternalOpenChange?: (open: boolean) => void;
 }
 
+interface SavedAddress {
+  id: string;
+  label: string;
+  address_line: string;
+  city: string;
+  state: string;
+  latitude: number | null;
+  longitude: number | null;
+  is_default: boolean | null;
+}
+
 export function LocationSearch({ onLocationSelect, currentLocation, onClearLocation, externalOpen, onExternalOpenChange }: LocationSearchProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const { latitude, longitude, loading: geoLoading, error: geoError, getCurrentPosition } = useGeolocation();
   const [internalOpen, setInternalOpen] = useState(false);
   
@@ -39,8 +52,22 @@ export function LocationSearch({ onLocationSelect, currentLocation, onClearLocat
   const [predictions, setPredictions] = useState<PlacePrediction[]>([]);
   const [searching, setSearching] = useState(false);
   const [selectingPlace, setSelectingPlace] = useState(false);
+  const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
   const sessionTokenRef = useRef(crypto.randomUUID());
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+
+  // Fetch saved addresses
+  useEffect(() => {
+    if (!user?.id) return;
+    supabase
+      .from('addresses')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('is_default', { ascending: false })
+      .then(({ data }) => {
+        if (data) setSavedAddresses(data as SavedAddress[]);
+      });
+  }, [user?.id]);
 
   // Watch for GPS coordinates when waiting
   useEffect(() => {
@@ -154,6 +181,14 @@ export function LocationSearch({ onLocationSelect, currentLocation, onClearLocat
     }
   };
 
+  const handleSelectSavedAddress = (addr: SavedAddress) => {
+    if (addr.latitude && addr.longitude) {
+      onLocationSelect(addr.latitude, addr.longitude, `${addr.label}: ${addr.address_line}`, addr.state);
+      setIsOpen(false);
+      toast({ title: 'Location Set', description: `Showing vendors near ${addr.address_line}` });
+    }
+  };
+
   const isLoadingGps = geoLoading || waitingForGps || reversingGps;
 
   return (
@@ -184,6 +219,8 @@ export function LocationSearch({ onLocationSelect, currentLocation, onClearLocat
                 geoLoading={isLoadingGps}
                 onUseMyLocation={handleUseMyLocation}
                 onSelectPlace={handleSelectPlace}
+                savedAddresses={savedAddresses}
+                onSelectSavedAddress={handleSelectSavedAddress}
               />
             </DialogContent>
           </Dialog>
@@ -209,6 +246,8 @@ export function LocationSearch({ onLocationSelect, currentLocation, onClearLocat
               geoLoading={isLoadingGps}
               onUseMyLocation={handleUseMyLocation}
               onSelectPlace={handleSelectPlace}
+              savedAddresses={savedAddresses}
+              onSelectSavedAddress={handleSelectSavedAddress}
             />
           </DialogContent>
         </Dialog>
@@ -226,6 +265,8 @@ interface LocationFormProps {
   geoLoading: boolean;
   onUseMyLocation: () => void;
   onSelectPlace: (prediction: PlacePrediction) => void;
+  savedAddresses: SavedAddress[];
+  onSelectSavedAddress: (addr: SavedAddress) => void;
 }
 
 function LocationForm({
@@ -237,6 +278,8 @@ function LocationForm({
   geoLoading,
   onUseMyLocation,
   onSelectPlace,
+  savedAddresses,
+  onSelectSavedAddress,
 }: LocationFormProps) {
   return (
     <div className="space-y-4 pt-4">
@@ -254,6 +297,32 @@ function LocationForm({
         )}
         {geoLoading ? 'Getting your location...' : 'Use My Current Location'}
       </Button>
+
+      {/* Saved Addresses */}
+      {savedAddresses.length > 0 && (
+        <div>
+          <p className="text-xs font-medium text-muted-foreground mb-2">Saved Addresses</p>
+          <div className="space-y-1">
+            {savedAddresses.map((addr) => (
+              <button
+                key={addr.id}
+                onClick={() => onSelectSavedAddress(addr)}
+                disabled={!addr.latitude || !addr.longitude}
+                className="w-full flex items-start gap-3 px-3 py-2.5 rounded-lg hover:bg-secondary/50 transition-colors text-left disabled:opacity-50"
+              >
+                <MapPin className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm text-foreground">{addr.label}</p>
+                  <p className="text-xs text-muted-foreground truncate">{addr.address_line}, {addr.city}, {addr.state}</p>
+                </div>
+                {addr.is_default && (
+                  <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full shrink-0">Default</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="relative flex items-center justify-center">
         <div className="absolute inset-0 flex items-center">
