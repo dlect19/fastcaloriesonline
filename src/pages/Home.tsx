@@ -17,7 +17,7 @@ import { AIMealRecommendation } from '@/components/home/AIMealRecommendation';
 import { SpinWheelWidget } from '@/components/home/SpinWheelWidget';
 import { LocationSearch } from '@/components/home/LocationSearch';
 import { Button } from '@/components/ui/button';
-import { LogOut, Flame, Star, ChevronRight, Sparkles, Heart, ShieldCheck, Building2 } from 'lucide-react';
+import { LogOut, Flame, Star, ChevronRight, Sparkles, Heart, ShieldCheck, Building2, MapPinOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { PushNotificationBanner } from '@/components/shared/PushNotificationBanner';
 import { useCapacitorPush } from '@/hooks/useCapacitorPush';
@@ -339,6 +339,26 @@ export default function Home() {
             </div>
           </div>
         )}
+
+        {/* GPS Accuracy Warning */}
+        {gpsAccuracy && gpsAccuracy > 200 && deliveryLocation?.label === 'My GPS Location' && (
+          <div className="flex items-start gap-3 p-4 rounded-xl bg-destructive/10 border border-destructive/20">
+            <MapPinOff className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-destructive">GPS location may be inaccurate</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Your device GPS accuracy is ~{Math.round(gpsAccuracy)}m. Tap "Deliver to" above to manually set your correct address for accurate delivery.
+              </p>
+              <button
+                onClick={() => setLocationDialogOpen(true)}
+                className="mt-2 text-xs font-semibold text-primary underline"
+              >
+                Set address manually
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Action Hints - Orders & Next Steps */}
         <ActionHints />
 

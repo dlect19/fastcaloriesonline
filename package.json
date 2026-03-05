@@ -17,6 +17,7 @@
     "@capacitor/android": "^8.0.2",
     "@capacitor/cli": "^8.0.2",
     "@capacitor/core": "^8.0.2",
+    "@capacitor/geolocation": "^8.1.0",
     "@capacitor/ios": "^8.0.2",
     "@capacitor/push-notifications": "^8.0.1",
     "@hookform/resolvers": "^3.10.0",
