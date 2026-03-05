@@ -22,6 +22,7 @@ import { useNavigate } from 'react-router-dom';
 import { PushNotificationBanner } from '@/components/shared/PushNotificationBanner';
 import { useCapacitorPush } from '@/hooks/useCapacitorPush';
 import { useGeolocation } from '@/hooks/useGeolocation';
+import { supabase } from '@/integrations/supabase/client';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 import fastCaloriesFullLogo from '@/assets/fast-calories-full-logo.png';
 
@@ -72,8 +73,16 @@ export default function Home() {
 
   useEffect(() => {
     if (autoLat && autoLon && !deliveryLocation) {
-      // GPS auto-detect: no state available, edge function will reverse-geocode
+      // GPS auto-detect: reverse-geocode to get the state for online vendor matching
       setDeliveryLocation({ lat: autoLat, lon: autoLon, label: 'My GPS Location', state: null });
+      // Reverse-geocode in background to get state
+      supabase.functions.invoke('google-reverse-geocode', {
+        body: { latitude: autoLat, longitude: autoLon },
+      }).then(({ data }) => {
+        if (data?.state) {
+          setDeliveryLocation(prev => prev ? { ...prev, state: data.state } : prev);
+        }
+      }).catch(() => {});
     }
   }, [autoLat, autoLon]);
 
