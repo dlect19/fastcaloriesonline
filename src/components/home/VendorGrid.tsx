@@ -12,6 +12,8 @@ interface VendorGridProps {
   /** External location override - when provided, uses this instead of device GPS */
   externalLat?: number | null;
   externalLon?: number | null;
+  /** Address state for online vendor matching (e.g., "Lagos") */
+  addressState?: string | null;
 }
 
 export function VendorGrid({ 
@@ -19,6 +21,7 @@ export function VendorGrid({
   category = 'all',
   externalLat,
   externalLon,
+  addressState,
 }: VendorGridProps) {
   const {
     vendors,
@@ -34,6 +37,7 @@ export function VendorGrid({
     category,
     externalLat,
     externalLon,
+    addressState,
   });
 
   if (loading) {

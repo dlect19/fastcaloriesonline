@@ -15,8 +15,8 @@ interface PlacePrediction {
 }
 
 interface LocationSearchProps {
-  onLocationSelect: (lat: number, lon: number, label: string) => void;
-  currentLocation: { lat: number | null; lon: number | null; label: string } | null;
+  onLocationSelect: (lat: number, lon: number, label: string, state?: string | null) => void;
+  currentLocation: { lat: number | null; lon: number | null; label: string; state?: string | null } | null;
   onClearLocation: () => void;
   externalOpen?: boolean;
   onExternalOpenChange?: (open: boolean) => void;
@@ -55,12 +55,15 @@ export function LocationSearch({ onLocationSelect, currentLocation, onClearLocat
         setReversingGps(false);
         
         if (error || !data) {
-          onLocationSelect(latitude, longitude, 'My Location');
+          // GPS fallback — no state available, edge function will reverse-geocode
+          onLocationSelect(latitude, longitude, 'My Location', null);
         } else {
           const label = data.address_label 
             ? `${data.address_label}${data.neighborhood ? ', ' + data.neighborhood : ''}`
             : data.formatted_address?.split(',').slice(0, 2).join(',') || 'My Location';
-          onLocationSelect(latitude, longitude, label);
+          // Pass state from reverse geocode result if available
+          const state = data.state || null;
+          onLocationSelect(latitude, longitude, label, state);
         }
         
         setIsOpen(false);
@@ -129,7 +132,9 @@ export function LocationSearch({ onLocationSelect, currentLocation, onClearLocat
       sessionTokenRef.current = crypto.randomUUID();
 
       const label = prediction.main_text || prediction.description.split(',')[0];
-      onLocationSelect(data.latitude, data.longitude, label);
+      // Extract state from place details if available
+      const placeState = data.state || null;
+      onLocationSelect(data.latitude, data.longitude, label, placeState);
       setIsOpen(false);
       setPredictions([]);
       setSearchQuery('');

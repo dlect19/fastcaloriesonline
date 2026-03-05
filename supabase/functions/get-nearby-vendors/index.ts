@@ -18,7 +18,7 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { customer_lat, customer_lon, category, vendor_id, outlet_id } = await req.json();
+    const { customer_lat, customer_lon, category, vendor_id, outlet_id, customer_state } = await req.json();
 
     console.log("get-nearby-vendors called with:", { customer_lat, customer_lon, category, vendor_id });
 
@@ -210,30 +210,35 @@ serve(async (req) => {
       filteredOutlets = filteredOutlets.filter((o: any) => o.vendors?.category === category);
     }
 
-    // Resolve customer state via reverse geocoding for online outlet matching
-    let customerState: string | null = null;
-    try {
-      const googleKey = Deno.env.get("GOOGLE_MAPS_KEY");
-      if (googleKey) {
-        const geoRes = await fetch(
-          `https://maps.googleapis.com/maps/api/geocode/json?latlng=${customer_lat},${customer_lon}&key=${googleKey}`
-        );
-        const geoData = await geoRes.json();
-        console.log("Reverse geocode status:", geoData?.status, "results count:", geoData?.results?.length);
-        // Search through all results for administrative_area_level_1
-        for (const result of (geoData?.results || [])) {
-          const stateComponent = result?.address_components?.find(
-            (c: any) => c.types?.includes("administrative_area_level_1")
+    // Use customer_state from the delivery address if provided (more reliable than GPS reverse-geocode)
+    // Only reverse-geocode from GPS coordinates as a fallback
+    let customerState: string | null = customer_state ? customer_state.toLowerCase() : null;
+    
+    if (!customerState) {
+      try {
+        const googleKey = Deno.env.get("GOOGLE_MAPS_KEY");
+        if (googleKey) {
+          const geoRes = await fetch(
+            `https://maps.googleapis.com/maps/api/geocode/json?latlng=${customer_lat},${customer_lon}&key=${googleKey}`
           );
-          if (stateComponent) {
-            customerState = stateComponent.long_name?.toLowerCase() || null;
-            console.log("Found customer state:", customerState);
-            break;
+          const geoData = await geoRes.json();
+          console.log("Reverse geocode status:", geoData?.status, "results count:", geoData?.results?.length);
+          for (const result of (geoData?.results || [])) {
+            const stateComponent = result?.address_components?.find(
+              (c: any) => c.types?.includes("administrative_area_level_1")
+            );
+            if (stateComponent) {
+              customerState = stateComponent.long_name?.toLowerCase() || null;
+              console.log("Found customer state from GPS:", customerState);
+              break;
+            }
           }
         }
+      } catch (e) {
+        console.log("Could not resolve customer state:", e);
       }
-    } catch (e) {
-      console.log("Could not resolve customer state:", e);
+    } else {
+      console.log("Using customer state from delivery address:", customerState);
     }
 
     console.log("Resolved customer state:", customerState);
