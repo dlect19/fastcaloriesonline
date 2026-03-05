@@ -1,6 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { Home, Package, Store, Bike, Ticket, Users, Settings, LogOut, Image, Activity, Banknote, Wallet, ArrowDownLeft, Gift, Truck, UserCheck, Star, MessageSquare, DollarSign, UserPlus, Receipt, ClipboardList, Scale, HelpCircle, Percent, ShieldAlert, Megaphone, Gavel } from 'lucide-react';
+import { Home, Package, Store, Bike, Ticket, Users, Settings, LogOut, Image, Activity, Banknote, Wallet, ArrowDownLeft, Gift, Truck, UserCheck, Star, MessageSquare, DollarSign, UserPlus, Receipt, ClipboardList, Scale, HelpCircle, Percent, ShieldAlert, Megaphone, Gavel, UtensilsCrossed } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -22,6 +22,7 @@ const menuItems: MenuItem[] = [
   { icon: Package, label: 'Orders', path: '/admin/orders', requiredPermission: 'manage_vendors' },
   { icon: Store, label: 'Vendors', path: '/admin/vendors', requiredPermission: 'manage_vendors' },
   { icon: Bike, label: 'Riders', path: '/admin/riders', requiredPermission: 'manage_riders' },
+  { icon: UtensilsCrossed, label: 'Vendor Menus', path: '/admin/vendor-menus', requiredPermission: 'manage_vendors' },
   { icon: Star, label: 'Reviews', path: '/admin/reviews', requiredPermission: 'manage_vendors' },
   { icon: Truck, label: 'Delivery Companies', path: '/admin/delivery-companies', requiredPermission: 'manage_vendors' },
   { icon: UserCheck, label: 'Customers', path: '/admin/customers', requiredPermission: 'manage_users' },
