@@ -79,9 +79,9 @@ export default function AdminVendorMenus() {
 
     const { data: outletList } = await supabase
       .from('vendor_outlets')
-      .select('id, surname, is_active')
+      .select('id, outlet_surname, outlet_name, is_active')
       .eq('vendor_id', vendorId)
-      .order('surname');
+      .order('outlet_name');
 
     setOutlets(outletList || []);
     setLoadingOutlets(false);
@@ -232,7 +232,7 @@ export default function AdminVendorMenus() {
               <SelectContent>
                 {outlets.map(o => (
                   <SelectItem key={o.id} value={o.id}>
-                    {o.surname || 'Main Branch'} {!o.is_active && '(Inactive)'}
+                    {o.outlet_surname || o.outlet_name || 'Main Branch'} {!o.is_active && '(Inactive)'}
                   </SelectItem>
                 ))}
               </SelectContent>
