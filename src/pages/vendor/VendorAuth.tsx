@@ -585,7 +585,7 @@ export default function VendorAuth() {
                       value={address}
                       onChange={(e) => setAddress(e.target.value)}
                       className="pl-10"
-                      required={storeType !== 'online'}
+                      required
                     />
                   </div>
                 </div>
@@ -735,7 +735,7 @@ export default function VendorAuth() {
                       value={linkAddress}
                       onChange={(e) => setLinkAddress(e.target.value)}
                       className="pl-10"
-                      required={linkStoreType !== 'online'}
+                      required
                     />
                   </div>
                 </div>

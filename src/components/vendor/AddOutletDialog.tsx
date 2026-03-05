@@ -63,8 +63,7 @@ export function AddOutletDialog({ open, onOpenChange, vendorId }: AddOutletDialo
   };
 
   const handleSubmit = async () => {
-    const addressRequired = storeType !== 'online';
-    if (!formData.outlet_name || (addressRequired && (!formData.address || !formData.city || !formData.state))) {
+    if (!formData.outlet_name || !formData.address || !formData.city || !formData.state) {
       toast({ title: 'Please fill all required fields', variant: 'destructive' });
       return;
     }
@@ -191,33 +190,34 @@ export function AddOutletDialog({ open, onOpenChange, vendorId }: AddOutletDialo
               onSocialHandlesChange={setSocialHandles}
               compact
             />
-            {storeType !== 'online' && (
-              <>
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> Address *</Label>
-                  <Input
-                    value={formData.address}
-                    onChange={e => setFormData({ ...formData, address: e.target.value })}
-                    placeholder="Street address"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label>City *</Label>
-                    <Input
-                      value={formData.city}
-                      onChange={e => setFormData({ ...formData, city: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>State *</Label>
-                    <Input
-                      value={formData.state}
-                      onChange={e => setFormData({ ...formData, state: e.target.value })}
-                    />
-                  </div>
-                </div>
-              </>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> Address *</Label>
+              <Input
+                value={formData.address}
+                onChange={e => setFormData({ ...formData, address: e.target.value })}
+                placeholder="Street address"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>City *</Label>
+                <Input
+                  value={formData.city}
+                  onChange={e => setFormData({ ...formData, city: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>State *</Label>
+                <Input
+                  value={formData.state}
+                  onChange={e => setFormData({ ...formData, state: e.target.value })}
+                />
+              </div>
+            </div>
+            {storeType === 'online' && (
+              <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded-lg">
+                📍 A physical address is required for all vendors for verification and safety purposes.
+              </p>
             )}
             <p className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg">
               ⏳ New outlets require admin approval before they can accept orders or be visible to customers.
