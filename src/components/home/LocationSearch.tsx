@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { MapPin, Search, Loader2, Navigation, X } from 'lucide-react';
+import { MapPin, Search, Loader2, Navigation, X, Map } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -7,6 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { useAuth } from '@/hooks/useAuth';
+import { MapLocationPicker } from '@/components/shared/MapLocationPicker';
 
 interface PlacePrediction {
   place_id: string;
@@ -53,6 +54,9 @@ export function LocationSearch({ onLocationSelect, currentLocation, onClearLocat
   const [searching, setSearching] = useState(false);
   const [selectingPlace, setSelectingPlace] = useState(false);
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
+  const [showMapPicker, setShowMapPicker] = useState(false);
+  const [mapPin, setMapPin] = useState<{ lat: number; lng: number } | null>(null);
+  const [reversingPin, setReversingPin] = useState(false);
   const sessionTokenRef = useRef(crypto.randomUUID());
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
@@ -73,22 +77,26 @@ export function LocationSearch({ onLocationSelect, currentLocation, onClearLocat
   useEffect(() => {
     if (waitingForGps && latitude && longitude) {
       setWaitingForGps(false);
+      
+      // If map picker is showing, just center map on GPS — don't auto-select
+      if (showMapPicker) {
+        setMapPin({ lat: latitude, lng: longitude });
+        return;
+      }
+      
       setReversingGps(true);
       
-      // Reverse geocode to get actual address
       supabase.functions.invoke('google-reverse-geocode', {
         body: { latitude, longitude },
       }).then(({ data, error }) => {
         setReversingGps(false);
         
         if (error || !data) {
-          // GPS fallback — no state available, edge function will reverse-geocode
           onLocationSelect(latitude, longitude, 'My Location', null);
         } else {
           const label = data.address_label 
             ? `${data.address_label}${data.neighborhood ? ', ' + data.neighborhood : ''}`
             : data.formatted_address?.split(',').slice(0, 2).join(',') || 'My Location';
-          // Pass state from reverse geocode result if available
           const state = data.state || null;
           onLocationSelect(latitude, longitude, label, state);
         }
@@ -107,11 +115,68 @@ export function LocationSearch({ onLocationSelect, currentLocation, onClearLocat
         variant: 'destructive',
       });
     }
-  }, [latitude, longitude, geoError, waitingForGps, onLocationSelect, toast]);
+  }, [latitude, longitude, geoError, waitingForGps, onLocationSelect, toast, showMapPicker]);
 
   const handleUseMyLocation = () => {
     setWaitingForGps(true);
     getCurrentPosition();
+  };
+
+  // Open map picker — center on GPS if available
+  const handleOpenMapPicker = () => {
+    setShowMapPicker(true);
+    if (latitude && longitude) {
+      setMapPin({ lat: latitude, lng: longitude });
+    } else {
+      // Request GPS to center map
+      setWaitingForGps(true);
+      getCurrentPosition();
+    }
+  };
+
+  // When user pins a location on the map
+  const handleMapLocationSelect = (lat: number, lng: number) => {
+    setMapPin({ lat, lng });
+  };
+
+  // Confirm the pinned location — reverse geocode and use it
+  const handleConfirmMapPin = async () => {
+    if (!mapPin) return;
+    setReversingPin(true);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('google-reverse-geocode', {
+        body: { latitude: mapPin.lat, longitude: mapPin.lng },
+      });
+
+      let label = 'Pinned Location';
+      let state: string | null = null;
+
+      if (!error && data) {
+        label = data.address_label 
+          ? `${data.address_label}${data.neighborhood ? ', ' + data.neighborhood : ''}`
+          : data.formatted_address?.split(',').slice(0, 2).join(',') || 'Pinned Location';
+        state = data.state || null;
+      }
+
+      onLocationSelect(mapPin.lat, mapPin.lng, label, state);
+      setIsOpen(false);
+      setShowMapPicker(false);
+      setMapPin(null);
+      
+      toast({
+        title: 'Location Set',
+        description: `Delivering to ${label}`,
+      });
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: 'Could not resolve address from pin. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setReversingPin(false);
+    }
   };
 
   // Debounced autocomplete search
@@ -155,11 +220,9 @@ export function LocationSearch({ onLocationSelect, currentLocation, onClearLocat
         throw new Error('Failed to get place details');
       }
 
-      // Generate a new session token for next autocomplete session
       sessionTokenRef.current = crypto.randomUUID();
 
       const label = prediction.main_text || prediction.description.split(',')[0];
-      // Extract state from place details if available
       const placeState = data.state || null;
       onLocationSelect(data.latitude, data.longitude, label, placeState);
       setIsOpen(false);
@@ -191,6 +254,65 @@ export function LocationSearch({ onLocationSelect, currentLocation, onClearLocat
 
   const isLoadingGps = geoLoading || waitingForGps || reversingGps;
 
+  const dialogContent = (
+    <>
+      <DialogHeader>
+        <DialogTitle>
+          {showMapPicker ? 'Pin Your Exact Location' : 'Set Delivery Location'}
+        </DialogTitle>
+      </DialogHeader>
+      {showMapPicker ? (
+        <div className="space-y-4 pt-2">
+          <p className="text-sm text-muted-foreground">
+            Tap on the map or drag the pin to your exact delivery location.
+          </p>
+          <MapLocationPicker
+            latitude={mapPin?.lat || latitude || undefined}
+            longitude={mapPin?.lng || longitude || undefined}
+            onLocationSelect={handleMapLocationSelect}
+            height="300px"
+          />
+          {mapPin && (
+            <p className="text-xs text-muted-foreground text-center">
+              📍 {mapPin.lat.toFixed(5)}, {mapPin.lng.toFixed(5)}
+            </p>
+          )}
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => { setShowMapPicker(false); setMapPin(null); }}
+            >
+              Back
+            </Button>
+            <Button
+              className="flex-1 gap-2"
+              onClick={handleConfirmMapPin}
+              disabled={!mapPin || reversingPin}
+            >
+              {reversingPin ? <Loader2 className="w-4 h-4 animate-spin" /> : <MapPin className="w-4 h-4" />}
+              {reversingPin ? 'Getting address...' : 'Confirm Location'}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <LocationForm
+          searchQuery={searchQuery}
+          onSearchChange={handleSearchChange}
+          predictions={predictions}
+          searching={searching}
+          selectingPlace={selectingPlace}
+          geoLoading={isLoadingGps}
+          onUseMyLocation={handleUseMyLocation}
+          onSelectPlace={handleSelectPlace}
+          savedAddresses={savedAddresses}
+          onSelectSavedAddress={handleSelectSavedAddress}
+          onOpenMapPicker={handleOpenMapPicker}
+        />
+      )}
+    </>
+  );
+
   return (
     <div className="w-full">
       {currentLocation && currentLocation.lat && currentLocation.lon ? (
@@ -200,55 +322,27 @@ export function LocationSearch({ onLocationSelect, currentLocation, onClearLocat
           <Button variant="ghost" size="sm" onClick={onClearLocation} className="h-8 w-8 p-0">
             <X className="w-4 h-4" />
           </Button>
-          <Dialog open={isOpen} onOpenChange={setIsOpen}>
+          <Dialog open={isOpen} onOpenChange={(open) => { setIsOpen(open); if (!open) { setShowMapPicker(false); setMapPin(null); } }}>
             <DialogTrigger asChild>
               <Button variant="ghost" size="sm" className="h-8">
                 Change
               </Button>
             </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Set Delivery Location</DialogTitle>
-              </DialogHeader>
-              <LocationForm
-                searchQuery={searchQuery}
-                onSearchChange={handleSearchChange}
-                predictions={predictions}
-                searching={searching}
-                selectingPlace={selectingPlace}
-                geoLoading={isLoadingGps}
-                onUseMyLocation={handleUseMyLocation}
-                onSelectPlace={handleSelectPlace}
-                savedAddresses={savedAddresses}
-                onSelectSavedAddress={handleSelectSavedAddress}
-              />
+            <DialogContent className="max-w-md">
+              {dialogContent}
             </DialogContent>
           </Dialog>
         </div>
       ) : (
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <Dialog open={isOpen} onOpenChange={(open) => { setIsOpen(open); if (!open) { setShowMapPicker(false); setMapPin(null); } }}>
           <DialogTrigger asChild>
             <Button variant="outline" className="w-full justify-start gap-2 h-12 border-dashed">
               <MapPin className="w-4 h-4 text-muted-foreground" />
               <span className="text-muted-foreground">Enter delivery address to see nearby vendors</span>
             </Button>
           </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Set Delivery Location</DialogTitle>
-            </DialogHeader>
-            <LocationForm
-              searchQuery={searchQuery}
-              onSearchChange={handleSearchChange}
-              predictions={predictions}
-              searching={searching}
-              selectingPlace={selectingPlace}
-              geoLoading={isLoadingGps}
-              onUseMyLocation={handleUseMyLocation}
-              onSelectPlace={handleSelectPlace}
-              savedAddresses={savedAddresses}
-              onSelectSavedAddress={handleSelectSavedAddress}
-            />
+          <DialogContent className="max-w-md">
+            {dialogContent}
           </DialogContent>
         </Dialog>
       )}
@@ -267,6 +361,7 @@ interface LocationFormProps {
   onSelectPlace: (prediction: PlacePrediction) => void;
   savedAddresses: SavedAddress[];
   onSelectSavedAddress: (addr: SavedAddress) => void;
+  onOpenMapPicker: () => void;
 }
 
 function LocationForm({
@@ -280,9 +375,83 @@ function LocationForm({
   onSelectPlace,
   savedAddresses,
   onSelectSavedAddress,
+  onOpenMapPicker,
 }: LocationFormProps) {
   return (
     <div className="space-y-4 pt-4">
+      {/* Google Places Autocomplete Search — primary method */}
+      <div className="relative">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Search for an address or landmark..."
+            className="pl-9 pr-9"
+            autoFocus
+          />
+          {searching && (
+            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />
+          )}
+        </div>
+
+        {/* Predictions dropdown */}
+        {predictions.length > 0 && (
+          <div className="mt-2 rounded-lg border border-border bg-background shadow-lg overflow-hidden">
+            {predictions.map((prediction) => (
+              <button
+                key={prediction.place_id}
+                onClick={() => onSelectPlace(prediction)}
+                disabled={selectingPlace}
+                className="w-full flex items-start gap-3 px-3 py-3 hover:bg-secondary/50 transition-colors text-left border-b border-border last:border-b-0 disabled:opacity-50"
+              >
+                <MapPin className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm text-foreground">{prediction.main_text}</p>
+                  <p className="text-xs text-muted-foreground truncate">{prediction.secondary_text}</p>
+                </div>
+                {selectingPlace && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground shrink-0" />}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* No results — suggest map picker */}
+        {searchQuery.length >= 3 && !searching && predictions.length === 0 && (
+          <div className="mt-2 text-center py-3 space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Can't find your address?
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={onOpenMapPicker}
+            >
+              <Map className="w-4 h-4" />
+              Pin on Map instead
+            </Button>
+          </div>
+        )}
+      </div>
+
+      <div className="relative flex items-center justify-center">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-border" />
+        </div>
+        <span className="relative bg-background px-2 text-xs text-muted-foreground">or</span>
+      </div>
+
+      {/* Pin on Map — always available */}
+      <Button
+        variant="outline"
+        className="w-full gap-2"
+        onClick={onOpenMapPicker}
+      >
+        <Map className="w-4 h-4" />
+        Pin Location on Map
+      </Button>
+
       {/* Use GPS */}
       <Button
         variant="outline"
@@ -323,58 +492,8 @@ function LocationForm({
           </div>
         </div>
       )}
-
-      <div className="relative flex items-center justify-center">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-border" />
-        </div>
-        <span className="relative bg-background px-2 text-xs text-muted-foreground">or search address</span>
-      </div>
-
-      {/* Google Places Autocomplete Search */}
-      <div className="relative">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search for an address or landmark..."
-            className="pl-9 pr-9"
-            autoFocus
-          />
-          {searching && (
-            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />
-          )}
-        </div>
-
-        {/* Predictions dropdown */}
-        {predictions.length > 0 && (
-          <div className="mt-2 rounded-lg border border-border bg-background shadow-lg overflow-hidden">
-            {predictions.map((prediction) => (
-              <button
-                key={prediction.place_id}
-                onClick={() => onSelectPlace(prediction)}
-                disabled={selectingPlace}
-                className="w-full flex items-start gap-3 px-3 py-3 hover:bg-secondary/50 transition-colors text-left border-b border-border last:border-b-0 disabled:opacity-50"
-              >
-                <MapPin className="w-4 h-4 text-primary mt-0.5 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm text-foreground">{prediction.main_text}</p>
-                  <p className="text-xs text-muted-foreground truncate">{prediction.secondary_text}</p>
-                </div>
-                {selectingPlace && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground shrink-0" />}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* No results message */}
-        {searchQuery.length >= 3 && !searching && predictions.length === 0 && (
-          <p className="mt-2 text-sm text-muted-foreground text-center py-3">
-            No addresses found. Try a different search term.
-          </p>
-        )}
-      </div>
     </div>
   );
 }
+
+
