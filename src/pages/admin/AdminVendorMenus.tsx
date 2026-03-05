@@ -28,6 +28,7 @@ export default function AdminVendorMenus() {
   const [products, setProducts] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [availabilityFilter, setAvailabilityFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [cuisineCategories, setCuisineCategories] = useState<CuisineCategory[]>([]);
@@ -103,8 +104,14 @@ export default function AdminVendorMenus() {
   const filtered = products.filter(p => {
     const matchCat = selectedCategory === 'all' || p.category_id === selectedCategory;
     const matchSearch = !searchQuery || p.name?.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchCat && matchSearch;
+    const matchAvail = availabilityFilter === 'all' || 
+      (availabilityFilter === 'available' && p.is_available) || 
+      (availabilityFilter === 'unavailable' && !p.is_available);
+    return matchCat && matchSearch && matchAvail;
   });
+
+  const availableCount = products.filter(p => p.is_available).length;
+  const unavailableCount = products.filter(p => !p.is_available).length;
 
   // Group cuisine categories: parents and their children
   const parentCategories = cuisineCategories.filter(c => !c.parent_id);
@@ -152,6 +159,17 @@ export default function AdminVendorMenus() {
                   {categories.map(c => (
                     <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={availabilityFilter} onValueChange={setAvailabilityFilter}>
+                <SelectTrigger className="w-full sm:w-[200px]">
+                  <SelectValue placeholder="Availability" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All ({products.length})</SelectItem>
+                  <SelectItem value="available">✅ Available ({availableCount})</SelectItem>
+                  <SelectItem value="unavailable">❌ Unavailable ({unavailableCount})</SelectItem>
                 </SelectContent>
               </Select>
 
