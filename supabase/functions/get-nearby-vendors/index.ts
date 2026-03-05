@@ -91,8 +91,18 @@ serve(async (req) => {
       // Find closest outlet — use Haversine for quick filtering first
       let closestOutlet = null;
       let closestDistance = Infinity;
+      const isOnlineOutlet = (o: any) => o.store_type === 'online' || o.store_type === 'both';
 
       for (const outlet of outlets) {
+        // Online outlets: match by state, no distance limit
+        if (isOnlineOutlet(outlet)) {
+          // We'll use state matching; if no coords just pick it
+          if (!closestOutlet || closestDistance > 0) {
+            closestOutlet = outlet;
+            closestDistance = 0;
+          }
+          continue;
+        }
         if (!outlet.latitude || !outlet.longitude) continue;
         const dist = haversineDistance(customer_lat, customer_lon, outlet.latitude, outlet.longitude);
         if (dist < closestDistance) {
@@ -108,29 +118,39 @@ serve(async (req) => {
         );
       }
 
-      // Now get accurate Google Maps distance for the closest outlet
-      const gmResult = await getGoogleMapsDistance(
-        customer_lat, customer_lon, closestOutlet.latitude, closestOutlet.longitude
-      );
-      closestDistance = gmResult.distanceKm;
-      console.log(`Vendor distance (${gmResult.source}): ${closestDistance} km`);
+      // Online outlets bypass distance check — only need same state
+      const outletIsOnline = isOnlineOutlet(closestOutlet);
 
-      const outletRadius = closestOutlet.sales_radius ?? maxVisibilityRadius;
-
-      if (closestDistance > outletRadius) {
-        return new Response(
-          JSON.stringify({
-            success: false, error: "vendor_outside_radius",
-            message: `This vendor is not available in your area. They are ${closestDistance.toFixed(1)}km away, but their delivery radius is ${outletRadius}km.`,
-            vendor: null, distance: closestDistance, max_radius: outletRadius,
-          }),
-          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      if (outletIsOnline) {
+        // No distance restriction for online outlets in same state
+        closestDistance = 0;
+      } else {
+        // Now get accurate Google Maps distance for the closest outlet
+        const gmResult = await getGoogleMapsDistance(
+          customer_lat, customer_lon, closestOutlet.latitude, closestOutlet.longitude
         );
+        closestDistance = gmResult.distanceKm;
+        console.log(`Vendor distance (${gmResult.source}): ${closestDistance} km`);
+
+        const outletRadius = closestOutlet.sales_radius ?? maxVisibilityRadius;
+
+        if (closestDistance > outletRadius) {
+          return new Response(
+            JSON.stringify({
+              success: false, error: "vendor_outside_radius",
+              message: `This vendor is not available in your area. They are ${closestDistance.toFixed(1)}km away, but their delivery radius is ${outletRadius}km.`,
+              vendor: null, distance: closestDistance, max_radius: outletRadius,
+            }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
       }
 
-      const dynamicDeliveryFee = closestDistance <= baseDeliveryDistanceKm
-        ? baseDeliveryFee
-        : Math.round(baseDeliveryFee + (closestDistance - baseDeliveryDistanceKm) * perKmFee);
+      const dynamicDeliveryFee = outletIsOnline ? baseDeliveryFee : (
+        closestDistance <= baseDeliveryDistanceKm
+          ? baseDeliveryFee
+          : Math.round(baseDeliveryFee + (closestDistance - baseDeliveryDistanceKm) * perKmFee)
+      );
 
       const outletDisplayName = closestOutlet.outlet_surname
         ? `${vendor.name} – ${closestOutlet.outlet_surname}`
@@ -161,8 +181,10 @@ serve(async (req) => {
             distance: closestDistance,
             dynamic_delivery_fee: dynamicDeliveryFee,
             display_name: outletDisplayName,
-            estimated_delivery_minutes: gmResult.durationMinutes,
-            distance_source: gmResult.source,
+            estimated_delivery_minutes: outletIsOnline ? null : undefined,
+            distance_source: outletIsOnline ? 'online' : undefined,
+            store_type: closestOutlet.store_type,
+            social_media_handles: closestOutlet.social_media_handles,
           },
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -191,17 +213,61 @@ serve(async (req) => {
       filteredOutlets = filteredOutlets.filter((o: any) => o.vendors?.category === category);
     }
 
-    // First pass: quick Haversine filter to get candidates within max radius
-    const candidates = filteredOutlets.filter((outlet: any) => {
+    // Resolve customer state via reverse geocoding for online outlet matching
+    let customerState: string | null = null;
+    try {
+      const googleKey = Deno.env.get("GOOGLE_MAPS_API_KEY");
+      if (googleKey) {
+        const geoRes = await fetch(
+          `https://maps.googleapis.com/maps/api/geocode/json?latlng=${customer_lat},${customer_lon}&key=${googleKey}&result_type=administrative_area_level_1`
+        );
+        const geoData = await geoRes.json();
+        const stateComponent = geoData?.results?.[0]?.address_components?.find(
+          (c: any) => c.types?.includes("administrative_area_level_1")
+        );
+        if (stateComponent) {
+          customerState = stateComponent.long_name?.toLowerCase() || null;
+        }
+      }
+    } catch (e) {
+      console.log("Could not resolve customer state:", e);
+    }
+
+    // Separate online outlets (state-matched, no distance limit) from physical outlets
+    const onlineOutlets: any[] = [];
+    const physicalOutlets: any[] = [];
+
+    for (const outlet of filteredOutlets) {
+      const storeType = outlet.store_type || 'physical';
+      if (storeType === 'online' || storeType === 'both') {
+        // Online outlets: match by state (case-insensitive)
+        const outletState = (outlet.state || '').toLowerCase();
+        if (customerState && outletState && outletState.includes(customerState.replace(' state', '').trim())) {
+          onlineOutlets.push(outlet);
+        } else if (customerState && outletState.replace(' state', '').trim() === customerState.replace(' state', '').trim()) {
+          onlineOutlets.push(outlet);
+        }
+        // If store_type is 'both', also check distance for physical discovery
+        if (storeType === 'both' && outlet.latitude && outlet.longitude) {
+          physicalOutlets.push(outlet);
+        }
+      } else {
+        physicalOutlets.push(outlet);
+      }
+    }
+
+    // First pass: quick Haversine filter for physical candidates
+    const candidates = physicalOutlets.filter((outlet: any) => {
       if (!outlet.latitude || !outlet.longitude) return false;
       const distance = haversineDistance(customer_lat, customer_lon, outlet.latitude, outlet.longitude);
       const outletRadius = outlet.sales_radius ?? maxVisibilityRadius;
-      // Use generous 1.5x multiplier for initial filter (road distance > straight line)
       return distance <= outletRadius * 1.5;
     });
 
-    // Second pass: get accurate Google Maps distances for candidates
+    // Second pass: get accurate Google Maps distances for physical candidates
     const nearbyVendors = [];
+    const addedOutletIds = new Set<string>();
+
     for (const outlet of candidates) {
       const vendor = (outlet as any).vendors;
       const gmResult = await getGoogleMapsDistance(
@@ -219,6 +285,7 @@ serve(async (req) => {
         ? baseDeliveryFee
         : Math.round(baseDeliveryFee + (distance - baseDeliveryDistanceKm) * perKmFee);
 
+      addedOutletIds.add(outlet.id);
       nearbyVendors.push({
         id: vendor.id,
         name: vendor.name,
@@ -249,6 +316,49 @@ serve(async (req) => {
         display_name: outlet.outlet_surname
           ? `${vendor.name} – ${outlet.outlet_surname}`
           : vendor.name,
+        store_type: outlet.store_type,
+        social_media_handles: outlet.social_media_handles,
+      });
+    }
+
+    // Add online outlets (state-matched, no distance restriction)
+    for (const outlet of onlineOutlets) {
+      if (addedOutletIds.has(outlet.id)) continue; // already added as physical
+      addedOutletIds.add(outlet.id);
+      const vendor = (outlet as any).vendors;
+
+      nearbyVendors.push({
+        id: vendor.id,
+        name: vendor.name,
+        description: vendor.description,
+        logo_url: vendor.logo_url,
+        banner_url: vendor.banner_url,
+        category: vendor.category,
+        rating: outlet.rating ?? vendor.rating,
+        total_ratings: outlet.total_ratings ?? vendor.total_ratings,
+        is_active: true,
+        is_open: outlet.is_open,
+        phone: vendor.phone,
+        email: vendor.email,
+        slug: vendor.slug,
+        outlet_id: outlet.id,
+        outlet_name: outlet.outlet_name,
+        outlet_surname: outlet.outlet_surname,
+        address: outlet.address,
+        city: outlet.city,
+        state: outlet.state,
+        latitude: outlet.latitude,
+        longitude: outlet.longitude,
+        delivery_mode: outlet.delivery_mode,
+        distance: 0,
+        dynamic_delivery_fee: baseDeliveryFee,
+        estimated_delivery_minutes: null,
+        distance_source: 'online',
+        display_name: outlet.outlet_surname
+          ? `${vendor.name} – ${outlet.outlet_surname}`
+          : vendor.name,
+        store_type: outlet.store_type,
+        social_media_handles: outlet.social_media_handles,
       });
     }
 
