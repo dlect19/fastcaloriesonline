@@ -9,6 +9,15 @@ import { Input } from '@/components/ui/input';
 import { Loader2, Search, UtensilsCrossed } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Switch } from '@/components/ui/switch';
+import { AdminMenuProductCard } from '@/components/admin/AdminMenuProductCard';
+
+interface CuisineCategory {
+  id: string;
+  name: string;
+  parent_id: string | null;
+  icon: string | null;
+  sort_order: number;
+}
 
 export default function AdminVendorMenus() {
   const navigate = useNavigate();
@@ -21,6 +30,7 @@ export default function AdminVendorMenus() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [loadingProducts, setLoadingProducts] = useState(false);
+  const [cuisineCategories, setCuisineCategories] = useState<CuisineCategory[]>([]);
 
   useEffect(() => {
     checkAuthAndFetch();
@@ -37,13 +47,20 @@ export default function AdminVendorMenus() {
 
     if (!roles?.some(r => r.role === 'admin')) { navigate('/admin/auth'); return; }
 
-    const { data: vendorList } = await supabase
-      .from('vendors')
-      .select('id, name, category, is_active, is_verified')
-      .eq('is_verified', true)
-      .order('name');
+    const [{ data: vendorList }, { data: cuisineCats }] = await Promise.all([
+      supabase
+        .from('vendors')
+        .select('id, name, category, is_active, is_verified')
+        .eq('is_verified', true)
+        .order('name'),
+      supabase
+        .from('cuisine_categories')
+        .select('*')
+        .order('sort_order', { ascending: true }),
+    ]);
 
     setVendors(vendorList || []);
+    setCuisineCategories((cuisineCats as CuisineCategory[]) || []);
     setLoading(false);
   };
 
@@ -76,11 +93,22 @@ export default function AdminVendorMenus() {
     toast({ title: `Item ${!currentAvail ? 'enabled' : 'disabled'}` });
   };
 
+  const assignCuisineCategory = async (productId: string, cuisineCategoryId: string | null) => {
+    const updateValue = cuisineCategoryId === 'none' ? null : cuisineCategoryId;
+    await supabase.from('products').update({ cuisine_category_id: updateValue }).eq('id', productId);
+    setProducts(prev => prev.map(p => p.id === productId ? { ...p, cuisine_category_id: updateValue } : p));
+    toast({ title: 'Cuisine category updated' });
+  };
+
   const filtered = products.filter(p => {
     const matchCat = selectedCategory === 'all' || p.category_id === selectedCategory;
     const matchSearch = !searchQuery || p.name?.toLowerCase().includes(searchQuery.toLowerCase());
     return matchCat && matchSearch;
   });
+
+  // Group cuisine categories: parents and their children
+  const parentCategories = cuisineCategories.filter(c => !c.parent_id);
+  const getSubCategories = (parentId: string) => cuisineCategories.filter(c => c.parent_id === parentId);
 
   if (loading) {
     return (
@@ -96,7 +124,7 @@ export default function AdminVendorMenus() {
       <main className="flex-1 p-8">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-foreground">Vendor Menus</h1>
-          <p className="text-muted-foreground">Browse and manage vendor menu items</p>
+          <p className="text-muted-foreground">Browse and manage vendor menu items & cuisine categories</p>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-4 mb-6">
@@ -169,42 +197,14 @@ export default function AdminVendorMenus() {
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {filtered.map(product => (
-                    <div key={product.id} className="border rounded-lg p-4 flex gap-3">
-                      {product.image_url ? (
-                        <img
-                          src={product.image_url}
-                          alt={product.name}
-                          className="w-16 h-16 rounded-lg object-cover shrink-0"
-                        />
-                      ) : (
-                        <div className="w-16 h-16 rounded-lg bg-secondary flex items-center justify-center shrink-0">
-                          <UtensilsCrossed className="w-6 h-6 text-muted-foreground" />
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                          <h3 className="font-medium text-sm truncate">{product.name}</h3>
-                          <Switch
-                            checked={product.is_available}
-                            onCheckedChange={() => toggleAvailability(product.id, product.is_available)}
-                          />
-                        </div>
-                        <p className="text-sm font-semibold text-primary mt-1">
-                          ₦{Number(product.price).toLocaleString()}
-                        </p>
-                        {product.description && (
-                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{product.description}</p>
-                        )}
-                        <div className="flex gap-1 mt-2 flex-wrap">
-                          {!product.is_available && (
-                            <Badge variant="secondary" className="text-xs">Unavailable</Badge>
-                          )}
-                          {product.calories && (
-                            <Badge variant="outline" className="text-xs">{product.calories} cal</Badge>
-                          )}
-                        </div>
-                      </div>
-                    </div>
+                    <AdminMenuProductCard
+                      key={product.id}
+                      product={product}
+                      parentCategories={parentCategories}
+                      getSubCategories={getSubCategories}
+                      onToggleAvailability={toggleAvailability}
+                      onAssignCuisine={assignCuisineCategory}
+                    />
                   ))}
                 </div>
               )}

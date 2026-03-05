@@ -572,6 +572,41 @@ export type Database = {
         }
         Relationships: []
       }
+      cuisine_categories: {
+        Row: {
+          created_at: string | null
+          icon: string | null
+          id: string
+          name: string
+          parent_id: string | null
+          sort_order: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          icon?: string | null
+          id?: string
+          name: string
+          parent_id?: string | null
+          sort_order?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          icon?: string | null
+          id?: string
+          name?: string
+          parent_id?: string | null
+          sort_order?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cuisine_categories_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "cuisine_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       daily_promo_stats: {
         Row: {
           created_at: string | null
@@ -2373,6 +2408,7 @@ export type Database = {
           carbs_grams: number | null
           category_id: string | null
           created_at: string
+          cuisine_category_id: string | null
           description: string | null
           discount_price: number | null
           fats_grams: number | null
@@ -2399,6 +2435,7 @@ export type Database = {
           carbs_grams?: number | null
           category_id?: string | null
           created_at?: string
+          cuisine_category_id?: string | null
           description?: string | null
           discount_price?: number | null
           fats_grams?: number | null
@@ -2425,6 +2462,7 @@ export type Database = {
           carbs_grams?: number | null
           category_id?: string | null
           created_at?: string
+          cuisine_category_id?: string | null
           description?: string | null
           discount_price?: number | null
           fats_grams?: number | null
@@ -2449,6 +2487,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "product_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_cuisine_category_id_fkey"
+            columns: ["cuisine_category_id"]
+            isOneToOne: false
+            referencedRelation: "cuisine_categories"
             referencedColumns: ["id"]
           },
           {
