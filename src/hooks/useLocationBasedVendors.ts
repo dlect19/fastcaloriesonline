@@ -18,6 +18,7 @@ interface UseLocationBasedVendorsOptions {
   category?: string;
   externalLat?: number | null;
   externalLon?: number | null;
+  addressState?: string | null;
   enabled?: boolean;
 }
 
@@ -34,6 +35,7 @@ export function useLocationBasedVendors({
   category = 'all',
   externalLat,
   externalLon,
+  addressState,
   enabled = true,
 }: UseLocationBasedVendorsOptions = {}) {
   const [vendors, setVendors] = useState<VendorWithDistance[]>([]);
@@ -76,6 +78,7 @@ export function useLocationBasedVendors({
           customer_lat: latitude,
           customer_lon: longitude,
           category: category === 'all' ? null : category,
+          customer_state: addressState || null,
         },
       });
 
@@ -105,7 +108,7 @@ export function useLocationBasedVendors({
     } finally {
       setLoading(false);
     }
-  }, [latitude, longitude, category, hasLocation, enabled]);
+  }, [latitude, longitude, category, hasLocation, enabled, addressState]);
 
   // Fetch vendors when location or category changes
   useEffect(() => {

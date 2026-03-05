@@ -29,6 +29,7 @@ interface DeliveryLocation {
   lat: number | null;
   lon: number | null;
   label: string;
+  state?: string | null;
 }
 
 export default function Home() {
@@ -71,7 +72,8 @@ export default function Home() {
 
   useEffect(() => {
     if (autoLat && autoLon && !deliveryLocation) {
-      setDeliveryLocation({ lat: autoLat, lon: autoLon, label: 'My GPS Location' });
+      // GPS auto-detect: no state available, edge function will reverse-geocode
+      setDeliveryLocation({ lat: autoLat, lon: autoLon, label: 'My GPS Location', state: null });
     }
   }, [autoLat, autoLon]);
 
@@ -80,8 +82,8 @@ export default function Home() {
     navigate('/auth');
   };
 
-  const handleLocationSelect = (lat: number, lon: number, label: string) => {
-    setDeliveryLocation({ lat, lon, label });
+  const handleLocationSelect = (lat: number, lon: number, label: string, state?: string | null) => {
+    setDeliveryLocation({ lat, lon, label, state });
   };
 
   const handleClearLocation = () => {
@@ -332,6 +334,7 @@ export default function Home() {
           category={selectedCategory}
           externalLat={deliveryLocation?.lat}
           externalLon={deliveryLocation?.lon}
+          addressState={deliveryLocation?.state}
         />
       </main>
 
