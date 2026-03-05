@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { CartProvider } from "@/hooks/useCart";
 import { PWAUpdateBanner } from "@/components/PWAUpdateBanner";
+import { ForceUpdateOverlay } from "@/components/ForceUpdateOverlay";
 import Home from "./pages/Home";
 import Auth from "./pages/Auth";
 import Profile from "./pages/Profile";
@@ -126,6 +127,7 @@ const App = () => {
     <AuthProvider>
       <CartProvider>
         <TooltipProvider>
+          <ForceUpdateOverlay />
           <PWAUpdateBanner />
           <Toaster />
           <Sonner />
