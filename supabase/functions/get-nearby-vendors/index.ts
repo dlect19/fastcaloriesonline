@@ -213,7 +213,7 @@ serve(async (req) => {
     // Resolve customer state via reverse geocoding for online outlet matching
     let customerState: string | null = null;
     try {
-      const googleKey = Deno.env.get("GOOGLE_MAPS_API_KEY");
+      const googleKey = Deno.env.get("GOOGLE_MAPS_KEY");
       if (googleKey) {
         const geoRes = await fetch(
           `https://maps.googleapis.com/maps/api/geocode/json?latlng=${customer_lat},${customer_lon}&key=${googleKey}`
