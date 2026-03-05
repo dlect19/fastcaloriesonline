@@ -93,23 +93,32 @@ export function StoreTypeField({
 }
 
 /** Small badge icons for VendorCard display */
-export function SocialMediaBadges({ handles }: { handles?: SocialMediaHandles | null }) {
+export function SocialMediaBadges({ handles, size = 'sm' }: { handles?: SocialMediaHandles | null; size?: 'sm' | 'lg' }) {
   if (!handles || typeof handles !== 'object') return null;
 
   const active = SOCIAL_PLATFORMS.filter(p => (handles as any)[p.key]);
   if (active.length === 0) return null;
 
+  const isLarge = size === 'lg';
+
   return (
-    <div className="flex items-center gap-1">
+    <div className={`flex items-center ${isLarge ? 'gap-2 flex-wrap' : 'gap-1'}`}>
       {active.map(({ key, icon, label }) => (
         <span
           key={key}
-          className="w-7 h-7 flex items-center justify-center rounded-full bg-secondary text-sm leading-none"
+          className={
+            isLarge
+              ? 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary text-base font-bold'
+              : 'w-8 h-8 flex items-center justify-center rounded-full bg-secondary text-base font-bold leading-none'
+          }
           title={`${label}: ${(handles as any)[key]}`}
         >
-          {icon}
+          <span>{icon}</span>
+          {isLarge && <span className="text-sm font-semibold text-foreground">{(handles as any)[key]}</span>}
         </span>
       ))}
     </div>
   );
 }
+
+export { SOCIAL_PLATFORMS };

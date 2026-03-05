@@ -1,6 +1,7 @@
 import { Star, Clock, Bike, MapPin } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import type { Tables } from '@/integrations/supabase/types';
+import { SocialMediaBadges, type SocialMediaHandles } from '@/components/vendor/StoreTypeField';
 
 type Vendor = Tables<'vendors'>;
 
@@ -107,6 +108,13 @@ export function VendorHeader({ vendor }: VendorHeaderProps) {
             <p className="text-xs text-muted-foreground mt-2">
               Minimum order: ₦{vendor.min_order_amount.toLocaleString()}
             </p>
+          )}
+
+          {/* Social Media Handles */}
+          {((vendor as any).store_type === 'online' || (vendor as any).store_type === 'both') && (vendor as any).social_media_handles && (
+            <div className="mt-3">
+              <SocialMediaBadges handles={(vendor as any).social_media_handles as SocialMediaHandles} size="lg" />
+            </div>
           )}
         </div>
       </div>
