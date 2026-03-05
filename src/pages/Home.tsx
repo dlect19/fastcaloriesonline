@@ -69,9 +69,9 @@ export default function Home() {
     }
   }, [user, profileLoading, profileComplete, navigate]);
 
-  // Auto-set delivery location from GPS on first load (if user hasn't manually set one)
+  // Always fetch GPS for distance display; also used to auto-set delivery location
   useEffect(() => {
-    if (user && !deliveryLocation) {
+    if (user) {
       autoGetPosition();
     }
   }, [user]);
