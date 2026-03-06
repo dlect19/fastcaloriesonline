@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { logDeliveryDistance } from '@/hooks/useRiderDistanceStats';
+
 import { RiderLayout } from '@/components/rider/RiderLayout';
 import { RiderFloatingWidget } from '@/components/rider/RiderFloatingWidget';
 import { ConfirmationCodeDialog } from '@/components/rider/ConfirmationCodeDialog';
@@ -252,12 +252,12 @@ export default function RiderOrders() {
         console.error('Failed to log calories:', calorieError);
       }
 
-      // Log delivery distance for rider tracking
+      // Log delivery distance via edge function (server-side to bypass RLS)
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        logDeliveryDistance(pendingDeliveryOrder.id, user.id).catch(err =>
-          console.error('Failed to log distance:', err)
-        );
+        supabase.functions.invoke('log-delivery-distance', {
+          body: { orderId: pendingDeliveryOrder.id, riderId: user.id }
+        }).catch(err => console.error('Failed to log distance:', err));
       }
 
       toast({ title: '✅ Order delivered successfully!' });
