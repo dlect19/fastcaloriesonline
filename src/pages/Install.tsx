@@ -65,7 +65,6 @@ export default function Install() {
 
   const apkUrl = isRider ? apkUrls.rider : apkUrls.customer;
   const appLabel = isRider ? 'Rider' : 'Customer';
-  const appLabel = isRider ? 'Rider' : 'Customer';
 
   return (
     <div className="min-h-screen bg-background">
