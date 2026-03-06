@@ -102,41 +102,49 @@ export function VendorGroupCard({
       {/* Items grouped by package */}
       {hasMultiplePackages ? (
         <div className="p-4 space-y-4">
-          {group.packages.map((pkg) => (
-            <div key={pkg.packageIndex} className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Package className="w-4 h-4 text-primary" />
-                <span className="text-sm font-semibold text-foreground">
-                  {pkg.recipientName || `Package ${pkg.packageIndex + 1}`}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  ({pkg.itemCount} item{pkg.itemCount !== 1 ? 's' : ''})
-                </span>
-              </div>
-              {pkg.note && (
-                <p className="text-xs text-muted-foreground bg-secondary/50 rounded px-2 py-1">
-                  📝 {pkg.note}
-                </p>
-              )}
-              <PackageMetaForm
-                vendorId={group.vendorId}
-                packageIndex={pkg.packageIndex}
-                outletId={group.outletId}
-              />
-              {pkg.items.length > 0 ? (
-                <div className="space-y-2">
-                  {pkg.items.map((item) => (
-                    <CartItemCard key={item.id} item={item} />
-                  ))}
+          {group.packages.map((pkg) => {
+            const pkgPackData = perPackagePacks.find(pp => pp.packageIndex === pkg.packageIndex);
+            const pkgPacks = pkgPackData?.packs || [];
+            return (
+              <div key={pkg.packageIndex} className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Package className="w-4 h-4 text-primary" />
+                  <span className="text-sm font-semibold text-foreground">
+                    {pkg.recipientName || `Package ${pkg.packageIndex + 1}`}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    ({pkg.itemCount} item{pkg.itemCount !== 1 ? 's' : ''})
+                  </span>
                 </div>
-              ) : (
-                <p className="text-xs text-muted-foreground text-center py-2">No items in this package</p>
-              )}
-              {pkg.packageIndex < group.packages.length - 1 && (
-                <Separator />
-              )}
-            </div>
-          ))}
+                {pkg.note && (
+                  <p className="text-xs text-muted-foreground bg-secondary/50 rounded px-2 py-1">
+                    📝 {pkg.note}
+                  </p>
+                )}
+                <PackageMetaForm
+                  vendorId={group.vendorId}
+                  packageIndex={pkg.packageIndex}
+                  outletId={group.outletId}
+                />
+                {pkg.items.length > 0 ? (
+                  <div className="space-y-2">
+                    {pkg.items.map((item) => (
+                      <CartItemCard key={item.id} item={item} />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground text-center py-2">No items in this package</p>
+                )}
+                {/* Takeaway pack for this specific package */}
+                {pkgPacks.length > 0 && (
+                  <TakeawayPackDisplay packs={pkgPacks} />
+                )}
+                {pkg.packageIndex < group.packages.length - 1 && (
+                  <Separator />
+                )}
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div className="p-4 space-y-3">
