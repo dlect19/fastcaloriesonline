@@ -113,6 +113,7 @@ function getGroupKey(vendorId: string, outletId?: string): string {
 
 export function CartProvider({ children }: { children: ReactNode }) {
   // Hydrate initial state from localStorage synchronously via lazy initializer
+  // to prevent race conditions during redirects (e.g. wallet funding via Paystack)
   const [items, setItems] = useState<CartItem[]>(() => {
     try {
       const saved = localStorage.getItem(CART_STORAGE_KEY);
@@ -124,20 +125,23 @@ export function CartProvider({ children }: { children: ReactNode }) {
         }));
       }
     } catch (e) {
-      console.error('Failed to parse cart items:', e);
+      console.error('Failed to hydrate cart items from storage:', e);
     }
     return [];
   });
+
   const [packageMetas, setPackageMetas] = useState<Record<string, PackageMeta[]>>(() => {
     try {
       const saved = localStorage.getItem(CART_STORAGE_KEY);
       if (saved) {
-        const parsed = JSON.parse(saved);
-        return parsed.packageMetas || {};
+        return JSON.parse(saved).packageMetas || {};
       }
-    } catch (e) { /* already logged above */ }
+    } catch {
+      // parse error already logged above
+    }
     return {};
   });
+
   const [activePackageIndex, setActivePackageIndex] = useState(0);
   const [maxPkgs, setMaxPkgs] = useState(DEFAULT_MAX_PACKAGES);
   const [extraPkgFee, setExtraPkgFee] = useState(DEFAULT_EXTRA_PACKAGE_FEE);
