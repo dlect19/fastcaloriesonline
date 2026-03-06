@@ -14,6 +14,7 @@ interface OrderSummaryProps {
   surgeFee?: number;
   vendorCount?: number;
   extraPackageFee?: number;
+  extraPackageFeePerPack?: number;
   packageCount?: number;
 }
 
