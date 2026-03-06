@@ -54,8 +54,8 @@ export interface PackageGroup {
   itemCount: number;
 }
 
-const MAX_PACKAGES = 5;
-const EXTRA_PACKAGE_FEE = 200; // ₦200 per extra package
+const DEFAULT_MAX_PACKAGES = 5;
+const DEFAULT_EXTRA_PACKAGE_FEE = 200; // ₦200 per extra package
 
 interface CartContextType {
   items: CartItem[];
