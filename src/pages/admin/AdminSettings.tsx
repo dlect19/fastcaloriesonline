@@ -10,7 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { MapPin, Bike, DollarSign, Settings2, Save, Loader2, CreditCard, Navigation, Clock, Store, Bell, Building2 } from 'lucide-react';
+import { MapPin, Bike, DollarSign, Settings2, Save, Loader2, CreditCard, Navigation, Clock, Store, Bell, Building2, Package } from 'lucide-react';
 import { EnvironmentSwitch } from '@/components/admin/EnvironmentSwitch';
 import { AdminTestModeToggle } from '@/components/admin/AdminTestModeToggle';
 import { PaystackBalanceCard } from '@/components/admin/PaystackBalanceCard';
