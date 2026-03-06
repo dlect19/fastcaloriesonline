@@ -450,6 +450,52 @@ export default function VendorOrders() {
     });
   };
 
+  const renderItemContent = (item: OrderItemWithAddons) => (
+    <>
+      <div className="flex justify-between items-start">
+        <div className="flex-1">
+          <p className="font-medium text-foreground">
+            {item.quantity}x {item.product_name}
+          </p>
+          {item.special_instructions && (
+            <p className="text-xs text-primary/80 mt-0.5">
+              🛠 {item.special_instructions}
+            </p>
+          )}
+          {item.calories && item.calories > 0 && (
+            <p className="text-xs text-muted-foreground">{item.calories} cal</p>
+          )}
+        </div>
+        <p className="font-medium text-foreground">
+          ₦{Number(item.total_price).toLocaleString()}
+        </p>
+      </div>
+      {item.addons && item.addons.length > 0 && (
+        <div className="ml-4 mt-1 space-y-0.5 border-l-2 border-primary/30 pl-3">
+          <p className="text-xs font-semibold text-primary uppercase tracking-wide">Add-ons:</p>
+          {item.addons.map((addon) => (
+            <div key={addon.id} className="flex justify-between items-center text-xs">
+              <span className="text-foreground flex items-center gap-1.5">
+                {addon.image_url && (
+                  <img src={addon.image_url} alt={addon.addon_item_name} className="w-6 h-6 rounded object-cover shrink-0" />
+                )}
+                + {addon.addon_item_name}
+                {addon.calories && addon.calories > 0 && (
+                  <span className="text-muted-foreground ml-1">({addon.calories} cal)</span>
+                )}
+              </span>
+              {addon.additional_price > 0 && (
+                <span className="text-primary font-medium">
+                  +₦{Number(addon.additional_price).toLocaleString()}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+
   const renderOrderCard = (order: OrderWithItems) => {
     const status = statusConfig[order.status] || statusConfig.pending;
     const StatusIcon = status.icon;
