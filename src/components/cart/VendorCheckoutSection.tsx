@@ -181,6 +181,10 @@ export function VendorCheckoutSection({
 
       const groupTotal = total;
 
+      // Get package metas for this vendor
+      const groupKey = group.outletId ? `${group.vendorId}|${group.outletId}` : `${group.vendorId}|`;
+      const metas = packageMetas[groupKey] || [{ recipientName: '', note: '' }];
+
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert({
@@ -206,11 +210,28 @@ export function VendorCheckoutSection({
           payment_status: 'pending',
           payment_method: 'wallet',
           outlet_id: group.outletId || null,
+          package_count: packageCount,
+          extra_package_fee: extraPackageFee,
         })
         .select()
         .single();
 
       if (orderError) throw orderError;
+
+      // Create order packages
+      const packageInserts = metas.map((meta, idx) => ({
+        order_id: order.id,
+        recipient_name: meta.recipientName || `Package ${idx + 1}`,
+        note: meta.note || null,
+        sort_order: idx,
+      }));
+
+      const { data: createdPackages, error: pkgError } = await supabase
+        .from('order_packages')
+        .insert(packageInserts)
+        .select();
+
+      if (pkgError) throw pkgError;
 
       // Create order items
       const orderItems = group.items.map(item => ({
