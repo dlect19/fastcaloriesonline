@@ -290,11 +290,51 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
   }, [order, open, fetchDetails]);
 
   const fetchOrderItems = async (orderId: string) => {
-    const { data } = await supabase
+    const { data: items } = await supabase
       .from('order_items')
-      .select('product_name, quantity, special_instructions, order_item_addons(addon_group_name, addon_item_name, additional_price)')
+      .select('product_name, quantity, special_instructions')
       .eq('order_id', orderId);
-    setOrderItems(data || []);
+    
+    if (!items || items.length === 0) {
+      setOrderItems([]);
+      return;
+    }
+
+    // Fetch addons separately for each item
+    const itemIds = items.map((_, i) => i);
+    const { data: allItems } = await supabase
+      .from('order_items')
+      .select('id, product_name, quantity, special_instructions')
+      .eq('order_id', orderId);
+
+    if (!allItems) {
+      setOrderItems(items.map(it => ({ ...it, order_item_addons: [] })));
+      return;
+    }
+
+    const ids = allItems.map(it => it.id);
+    const { data: addons } = await supabase
+      .from('order_item_addons')
+      .select('order_item_id, addon_group_name, addon_item_name, additional_price')
+      .in('order_item_id', ids);
+
+    const addonMap = new Map<string, typeof addons>();
+    addons?.forEach(a => {
+      const existing = addonMap.get(a.order_item_id) || [];
+      existing.push(a);
+      addonMap.set(a.order_item_id, existing);
+    });
+
+    setOrderItems(allItems.map(it => ({
+      product_name: it.product_name,
+      quantity: it.quantity,
+      special_instructions: it.special_instructions,
+      order_item_addons: (addonMap.get(it.id) || []).map(a => ({
+        addon_group_name: a.addon_group_name,
+        addon_item_name: a.addon_item_name,
+        additional_price: a.additional_price,
+      })),
+    })));
   };
 
   const handleCompleteOrder = async () => {
