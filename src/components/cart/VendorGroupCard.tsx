@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { VendorGroup, useCart } from '@/hooks/useCart';
 import { CartItemCard } from '@/components/cart/CartItemCard';
 import { TakeawayPackDisplay } from '@/components/cart/TakeawayPackDisplay';
+import { PackageSelector } from '@/components/cart/PackageSelector';
 import { PackageMetaForm } from '@/components/cart/PackageMetaForm';
 import { useTakeawayPacks } from '@/hooks/useTakeawayPacks';
 import { useDeliveryFee } from '@/hooks/useDeliveryFee';
@@ -83,6 +84,11 @@ export function VendorGroupCard({
           <Trash2 className="w-3.5 h-3.5" />
           Remove
         </Button>
+      </div>
+
+      {/* Package Selector */}
+      <div className="px-4 pt-3">
+        <PackageSelector vendorId={group.vendorId} outletId={group.outletId} />
       </div>
 
       {/* Items grouped by package */}
