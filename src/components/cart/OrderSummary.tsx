@@ -13,6 +13,8 @@ interface OrderSummaryProps {
   distanceKm?: number | null;
   surgeFee?: number;
   vendorCount?: number;
+  extraPackageFee?: number;
+  packageCount?: number;
 }
 
 export function OrderSummary({ 
