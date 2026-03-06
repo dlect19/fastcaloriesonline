@@ -384,8 +384,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       updatePackageMeta,
       getPackageCount,
       getExtraPackageFee,
-      maxPackages: MAX_PACKAGES,
-      extraPackageFeePerPack: EXTRA_PACKAGE_FEE,
+      maxPackages: maxPkgs,
+      extraPackageFeePerPack: extraPkgFee,
     }}>
       {children}
     </CartContext.Provider>
