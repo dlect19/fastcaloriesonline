@@ -203,6 +203,19 @@ export default function AdminSettings() {
         'service_fee_type', 'service_fee_fixed', 'service_fee_percentage',
         'service_fee_min', 'service_fee_max',
       ];
+
+      // Save package settings
+      const packageKeys = ['extra_package_fee', 'max_packages_per_order'];
+      for (const key of packageKeys) {
+        if (settings[key] !== undefined) {
+          await supabase.from('platform_settings').upsert({
+            key,
+            value: settings[key],
+            description: key === 'extra_package_fee' ? 'Extra fee per additional package' : 'Maximum packages per order',
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'key' });
+        }
+      }
       for (const key of serviceFeeKeys) {
         if (settings[key] !== undefined) {
           await supabase.from('platform_settings').upsert({
