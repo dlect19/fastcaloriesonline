@@ -233,17 +233,22 @@ export function VendorCheckoutSection({
 
       if (pkgError) throw pkgError;
 
-      // Create order items
-      const orderItems = group.items.map(item => ({
-        order_id: order.id,
-        product_id: item.addonsDescription ? null : item.productId,
-        product_name: item.productName,
-        quantity: item.quantity,
-        unit_price: item.price,
-        total_price: item.price * item.quantity,
-        calories: item.calories * item.quantity,
-        special_instructions: item.addonsDescription || null,
-      }));
+      // Create order items with package_id linking
+      const orderItems = group.items.map(item => {
+        // Find the package_id for this item's packageIndex
+        const pkg = createdPackages?.find(p => p.sort_order === item.packageIndex);
+        return {
+          order_id: order.id,
+          package_id: pkg?.id || null,
+          product_id: item.addonsDescription ? null : item.productId,
+          product_name: item.productName,
+          quantity: item.quantity,
+          unit_price: item.price,
+          total_price: item.price * item.quantity,
+          calories: item.calories * item.quantity,
+          special_instructions: item.addonsDescription || null,
+        };
+      });
 
       const { data: insertedItems, error: itemsError } = await supabase
         .from('order_items')
