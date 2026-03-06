@@ -2,6 +2,7 @@ import { Download, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
 
 export function PWAInstallBanner() {
   const [dismissed, setDismissed] = useState(() => {
@@ -9,10 +10,11 @@ export function PWAInstallBanner() {
   });
   const navigate = useNavigate();
 
-  // Check if already in standalone/native mode
+  // Check if already in standalone/native mode or running as a native app
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+  const isNative = Capacitor.isNativePlatform();
 
-  if (isStandalone || dismissed) return null;
+  if (isStandalone || isNative || dismissed) return null;
 
   const handleDismiss = () => {
     setDismissed(true);
