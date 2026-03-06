@@ -1,9 +1,40 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Smartphone, Share, Download, Plus, ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { downloadApk } from '@/lib/apkInstall';
+import { supabase } from '@/integrations/supabase/client';
+
+function useApkUrls() {
+  const [urls, setUrls] = useState({
+    customer: '/downloads/fastcalories-customer.apk',
+    rider: '/downloads/fastcalories-rider.apk',
+    vendor: '/downloads/fastcalories-vendor.apk',
+  });
+
+  useEffect(() => {
+    async function fetchUrls() {
+      const { data } = await supabase
+        .from('platform_settings')
+        .select('key, value')
+        .in('key', ['customer_apk_download_url', 'rider_apk_download_url', 'vendor_apk_download_url']);
+
+      if (data) {
+        const map: Record<string, string> = {};
+        data.forEach(r => { map[r.key] = r.value; });
+        setUrls(prev => ({
+          customer: map['customer_apk_download_url'] || prev.customer,
+          rider: map['rider_apk_download_url'] || prev.rider,
+          vendor: map['vendor_apk_download_url'] || prev.vendor,
+        }));
+      }
+    }
+    fetchUrls();
+  }, []);
+
+  return urls;
+}
 
 function DownloadButton({ url, label, variant = 'default', className = '' }: { url: string; label: string; variant?: 'default' | 'outline'; className?: string }) {
   const [downloading, setDownloading] = useState(false);
