@@ -12,6 +12,7 @@ import { CartButton } from '@/components/cart/CartButton';
 import { BottomNav } from '@/components/home/BottomNav';
 import { VendorAccessDenied } from '@/components/vendor/VendorAccessDenied';
 import { ArrowLeft, Leaf, Search, Package, Heart } from 'lucide-react';
+import { PackageSelector } from '@/components/cart/PackageSelector';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useGeolocation } from '@/hooks/useGeolocation';
@@ -419,6 +420,13 @@ export default function VendorDetail() {
 
       {/* Vendor Header */}
       <VendorHeader vendor={vendor} />
+
+      {/* Package Selector */}
+      <div className="container py-3">
+        <div className="bg-card rounded-xl border border-border p-3">
+          <PackageSelector vendorId={id!} outletId={searchParams.get('outlet') || undefined} />
+        </div>
+      </div>
 
       {/* Search */}
       <div className="container py-4">

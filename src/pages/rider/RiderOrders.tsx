@@ -369,6 +369,12 @@ export default function RiderOrders() {
                     <p className="text-xs md:text-sm text-muted-foreground">
                       {format(new Date(order.created_at), 'PPp')}
                     </p>
+                    {(order as any).package_count > 1 && (
+                      <Badge variant="secondary" className="mt-1 text-xs gap-1">
+                        <Package className="w-3 h-3" />
+                        {(order as any).package_count} packages
+                      </Badge>
+                    )}
                   </div>
                   {getStatusBadge(order.status)}
                 </CardHeader>

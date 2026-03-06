@@ -1563,6 +1563,7 @@ export type Database = {
           created_at: string
           id: string
           order_id: string
+          package_id: string | null
           product_id: string | null
           product_name: string
           quantity: number
@@ -1575,6 +1576,7 @@ export type Database = {
           created_at?: string
           id?: string
           order_id: string
+          package_id?: string | null
           product_id?: string | null
           product_name: string
           quantity?: number
@@ -1587,6 +1589,7 @@ export type Database = {
           created_at?: string
           id?: string
           order_id?: string
+          package_id?: string | null
           product_id?: string | null
           product_name?: string
           quantity?: number
@@ -1603,10 +1606,52 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "order_items_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "order_packages"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "order_items_product_id_fkey"
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_packages: {
+        Row: {
+          created_at: string
+          id: string
+          note: string | null
+          order_id: string
+          recipient_name: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          note?: string | null
+          order_id: string
+          recipient_name?: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          note?: string | null
+          order_id?: string
+          recipient_name?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_packages_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
         ]
@@ -1670,10 +1715,12 @@ export type Database = {
           discount: number | null
           environment: string | null
           estimated_delivery_at: string | null
+          extra_package_fee: number
           id: string
           menu_subtotal: number | null
           order_number: string
           outlet_id: string | null
+          package_count: number
           packaging_fee: number | null
           payment_method: string | null
           payment_reference: string | null
@@ -1703,10 +1750,12 @@ export type Database = {
           discount?: number | null
           environment?: string | null
           estimated_delivery_at?: string | null
+          extra_package_fee?: number
           id?: string
           menu_subtotal?: number | null
           order_number: string
           outlet_id?: string | null
+          package_count?: number
           packaging_fee?: number | null
           payment_method?: string | null
           payment_reference?: string | null
@@ -1736,10 +1785,12 @@ export type Database = {
           discount?: number | null
           environment?: string | null
           estimated_delivery_at?: string | null
+          extra_package_fee?: number
           id?: string
           menu_subtotal?: number | null
           order_number?: string
           outlet_id?: string | null
+          package_count?: number
           packaging_fee?: number | null
           payment_method?: string | null
           payment_reference?: string | null

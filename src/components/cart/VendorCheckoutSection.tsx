@@ -73,7 +73,7 @@ export function VendorCheckoutSection({
   placingOrderForVendor,
   onPlacingChange,
 }: VendorCheckoutSectionProps) {
-  const { clearVendorGroup } = useCart();
+  const { clearVendorGroup, getExtraPackageFee, getPackageCount, packageMetas, extraPackageFeePerPack } = useCart();
   const { toast } = useToast();
   const navigate = useNavigate();
   const { appliedPromo, incrementUsage, resetAfterOrder } = usePromoCode();
@@ -93,6 +93,8 @@ export function VendorCheckoutSection({
   const { calculateServiceFee, loading: serviceFeeLoading } = useServiceFee();
   const riderAvailability = useRiderAvailability();
   const serviceFee = calculateServiceFee(group.subtotal);
+  const extraPackageFee = deliveryType === 'self_pickup' ? 0 : getExtraPackageFee(group.vendorId, group.outletId);
+  const packageCount = getPackageCount(group.vendorId, group.outletId);
   const deliveryFee = deliveryType === 'self_pickup' ? 0 : vendorFees.deliveryFee;
   const surgeFee = deliveryType === 'self_pickup' ? 0 : vendorFees.surgeFee;
   const total = group.subtotal + vendorFees.packagingFee + deliveryFee + serviceFee - promoDiscount;
@@ -179,6 +181,10 @@ export function VendorCheckoutSection({
 
       const groupTotal = total;
 
+      // Get package metas for this vendor
+      const groupKey = group.outletId ? `${group.vendorId}|${group.outletId}` : `${group.vendorId}|`;
+      const metas = packageMetas[groupKey] || [{ recipientName: '', note: '' }];
+
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert({
@@ -204,23 +210,45 @@ export function VendorCheckoutSection({
           payment_status: 'pending',
           payment_method: 'wallet',
           outlet_id: group.outletId || null,
+          package_count: packageCount,
+          extra_package_fee: extraPackageFee,
         })
         .select()
         .single();
 
       if (orderError) throw orderError;
 
-      // Create order items
-      const orderItems = group.items.map(item => ({
+      // Create order packages
+      const packageInserts = metas.map((meta, idx) => ({
         order_id: order.id,
-        product_id: item.addonsDescription ? null : item.productId,
-        product_name: item.productName,
-        quantity: item.quantity,
-        unit_price: item.price,
-        total_price: item.price * item.quantity,
-        calories: item.calories * item.quantity,
-        special_instructions: item.addonsDescription || null,
+        recipient_name: meta.recipientName || `Package ${idx + 1}`,
+        note: meta.note || null,
+        sort_order: idx,
       }));
+
+      const { data: createdPackages, error: pkgError } = await supabase
+        .from('order_packages')
+        .insert(packageInserts)
+        .select();
+
+      if (pkgError) throw pkgError;
+
+      // Create order items with package_id linking
+      const orderItems = group.items.map(item => {
+        // Find the package_id for this item's packageIndex
+        const pkg = createdPackages?.find(p => p.sort_order === item.packageIndex);
+        return {
+          order_id: order.id,
+          package_id: pkg?.id || null,
+          product_id: item.addonsDescription ? null : item.productId,
+          product_name: item.productName,
+          quantity: item.quantity,
+          unit_price: item.price,
+          total_price: item.price * item.quantity,
+          calories: item.calories * item.quantity,
+          special_instructions: item.addonsDescription || null,
+        };
+      });
 
       const { data: insertedItems, error: itemsError } = await supabase
         .from('order_items')
@@ -522,6 +550,8 @@ export function VendorCheckoutSection({
         discount={promoDiscount}
         distanceKm={vendorFees.distanceKm}
         surgeFee={surgeFee}
+        extraPackageFee={extraPackageFee}
+        packageCount={packageCount}
       />
 
       {/* Checkout Button */}

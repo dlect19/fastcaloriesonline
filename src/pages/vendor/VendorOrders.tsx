@@ -53,10 +53,20 @@ type OrderItemAddon = {
 
 type OrderItemWithAddons = OrderItem & {
   addons?: OrderItemAddon[];
+  package_id?: string | null;
+};
+
+type OrderPackage = {
+  id: string;
+  order_id: string;
+  recipient_name: string;
+  note: string | null;
+  sort_order: number;
 };
 
 type OrderWithItems = Order & { 
   items: OrderItemWithAddons[];
+  packages?: OrderPackage[];
   customer?: {
     full_name: string | null;
     phone: string | null;
@@ -299,7 +309,14 @@ export default function VendorOrders() {
             .select('user_id, full_name, phone')
             .in('user_id', userIds);
 
-          // Map items, addons, and customer profiles to their orders
+          // Map items, addons, customer profiles, and packages to their orders
+          // Fetch order packages
+          const { data: packagesData } = await supabase
+            .from('order_packages')
+            .select('*')
+            .in('order_id', orderIds)
+            .order('sort_order');
+
           const ordersWithItems: OrderWithItems[] = ordersData.map(order => {
             const customerProfile = profilesData?.find(p => p.user_id === order.user_id);
             const orderItems: OrderItemWithAddons[] = (itemsData || [])
@@ -308,9 +325,11 @@ export default function VendorOrders() {
                 ...item,
                 addons: addonsData.filter(a => a.order_item_id === item.id),
               }));
+            const orderPackages = (packagesData || []).filter(p => p.order_id === order.id) as OrderPackage[];
             return {
               ...order,
               items: orderItems,
+              packages: orderPackages.length > 0 ? orderPackages : undefined,
               customer: customerProfile ? {
                 full_name: customerProfile.full_name,
                 phone: customerProfile.phone
@@ -431,6 +450,52 @@ export default function VendorOrders() {
     });
   };
 
+  const renderItemContent = (item: OrderItemWithAddons) => (
+    <>
+      <div className="flex justify-between items-start">
+        <div className="flex-1">
+          <p className="font-medium text-foreground">
+            {item.quantity}x {item.product_name}
+          </p>
+          {item.special_instructions && (
+            <p className="text-xs text-primary/80 mt-0.5">
+              🛠 {item.special_instructions}
+            </p>
+          )}
+          {item.calories && item.calories > 0 && (
+            <p className="text-xs text-muted-foreground">{item.calories} cal</p>
+          )}
+        </div>
+        <p className="font-medium text-foreground">
+          ₦{Number(item.total_price).toLocaleString()}
+        </p>
+      </div>
+      {item.addons && item.addons.length > 0 && (
+        <div className="ml-4 mt-1 space-y-0.5 border-l-2 border-primary/30 pl-3">
+          <p className="text-xs font-semibold text-primary uppercase tracking-wide">Add-ons:</p>
+          {item.addons.map((addon) => (
+            <div key={addon.id} className="flex justify-between items-center text-xs">
+              <span className="text-foreground flex items-center gap-1.5">
+                {addon.image_url && (
+                  <img src={addon.image_url} alt={addon.addon_item_name} className="w-6 h-6 rounded object-cover shrink-0" />
+                )}
+                + {addon.addon_item_name}
+                {addon.calories && addon.calories > 0 && (
+                  <span className="text-muted-foreground ml-1">({addon.calories} cal)</span>
+                )}
+              </span>
+              {addon.additional_price > 0 && (
+                <span className="text-primary font-medium">
+                  +₦{Number(addon.additional_price).toLocaleString()}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+
   const renderOrderCard = (order: OrderWithItems) => {
     const status = statusConfig[order.status] || statusConfig.pending;
     const StatusIcon = status.icon;
@@ -487,6 +552,9 @@ export default function VendorOrders() {
                   <ShoppingBag className="w-4 h-4 text-primary" />
                   <span className="text-sm font-medium">
                     {order.items.length} item{order.items.length !== 1 ? 's' : ''} in order
+                    {order.packages && order.packages.length > 1 && (
+                      <span className="ml-1 text-primary">• {order.packages.length} packs</span>
+                    )}
                   </span>
                 </div>
                 {isExpanded ? (
@@ -498,51 +566,36 @@ export default function VendorOrders() {
             </CollapsibleTrigger>
             <CollapsibleContent>
               <div className="bg-muted/30 rounded-lg p-3 mb-3 space-y-2">
-                {order.items.length > 0 ? (
+                {order.packages && order.packages.length > 1 ? (
+                  // Multi-package view - grouped by recipient
+                  order.packages.map((pkg) => {
+                    const pkgItems = order.items.filter(i => (i as any).package_id === pkg.id);
+                    return (
+                      <div key={pkg.id} className="space-y-2">
+                        <div className="flex items-center gap-2 bg-primary/10 rounded-lg px-3 py-2">
+                          <Package className="w-4 h-4 text-primary" />
+                          <span className="text-sm font-bold text-primary">
+                            Pack {pkg.sort_order + 1} — {pkg.recipient_name}
+                          </span>
+                        </div>
+                        {pkg.note && (
+                          <p className="text-xs text-muted-foreground bg-secondary/50 rounded px-3 py-1 ml-2">
+                            📝 {pkg.note}
+                          </p>
+                        )}
+                        {pkgItems.map((item) => (
+                          <div key={item.id} className="text-sm ml-2">
+                            {renderItemContent(item)}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })
+                ) : order.items.length > 0 ? (
+                  // Single package or legacy view
                   order.items.map((item) => (
                     <div key={item.id} className="text-sm">
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <p className="font-medium text-foreground">
-                            {item.quantity}x {item.product_name}
-                          </p>
-                          {item.special_instructions && (
-                            <p className="text-xs text-primary/80 mt-0.5">
-                              🛠 {item.special_instructions}
-                            </p>
-                          )}
-                          {item.calories && item.calories > 0 && (
-                            <p className="text-xs text-muted-foreground">{item.calories} cal</p>
-                          )}
-                        </div>
-                        <p className="font-medium text-foreground">
-                          ₦{Number(item.total_price).toLocaleString()}
-                        </p>
-                      </div>
-                      {/* ADD-ONS - Always visible for kitchen clarity */}
-                      {item.addons && item.addons.length > 0 && (
-                        <div className="ml-4 mt-1 space-y-0.5 border-l-2 border-primary/30 pl-3">
-                          <p className="text-xs font-semibold text-primary uppercase tracking-wide">Add-ons:</p>
-                          {item.addons.map((addon) => (
-                            <div key={addon.id} className="flex justify-between items-center text-xs">
-                              <span className="text-foreground flex items-center gap-1.5">
-                                {addon.image_url && (
-                                  <img src={addon.image_url} alt={addon.addon_item_name} className="w-6 h-6 rounded object-cover shrink-0" />
-                                )}
-                                + {addon.addon_item_name}
-                                {addon.calories && addon.calories > 0 && (
-                                  <span className="text-muted-foreground ml-1">({addon.calories} cal)</span>
-                                )}
-                              </span>
-                              {addon.additional_price > 0 && (
-                                <span className="text-primary font-medium">
-                                  +₦{Number(addon.additional_price).toLocaleString()}
-                                </span>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                      {renderItemContent(item)}
                     </div>
                   ))
                 ) : (

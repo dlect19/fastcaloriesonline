@@ -13,6 +13,8 @@ interface OrderSummaryProps {
   distanceKm?: number | null;
   surgeFee?: number;
   vendorCount?: number;
+  extraPackageFee?: number;
+  packageCount?: number;
 }
 
 export function OrderSummary({ 
@@ -26,6 +28,8 @@ export function OrderSummary({
   distanceKm,
   surgeFee = 0,
   vendorCount = 1,
+  extraPackageFee = 0,
+  packageCount = 1,
 }: OrderSummaryProps) {
   const getCalorieLevel = (calories: number) => {
     if (calories <= 500) return { label: 'Low', color: 'text-calorie-low bg-calorie-low/10' };
@@ -88,6 +92,12 @@ export function OrderSummary({
             <div className="flex justify-between text-xs text-amber-600 pl-4">
               <span>↳ Includes surge fee</span>
               <span>₦{surgeFee.toLocaleString()}</span>
+            </div>
+          )}
+          {extraPackageFee > 0 && (
+            <div className="flex justify-between text-xs text-primary pl-4">
+              <span>↳ Extra package fee ({packageCount - 1} × ₦200)</span>
+              <span>₦{extraPackageFee.toLocaleString()}</span>
             </div>
           )}
           <div className="flex justify-between text-muted-foreground">
