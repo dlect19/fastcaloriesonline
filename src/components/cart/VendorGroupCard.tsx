@@ -43,13 +43,21 @@ export function VendorGroupCard({
   const deliveryFee = deliveryType === 'self_pickup' ? 0 : calculatedDeliveryFee;
   const extraPackageFee = deliveryType === 'self_pickup' ? 0 : getExtraPackageFee(group.vendorId, group.outletId);
 
-  const applicablePacks = useMemo(() => {
-    return getApplicablePacks(group.items.map(item => ({ productId: item.productId, quantity: item.quantity })));
-  }, [group.items, getApplicablePacks]);
+  // Calculate takeaway packs PER PACKAGE (each package is a separate food pack)
+  const perPackagePacks = useMemo(() => {
+    return group.packages.map((pkg) => {
+      const pkgPacks = getApplicablePacks(pkg.items.map(item => ({ productId: item.productId, quantity: item.quantity })));
+      return { packageIndex: pkg.packageIndex, packs: pkgPacks };
+    });
+  }, [group.packages, getApplicablePacks]);
+
+  const allApplicablePacks = useMemo(() => {
+    return perPackagePacks.flatMap(pp => pp.packs);
+  }, [perPackagePacks]);
 
   const packagingFee = useMemo(() => {
-    return applicablePacks.reduce((sum, pack) => sum + pack.price, 0);
-  }, [applicablePacks]);
+    return allApplicablePacks.reduce((sum, pack) => sum + pack.price, 0);
+  }, [allApplicablePacks]);
 
   // Report fees back to parent (include extra package fee in delivery fee)
   useMemo(() => {
