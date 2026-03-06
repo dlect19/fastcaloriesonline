@@ -334,7 +334,7 @@ export function LocationSearch({ onLocationSelect, currentLocation, onClearLocat
                 Change
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md">
+            <DialogContent className="max-w-md w-[95vw] max-h-[90vh] overflow-y-auto rounded-xl p-4 sm:p-6">
               {dialogContent}
             </DialogContent>
           </Dialog>
@@ -347,7 +347,7 @@ export function LocationSearch({ onLocationSelect, currentLocation, onClearLocat
               <span className="text-muted-foreground">Enter delivery address to see nearby vendors</span>
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md w-[95vw] max-h-[90vh] overflow-y-auto rounded-xl p-4 sm:p-6">
             {dialogContent}
           </DialogContent>
         </Dialog>
