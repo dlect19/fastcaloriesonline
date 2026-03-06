@@ -30,7 +30,7 @@ export function VendorGroupCard({
   onFeesCalculated,
 }: VendorGroupCardProps) {
   const { getApplicablePacks } = useTakeawayPacks(group.vendorId);
-  const { getExtraPackageFee } = useCart();
+  const { getExtraPackageFee, extraPackageFeePerPack } = useCart();
 
   const { fee: calculatedDeliveryFee, distanceKm, surgeFee } = useDeliveryFee({
     vendorLat: vendorLocation.latitude,
