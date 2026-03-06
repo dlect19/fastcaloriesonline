@@ -94,6 +94,12 @@ export function OrderSummary({
               <span>₦{surgeFee.toLocaleString()}</span>
             </div>
           )}
+          {extraPackageFee > 0 && (
+            <div className="flex justify-between text-xs text-primary pl-4">
+              <span>↳ Extra package fee ({packageCount - 1} × ₦200)</span>
+              <span>₦{extraPackageFee.toLocaleString()}</span>
+            </div>
+          )}
           <div className="flex justify-between text-muted-foreground">
             <span>Service Fee</span>
             <span>₦{serviceFee.toLocaleString()}</span>

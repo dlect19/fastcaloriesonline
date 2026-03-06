@@ -421,6 +421,13 @@ export default function VendorDetail() {
       {/* Vendor Header */}
       <VendorHeader vendor={vendor} />
 
+      {/* Package Selector */}
+      <div className="container py-3">
+        <div className="bg-card rounded-xl border border-border p-3">
+          <PackageSelector vendorId={id!} outletId={searchParams.get('outlet') || undefined} />
+        </div>
+      </div>
+
       {/* Search */}
       <div className="container py-4">
         <div className="relative">
