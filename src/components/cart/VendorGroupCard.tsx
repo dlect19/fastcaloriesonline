@@ -154,10 +154,10 @@ export function VendorGroupCard({
         </div>
       )}
 
-      {/* Takeaway Packs */}
-      {applicablePacks.length > 0 && (
+      {/* Takeaway Packs (single package mode) */}
+      {!hasMultiplePackages && allApplicablePacks.length > 0 && (
         <div className="px-4 pb-3">
-          <TakeawayPackDisplay packs={applicablePacks} />
+          <TakeawayPackDisplay packs={allApplicablePacks} />
         </div>
       )}
 
