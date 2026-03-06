@@ -134,9 +134,9 @@ export default function Install() {
 
         {/* All APKs */}
         <div className="grid grid-cols-3 gap-3">
-          <DownloadButton url="/downloads/fastcalories-customer.apk" label="Customer App" variant="outline" className="h-auto py-3 flex-col gap-1 text-xs" />
-          <DownloadButton url="/downloads/fastcalories-rider.apk" label="Rider App" variant="outline" className="h-auto py-3 flex-col gap-1 text-xs" />
-          <DownloadButton url="/downloads/fastcalories-vendor.apk" label="Vendor App" variant="outline" className="h-auto py-3 flex-col gap-1 text-xs" />
+          <DownloadButton url={apkUrls.customer} label="Customer App" variant="outline" className="h-auto py-3 flex-col gap-1 text-xs" />
+          <DownloadButton url={apkUrls.rider} label="Rider App" variant="outline" className="h-auto py-3 flex-col gap-1 text-xs" />
+          <DownloadButton url={apkUrls.vendor} label="Vendor App" variant="outline" className="h-auto py-3 flex-col gap-1 text-xs" />
         </div>
 
         {/* Benefits */}
