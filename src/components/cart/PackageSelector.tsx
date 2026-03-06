@@ -46,20 +46,26 @@ export function PackageSelector({ vendorId, outletId }: PackageSelectorProps) {
 
   if (packageCount <= 1) {
     return (
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Users className="w-4 h-4 text-primary" />
-          <span className="text-sm font-medium text-foreground">Ordering for multiple people?</span>
+      <div className="bg-gradient-to-r from-primary/10 to-accent/10 border border-primary/20 rounded-xl p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-full bg-primary/15 flex items-center justify-center">
+              <Users className="w-4 h-4 text-primary" />
+            </div>
+            <div>
+              <span className="text-sm font-semibold text-foreground block">Ordering for multiple people?</span>
+              <span className="text-xs text-muted-foreground">Split items into separate packs</span>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            className="gap-1.5 shadow-sm"
+            onClick={handleAddPackage}
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add Pack
+          </Button>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5 text-primary border-primary/30 hover:bg-primary/5"
-          onClick={handleAddPackage}
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Add Package
-        </Button>
       </div>
     );
   }
