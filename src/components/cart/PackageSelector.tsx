@@ -13,7 +13,7 @@ export function PackageSelector({ vendorId, outletId }: PackageSelectorProps) {
   const { 
     activePackageIndex, setActivePackageIndex, 
     addPackage, removePackage, getPackageCount, maxPackages,
-    packageMetas,
+    packageMetas, extraPackageFeePerPack,
   } = useCart();
   const { toast } = useToast();
 
