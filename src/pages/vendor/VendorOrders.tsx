@@ -309,7 +309,14 @@ export default function VendorOrders() {
             .select('user_id, full_name, phone')
             .in('user_id', userIds);
 
-          // Map items, addons, and customer profiles to their orders
+          // Map items, addons, customer profiles, and packages to their orders
+          // Fetch order packages
+          const { data: packagesData } = await supabase
+            .from('order_packages')
+            .select('*')
+            .in('order_id', orderIds)
+            .order('sort_order');
+
           const ordersWithItems: OrderWithItems[] = ordersData.map(order => {
             const customerProfile = profilesData?.find(p => p.user_id === order.user_id);
             const orderItems: OrderItemWithAddons[] = (itemsData || [])
@@ -318,9 +325,11 @@ export default function VendorOrders() {
                 ...item,
                 addons: addonsData.filter(a => a.order_item_id === item.id),
               }));
+            const orderPackages = (packagesData || []).filter(p => p.order_id === order.id) as OrderPackage[];
             return {
               ...order,
               items: orderItems,
+              packages: orderPackages.length > 0 ? orderPackages : undefined,
               customer: customerProfile ? {
                 full_name: customerProfile.full_name,
                 phone: customerProfile.phone
