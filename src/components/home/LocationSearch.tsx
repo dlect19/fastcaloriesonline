@@ -262,7 +262,7 @@ export function LocationSearch({ onLocationSelect, currentLocation, onClearLocat
         </DialogTitle>
       </DialogHeader>
       {showMapPicker ? (
-        <div className="fixed inset-0 z-50 flex flex-col bg-background md:relative md:inset-auto md:z-auto md:rounded-lg md:border">
+        <div className="flex flex-col bg-background" style={{ height: '80vh' }}>
           {/* Top bar */}
           <div className="flex items-center gap-3 px-4 py-3 border-b bg-background shrink-0">
             <Button
@@ -277,16 +277,14 @@ export function LocationSearch({ onLocationSelect, currentLocation, onClearLocat
           </div>
 
           {/* Map — fills remaining space */}
-          <div className="flex-1 relative min-h-0">
-            <div className="absolute inset-0">
-              <MapLocationPicker
-                latitude={mapPin?.lat || latitude || undefined}
-                longitude={mapPin?.lng || longitude || undefined}
-                onLocationSelect={handleMapLocationSelect}
-                height="100%"
-                markerColor="#f97316"
-              />
-            </div>
+          <div className="flex-1 overflow-hidden">
+            <MapLocationPicker
+              latitude={mapPin?.lat || latitude || undefined}
+              longitude={mapPin?.lng || longitude || undefined}
+              onLocationSelect={handleMapLocationSelect}
+              height="100%"
+              markerColor="#f97316"
+            />
           </div>
 
           {/* Bottom action bar */}
