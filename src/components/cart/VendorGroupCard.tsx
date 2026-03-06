@@ -169,7 +169,7 @@ export function VendorGroupCard({
               </div>
               {extraPackageFee > 0 && (
                 <div className="flex justify-between text-xs text-primary pl-4">
-                  <span>↳ Extra package fee ({group.packageCount - 1} × ₦200)</span>
+                  <span>↳ Extra package fee ({group.packageCount - 1} × ₦{extraPackageFeePerPack.toLocaleString()})</span>
                   <span>₦{extraPackageFee.toLocaleString()}</span>
                 </div>
               )}
