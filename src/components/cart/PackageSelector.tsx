@@ -1,4 +1,5 @@
 import { useCart } from '@/hooks/useCart';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Package, X, Users } from 'lucide-react';
