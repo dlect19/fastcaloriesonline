@@ -334,8 +334,10 @@ export function LocationSearch({ onLocationSelect, currentLocation, onClearLocat
                 Change
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md !w-[calc(100vw-2rem)] !max-h-[85vh] overflow-y-auto !rounded-2xl !p-4 sm:!p-6">
-              {dialogContent}
+            <DialogContent className="max-w-md !w-[calc(100vw-2rem)] !max-h-[85dvh] !rounded-2xl !p-4 sm:!p-6 overflow-hidden [&]:overflow-hidden">
+              <div className="overflow-y-auto max-h-[calc(85dvh-2rem)] scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                {dialogContent}
+              </div>
             </DialogContent>
           </Dialog>
         </div>
@@ -347,8 +349,10 @@ export function LocationSearch({ onLocationSelect, currentLocation, onClearLocat
               <span className="text-muted-foreground">Enter delivery address to see nearby vendors</span>
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md !w-[calc(100vw-2rem)] !max-h-[85vh] overflow-y-auto !rounded-2xl !p-4 sm:!p-6">
-            {dialogContent}
+          <DialogContent className="max-w-md !w-[calc(100vw-2rem)] !max-h-[85dvh] !rounded-2xl !p-4 sm:!p-6 overflow-hidden [&]:overflow-hidden">
+            <div className="overflow-y-auto max-h-[calc(85dvh-2rem)] scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+              {dialogContent}
+            </div>
           </DialogContent>
         </Dialog>
       )}
