@@ -681,6 +681,53 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
           </CardContent>
         </Card>
 
+
+        {/* ── Order Items ── */}
+        {orderItems.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2 pt-3 px-4">
+              <CardTitle className="text-xs flex items-center gap-1.5 text-muted-foreground">
+                <Package className="w-3.5 h-3.5" /> Order Items ({orderItems.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-3 space-y-1.5">
+              {orderItems.map((item, i) => (
+                <div key={i} className="flex items-start justify-between text-sm border-b last:border-0 pb-1.5 last:pb-0">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium">{item.quantity}× {item.product_name}</p>
+                    {item.order_item_addons && item.order_item_addons.length > 0 && (
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        {item.order_item_addons.map((a, j) => (
+                          <span key={j} className="block">+ {a.addon_item_name} {a.additional_price > 0 ? `(₦${a.additional_price.toLocaleString()})` : ''}</span>
+                        ))}
+                      </div>
+                    )}
+                    {item.special_instructions && (
+                      <p className="text-xs text-muted-foreground italic mt-0.5">Note: {item.special_instructions}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ── Admin Complete Self-Pickup Order ── */}
+        {activeOrder.delivery_type === 'self_pickup' && activeOrder.status !== 'delivered' && activeOrder.status !== 'cancelled' && (
+          <Card className="border-primary/30 bg-primary/5">
+            <CardContent className="py-3 px-4 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Self-Pickup Order</p>
+                <p className="text-xs text-muted-foreground">Manually complete if customer has collected</p>
+              </div>
+              <Button size="sm" onClick={handleCompleteOrder} disabled={completing} className="gap-1">
+                {completing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                Complete Order
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
         {/* ── Rider Info (if assigned) ── */}
         {rider && (
           <>
