@@ -78,9 +78,9 @@ export function LocationSearch({ onLocationSelect, currentLocation, onClearLocat
     if (waitingForGps && latitude && longitude) {
       setWaitingForGps(false);
       
-      // If map picker is showing, just center map on GPS — don't auto-select
       if (showMapPicker) {
         setMapPin({ lat: latitude, lng: longitude });
+        onLocationSelect(latitude, longitude, 'GPS Location', null);
         return;
       }
       
@@ -125,13 +125,9 @@ export function LocationSearch({ onLocationSelect, currentLocation, onClearLocat
   // Open map picker — center on GPS if available
   const handleOpenMapPicker = () => {
     setShowMapPicker(true);
-    if (latitude && longitude) {
-      setMapPin({ lat: latitude, lng: longitude });
-    } else {
-      // Request GPS to center map
-      setWaitingForGps(true);
-      getCurrentPosition();
-    }
+    // Always request GPS to auto-pin on map
+    setWaitingForGps(true);
+    getCurrentPosition();
   };
 
   // When user pins a location on the map
@@ -284,6 +280,7 @@ export function LocationSearch({ onLocationSelect, currentLocation, onClearLocat
               onLocationSelect={handleMapLocationSelect}
               height="100%"
               markerColor="#f97316"
+              showSearchBar
             />
           </div>
 
