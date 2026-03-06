@@ -234,7 +234,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const getExtraPackageFee = (vendorId: string, outletId?: string): number => {
     const count = getPackageCount(vendorId, outletId);
-    return Math.max(0, count - 1) * EXTRA_PACKAGE_FEE;
+    return Math.max(0, count - 1) * extraPkgFee;
   };
 
   const addPackage = (vendorId: string, outletId?: string): number | null => {
