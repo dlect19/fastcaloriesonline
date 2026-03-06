@@ -60,9 +60,11 @@ function DownloadButton({ url, label, variant = 'default', className = '' }: { u
 export default function Install() {
   const navigate = useNavigate();
   const location = useLocation();
+  const apkUrls = useApkUrls();
   const isRider = location.pathname.startsWith('/rider') || document.referrer.includes('/rider');
 
-  const apkUrl = isRider ? '/downloads/fastcalories-rider.apk' : '/downloads/fastcalories-customer.apk';
+  const apkUrl = isRider ? apkUrls.rider : apkUrls.customer;
+  const appLabel = isRider ? 'Rider' : 'Customer';
   const appLabel = isRider ? 'Rider' : 'Customer';
 
   return (
