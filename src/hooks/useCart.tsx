@@ -117,6 +117,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [activePackageIndex, setActivePackageIndex] = useState(0);
   const [maxPkgs, setMaxPkgs] = useState(DEFAULT_MAX_PACKAGES);
   const [extraPkgFee, setExtraPkgFee] = useState(DEFAULT_EXTRA_PACKAGE_FEE);
+  const cartLoaded = useRef(false);
 
   // Fetch package settings from platform_settings
   useEffect(() => {
@@ -148,10 +149,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
         console.error('Failed to parse cart:', e);
       }
     }
+    cartLoaded.current = true;
   }, []);
 
-  // Save cart to localStorage whenever it changes
+  // Save cart to localStorage whenever it changes — only after initial load
   useEffect(() => {
+    if (!cartLoaded.current) return;
     localStorage.setItem(CART_STORAGE_KEY, JSON.stringify({ items, packageMetas }));
   }, [items, packageMetas]);
 
