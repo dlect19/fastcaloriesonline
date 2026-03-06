@@ -135,6 +135,8 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
   const [customer, setCustomer] = useState<CustomerInfo | null>(null);
   const [rider, setRider] = useState<RiderInfo | null>(null);
   const [liveOrder, setLiveOrder] = useState<Order | null>(null);
+  const [orderItems, setOrderItems] = useState<{ product_name: string; quantity: number; special_instructions: string | null; order_item_addons?: { addon_group_name: string; addon_item_name: string; additional_price: number }[] }[]>([]);
+  const [completing, setCompleting] = useState(false);
   const [orderFinancials, setOrderFinancials] = useState<{
     vendor_payout: number;
     vendor_commission_amount: number;
