@@ -277,14 +277,16 @@ export function LocationSearch({ onLocationSelect, currentLocation, onClearLocat
           </div>
 
           {/* Map — fills remaining space */}
-          <div className="flex-1 relative">
-            <MapLocationPicker
-              latitude={mapPin?.lat || latitude || undefined}
-              longitude={mapPin?.lng || longitude || undefined}
-              onLocationSelect={handleMapLocationSelect}
-              height="100%"
-              markerColor="#f97316"
-            />
+          <div className="flex-1 relative min-h-0">
+            <div className="absolute inset-0">
+              <MapLocationPicker
+                latitude={mapPin?.lat || latitude || undefined}
+                longitude={mapPin?.lng || longitude || undefined}
+                onLocationSelect={handleMapLocationSelect}
+                height="100%"
+                markerColor="#f97316"
+              />
+            </div>
           </div>
 
           {/* Bottom action bar */}
