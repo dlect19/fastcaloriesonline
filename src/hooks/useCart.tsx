@@ -112,12 +112,35 @@ function getGroupKey(vendorId: string, outletId?: string): string {
 }
 
 export function CartProvider({ children }: { children: ReactNode }) {
-  const [items, setItems] = useState<CartItem[]>([]);
-  const [packageMetas, setPackageMetas] = useState<Record<string, PackageMeta[]>>({});
+  // Hydrate initial state from localStorage synchronously via lazy initializer
+  const [items, setItems] = useState<CartItem[]>(() => {
+    try {
+      const saved = localStorage.getItem(CART_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return (parsed.items || []).map((item: any) => ({
+          ...item,
+          packageIndex: item.packageIndex ?? 0,
+        }));
+      }
+    } catch (e) {
+      console.error('Failed to parse cart items:', e);
+    }
+    return [];
+  });
+  const [packageMetas, setPackageMetas] = useState<Record<string, PackageMeta[]>>(() => {
+    try {
+      const saved = localStorage.getItem(CART_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.packageMetas || {};
+      }
+    } catch (e) { /* already logged above */ }
+    return {};
+  });
   const [activePackageIndex, setActivePackageIndex] = useState(0);
   const [maxPkgs, setMaxPkgs] = useState(DEFAULT_MAX_PACKAGES);
   const [extraPkgFee, setExtraPkgFee] = useState(DEFAULT_EXTRA_PACKAGE_FEE);
-  const cartLoaded = useRef(false);
 
   // Fetch package settings from platform_settings
   useEffect(() => {
@@ -133,28 +156,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       });
   }, []);
 
-  // Load cart from localStorage on mount
+  // Save cart to localStorage whenever it changes
   useEffect(() => {
-    const savedCart = localStorage.getItem(CART_STORAGE_KEY);
-    if (savedCart) {
-      try {
-        const parsed = JSON.parse(savedCart);
-        const loadedItems = (parsed.items || []).map((item: any) => ({
-          ...item,
-          packageIndex: item.packageIndex ?? 0,
-        }));
-        setItems(loadedItems);
-        setPackageMetas(parsed.packageMetas || {});
-      } catch (e) {
-        console.error('Failed to parse cart:', e);
-      }
-    }
-    cartLoaded.current = true;
-  }, []);
-
-  // Save cart to localStorage whenever it changes — only after initial load
-  useEffect(() => {
-    if (!cartLoaded.current) return;
     localStorage.setItem(CART_STORAGE_KEY, JSON.stringify({ items, packageMetas }));
   }, [items, packageMetas]);
 
