@@ -506,6 +506,9 @@ export default function VendorOrders() {
                   <ShoppingBag className="w-4 h-4 text-primary" />
                   <span className="text-sm font-medium">
                     {order.items.length} item{order.items.length !== 1 ? 's' : ''} in order
+                    {order.packages && order.packages.length > 1 && (
+                      <span className="ml-1 text-primary">• {order.packages.length} packs</span>
+                    )}
                   </span>
                 </div>
                 {isExpanded ? (
