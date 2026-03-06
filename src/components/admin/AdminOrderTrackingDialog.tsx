@@ -283,10 +283,37 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
     if (!order || !open) return;
     setLiveOrder(order as Order);
     fetchDetails(order as Order);
+    fetchOrderItems(order.id);
     setSelectedRiderId('');
     setRescueBonus('');
     setNearbyRiders([]);
   }, [order, open, fetchDetails]);
+
+  const fetchOrderItems = async (orderId: string) => {
+    const { data } = await supabase
+      .from('order_items')
+      .select('product_name, quantity, special_instructions, order_item_addons(addon_group_name, addon_item_name, additional_price)')
+      .eq('order_id', orderId);
+    setOrderItems(data || []);
+  };
+
+  const handleCompleteOrder = async () => {
+    if (!activeOrder) return;
+    setCompleting(true);
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: 'delivered' as any })
+        .eq('id', activeOrder.id);
+      if (error) throw error;
+      toast({ title: '✅ Order marked as delivered' });
+      onUpdated();
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    } finally {
+      setCompleting(false);
+    }
+  };
 
   // realtime subscription
   useEffect(() => {
