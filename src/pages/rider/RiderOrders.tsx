@@ -148,6 +148,23 @@ export default function RiderOrders() {
         .order('created_at', { ascending: false })
         .limit(20);
 
+      // Fetch order items for active orders so rider can verify packing
+      const activeOrderIds = (active || []).map(o => o.id);
+      let orderItemsMap: Record<string, any[]> = {};
+      if (activeOrderIds.length > 0) {
+        const { data: orderItems } = await supabase
+          .from('order_items')
+          .select('id, order_id, product_name, quantity, special_instructions, package_id')
+          .in('order_id', activeOrderIds);
+        
+        if (orderItems) {
+          orderItems.forEach(item => {
+            if (!orderItemsMap[item.order_id]) orderItemsMap[item.order_id] = [];
+            orderItemsMap[item.order_id].push(item);
+          });
+        }
+      }
+
       // Fetch customer profiles for all orders
       const allOrders = [...(active || []), ...(completed || [])];
       const customerIds = [...new Set(allOrders.map(o => o.user_id).filter(Boolean))];
@@ -164,14 +181,15 @@ export default function RiderOrders() {
         }
       }
 
-      // Attach customer profiles to orders
-      const attachProfiles = (orders: any[]) => orders.map(o => ({
+      // Attach customer profiles and order items to orders
+      const attachExtras = (orders: any[], withItems: boolean) => orders.map(o => ({
         ...o,
         customer_profile: o.user_id ? profilesMap[o.user_id] || null : null,
+        ...(withItems ? { order_items: orderItemsMap[o.id] || [] } : {}),
       }));
 
-      setActiveOrders(attachProfiles(active || []));
-      setCompletedOrders(attachProfiles(completed || []));
+      setActiveOrders(attachExtras(active || [], true));
+      setCompletedOrders(attachExtras(completed || [], false));
     } catch (error) {
       console.error('Error fetching orders:', error);
     } finally {
