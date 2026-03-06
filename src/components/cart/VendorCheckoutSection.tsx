@@ -550,6 +550,8 @@ export function VendorCheckoutSection({
         discount={promoDiscount}
         distanceKm={vendorFees.distanceKm}
         surgeFee={surgeFee}
+        extraPackageFee={extraPackageFee}
+        packageCount={packageCount}
       />
 
       {/* Checkout Button */}
