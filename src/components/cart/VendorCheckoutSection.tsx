@@ -551,6 +551,7 @@ export function VendorCheckoutSection({
         distanceKm={vendorFees.distanceKm}
         surgeFee={surgeFee}
         extraPackageFee={extraPackageFee}
+        extraPackageFeePerPack={extraPackageFeePerPack}
         packageCount={packageCount}
       />
 

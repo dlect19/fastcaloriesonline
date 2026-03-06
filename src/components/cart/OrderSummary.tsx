@@ -14,6 +14,7 @@ interface OrderSummaryProps {
   surgeFee?: number;
   vendorCount?: number;
   extraPackageFee?: number;
+  extraPackageFeePerPack?: number;
   packageCount?: number;
 }
 
@@ -29,6 +30,7 @@ export function OrderSummary({
   surgeFee = 0,
   vendorCount = 1,
   extraPackageFee = 0,
+  extraPackageFeePerPack = 200,
   packageCount = 1,
 }: OrderSummaryProps) {
   const getCalorieLevel = (calories: number) => {
@@ -96,7 +98,7 @@ export function OrderSummary({
           )}
           {extraPackageFee > 0 && (
             <div className="flex justify-between text-xs text-primary pl-4">
-              <span>↳ Extra package fee ({packageCount - 1} × ₦200)</span>
+              <span>↳ Extra package fee ({packageCount - 1} × ₦{extraPackageFeePerPack.toLocaleString()})</span>
               <span>₦{extraPackageFee.toLocaleString()}</span>
             </div>
           )}

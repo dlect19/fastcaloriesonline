@@ -13,7 +13,7 @@ export function PackageSelector({ vendorId, outletId }: PackageSelectorProps) {
   const { 
     activePackageIndex, setActivePackageIndex, 
     addPackage, removePackage, getPackageCount, maxPackages,
-    packageMetas,
+    packageMetas, extraPackageFeePerPack,
   } = useCart();
   const { toast } = useToast();
 
@@ -66,7 +66,7 @@ export function PackageSelector({ vendorId, outletId }: PackageSelectorProps) {
             {packageCount} Package{packageCount > 1 ? 's' : ''}
           </span>
           <Badge variant="secondary" className="text-xs">
-            +₦{((packageCount - 1) * 200).toLocaleString()} extra delivery
+            +₦{((packageCount - 1) * extraPackageFeePerPack).toLocaleString()} extra delivery
           </Badge>
         </div>
         {packageCount < maxPackages && (

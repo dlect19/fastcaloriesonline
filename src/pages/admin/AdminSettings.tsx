@@ -10,7 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { MapPin, Bike, DollarSign, Settings2, Save, Loader2, CreditCard, Navigation, Clock, Store, Bell, Building2 } from 'lucide-react';
+import { MapPin, Bike, DollarSign, Settings2, Save, Loader2, CreditCard, Navigation, Clock, Store, Bell, Building2, Package } from 'lucide-react';
 import { EnvironmentSwitch } from '@/components/admin/EnvironmentSwitch';
 import { AdminTestModeToggle } from '@/components/admin/AdminTestModeToggle';
 import { PaystackBalanceCard } from '@/components/admin/PaystackBalanceCard';
@@ -203,6 +203,19 @@ export default function AdminSettings() {
         'service_fee_type', 'service_fee_fixed', 'service_fee_percentage',
         'service_fee_min', 'service_fee_max',
       ];
+
+      // Save package settings
+      const packageKeys = ['extra_package_fee', 'max_packages_per_order'];
+      for (const key of packageKeys) {
+        if (settings[key] !== undefined) {
+          await supabase.from('platform_settings').upsert({
+            key,
+            value: settings[key],
+            description: key === 'extra_package_fee' ? 'Extra fee per additional package' : 'Maximum packages per order',
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'key' });
+        }
+      }
       for (const key of serviceFeeKeys) {
         if (settings[key] !== undefined) {
           await supabase.from('platform_settings').upsert({
@@ -569,6 +582,91 @@ export default function AdminSettings() {
                     checked={settings['dva_enabled'] !== 'false'}
                     onCheckedChange={(checked) => handleSettingChange('dva_enabled', checked ? 'true' : 'false')}
                   />
+                </div>
+
+                <div className="flex justify-end">
+                  <Button onClick={handleSave} disabled={saving}>
+                    {saving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4 mr-2" />
+                        Save Settings
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Multi-Package Order Settings */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Package className="w-5 h-5 text-primary" />
+                  Multi-Package Order Settings
+                </CardTitle>
+                <CardDescription>
+                  Configure pricing and limits for multi-package orders (one customer ordering for multiple people)
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="extra_package_fee" className="flex items-center gap-2">
+                      <DollarSign className="w-4 h-4 text-muted-foreground" />
+                      Extra Package Fee
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="extra_package_fee"
+                        type="number"
+                        min="0"
+                        step="50"
+                        value={settings['extra_package_fee'] ?? '200'}
+                        onChange={(e) => handleSettingChange('extra_package_fee', e.target.value)}
+                        className="pl-8"
+                      />
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₦</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Fee charged per additional package beyond the first</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="max_packages_per_order" className="flex items-center gap-2">
+                      <Package className="w-4 h-4 text-muted-foreground" />
+                      Max Packages Per Order
+                    </Label>
+                    <Input
+                      id="max_packages_per_order"
+                      type="number"
+                      min="1"
+                      max="20"
+                      step="1"
+                      value={settings['max_packages_per_order'] ?? '5'}
+                      onChange={(e) => handleSettingChange('max_packages_per_order', e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">Maximum number of packages a customer can add to one order</p>
+                  </div>
+                </div>
+
+                {/* Preview */}
+                <div className="p-4 bg-secondary rounded-lg">
+                  <h4 className="text-sm font-medium text-foreground mb-2">Package Fee Preview</h4>
+                  <p className="text-sm text-muted-foreground">
+                    1 package: <span className="text-primary font-medium">₦0 extra</span>
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    3 packages: <span className="text-primary font-medium">₦{(2 * parseInt(settings['extra_package_fee'] || '200')).toLocaleString()} extra</span>
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {settings['max_packages_per_order'] || '5'} packages (max): <span className="text-primary font-medium">₦{((parseInt(settings['max_packages_per_order'] || '5') - 1) * parseInt(settings['extra_package_fee'] || '200')).toLocaleString()} extra</span>
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Extra fee split: 50% rider bonus, 50% platform revenue
+                  </p>
                 </div>
 
                 <div className="flex justify-end">
