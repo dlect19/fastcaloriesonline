@@ -602,6 +602,91 @@ export default function AdminSettings() {
               </CardContent>
             </Card>
 
+            {/* Multi-Package Order Settings */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Package className="w-5 h-5 text-primary" />
+                  Multi-Package Order Settings
+                </CardTitle>
+                <CardDescription>
+                  Configure pricing and limits for multi-package orders (one customer ordering for multiple people)
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="extra_package_fee" className="flex items-center gap-2">
+                      <DollarSign className="w-4 h-4 text-muted-foreground" />
+                      Extra Package Fee
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="extra_package_fee"
+                        type="number"
+                        min="0"
+                        step="50"
+                        value={settings['extra_package_fee'] ?? '200'}
+                        onChange={(e) => handleSettingChange('extra_package_fee', e.target.value)}
+                        className="pl-8"
+                      />
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₦</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Fee charged per additional package beyond the first</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="max_packages_per_order" className="flex items-center gap-2">
+                      <Package className="w-4 h-4 text-muted-foreground" />
+                      Max Packages Per Order
+                    </Label>
+                    <Input
+                      id="max_packages_per_order"
+                      type="number"
+                      min="1"
+                      max="20"
+                      step="1"
+                      value={settings['max_packages_per_order'] ?? '5'}
+                      onChange={(e) => handleSettingChange('max_packages_per_order', e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">Maximum number of packages a customer can add to one order</p>
+                  </div>
+                </div>
+
+                {/* Preview */}
+                <div className="p-4 bg-secondary rounded-lg">
+                  <h4 className="text-sm font-medium text-foreground mb-2">Package Fee Preview</h4>
+                  <p className="text-sm text-muted-foreground">
+                    1 package: <span className="text-primary font-medium">₦0 extra</span>
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    3 packages: <span className="text-primary font-medium">₦{(2 * parseInt(settings['extra_package_fee'] || '200')).toLocaleString()} extra</span>
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {settings['max_packages_per_order'] || '5'} packages (max): <span className="text-primary font-medium">₦{((parseInt(settings['max_packages_per_order'] || '5') - 1) * parseInt(settings['extra_package_fee'] || '200')).toLocaleString()} extra</span>
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Extra fee split: 50% rider bonus, 50% platform revenue
+                  </p>
+                </div>
+
+                <div className="flex justify-end">
+                  <Button onClick={handleSave} disabled={saving}>
+                    {saving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4 mr-2" />
+                        Save Settings
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Rider Test Notification Toggle */}
             <Card>
               <CardHeader>
