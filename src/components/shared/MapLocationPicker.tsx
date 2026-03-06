@@ -1,7 +1,7 @@
 /// <reference types="google.maps" />
 import { useEffect, useRef, useState, useCallback } from 'react';
 
-import { Loader2 } from 'lucide-react';
+import { Loader2, Search } from 'lucide-react';
 
 interface MapLocationPickerProps {
   latitude?: number;
@@ -9,6 +9,7 @@ interface MapLocationPickerProps {
   onLocationSelect: (lat: number, lng: number) => void;
   height?: string;
   markerColor?: string;
+  showSearchBar?: boolean;
 }
 
 let googleMapsPromise: Promise<void> | null = null;
@@ -29,10 +30,12 @@ function loadGoogleMaps(apiKey: string): Promise<void> {
   return googleMapsPromise;
 }
 
-export function MapLocationPicker({ latitude, longitude, onLocationSelect, height = '300px', markerColor }: MapLocationPickerProps) {
+export function MapLocationPicker({ latitude, longitude, onLocationSelect, height = '300px', markerColor, showSearchBar = false }: MapLocationPickerProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const markerRef = useRef<google.maps.Marker | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -135,6 +138,28 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
           onLocationSelect(lat, lng);
         });
 
+        // Set up Places Autocomplete on the search input
+        if (showSearchBar && searchInputRef.current) {
+          const autocomplete = new google.maps.places.Autocomplete(searchInputRef.current, {
+            componentRestrictions: { country: 'ng' },
+            fields: ['geometry', 'name', 'formatted_address'],
+          });
+          autocomplete.bindTo('bounds', map);
+          autocompleteRef.current = autocomplete;
+
+          autocomplete.addListener('place_changed', () => {
+            const place = autocomplete.getPlace();
+            if (place.geometry?.location) {
+              const lat = place.geometry.location.lat();
+              const lng = place.geometry.location.lng();
+              map.setCenter({ lat, lng });
+              map.setZoom(16);
+              placeMarker(lat, lng);
+              onLocationSelect(lat, lng);
+            }
+          });
+        }
+
         setLoading(false);
       } catch (err) {
         console.error('Map init error:', err);
@@ -167,6 +192,19 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center bg-muted/80 z-10">
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        </div>
+      )}
+      {showSearchBar && (
+        <div className="absolute top-3 left-3 right-3 z-20">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              placeholder="Search for a landmark or address..."
+              className="w-full h-10 pl-9 pr-3 rounded-lg border border-input bg-background text-sm shadow-md focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
         </div>
       )}
       <div ref={mapRef} className="w-full h-full" />
