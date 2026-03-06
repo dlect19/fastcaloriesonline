@@ -115,6 +115,22 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [packageMetas, setPackageMetas] = useState<Record<string, PackageMeta[]>>({});
   const [activePackageIndex, setActivePackageIndex] = useState(0);
+  const [maxPkgs, setMaxPkgs] = useState(DEFAULT_MAX_PACKAGES);
+  const [extraPkgFee, setExtraPkgFee] = useState(DEFAULT_EXTRA_PACKAGE_FEE);
+
+  // Fetch package settings from platform_settings
+  useEffect(() => {
+    supabase
+      .from('platform_settings')
+      .select('key, value')
+      .in('key', ['max_packages_per_order', 'extra_package_fee'])
+      .then(({ data }) => {
+        data?.forEach(row => {
+          if (row.key === 'max_packages_per_order') setMaxPkgs(parseInt(row.value) || DEFAULT_MAX_PACKAGES);
+          if (row.key === 'extra_package_fee') setExtraPkgFee(parseFloat(row.value) || DEFAULT_EXTRA_PACKAGE_FEE);
+        });
+      });
+  }, []);
 
   // Load cart from localStorage on mount
   useEffect(() => {
