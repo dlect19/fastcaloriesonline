@@ -86,6 +86,11 @@ export function VendorGroupCard({
         </Button>
       </div>
 
+      {/* Package Selector */}
+      <div className="px-4 pt-3">
+        <PackageSelector vendorId={group.vendorId} outletId={group.outletId} />
+      </div>
+
       {/* Items grouped by package */}
       {hasMultiplePackages ? (
         <div className="p-4 space-y-4">
