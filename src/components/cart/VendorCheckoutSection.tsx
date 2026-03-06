@@ -73,7 +73,7 @@ export function VendorCheckoutSection({
   placingOrderForVendor,
   onPlacingChange,
 }: VendorCheckoutSectionProps) {
-  const { clearVendorGroup } = useCart();
+  const { clearVendorGroup, getExtraPackageFee, getPackageCount, packageMetas, extraPackageFeePerPack } = useCart();
   const { toast } = useToast();
   const navigate = useNavigate();
   const { appliedPromo, incrementUsage, resetAfterOrder } = usePromoCode();
