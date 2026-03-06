@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, ReactNode, useCallback } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface CartAddon {
   groupName: string;
@@ -53,8 +54,8 @@ export interface PackageGroup {
   itemCount: number;
 }
 
-const MAX_PACKAGES = 5;
-const EXTRA_PACKAGE_FEE = 200; // ₦200 per extra package
+const DEFAULT_MAX_PACKAGES = 5;
+const DEFAULT_EXTRA_PACKAGE_FEE = 200; // ₦200 per extra package
 
 interface CartContextType {
   items: CartItem[];
