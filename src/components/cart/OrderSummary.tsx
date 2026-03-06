@@ -28,6 +28,8 @@ export function OrderSummary({
   distanceKm,
   surgeFee = 0,
   vendorCount = 1,
+  extraPackageFee = 0,
+  packageCount = 1,
 }: OrderSummaryProps) {
   const getCalorieLevel = (calories: number) => {
     if (calories <= 500) return { label: 'Low', color: 'text-calorie-low bg-calorie-low/10' };
