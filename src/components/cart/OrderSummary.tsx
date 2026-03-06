@@ -30,6 +30,7 @@ export function OrderSummary({
   surgeFee = 0,
   vendorCount = 1,
   extraPackageFee = 0,
+  extraPackageFeePerPack = 200,
   packageCount = 1,
 }: OrderSummaryProps) {
   const getCalorieLevel = (calories: number) => {
