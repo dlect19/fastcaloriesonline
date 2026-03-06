@@ -22,6 +22,8 @@ export function PackageSelector({ vendorId, outletId }: PackageSelectorProps) {
   const metas = packageMetas[key] || [{ recipientName: '', note: '' }];
   const packageCount = metas.length;
 
+  const navigate = useNavigate();
+
   const handleAddPackage = () => {
     const newIndex = addPackage(vendorId, outletId);
     if (newIndex === null) {
@@ -30,7 +32,11 @@ export function PackageSelector({ vendorId, outletId }: PackageSelectorProps) {
         description: `Maximum ${maxPackages} packages per order.`,
         variant: 'destructive',
       });
+      return;
     }
+    // Navigate back to vendor menu so customer can add items to the new package
+    const url = outletId ? `/vendor/${vendorId}?outlet=${outletId}` : `/vendor/${vendorId}`;
+    navigate(url);
   };
 
   const handleRemovePackage = (index: number, e: React.MouseEvent) => {
