@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useCallback, useState } from 'react';
+import { ReactNode, useEffect, useCallback, useState, useRef } from 'react';
 import { RiderSidebar } from './RiderSidebar';
 import { RiderBottomNav } from './RiderBottomNav';
 import { RiderMobileHeader } from './RiderMobileHeader';
@@ -18,6 +18,8 @@ interface RiderLayoutProps {
 export function RiderLayout({ children, isOnline, onToggleOnline, canViewEarnings = true }: RiderLayoutProps) {
   const isMobile = useIsMobile();
   const [riderId, setRiderId] = useState<string | null>(null);
+  const [pendingOfferCount, setPendingOfferCount] = useState(0);
+  const repeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Fetch rider user id on mount for auto location tracking
   useEffect(() => {
@@ -39,6 +41,50 @@ export function RiderLayout({ children, isOnline, onToggleOnline, canViewEarning
     onToggleOffline: handleToggleOffline,
   });
 
+  // Fetch pending dispatch offers count for the current rider
+  const fetchPendingOffers = useCallback(async () => {
+    if (!riderId || !isOnline) {
+      setPendingOfferCount(0);
+      return;
+    }
+    const { count } = await supabase
+      .from('dispatch_offers')
+      .select('id', { count: 'exact', head: true })
+      .eq('rider_user_id', riderId)
+      .eq('status', 'pending')
+      .gt('expires_at', new Date().toISOString());
+    setPendingOfferCount(count || 0);
+  }, [riderId, isOnline]);
+
+  // Check pending offers on mount and when online status changes
+  useEffect(() => {
+    fetchPendingOffers();
+  }, [fetchPendingOffers]);
+
+  // Repeating notification sound when there are pending offers (works on ALL rider pages)
+  useEffect(() => {
+    if (pendingOfferCount > 0 && isOnline) {
+      // Play immediately
+      playGlobalNotificationSound();
+      // Then repeat every 10 seconds
+      if (repeatIntervalRef.current) clearInterval(repeatIntervalRef.current);
+      repeatIntervalRef.current = setInterval(() => {
+        playGlobalNotificationSound();
+      }, 10000);
+    } else {
+      if (repeatIntervalRef.current) {
+        clearInterval(repeatIntervalRef.current);
+        repeatIntervalRef.current = null;
+      }
+    }
+    return () => {
+      if (repeatIntervalRef.current) {
+        clearInterval(repeatIntervalRef.current);
+        repeatIntervalRef.current = null;
+      }
+    };
+  }, [pendingOfferCount, isOnline]);
+
   // Global dispatch offer sound listener - active on ALL rider pages
   useEffect(() => {
     const channel = supabase
@@ -51,6 +97,8 @@ export function RiderLayout({ children, isOnline, onToggleOnline, canViewEarning
           const { data: { user } } = await supabase.auth.getUser();
           if (user && payload.new && (payload.new as any).rider_user_id === user.id) {
             playGlobalNotificationSound();
+            // Refresh pending count so repeating sound kicks in
+            fetchPendingOffers();
             // Also trigger native heads-up notification on Android
             const offer = payload.new as any;
             showOfferNotification({
@@ -63,12 +111,23 @@ export function RiderLayout({ children, isOnline, onToggleOnline, canViewEarning
           }
         }
       )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'dispatch_offers' },
+        async (payload) => {
+          // When offers are accepted/declined/expired, refresh count to stop sound
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user && payload.new && (payload.new as any).rider_user_id === user.id) {
+            fetchPendingOffers();
+          }
+        }
+      )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [showOfferNotification]);
+  }, [showOfferNotification, fetchPendingOffers]);
 
   if (isMobile) {
     return (

@@ -397,6 +397,23 @@ export default function RiderOrders() {
                   {getStatusBadge(order.status)}
                 </CardHeader>
                 <CardContent className="space-y-4 p-4 md:p-6 pt-0">
+                  {/* Order Items - for packing verification */}
+                  {order.order_items && order.order_items.length > 0 && (
+                    <div className="bg-muted/50 rounded-lg p-3 space-y-1.5">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">🧾 Order Items — Verify before pickup</p>
+                      {order.order_items.map((item: any) => (
+                        <div key={item.id} className="flex items-start justify-between text-sm">
+                          <div className="flex-1 min-w-0">
+                            <span className="font-medium">{item.quantity}× {item.product_name}</span>
+                            {item.special_instructions && (
+                              <p className="text-xs text-muted-foreground italic">Note: {item.special_instructions}</p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Pickup Location */}
                     <div className="space-y-2">
