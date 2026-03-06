@@ -53,10 +53,20 @@ type OrderItemAddon = {
 
 type OrderItemWithAddons = OrderItem & {
   addons?: OrderItemAddon[];
+  package_id?: string | null;
+};
+
+type OrderPackage = {
+  id: string;
+  order_id: string;
+  recipient_name: string;
+  note: string | null;
+  sort_order: number;
 };
 
 type OrderWithItems = Order & { 
   items: OrderItemWithAddons[];
+  packages?: OrderPackage[];
   customer?: {
     full_name: string | null;
     phone: string | null;
