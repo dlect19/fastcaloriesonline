@@ -240,7 +240,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const addPackage = (vendorId: string, outletId?: string): number | null => {
     const key = getGroupKey(vendorId, outletId);
     const metas = packageMetas[key] || [{ recipientName: '', note: '' }];
-    if (metas.length >= MAX_PACKAGES) return null;
+    if (metas.length >= maxPkgs) return null;
     
     const newIndex = metas.length;
     setPackageMetas(prev => ({
