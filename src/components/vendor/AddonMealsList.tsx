@@ -49,6 +49,10 @@ interface AddonMealsListProps {
 export function AddonMealsList({ vendor, addonProducts, onRefresh, getEffectiveAvailability, onToggleAvailability }: AddonMealsListProps) {
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [menuPickerOpen, setMenuPickerOpen] = useState(false);
+  const [menuProducts, setMenuProducts] = useState<Product[]>([]);
+  const [menuSearchQuery, setMenuSearchQuery] = useState('');
+  const [creatingFromMenu, setCreatingFromMenu] = useState<string | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -56,6 +60,60 @@ export function AddonMealsList({ vendor, addonProducts, onRefresh, getEffectiveA
   const [uploadingImage, setUploadingImage] = useState(false);
   const [estimatingCalories, setEstimatingCalories] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const fetchMenuProducts = async () => {
+    if (!vendor) return;
+    const { data } = await supabase
+      .from('products')
+      .select('*')
+      .eq('vendor_id', vendor.id)
+      .or('meal_type.is.null,meal_type.neq.addon')
+      .order('name');
+    setMenuProducts(data || []);
+  };
+
+  useEffect(() => {
+    if (menuPickerOpen) {
+      fetchMenuProducts();
+      setMenuSearchQuery('');
+    }
+  }, [menuPickerOpen]);
+
+  const handleCreateFromMeal = async (meal: Product) => {
+    setCreatingFromMenu(meal.id);
+    try {
+      const addonData = {
+        vendor_id: vendor.id,
+        name: meal.name,
+        description: meal.description || null,
+        price: meal.price,
+        serving_unit: meal.serving_unit,
+        calories: meal.calories,
+        protein_grams: meal.protein_grams,
+        carbs_grams: meal.carbs_grams,
+        fats_grams: meal.fats_grams,
+        fiber_grams: meal.fiber_grams,
+        is_available: meal.is_available ?? true,
+        calorie_classes: meal.calorie_classes,
+        nutrient_tags: meal.nutrient_tags,
+        image_url: meal.image_url,
+        meal_type: 'addon' as const,
+      };
+
+      const { error } = await supabase.from('products').insert(addonData);
+      if (error) throw error;
+      toast({ title: 'Add-on created from meal', description: `"${meal.name}" has been added as an add-on meal` });
+      onRefresh();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } finally {
+      setCreatingFromMenu(null);
+    }
+  };
+
+  const filteredMenuProducts = menuProducts.filter(p =>
+    p.name.toLowerCase().includes(menuSearchQuery.toLowerCase())
+  );
 
   const [formData, setFormData] = useState({
     name: '',
