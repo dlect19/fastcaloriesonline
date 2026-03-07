@@ -413,10 +413,16 @@ export function AddonMealsList({ vendor, addonProducts, onRefresh, getEffectiveA
             Create reusable add-on meals that can be linked to any main menu item
           </p>
         </div>
-        <Button className="gap-2" onClick={() => { resetForm(); setDialogOpen(true); }}>
-          <Plus className="w-4 h-4" />
-          Add Add-On Meal
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" className="gap-2" onClick={() => setMenuPickerOpen(true)}>
+            <UtensilsCrossed className="w-4 h-4" />
+            Create from Menu
+          </Button>
+          <Button className="gap-2" onClick={() => { resetForm(); setDialogOpen(true); }}>
+            <Plus className="w-4 h-4" />
+            Add Add-On Meal
+          </Button>
+        </div>
       </div>
 
       {/* Search */}
