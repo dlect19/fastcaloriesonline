@@ -134,10 +134,9 @@ export function VendorCheckoutSection({
   }, [gpsLat, gpsLon, gpsLoading, hasDeliveryLocation]);
 
   const handleCheckout = async () => {
-    // Check rider availability for delivery orders
+    // Warn about rider availability but allow checkout (admin can manually assign riders)
     if (deliveryType === 'delivery' && !riderAvailability.deliveryAllowed) {
-      toast({ title: 'Delivery Unavailable', description: riderAvailability.blockReason || 'Please select Self Pickup.', variant: 'destructive' });
-      return;
+      toast({ title: 'Limited Rider Availability', description: 'No riders are currently available. Your order will be placed and a rider will be assigned shortly. You can also switch to Self Pickup.', variant: 'default' });
     }
     if (deliveryType === 'delivery' && !hasDeliveryLocation) {
       toast({ title: 'No delivery location', description: 'Please set your delivery location from the home screen header.', variant: 'destructive' });
@@ -372,11 +371,14 @@ export function VendorCheckoutSection({
             />
           </div>
 
-          {/* Rider availability warning */}
+          {/* Rider availability warning (informational, does not block checkout) */}
           {deliveryType === 'delivery' && !riderAvailability.loading && !riderAvailability.deliveryAllowed && (
-            <div className="flex items-center gap-2 p-3 bg-destructive/10 rounded-lg border border-destructive/20">
-              <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
-              <p className="text-sm text-destructive">{riderAvailability.blockReason}</p>
+            <div className="flex items-center gap-2 p-3 bg-warning/10 rounded-lg border border-warning/20">
+              <AlertTriangle className="w-5 h-5 text-warning shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-warning">No riders available right now</p>
+                <p className="text-xs text-muted-foreground mt-0.5">You can still place your order — a rider will be assigned shortly. Or switch to Self Pickup.</p>
+              </div>
             </div>
           )}
 
