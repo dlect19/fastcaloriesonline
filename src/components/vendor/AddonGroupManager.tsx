@@ -979,7 +979,7 @@ function AddonGroupCard({
                   )}
                 </div>
               ))}
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 {hasAddonProducts && (
                   <Button
                     type="button"
@@ -990,6 +990,18 @@ function AddonGroupCard({
                   >
                     <PackagePlus className="w-3 h-3" />
                     Add from Add-On Meals
+                  </Button>
+                )}
+                {hasMenuProducts && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="flex-1 gap-1 h-7 text-xs"
+                    onClick={onAddFromMenu}
+                  >
+                    <UtensilsCrossed className="w-3 h-3" />
+                    Add from Menu
                   </Button>
                 )}
                 <Button
