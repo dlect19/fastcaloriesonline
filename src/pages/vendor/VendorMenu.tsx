@@ -471,6 +471,28 @@ export default function VendorMenu() {
     return product.is_available ?? true;
   };
 
+  const toggleHidden = async (product: Product) => {
+    try {
+      const currentlyHidden = (product as any).is_hidden ?? false;
+      const { error } = await supabase
+        .from('products')
+        .update({ is_hidden: !currentlyHidden } as any)
+        .eq('id', product.id);
+
+      if (error) throw error;
+
+      setProducts(prev => prev.map(p => p.id === product.id ? { ...p, is_hidden: !currentlyHidden } as any : p));
+      toast({
+        title: currentlyHidden ? 'Meal visible to customers' : 'Meal hidden from customers',
+        description: currentlyHidden
+          ? `${product.name} is now visible on your menu`
+          : `${product.name} will no longer appear to customers`,
+      });
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    }
+  };
+
   const toggleAvailability = async (product: Product) => {
     try {
       const currentAvailability = getEffectiveAvailability(product);
