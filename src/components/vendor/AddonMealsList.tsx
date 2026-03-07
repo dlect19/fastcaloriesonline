@@ -640,6 +640,59 @@ export function AddonMealsList({ vendor, addonProducts, onRefresh, getEffectiveA
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Menu Picker Dialog */}
+      <Dialog open={menuPickerOpen} onOpenChange={setMenuPickerOpen}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Create Add-On from Menu</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Select a meal to copy as an add-on meal. This creates a separate add-on entry with the same details.</p>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search meals..."
+              value={menuSearchQuery}
+              onChange={(e) => setMenuSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <div className="space-y-2 max-h-[50vh] overflow-y-auto">
+            {filteredMenuProducts.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8 text-sm">No meals found</p>
+            ) : (
+              filteredMenuProducts.map((meal) => {
+                const alreadyAddon = addonProducts.some(a => a.name === meal.name);
+                return (
+                  <div key={meal.id} className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors">
+                    {meal.image_url ? (
+                      <img src={meal.image_url} alt={meal.name} className="w-12 h-12 rounded-lg object-cover shrink-0" />
+                    ) : (
+                      <div className="w-12 h-12 rounded-lg bg-secondary flex items-center justify-center shrink-0">
+                        <UtensilsCrossed className="w-5 h-5 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{meal.name}</p>
+                      <p className="text-xs text-muted-foreground">₦{Number(meal.price).toLocaleString()}{meal.calories ? ` · ${meal.calories} kcal` : ''}</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant={alreadyAddon ? "secondary" : "default"}
+                      disabled={creatingFromMenu === meal.id}
+                      onClick={() => handleCreateFromMeal(meal)}
+                    >
+                      {creatingFromMenu === meal.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : alreadyAddon ? 'Add Again' : 'Add'}
+                    </Button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
