@@ -1152,6 +1152,9 @@ export default function VendorMenu() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="font-semibold text-foreground truncate">{product.name}</h3>
+                        {(product as any).is_hidden && (
+                          <Badge variant="outline" className="text-xs border-warning text-warning">Hidden</Badge>
+                        )}
                         {!getEffectiveAvailability(product) && (
                           <Badge variant="destructive" className="text-xs">Unavailable</Badge>
                         )}
