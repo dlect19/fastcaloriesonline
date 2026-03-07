@@ -393,8 +393,8 @@ export function ComboManagement({ vendor, products, onRefresh, refreshKey = 0 }:
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (selectedProducts.length < 2) {
-      toast({ title: 'Select at least 2 items', description: 'A combo must include multiple items', variant: 'destructive' });
+    if (selectedProducts.length < 1) {
+      toast({ title: 'Select at least 1 item', description: 'A combo must include at least one item', variant: 'destructive' });
       return;
     }
 
