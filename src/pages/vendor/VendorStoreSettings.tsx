@@ -579,6 +579,21 @@ function VendorStoreSettingsInner() {
         </Card>
       )}
 
+      {/* Combos Only Mode */}
+      {vendorId && (
+        <Card className="border-0 shadow-soft">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Package className="w-5 h-5" />
+              Menu Display
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CombosOnlyToggle vendorId={vendorId} />
+          </CardContent>
+        </Card>
+      )}
+
       {/* Delivery Coverage — hidden for online-only outlets */}
       {outletStoreType !== 'online' && (
       <Card className="border-0 shadow-soft">
