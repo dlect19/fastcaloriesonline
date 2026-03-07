@@ -1134,7 +1134,7 @@ export default function VendorMenu() {
               {filteredProducts.map((product) => (
                 <div
                   key={product.id}
-                  className={`bg-card rounded-xl border overflow-hidden ${!getEffectiveAvailability(product) ? 'opacity-60 border-destructive/40' : 'border-border'}`}
+                  className={`bg-card rounded-xl border overflow-hidden ${(product as any).is_hidden ? 'opacity-50 border-warning/40' : !getEffectiveAvailability(product) ? 'opacity-60 border-destructive/40' : 'border-border'}`}
                 >
                   <div className="p-4 flex items-center gap-4">
                     {product.image_url ? (
