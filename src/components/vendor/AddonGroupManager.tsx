@@ -89,6 +89,7 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
   useEffect(() => {
     fetchGroups();
     fetchAddonProducts();
+    fetchMenuProducts();
   }, [productId, vendorId]);
 
   const fetchGroups = async () => {
