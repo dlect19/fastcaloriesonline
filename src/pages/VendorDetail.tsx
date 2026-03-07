@@ -428,7 +428,8 @@ export default function VendorDetail() {
         </div>
       </div>
 
-      {/* Search */}
+      {/* Search — hidden in combos-only mode */}
+      {!(vendor as any).combos_only && (
       <div className="container py-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -440,9 +441,10 @@ export default function VendorDetail() {
           />
         </div>
       </div>
+      )}
 
-      {/* Category Tabs */}
-      {categories.length > 0 && (
+      {/* Category Tabs — hidden in combos-only mode */}
+      {!(vendor as any).combos_only && categories.length > 0 && (
         <MenuCategoryTabs
           categories={categories}
           selectedCategory={selectedCategory}
@@ -483,7 +485,8 @@ export default function VendorDetail() {
           </section>
         )}
 
-        {/* Products Grid */}
+        {/* Products Grid — hidden when vendor is combos_only */}
+        {!(vendor as any).combos_only && (
         <main className="container py-4">
           {filteredProducts.length === 0 && combos.length === 0 ? (
             <div className="text-center py-12">
@@ -508,6 +511,14 @@ export default function VendorDetail() {
             </div>
           )}
         </main>
+        )}
+
+        {/* Show empty state if combos_only and no combos */}
+        {(vendor as any).combos_only && combos.length === 0 && (
+          <div className="container py-12 text-center">
+            <p className="text-muted-foreground">No combo deals available yet</p>
+          </div>
+        )}
       </div>
 
       {/* Customer Reviews Section */}

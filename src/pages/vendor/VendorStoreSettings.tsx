@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, Save, Loader2, Bike, Users, Building2, Navigation, CheckCircle, Clock, Settings2, Megaphone, Heart, QrCode, Radar, Trash2, Search, Share2 } from 'lucide-react';
+import { MapPin, Save, Loader2, Bike, Users, Building2, Navigation, CheckCircle, Clock, Settings2, Megaphone, Heart, QrCode, Radar, Trash2, Search, Share2, Package } from 'lucide-react';
 import { StoreTypeField, type StoreType, type SocialMediaHandles } from '@/components/vendor/StoreTypeField';
 import { SocialMediaMarketingBanner } from '@/components/vendor/SocialMediaMarketingBanner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -579,6 +579,21 @@ function VendorStoreSettingsInner() {
         </Card>
       )}
 
+      {/* Combos Only Mode */}
+      {vendorId && (
+        <Card className="border-0 shadow-soft">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Package className="w-5 h-5" />
+              Menu Display
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CombosOnlyToggle vendorId={vendorId} />
+          </CardContent>
+        </Card>
+      )}
+
       {/* Delivery Coverage — hidden for online-only outlets */}
       {outletStoreType !== 'online' && (
       <Card className="border-0 shadow-soft">
@@ -800,4 +815,44 @@ function GpsAutoSaveOutlet({ outletId, lat, lon, onComplete, onError }: {
   }, [outletId, lat, lon]);
 
   return null;
+}
+
+// Combos-only toggle — saves directly to vendors table
+function CombosOnlyToggle({ vendorId }: { vendorId: string }) {
+  const [combosOnly, setCombosOnly] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    supabase.from('vendors').select('combos_only').eq('id', vendorId).single()
+      .then(({ data }) => {
+        setCombosOnly((data as any)?.combos_only ?? false);
+        setLoading(false);
+      });
+  }, [vendorId]);
+
+  const toggle = async (checked: boolean) => {
+    setCombosOnly(checked);
+    const { error } = await supabase.from('vendors').update({ combos_only: checked } as any).eq('id', vendorId);
+    if (error) {
+      setCombosOnly(!checked);
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } else {
+      toast({ title: checked ? 'Combos-only mode enabled' : 'Full menu visible to customers' });
+    }
+  };
+
+  if (loading) return <Skeleton className="h-16 w-full" />;
+
+  return (
+    <div className="flex items-center justify-between p-4 rounded-xl bg-muted/50">
+      <div>
+        <p className="font-medium text-foreground">Combos Only Mode</p>
+        <p className="text-sm text-muted-foreground">
+          Hide individual menu items from customers — only combo deals will be visible
+        </p>
+      </div>
+      <Switch checked={combosOnly} onCheckedChange={toggle} />
+    </div>
+  );
 }

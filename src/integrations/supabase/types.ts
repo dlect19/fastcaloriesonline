@@ -4151,6 +4151,7 @@ export type Database = {
           banner_url: string | null
           category: Database["public"]["Enums"]["vendor_category"]
           city: string
+          combos_only: boolean
           commission_rate: number | null
           created_at: string
           delivery_fee: number | null
@@ -4194,6 +4195,7 @@ export type Database = {
           banner_url?: string | null
           category?: Database["public"]["Enums"]["vendor_category"]
           city: string
+          combos_only?: boolean
           commission_rate?: number | null
           created_at?: string
           delivery_fee?: number | null
@@ -4237,6 +4239,7 @@ export type Database = {
           banner_url?: string | null
           category?: Database["public"]["Enums"]["vendor_category"]
           city?: string
+          combos_only?: boolean
           commission_rate?: number | null
           created_at?: string
           delivery_fee?: number | null
