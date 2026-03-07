@@ -630,7 +630,7 @@ export function ComboManagement({ vendor, products, onRefresh, refreshKey = 0 }:
               {/* Item Selection (Products + Takeaway Packs) */}
               <div className="space-y-2">
                 <Label>Select Items *</Label>
-                <p className="text-xs text-muted-foreground">Choose at least 2 items (menu items &amp; takeaway packs)</p>
+                <p className="text-xs text-muted-foreground">Choose at least 1 item (menu items &amp; takeaway packs)</p>
                 <div className="max-h-64 overflow-y-auto border border-border rounded-lg divide-y divide-border">
                   {/* Products Section */}
                   {products.filter((p) => p.is_available).length > 0 && (
