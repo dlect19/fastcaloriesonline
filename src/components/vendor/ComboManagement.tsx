@@ -898,7 +898,7 @@ export function ComboManagement({ vendor, products, onRefresh, refreshKey = 0 }:
                 />
               </div>
 
-              <Button type="submit" className="w-full" disabled={uploadingImage || selectedProducts.length < 2}>
+              <Button type="submit" className="w-full" disabled={uploadingImage || selectedProducts.length < 1}>
                 {uploadingImage ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
