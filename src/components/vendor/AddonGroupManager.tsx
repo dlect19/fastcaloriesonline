@@ -188,7 +188,7 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
         .from('products')
         .select('*')
         .eq('vendor_id', vendorId)
-        .neq('meal_type', 'addon')
+        .or('meal_type.is.null,meal_type.neq.addon')
         .order('name');
       setMenuProducts(data || []);
     } catch (error) {
