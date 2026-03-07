@@ -114,6 +114,9 @@ export function ComboManagement({ vendor, products, onRefresh, refreshKey = 0 }:
     is_available: true,
   });
   
+  // Selected addon groups for the combo
+  const [selectedAddonGroupIds, setSelectedAddonGroupIds] = useState<string[]>([]);
+
   // Selected items with quantities (products and packs)
   const [selectedProducts, setSelectedProducts] = useState<{ itemId: string; itemType: 'product' | 'pack'; quantity: number }[]>([]);
   
