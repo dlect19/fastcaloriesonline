@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit2, Trash2, Search, Flame, Wheat, Drumstick, Droplets, Leaf, Droplet, Apple, Gem, ImagePlus, X, Loader2, Sparkles, Settings2, ChefHat } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, Flame, Wheat, Drumstick, Droplets, Leaf, Droplet, Apple, Gem, ImagePlus, X, Loader2, Sparkles, Settings2, ChefHat, EyeOff, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -469,6 +469,28 @@ export default function VendorMenu() {
       return outletOverrides[product.id];
     }
     return product.is_available ?? true;
+  };
+
+  const toggleHidden = async (product: Product) => {
+    try {
+      const currentlyHidden = (product as any).is_hidden ?? false;
+      const { error } = await supabase
+        .from('products')
+        .update({ is_hidden: !currentlyHidden } as any)
+        .eq('id', product.id);
+
+      if (error) throw error;
+
+      setProducts(prev => prev.map(p => p.id === product.id ? { ...p, is_hidden: !currentlyHidden } as any : p));
+      toast({
+        title: currentlyHidden ? 'Meal visible to customers' : 'Meal hidden from customers',
+        description: currentlyHidden
+          ? `${product.name} is now visible on your menu`
+          : `${product.name} will no longer appear to customers`,
+      });
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    }
   };
 
   const toggleAvailability = async (product: Product) => {
@@ -1134,7 +1156,7 @@ export default function VendorMenu() {
               {filteredProducts.map((product) => (
                 <div
                   key={product.id}
-                  className={`bg-card rounded-xl border overflow-hidden ${!getEffectiveAvailability(product) ? 'opacity-60 border-destructive/40' : 'border-border'}`}
+                  className={`bg-card rounded-xl border overflow-hidden ${(product as any).is_hidden ? 'opacity-50 border-warning/40' : !getEffectiveAvailability(product) ? 'opacity-60 border-destructive/40' : 'border-border'}`}
                 >
                   <div className="p-4 flex items-center gap-4">
                     {product.image_url ? (
@@ -1152,6 +1174,9 @@ export default function VendorMenu() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="font-semibold text-foreground truncate">{product.name}</h3>
+                        {(product as any).is_hidden && (
+                          <Badge variant="outline" className="text-xs border-warning text-warning">Hidden</Badge>
+                        )}
                         {!getEffectiveAvailability(product) && (
                           <Badge variant="destructive" className="text-xs">Unavailable</Badge>
                         )}
@@ -1222,6 +1247,19 @@ export default function VendorMenu() {
                         checked={getEffectiveAvailability(product)}
                         onCheckedChange={() => toggleAvailability(product)}
                       />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        title={(product as any).is_hidden ? 'Hidden from customers — click to show' : 'Visible to customers — click to hide'}
+                        onClick={() => toggleHidden(product)}
+                      >
+                        {(product as any).is_hidden ? (
+                          <EyeOff className="w-4 h-4 text-destructive" />
+                        ) : (
+                          <Eye className="w-4 h-4 text-muted-foreground" />
+                        )}
+                      </Button>
                       <Button
                         variant="outline"
                         size="sm"

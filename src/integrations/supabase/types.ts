@@ -2503,6 +2503,7 @@ export type Database = {
           id: string
           image_url: string | null
           is_available: boolean | null
+          is_hidden: boolean
           meal_type: string
           name: string
           nutrient_tags: string[] | null
@@ -2530,6 +2531,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_available?: boolean | null
+          is_hidden?: boolean
           meal_type?: string
           name: string
           nutrient_tags?: string[] | null
@@ -2557,6 +2559,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_available?: boolean | null
+          is_hidden?: boolean
           meal_type?: string
           name?: string
           nutrient_tags?: string[] | null
