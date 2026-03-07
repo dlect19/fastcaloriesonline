@@ -94,6 +94,7 @@ export function ComboManagement({ vendor, products, onRefresh, refreshKey = 0 }:
   const [combos, setCombos] = useState<(Combo & { items: ComboItem[] })[]>([]);
   const [takeawayPacks, setTakeawayPacks] = useState<TakeawayPack[]>([]);
   const [addonGroups, setAddonGroups] = useState<Record<string, AddonGroup[]>>({});
+  const [allAddonGroups, setAllAddonGroups] = useState<AddonGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCombo, setEditingCombo] = useState<Combo | null>(null);
@@ -113,6 +114,9 @@ export function ComboManagement({ vendor, products, onRefresh, refreshKey = 0 }:
     is_available: true,
   });
   
+  // Selected addon groups for the combo
+  const [selectedAddonGroupIds, setSelectedAddonGroupIds] = useState<string[]>([]);
+
   // Selected items with quantities (products and packs)
   const [selectedProducts, setSelectedProducts] = useState<{ itemId: string; itemType: 'product' | 'pack'; quantity: number }[]>([]);
   
@@ -171,6 +175,17 @@ export function ComboManagement({ vendor, products, onRefresh, refreshKey = 0 }:
       .in('addon_group_id', groupIds)
       .eq('is_available', true);
 
+    // Build full addon groups list (for combo-level assignment)
+    const fullGroups: AddonGroup[] = groups.map(g => ({
+      id: g.id,
+      name: g.name,
+      selection_type: g.selection_type,
+      items: (items || [])
+        .filter(i => (i as any).addon_group_id === g.id)
+        .map(i => ({ id: i.id, name: i.name, additional_price: i.additional_price })),
+    }));
+    setAllAddonGroups(fullGroups);
+
     // Fetch product-addon-group links
     const { data: links } = await supabase
       .from('product_addon_groups')
@@ -180,22 +195,13 @@ export function ComboManagement({ vendor, products, onRefresh, refreshKey = 0 }:
     const productAddonMap: Record<string, AddonGroup[]> = {};
     
     for (const link of (links || [])) {
-      const group = groups.find(g => g.id === link.addon_group_id);
+      const group = fullGroups.find(g => g.id === link.addon_group_id);
       if (!group) continue;
       
-      const groupItems = (items || [])
-        .filter(i => (i as any).addon_group_id === link.addon_group_id)
-        .map(i => ({ id: i.id, name: i.name, additional_price: i.additional_price }));
-
       if (!productAddonMap[link.product_id]) {
         productAddonMap[link.product_id] = [];
       }
-      productAddonMap[link.product_id].push({
-        id: group.id,
-        name: group.name,
-        selection_type: group.selection_type,
-        items: groupItems,
-      });
+      productAddonMap[link.product_id].push(group);
     }
 
     setAddonGroups(productAddonMap);
@@ -432,6 +438,14 @@ export function ComboManagement({ vendor, products, onRefresh, refreshKey = 0 }:
         const { error: itemsError } = await supabase.from('combo_items').insert(itemsToInsert);
         if (itemsError) throw itemsError;
 
+        // Update combo addon groups
+        await supabase.from('combo_addon_groups').delete().eq('combo_id', editingCombo.id);
+        if (selectedAddonGroupIds.length > 0) {
+          await supabase.from('combo_addon_groups').insert(
+            selectedAddonGroupIds.map(gid => ({ combo_id: editingCombo.id, addon_group_id: gid }))
+          );
+        }
+
         toast({ title: `${labels.singular} updated successfully` });
       } else {
         const { data: newCombo, error: comboError } = await supabase
@@ -451,6 +465,13 @@ export function ComboManagement({ vendor, products, onRefresh, refreshKey = 0 }:
 
         const { error: itemsError } = await supabase.from('combo_items').insert(itemsToInsert);
         if (itemsError) throw itemsError;
+
+        // Save combo addon groups
+        if (selectedAddonGroupIds.length > 0) {
+          await supabase.from('combo_addon_groups').insert(
+            selectedAddonGroupIds.map(gid => ({ combo_id: newCombo.id, addon_group_id: gid }))
+          );
+        }
 
         toast({ title: `${labels.singular} created successfully` });
       }
@@ -478,6 +499,14 @@ export function ComboManagement({ vendor, products, onRefresh, refreshKey = 0 }:
       quantity: item.quantity,
     })));
     if (combo.image_url) setImagePreview(combo.image_url);
+
+    // Load linked addon groups
+    const { data: linkedAddons } = await supabase
+      .from('combo_addon_groups')
+      .select('addon_group_id')
+      .eq('combo_id', combo.id);
+    setSelectedAddonGroupIds((linkedAddons || []).map(l => l.addon_group_id));
+
     setDialogOpen(true);
   };
 
@@ -513,6 +542,7 @@ export function ComboManagement({ vendor, products, onRefresh, refreshKey = 0 }:
     setEditingCombo(null);
     setFormData({ name: '', description: '', combo_price: '', is_available: true });
     setSelectedProducts([]);
+    setSelectedAddonGroupIds([]);
     setImageFile(null);
     setImagePreview(null);
     setExpandedAddons(new Set());
@@ -808,6 +838,53 @@ export function ComboManagement({ vendor, products, onRefresh, refreshKey = 0 }:
                         Save ₦{savings.toLocaleString()} ({savingsPercent}% off)
                       </Badge>
                     </div>
+                  )}
+                </div>
+              )}
+
+              {/* Addon Groups Assignment */}
+              {allAddonGroups.length > 0 && (
+                <div className="space-y-2 border-t pt-4">
+                  <Label>Attach Add-on Groups (optional)</Label>
+                  <p className="text-xs text-muted-foreground">Customers will be able to customize this combo with selected add-on groups</p>
+                  <div className="max-h-40 overflow-y-auto border border-border rounded-lg divide-y divide-border">
+                    {allAddonGroups.map(group => {
+                      const isSelected = selectedAddonGroupIds.includes(group.id);
+                      return (
+                        <div
+                          key={group.id}
+                          className={cn(
+                            'flex items-center gap-3 p-3 cursor-pointer transition-colors',
+                            isSelected ? 'bg-primary/5' : 'hover:bg-muted/50'
+                          )}
+                          onClick={() => {
+                            setSelectedAddonGroupIds(prev =>
+                              isSelected ? prev.filter(id => id !== group.id) : [...prev, group.id]
+                            );
+                          }}
+                        >
+                          <div
+                            className={cn(
+                              'h-4 w-4 shrink-0 rounded-sm border border-primary flex items-center justify-center',
+                              isSelected ? 'bg-primary text-primary-foreground' : 'bg-background'
+                            )}
+                          >
+                            {isSelected && <Check className="h-3 w-3" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium">{group.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {group.items.length} item{group.items.length !== 1 ? 's' : ''} · {group.selection_type}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {selectedAddonGroupIds.length > 0 && (
+                    <p className="text-xs text-primary font-medium">
+                      {selectedAddonGroupIds.length} add-on group{selectedAddonGroupIds.length > 1 ? 's' : ''} attached
+                    </p>
                   )}
                 </div>
               )}
