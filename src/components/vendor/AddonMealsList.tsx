@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react';
-import { Plus, Edit2, Trash2, Flame, Wheat, Drumstick, Droplets, Leaf, Droplet, Apple, Gem, ImagePlus, X, Loader2, Sparkles, Search } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Plus, Edit2, Trash2, Flame, Wheat, Drumstick, Droplets, Leaf, Droplet, Apple, Gem, ImagePlus, X, Loader2, Sparkles, Search, UtensilsCrossed } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -49,6 +49,10 @@ interface AddonMealsListProps {
 export function AddonMealsList({ vendor, addonProducts, onRefresh, getEffectiveAvailability, onToggleAvailability }: AddonMealsListProps) {
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [menuPickerOpen, setMenuPickerOpen] = useState(false);
+  const [menuProducts, setMenuProducts] = useState<Product[]>([]);
+  const [menuSearchQuery, setMenuSearchQuery] = useState('');
+  const [creatingFromMenu, setCreatingFromMenu] = useState<string | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -56,6 +60,60 @@ export function AddonMealsList({ vendor, addonProducts, onRefresh, getEffectiveA
   const [uploadingImage, setUploadingImage] = useState(false);
   const [estimatingCalories, setEstimatingCalories] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const fetchMenuProducts = async () => {
+    if (!vendor) return;
+    const { data } = await supabase
+      .from('products')
+      .select('*')
+      .eq('vendor_id', vendor.id)
+      .or('meal_type.is.null,meal_type.neq.addon')
+      .order('name');
+    setMenuProducts(data || []);
+  };
+
+  useEffect(() => {
+    if (menuPickerOpen) {
+      fetchMenuProducts();
+      setMenuSearchQuery('');
+    }
+  }, [menuPickerOpen]);
+
+  const handleCreateFromMeal = async (meal: Product) => {
+    setCreatingFromMenu(meal.id);
+    try {
+      const addonData = {
+        vendor_id: vendor.id,
+        name: meal.name,
+        description: meal.description || null,
+        price: meal.price,
+        serving_unit: meal.serving_unit,
+        calories: meal.calories,
+        protein_grams: meal.protein_grams,
+        carbs_grams: meal.carbs_grams,
+        fats_grams: meal.fats_grams,
+        fiber_grams: meal.fiber_grams,
+        is_available: meal.is_available ?? true,
+        calorie_classes: meal.calorie_classes,
+        nutrient_tags: meal.nutrient_tags,
+        image_url: meal.image_url,
+        meal_type: 'addon' as const,
+      };
+
+      const { error } = await supabase.from('products').insert(addonData);
+      if (error) throw error;
+      toast({ title: 'Add-on created from meal', description: `"${meal.name}" has been added as an add-on meal` });
+      onRefresh();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } finally {
+      setCreatingFromMenu(null);
+    }
+  };
+
+  const filteredMenuProducts = menuProducts.filter(p =>
+    p.name.toLowerCase().includes(menuSearchQuery.toLowerCase())
+  );
 
   const [formData, setFormData] = useState({
     name: '',
@@ -355,10 +413,16 @@ export function AddonMealsList({ vendor, addonProducts, onRefresh, getEffectiveA
             Create reusable add-on meals that can be linked to any main menu item
           </p>
         </div>
-        <Button className="gap-2" onClick={() => { resetForm(); setDialogOpen(true); }}>
-          <Plus className="w-4 h-4" />
-          Add Add-On Meal
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" className="gap-2" onClick={() => setMenuPickerOpen(true)}>
+            <UtensilsCrossed className="w-4 h-4" />
+            Create from Menu
+          </Button>
+          <Button className="gap-2" onClick={() => { resetForm(); setDialogOpen(true); }}>
+            <Plus className="w-4 h-4" />
+            Add Add-On Meal
+          </Button>
+        </div>
       </div>
 
       {/* Search */}
@@ -576,6 +640,59 @@ export function AddonMealsList({ vendor, addonProducts, onRefresh, getEffectiveA
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Menu Picker Dialog */}
+      <Dialog open={menuPickerOpen} onOpenChange={setMenuPickerOpen}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Create Add-On from Menu</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Select a meal to copy as an add-on meal. This creates a separate add-on entry with the same details.</p>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search meals..."
+              value={menuSearchQuery}
+              onChange={(e) => setMenuSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <div className="space-y-2 max-h-[50vh] overflow-y-auto">
+            {filteredMenuProducts.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8 text-sm">No meals found</p>
+            ) : (
+              filteredMenuProducts.map((meal) => {
+                const alreadyAddon = addonProducts.some(a => a.name === meal.name);
+                return (
+                  <div key={meal.id} className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors">
+                    {meal.image_url ? (
+                      <img src={meal.image_url} alt={meal.name} className="w-12 h-12 rounded-lg object-cover shrink-0" />
+                    ) : (
+                      <div className="w-12 h-12 rounded-lg bg-secondary flex items-center justify-center shrink-0">
+                        <UtensilsCrossed className="w-5 h-5 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{meal.name}</p>
+                      <p className="text-xs text-muted-foreground">₦{Number(meal.price).toLocaleString()}{meal.calories ? ` · ${meal.calories} kcal` : ''}</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant={alreadyAddon ? "secondary" : "default"}
+                      disabled={creatingFromMenu === meal.id}
+                      onClick={() => handleCreateFromMeal(meal)}
+                    >
+                      {creatingFromMenu === meal.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : alreadyAddon ? 'Add Again' : 'Add'}
+                    </Button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
