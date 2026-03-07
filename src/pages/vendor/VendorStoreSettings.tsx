@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, Save, Loader2, Bike, Users, Building2, Navigation, CheckCircle, Clock, Settings2, Megaphone, Heart, QrCode, Radar, Trash2, Search, Share2 } from 'lucide-react';
+import { MapPin, Save, Loader2, Bike, Users, Building2, Navigation, CheckCircle, Clock, Settings2, Megaphone, Heart, QrCode, Radar, Trash2, Search, Share2, Package } from 'lucide-react';
 import { StoreTypeField, type StoreType, type SocialMediaHandles } from '@/components/vendor/StoreTypeField';
 import { SocialMediaMarketingBanner } from '@/components/vendor/SocialMediaMarketingBanner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
