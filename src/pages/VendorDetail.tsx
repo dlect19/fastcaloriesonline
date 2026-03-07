@@ -428,7 +428,8 @@ export default function VendorDetail() {
         </div>
       </div>
 
-      {/* Search */}
+      {/* Search — hidden in combos-only mode */}
+      {!(vendor as any).combos_only && (
       <div className="container py-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -440,9 +441,10 @@ export default function VendorDetail() {
           />
         </div>
       </div>
+      )}
 
-      {/* Category Tabs */}
-      {categories.length > 0 && (
+      {/* Category Tabs — hidden in combos-only mode */}
+      {!(vendor as any).combos_only && categories.length > 0 && (
         <MenuCategoryTabs
           categories={categories}
           selectedCategory={selectedCategory}
