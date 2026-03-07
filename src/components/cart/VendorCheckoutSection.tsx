@@ -134,10 +134,9 @@ export function VendorCheckoutSection({
   }, [gpsLat, gpsLon, gpsLoading, hasDeliveryLocation]);
 
   const handleCheckout = async () => {
-    // Check rider availability for delivery orders
+    // Warn about rider availability but allow checkout (admin can manually assign riders)
     if (deliveryType === 'delivery' && !riderAvailability.deliveryAllowed) {
-      toast({ title: 'Delivery Unavailable', description: riderAvailability.blockReason || 'Please select Self Pickup.', variant: 'destructive' });
-      return;
+      toast({ title: 'Limited Rider Availability', description: 'No riders are currently available. Your order will be placed and a rider will be assigned shortly. You can also switch to Self Pickup.', variant: 'default' });
     }
     if (deliveryType === 'delivery' && !hasDeliveryLocation) {
       toast({ title: 'No delivery location', description: 'Please set your delivery location from the home screen header.', variant: 'destructive' });
