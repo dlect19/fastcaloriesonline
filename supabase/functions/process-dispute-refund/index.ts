@@ -91,7 +91,9 @@ serve(async (req: Request) => {
 
     // Calculate deductions based on fault party
     const vendorShare = financials ? Number(financials.vendor_payout) : 0;
-    const riderShare = Number(order.delivery_fee || 0);
+    const riderShare = financials
+      ? Number(order.delivery_fee || 0) - Number(financials.rider_commission_amount || 0)
+      : Number(order.delivery_fee || 0);
     const platformShare = financials
       ? Number(financials.vendor_commission_amount) + Number(financials.service_fee_amount || 0)
       : 0;
