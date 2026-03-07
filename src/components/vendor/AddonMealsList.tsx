@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react';
-import { Plus, Edit2, Trash2, Flame, Wheat, Drumstick, Droplets, Leaf, Droplet, Apple, Gem, ImagePlus, X, Loader2, Sparkles, Search } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Plus, Edit2, Trash2, Flame, Wheat, Drumstick, Droplets, Leaf, Droplet, Apple, Gem, ImagePlus, X, Loader2, Sparkles, Search, UtensilsCrossed } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
