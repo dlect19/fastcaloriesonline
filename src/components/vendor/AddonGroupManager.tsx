@@ -182,6 +182,19 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
     }
   };
 
+  const fetchMenuProducts = async () => {
+    try {
+      const { data } = await supabase
+        .from('products')
+        .select('*')
+        .eq('vendor_id', vendorId)
+        .neq('meal_type', 'addon')
+        .order('name');
+      setMenuProducts(data || []);
+    } catch (error) {
+      console.error('Error fetching menu products:', error);
+    }
+  };
   const toggleLinkToProduct = async (groupId: string, link: boolean) => {
     try {
       if (link) {
