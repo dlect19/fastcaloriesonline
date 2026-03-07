@@ -542,6 +542,7 @@ export function ComboManagement({ vendor, products, onRefresh, refreshKey = 0 }:
     setEditingCombo(null);
     setFormData({ name: '', description: '', combo_price: '', is_available: true });
     setSelectedProducts([]);
+    setSelectedAddonGroupIds([]);
     setImageFile(null);
     setImagePreview(null);
     setExpandedAddons(new Set());
