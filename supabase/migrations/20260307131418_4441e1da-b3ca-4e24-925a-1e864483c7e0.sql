@@ -1,0 +1,1 @@
+ALTER TABLE public.vendors ADD COLUMN IF NOT EXISTS combos_only boolean NOT NULL DEFAULT false;
