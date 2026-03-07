@@ -82,7 +82,9 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [savingGroup, setSavingGroup] = useState<string | null>(null);
   const [addonProducts, setAddonProducts] = useState<Product[]>([]);
+  const [menuProducts, setMenuProducts] = useState<Product[]>([]);
   const [addonPickerGroupId, setAddonPickerGroupId] = useState<string | null>(null);
+  const [menuPickerGroupId, setMenuPickerGroupId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchGroups();
