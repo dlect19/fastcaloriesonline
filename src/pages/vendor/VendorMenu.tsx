@@ -1223,6 +1223,19 @@ export default function VendorMenu() {
                         onCheckedChange={() => toggleAvailability(product)}
                       />
                       <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        title={(product as any).is_hidden ? 'Hidden from customers — click to show' : 'Visible to customers — click to hide'}
+                        onClick={() => toggleHidden(product)}
+                      >
+                        {(product as any).is_hidden ? (
+                          <EyeOff className="w-4 h-4 text-destructive" />
+                        ) : (
+                          <Eye className="w-4 h-4 text-muted-foreground" />
+                        )}
+                      </Button>
+                      <Button
                         variant="outline"
                         size="sm"
                         className="gap-1 text-xs hidden sm:flex"
