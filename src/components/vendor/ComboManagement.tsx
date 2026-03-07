@@ -438,6 +438,14 @@ export function ComboManagement({ vendor, products, onRefresh, refreshKey = 0 }:
         const { error: itemsError } = await supabase.from('combo_items').insert(itemsToInsert);
         if (itemsError) throw itemsError;
 
+        // Update combo addon groups
+        await supabase.from('combo_addon_groups').delete().eq('combo_id', editingCombo.id);
+        if (selectedAddonGroupIds.length > 0) {
+          await supabase.from('combo_addon_groups').insert(
+            selectedAddonGroupIds.map(gid => ({ combo_id: editingCombo.id, addon_group_id: gid }))
+          );
+        }
+
         toast({ title: `${labels.singular} updated successfully` });
       } else {
         const { data: newCombo, error: comboError } = await supabase
@@ -457,6 +465,13 @@ export function ComboManagement({ vendor, products, onRefresh, refreshKey = 0 }:
 
         const { error: itemsError } = await supabase.from('combo_items').insert(itemsToInsert);
         if (itemsError) throw itemsError;
+
+        // Save combo addon groups
+        if (selectedAddonGroupIds.length > 0) {
+          await supabase.from('combo_addon_groups').insert(
+            selectedAddonGroupIds.map(gid => ({ combo_id: newCombo.id, addon_group_id: gid }))
+          );
+        }
 
         toast({ title: `${labels.singular} created successfully` });
       }
