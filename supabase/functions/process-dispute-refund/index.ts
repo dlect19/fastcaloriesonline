@@ -116,21 +116,10 @@ serve(async (req: Request) => {
         platformDeduction = refundAmount;
         break;
       case "vendor_and_rider":
-        // Both share responsibility proportionally
-        const totalPartyEarnings = vendorShare + riderShare;
-        if (totalPartyEarnings > 0) {
-          vendorDeduction = Math.min(
-            Math.round((vendorShare / totalPartyEarnings) * refundAmount * 100) / 100,
-            vendorShare
-          );
-          riderDeduction = Math.min(
-            Math.round((riderShare / totalPartyEarnings) * refundAmount * 100) / 100,
-            riderShare
-          );
-          platformDeduction = refundAmount - vendorDeduction - riderDeduction;
-        } else {
-          platformDeduction = refundAmount;
-        }
+        // Vendor pays their vendor payout, rider pays full delivery fee, platform absorbs the rest
+        vendorDeduction = Math.min(vendorShare, refundAmount);
+        riderDeduction = Math.min(riderShare, Math.max(refundAmount - vendorDeduction, 0));
+        platformDeduction = Math.max(refundAmount - vendorDeduction - riderDeduction, 0);
         break;
     }
 
