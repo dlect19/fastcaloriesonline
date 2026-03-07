@@ -175,6 +175,17 @@ export function ComboManagement({ vendor, products, onRefresh, refreshKey = 0 }:
       .in('addon_group_id', groupIds)
       .eq('is_available', true);
 
+    // Build full addon groups list (for combo-level assignment)
+    const fullGroups: AddonGroup[] = groups.map(g => ({
+      id: g.id,
+      name: g.name,
+      selection_type: g.selection_type,
+      items: (items || [])
+        .filter(i => (i as any).addon_group_id === g.id)
+        .map(i => ({ id: i.id, name: i.name, additional_price: i.additional_price })),
+    }));
+    setAllAddonGroups(fullGroups);
+
     // Fetch product-addon-group links
     const { data: links } = await supabase
       .from('product_addon_groups')
@@ -184,22 +195,13 @@ export function ComboManagement({ vendor, products, onRefresh, refreshKey = 0 }:
     const productAddonMap: Record<string, AddonGroup[]> = {};
     
     for (const link of (links || [])) {
-      const group = groups.find(g => g.id === link.addon_group_id);
+      const group = fullGroups.find(g => g.id === link.addon_group_id);
       if (!group) continue;
       
-      const groupItems = (items || [])
-        .filter(i => (i as any).addon_group_id === link.addon_group_id)
-        .map(i => ({ id: i.id, name: i.name, additional_price: i.additional_price }));
-
       if (!productAddonMap[link.product_id]) {
         productAddonMap[link.product_id] = [];
       }
-      productAddonMap[link.product_id].push({
-        id: group.id,
-        name: group.name,
-        selection_type: group.selection_type,
-        items: groupItems,
-      });
+      productAddonMap[link.product_id].push(group);
     }
 
     setAddonGroups(productAddonMap);
