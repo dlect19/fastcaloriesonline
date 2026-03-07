@@ -574,7 +574,11 @@ Deno.serve(async (req) => {
               user_ids: riderUserIds,
               title: '🚴 New Delivery Request!',
               body: `New order from ${pickupName} — ₦${payout.finalRiderPay} payout`,
-              data: { tag: 'dispatch-offer' },
+              data: {
+                tag: 'dispatch-offer',
+                role: 'rider',
+                channel_id: 'rider-orders',
+              },
               url: '/rider/available-orders',
             }),
           }
