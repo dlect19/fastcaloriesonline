@@ -816,3 +816,43 @@ function GpsAutoSaveOutlet({ outletId, lat, lon, onComplete, onError }: {
 
   return null;
 }
+
+// Combos-only toggle — saves directly to vendors table
+function CombosOnlyToggle({ vendorId }: { vendorId: string }) {
+  const [combosOnly, setCombosOnly] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    supabase.from('vendors').select('combos_only').eq('id', vendorId).single()
+      .then(({ data }) => {
+        setCombosOnly((data as any)?.combos_only ?? false);
+        setLoading(false);
+      });
+  }, [vendorId]);
+
+  const toggle = async (checked: boolean) => {
+    setCombosOnly(checked);
+    const { error } = await supabase.from('vendors').update({ combos_only: checked } as any).eq('id', vendorId);
+    if (error) {
+      setCombosOnly(!checked);
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } else {
+      toast({ title: checked ? 'Combos-only mode enabled' : 'Full menu visible to customers' });
+    }
+  };
+
+  if (loading) return <Skeleton className="h-16 w-full" />;
+
+  return (
+    <div className="flex items-center justify-between p-4 rounded-xl bg-muted/50">
+      <div>
+        <p className="font-medium text-foreground">Combos Only Mode</p>
+        <p className="text-sm text-muted-foreground">
+          Hide individual menu items from customers — only combo deals will be visible
+        </p>
+      </div>
+      <Switch checked={combosOnly} onCheckedChange={toggle} />
+    </div>
+  );
+}

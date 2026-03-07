@@ -483,7 +483,8 @@ export default function VendorDetail() {
           </section>
         )}
 
-        {/* Products Grid */}
+        {/* Products Grid — hidden when vendor is combos_only */}
+        {!(vendor as any).combos_only && (
         <main className="container py-4">
           {filteredProducts.length === 0 && combos.length === 0 ? (
             <div className="text-center py-12">
@@ -508,6 +509,14 @@ export default function VendorDetail() {
             </div>
           )}
         </main>
+        )}
+
+        {/* Show empty state if combos_only and no combos */}
+        {(vendor as any).combos_only && combos.length === 0 && (
+          <div className="container py-12 text-center">
+            <p className="text-muted-foreground">No combo deals available yet</p>
+          </div>
+        )}
       </div>
 
       {/* Customer Reviews Section */}
