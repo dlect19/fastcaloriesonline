@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, GripVertical, ChevronDown, ChevronUp, Settings2, Link2, Unlink, PackagePlus, List } from 'lucide-react';
+import { Plus, Trash2, GripVertical, ChevronDown, ChevronUp, Settings2, Link2, Unlink, PackagePlus, List, UtensilsCrossed } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
