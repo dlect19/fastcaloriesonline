@@ -393,8 +393,8 @@ export function ComboManagement({ vendor, products, onRefresh, refreshKey = 0 }:
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (selectedProducts.length < 2) {
-      toast({ title: 'Select at least 2 items', description: 'A combo must include multiple items', variant: 'destructive' });
+    if (selectedProducts.length < 1) {
+      toast({ title: 'Select at least 1 item', description: 'A combo must include at least one item', variant: 'destructive' });
       return;
     }
 
@@ -630,7 +630,7 @@ export function ComboManagement({ vendor, products, onRefresh, refreshKey = 0 }:
               {/* Item Selection (Products + Takeaway Packs) */}
               <div className="space-y-2">
                 <Label>Select Items *</Label>
-                <p className="text-xs text-muted-foreground">Choose at least 2 items (menu items &amp; takeaway packs)</p>
+                <p className="text-xs text-muted-foreground">Choose at least 1 item (menu items &amp; takeaway packs)</p>
                 <div className="max-h-64 overflow-y-auto border border-border rounded-lg divide-y divide-border">
                   {/* Products Section */}
                   {products.filter((p) => p.is_available).length > 0 && (
@@ -898,7 +898,7 @@ export function ComboManagement({ vendor, products, onRefresh, refreshKey = 0 }:
                 />
               </div>
 
-              <Button type="submit" className="w-full" disabled={uploadingImage || selectedProducts.length < 2}>
+              <Button type="submit" className="w-full" disabled={uploadingImage || selectedProducts.length < 1}>
                 {uploadingImage ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
