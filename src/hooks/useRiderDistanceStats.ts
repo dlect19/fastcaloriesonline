@@ -134,27 +134,17 @@ export async function logDeliveryDistance(orderId: string, riderId: string) {
     let destLat: number | null = null;
     let destLng: number | null = null;
 
-    // Step 1: Find the dispatch_request for this order
+    // Step 1: Find the dispatch_request for this order (vendor-to-customer coordinates)
     const { data: request } = await supabase
       .from('dispatch_requests')
       .select('id, vendor_latitude, vendor_longitude, customer_latitude, customer_longitude')
       .eq('order_id', orderId)
       .maybeSingle();
 
-    // Step 2: If we have a dispatch request, try to get distance from the accepted offer
-    if (request?.id) {
-      const { data: offer } = await supabase
-        .from('dispatch_offers')
-        .select('distance_km')
-        .eq('rider_user_id', riderId)
-        .eq('dispatch_request_id', request.id)
-        .in('status', ['accepted', 'completed'])
-        .maybeSingle();
+    // Note: dispatch_offers.distance_km is rider-to-vendor distance, NOT delivery distance.
+    // We always calculate vendor-to-customer distance instead.
 
-      distanceKm = offer?.distance_km || 0;
-    }
-
-    // Collect coordinates for Google Maps / Haversine calculation
+    // Collect vendor-to-customer coordinates from dispatch_request
     if (request?.vendor_latitude && request?.vendor_longitude && request?.customer_latitude && request?.customer_longitude) {
       originLat = request.vendor_latitude;
       originLng = request.vendor_longitude;
