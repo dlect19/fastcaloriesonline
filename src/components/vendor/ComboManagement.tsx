@@ -842,6 +842,53 @@ export function ComboManagement({ vendor, products, onRefresh, refreshKey = 0 }:
                 </div>
               )}
 
+              {/* Addon Groups Assignment */}
+              {allAddonGroups.length > 0 && (
+                <div className="space-y-2 border-t pt-4">
+                  <Label>Attach Add-on Groups (optional)</Label>
+                  <p className="text-xs text-muted-foreground">Customers will be able to customize this combo with selected add-on groups</p>
+                  <div className="max-h-40 overflow-y-auto border border-border rounded-lg divide-y divide-border">
+                    {allAddonGroups.map(group => {
+                      const isSelected = selectedAddonGroupIds.includes(group.id);
+                      return (
+                        <div
+                          key={group.id}
+                          className={cn(
+                            'flex items-center gap-3 p-3 cursor-pointer transition-colors',
+                            isSelected ? 'bg-primary/5' : 'hover:bg-muted/50'
+                          )}
+                          onClick={() => {
+                            setSelectedAddonGroupIds(prev =>
+                              isSelected ? prev.filter(id => id !== group.id) : [...prev, group.id]
+                            );
+                          }}
+                        >
+                          <div
+                            className={cn(
+                              'h-4 w-4 shrink-0 rounded-sm border border-primary flex items-center justify-center',
+                              isSelected ? 'bg-primary text-primary-foreground' : 'bg-background'
+                            )}
+                          >
+                            {isSelected && <Check className="h-3 w-3" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium">{group.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {group.items.length} item{group.items.length !== 1 ? 's' : ''} · {group.selection_type}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {selectedAddonGroupIds.length > 0 && (
+                    <p className="text-xs text-primary font-medium">
+                      {selectedAddonGroupIds.length} add-on group{selectedAddonGroupIds.length > 1 ? 's' : ''} attached
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div className="flex items-center justify-between border-t pt-4">
                 <Label htmlFor="combo-available">Available for order</Label>
                 <Switch
