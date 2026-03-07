@@ -499,6 +499,14 @@ export function ComboManagement({ vendor, products, onRefresh, refreshKey = 0 }:
       quantity: item.quantity,
     })));
     if (combo.image_url) setImagePreview(combo.image_url);
+
+    // Load linked addon groups
+    const { data: linkedAddons } = await supabase
+      .from('combo_addon_groups')
+      .select('addon_group_id')
+      .eq('combo_id', combo.id);
+    setSelectedAddonGroupIds((linkedAddons || []).map(l => l.addon_group_id));
+
     setDialogOpen(true);
   };
 
