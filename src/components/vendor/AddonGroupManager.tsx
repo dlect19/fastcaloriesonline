@@ -611,6 +611,7 @@ interface AddonGroupCardProps {
   onDeleteGroup: () => void;
   onAddItem: () => void;
   onAddFromAddonMeals: () => void;
+  onAddFromMenu: () => void;
   onUpdateItem: (itemId: string, updates: Partial<AddonItem>) => void;
   onDeleteItem: (itemId: string) => void;
   onAddChoice: (itemId: string) => void;
@@ -619,6 +620,7 @@ interface AddonGroupCardProps {
   groups: AddonGroup[];
   setGroups: React.Dispatch<React.SetStateAction<AddonGroup[]>>;
   hasAddonProducts: boolean;
+  hasMenuProducts: boolean;
 }
 
 function AddonGroupCard({
