@@ -421,6 +421,42 @@ export type Database = {
           },
         ]
       }
+      combo_addon_groups: {
+        Row: {
+          addon_group_id: string
+          combo_id: string
+          created_at: string
+          id: string
+        }
+        Insert: {
+          addon_group_id: string
+          combo_id: string
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          addon_group_id?: string
+          combo_id?: string
+          created_at?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "combo_addon_groups_addon_group_id_fkey"
+            columns: ["addon_group_id"]
+            isOneToOne: false
+            referencedRelation: "addon_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "combo_addon_groups_combo_id_fkey"
+            columns: ["combo_id"]
+            isOneToOne: false
+            referencedRelation: "combos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       combo_items: {
         Row: {
           combo_id: string
