@@ -597,6 +597,56 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
           </DialogContent>
         </Dialog>
       )}
+
+      {menuPickerGroupId && (
+        <Dialog open onOpenChange={(open) => { if (!open) setMenuPickerGroupId(null); }}>
+          <DialogContent className="max-w-sm max-h-[70vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <UtensilsCrossed className="w-5 h-5 text-primary" />
+                Select Menu Item
+              </DialogTitle>
+            </DialogHeader>
+            {menuProducts.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">
+                No menu items found.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {menuProducts.filter(p => p.is_available).map(product => {
+                  const group = groups.find(g => g.id === menuPickerGroupId);
+                  const alreadyAdded = group?.items.some(i => i.linked_product_id === product.id);
+                  return (
+                    <button
+                      key={product.id}
+                      disabled={!!alreadyAdded}
+                      className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors text-left ${alreadyAdded ? 'opacity-50 border-border cursor-not-allowed' : 'border-border hover:border-primary/50 hover:bg-primary/5 cursor-pointer'}`}
+                      onClick={() => {
+                        addItemFromProduct(menuPickerGroupId!, product);
+                        setMenuPickerGroupId(null);
+                      }}
+                    >
+                      {product.image_url ? (
+                        <img src={product.image_url} alt={product.name} className="w-10 h-10 rounded-lg object-cover" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center text-sm">🍽️</div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{product.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {product.price > 0 ? `₦${product.price.toLocaleString()}` : 'Free'}
+                          {product.calories ? ` • ${product.calories} cal` : ''}
+                        </p>
+                      </div>
+                      {alreadyAdded && <Badge variant="secondary" className="text-xs shrink-0">Added</Badge>}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
