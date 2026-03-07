@@ -94,6 +94,7 @@ export function ComboManagement({ vendor, products, onRefresh, refreshKey = 0 }:
   const [combos, setCombos] = useState<(Combo & { items: ComboItem[] })[]>([]);
   const [takeawayPacks, setTakeawayPacks] = useState<TakeawayPack[]>([]);
   const [addonGroups, setAddonGroups] = useState<Record<string, AddonGroup[]>>({});
+  const [allAddonGroups, setAllAddonGroups] = useState<AddonGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCombo, setEditingCombo] = useState<Combo | null>(null);
