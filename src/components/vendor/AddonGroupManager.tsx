@@ -625,9 +625,9 @@ interface AddonGroupCardProps {
 
 function AddonGroupCard({
   group, expanded, onToggleExpand, onToggleLink,
-  onUpdateGroup, onDeleteGroup, onAddItem, onAddFromAddonMeals, onUpdateItem, onDeleteItem,
+  onUpdateGroup, onDeleteGroup, onAddItem, onAddFromAddonMeals, onAddFromMenu, onUpdateItem, onDeleteItem,
   onAddChoice, onUpdateChoice, onDeleteChoice,
-  groups, setGroups, hasAddonProducts,
+  groups, setGroups, hasAddonProducts, hasMenuProducts,
 }: AddonGroupCardProps) {
   return (
     <Collapsible open={expanded} onOpenChange={onToggleExpand}>
