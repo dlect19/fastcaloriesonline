@@ -507,6 +507,7 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
           onDeleteGroup={() => deleteGroup(group.id)}
           onAddItem={() => addItem(group.id)}
           onAddFromAddonMeals={() => setAddonPickerGroupId(group.id)}
+          onAddFromMenu={() => setMenuPickerGroupId(group.id)}
           onUpdateItem={(itemId, updates) => updateItem(group.id, itemId, updates)}
           onDeleteItem={(itemId) => deleteItem(group.id, itemId)}
           onAddChoice={(itemId) => addChoice(group.id, itemId)}
@@ -515,6 +516,7 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
           groups={groups}
           setGroups={setGroups}
           hasAddonProducts={addonProducts.length > 0}
+          hasMenuProducts={menuProducts.length > 0}
         />
       ))}
 
