@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, GripVertical, ChevronDown, ChevronUp, Settings2, Link2, Unlink, PackagePlus, List } from 'lucide-react';
+import { Plus, Trash2, GripVertical, ChevronDown, ChevronUp, Settings2, Link2, Unlink, PackagePlus, List, UtensilsCrossed } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -82,11 +82,14 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [savingGroup, setSavingGroup] = useState<string | null>(null);
   const [addonProducts, setAddonProducts] = useState<Product[]>([]);
+  const [menuProducts, setMenuProducts] = useState<Product[]>([]);
   const [addonPickerGroupId, setAddonPickerGroupId] = useState<string | null>(null);
+  const [menuPickerGroupId, setMenuPickerGroupId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchGroups();
     fetchAddonProducts();
+    fetchMenuProducts();
   }, [productId, vendorId]);
 
   const fetchGroups = async () => {
@@ -179,6 +182,19 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
     }
   };
 
+  const fetchMenuProducts = async () => {
+    try {
+      const { data } = await supabase
+        .from('products')
+        .select('*')
+        .eq('vendor_id', vendorId)
+        .neq('meal_type', 'addon')
+        .order('name');
+      setMenuProducts(data || []);
+    } catch (error) {
+      console.error('Error fetching menu products:', error);
+    }
+  };
   const toggleLinkToProduct = async (groupId: string, link: boolean) => {
     try {
       if (link) {
@@ -491,6 +507,7 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
           onDeleteGroup={() => deleteGroup(group.id)}
           onAddItem={() => addItem(group.id)}
           onAddFromAddonMeals={() => setAddonPickerGroupId(group.id)}
+          onAddFromMenu={() => setMenuPickerGroupId(group.id)}
           onUpdateItem={(itemId, updates) => updateItem(group.id, itemId, updates)}
           onDeleteItem={(itemId) => deleteItem(group.id, itemId)}
           onAddChoice={(itemId) => addChoice(group.id, itemId)}
@@ -499,6 +516,7 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
           groups={groups}
           setGroups={setGroups}
           hasAddonProducts={addonProducts.length > 0}
+          hasMenuProducts={menuProducts.length > 0}
         />
       ))}
 
@@ -579,6 +597,56 @@ export function AddonGroupManager({ productId, vendorId }: AddonGroupManagerProp
           </DialogContent>
         </Dialog>
       )}
+
+      {menuPickerGroupId && (
+        <Dialog open onOpenChange={(open) => { if (!open) setMenuPickerGroupId(null); }}>
+          <DialogContent className="max-w-sm max-h-[70vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <UtensilsCrossed className="w-5 h-5 text-primary" />
+                Select Menu Item
+              </DialogTitle>
+            </DialogHeader>
+            {menuProducts.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">
+                No menu items found.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {menuProducts.filter(p => p.is_available).map(product => {
+                  const group = groups.find(g => g.id === menuPickerGroupId);
+                  const alreadyAdded = group?.items.some(i => i.linked_product_id === product.id);
+                  return (
+                    <button
+                      key={product.id}
+                      disabled={!!alreadyAdded}
+                      className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors text-left ${alreadyAdded ? 'opacity-50 border-border cursor-not-allowed' : 'border-border hover:border-primary/50 hover:bg-primary/5 cursor-pointer'}`}
+                      onClick={() => {
+                        addItemFromProduct(menuPickerGroupId!, product);
+                        setMenuPickerGroupId(null);
+                      }}
+                    >
+                      {product.image_url ? (
+                        <img src={product.image_url} alt={product.name} className="w-10 h-10 rounded-lg object-cover" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center text-sm">🍽️</div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{product.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {product.price > 0 ? `₦${product.price.toLocaleString()}` : 'Free'}
+                          {product.calories ? ` • ${product.calories} cal` : ''}
+                        </p>
+                      </div>
+                      {alreadyAdded && <Badge variant="secondary" className="text-xs shrink-0">Added</Badge>}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
@@ -593,6 +661,7 @@ interface AddonGroupCardProps {
   onDeleteGroup: () => void;
   onAddItem: () => void;
   onAddFromAddonMeals: () => void;
+  onAddFromMenu: () => void;
   onUpdateItem: (itemId: string, updates: Partial<AddonItem>) => void;
   onDeleteItem: (itemId: string) => void;
   onAddChoice: (itemId: string) => void;
@@ -601,13 +670,14 @@ interface AddonGroupCardProps {
   groups: AddonGroup[];
   setGroups: React.Dispatch<React.SetStateAction<AddonGroup[]>>;
   hasAddonProducts: boolean;
+  hasMenuProducts: boolean;
 }
 
 function AddonGroupCard({
   group, expanded, onToggleExpand, onToggleLink,
-  onUpdateGroup, onDeleteGroup, onAddItem, onAddFromAddonMeals, onUpdateItem, onDeleteItem,
+  onUpdateGroup, onDeleteGroup, onAddItem, onAddFromAddonMeals, onAddFromMenu, onUpdateItem, onDeleteItem,
   onAddChoice, onUpdateChoice, onDeleteChoice,
-  groups, setGroups, hasAddonProducts,
+  groups, setGroups, hasAddonProducts, hasMenuProducts,
 }: AddonGroupCardProps) {
   return (
     <Collapsible open={expanded} onOpenChange={onToggleExpand}>
@@ -959,7 +1029,7 @@ function AddonGroupCard({
                   )}
                 </div>
               ))}
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 {hasAddonProducts && (
                   <Button
                     type="button"
@@ -970,6 +1040,18 @@ function AddonGroupCard({
                   >
                     <PackagePlus className="w-3 h-3" />
                     Add from Add-On Meals
+                  </Button>
+                )}
+                {hasMenuProducts && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="flex-1 gap-1 h-7 text-xs"
+                    onClick={onAddFromMenu}
+                  >
+                    <UtensilsCrossed className="w-3 h-3" />
+                    Add from Menu
                   </Button>
                 )}
                 <Button
