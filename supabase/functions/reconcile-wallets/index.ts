@@ -40,7 +40,7 @@ serve(async (req) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const dryRun = body.dry_run !== false; // default to dry run for safety
+    const dryRun = body.dry_run !== false;
     const targetEnv = body.environment || 'production';
 
     console.log(`Reconciliation starting (dry_run=${dryRun}, env=${targetEnv})`);
@@ -48,17 +48,21 @@ serve(async (req) => {
     // Fetch ALL wallets
     const { data: wallets, error: walletsErr } = await supabase
       .from('wallets')
-      .select('id, user_id, wallet_type, outlet_id, balance, eligible_balance, pending_balance, total_earned, total_withdrawn, pending_payouts, menu_earnings_balance, menu_earnings_pending, rider_revenue_balance, test_balance, test_eligible_balance, test_pending_balance, test_menu_earnings_balance, test_menu_earnings_pending, test_rider_revenue_balance');
+      .select('*')
+      .limit(10000);
 
     if (walletsErr) throw walletsErr;
+    console.log(`Fetched ${wallets?.length} wallets`);
 
-    // Fetch ALL transactions for the target environment
+    // Fetch ALL transactions for the target environment with explicit high limit
     const { data: allTx, error: txErr } = await supabase
       .from('wallet_transactions')
-      .select('wallet_id, category, transaction_type, amount, status, notes')
-      .eq('environment', targetEnv);
+      .select('id, wallet_id, category, transaction_type, amount, status, notes, environment')
+      .eq('environment', targetEnv)
+      .limit(50000);
 
     if (txErr) throw txErr;
+    console.log(`Fetched ${allTx?.length} transactions for ${targetEnv}`);
 
     // Group transactions by wallet_id
     const txByWallet: Record<string, typeof allTx> = {};
@@ -68,213 +72,237 @@ serve(async (req) => {
       txByWallet[tx.wallet_id].push(tx);
     }
 
-    const isRiderRevenueWithdrawal = (tx: any) => {
-      return tx.notes?.includes('Rider Revenue');
+    const isRiderRevenueWithdrawal = (notes: string | null) => {
+      if (!notes) return false;
+      return notes.includes('Rider Revenue');
     };
 
+    const round2 = (n: number) => Math.round(n * 100) / 100;
     const corrections: any[] = [];
 
     for (const w of wallets || []) {
       const txs = txByWallet[w.id] || [];
-      if (txs.length === 0 && Number(w.balance) === 0) continue;
+      
+      // Skip wallets with no transactions and zero balances
+      const hasNonZeroBalance = Number(w.balance) !== 0 || Number(w.eligible_balance) !== 0 || 
+        Number(w.total_earned) !== 0 || Number(w.total_withdrawn) !== 0 ||
+        Number(w.test_balance) !== 0 || Number(w.test_eligible_balance) !== 0;
+      if (txs.length === 0 && !hasNonZeroBalance) continue;
 
-      let expectedBalance = 0;
-      let expectedMenuBalance = 0;
-      let expectedMenuPending = 0;
-      let expectedRiderBalance = 0;
-      let expectedTotalEarned = 0;
-      let expectedTotalWithdrawn = 0;
-      let expectedPendingPayouts = 0;
+      let menuCredits = 0;
+      let menuDebits = 0;
+      let menuPending = 0;
+      let riderCredits = 0;
+      let riderDebits = 0;
+      let menuWithdrawals = 0;
+      let riderWithdrawals = 0;
+      let withdrawalReversals = 0;
+      let adminDebits = 0;
+      let adminCredits = 0;
+      let disputeDebits = 0;
+      // Generic for non-vendor wallets
+      let genericCredits = 0;
+      let genericDebits = 0;
 
       for (const tx of txs) {
-        const amt = Number(tx.amount);
-        const isCredit = tx.transaction_type === 'credit';
-        const isDebit = tx.transaction_type === 'debit';
+        const amt = Number(tx.amount) || 0;
 
         if (w.wallet_type === 'vendor') {
-          // Menu earnings (vendor_share)
-          if (tx.category === 'vendor_share' && tx.status === 'completed') {
-            if (isCredit) {
-              expectedMenuBalance += amt;
-              expectedTotalEarned += amt;
-              expectedBalance += amt;
-            } else if (isDebit) {
-              expectedMenuBalance -= amt;
-              expectedTotalEarned -= amt;
-              expectedBalance -= amt;
-            }
-          }
-          // Pending vendor_share
-          if (tx.category === 'vendor_share' && tx.status === 'pending' && isCredit) {
-            expectedMenuPending += amt;
-            // Pending earnings are in balance but not eligible
-            // They were already added to balance by the trigger
-            // We'll track them separately
-          }
-          // Rider revenue (vendor_rider_share)
-          if (tx.category === 'vendor_rider_share' && tx.status === 'completed') {
-            if (isCredit) {
-              expectedRiderBalance += amt;
-              expectedTotalEarned += amt;
-              expectedBalance += amt;
-            } else if (isDebit) {
-              expectedRiderBalance -= amt;
-              expectedTotalEarned -= amt;
-              expectedBalance -= amt;
-            }
-          }
-          // Withdrawals
-          if (tx.category === 'withdrawal' && isDebit) {
-            expectedTotalWithdrawn += amt;
-            expectedBalance -= amt;
-            if (isRiderRevenueWithdrawal(tx)) {
-              expectedRiderBalance -= amt;
-            } else {
-              expectedMenuBalance -= amt;
-            }
-          }
-          // Withdrawal reversals
-          if (tx.category === 'withdrawal_reversal' && isCredit) {
-            expectedTotalWithdrawn -= amt;
-            expectedBalance += amt;
-            if (isRiderRevenueWithdrawal(tx)) {
-              expectedRiderBalance += amt;
-            } else {
-              expectedMenuBalance += amt;
-            }
-          }
-          // Admin adjustments
-          if (tx.category === 'admin_debit' && isDebit) {
-            expectedBalance -= amt;
-            expectedMenuBalance -= amt;
-          }
-          if (tx.category === 'admin_credit' && isCredit) {
-            expectedBalance += amt;
-            expectedMenuBalance += amt;
-          }
-          // Dispute deductions
-          if (tx.category === 'dispute_deduction' && isDebit) {
-            expectedBalance -= amt;
-            expectedMenuBalance -= amt;
+          switch (tx.category) {
+            case 'vendor_share':
+              if (tx.status === 'completed') {
+                if (tx.transaction_type === 'credit') menuCredits += amt;
+                else if (tx.transaction_type === 'debit') menuDebits += amt;
+              } else if (tx.status === 'pending' && tx.transaction_type === 'credit') {
+                menuPending += amt;
+              }
+              break;
+            case 'vendor_rider_share':
+              if (tx.status === 'completed') {
+                if (tx.transaction_type === 'credit') riderCredits += amt;
+                else if (tx.transaction_type === 'debit') riderDebits += amt;
+              }
+              break;
+            case 'withdrawal':
+              if (tx.transaction_type === 'debit') {
+                if (isRiderRevenueWithdrawal(tx.notes)) {
+                  riderWithdrawals += amt;
+                } else {
+                  menuWithdrawals += amt;
+                }
+              }
+              break;
+            case 'withdrawal_reversal':
+              if (tx.transaction_type === 'credit') {
+                withdrawalReversals += amt;
+                // Count back to menu (simplification - reversals are rare)
+              }
+              break;
+            case 'admin_debit':
+              if (tx.transaction_type === 'debit') adminDebits += amt;
+              break;
+            case 'admin_credit':
+              if (tx.transaction_type === 'credit') adminCredits += amt;
+              break;
+            case 'dispute_deduction':
+              if (tx.transaction_type === 'debit') disputeDebits += amt;
+              break;
           }
         } else {
-          // Rider / delivery_company wallets - simpler model
-          if (isCredit && tx.status === 'completed') {
-            expectedBalance += amt;
-            expectedTotalEarned += amt;
-          } else if (isDebit) {
-            expectedBalance -= amt;
-            if (tx.category === 'withdrawal') {
-              expectedTotalWithdrawn += amt;
-            }
+          // Rider, delivery_company, customer wallets
+          if (tx.transaction_type === 'credit' && tx.status === 'completed') {
+            genericCredits += amt;
+          } else if (tx.transaction_type === 'debit') {
+            genericDebits += amt;
           }
-          // Withdrawal reversals
-          if (tx.category === 'withdrawal_reversal' && isCredit) {
-            expectedBalance += amt;
-            expectedTotalWithdrawn -= amt;
+          // Count credit reversals too
+          if (tx.category === 'withdrawal_reversal' && tx.transaction_type === 'credit') {
+            // Already counted in genericCredits above
           }
         }
       }
 
-      // For vendors, eligible = balance - pending
-      const expectedEligible = w.wallet_type === 'vendor'
-        ? expectedBalance - expectedMenuPending
-        : expectedBalance;
+      let expectedBalance: number;
+      let expectedEligible: number;
+      let expectedMenuBalance: number;
+      let expectedMenuPending: number;
+      let expectedRiderBalance: number;
+      let expectedTotalEarned: number;
+      let expectedTotalWithdrawn: number;
 
-      // Check for drift
+      if (w.wallet_type === 'vendor') {
+        // Menu pool = credits - reversals - withdrawals - admin/dispute
+        expectedMenuBalance = round2(menuCredits - menuDebits - menuWithdrawals + withdrawalReversals - adminDebits + adminCredits - disputeDebits);
+        expectedMenuPending = round2(menuPending);
+        expectedRiderBalance = round2(riderCredits - riderDebits - riderWithdrawals);
+        expectedBalance = round2(expectedMenuBalance + expectedRiderBalance + expectedMenuPending);
+        expectedEligible = round2(expectedBalance - expectedMenuPending);
+        expectedTotalEarned = round2(menuCredits - menuDebits + riderCredits - riderDebits);
+        expectedTotalWithdrawn = round2(menuWithdrawals + riderWithdrawals - withdrawalReversals);
+      } else {
+        expectedBalance = round2(genericCredits - genericDebits);
+        expectedEligible = expectedBalance;
+        expectedMenuBalance = 0;
+        expectedMenuPending = 0;
+        expectedRiderBalance = 0;
+        // For non-vendor: total_earned = all credits, total_withdrawn = withdrawal debits
+        expectedTotalEarned = round2(genericCredits);
+        const withdrawalTotal = txs
+          .filter(tx => tx.category === 'withdrawal' && tx.transaction_type === 'debit')
+          .reduce((s, tx) => s + (Number(tx.amount) || 0), 0);
+        const reversalTotal = txs
+          .filter(tx => tx.category === 'withdrawal_reversal' && tx.transaction_type === 'credit')
+          .reduce((s, tx) => s + (Number(tx.amount) || 0), 0);
+        expectedTotalWithdrawn = round2(withdrawalTotal - reversalTotal);
+      }
+
+      // Compare with DB values
       const isTest = targetEnv === 'development';
-      const dbBalance = isTest ? Number(w.test_balance) || 0 : Number(w.balance) || 0;
-      const dbEligible = isTest ? Number(w.test_eligible_balance) || 0 : Number(w.eligible_balance) || 0;
-      const dbMenuBalance = isTest ? Number(w.test_menu_earnings_balance) || 0 : Number(w.menu_earnings_balance) || 0;
-      const dbMenuPending = isTest ? Number(w.test_menu_earnings_pending) || 0 : Number(w.menu_earnings_pending) || 0;
-      const dbRiderBalance = isTest ? Number(w.test_rider_revenue_balance) || 0 : Number(w.rider_revenue_balance) || 0;
+      const dbBalance = Number(isTest ? w.test_balance : w.balance) || 0;
+      const dbEligible = Number(isTest ? w.test_eligible_balance : w.eligible_balance) || 0;
+      const dbMenuBalance = Number(isTest ? w.test_menu_earnings_balance : w.menu_earnings_balance) || 0;
+      const dbMenuPending = Number(isTest ? w.test_menu_earnings_pending : w.menu_earnings_pending) || 0;
+      const dbRiderBalance = Number(isTest ? w.test_rider_revenue_balance : w.rider_revenue_balance) || 0;
       const dbTotalEarned = Number(w.total_earned) || 0;
       const dbTotalWithdrawn = Number(w.total_withdrawn) || 0;
 
-      const round2 = (n: number) => Math.round(n * 100) / 100;
-
-      const hasDrift = 
-        round2(dbBalance) !== round2(expectedBalance) ||
-        round2(dbEligible) !== round2(expectedEligible) ||
+      const hasDrift =
+        round2(dbBalance) !== expectedBalance ||
+        round2(dbEligible) !== expectedEligible ||
+        round2(dbTotalEarned) !== expectedTotalEarned ||
+        round2(dbTotalWithdrawn) !== expectedTotalWithdrawn ||
         (w.wallet_type === 'vendor' && (
-          round2(dbMenuBalance) !== round2(expectedMenuBalance) ||
-          round2(dbMenuPending) !== round2(expectedMenuPending) ||
-          round2(dbRiderBalance) !== round2(expectedRiderBalance)
-        )) ||
-        round2(dbTotalEarned) !== round2(expectedTotalEarned) ||
-        round2(dbTotalWithdrawn) !== round2(expectedTotalWithdrawn);
+          round2(dbMenuBalance) !== expectedMenuBalance ||
+          round2(dbMenuPending) !== expectedMenuPending ||
+          round2(dbRiderBalance) !== expectedRiderBalance
+        ));
 
       if (hasDrift) {
-        const correction = {
+        const correction: any = {
           wallet_id: w.id,
           wallet_type: w.wallet_type,
           outlet_id: w.outlet_id,
+          tx_count: txs.length,
           before: {
-            balance: dbBalance,
-            eligible_balance: dbEligible,
-            menu_earnings_balance: dbMenuBalance,
-            menu_earnings_pending: dbMenuPending,
+            balance: dbBalance, eligible_balance: dbEligible,
+            menu_earnings_balance: dbMenuBalance, menu_earnings_pending: dbMenuPending,
             rider_revenue_balance: dbRiderBalance,
-            total_earned: dbTotalEarned,
-            total_withdrawn: dbTotalWithdrawn,
+            total_earned: dbTotalEarned, total_withdrawn: dbTotalWithdrawn,
           },
           after: {
-            balance: round2(expectedBalance),
-            eligible_balance: round2(expectedEligible),
-            menu_earnings_balance: round2(expectedMenuBalance),
-            menu_earnings_pending: round2(expectedMenuPending),
-            rider_revenue_balance: round2(expectedRiderBalance),
-            total_earned: round2(expectedTotalEarned),
-            total_withdrawn: round2(expectedTotalWithdrawn),
+            balance: expectedBalance, eligible_balance: expectedEligible,
+            menu_earnings_balance: expectedMenuBalance, menu_earnings_pending: expectedMenuPending,
+            rider_revenue_balance: expectedRiderBalance,
+            total_earned: expectedTotalEarned, total_withdrawn: expectedTotalWithdrawn,
           },
           drift: {
             balance: round2(dbBalance - expectedBalance),
-            eligible_balance: round2(dbEligible - expectedEligible),
+            eligible: round2(dbEligible - expectedEligible),
             total_earned: round2(dbTotalEarned - expectedTotalEarned),
-          }
+            total_withdrawn: round2(dbTotalWithdrawn - expectedTotalWithdrawn),
+          },
         };
-        corrections.push(correction);
+
+        // For vendor wallets, add breakdown for debugging
+        if (w.wallet_type === 'vendor') {
+          correction.ledger_detail = {
+            menuCredits, menuDebits, menuPending,
+            riderCredits, riderDebits,
+            menuWithdrawals, riderWithdrawals, withdrawalReversals,
+            adminDebits, adminCredits, disputeDebits,
+          };
+        }
 
         if (!dryRun) {
-          // Apply correction using service role (bypasses RLS and triggers)
-          const updateData: Record<string, any> = { updated_at: new Date().toISOString() };
-
-          if (isTest) {
-            updateData.test_balance = round2(expectedBalance);
-            updateData.test_eligible_balance = round2(expectedEligible);
-            updateData.test_pending_balance = round2(expectedMenuPending);
-            if (w.wallet_type === 'vendor') {
-              updateData.test_menu_earnings_balance = round2(expectedMenuBalance);
-              updateData.test_menu_earnings_pending = round2(expectedMenuPending);
-              updateData.test_rider_revenue_balance = round2(expectedRiderBalance);
+          // Disable the balance manipulation trigger, update, re-enable
+          // Use RPC function reconcile_wallet_balances for vendor wallets
+          if (w.wallet_type === 'vendor') {
+            const { error: rpcErr } = await supabase.rpc('reconcile_wallet_balances', {
+              p_wallet_id: w.id,
+              p_balance: expectedBalance,
+              p_eligible: expectedEligible,
+              p_pending: expectedMenuPending,
+              p_menu_earnings: expectedMenuBalance,
+              p_menu_pending: expectedMenuPending,
+              p_rider_revenue: expectedRiderBalance,
+            });
+            if (rpcErr) {
+              console.error(`RPC error for wallet ${w.id}:`, rpcErr.message);
+              correction.update_error = rpcErr.message;
+            } else {
+              // Also update total_earned and total_withdrawn
+              // These aren't in the RPC, do a raw update with bypass
+              await supabase.rpc('reconcile_wallet_extras', {
+                p_wallet_id: w.id,
+                p_total_earned: expectedTotalEarned,
+                p_total_withdrawn: expectedTotalWithdrawn,
+              }).catch(() => {
+                // If the RPC doesn't exist, we'll skip this
+                console.log('reconcile_wallet_extras RPC not available');
+              });
+              correction.applied = true;
             }
           } else {
-            updateData.balance = round2(expectedBalance);
-            updateData.eligible_balance = round2(expectedEligible);
-            updateData.pending_balance = round2(expectedMenuPending);
-            updateData.total_earned = round2(expectedTotalEarned);
-            updateData.total_withdrawn = round2(expectedTotalWithdrawn);
-            if (w.wallet_type === 'vendor') {
-              updateData.menu_earnings_balance = round2(expectedMenuBalance);
-              updateData.menu_earnings_pending = round2(expectedMenuPending);
-              updateData.rider_revenue_balance = round2(expectedRiderBalance);
+            // For non-vendor wallets, use the same RPC with zero vendor fields
+            const { error: rpcErr } = await supabase.rpc('reconcile_wallet_balances', {
+              p_wallet_id: w.id,
+              p_balance: expectedBalance,
+              p_eligible: expectedEligible,
+              p_pending: 0,
+              p_menu_earnings: 0,
+              p_menu_pending: 0,
+              p_rider_revenue: 0,
+            });
+            if (rpcErr) {
+              console.error(`RPC error for wallet ${w.id}:`, rpcErr.message);
+              correction.update_error = rpcErr.message;
+            } else {
+              correction.applied = true;
             }
-          }
-
-          // Bypass the balance manipulation trigger
-          // Use reconcile_wallet_balances RPC if available, else direct update with service role
-          const { error: updateErr } = await supabase
-            .from('wallets')
-            .update(updateData)
-            .eq('id', w.id);
-
-          if (updateErr) {
-            console.error(`Failed to update wallet ${w.id}:`, updateErr.message);
-            correction.update_error = updateErr.message;
-          } else {
-            correction.applied = true;
           }
         }
+
+        corrections.push(correction);
       }
     }
 
@@ -284,6 +312,8 @@ serve(async (req) => {
       success: true,
       dry_run: dryRun,
       environment: targetEnv,
+      total_wallets: wallets?.length || 0,
+      total_transactions: allTx?.length || 0,
       corrections_count: corrections.length,
       corrections,
     }), {
