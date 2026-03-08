@@ -277,8 +277,8 @@ serve(async (req) => {
                 p_total_earned: expectedTotalEarned,
                 p_total_withdrawn: expectedTotalWithdrawn,
               }).catch(() => {
-                // If the RPC doesn't exist, we'll skip this
-                console.log('reconcile_wallet_extras RPC not available');
+              // If the RPC doesn't exist, we'll skip this
+              console.log('reconcile_wallet_extras RPC not available');
               });
               correction.applied = true;
             }
