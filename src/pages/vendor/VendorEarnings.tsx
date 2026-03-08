@@ -65,7 +65,7 @@ export default function VendorEarnings() {
   const [allTransactions, setAllTransactions] = useState<WalletTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
-  const { selectedOutletId, setSelectedOutletId } = usePersistedOutletId();
+  const { selectedOutletId, setSelectedOutletId, ready: outletReady } = usePersistedOutletId();
   const [txPage, setTxPage] = useState(1);
   const TX_PER_PAGE = 10;
   const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendor?.id || null);

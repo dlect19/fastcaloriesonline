@@ -72,7 +72,7 @@ export default function VendorWithdraw() {
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
   const [allTransactions, setAllTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const { selectedOutletId, setSelectedOutletId } = usePersistedOutletId();
+  const { selectedOutletId, setSelectedOutletId, ready: outletReady } = usePersistedOutletId();
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
   const [bankDialogOpen, setBankDialogOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
