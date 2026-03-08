@@ -406,10 +406,10 @@ export default function VendorWithdraw() {
       return;
     }
 
-    // Get the correct eligible balance based on source (from ledger)
+    // Get the correct eligible balance based on source (use safe balance = min of ledger & DB)
     const sourceBalance = withdrawalSource === 'rider_revenue' 
-      ? computedRiderBalance
-      : computedMenuBalance;
+      ? safeRiderBalance
+      : safeMenuBalance;
 
     if (amount > sourceBalance) {
       toast({ title: `Amount exceeds ${withdrawalSource === 'rider_revenue' ? 'rider revenue' : 'menu earnings'} balance`, variant: 'destructive' });
