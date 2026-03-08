@@ -566,7 +566,7 @@ export default function VendorWithdraw() {
     }
   };
 
-  if (authLoading || loading || permLoading) {
+  if (authLoading || loading || permLoading || !outletReady) {
     return (
       <VendorLayout onOutletChange={setSelectedOutletId}>
         <div className="p-6 space-y-6">
