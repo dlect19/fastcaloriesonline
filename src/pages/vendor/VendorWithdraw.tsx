@@ -943,14 +943,14 @@ export default function VendorWithdraw() {
                       onChange={(e) => setWithdrawAmount(e.target.value)}
                       placeholder="Enter amount"
                       max={withdrawalSource === 'rider_revenue' 
-                        ? computedRiderBalance 
-                        : computedMenuBalance}
+                        ? safeRiderBalance 
+                        : safeMenuBalance}
                     />
                     <p className="text-xs text-muted-foreground">
                       Available: {formatCurrency(
                         withdrawalSource === 'rider_revenue' 
-                          ? computedRiderBalance 
-                          : computedMenuBalance
+                          ? safeRiderBalance 
+                          : safeMenuBalance
                       )}
                     </p>
                   </div>
