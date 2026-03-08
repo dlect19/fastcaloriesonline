@@ -20,6 +20,7 @@ interface Transaction {
   notes: string | null;
   environment: string | null;
   metadata?: any;
+  balance_after?: number | null;
 }
 
 interface OrderDetail {
@@ -391,6 +392,32 @@ export function TransactionHistory({
                   {/* Expanded Details */}
                   {isExpanded && (
                     <div className="px-4 pb-4 pt-0 border-t border-border/50 space-y-3">
+                      {/* Running Balance Trail */}
+                      {tx.balance_after != null && (
+                        <div className="flex items-center gap-3 pt-3 pb-1">
+                          <div className="flex-1 text-center p-2 bg-muted rounded-lg">
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Balance Before</p>
+                            <p className="font-semibold text-sm">
+                              ₦{(tx.transaction_type === 'credit'
+                                ? tx.balance_after - Number(tx.amount)
+                                : tx.balance_after + Number(tx.amount)
+                              ).toLocaleString()}
+                            </p>
+                          </div>
+                          <div className={`flex-shrink-0 px-2 py-1 rounded-full text-xs font-bold ${
+                            tx.transaction_type === 'credit' ? 'bg-success/15 text-success' : 'bg-destructive/15 text-destructive'
+                          }`}>
+                            {tx.transaction_type === 'credit' ? '+' : '−'}₦{Number(tx.amount).toLocaleString()}
+                          </div>
+                          <div className="flex-1 text-center p-2 bg-primary/10 rounded-lg">
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Balance After</p>
+                            <p className="font-semibold text-sm text-primary">
+                              ₦{Number(tx.balance_after).toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
                       {/* All tags */}
                       {tags.length > 0 && (
                         <div className="flex flex-wrap gap-1.5 pt-3">
