@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
@@ -8,25 +8,16 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Loader2, XCircle, Eye, Search } from 'lucide-react';
-import { format, differenceInMinutes } from 'date-fns';
+import { format, differenceInMinutes, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { AdminCancelOrderDialog } from '@/components/admin/AdminCancelOrderDialog';
 import { AdminOrderTrackingDialog } from '@/components/admin/AdminOrderTrackingDialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DateRangeFilter, type DateRange } from '@/components/shared/DateRangeFilter';
+import { PaginationControls } from '@/components/shared/PaginationControls';
 
-const getAttentionLight = (order: any) => {
-  const needsAttention = ['pending', 'confirmed'].includes(order.status);
-  if (!needsAttention) return null;
-
-  const mins = differenceInMinutes(new Date(), new Date(order.created_at));
-
-  if (mins >= 5) {
-    return { color: 'bg-red-500', pulse: true, label: `${mins}m — Needs immediate attention!` };
-  } else if (mins >= 3) {
-    return { color: 'bg-yellow-400', pulse: false, label: `${mins}m — Approaching 5 min limit` };
-  } else {
-    return { color: 'bg-green-500', pulse: false, label: `${mins}m — Within time` };
-  }
-};
+const ONGOING_STATUSES = ['pending', 'confirmed', 'preparing', 'ready_for_pickup', 'picked_up', 'on_the_way'];
+const PAST_STATUSES = ['delivered', 'cancelled'];
 
 export default function AdminOrders() {
   const navigate = useNavigate();
@@ -36,6 +27,10 @@ export default function AdminOrders() {
   const [cancelOrder, setCancelOrder] = useState<any | null>(null);
   const [trackOrder, setTrackOrder] = useState<any | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [orderTab, setOrderTab] = useState<'all' | 'ongoing' | 'past'>('all');
+  const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
 
   useEffect(() => {
     checkAuth();
@@ -44,7 +39,6 @@ export default function AdminOrders() {
   useEffect(() => {
     fetchOrders();
 
-    // Real-time subscription for order updates
     const channel = supabase
       .channel('admin-orders-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
@@ -55,22 +49,46 @@ export default function AdminOrders() {
     return () => { supabase.removeChannel(channel); };
   }, [statusFilter]);
 
-  const checkAuth = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      navigate('/admin/auth');
-      return;
+  // Reset page when filters change
+  useEffect(() => { setCurrentPage(1); }, [orderTab, dateRange, searchQuery, statusFilter, itemsPerPage]);
+
+  const filteredOrders = useMemo(() => {
+    let result = orders;
+
+    // Tab filter
+    if (orderTab === 'ongoing') result = result.filter(o => ONGOING_STATUSES.includes(o.status));
+    if (orderTab === 'past') result = result.filter(o => PAST_STATUSES.includes(o.status));
+
+    // Date range filter
+    if (dateRange.from) {
+      result = result.filter(o => {
+        const d = new Date(o.created_at);
+        return isWithinInterval(d, {
+          start: startOfDay(dateRange.from!),
+          end: dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from!),
+        });
+      });
     }
 
-    const { data: roles } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id);
-
-    if (!roles?.some(r => r.role === 'admin')) {
-      navigate('/admin/auth');
+    // Search
+    const q = searchQuery.toLowerCase().trim();
+    if (q) {
+      result = result.filter(o =>
+        o.order_number?.toLowerCase().includes(q) ||
+        o.customer_name?.toLowerCase().includes(q) ||
+        o.customer_phone?.toLowerCase().includes(q) ||
+        o.vendors?.name?.toLowerCase().includes(q)
+      );
     }
-  };
+
+    return result;
+  }, [orders, orderTab, dateRange, searchQuery]);
+
+  const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
+  const paginatedOrders = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredOrders.slice(start, start + itemsPerPage);
+  }, [filteredOrders, currentPage, itemsPerPage]);
 
   const fetchOrders = async () => {
     setLoading(true);
@@ -79,7 +97,7 @@ export default function AdminOrders() {
         .from('orders')
         .select('*, vendors(name)')
         .order('created_at', { ascending: false })
-        .limit(100);
+        .limit(1000);
 
       if (statusFilter !== 'all') {
         query = query.eq('status', statusFilter as "pending" | "confirmed" | "preparing" | "ready_for_pickup" | "picked_up" | "on_the_way" | "delivered" | "cancelled");
@@ -88,7 +106,6 @@ export default function AdminOrders() {
       const { data } = await query;
       
       if (data && data.length > 0) {
-        // Fetch customer profiles for these orders
         const userIds = [...new Set(data.map(o => o.user_id).filter(Boolean))];
         const { data: profiles } = await supabase
           .from('profiles')
