@@ -20,6 +20,7 @@ interface Transaction {
   notes: string | null;
   environment: string | null;
   metadata?: any;
+  balance_after?: number | null;
 }
 
 interface OrderDetail {
