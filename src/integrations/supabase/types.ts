@@ -4932,6 +4932,18 @@ export type Database = {
         Args: { p_wallet_id: string }
         Returns: undefined
       }
+      reconcile_wallet_balances: {
+        Args: {
+          p_balance: number
+          p_eligible: number
+          p_menu_earnings: number
+          p_menu_pending: number
+          p_pending: number
+          p_rider_revenue: number
+          p_wallet_id: string
+        }
+        Returns: undefined
+      }
       release_pending_vendor_earnings: { Args: never; Returns: number }
       resolve_commission_rate: {
         Args: { p_entity_id: string; p_entity_type: string }
