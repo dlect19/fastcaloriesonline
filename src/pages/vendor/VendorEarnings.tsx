@@ -65,7 +65,7 @@ export default function VendorEarnings() {
   const [allTransactions, setAllTransactions] = useState<WalletTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
-  const { selectedOutletId, setSelectedOutletId } = usePersistedOutletId();
+  const { selectedOutletId, setSelectedOutletId, ready: outletReady } = usePersistedOutletId();
   const [txPage, setTxPage] = useState(1);
   const TX_PER_PAGE = 10;
   const { hasPermission, loading: permLoading, permissions } = useVendorPermissions(vendor?.id || null);
@@ -83,11 +83,14 @@ export default function VendorEarnings() {
       navigate('/vendor/auth');
       return;
     }
-    if (user && selectedOutletId !== null) {
+    if (!outletReady) return;
+    if (user && selectedOutletId) {
       fetchData();
       setTxPage(1);
+    } else if (user && !selectedOutletId) {
+      setLoading(false);
     }
-  }, [user, authLoading, navigate, dateRange, isTestMode, selectedOutletId]);
+  }, [user, authLoading, navigate, dateRange, isTestMode, selectedOutletId, outletReady]);
 
   const fetchData = async () => {
     try {
@@ -360,7 +363,7 @@ export default function VendorEarnings() {
     }
   };
 
-  if (authLoading || loading || permLoading) {
+  if (authLoading || loading || permLoading || !outletReady) {
     return (
       <VendorLayout onOutletChange={setSelectedOutletId}>
         <div className="p-6 space-y-6">

@@ -72,7 +72,7 @@ export default function VendorWithdraw() {
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
   const [allTransactions, setAllTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const { selectedOutletId, setSelectedOutletId } = usePersistedOutletId();
+  const { selectedOutletId, setSelectedOutletId, ready: outletReady } = usePersistedOutletId();
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
   const [bankDialogOpen, setBankDialogOpen] = useState(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
@@ -116,10 +116,13 @@ export default function VendorWithdraw() {
       navigate('/vendor/auth');
       return;
     }
-    if (user && selectedOutletId !== null) {
+    if (!outletReady) return;
+    if (user && selectedOutletId) {
       fetchData();
+    } else if (user && !selectedOutletId) {
+      setLoading(false);
     }
-  }, [user, authLoading, navigate, isTestMode, selectedOutletId]);
+  }, [user, authLoading, navigate, isTestMode, selectedOutletId, outletReady]);
 
   const fetchData = async () => {
     try {
@@ -563,7 +566,7 @@ export default function VendorWithdraw() {
     }
   };
 
-  if (authLoading || loading || permLoading) {
+  if (authLoading || loading || permLoading || !outletReady) {
     return (
       <VendorLayout onOutletChange={setSelectedOutletId}>
         <div className="p-6 space-y-6">
