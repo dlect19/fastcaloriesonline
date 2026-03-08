@@ -272,14 +272,15 @@ serve(async (req) => {
             } else {
               // Also update total_earned and total_withdrawn
               // These aren't in the RPC, do a raw update with bypass
-              await supabase.rpc('reconcile_wallet_extras', {
+              const { error: extrasErr } = await supabase.rpc('reconcile_wallet_extras', {
                 p_wallet_id: w.id,
                 p_total_earned: expectedTotalEarned,
                 p_total_withdrawn: expectedTotalWithdrawn,
-              }).catch(() => {
-              // If the RPC doesn't exist, we'll skip this
-              console.log('reconcile_wallet_extras RPC not available');
               });
+              if (extrasErr) {
+                // If the RPC doesn't exist, we'll skip this
+                console.log('reconcile_wallet_extras RPC not available:', extrasErr.message);
+              }
               correction.applied = true;
             }
           } else {
