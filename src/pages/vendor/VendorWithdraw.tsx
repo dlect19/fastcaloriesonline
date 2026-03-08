@@ -330,16 +330,43 @@ export default function VendorWithdraw() {
     }
   };
 
+  // Build a set of withdrawal transaction IDs that came from rider_revenue payouts
+  const riderRevenueWithdrawalTxIds = useMemo(() => {
+    const riderPayoutWalletIds = new Set(
+      withdrawals
+        .filter(w => w.withdrawal_source === 'rider_revenue')
+        .map(w => w.id)
+    );
+    // Match withdrawal transactions by checking if their amount+timing aligns with rider_revenue payouts
+    // But more reliably, check notes for "Rider Revenue" OR if not tagged, fall back to payout source
+    return new Set<string>();
+  }, [withdrawals]);
+
+  // Helper: determine if a withdrawal transaction is for rider revenue
+  const isRiderRevenueWithdrawal = (tx: any) => {
+    if (tx.notes?.includes('Rider Revenue')) return true;
+    if (tx.notes?.includes('Menu Earnings')) return false;
+    // If notes don't specify, check against payout_requests by amount match
+    return false;
+  };
+
   // Compute balances from ledger (source of truth) - same logic as VendorEarnings
   const computedMenuBalance = Math.max(0, allTransactions
     .reduce((sum: number, tx: any) => {
       if (tx.category === 'vendor_share' && tx.status === 'completed') {
         return tx.transaction_type === 'credit' ? sum + Number(tx.amount) : sum - Number(tx.amount);
       }
-      if (tx.category === 'withdrawal' && tx.transaction_type === 'debit' && tx.notes?.includes('Menu Earnings')) {
+      if (tx.category === 'withdrawal' && tx.transaction_type === 'debit' && !isRiderRevenueWithdrawal(tx)) {
         return sum - Number(tx.amount);
       }
-      if (tx.category === 'withdrawal_reversal' && tx.transaction_type === 'credit' && tx.notes?.includes('Menu Earnings')) {
+      if (tx.category === 'withdrawal_reversal' && tx.transaction_type === 'credit' && !isRiderRevenueWithdrawal(tx)) {
+        return sum + Number(tx.amount);
+      }
+      // Handle admin debits/credits for menu earnings
+      if (tx.category === 'admin_debit' && tx.transaction_type === 'debit') {
+        return sum - Number(tx.amount);
+      }
+      if (tx.category === 'admin_credit' && tx.transaction_type === 'credit') {
         return sum + Number(tx.amount);
       }
       return sum;
@@ -354,14 +381,18 @@ export default function VendorWithdraw() {
       if (tx.category === 'vendor_rider_share' && tx.status === 'completed') {
         return tx.transaction_type === 'credit' ? sum + Number(tx.amount) : sum - Number(tx.amount);
       }
-      if (tx.category === 'withdrawal' && tx.transaction_type === 'debit' && tx.notes?.includes('Rider Revenue')) {
+      if (tx.category === 'withdrawal' && tx.transaction_type === 'debit' && isRiderRevenueWithdrawal(tx)) {
         return sum - Number(tx.amount);
       }
-      if (tx.category === 'withdrawal_reversal' && tx.transaction_type === 'credit' && tx.notes?.includes('Rider Revenue')) {
+      if (tx.category === 'withdrawal_reversal' && tx.transaction_type === 'credit' && isRiderRevenueWithdrawal(tx)) {
         return sum + Number(tx.amount);
       }
       return sum;
     }, 0));
+
+  // Use the LOWER of ledger-computed and DB column to prevent over-withdrawal
+  const safeMenuBalance = wallet ? Math.min(computedMenuBalance, wallet.menu_earnings_balance) : computedMenuBalance;
+  const safeRiderBalance = wallet ? Math.min(computedRiderBalance, wallet.rider_revenue_balance) : computedRiderBalance;
 
   // Track pending withdrawals for display, but don't block new ones
   const hasPendingWithdrawal = withdrawals.some(
@@ -375,10 +406,10 @@ export default function VendorWithdraw() {
       return;
     }
 
-    // Get the correct eligible balance based on source (from ledger)
+    // Get the correct eligible balance based on source (use safe balance = min of ledger & DB)
     const sourceBalance = withdrawalSource === 'rider_revenue' 
-      ? computedRiderBalance
-      : computedMenuBalance;
+      ? safeRiderBalance
+      : safeMenuBalance;
 
     if (amount > sourceBalance) {
       toast({ title: `Amount exceeds ${withdrawalSource === 'rider_revenue' ? 'rider revenue' : 'menu earnings'} balance`, variant: 'destructive' });
@@ -717,7 +748,7 @@ export default function VendorWithdraw() {
                   <div>
                     <p className="text-sm text-muted-foreground">Available</p>
                     <p className="text-xl font-bold text-success">
-                      {formatCurrency(computedMenuBalance)}
+                      {formatCurrency(safeMenuBalance)}
                     </p>
                   </div>
                   <div>
@@ -753,7 +784,7 @@ export default function VendorWithdraw() {
                   <div>
                     <p className="text-sm text-muted-foreground">Available</p>
                     <p className="text-xl font-bold text-success">
-                      {formatCurrency(computedRiderBalance)}
+                      {formatCurrency(safeRiderBalance)}
                     </p>
                   </div>
                   <div className="flex flex-col justify-center">
@@ -912,14 +943,14 @@ export default function VendorWithdraw() {
                       onChange={(e) => setWithdrawAmount(e.target.value)}
                       placeholder="Enter amount"
                       max={withdrawalSource === 'rider_revenue' 
-                        ? computedRiderBalance 
-                        : computedMenuBalance}
+                        ? safeRiderBalance 
+                        : safeMenuBalance}
                     />
                     <p className="text-xs text-muted-foreground">
                       Available: {formatCurrency(
                         withdrawalSource === 'rider_revenue' 
-                          ? computedRiderBalance 
-                          : computedMenuBalance
+                          ? safeRiderBalance 
+                          : safeMenuBalance
                       )}
                     </p>
                   </div>

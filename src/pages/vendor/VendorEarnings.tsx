@@ -287,16 +287,29 @@ export default function VendorEarnings() {
     return labels[category] || category;
   };
 
+  // Helper: determine if a withdrawal transaction is for rider revenue
+  const isRiderRevenueWithdrawal = (tx: any) => {
+    if (tx.notes?.includes('Rider Revenue')) return true;
+    if (tx.notes?.includes('Menu Earnings')) return false;
+    return false;
+  };
+
   // Compute balances from ALL transactions (ledger = source of truth)
   const computedMenuBalance = Math.max(0, allTransactions
     .reduce((sum, tx) => {
       if (tx.category === 'vendor_share' && tx.status === 'completed') {
         return tx.transaction_type === 'credit' ? sum + tx.amount : sum - tx.amount;
       }
-      if (tx.category === 'withdrawal' && tx.transaction_type === 'debit' && tx.notes?.includes('Menu Earnings')) {
+      if (tx.category === 'withdrawal' && tx.transaction_type === 'debit' && !isRiderRevenueWithdrawal(tx)) {
         return sum - tx.amount;
       }
-      if (tx.category === 'withdrawal_reversal' && tx.transaction_type === 'credit' && tx.notes?.includes('Menu Earnings')) {
+      if (tx.category === 'withdrawal_reversal' && tx.transaction_type === 'credit' && !isRiderRevenueWithdrawal(tx)) {
+        return sum + tx.amount;
+      }
+      if (tx.category === 'admin_debit' && tx.transaction_type === 'debit') {
+        return sum - tx.amount;
+      }
+      if (tx.category === 'admin_credit' && tx.transaction_type === 'credit') {
         return sum + tx.amount;
       }
       return sum;
@@ -311,10 +324,10 @@ export default function VendorEarnings() {
       if (tx.category === 'vendor_rider_share' && tx.status === 'completed') {
         return tx.transaction_type === 'credit' ? sum + tx.amount : sum - tx.amount;
       }
-      if (tx.category === 'withdrawal' && tx.transaction_type === 'debit' && tx.notes?.includes('Rider Revenue')) {
+      if (tx.category === 'withdrawal' && tx.transaction_type === 'debit' && isRiderRevenueWithdrawal(tx)) {
         return sum - tx.amount;
       }
-      if (tx.category === 'withdrawal_reversal' && tx.transaction_type === 'credit' && tx.notes?.includes('Rider Revenue')) {
+      if (tx.category === 'withdrawal_reversal' && tx.transaction_type === 'credit' && isRiderRevenueWithdrawal(tx)) {
         return sum + tx.amount;
       }
       return sum;
