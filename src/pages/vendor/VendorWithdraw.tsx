@@ -116,10 +116,13 @@ export default function VendorWithdraw() {
       navigate('/vendor/auth');
       return;
     }
-    if (user && selectedOutletId !== null) {
+    if (!outletReady) return;
+    if (user && selectedOutletId) {
       fetchData();
+    } else if (user && !selectedOutletId) {
+      setLoading(false);
     }
-  }, [user, authLoading, navigate, isTestMode, selectedOutletId]);
+  }, [user, authLoading, navigate, isTestMode, selectedOutletId, outletReady]);
 
   const fetchData = async () => {
     try {

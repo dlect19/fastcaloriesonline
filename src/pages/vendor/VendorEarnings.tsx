@@ -83,11 +83,14 @@ export default function VendorEarnings() {
       navigate('/vendor/auth');
       return;
     }
-    if (user && selectedOutletId !== null) {
+    if (!outletReady) return;
+    if (user && selectedOutletId) {
       fetchData();
       setTxPage(1);
+    } else if (user && !selectedOutletId) {
+      setLoading(false);
     }
-  }, [user, authLoading, navigate, dateRange, isTestMode, selectedOutletId]);
+  }, [user, authLoading, navigate, dateRange, isTestMode, selectedOutletId, outletReady]);
 
   const fetchData = async () => {
     try {
