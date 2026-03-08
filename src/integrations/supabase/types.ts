@@ -4747,6 +4747,10 @@ export type Database = {
       apply_vendor_commission_promos: { Args: never; Returns: undefined }
       bytea_to_text: { Args: { data: string }; Returns: string }
       cancel_stale_pending_orders: { Args: never; Returns: number }
+      full_reconcile_wallets: {
+        Args: { p_dry_run?: boolean; p_environment?: string }
+        Returns: Json
+      }
       generate_slug: { Args: { input_text: string }; Returns: string }
       get_admin_staff_role: {
         Args: { _user_id: string }
