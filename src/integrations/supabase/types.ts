@@ -1938,6 +1938,69 @@ export type Database = {
         }
         Relationships: []
       }
+      payout_pending_releases: {
+        Row: {
+          amount: number
+          category: string
+          created_at: string | null
+          earned_at: string
+          environment: string | null
+          id: string
+          release_at: string
+          released: boolean | null
+          released_at: string | null
+          transaction_id: string
+          updated_at: string | null
+          wallet_id: string
+          wallet_type: string
+        }
+        Insert: {
+          amount: number
+          category: string
+          created_at?: string | null
+          earned_at?: string
+          environment?: string | null
+          id?: string
+          release_at: string
+          released?: boolean | null
+          released_at?: string | null
+          transaction_id: string
+          updated_at?: string | null
+          wallet_id: string
+          wallet_type: string
+        }
+        Update: {
+          amount?: number
+          category?: string
+          created_at?: string | null
+          earned_at?: string
+          environment?: string | null
+          id?: string
+          release_at?: string
+          released?: boolean | null
+          released_at?: string | null
+          transaction_id?: string
+          updated_at?: string | null
+          wallet_id?: string
+          wallet_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payout_pending_releases_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: true
+            referencedRelation: "wallet_transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payout_pending_releases_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payout_requests: {
         Row: {
           amount: number
@@ -4761,6 +4824,10 @@ export type Database = {
         Args: { _company_id: string; _user_id: string }
         Returns: Database["public"]["Enums"]["delivery_company_staff_role"]
       }
+      get_payout_period_hours: {
+        Args: { p_wallet_type: string }
+        Returns: number
+      }
       get_platform_environment: { Args: never; Returns: string }
       get_rider_profile_id: { Args: { _user_id: string }; Returns: string }
       get_vendor_staff_role: {
@@ -4948,6 +5015,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      release_pending_payouts: { Args: never; Returns: number }
       release_pending_vendor_earnings: { Args: never; Returns: number }
       resolve_commission_rate: {
         Args: { p_entity_id: string; p_entity_type: string }

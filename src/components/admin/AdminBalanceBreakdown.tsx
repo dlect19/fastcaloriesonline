@@ -130,6 +130,7 @@ export function AdminBalanceBreakdown({ isTestMode }: AdminBalanceBreakdownProps
               <TableRow>
                 <TableHead>Name</TableHead>
                 {showOutlet && <TableHead>Outlet</TableHead>}
+                <TableHead className="text-right">Pending Balance</TableHead>
                 <TableHead className="text-right">Withdrawable Balance</TableHead>
                 <TableHead className="text-right">Total Earned</TableHead>
               </TableRow>
