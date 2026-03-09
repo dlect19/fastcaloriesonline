@@ -84,8 +84,7 @@ export function OrderPhotoEvidence({ orderId, showDisputeImages = false }: Order
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                   />
                   <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[9px] px-1.5 py-0.5">
-                    {photo.photo_type === 'food_content' ? '🍽️ Food' : '📦 Package'}
-                    <span className="ml-1">{format(new Date(photo.uploaded_at), 'HH:mm')}</span>
+                    📸 {format(new Date(photo.created_at), 'HH:mm')}
                   </div>
                   {new Date(photo.expires_at) < new Date() && (
                     <Badge variant="destructive" className="absolute top-1 right-1 text-[8px] px-1 py-0">
