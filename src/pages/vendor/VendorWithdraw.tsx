@@ -796,7 +796,7 @@ export default function VendorWithdraw() {
                   <div>
                     <p className="text-sm text-muted-foreground">Available</p>
                     <p className="text-xl font-bold text-success">
-                      {formatCurrency(safeRiderBalance)}
+                      {formatCurrency(displayRiderBalance)}
                     </p>
                   </div>
                   <div className="flex flex-col justify-center">
