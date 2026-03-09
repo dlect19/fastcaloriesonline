@@ -335,6 +335,18 @@ export default function AdminRiders() {
                           </div>
                         </div>
                         <div className="flex items-center gap-4">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedRiderUserId(rider.user_id);
+                              setSelectedRiderName(rider.profile?.full_name || 'Rider');
+                              setEmailDialogOpen(true);
+                            }}
+                          >
+                            <Mail className="w-4 h-4 text-primary mr-1" />
+                            Change Email
+                          </Button>
                           <div className="flex items-center gap-2">
                             <span className="text-xs text-muted-foreground">Test Rider</span>
                             <Switch
