@@ -128,6 +128,9 @@ export default function Profile() {
           onSignOut={handleSignOut}
         />
 
+        {/* Personal Information */}
+        <ProfileForm user={user} profile={profile} onUpdate={fetchProfileData} />
+
         {/* Wallet Summary Card */}
         <Card className="border-0 shadow-soft bg-gradient-to-br from-primary/10 to-primary/5">
           <CardContent className="p-4 space-y-4">
@@ -240,8 +243,7 @@ export default function Profile() {
         {/* Referral Card */}
         <ReferralCard />
 
-        {/* Personal Information */}
-        <ProfileForm user={user} profile={profile} onUpdate={fetchProfileData} />
+
 
         {/* Health Goals */}
         <CalorieGoalCard profile={profile} onUpdate={fetchProfileData} />
