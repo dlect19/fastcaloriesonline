@@ -131,6 +131,17 @@ export default function OrderDetail() {
           .maybeSingle();
         
         setHasReviewed(!!review);
+
+        // Check if a complaint was already filed
+        const { data: existingTicket } = await supabase
+          .from('support_tickets')
+          .select('id')
+          .eq('user_id', user?.id)
+          .ilike('subject', `%Order #${orderData.order_number}%`)
+          .eq('category', 'order_issue')
+          .maybeSingle();
+        
+        setHasDispute(!!existingTicket);
       }
     } catch (error) {
       console.error('Error fetching order:', error);
