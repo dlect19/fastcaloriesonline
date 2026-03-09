@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -32,28 +32,87 @@ export function AdminBalanceBreakdown({ isTestMode }: AdminBalanceBreakdownProps
   const fetchBalances = async () => {
     setLoading(true);
     try {
-      const balanceField = isTestMode ? 'test_eligible_balance' : 'eligible_balance';
-      const totalField = isTestMode ? 'test_balance' : 'total_earned';
-      const pendingField = isTestMode ? 'test_pending_balance' : 'pending_balance';
+      const env = isTestMode ? 'development' : 'production';
 
-      // Fetch all wallets with balance info
+      // Fetch all wallets
       const { data: wallets } = await supabase
         .from('wallets')
-        .select('id, user_id, wallet_type, eligible_balance, test_eligible_balance, total_earned, test_balance, outlet_id');
+        .select('id, user_id, wallet_type, outlet_id');
 
       if (!wallets) {
         setLoading(false);
         return;
       }
 
+      // Fetch all transactions for the environment (ledger source of truth)
+      const { data: allTx } = await supabase
+        .from('wallet_transactions')
+        .select('wallet_id, category, transaction_type, amount, status, notes')
+        .eq('environment', env);
+
+      const txByWallet: Record<string, typeof allTx> = {};
+      for (const tx of allTx || []) {
+        if (!tx.wallet_id) continue;
+        if (!txByWallet[tx.wallet_id]) txByWallet[tx.wallet_id] = [];
+        txByWallet[tx.wallet_id].push(tx);
+      }
+
+      // Compute ledger-based balances for vendors
+      const computeVendorBalances = (walletId: string) => {
+        const txs = txByWallet[walletId] || [];
+        let menuCredits = 0, menuDebits = 0, menuPending = 0;
+        let riderCredits = 0, riderDebits = 0;
+        let menuWithdrawals = 0, riderWithdrawals = 0, reversals = 0;
+        let adminDebits = 0, adminCredits = 0, disputeDebits = 0;
+
+        for (const tx of txs) {
+          const amt = Number(tx.amount) || 0;
+          if (tx.category === 'vendor_share') {
+            if (tx.status === 'completed' && tx.transaction_type === 'credit') menuCredits += amt;
+            else if (tx.status === 'completed' && tx.transaction_type === 'debit') menuDebits += amt;
+            else if (tx.status === 'pending' && tx.transaction_type === 'credit') menuPending += amt;
+          } else if (tx.category === 'vendor_rider_share') {
+            if (tx.status === 'completed' && tx.transaction_type === 'credit') riderCredits += amt;
+            else if (tx.status === 'completed' && tx.transaction_type === 'debit') riderDebits += amt;
+          } else if (tx.category === 'withdrawal' && tx.transaction_type === 'debit') {
+            if (tx.notes?.includes('Rider Revenue')) riderWithdrawals += amt;
+            else menuWithdrawals += amt;
+          } else if (tx.category === 'withdrawal_reversal' && tx.transaction_type === 'credit') {
+            reversals += amt;
+          } else if (tx.category === 'admin_debit' && tx.transaction_type === 'debit') {
+            adminDebits += amt;
+          } else if (tx.category === 'admin_credit' && tx.transaction_type === 'credit') {
+            adminCredits += amt;
+          } else if (tx.category === 'dispute_deduction' && tx.transaction_type === 'debit') {
+            disputeDebits += amt;
+          }
+        }
+
+        const menuBalance = menuCredits - menuDebits - menuWithdrawals + reversals - adminDebits + adminCredits - disputeDebits;
+        const riderBalance = riderCredits - riderDebits - riderWithdrawals;
+        const eligibleBalance = menuBalance + riderBalance;
+        const totalEarned = menuCredits - menuDebits + riderCredits - riderDebits;
+        return { eligibleBalance, pendingBalance: menuPending, totalEarned };
+      };
+
+      // Compute ledger-based balances for riders/logistics
+      const computeGenericBalances = (walletId: string) => {
+        const txs = txByWallet[walletId] || [];
+        let credits = 0, debits = 0;
+        for (const tx of txs) {
+          const amt = Number(tx.amount) || 0;
+          if (tx.transaction_type === 'credit' && tx.status === 'completed') credits += amt;
+          else if (tx.transaction_type === 'debit') debits += amt;
+        }
+        return { eligibleBalance: credits - debits, pendingBalance: 0, totalEarned: credits };
+      };
+
       const vendorWallets = wallets.filter(w => w.wallet_type === 'vendor');
       const riderWallets = wallets.filter(w => w.wallet_type === 'rider');
       const companyWallets = wallets.filter(w => w.wallet_type === 'delivery_company');
 
-      // Collect all user_ids for name resolution
       const allUserIds = [...new Set(wallets.map(w => w.user_id))];
       
-      // Fetch profiles, vendors, delivery companies, and outlets in parallel
       const [profilesRes, vendorsRes, companiesRes, outletsRes] = await Promise.all([
         supabase.from('profiles').select('user_id, full_name').in('user_id', allUserIds),
         supabase.from('vendors').select('id, user_id, name'),
@@ -61,41 +120,41 @@ export function AdminBalanceBreakdown({ isTestMode }: AdminBalanceBreakdownProps
         supabase.from('vendor_outlets').select('id, outlet_name'),
       ]);
 
-      // Build vendor balances
       const vBalances: BalanceEntry[] = vendorWallets.map(w => {
         const vendor = vendorsRes.data?.find(v => v.user_id === w.user_id);
         const outlet = w.outlet_id ? outletsRes.data?.find(o => o.id === w.outlet_id) : null;
+        const computed = computeVendorBalances(w.id);
         return {
           id: w.id,
           name: vendor?.name || 'Unknown Vendor',
           outletName: outlet?.outlet_name || undefined,
-          eligibleBalance: Number(w[balanceField]) || 0,
-          pendingBalance: Number(w[pendingField]) || 0,
-          totalEarned: Number(w[totalField]) || 0,
+          eligibleBalance: Math.round(computed.eligibleBalance * 100) / 100,
+          pendingBalance: Math.round(computed.pendingBalance * 100) / 100,
+          totalEarned: Math.round(computed.totalEarned * 100) / 100,
         };
       }).sort((a, b) => b.eligibleBalance - a.eligibleBalance);
 
-      // Build rider balances
       const rBalances: BalanceEntry[] = riderWallets.map(w => {
         const profile = profilesRes.data?.find(p => p.user_id === w.user_id);
+        const computed = computeGenericBalances(w.id);
         return {
           id: w.id,
           name: profile?.full_name || 'Unknown Rider',
-          eligibleBalance: Number(w[balanceField]) || 0,
-          pendingBalance: Number(w[pendingField]) || 0,
-          totalEarned: Number(w[totalField]) || 0,
+          eligibleBalance: Math.round(computed.eligibleBalance * 100) / 100,
+          pendingBalance: 0,
+          totalEarned: Math.round(computed.totalEarned * 100) / 100,
         };
       }).sort((a, b) => b.eligibleBalance - a.eligibleBalance);
 
-      // Build logistics company balances
       const lBalances: BalanceEntry[] = companyWallets.map(w => {
         const company = companiesRes.data?.find(c => c.user_id === w.user_id);
+        const computed = computeGenericBalances(w.id);
         return {
           id: w.id,
           name: company?.name || 'Unknown Company',
-          eligibleBalance: Number(w[balanceField]) || 0,
-          pendingBalance: Number(w[pendingField]) || 0,
-          totalEarned: Number(w[totalField]) || 0,
+          eligibleBalance: Math.round(computed.eligibleBalance * 100) / 100,
+          pendingBalance: 0,
+          totalEarned: Math.round(computed.totalEarned * 100) / 100,
         };
       }).sort((a, b) => b.eligibleBalance - a.eligibleBalance);
 
