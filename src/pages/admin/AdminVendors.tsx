@@ -222,6 +222,18 @@ export default function AdminVendors() {
                         </p>
                       </div>
                       <div className="flex items-center gap-4">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedVendorUserId(vendor.user_id);
+                            setSelectedVendorName(vendor.name);
+                            setEmailDialogOpen(true);
+                          }}
+                        >
+                          <Mail className="w-4 h-4 text-primary mr-1" />
+                          Change Email
+                        </Button>
                         <VendorCoordinateEditor vendor={vendor} onUpdate={fetchVendors} />
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-muted-foreground">Test Store</span>
