@@ -402,6 +402,13 @@ export default function AdminRiders() {
             )}
           </DialogContent>
         </Dialog>
+
+        <AdminChangeEmailDialog
+          open={emailDialogOpen}
+          onOpenChange={setEmailDialogOpen}
+          userId={selectedRiderUserId}
+          userName={selectedRiderName}
+        />
       </main>
     </div>
   );
