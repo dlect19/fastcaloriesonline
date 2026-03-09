@@ -2,11 +2,11 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.fastcalories.customer',
-  appName: 'fastcaloriesonline',
+  appName: 'Fast Calories',
   webDir: 'dist',
   server: {
-    url: 'https://35bd9daf-0ce9-4743-a361-ec2d45be6932.lovableproject.com?forceHideBadge=true',
-    cleartext: true
+    url: 'https://app.fastcalories.online',
+    cleartext: false
   }
 };
 
