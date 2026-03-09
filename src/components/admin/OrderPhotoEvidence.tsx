@@ -53,11 +53,7 @@ export function OrderPhotoEvidence({ orderId, showDisputeImages = false }: Order
         setDisputeImages((disputeRes.data as DisputeImage[]) || []);
       }
 
-      const results = await Promise.all(promises);
-      setProofPhotos((results[0]?.data as ProofPhoto[]) || []);
-      if (showDisputeImages && results[1]) {
-        setDisputeImages((results[1]?.data as DisputeImage[]) || []);
-      }
+
       setLoading(false);
     };
     fetch();
