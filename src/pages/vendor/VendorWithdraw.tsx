@@ -961,8 +961,8 @@ export default function VendorWithdraw() {
                     <p className="text-xs text-muted-foreground">
                       Available: {formatCurrency(
                         withdrawalSource === 'rider_revenue' 
-                          ? safeRiderBalance 
-                          : safeMenuBalance
+                          ? displayRiderBalance 
+                          : displayMenuBalance
                       )}
                     </p>
                   </div>
