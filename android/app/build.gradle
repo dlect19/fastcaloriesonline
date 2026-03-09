@@ -1,7 +1,7 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace 'com.fastcalories.customerr'
+    namespace 'com.fastcalories.customer'
     compileSdk 35
 
     defaultConfig {
