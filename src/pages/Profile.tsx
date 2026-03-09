@@ -243,8 +243,6 @@ export default function Profile() {
         {/* Referral Card */}
         <ReferralCard />
 
-        {/* Personal Information */}
-        <ProfileForm user={user} profile={profile} onUpdate={fetchProfileData} />
 
 
         {/* Health Goals */}
