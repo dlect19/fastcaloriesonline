@@ -122,7 +122,7 @@ export function DeliverySidebar({ companyName }: DeliverySidebarProps) {
       </aside>
 
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex w-64 min-h-screen bg-card border-r border-border flex-col fixed left-0 top-0">
+      <aside className="hidden lg:flex w-64 h-screen overflow-y-auto bg-card border-r border-border flex-col fixed left-0 top-0">
         <SidebarContent />
       </aside>
     </>
