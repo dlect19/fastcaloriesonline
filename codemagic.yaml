@@ -61,3 +61,83 @@ workflows:
       email:
         recipients:
           - dlect19@gmail.com
+
+  ios-debug:
+    name: iOS Debug Build
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      node: 18
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Install dependencies
+        script: |
+          npm install
+      - name: Build web assets
+        script: |
+          npm run build
+      - name: Sync Capacitor
+        script: |
+          npx cap sync ios
+      - name: Install CocoaPods
+        script: |
+          cd ios/App
+          pod install
+      - name: Build iOS
+        script: |
+          cd ios/App
+          xcodebuild build \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            CODE_SIGNING_ALLOWED=NO
+    artifacts:
+      - ios/App/build/**/*.app
+
+  ios-release:
+    name: iOS Release Build
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      node: 18
+      xcode: latest
+      cocoapods: default
+      groups:
+        - ios_credentials
+    scripts:
+      - name: Install dependencies
+        script: |
+          npm install
+      - name: Build web assets
+        script: |
+          npm run build
+      - name: Sync Capacitor
+        script: |
+          npx cap sync ios
+      - name: Install CocoaPods
+        script: |
+          cd ios/App
+          pod install
+      - name: Set up code signing
+        script: |
+          keychain initialize
+          app-store-connect fetch-signing-files "com.fastcalories.customer" --type IOS_APP_STORE
+          keychain add-certificates
+          xcode-project use-profiles
+      - name: Build iOS IPA
+        script: |
+          cd ios/App
+          xcode-project build-ipa \
+            --workspace App.xcworkspace \
+            --scheme App
+    artifacts:
+      - ios/App/build/ios/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        auth: integration
+      email:
+        recipients:
+          - dlect19@gmail.com
