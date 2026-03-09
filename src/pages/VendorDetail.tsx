@@ -52,8 +52,22 @@ export default function VendorDetail() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  // Location state
-  const { latitude, longitude, loading: geoLoading, getCurrentPosition } = useGeolocation();
+  // Location state — prefer delivery address from Home page over raw GPS
+  const { latitude: gpsLat, longitude: gpsLon, loading: geoLoading, getCurrentPosition } = useGeolocation();
+  
+  const deliveryLocation = (() => {
+    try {
+      const stored = localStorage.getItem('fc_delivery_location');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed?.lat && parsed?.lon) return parsed as { lat: number; lon: number };
+      }
+    } catch {}
+    return null;
+  })();
+  
+  const latitude = deliveryLocation?.lat ?? gpsLat;
+  const longitude = deliveryLocation?.lon ?? gpsLon;
 
   // Access control state
   const [accessChecked, setAccessChecked] = useState(false);
