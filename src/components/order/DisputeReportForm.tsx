@@ -82,17 +82,24 @@ export function DisputeReportForm({ orderId, orderNumber, onSubmitted }: Dispute
         });
       }
 
-      // Create support ticket / complaint record
-      const { error: ticketError } = await supabase.from('support_tickets').insert({
+      // Create support ticket
+      const { data: ticket, error: ticketError } = await supabase.from('support_tickets').insert({
         user_id: user.id,
-        order_id: orderId,
+        user_type: 'customer' as const,
         subject: `Complaint: ${reason} - Order #${orderNumber}`,
-        message: `Reason: ${reason}\n\n${details}${uploadedUrls.length > 0 ? '\n\nAttached images: ' + uploadedUrls.join(', ') : ''}`,
-        category: 'complaint',
-        status: 'open',
-      });
+        category: 'order_issue' as const,
+      }).select('id').single();
 
       if (ticketError) throw ticketError;
+
+      // Add the message with details
+      const messageText = `Reason: ${reason}\n\n${details}${uploadedUrls.length > 0 ? '\n\nAttached images:\n' + uploadedUrls.join('\n') : ''}`;
+      await supabase.from('support_messages').insert({
+        ticket_id: ticket.id,
+        sender_id: user.id,
+        sender_type: 'customer',
+        message: messageText,
+      });
 
       toast({ title: 'Complaint submitted', description: 'Our team will review your complaint and get back to you.' });
       setSubmitted(true);
