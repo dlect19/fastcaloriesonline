@@ -355,8 +355,9 @@ serve(async (req) => {
       let onlineSource = 'online';
 
       if (outlet.latitude && outlet.longitude) {
+        // Use vendor→customer direction for consistency
         const onlineGm = await getGoogleMapsDistance(
-          customer_lat, customer_lon, outlet.latitude, outlet.longitude
+          outlet.latitude, outlet.longitude, customer_lat, customer_lon
         );
         onlineDistance = onlineGm.distanceKm;
         onlineEta = onlineGm.durationMinutes;
