@@ -22,7 +22,10 @@ export default function AdminVendors() {
   const [loading, setLoading] = useState(true);
   const [vendors, setVendors] = useState<any[]>([]);
   const [pendingVendors, setPendingVendors] = useState<any[]>([]);
-  
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [selectedVendorUserId, setSelectedVendorUserId] = useState<string | null>(null);
+  const [selectedVendorName, setSelectedVendorName] = useState('');
+
 
   useEffect(() => {
     checkAuth();
