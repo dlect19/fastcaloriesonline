@@ -315,6 +315,9 @@ export default function AdminDisputes() {
                         <p className="text-sm">₦{(foundOrder.vendor_payout || 0).toLocaleString()}</p>
                       </div>
                     </div>
+
+                    {/* Photo Evidence for this order */}
+                    <OrderPhotoEvidence orderId={foundOrder.id} showDisputeImages />
                   )}
                 </CardContent>
               </Card>
