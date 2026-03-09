@@ -88,13 +88,9 @@ workflows:
       - name: Add iOS platform
         script: |
           npx cap add ios || true
-      - name: Sync Capacitor
+      - name: Sync Capacitor (includes pod install)
         script: |
           npx cap sync ios
-      - name: Install CocoaPods
-        script: |
-          cd ios/App
-          pod install
       - name: Build iOS
         script: |
           cd ios/App
@@ -128,13 +124,9 @@ workflows:
       - name: Add iOS platform
         script: |
           npx cap add ios || true
-      - name: Sync Capacitor
+      - name: Sync Capacitor (includes pod install)
         script: |
           npx cap sync ios
-      - name: Install CocoaPods
-        script: |
-          cd ios/App
-          pod install
       - name: Set up code signing
         script: |
           keychain initialize
