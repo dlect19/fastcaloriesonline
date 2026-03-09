@@ -10,6 +10,7 @@ interface BalanceEntry {
   id: string;
   name: string;
   eligibleBalance: number;
+  pendingBalance: number;
   totalEarned: number;
   outletName?: string;
 }
@@ -33,6 +34,7 @@ export function AdminBalanceBreakdown({ isTestMode }: AdminBalanceBreakdownProps
     try {
       const balanceField = isTestMode ? 'test_eligible_balance' : 'eligible_balance';
       const totalField = isTestMode ? 'test_balance' : 'total_earned';
+      const pendingField = isTestMode ? 'test_pending_balance' : 'pending_balance';
 
       // Fetch all wallets with balance info
       const { data: wallets } = await supabase
@@ -68,6 +70,7 @@ export function AdminBalanceBreakdown({ isTestMode }: AdminBalanceBreakdownProps
           name: vendor?.name || 'Unknown Vendor',
           outletName: outlet?.outlet_name || undefined,
           eligibleBalance: Number(w[balanceField]) || 0,
+          pendingBalance: Number(w[pendingField]) || 0,
           totalEarned: Number(w[totalField]) || 0,
         };
       }).sort((a, b) => b.eligibleBalance - a.eligibleBalance);
@@ -79,6 +82,7 @@ export function AdminBalanceBreakdown({ isTestMode }: AdminBalanceBreakdownProps
           id: w.id,
           name: profile?.full_name || 'Unknown Rider',
           eligibleBalance: Number(w[balanceField]) || 0,
+          pendingBalance: Number(w[pendingField]) || 0,
           totalEarned: Number(w[totalField]) || 0,
         };
       }).sort((a, b) => b.eligibleBalance - a.eligibleBalance);
@@ -90,6 +94,7 @@ export function AdminBalanceBreakdown({ isTestMode }: AdminBalanceBreakdownProps
           id: w.id,
           name: company?.name || 'Unknown Company',
           eligibleBalance: Number(w[balanceField]) || 0,
+          pendingBalance: Number(w[pendingField]) || 0,
           totalEarned: Number(w[totalField]) || 0,
         };
       }).sort((a, b) => b.eligibleBalance - a.eligibleBalance);
@@ -130,6 +135,7 @@ export function AdminBalanceBreakdown({ isTestMode }: AdminBalanceBreakdownProps
               <TableRow>
                 <TableHead>Name</TableHead>
                 {showOutlet && <TableHead>Outlet</TableHead>}
+                <TableHead className="text-right">Pending Balance</TableHead>
                 <TableHead className="text-right">Withdrawable Balance</TableHead>
                 <TableHead className="text-right">Total Earned</TableHead>
               </TableRow>
@@ -139,6 +145,9 @@ export function AdminBalanceBreakdown({ isTestMode }: AdminBalanceBreakdownProps
                 <TableRow key={entry.id}>
                   <TableCell className="font-medium">{entry.name}</TableCell>
                   {showOutlet && <TableCell className="text-muted-foreground">{entry.outletName || 'Main'}</TableCell>}
+                  <TableCell className="text-right font-semibold text-warning">
+                    {formatCurrency(entry.pendingBalance)}
+                  </TableCell>
                   <TableCell className="text-right font-semibold text-success">
                     {formatCurrency(entry.eligibleBalance)}
                   </TableCell>
@@ -151,6 +160,9 @@ export function AdminBalanceBreakdown({ isTestMode }: AdminBalanceBreakdownProps
                 <TableRow className="font-bold border-t-2">
                   <TableCell>Total</TableCell>
                   {showOutlet && <TableCell />}
+                  <TableCell className="text-right text-warning">
+                    {formatCurrency(entries.reduce((s, e) => s + e.pendingBalance, 0))}
+                  </TableCell>
                   <TableCell className="text-right text-success">
                     {formatCurrency(entries.reduce((s, e) => s + e.eligibleBalance, 0))}
                   </TableCell>
