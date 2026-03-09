@@ -27,6 +27,7 @@ import { DispatchStatus } from '@/components/vendor/DispatchStatus';
 import { ManualRiderAssignment } from '@/components/vendor/ManualRiderAssignment';
 import { RiderAssignmentDialog } from '@/components/vendor/RiderAssignmentDialog';
 import { CancelOrderDialog } from '@/components/vendor/CancelOrderDialog';
+import { OrderProofPhotoUpload } from '@/components/vendor/OrderProofPhotoUpload';
 import { PaginationControls } from '@/components/shared/PaginationControls';
 import { useAuth } from '@/hooks/useAuth';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
@@ -635,6 +636,17 @@ export default function VendorOrders() {
               </div>
             </CollapsibleContent>
           </Collapsible>
+
+          {/* Food proof photo upload for preparing/ready orders */}
+          {['preparing', 'ready_for_pickup'].includes(order.status) && vendor && (
+            <div className="mb-3">
+              <OrderProofPhotoUpload
+                orderId={order.id}
+                vendorId={vendor.id}
+                orderStatus={order.status}
+              />
+            </div>
+          )}
 
           <div className="flex items-center justify-between">
             <div>

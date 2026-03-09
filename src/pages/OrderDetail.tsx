@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BottomNav } from '@/components/home/BottomNav';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { RiderReviewForm } from '@/components/order/RiderReviewForm';
+import { DisputeReportForm } from '@/components/order/DisputeReportForm';
 import { RiderInfoCard } from '@/components/order/RiderInfoCard';
 import { ArrowLeft, Package, Check, Truck, MapPin, Phone, Loader2, Store, Clock, Bike, ShieldCheck, Star, CreditCard, AlertTriangle } from 'lucide-react';
 import { format, differenceInMinutes } from 'date-fns';
@@ -42,6 +43,7 @@ export default function OrderDetail() {
   const [loading, setLoading] = useState(true);
   const [hasReviewed, setHasReviewed] = useState(false);
   const [processingPayment, setProcessingPayment] = useState(false);
+  const [hasDispute, setHasDispute] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -129,6 +131,17 @@ export default function OrderDetail() {
           .maybeSingle();
         
         setHasReviewed(!!review);
+
+        // Check if a complaint was already filed
+        const { data: existingTicket } = await supabase
+          .from('support_tickets')
+          .select('id')
+          .eq('user_id', user?.id)
+          .ilike('subject', `%Order #${orderData.order_number}%`)
+          .eq('category', 'order_issue')
+          .maybeSingle();
+        
+        setHasDispute(!!existingTicket);
       }
     } catch (error) {
       console.error('Error fetching order:', error);
@@ -426,6 +439,24 @@ export default function OrderDetail() {
             <CardContent className="py-4 flex items-center gap-3">
               <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />
               <span className="text-muted-foreground">You've reviewed this order</span>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Dispute / Report Issue - Show after delivery if no dispute yet */}
+        {order.status === 'delivered' && !hasDispute && (
+          <DisputeReportForm
+            orderId={order.id}
+            orderNumber={order.order_number}
+            onSubmitted={() => setHasDispute(true)}
+          />
+        )}
+
+        {order.status === 'delivered' && hasDispute && (
+          <Card className="border-muted">
+            <CardContent className="py-4 flex items-center gap-3">
+              <AlertTriangle className="w-5 h-5 text-muted-foreground" />
+              <span className="text-muted-foreground text-sm">You've reported an issue for this order</span>
             </CardContent>
           </Card>
         )}

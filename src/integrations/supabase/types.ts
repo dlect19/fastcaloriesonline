@@ -1021,6 +1021,51 @@ export type Database = {
           },
         ]
       }
+      dispute_images: {
+        Row: {
+          created_at: string
+          dispute_id: string | null
+          id: string
+          image_url: string
+          order_id: string
+          storage_path: string
+          uploaded_by: string
+        }
+        Insert: {
+          created_at?: string
+          dispute_id?: string | null
+          id?: string
+          image_url: string
+          order_id: string
+          storage_path: string
+          uploaded_by: string
+        }
+        Update: {
+          created_at?: string
+          dispute_id?: string | null
+          id?: string
+          image_url?: string
+          order_id?: string
+          storage_path?: string
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dispute_images_dispute_id_fkey"
+            columns: ["dispute_id"]
+            isOneToOne: false
+            referencedRelation: "disputes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dispute_images_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       disputes: {
         Row: {
           approved_at: string | null
@@ -1028,6 +1073,7 @@ export type Database = {
           created_at: string
           created_by: string
           customer_id: string | null
+          customer_images: string[] | null
           customer_name: string | null
           customer_refund_reference: string | null
           delivery_fee: number | null
@@ -1060,6 +1106,7 @@ export type Database = {
           created_at?: string
           created_by: string
           customer_id?: string | null
+          customer_images?: string[] | null
           customer_name?: string | null
           customer_refund_reference?: string | null
           delivery_fee?: number | null
@@ -1092,6 +1139,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           customer_id?: string | null
+          customer_images?: string[] | null
           customer_name?: string | null
           customer_refund_reference?: string | null
           delivery_fee?: number | null
@@ -1688,6 +1736,54 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_proof_photos: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          order_id: string
+          photo_url: string
+          storage_path: string
+          uploaded_by: string
+          vendor_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          order_id: string
+          photo_url: string
+          storage_path: string
+          uploaded_by: string
+          vendor_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          order_id?: string
+          photo_url?: string
+          storage_path?: string
+          uploaded_by?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_proof_photos_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_proof_photos_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
             referencedColumns: ["id"]
           },
         ]
