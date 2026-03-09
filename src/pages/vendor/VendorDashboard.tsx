@@ -591,7 +591,7 @@ export default function VendorDashboard() {
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground">Pending (24hr hold)</p>
+                      <p className="text-xs text-muted-foreground">Pending ({settlementHours === 0 ? 'Immediate' : `${settlementHours || 24}hr hold`})</p>
                       <p className="text-xl font-bold text-warning">
                         {formatCurrency(computedMenuPending)}
                       </p>
