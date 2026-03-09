@@ -544,7 +544,7 @@ export default function VendorEarnings() {
                       {formatCurrency(computedMenuPending)}
                     </p>
                     <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Clock className="w-3 h-3" /> 24hr hold
+                      <Clock className="w-3 h-3" /> {settlementHours === 0 ? 'Immediate' : `${settlementHours || 24}hr hold`}
                     </p>
                   </div>
                 </div>
