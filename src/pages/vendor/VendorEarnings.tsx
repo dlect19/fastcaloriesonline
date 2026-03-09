@@ -120,7 +120,7 @@ export default function VendorEarnings() {
         if (staffRecord) {
           const { data: staffVendor } = await supabase
             .from('vendors')
-            .select('id, name, commission_rate')
+            .select('id, name, commission_rate, category')
             .eq('id', staffRecord.vendor_id)
             .single();
           vendorData = staffVendor;
