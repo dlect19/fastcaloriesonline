@@ -55,11 +55,21 @@ export default function Home() {
   useCapacitorPush();
 
   // On PWA launch, redirect to last-used portal if not customer
+  // Skip on native Capacitor apps — they have fixed identity (e.g. customer app = always customer)
   useEffect(() => {
-    const redirect = getPortalRedirect();
-    if (redirect) {
-      navigate(redirect, { replace: true });
-    }
+    import('@capacitor/core').then(({ Capacitor }) => {
+      if (Capacitor.isNativePlatform()) return; // Native app identity is fixed by package
+      const redirect = getPortalRedirect();
+      if (redirect) {
+        navigate(redirect, { replace: true });
+      }
+    }).catch(() => {
+      // Not in Capacitor — apply PWA portal memory
+      const redirect = getPortalRedirect();
+      if (redirect) {
+        navigate(redirect, { replace: true });
+      }
+    });
   }, []);
 
   // Redirect to profile setup if incomplete
