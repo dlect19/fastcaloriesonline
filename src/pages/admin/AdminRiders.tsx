@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Check, X, Loader2, ShieldCheck, Mail, AlertCircle, FlaskConical, FileImage, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
+import { AdminChangeEmailDialog } from '@/components/admin/AdminChangeEmailDialog';
 
 export default function AdminRiders() {
   const navigate = useNavigate();
