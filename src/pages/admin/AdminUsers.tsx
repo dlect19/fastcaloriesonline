@@ -4,14 +4,25 @@ import { supabase } from '@/integrations/supabase/client';
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Search, Loader2 } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Search, Loader2, Mail } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 
 export default function AdminUsers() {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<any[]>([]);
   const [search, setSearch] = useState('');
+
+  // Email change dialog
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [newEmail, setNewEmail] = useState('');
+  const [changingEmail, setChangingEmail] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -39,18 +50,15 @@ export default function AdminUsers() {
 
   const fetchUsers = async () => {
     try {
-      // Fetch profiles first
       const { data: profilesData } = await supabase
         .from('profiles')
         .select('*')
         .order('created_at', { ascending: false });
 
-      // Fetch all user roles separately
       const { data: rolesData } = await supabase
         .from('user_roles')
         .select('user_id, role');
 
-      // Merge roles into profiles
       const usersWithRoles = profilesData?.map(profile => ({
         ...profile,
         roles: rolesData?.filter(r => r.user_id === profile.user_id).map(r => r.role) || []
@@ -61,6 +69,37 @@ export default function AdminUsers() {
       console.error('Error fetching users:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleChangeEmail = async () => {
+    if (!selectedUser || !newEmail.trim()) {
+      toast({ title: 'Missing info', description: 'Enter a new email address', variant: 'destructive' });
+      return;
+    }
+
+    setChangingEmail(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await supabase.functions.invoke('admin-update-user-email', {
+        body: { userId: selectedUser.user_id, newEmail: newEmail.trim() },
+      });
+
+      if (res.error) throw new Error(res.error.message);
+      if (res.data?.error) throw new Error(res.data.error);
+
+      toast({
+        title: 'Email Updated',
+        description: `Login email for ${selectedUser.full_name || 'user'} changed to ${newEmail.trim()}`,
+      });
+
+      setEmailDialogOpen(false);
+      setNewEmail('');
+      setSelectedUser(null);
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message || 'Failed to update email', variant: 'destructive' });
+    } finally {
+      setChangingEmail(false);
     }
   };
 
@@ -112,6 +151,7 @@ export default function AdminUsers() {
                     <th className="text-left py-3 px-4 font-medium">Phone</th>
                     <th className="text-left py-3 px-4 font-medium">Roles</th>
                     <th className="text-left py-3 px-4 font-medium">Joined</th>
+                    <th className="text-left py-3 px-4 font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -125,6 +165,20 @@ export default function AdminUsers() {
                       <td className="py-3 px-4 text-muted-foreground">
                         {format(new Date(user.created_at), 'PP')}
                       </td>
+                      <td className="py-3 px-4">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedUser(user);
+                            setNewEmail('');
+                            setEmailDialogOpen(true);
+                          }}
+                        >
+                          <Mail className="w-4 h-4 text-primary mr-1" />
+                          Change Email
+                        </Button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -133,6 +187,48 @@ export default function AdminUsers() {
           </CardContent>
         </Card>
       </main>
+
+      {/* Change Email Dialog */}
+      <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Mail className="w-5 h-5 text-primary" />
+              Change Login Email
+            </DialogTitle>
+            <DialogDescription>
+              Update the login email for <strong>{selectedUser?.full_name || 'this user'}</strong>. The new email will be auto-confirmed.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="new-email">New Email Address</Label>
+              <Input
+                id="new-email"
+                type="email"
+                placeholder="Enter new email"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEmailDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={handleChangeEmail}
+              disabled={changingEmail || !newEmail.trim()}
+            >
+              {changingEmail ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Updating...</>
+              ) : (
+                'Update Email'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
