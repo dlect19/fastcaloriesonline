@@ -43,6 +43,7 @@ export default function OrderDetail() {
   const [loading, setLoading] = useState(true);
   const [hasReviewed, setHasReviewed] = useState(false);
   const [processingPayment, setProcessingPayment] = useState(false);
+  const [hasDispute, setHasDispute] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
