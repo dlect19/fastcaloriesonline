@@ -752,6 +752,9 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
           </Card>
         )}
 
+        {/* ── Photo Evidence ── */}
+        <OrderPhotoEvidence orderId={activeOrder.id} showDisputeImages />
+
         {/* ── Admin Complete Self-Pickup Order ── */}
         {activeOrder.delivery_type === 'self_pickup' && activeOrder.status !== 'delivered' && activeOrder.status !== 'cancelled' && (
           <Card className="border-primary/30 bg-primary/5">
