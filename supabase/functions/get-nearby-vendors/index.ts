@@ -288,8 +288,9 @@ serve(async (req) => {
 
     for (const outlet of candidates) {
       const vendor = (outlet as any).vendors;
+      // Use vendor→customer direction (delivery route) for accurate distance
       const gmResult = await getGoogleMapsDistance(
-        customer_lat, customer_lon, outlet.latitude, outlet.longitude
+        outlet.latitude, outlet.longitude, customer_lat, customer_lon
       );
       const distance = gmResult.distanceKm;
       const outletRadius = outlet.sales_radius ?? maxVisibilityRadius;
