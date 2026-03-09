@@ -4801,7 +4801,7 @@ export type Database = {
           p_adjust_type: string
           p_amount: number
           p_environment?: string
-          p_notes: string
+          p_notes?: string
           p_reference?: string
           p_wallet_id: string
         }
