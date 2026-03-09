@@ -34,6 +34,7 @@ export function AdminBalanceBreakdown({ isTestMode }: AdminBalanceBreakdownProps
     try {
       const balanceField = isTestMode ? 'test_eligible_balance' : 'eligible_balance';
       const totalField = isTestMode ? 'test_balance' : 'total_earned';
+      const pendingField = isTestMode ? 'test_pending_balance' : 'pending_balance';
 
       // Fetch all wallets with balance info
       const { data: wallets } = await supabase
