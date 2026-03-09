@@ -22,6 +22,9 @@ export default function AdminRiders() {
   const [riders, setRiders] = useState<any[]>([]);
   const [pendingRiders, setPendingRiders] = useState<any[]>([]);
   const [viewingDocument, setViewingDocument] = useState<{ url: string; name: string } | null>(null);
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [selectedRiderUserId, setSelectedRiderUserId] = useState<string | null>(null);
+  const [selectedRiderName, setSelectedRiderName] = useState('');
 
   useEffect(() => {
     checkAuth();

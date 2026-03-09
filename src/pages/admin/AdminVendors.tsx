@@ -324,6 +324,13 @@ export default function AdminVendors() {
           </TabsContent>
         </Tabs>
       </main>
+
+      <AdminChangeEmailDialog
+        open={emailDialogOpen}
+        onOpenChange={setEmailDialogOpen}
+        userId={selectedVendorUserId}
+        userName={selectedVendorName}
+      />
     </div>
   );
 }
