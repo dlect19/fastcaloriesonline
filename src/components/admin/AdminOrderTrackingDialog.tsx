@@ -21,6 +21,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { OrderPhotoEvidence } from '@/components/admin/OrderPhotoEvidence';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -751,6 +752,9 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
             </CardContent>
           </Card>
         )}
+
+        {/* ── Photo Evidence ── */}
+        <OrderPhotoEvidence orderId={activeOrder.id} showDisputeImages />
 
         {/* ── Admin Complete Self-Pickup Order ── */}
         {activeOrder.delivery_type === 'self_pickup' && activeOrder.status !== 'delivered' && activeOrder.status !== 'cancelled' && (
