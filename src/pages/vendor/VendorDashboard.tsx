@@ -261,6 +261,17 @@ export default function VendorDashboard() {
       
       setVendor(vendorData);
 
+      // Fetch settlement hours based on vendor category
+      if (vendorData?.category) {
+        const categoryKey = `settlement_hours_${(vendorData.category as string).toLowerCase()}`;
+        const { data: settlementData } = await supabase
+          .from('platform_settings')
+          .select('value')
+          .eq('key', categoryKey)
+          .maybeSingle();
+        setSettlementHours(settlementData ? parseInt(settlementData.value) : null);
+      }
+
       if (vendorData) {
         // Fetch recent orders for display (limit 5)
         let recentQuery = supabase
