@@ -82,6 +82,7 @@ export function AdminBalanceBreakdown({ isTestMode }: AdminBalanceBreakdownProps
           id: w.id,
           name: profile?.full_name || 'Unknown Rider',
           eligibleBalance: Number(w[balanceField]) || 0,
+          pendingBalance: Number(w[pendingField]) || 0,
           totalEarned: Number(w[totalField]) || 0,
         };
       }).sort((a, b) => b.eligibleBalance - a.eligibleBalance);
@@ -93,6 +94,7 @@ export function AdminBalanceBreakdown({ isTestMode }: AdminBalanceBreakdownProps
           id: w.id,
           name: company?.name || 'Unknown Company',
           eligibleBalance: Number(w[balanceField]) || 0,
+          pendingBalance: Number(w[pendingField]) || 0,
           totalEarned: Number(w[totalField]) || 0,
         };
       }).sort((a, b) => b.eligibleBalance - a.eligibleBalance);
