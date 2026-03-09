@@ -393,10 +393,18 @@ export default function VendorWithdraw() {
       return sum;
     }, 0));
 
-  // Use DB column values directly — the withdrawal trigger validates against these
-  // and they are the authoritative source maintained by credit/debit triggers
-  const safeMenuBalance = wallet?.menu_earnings_balance ?? 0;
-  const safeRiderBalance = wallet?.rider_revenue_balance ?? 0;
+  // Display uses ledger-computed values (consistent with Earnings page)
+  // Withdrawal validation uses min(ledger, DB) to prevent over-withdrawal
+  const dbMenuBalance = wallet?.menu_earnings_balance ?? 0;
+  const dbRiderBalance = wallet?.rider_revenue_balance ?? 0;
+  
+  // Use ledger values for display (same as Earnings page shows)
+  const displayMenuBalance = computedMenuBalance;
+  const displayRiderBalance = computedRiderBalance;
+  
+  // For withdrawal: use the minimum of ledger and DB to be safe
+  const safeMenuBalance = Math.min(computedMenuBalance, dbMenuBalance);
+  const safeRiderBalance = Math.min(computedRiderBalance, dbRiderBalance);
 
   // Track pending withdrawals for display, but don't block new ones
   const hasPendingWithdrawal = withdrawals.some(
