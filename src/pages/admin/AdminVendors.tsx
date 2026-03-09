@@ -7,12 +7,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
-import { Check, X, Loader2, FlaskConical, ShieldCheck } from 'lucide-react';
+import { Check, X, Loader2, FlaskConical, ShieldCheck, Mail } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { VendorCoordinateEditor } from '@/components/admin/VendorCoordinateEditor';
-
 import { AdminVendorNameEditor } from '@/components/admin/AdminVendorNameEditor';
 import { AdminOutletList } from '@/components/admin/AdminOutletList';
+import { AdminChangeEmailDialog } from '@/components/admin/AdminChangeEmailDialog';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 
 export default function AdminVendors() {
@@ -22,7 +22,10 @@ export default function AdminVendors() {
   const [loading, setLoading] = useState(true);
   const [vendors, setVendors] = useState<any[]>([]);
   const [pendingVendors, setPendingVendors] = useState<any[]>([]);
-  
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [selectedVendorUserId, setSelectedVendorUserId] = useState<string | null>(null);
+  const [selectedVendorName, setSelectedVendorName] = useState('');
+
 
   useEffect(() => {
     checkAuth();
@@ -219,6 +222,18 @@ export default function AdminVendors() {
                         </p>
                       </div>
                       <div className="flex items-center gap-4">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedVendorUserId(vendor.user_id);
+                            setSelectedVendorName(vendor.name);
+                            setEmailDialogOpen(true);
+                          }}
+                        >
+                          <Mail className="w-4 h-4 text-primary mr-1" />
+                          Change Email
+                        </Button>
                         <VendorCoordinateEditor vendor={vendor} onUpdate={fetchVendors} />
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-muted-foreground">Test Store</span>
@@ -309,6 +324,13 @@ export default function AdminVendors() {
           </TabsContent>
         </Tabs>
       </main>
+
+      <AdminChangeEmailDialog
+        open={emailDialogOpen}
+        onOpenChange={setEmailDialogOpen}
+        userId={selectedVendorUserId}
+        userName={selectedVendorName}
+      />
     </div>
   );
 }

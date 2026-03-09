@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Check, X, Loader2, ShieldCheck, Mail, AlertCircle, FlaskConical, FileImage, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
+import { AdminChangeEmailDialog } from '@/components/admin/AdminChangeEmailDialog';
 
 export default function AdminRiders() {
   const navigate = useNavigate();
@@ -21,6 +22,9 @@ export default function AdminRiders() {
   const [riders, setRiders] = useState<any[]>([]);
   const [pendingRiders, setPendingRiders] = useState<any[]>([]);
   const [viewingDocument, setViewingDocument] = useState<{ url: string; name: string } | null>(null);
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [selectedRiderUserId, setSelectedRiderUserId] = useState<string | null>(null);
+  const [selectedRiderName, setSelectedRiderName] = useState('');
 
   useEffect(() => {
     checkAuth();
@@ -184,6 +188,18 @@ export default function AdminRiders() {
                             <p className="text-sm text-muted-foreground">{rider.profile?.phone || '—'} • {rider.email || '—'}</p>
                           </div>
                           <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setSelectedRiderUserId(rider.user_id);
+                                setSelectedRiderName(rider.profile?.full_name || 'Rider');
+                                setEmailDialogOpen(true);
+                              }}
+                            >
+                              <Mail className="w-4 h-4 text-primary mr-1" />
+                              Change Email
+                            </Button>
                             <Button size="sm" onClick={() => approveRider(rider.id)}>
                               <Check className="w-4 h-4 mr-1" />
                               Approve
@@ -319,6 +335,18 @@ export default function AdminRiders() {
                           </div>
                         </div>
                         <div className="flex items-center gap-4">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedRiderUserId(rider.user_id);
+                              setSelectedRiderName(rider.profile?.full_name || 'Rider');
+                              setEmailDialogOpen(true);
+                            }}
+                          >
+                            <Mail className="w-4 h-4 text-primary mr-1" />
+                            Change Email
+                          </Button>
                           <div className="flex items-center gap-2">
                             <span className="text-xs text-muted-foreground">Test Rider</span>
                             <Switch
@@ -374,6 +402,13 @@ export default function AdminRiders() {
             )}
           </DialogContent>
         </Dialog>
+
+        <AdminChangeEmailDialog
+          open={emailDialogOpen}
+          onOpenChange={setEmailDialogOpen}
+          userId={selectedRiderUserId}
+          userName={selectedRiderName}
+        />
       </main>
     </div>
   );
