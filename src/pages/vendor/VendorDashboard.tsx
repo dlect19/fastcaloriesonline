@@ -46,6 +46,7 @@ export default function VendorDashboard() {
   const { playNotification } = useVendorNotificationSound();
   const { checkGeoLock } = useGeoLockCheck();
   const [vendor, setVendor] = useState<Vendor | null>(null);
+  const [settlementHours, setSettlementHours] = useState<number | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [walletData, setWalletData] = useState<any>(null);
@@ -259,6 +260,17 @@ export default function VendorDashboard() {
       }
       
       setVendor(vendorData);
+
+      // Fetch settlement hours based on vendor category
+      if (vendorData?.category) {
+        const categoryKey = `settlement_hours_${(vendorData.category as string).toLowerCase()}`;
+        const { data: settlementData } = await supabase
+          .from('platform_settings')
+          .select('value')
+          .eq('key', categoryKey)
+          .maybeSingle();
+        setSettlementHours(settlementData ? parseInt(settlementData.value) : null);
+      }
 
       if (vendorData) {
         // Fetch recent orders for display (limit 5)
@@ -590,7 +602,7 @@ export default function VendorDashboard() {
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground">Pending (24hr hold)</p>
+                      <p className="text-xs text-muted-foreground">Pending ({settlementHours === 0 ? 'Immediate' : `${settlementHours || 24}hr hold`})</p>
                       <p className="text-xl font-bold text-warning">
                         {formatCurrency(computedMenuPending)}
                       </p>

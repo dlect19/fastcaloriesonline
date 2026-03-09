@@ -23,6 +23,7 @@ interface Vendor {
   id: string;
   name: string;
   commission_rate: number | null;
+  category?: string;
 }
 
 interface VendorWallet {
@@ -60,6 +61,7 @@ export default function VendorEarnings() {
   const navigate = useNavigate();
   const { isTestMode } = useEnvironmentConfig();
   const [vendor, setVendor] = useState<Vendor | null>(null);
+  const [settlementHours, setSettlementHours] = useState<number | null>(null);
   const [wallet, setWallet] = useState<VendorWallet | null>(null);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [allTransactions, setAllTransactions] = useState<WalletTransaction[]>([]);
@@ -98,7 +100,7 @@ export default function VendorEarnings() {
       let vendorData = null;
       const { data: ownedVendor } = await supabase
         .from('vendors')
-        .select('id, name, commission_rate')
+        .select('id, name, commission_rate, category')
         .eq('user_id', user?.id)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -118,7 +120,7 @@ export default function VendorEarnings() {
         if (staffRecord) {
           const { data: staffVendor } = await supabase
             .from('vendors')
-            .select('id, name, commission_rate')
+            .select('id, name, commission_rate, category')
             .eq('id', staffRecord.vendor_id)
             .single();
           vendorData = staffVendor;
@@ -126,6 +128,17 @@ export default function VendorEarnings() {
       }
 
       setVendor(vendorData);
+
+      // Fetch settlement hours based on vendor category
+      if (vendorData?.category) {
+        const categoryKey = `settlement_hours_${vendorData.category.toLowerCase()}`;
+        const { data: settlementData } = await supabase
+          .from('platform_settings')
+          .select('value')
+          .eq('key', categoryKey)
+          .maybeSingle();
+        setSettlementHours(settlementData ? parseInt(settlementData.value) : null);
+      }
 
       if (!vendorData) {
         setLoading(false);
@@ -531,7 +544,7 @@ export default function VendorEarnings() {
                       {formatCurrency(computedMenuPending)}
                     </p>
                     <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Clock className="w-3 h-3" /> 24hr hold
+                      <Clock className="w-3 h-3" /> {settlementHours === 0 ? 'Immediate' : `${settlementHours || 24}hr hold`}
                     </p>
                   </div>
                 </div>
