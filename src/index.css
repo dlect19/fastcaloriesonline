@@ -175,3 +175,8 @@
     padding-top: env(safe-area-inset-top, 0px);
   }
 }
+
+/* Google Places Autocomplete dropdown — must sit above dialog overlays */
+.pac-container {
+  z-index: 100000 !important;
+}
