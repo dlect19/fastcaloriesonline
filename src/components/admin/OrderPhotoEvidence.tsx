@@ -9,8 +9,7 @@ import { format } from 'date-fns';
 interface ProofPhoto {
   id: string;
   photo_url: string;
-  photo_type: string;
-  uploaded_at: string;
+  created_at: string;
   expires_at: string;
 }
 
