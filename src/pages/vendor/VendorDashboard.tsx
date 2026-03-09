@@ -46,6 +46,7 @@ export default function VendorDashboard() {
   const { playNotification } = useVendorNotificationSound();
   const { checkGeoLock } = useGeoLockCheck();
   const [vendor, setVendor] = useState<Vendor | null>(null);
+  const [settlementHours, setSettlementHours] = useState<number | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [walletData, setWalletData] = useState<any>(null);
