@@ -181,24 +181,28 @@ export function useDeliveryFee({ vendorLat, vendorLon, customerLat, customerLon 
         return;
       }
 
+      console.log(`[DeliveryFee] Calculating distance: vendor(${vendorLat},${vendorLon}) → customer(${customerLat},${customerLon})`);
+      const haversineDist = calculateDistance(customerLat!, customerLon!, vendorLat!, vendorLon!);
+      console.log(`[DeliveryFee] Haversine straight-line: ${haversineDist.toFixed(2)}km`);
+
       // Try Google Maps via edge function (uses shared helper with automatic Haversine fallback)
       supabase.functions.invoke('calculate-distance', {
         body: { originLat: vendorLat, originLng: vendorLon, destLat: customerLat, destLng: customerLon },
       }).then(({ data, error }) => {
         if (data?.distanceInKm && !error) {
           const dist = data.distanceInKm < PROXIMITY_THRESHOLD_KM ? 0 : data.distanceInKm;
-          console.log(`Distance: ${data.distanceInKm}km → ${dist}km (source: ${data.source || 'edge_function'})`);
+          console.log(`[DeliveryFee] API result: ${data.distanceInKm}km (source: ${data.source}), haversine: ${haversineDist.toFixed(2)}km, using: ${dist}km`);
           setDistanceKm(dist);
         } else {
-          console.warn('Edge function failed, using client Haversine fallback:', error);
-          const haversineDist = calculateDistance(customerLat!, customerLon!, vendorLat!, vendorLon!);
+          console.warn('[DeliveryFee] Edge function failed, using Haversine fallback:', error);
           const adjustedDist = haversineDist < PROXIMITY_THRESHOLD_KM ? 0 : Math.round(haversineDist * 1.3 * 10) / 10;
+          console.log(`[DeliveryFee] Haversine fallback: ${haversineDist.toFixed(2)}km × 1.3 = ${adjustedDist}km`);
           setDistanceKm(adjustedDist);
         }
       }).catch((err) => {
-        console.warn('calculate-distance invocation failed:', err);
-        const haversineDist = calculateDistance(customerLat!, customerLon!, vendorLat!, vendorLon!);
+        console.warn('[DeliveryFee] calculate-distance invocation failed:', err);
         const adjustedDist = haversineDist < PROXIMITY_THRESHOLD_KM ? 0 : Math.round(haversineDist * 1.3 * 10) / 10;
+        console.log(`[DeliveryFee] Haversine fallback: ${haversineDist.toFixed(2)}km × 1.3 = ${adjustedDist}km`);
         setDistanceKm(adjustedDist);
       }).finally(() => setDistanceLoading(false));
     } else {
