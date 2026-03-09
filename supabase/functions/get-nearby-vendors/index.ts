@@ -120,12 +120,12 @@ serve(async (req) => {
       let gmResult = { distanceKm: 0, durationMinutes: null as number | null, source: 'none' };
 
       if (closestOutlet.latitude && closestOutlet.longitude) {
-        // Calculate actual distance for delivery fee — even for online outlets
+        // Calculate actual distance for delivery fee — vendor→customer direction (delivery route)
         gmResult = await getGoogleMapsDistance(
-          customer_lat, customer_lon, closestOutlet.latitude, closestOutlet.longitude
+          closestOutlet.latitude, closestOutlet.longitude, customer_lat, customer_lon
         );
         closestDistance = gmResult.distanceKm;
-        console.log(`Vendor distance (${gmResult.source}): ${closestDistance} km`);
+        console.log(`Vendor distance (${gmResult.source}): ${closestDistance} km (vendor→customer)`);
       }
 
       // Only enforce radius restriction for physical outlets
@@ -288,8 +288,9 @@ serve(async (req) => {
 
     for (const outlet of candidates) {
       const vendor = (outlet as any).vendors;
+      // Use vendor→customer direction (delivery route) for accurate distance
       const gmResult = await getGoogleMapsDistance(
-        customer_lat, customer_lon, outlet.latitude, outlet.longitude
+        outlet.latitude, outlet.longitude, customer_lat, customer_lon
       );
       const distance = gmResult.distanceKm;
       const outletRadius = outlet.sales_radius ?? maxVisibilityRadius;
@@ -354,8 +355,9 @@ serve(async (req) => {
       let onlineSource = 'online';
 
       if (outlet.latitude && outlet.longitude) {
+        // Use vendor→customer direction for consistency
         const onlineGm = await getGoogleMapsDistance(
-          customer_lat, customer_lon, outlet.latitude, outlet.longitude
+          outlet.latitude, outlet.longitude, customer_lat, customer_lon
         );
         onlineDistance = onlineGm.distanceKm;
         onlineEta = onlineGm.durationMinutes;
