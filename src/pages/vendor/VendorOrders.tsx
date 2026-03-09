@@ -637,6 +637,17 @@ export default function VendorOrders() {
             </CollapsibleContent>
           </Collapsible>
 
+          {/* Food proof photo upload for preparing/ready orders */}
+          {['preparing', 'ready_for_pickup'].includes(order.status) && vendor && (
+            <div className="mb-3">
+              <OrderProofPhotoUpload
+                orderId={order.id}
+                vendorId={vendor.id}
+                orderStatus={order.status}
+              />
+            </div>
+          )}
+
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">

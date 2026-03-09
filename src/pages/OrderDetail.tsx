@@ -443,6 +443,24 @@ export default function OrderDetail() {
           </Card>
         )}
 
+        {/* Dispute / Report Issue - Show after delivery if no dispute yet */}
+        {order.status === 'delivered' && !hasDispute && (
+          <DisputeReportForm
+            orderId={order.id}
+            orderNumber={order.order_number}
+            onSubmitted={() => setHasDispute(true)}
+          />
+        )}
+
+        {order.status === 'delivered' && hasDispute && (
+          <Card className="border-muted">
+            <CardContent className="py-4 flex items-center gap-3">
+              <AlertTriangle className="w-5 h-5 text-muted-foreground" />
+              <span className="text-muted-foreground text-sm">You've reported an issue for this order</span>
+            </CardContent>
+          </Card>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Order Items</CardTitle>
