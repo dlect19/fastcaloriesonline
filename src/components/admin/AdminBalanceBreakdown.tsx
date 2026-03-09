@@ -10,6 +10,7 @@ interface BalanceEntry {
   id: string;
   name: string;
   eligibleBalance: number;
+  pendingBalance: number;
   totalEarned: number;
   outletName?: string;
 }
