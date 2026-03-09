@@ -61,6 +61,7 @@ export default function VendorEarnings() {
   const navigate = useNavigate();
   const { isTestMode } = useEnvironmentConfig();
   const [vendor, setVendor] = useState<Vendor | null>(null);
+  const [settlementHours, setSettlementHours] = useState<number | null>(null);
   const [wallet, setWallet] = useState<VendorWallet | null>(null);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [allTransactions, setAllTransactions] = useState<WalletTransaction[]>([]);
