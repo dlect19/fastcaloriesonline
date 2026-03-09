@@ -19,7 +19,7 @@ workflows:
       - name: Generate Gradle wrapper
         script: |
           cd android
-          gradle wrapper --gradle-version 8.9
+          gradle wrapper --gradle-version 8.11.1
           chmod +x gradlew
       - name: Build Android APK
         script: |
@@ -57,7 +57,7 @@ workflows:
       - name: Generate Gradle wrapper
         script: |
           cd android
-          gradle wrapper --gradle-version 8.9
+          gradle wrapper --gradle-version 8.11.1
           chmod +x gradlew
       - name: Build Android Release
         script: |
