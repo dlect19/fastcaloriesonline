@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BottomNav } from '@/components/home/BottomNav';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { RiderReviewForm } from '@/components/order/RiderReviewForm';
+import { DisputeReportForm } from '@/components/order/DisputeReportForm';
 import { RiderInfoCard } from '@/components/order/RiderInfoCard';
 import { ArrowLeft, Package, Check, Truck, MapPin, Phone, Loader2, Store, Clock, Bike, ShieldCheck, Star, CreditCard, AlertTriangle } from 'lucide-react';
 import { format, differenceInMinutes } from 'date-fns';
