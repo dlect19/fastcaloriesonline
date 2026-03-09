@@ -16,10 +16,14 @@ workflows:
       - name: Sync Capacitor
         script: |
           npx cap sync android
+      - name: Generate Gradle wrapper
+        script: |
+          cd android
+          gradle wrapper --gradle-version 8.5
+          chmod +x gradlew
       - name: Build Android APK
         script: |
           cd android
-          chmod +x gradlew || true
           ./gradlew assembleDebug
     artifacts:
       - android/app/build/outputs/**/*.apk
