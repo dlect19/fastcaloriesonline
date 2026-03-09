@@ -27,8 +27,8 @@ export function usePortalMemory() {
         return;
       }
     }
-    // Customer pages (home, explore, orders, etc.)
-    if (path === '/' || path.startsWith('/explore') || path.startsWith('/orders') || path.startsWith('/cart') || path.startsWith('/profile') || path.startsWith('/vendor/') === false) {
+    // Only mark as customer on actual customer pages (not root '/' which is the PWA entry point)
+    if (path.startsWith('/explore') || path.startsWith('/orders') || path.startsWith('/cart') || path.startsWith('/profile') || path.startsWith('/favorites') || path.startsWith('/rewards') || path.startsWith('/support')) {
       localStorage.setItem(PORTAL_KEY, 'customer');
     }
   }, [location.pathname]);
