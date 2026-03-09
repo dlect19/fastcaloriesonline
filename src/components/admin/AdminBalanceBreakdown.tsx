@@ -140,6 +140,9 @@ export function AdminBalanceBreakdown({ isTestMode }: AdminBalanceBreakdownProps
                 <TableRow key={entry.id}>
                   <TableCell className="font-medium">{entry.name}</TableCell>
                   {showOutlet && <TableCell className="text-muted-foreground">{entry.outletName || 'Main'}</TableCell>}
+                  <TableCell className="text-right font-semibold text-warning">
+                    {formatCurrency(entry.pendingBalance)}
+                  </TableCell>
                   <TableCell className="text-right font-semibold text-success">
                     {formatCurrency(entry.eligibleBalance)}
                   </TableCell>
@@ -152,6 +155,9 @@ export function AdminBalanceBreakdown({ isTestMode }: AdminBalanceBreakdownProps
                 <TableRow className="font-bold border-t-2">
                   <TableCell>Total</TableCell>
                   {showOutlet && <TableCell />}
+                  <TableCell className="text-right text-warning">
+                    {formatCurrency(entries.reduce((s, e) => s + e.pendingBalance, 0))}
+                  </TableCell>
                   <TableCell className="text-right text-success">
                     {formatCurrency(entries.reduce((s, e) => s + e.eligibleBalance, 0))}
                   </TableCell>
