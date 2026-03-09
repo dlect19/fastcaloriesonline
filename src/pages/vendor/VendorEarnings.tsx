@@ -129,6 +129,17 @@ export default function VendorEarnings() {
 
       setVendor(vendorData);
 
+      // Fetch settlement hours based on vendor category
+      if (vendorData?.category) {
+        const categoryKey = `settlement_hours_${vendorData.category.toLowerCase()}`;
+        const { data: settlementData } = await supabase
+          .from('platform_settings')
+          .select('value')
+          .eq('key', categoryKey)
+          .maybeSingle();
+        setSettlementHours(settlementData ? parseInt(settlementData.value) : null);
+      }
+
       if (!vendorData) {
         setLoading(false);
         return;
