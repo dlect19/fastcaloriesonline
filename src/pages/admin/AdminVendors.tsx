@@ -7,12 +7,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
-import { Check, X, Loader2, FlaskConical, ShieldCheck } from 'lucide-react';
+import { Check, X, Loader2, FlaskConical, ShieldCheck, Mail } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { VendorCoordinateEditor } from '@/components/admin/VendorCoordinateEditor';
-
 import { AdminVendorNameEditor } from '@/components/admin/AdminVendorNameEditor';
 import { AdminOutletList } from '@/components/admin/AdminOutletList';
+import { AdminChangeEmailDialog } from '@/components/admin/AdminChangeEmailDialog';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 
 export default function AdminVendors() {
