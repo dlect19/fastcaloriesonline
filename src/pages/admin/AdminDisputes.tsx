@@ -279,45 +279,45 @@ export default function AdminDisputes() {
                   </div>
 
                   {foundOrder && (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4 bg-muted/50 rounded-lg">
-                      <div>
-                        <p className="text-xs text-muted-foreground">Order #</p>
-                        <p className="font-mono font-medium">{foundOrder.order_number}</p>
+                    <>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4 bg-muted/50 rounded-lg">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Order #</p>
+                          <p className="font-mono font-medium">{foundOrder.order_number}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Total</p>
+                          <p className="font-medium">₦{foundOrder.total.toLocaleString()}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Delivery Fee</p>
+                          <p className="font-medium">₦{foundOrder.delivery_fee.toLocaleString()}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Payment</p>
+                          <Badge variant={foundOrder.payment_status === 'paid' ? 'default' : 'destructive'}>
+                            {foundOrder.payment_status}
+                          </Badge>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Customer</p>
+                          <p className="text-sm">{foundOrder.customer_name}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Vendor</p>
+                          <p className="text-sm">{foundOrder.vendor_name}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Rider</p>
+                          <p className="text-sm">{foundOrder.rider_name || 'Not assigned'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Vendor Payout</p>
+                          <p className="text-sm">₦{(foundOrder.vendor_payout || 0).toLocaleString()}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Total</p>
-                        <p className="font-medium">₦{foundOrder.total.toLocaleString()}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Delivery Fee</p>
-                        <p className="font-medium">₦{foundOrder.delivery_fee.toLocaleString()}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Payment</p>
-                        <Badge variant={foundOrder.payment_status === 'paid' ? 'default' : 'destructive'}>
-                          {foundOrder.payment_status}
-                        </Badge>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Customer</p>
-                        <p className="text-sm">{foundOrder.customer_name}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Vendor</p>
-                        <p className="text-sm">{foundOrder.vendor_name}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Rider</p>
-                        <p className="text-sm">{foundOrder.rider_name || 'Not assigned'}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Vendor Payout</p>
-                        <p className="text-sm">₦{(foundOrder.vendor_payout || 0).toLocaleString()}</p>
-                      </div>
-                    </div>
-
-                    {/* Photo Evidence for this order */}
-                    <OrderPhotoEvidence orderId={foundOrder.id} showDisputeImages />
+                      <OrderPhotoEvidence orderId={foundOrder.id} showDisputeImages />
+                    </>
                   )}
                 </CardContent>
               </Card>
