@@ -70,6 +70,7 @@ export function AdminBalanceBreakdown({ isTestMode }: AdminBalanceBreakdownProps
           name: vendor?.name || 'Unknown Vendor',
           outletName: outlet?.outlet_name || undefined,
           eligibleBalance: Number(w[balanceField]) || 0,
+          pendingBalance: Number(w[pendingField]) || 0,
           totalEarned: Number(w[totalField]) || 0,
         };
       }).sort((a, b) => b.eligibleBalance - a.eligibleBalance);
