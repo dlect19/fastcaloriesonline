@@ -1,4 +1,4 @@
-package app.lovable.fastcalories;
+package com.fastcalories.customer;
 
 import com.getcapacitor.BridgeActivity;
 
