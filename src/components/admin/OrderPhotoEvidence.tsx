@@ -36,9 +36,9 @@ export function OrderPhotoEvidence({ orderId, showDisputeImages = false }: Order
 
       const proofRes = await supabase
         .from('order_proof_photos')
-        .select('id, photo_url, photo_type, uploaded_at, expires_at')
+        .select('id, photo_url, created_at, expires_at')
         .eq('order_id', orderId)
-        .order('uploaded_at', { ascending: true });
+        .order('created_at', { ascending: true });
 
       setProofPhotos((proofRes.data as ProofPhoto[]) || []);
 
