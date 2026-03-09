@@ -100,7 +100,7 @@ export default function VendorEarnings() {
       let vendorData = null;
       const { data: ownedVendor } = await supabase
         .from('vendors')
-        .select('id, name, commission_rate')
+        .select('id, name, commission_rate, category')
         .eq('user_id', user?.id)
         .order('created_at', { ascending: false })
         .limit(1)
