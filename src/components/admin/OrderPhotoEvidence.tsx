@@ -34,26 +34,23 @@ export function OrderPhotoEvidence({ orderId, showDisputeImages = false }: Order
   useEffect(() => {
     const fetch = async () => {
       setLoading(true);
-      const promises: Promise<any>[] = [];
 
-      // Vendor proof photos
-      promises.push(
-        supabase
-          .from('order_proof_photos')
-          .select('id, photo_url, photo_type, uploaded_at, expires_at')
-          .eq('order_id', orderId)
-          .order('uploaded_at', { ascending: true })
-      );
+      const proofRes = await supabase
+        .from('order_proof_photos')
+        .select('id, photo_url, photo_type, uploaded_at, expires_at')
+        .eq('order_id', orderId)
+        .order('uploaded_at', { ascending: true });
 
-      // Customer dispute images
+      setProofPhotos((proofRes.data as ProofPhoto[]) || []);
+
       if (showDisputeImages) {
-        promises.push(
-          supabase
-            .from('dispute_images')
-            .select('id, image_url, created_at')
-            .eq('order_id', orderId)
-            .order('created_at', { ascending: true })
-        );
+        const disputeRes = await supabase
+          .from('dispute_images')
+          .select('id, image_url, created_at')
+          .eq('order_id', orderId)
+          .order('created_at', { ascending: true });
+
+        setDisputeImages((disputeRes.data as DisputeImage[]) || []);
       }
 
       const results = await Promise.all(promises);
