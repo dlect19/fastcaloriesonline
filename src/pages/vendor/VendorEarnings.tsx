@@ -23,6 +23,7 @@ interface Vendor {
   id: string;
   name: string;
   commission_rate: number | null;
+  category?: string;
 }
 
 interface VendorWallet {
