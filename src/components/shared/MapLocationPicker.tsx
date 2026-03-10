@@ -37,6 +37,7 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
   const searchInputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const ignoreMapClickRef = useRef(false);
+  const cleanupRef = useRef<(() => void) | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -151,8 +152,19 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
           // Suppress map click when interacting with autocomplete dropdown
           searchInputRef.current.addEventListener('focus', () => { ignoreMapClickRef.current = true; });
           searchInputRef.current.addEventListener('blur', () => {
-            setTimeout(() => { ignoreMapClickRef.current = false; }, 300);
+            // Longer delay to let pac-container tap register on mobile
+            setTimeout(() => { ignoreMapClickRef.current = false; }, 800);
           });
+
+          // Intercept touches/clicks on the pac-container to keep map clicks suppressed
+          const suppressMapFromPac = (evt: Event) => {
+            const target = evt.target as HTMLElement;
+            if (target?.closest('.pac-container')) {
+              ignoreMapClickRef.current = true;
+            }
+          };
+          document.addEventListener('mousedown', suppressMapFromPac, true);
+          document.addEventListener('touchstart', suppressMapFromPac, true);
 
           autocomplete.addListener('place_changed', () => {
             ignoreMapClickRef.current = true;
@@ -165,8 +177,15 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
               placeMarker(lat, lng);
               onLocationSelect(lat, lng);
             }
-            setTimeout(() => { ignoreMapClickRef.current = false; }, 500);
+            setTimeout(() => { ignoreMapClickRef.current = false; }, 1000);
           });
+
+          // Cleanup listeners on unmount
+          const cleanup = () => {
+            document.removeEventListener('mousedown', suppressMapFromPac, true);
+            document.removeEventListener('touchstart', suppressMapFromPac, true);
+          };
+          cleanupRef.current = cleanup;
         }
 
         setLoading(false);
@@ -176,7 +195,7 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
       }
     })();
 
-    return () => { cancelled = true; };
+    return () => { cancelled = true; cleanupRef.current?.(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
