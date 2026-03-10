@@ -47,6 +47,7 @@ const menuItems: MenuItem[] = [
   { icon: HelpCircle, label: 'FAQ', path: '/admin/faq', requiredPermission: 'platform_settings' },
   { icon: MessageSquare, label: 'Support', path: '/admin/support', requiredPermission: 'handle_support' },
   { icon: Megaphone, label: 'Notifications', path: '/admin/notifications', requiredPermission: 'platform_settings' },
+  { icon: Map, label: 'Coverage Areas', path: '/admin/coverage-areas', requiredPermission: 'platform_settings' },
   { icon: Settings, label: 'Settings', path: '/admin/settings', requiredPermission: 'platform_settings' },
 ];
 
