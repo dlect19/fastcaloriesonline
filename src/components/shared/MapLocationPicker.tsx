@@ -40,6 +40,7 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
   const cleanupRef = useRef<(() => void) | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchFocused, setSearchFocused] = useState(false);
 
   const defaultLat = latitude || 6.5244;
   const defaultLng = longitude || 3.3792;
