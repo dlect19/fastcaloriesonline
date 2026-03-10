@@ -61,19 +61,41 @@ Deno.serve(async (req) => {
       if (originalDeliveryFee > 0 && order.payment_status === "paid") {
         const { data: customerWallet } = await supabase
           .from("wallets")
-          .select("id")
+          .select("id, balance, test_balance")
           .eq("user_id", order.user_id)
           .eq("wallet_type", "customer")
           .maybeSingle();
 
         if (customerWallet) {
-          await supabase.rpc("admin_adjust_wallet_balance", {
-            p_wallet_id: customerWallet.id,
-            p_amount: originalDeliveryFee,
-            p_adjust_type: "credit",
-            p_notes: `Delivery fee refund - order #${order.order_number} switched to self-pickup by admin`,
-            p_environment: isTest ? "development" : "production",
+          // Direct update with service role (admin_adjust_wallet_balance requires auth.uid())
+          const balanceField = isTest ? "test_balance" : "balance";
+          const currentBal = Number(isTest ? customerWallet.test_balance : customerWallet.balance) || 0;
+          const newBal = currentBal + originalDeliveryFee;
+
+          const { error: walletErr } = await supabase
+            .from("wallets")
+            .update({ [balanceField]: newBal, updated_at: new Date().toISOString() })
+            .eq("id", customerWallet.id);
+
+          if (walletErr) {
+            console.error("Wallet credit error:", walletErr);
+            throw new Error("Failed to refund delivery fee to customer wallet");
+          }
+
+          // Record transaction in ledger
+          await supabase.from("wallet_transactions").insert({
+            wallet_id: customerWallet.id,
+            wallet_type: "customer",
+            transaction_type: "credit",
+            category: "admin_credit",
+            amount: originalDeliveryFee,
+            balance_after: newBal,
+            status: "completed",
+            environment: isTest ? "development" : "production",
+            notes: `Delivery fee refund - order #${order.order_number} switched to self-pickup by admin`,
           });
+
+          console.log(`Refunded ₦${originalDeliveryFee} to customer wallet ${customerWallet.id}`);
         }
       }
 
