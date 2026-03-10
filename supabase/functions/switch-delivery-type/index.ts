@@ -43,6 +43,15 @@ Deno.serve(async (req) => {
       .single();
     if (orderErr || !order) throw new Error("Order not found");
 
+    // Allow admin OR order owner (customer)
+    const isOrderOwner = order.user_id === user.id;
+    if (!isAdmin && !isOrderOwner) throw new Error("Access denied - not admin or order owner");
+
+    // Customer can only switch if no rider assigned (delivery→pickup)
+    if (!isAdmin && isOrderOwner && order.rider_id && order.delivery_type !== "self_pickup") {
+      throw new Error("Cannot switch - a rider is already assigned to this order");
+    }
+
     if (order.status === "delivered" || order.status === "cancelled") {
       throw new Error("Cannot change delivery type on completed/cancelled orders");
     }
