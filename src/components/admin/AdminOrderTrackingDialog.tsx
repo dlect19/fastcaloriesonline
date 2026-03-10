@@ -756,9 +756,24 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
 
                       setChangingDeliveryType(true);
                       try {
-                        const { data, error } = await supabase.functions.invoke('switch-delivery-type', {
-                          body: { orderId: activeOrder.id, newDeliveryType: newType },
-                        });
+                        const { data: sessionData } = await supabase.auth.getSession();
+                        const accessToken = sessionData?.session?.access_token;
+                        if (!accessToken) throw new Error('Not authenticated. Please sign in again.');
+                        
+                        const response = await fetch(
+                          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/switch-delivery-type`,
+                          {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              'Authorization': `Bearer ${accessToken}`,
+                              'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+                            },
+                            body: JSON.stringify({ orderId: activeOrder.id, newDeliveryType: newType }),
+                          }
+                        );
+                        const data = await response.json();
+                        const error = !response.ok ? new Error(data?.message || 'Function failed') : null;
                         if (error) throw error;
                         if (!data?.success) throw new Error(data?.message || 'Failed to switch');
                         toast({ title: '✅ Delivery method updated', description: data.message });
