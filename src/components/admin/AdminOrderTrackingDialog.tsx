@@ -725,7 +725,65 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
         </Card>
 
 
-        {/* ── Order Items ── */}
+        {/* ── Change Delivery Type ── */}
+        {activeOrder.status !== 'delivered' && activeOrder.status !== 'cancelled' && (
+          <Card>
+            <CardContent className="py-3 px-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <Repeat className="w-4 h-4 text-primary shrink-0" />
+                <div>
+                  <p className="text-sm font-medium">Delivery Method</p>
+                  <p className="text-xs text-muted-foreground">
+                    Currently: {(activeOrder.delivery_type || 'delivery').replace(/_/g, ' ')}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Select
+                  value={activeOrder.delivery_type || 'delivery'}
+                  onValueChange={async (newType) => {
+                    if (newType === (activeOrder.delivery_type || 'delivery')) return;
+                    setChangingDeliveryType(true);
+                    try {
+                      const updates: Record<string, any> = {
+                        delivery_type: newType,
+                      };
+                      // If switching to self_pickup, zero out delivery fee
+                      if (newType === 'self_pickup') {
+                        updates.delivery_fee = 0;
+                        updates.delivery_address = `Self-pickup at vendor`;
+                      }
+                      const { error } = await supabase
+                        .from('orders')
+                        .update(updates)
+                        .eq('id', activeOrder.id);
+                      if (error) throw error;
+                      toast({ title: `✅ Changed to ${newType.replace(/_/g, ' ')}` });
+                      setLiveOrder(prev => prev ? { ...prev, ...updates } : prev);
+                      onUpdated();
+                    } catch (e: any) {
+                      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+                    } finally {
+                      setChangingDeliveryType(false);
+                    }
+                  }}
+                  disabled={changingDeliveryType}
+                >
+                  <SelectTrigger className="w-36 h-8 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="delivery">Delivery</SelectItem>
+                    <SelectItem value="self_pickup">Self Pickup</SelectItem>
+                  </SelectContent>
+                </Select>
+                {changingDeliveryType && <Loader2 className="w-4 h-4 animate-spin text-primary" />}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+
         {orderItems.length > 0 && (
           <Card>
             <CardHeader className="pb-2 pt-3 px-4">
