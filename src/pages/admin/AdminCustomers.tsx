@@ -23,6 +23,7 @@ import { format } from 'date-fns';
    order_count: number;
    total_spent: number;
    wallet_balance: number;
+   roles: string[];
  }
  
 export default function AdminCustomers() {
@@ -80,7 +81,19 @@ export default function AdminCustomers() {
          setLoading(false);
          return;
        }
- 
+
+       // Fetch ALL roles for these users
+       const { data: allRoles } = await supabase
+         .from('user_roles')
+         .select('user_id, role')
+         .in('user_id', customerUserIds);
+
+       const rolesByUser: Record<string, string[]> = {};
+       allRoles?.forEach(r => {
+         if (!rolesByUser[r.user_id]) rolesByUser[r.user_id] = [];
+         rolesByUser[r.user_id].push(r.role);
+       });
+
        // Fetch profiles for these users
        const { data: profilesData } = await supabase
          .from('profiles')
@@ -129,6 +142,7 @@ export default function AdminCustomers() {
          order_count: orderStatsByUser[profile.user_id]?.count || 0,
          total_spent: orderStatsByUser[profile.user_id]?.total || 0,
          wallet_balance: walletsByUser[profile.user_id] || 0,
+         roles: rolesByUser[profile.user_id] || ['customer'],
        })) || [];
  
        setCustomers(customersWithStats);
@@ -301,6 +315,7 @@ export default function AdminCustomers() {
                       <th className="text-left py-3 px-4 font-medium">Orders</th>
                       <th className="text-left py-3 px-4 font-medium">Total Spent</th>
                       <th className="text-left py-3 px-4 font-medium">Wallet</th>
+                      <th className="text-left py-3 px-4 font-medium">Roles</th>
                       <th className="text-left py-3 px-4 font-medium">Joined</th>
                       <th className="text-left py-3 px-4 font-medium">Actions</th>
                     </tr>
@@ -318,9 +333,28 @@ export default function AdminCustomers() {
                         </td>
                         <td className="py-3 px-4">
                           ₦{customer.wallet_balance.toLocaleString()}
-                        </td>
-                        <td className="py-3 px-4 text-muted-foreground">
-                          {format(new Date(customer.created_at), 'PP')}
+                         </td>
+                         <td className="py-3 px-4">
+                           <div className="flex flex-wrap gap-1">
+                             {customer.roles.map(role => {
+                               const roleConfig: Record<string, { label: string; className: string }> = {
+                                 customer: { label: 'Customer', className: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
+                                 vendor: { label: 'Vendor', className: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
+                                 rider: { label: 'Rider', className: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' },
+                                 delivery_company: { label: 'Logistics', className: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' },
+                                 admin: { label: 'Admin', className: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' },
+                               };
+                               const config = roleConfig[role] || { label: role, className: 'bg-muted text-muted-foreground' };
+                               return (
+                                 <Badge key={role} variant="outline" className={`text-xs ${config.className}`}>
+                                   {config.label}
+                                 </Badge>
+                               );
+                             })}
+                           </div>
+                         </td>
+                         <td className="py-3 px-4 text-muted-foreground">
+                           {format(new Date(customer.created_at), 'PP')}
                         </td>
                         <td className="py-3 px-4">
                           <Button
@@ -340,7 +374,7 @@ export default function AdminCustomers() {
                     ))}
                     {filteredCustomers.length === 0 && (
                       <tr>
-                        <td colSpan={7} className="py-8 text-center text-muted-foreground">
+                        <td colSpan={8} className="py-8 text-center text-muted-foreground">
                           No customers found
                         </td>
                       </tr>
