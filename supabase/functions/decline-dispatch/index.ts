@@ -104,7 +104,8 @@ async function escalateToNextTier(
       riderLon
     );
     
-    const riderWorkRadius = rider.work_radius_km || dispatchRequest.search_radius_km;
+    const vehicleRadius = rider.vehicle_type ? vehicleDispatchRadii[rider.vehicle_type] : null;
+    const riderWorkRadius = vehicleRadius || rider.work_radius_km || dispatchRequest.search_radius_km;
     return distance <= dispatchRequest.search_radius_km && distance <= riderWorkRadius;
   });
 
