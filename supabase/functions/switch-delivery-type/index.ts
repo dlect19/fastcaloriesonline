@@ -157,13 +157,32 @@ Deno.serve(async (req) => {
       }
 
       if (order.payment_status === "paid" && customerWallet) {
-        await supabase.rpc("admin_adjust_wallet_balance", {
-          p_wallet_id: customerWallet.id,
-          p_amount: baseDeliveryFee,
-          p_adjust_type: "debit",
-          p_notes: `Delivery fee charge - order #${order.order_number} switched to delivery by admin`,
-          p_environment: isTest ? "development" : "production",
+        const balanceField = isTest ? "test_balance" : "balance";
+        const newBal = walletBalance - baseDeliveryFee;
+
+        const { error: walletErr } = await supabase
+          .from("wallets")
+          .update({ [balanceField]: newBal, updated_at: new Date().toISOString() })
+          .eq("id", customerWallet.id);
+
+        if (walletErr) {
+          console.error("Wallet debit error:", walletErr);
+          throw new Error("Failed to charge delivery fee from customer wallet");
+        }
+
+        await supabase.from("wallet_transactions").insert({
+          wallet_id: customerWallet.id,
+          wallet_type: "customer",
+          transaction_type: "debit",
+          category: "admin_debit",
+          amount: baseDeliveryFee,
+          balance_after: newBal,
+          status: "completed",
+          environment: isTest ? "development" : "production",
+          notes: `Delivery fee charge - order #${order.order_number} switched to delivery by admin`,
         });
+
+        console.log(`Charged ₦${baseDeliveryFee} from customer wallet ${customerWallet.id}`);
       }
 
       const newTotal = Number(order.total) + baseDeliveryFee;
