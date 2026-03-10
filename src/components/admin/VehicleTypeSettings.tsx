@@ -50,13 +50,14 @@ export function VehicleTypeSettings() {
       for (const config of configs) {
         const { error } = await supabase
           .from('vehicle_type_configs')
-          .update({
-            max_delivery_distance_km: config.max_delivery_distance_km,
-            base_delivery_rate: config.base_delivery_rate,
-            per_km_rate: config.per_km_rate,
-            is_active: config.is_active,
-            updated_at: new Date().toISOString(),
-          })
+           .update({
+             max_delivery_distance_km: config.max_delivery_distance_km,
+             base_delivery_rate: config.base_delivery_rate,
+             per_km_rate: config.per_km_rate,
+             dispatch_radius_km: config.dispatch_radius_km,
+             is_active: config.is_active,
+             updated_at: new Date().toISOString(),
+           } as any)
           .eq('id', config.id);
 
         if (error) throw error;
