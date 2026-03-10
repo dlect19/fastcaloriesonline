@@ -452,6 +452,8 @@ serve(async (req) => {
         total_count: nearbyVendors.length,
         max_radius_km: maxVisibilityRadius,
         customer_location: { lat: customer_lat, lon: customer_lon },
+        coverage_areas: activeCoverageAreas,
+        customer_in_coverage: customerInCoverage,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
