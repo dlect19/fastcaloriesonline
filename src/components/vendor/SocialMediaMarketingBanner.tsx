@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { Download, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { useSocialLogos } from '@/hooks/useSocialLogos';
 import type { SocialMediaHandles } from './StoreTypeField';
 
 /* ── Platform metadata with SVG icons ────────────────────────── */
