@@ -36,6 +36,8 @@ export function VendorGrid({
     geoError,
     hasLocation,
     maxRadius,
+    customerInCoverage,
+    coverageAreas,
     refetch,
     requestLocation,
   } = useLocationBasedVendors({
