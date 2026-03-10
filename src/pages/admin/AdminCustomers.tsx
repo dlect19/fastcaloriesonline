@@ -23,6 +23,7 @@ import { format } from 'date-fns';
    order_count: number;
    total_spent: number;
    wallet_balance: number;
+   roles: string[];
  }
  
 export default function AdminCustomers() {
