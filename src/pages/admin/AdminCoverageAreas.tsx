@@ -105,6 +105,8 @@ export default function AdminCoverageAreas() {
           fullscreenControl: true,
         });
         mapInstanceRef.current = map;
+        autocompleteServiceRef.current = new google.maps.places.AutocompleteService();
+        placesServiceRef.current = new google.maps.places.PlacesService(map);
         setMapLoading(false);
       } catch (err) {
         console.error('Map init error:', err);
