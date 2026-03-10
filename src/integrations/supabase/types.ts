@@ -608,6 +608,39 @@ export type Database = {
         }
         Relationships: []
       }
+      coverage_areas: {
+        Row: {
+          color: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          name: string
+          polygon: Json
+          updated_at: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          polygon?: Json
+          updated_at?: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          polygon?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       cuisine_categories: {
         Row: {
           created_at: string | null
