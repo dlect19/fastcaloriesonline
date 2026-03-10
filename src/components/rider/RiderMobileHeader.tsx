@@ -15,21 +15,6 @@ interface RiderMobileHeaderProps {
 
 export function RiderMobileHeader({ isOnline, onToggleOnline }: RiderMobileHeaderProps) {
 
-  const handleDismiss = () => {
-    setDismissed(true);
-    sessionStorage.setItem('rider_apk_dismissed', 'true');
-  };
-
-  const handleDownload = async () => {
-    if (downloading) return;
-    setDownloading(true);
-    try {
-      await downloadApk('/downloads/fastcalories-rider.apk');
-    } finally {
-      setTimeout(() => setDownloading(false), 3000);
-    }
-  };
-
   return (
     <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border md:hidden">
       <div className="flex items-center justify-between p-4">
