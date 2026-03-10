@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { VendorCard } from './VendorCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import { MapPin, Navigation, AlertCircle } from 'lucide-react';
+import { MapPin, Navigation, AlertCircle, ShieldAlert } from 'lucide-react';
 import { useLocationBasedVendors, VendorWithDistance } from '@/hooks/useLocationBasedVendors';
 import { formatDistance, calculateDistance } from '@/lib/location';
 
