@@ -67,6 +67,10 @@ export default function AdminCoverageAreas() {
   const [editName, setEditName] = useState('');
   const [editColor, setEditColor] = useState('#FF8C00');
   const [saving, setSaving] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchSuggestions, setSearchSuggestions] = useState<{ place_id: string; description: string }[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
 
   const fetchAreas = useCallback(async () => {
     const { data, error } = await supabase.from('coverage_areas').select('*').order('created_at', { ascending: true });
