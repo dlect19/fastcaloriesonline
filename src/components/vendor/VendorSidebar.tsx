@@ -16,6 +16,7 @@ import {
   Users,
   MessageSquare,
   Settings2,
+  ExternalLink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -242,6 +243,23 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
             );
           })}
         </nav>
+
+        {/* Switch to Customer App */}
+        <div className="absolute bottom-14 left-0 right-0 px-3 pb-1">
+          <button
+            onClick={() => {
+              localStorage.removeItem('fc_last_portal');
+              navigate('/?portal=customer');
+            }}
+            className={cn(
+              "w-full flex items-center gap-3 px-3 py-2 rounded-xl text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors",
+              collapsed && "justify-center px-0"
+            )}
+          >
+            <ExternalLink className="w-4 h-4 flex-shrink-0" />
+            {!collapsed && <span className="text-xs font-medium">Customer App</span>}
+          </button>
+        </div>
 
         {/* Logout */}
         <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-border">

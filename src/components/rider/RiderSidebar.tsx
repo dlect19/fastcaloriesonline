@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, Package, DollarSign, ArrowUpRight, Settings, LogOut, Power, MessageSquare, Download } from 'lucide-react';
+import { Home, Package, DollarSign, ArrowUpRight, Settings, LogOut, Power, MessageSquare, Download, ExternalLink } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -144,6 +144,21 @@ export function RiderSidebar({ isOnline = false, onToggleOnline, canViewEarnings
           </a>
         </div>
       )}
+
+      {/* Switch to Customer App */}
+      <div className="px-4 pb-2">
+        <Button
+          variant="outline"
+          className="w-full justify-start text-muted-foreground text-xs"
+          onClick={() => {
+            localStorage.removeItem('fc_last_portal');
+            navigate('/?portal=customer');
+          }}
+        >
+          <ExternalLink className="w-4 h-4 mr-2" />
+          Switch to Customer App
+        </Button>
+      </div>
 
       {/* Logout */}
       <div className="p-4 border-t border-border mt-0">
