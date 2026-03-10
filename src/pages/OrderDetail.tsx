@@ -389,6 +389,9 @@ export default function OrderDetail() {
           </CardContent>
         </Card>
 
+        {/* Delivery Type Switcher - Allow customer to change delivery option */}
+        <DeliveryTypeSwitcher order={order} onSwitched={fetchOrder} />
+
         {/* Rider Info - Only for delivery orders when picked up or on the way */}
         {order.delivery_type !== 'self_pickup' && order.rider_id && ['picked_up', 'on_the_way'].includes(order.status) && (
           <RiderInfoCard riderId={order.rider_id} />
