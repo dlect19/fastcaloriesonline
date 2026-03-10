@@ -97,6 +97,7 @@ import VendorSupport from "./pages/vendor/VendorSupport";
 import RiderSupport from "./pages/rider/RiderSupport";
 import AdminSupport from "./pages/admin/AdminSupport";
 import AdminNotifications from "./pages/admin/AdminNotifications";
+import AdminCoverageAreas from "./pages/admin/AdminCoverageAreas";
 import WorkspaceLogin from "./pages/WorkspaceLogin";
 import { playGlobalNotificationSound } from '@/lib/globalAudio';
 import { useFcmNotifications } from '@/hooks/useFcmNotifications';
