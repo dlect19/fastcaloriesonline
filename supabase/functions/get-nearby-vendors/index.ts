@@ -39,7 +39,7 @@ serve(async (req) => {
     const { data: settingsData } = await supabase
       .from("platform_settings")
       .select("key, value")
-      .in("key", ["vendor_delivery_radius_km", "base_delivery_fee", "base_delivery_distance_km", "per_km_fee"]);
+      .in("key", ["vendor_delivery_radius_km", "base_delivery_fee", "base_delivery_distance_km", "per_km_fee", "coverage_area_enforcement"]);
 
     const settings: Record<string, string> = {};
     settingsData?.forEach((s: any) => { settings[s.key] = s.value; });
@@ -48,6 +48,40 @@ serve(async (req) => {
     const baseDeliveryFee = parseFloat(settings["base_delivery_fee"]) || 500;
     const baseDeliveryDistanceKm = parseFloat(settings["base_delivery_distance_km"]) || 3;
     const perKmFee = parseFloat(settings["per_km_fee"]) || 100;
+    const enforceCoverage = settings["coverage_area_enforcement"] === "true";
+
+    // Fetch active coverage areas
+    const { data: coverageAreas } = await supabase
+      .from("coverage_areas")
+      .select("id, name, polygon, color")
+      .eq("is_active", true);
+
+    const activeCoverageAreas = (coverageAreas || []).map((a: any) => ({
+      ...a,
+      polygon: Array.isArray(a.polygon) ? a.polygon : [],
+    }));
+
+    // Check if customer is inside any coverage area
+    const customerInCoverage = activeCoverageAreas.length === 0 || activeCoverageAreas.some(
+      (area: any) => pointInPolygon(customer_lat, customer_lon, area.polygon)
+    );
+
+    // If coverage enforcement is on and customer is outside all zones, return empty
+    if (enforceCoverage && !customerInCoverage && activeCoverageAreas.length > 0) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          vendors: [],
+          total_count: 0,
+          max_radius_km: maxVisibilityRadius,
+          customer_location: { lat: customer_lat, lon: customer_lon },
+          coverage_areas: activeCoverageAreas,
+          customer_in_coverage: false,
+          message: "Your location is outside our current delivery coverage areas.",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     console.log("Settings:", { maxVisibilityRadius, baseDeliveryFee, baseDeliveryDistanceKm, perKmFee });
 
@@ -400,7 +434,20 @@ serve(async (req) => {
           : vendor.name,
         store_type: outlet.store_type,
         social_media_handles: outlet.social_media_handles,
-      });
+});
+
+// Ray-casting point-in-polygon algorithm
+function pointInPolygon(lat: number, lng: number, polygon: { lat: number; lng: number }[]): boolean {
+  if (!polygon || polygon.length < 3) return false;
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i].lat, yi = polygon[i].lng;
+    const xj = polygon[j].lat, yj = polygon[j].lng;
+    const intersect = ((yi > lng) !== (yj > lng)) && (lat < (xj - xi) * (lng - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
     }
 
     // Sort: open first, then by distance
@@ -418,6 +465,8 @@ serve(async (req) => {
         total_count: nearbyVendors.length,
         max_radius_km: maxVisibilityRadius,
         customer_location: { lat: customer_lat, lon: customer_lon },
+        coverage_areas: activeCoverageAreas,
+        customer_in_coverage: customerInCoverage,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

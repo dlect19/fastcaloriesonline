@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { VendorCard } from './VendorCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import { MapPin, Navigation, AlertCircle } from 'lucide-react';
+import { MapPin, Navigation, AlertCircle, ShieldAlert } from 'lucide-react';
 import { useLocationBasedVendors, VendorWithDistance } from '@/hooks/useLocationBasedVendors';
 import { formatDistance, calculateDistance } from '@/lib/location';
 
@@ -36,6 +36,8 @@ export function VendorGrid({
     geoError,
     hasLocation,
     maxRadius,
+    customerInCoverage,
+    coverageAreas,
     refetch,
     requestLocation,
   } = useLocationBasedVendors({
@@ -150,12 +152,30 @@ export function VendorGrid({
       {vendors.length === 0 ? (
         <div className="bg-card rounded-2xl border border-border p-8 text-center">
           <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
-            <MapPin className="w-8 h-8 text-muted-foreground" />
+            {!customerInCoverage ? (
+              <ShieldAlert className="w-8 h-8 text-orange-500" />
+            ) : (
+              <MapPin className="w-8 h-8 text-muted-foreground" />
+            )}
           </div>
-          <h3 className="font-semibold text-foreground mb-2">No Vendors Available Near You</h3>
+          <h3 className="font-semibold text-foreground mb-2">
+            {!customerInCoverage ? 'Outside Coverage Area' : 'No Vendors Available Near You'}
+          </h3>
           <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-            We couldn't find any vendors within {maxRadius}km of your location. Try updating your delivery address or check back later.
+            {!customerInCoverage
+              ? 'Your location is outside our current delivery coverage zones. We\'re expanding soon!'
+              : `We couldn't find any vendors within ${maxRadius}km of your location. Try updating your delivery address or check back later.`}
           </p>
+          {!customerInCoverage && coverageAreas.length > 0 && (
+            <div className="mt-4 flex flex-wrap gap-2 justify-center">
+              {coverageAreas.map(area => (
+                <span key={area.id} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-secondary text-secondary-foreground">
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: area.color }} />
+                  {area.name}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

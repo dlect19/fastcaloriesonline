@@ -31,6 +31,12 @@ interface VendorAccessResult {
   max_radius?: number;
 }
 
+interface CoverageAreaInfo {
+  id: string;
+  name: string;
+  color: string;
+}
+
 export function useLocationBasedVendors({
   category = 'all',
   externalLat,
@@ -43,6 +49,8 @@ export function useLocationBasedVendors({
   const [error, setError] = useState<string | null>(null);
   const [noLocationError, setNoLocationError] = useState(false);
   const [maxRadius, setMaxRadius] = useState<number>(10);
+  const [customerInCoverage, setCustomerInCoverage] = useState(true);
+  const [coverageAreas, setCoverageAreas] = useState<CoverageAreaInfo[]>([]);
 
   const {
     latitude: gpsLat,
@@ -101,6 +109,8 @@ export function useLocationBasedVendors({
 
       setVendors(data.vendors || []);
       setMaxRadius(data.max_radius_km || 10);
+      setCustomerInCoverage(data.customer_in_coverage !== false);
+      setCoverageAreas((data.coverage_areas || []).map((a: any) => ({ id: a.id, name: a.name, color: a.color })));
     } catch (err) {
       console.error('Error fetching nearby vendors:', err);
       setError('Failed to load vendors');
@@ -132,6 +142,8 @@ export function useLocationBasedVendors({
     geoError,
     hasLocation,
     maxRadius,
+    customerInCoverage,
+    coverageAreas,
     refetch: fetchVendors,
     requestLocation: getCurrentPosition,
   };
