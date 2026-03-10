@@ -40,6 +40,7 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
   const cleanupRef = useRef<(() => void) | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchFocused, setSearchFocused] = useState(false);
 
   const defaultLat = latitude || 6.5244;
   const defaultLng = longitude || 3.3792;
@@ -150,10 +151,16 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
           autocompleteRef.current = autocomplete;
 
           // Suppress map click when interacting with autocomplete dropdown
-          searchInputRef.current.addEventListener('focus', () => { ignoreMapClickRef.current = true; });
+          searchInputRef.current.addEventListener('focus', () => { 
+            ignoreMapClickRef.current = true; 
+            setSearchFocused(true);
+          });
           searchInputRef.current.addEventListener('blur', () => {
             // Longer delay to let pac-container tap register on mobile
-            setTimeout(() => { ignoreMapClickRef.current = false; }, 800);
+            setTimeout(() => { 
+              ignoreMapClickRef.current = false; 
+              setSearchFocused(false);
+            }, 1200);
           });
 
           // Intercept touches/clicks on the pac-container to keep map clicks suppressed
@@ -235,7 +242,7 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
           </div>
         </div>
       )}
-      <div ref={mapRef} className="w-full h-full" />
+      <div ref={mapRef} className="w-full h-full" style={searchFocused ? { pointerEvents: 'none' } : undefined} />
     </div>
   );
 }
