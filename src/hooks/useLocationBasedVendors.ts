@@ -31,6 +31,12 @@ interface VendorAccessResult {
   max_radius?: number;
 }
 
+interface CoverageAreaInfo {
+  id: string;
+  name: string;
+  color: string;
+}
+
 export function useLocationBasedVendors({
   category = 'all',
   externalLat,
@@ -43,6 +49,8 @@ export function useLocationBasedVendors({
   const [error, setError] = useState<string | null>(null);
   const [noLocationError, setNoLocationError] = useState(false);
   const [maxRadius, setMaxRadius] = useState<number>(10);
+  const [customerInCoverage, setCustomerInCoverage] = useState(true);
+  const [coverageAreas, setCoverageAreas] = useState<CoverageAreaInfo[]>([]);
 
   const {
     latitude: gpsLat,
