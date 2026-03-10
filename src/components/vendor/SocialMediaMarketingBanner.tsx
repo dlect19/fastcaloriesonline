@@ -241,7 +241,11 @@ export function SocialMediaMarketingBanner({
                         flexShrink: 0,
                       }}
                     >
-                      <Icon />
+                      {customLogos[platform] ? (
+                        <img src={customLogos[platform]} alt={style.label} style={{ width: '20px', height: '20px', objectFit: 'contain' }} crossOrigin="anonymous" />
+                      ) : (
+                        <Icon />
+                      )}
                     </div>
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <p
