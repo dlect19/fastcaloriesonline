@@ -13,6 +13,7 @@ import { IncomingOrderCall } from '@/components/vendor/IncomingOrderCall';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ApkUpdateBanner } from '@/components/shared/ApkUpdateBanner';
+import { AppDownloadBanner } from '@/components/shared/AppDownloadBanner';
 
 interface VendorLayoutProps {
   children: ReactNode;
@@ -180,6 +181,7 @@ function VendorLayoutContent({ children, vendorName, vendorId, permissions, onOu
       )}
 
       <main className={isMobile ? 'pt-24 pb-20 px-2' : 'lg:ml-64 pt-0'}>
+        <AppDownloadBanner appType="vendor" />
         <ApkUpdateBanner appType="vendor" />
         <SoundEnableBanner
           soundEnabled={soundEnabled}

@@ -13,6 +13,7 @@ import { CartButton } from '@/components/cart/CartButton';
 import { ActionHints } from '@/components/home/ActionHints';
 import { PWAInstallBanner } from '@/components/home/PWAInstallBanner';
 import { ApkUpdateBanner } from '@/components/shared/ApkUpdateBanner';
+import { AppDownloadBanner } from '@/components/shared/AppDownloadBanner';
 import { AIMealRecommendation } from '@/components/home/AIMealRecommendation';
 import { SpinWheelWidget } from '@/components/home/SpinWheelWidget';
 import { LocationSearch } from '@/components/home/LocationSearch';
@@ -326,7 +327,7 @@ export default function Home() {
         onLocationClick={() => setLocationDialogOpen(true)}
       />
 
-      <PWAInstallBanner />
+      <AppDownloadBanner appType="customer" />
       <ApkUpdateBanner appType="customer" />
 
       <main className="container py-6 space-y-6">
