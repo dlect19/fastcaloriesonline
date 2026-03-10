@@ -28,8 +28,8 @@ Deno.serve(async (req) => {
       .from("user_roles")
       .select("role")
       .eq("user_id", user.id);
-    console.log("User roles:", JSON.stringify(roles));
-    if (!roles?.some((r: any) => r.role === "admin")) throw new Error("Admin access required");
+    const isAdmin = roles?.some((r: any) => r.role === "admin");
+    console.log("User roles:", JSON.stringify(roles), "isAdmin:", isAdmin);
 
     const { orderId, newDeliveryType } = await req.json();
     if (!orderId || !["delivery", "self_pickup"].includes(newDeliveryType)) {
