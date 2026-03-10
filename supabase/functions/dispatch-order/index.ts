@@ -282,9 +282,9 @@ async function findEligibleRiders(
 
   for (const rider of riders) {
     // Vehicle type distance enforcement
-    if (rider.vehicle_type && deliveryDistanceKm > 0) {
-      const maxDist = vehicleMaxDistances[rider.vehicle_type];
-      if (maxDist !== undefined && deliveryDistanceKm > maxDist) {
+    const vehicleConfig = rider.vehicle_type ? vehicleMaxDistances[rider.vehicle_type] : undefined;
+    if (vehicleConfig && deliveryDistanceKm > 0) {
+      if (deliveryDistanceKm > vehicleConfig.maxDeliveryDistanceKm) {
         skippedVehicle++;
         continue;
       }
