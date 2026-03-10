@@ -53,6 +53,10 @@ export function DeliveryTypeSwitcher({ order, onSwitched }: DeliveryTypeSwitcher
     fetchData();
   }, [user, isTest]);
 
+  // Don't show for completed/cancelled orders or delivery with rider assigned
+  if (isCancelled || isDelivered) return null;
+  if (isDelivery && hasRider) return null;
+
   const deliveryFee = Number(order.delivery_fee) || baseDeliveryFee;
 
   // For self-pickup → delivery: check wallet has enough
