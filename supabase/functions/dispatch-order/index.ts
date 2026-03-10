@@ -205,15 +205,23 @@ function calculateRiderPayout(
   };
 }
 
-async function getVehicleTypeConfigs(supabase: any): Promise<Record<string, number>> {
+interface VehicleTypeConfig {
+  maxDeliveryDistanceKm: number;
+  dispatchRadiusKm: number | null;
+}
+
+async function getVehicleTypeConfigs(supabase: any): Promise<Record<string, VehicleTypeConfig>> {
   const { data } = await supabase
     .from('vehicle_type_configs')
-    .select('vehicle_type, max_delivery_distance_km')
+    .select('vehicle_type, max_delivery_distance_km, dispatch_radius_km')
     .eq('is_active', true);
 
-  const configs: Record<string, number> = {};
+  const configs: Record<string, VehicleTypeConfig> = {};
   (data || []).forEach((c: any) => {
-    configs[c.vehicle_type] = c.max_delivery_distance_km;
+    configs[c.vehicle_type] = {
+      maxDeliveryDistanceKm: c.max_delivery_distance_km,
+      dispatchRadiusKm: c.dispatch_radius_km,
+    };
   });
   return configs;
 }
@@ -274,9 +282,9 @@ async function findEligibleRiders(
 
   for (const rider of riders) {
     // Vehicle type distance enforcement
-    if (rider.vehicle_type && deliveryDistanceKm > 0) {
-      const maxDist = vehicleMaxDistances[rider.vehicle_type];
-      if (maxDist !== undefined && deliveryDistanceKm > maxDist) {
+    const vehicleConfig = rider.vehicle_type ? vehicleMaxDistances[rider.vehicle_type] : undefined;
+    if (vehicleConfig && deliveryDistanceKm > 0) {
+      if (deliveryDistanceKm > vehicleConfig.maxDeliveryDistanceKm) {
         skippedVehicle++;
         continue;
       }
@@ -304,8 +312,10 @@ async function findEligibleRiders(
     }
 
     const distance = calculateDistance(vendorLat, vendorLon, riderLat, riderLon);
-    const riderWorkRadius = rider.work_radius_km || radiusKm;
-    if (distance <= radiusKm && distance <= riderWorkRadius) {
+    // Per-vehicle dispatch radius override > rider personal work radius > global radius
+    const vehicleDispatchRadius = vehicleConfig?.dispatchRadiusKm;
+    const effectiveRadius = vehicleDispatchRadius || rider.work_radius_km || radiusKm;
+    if (distance <= radiusKm && distance <= effectiveRadius) {
       eligibleRiders.push({
         id: rider.id,
         user_id: rider.user_id,

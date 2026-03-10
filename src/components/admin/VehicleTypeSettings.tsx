@@ -15,6 +15,7 @@ interface VehicleConfig {
   max_delivery_distance_km: number;
   base_delivery_rate: number;
   per_km_rate: number | null;
+  dispatch_radius_km: number | null;
   is_active: boolean;
   sort_order: number;
 }
@@ -49,13 +50,14 @@ export function VehicleTypeSettings() {
       for (const config of configs) {
         const { error } = await supabase
           .from('vehicle_type_configs')
-          .update({
-            max_delivery_distance_km: config.max_delivery_distance_km,
-            base_delivery_rate: config.base_delivery_rate,
-            per_km_rate: config.per_km_rate,
-            is_active: config.is_active,
-            updated_at: new Date().toISOString(),
-          })
+           .update({
+             max_delivery_distance_km: config.max_delivery_distance_km,
+             base_delivery_rate: config.base_delivery_rate,
+             per_km_rate: config.per_km_rate,
+             dispatch_radius_km: config.dispatch_radius_km,
+             is_active: config.is_active,
+             updated_at: new Date().toISOString(),
+           } as any)
           .eq('id', config.id);
 
         if (error) throw error;
@@ -86,7 +88,7 @@ export function VehicleTypeSettings() {
           Vehicle Type Distance Rules
         </CardTitle>
         <CardDescription>
-          Configure max delivery distance and base rates per vehicle type
+          Configure max delivery distance, dispatch radius, and base rates per vehicle type
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -99,7 +101,7 @@ export function VehicleTypeSettings() {
                 onCheckedChange={(v) => updateConfig(config.id, 'is_active', v)}
               />
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">Max Distance (km)</Label>
                 <Input
@@ -108,6 +110,17 @@ export function VehicleTypeSettings() {
                   value={config.max_delivery_distance_km}
                   onChange={(e) => updateConfig(config.id, 'max_delivery_distance_km', parseFloat(e.target.value) || 0)}
                 />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Dispatch Radius (km)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  placeholder="Global default"
+                  value={config.dispatch_radius_km ?? ''}
+                  onChange={(e) => updateConfig(config.id, 'dispatch_radius_km', e.target.value ? parseFloat(e.target.value) : null)}
+                />
+                <p className="text-[10px] text-muted-foreground">Override global rider search radius</p>
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Base Rate (₦)</Label>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSocialLogos } from '@/hooks/useSocialLogos';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -95,6 +96,7 @@ export function StoreTypeField({
 /** Small badge icons for VendorCard display */
 export function SocialMediaBadges({ handles, size = 'sm' }: { handles?: SocialMediaHandles | null; size?: 'sm' | 'lg' }) {
   if (!handles || typeof handles !== 'object') return null;
+  const customLogos = useSocialLogos();
 
   const active = SOCIAL_PLATFORMS.filter(p => (handles as any)[p.key]);
   if (active.length === 0) return null;
@@ -113,7 +115,11 @@ export function SocialMediaBadges({ handles, size = 'sm' }: { handles?: SocialMe
           }
           title={`${label}: ${(handles as any)[key]}`}
         >
-          <span>{icon}</span>
+          {customLogos[key] ? (
+            <img src={customLogos[key]} alt={label} className={isLarge ? 'w-5 h-5 rounded-sm object-contain' : 'w-5 h-5 rounded-sm object-contain'} />
+          ) : (
+            <span>{icon}</span>
+          )}
           {isLarge && <span className="text-sm font-semibold text-foreground">{(handles as any)[key]}</span>}
         </span>
       ))}

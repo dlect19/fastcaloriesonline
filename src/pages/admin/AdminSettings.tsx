@@ -19,6 +19,7 @@ import { ServiceFeeSettings } from '@/components/admin/ServiceFeeSettings';
 import { VehicleTypeSettings } from '@/components/admin/VehicleTypeSettings';
 import { CommissionOverrideManager } from '@/components/admin/CommissionOverrideManager';
 import { RiderOperationsSettings } from '@/components/admin/RiderOperationsSettings';
+import { SocialLogoSettings } from '@/components/admin/SocialLogoSettings';
 
 interface DeliverySetting {
   key: string;
@@ -481,6 +482,9 @@ export default function AdminSettings() {
               onSave={handleSave}
               saving={saving}
             />
+
+            {/* Social Media Platform Logos */}
+            <SocialLogoSettings />
 
             {/* Vehicle Type Settings */}
             <VehicleTypeSettings />

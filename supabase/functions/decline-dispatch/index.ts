@@ -39,20 +39,25 @@ async function escalateToNextTier(
   const nextTier = tierOrder[currentIndex + 1];
   console.log(`Escalating from ${currentTier} to ${nextTier}`);
 
-  // Get dispatch settings
-  const { data: settings } = await supabase
-    .from('platform_settings')
-    .select('key, value')
-    .in('key', ['dispatch_acceptance_timeout_seconds']);
+  // Get dispatch settings and vehicle configs
+  const [{ data: settings }, { data: vehicleConfigs }] = await Promise.all([
+    supabase.from('platform_settings').select('key, value').in('key', ['dispatch_acceptance_timeout_seconds']),
+    supabase.from('vehicle_type_configs').select('vehicle_type, dispatch_radius_km').eq('is_active', true),
+  ]);
   
   const settingsMap: Record<string, string> = {};
   settings?.forEach((s: any) => { settingsMap[s.key] = s.value; });
   const timeoutSeconds = parseInt(settingsMap.dispatch_acceptance_timeout_seconds || '60');
 
+  const vehicleDispatchRadii: Record<string, number | null> = {};
+  (vehicleConfigs || []).forEach((c: any) => {
+    vehicleDispatchRadii[c.vehicle_type] = c.dispatch_radius_km;
+  });
+
   // Find riders for the next tier
   const { data: riders } = await supabase
     .from('rider_profiles')
-    .select('id, user_id, current_latitude, current_longitude, preferred_latitude, preferred_longitude, work_radius_km, delivery_company_id, affiliated_vendor_id')
+    .select('id, user_id, current_latitude, current_longitude, preferred_latitude, preferred_longitude, work_radius_km, delivery_company_id, affiliated_vendor_id, vehicle_type')
     .eq('is_online', true)
     .eq('is_verified', true)
     .eq('is_email_verified', true)
@@ -99,7 +104,8 @@ async function escalateToNextTier(
       riderLon
     );
     
-    const riderWorkRadius = rider.work_radius_km || dispatchRequest.search_radius_km;
+    const vehicleRadius = rider.vehicle_type ? vehicleDispatchRadii[rider.vehicle_type] : null;
+    const riderWorkRadius = vehicleRadius || rider.work_radius_km || dispatchRequest.search_radius_km;
     return distance <= dispatchRequest.search_radius_km && distance <= riderWorkRadius;
   });
 

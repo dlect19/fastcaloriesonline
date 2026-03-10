@@ -3732,6 +3732,7 @@ export type Database = {
         Row: {
           base_delivery_rate: number
           created_at: string
+          dispatch_radius_km: number | null
           display_name: string
           id: string
           is_active: boolean
@@ -3744,6 +3745,7 @@ export type Database = {
         Insert: {
           base_delivery_rate?: number
           created_at?: string
+          dispatch_radius_km?: number | null
           display_name: string
           id?: string
           is_active?: boolean
@@ -3756,6 +3758,7 @@ export type Database = {
         Update: {
           base_delivery_rate?: number
           created_at?: string
+          dispatch_radius_km?: number | null
           display_name?: string
           id?: string
           is_active?: boolean

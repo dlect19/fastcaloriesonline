@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { Download, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { useSocialLogos } from '@/hooks/useSocialLogos';
 import type { SocialMediaHandles } from './StoreTypeField';
 
 /* ── Platform metadata with SVG icons ────────────────────────── */
@@ -71,6 +72,7 @@ export function SocialMediaMarketingBanner({
   const bannerRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const [downloading, setDownloading] = useState(false);
+  const customLogos = useSocialLogos();
 
   const activeHandles = Object.entries(socialHandles || {}).filter(
     ([, val]) => val && val.trim()
@@ -239,7 +241,11 @@ export function SocialMediaMarketingBanner({
                         flexShrink: 0,
                       }}
                     >
-                      <Icon />
+                      {customLogos[platform] ? (
+                        <img src={customLogos[platform]} alt={style.label} style={{ width: '20px', height: '20px', objectFit: 'contain' }} crossOrigin="anonymous" />
+                      ) : (
+                        <Icon />
+                      )}
                     </div>
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <p
