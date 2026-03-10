@@ -483,6 +483,9 @@ export default function AdminSettings() {
               saving={saving}
             />
 
+            {/* Social Media Platform Logos */}
+            <SocialLogoSettings />
+
             {/* Vehicle Type Settings */}
             <VehicleTypeSettings />
 

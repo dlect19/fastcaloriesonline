@@ -101,7 +101,7 @@ export function VehicleTypeSettings() {
                 onCheckedChange={(v) => updateConfig(config.id, 'is_active', v)}
               />
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">Max Distance (km)</Label>
                 <Input
@@ -110,6 +110,17 @@ export function VehicleTypeSettings() {
                   value={config.max_delivery_distance_km}
                   onChange={(e) => updateConfig(config.id, 'max_delivery_distance_km', parseFloat(e.target.value) || 0)}
                 />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Dispatch Radius (km)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  placeholder="Global default"
+                  value={config.dispatch_radius_km ?? ''}
+                  onChange={(e) => updateConfig(config.id, 'dispatch_radius_km', e.target.value ? parseFloat(e.target.value) : null)}
+                />
+                <p className="text-[10px] text-muted-foreground">Override global rider search radius</p>
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Base Rate (₦)</Label>

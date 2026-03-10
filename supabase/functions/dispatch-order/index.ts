@@ -312,8 +312,10 @@ async function findEligibleRiders(
     }
 
     const distance = calculateDistance(vendorLat, vendorLon, riderLat, riderLon);
-    const riderWorkRadius = rider.work_radius_km || radiusKm;
-    if (distance <= radiusKm && distance <= riderWorkRadius) {
+    // Per-vehicle dispatch radius override > rider personal work radius > global radius
+    const vehicleDispatchRadius = vehicleConfig?.dispatchRadiusKm;
+    const effectiveRadius = vehicleDispatchRadius || rider.work_radius_km || radiusKm;
+    if (distance <= radiusKm && distance <= effectiveRadius) {
       eligibleRiders.push({
         id: rider.id,
         user_id: rider.user_id,
