@@ -16,8 +16,9 @@ import { Separator } from '@/components/ui/separator';
 import {
   Loader2, Clock, Store, User, Bike, Phone, Star, MapPin,
   AlertTriangle, CheckCircle2, Package, Search, Globe, Gift,
-  RefreshCw, ArrowRight,
+  RefreshCw, ArrowRight, Repeat,
 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
