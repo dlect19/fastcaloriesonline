@@ -14,9 +14,6 @@ interface RiderMobileHeaderProps {
 }
 
 export function RiderMobileHeader({ isOnline, onToggleOnline }: RiderMobileHeaderProps) {
-  const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-  const [dismissed, setDismissed] = useState(() => sessionStorage.getItem('rider_apk_dismissed') === 'true');
-  const [downloading, setDownloading] = useState(false);
 
   const handleDismiss = () => {
     setDismissed(true);
