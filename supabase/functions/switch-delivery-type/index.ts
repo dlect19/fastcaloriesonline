@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -16,7 +16,6 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    // Verify caller is admin
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) throw new Error("Unauthorized");
     const token = authHeader.replace("Bearer ", "");
@@ -34,7 +33,6 @@ Deno.serve(async (req) => {
       throw new Error("Invalid parameters");
     }
 
-    // Fetch the order
     const { data: order, error: orderErr } = await supabase
       .from("orders")
       .select("*")
@@ -56,13 +54,8 @@ Deno.serve(async (req) => {
     const isTest = order.environment === "development";
     const originalDeliveryFee = Number(order.delivery_fee) || 0;
 
-    // Bypass balance trigger for wallet operations
-    await supabase.rpc("set_config_bypass", {}).catch(() => {});
-
     if (newDeliveryType === "self_pickup") {
-      // SWITCHING TO SELF-PICKUP: Refund delivery fee to customer wallet
       if (originalDeliveryFee > 0 && order.payment_status === "paid") {
-        // Find customer wallet
         const { data: customerWallet } = await supabase
           .from("wallets")
           .select("id")
@@ -71,18 +64,6 @@ Deno.serve(async (req) => {
           .maybeSingle();
 
         if (customerWallet) {
-          // Credit customer wallet
-          const balanceField = isTest ? "test_balance" : "balance";
-          const { data: walletData } = await supabase
-            .from("wallets")
-            .select(balanceField)
-            .eq("id", customerWallet.id)
-            .single();
-
-          const currentBalance = Number(walletData?.[balanceField]) || 0;
-          const newBalance = currentBalance + originalDeliveryFee;
-
-          // Use admin_adjust_wallet_balance for safe crediting
           await supabase.rpc("admin_adjust_wallet_balance", {
             p_wallet_id: customerWallet.id,
             p_amount: originalDeliveryFee,
@@ -93,7 +74,6 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Update order: zero delivery fee, update total, change type
       const newTotal = Number(order.total) - originalDeliveryFee;
       const { error: updateErr } = await supabase
         .from("orders")
@@ -101,8 +81,8 @@ Deno.serve(async (req) => {
           delivery_type: "self_pickup",
           delivery_fee: 0,
           total: newTotal,
-          delivery_address: `Self-pickup at vendor`,
-          rider_id: null, // Remove rider assignment
+          delivery_address: "Self-pickup at vendor",
+          rider_id: null,
         })
         .eq("id", orderId);
 
@@ -117,10 +97,7 @@ Deno.serve(async (req) => {
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
-
     } else {
-      // SWITCHING TO DELIVERY: Need to calculate and charge delivery fee
-      // Fetch delivery fee settings
       const { data: settings } = await supabase
         .from("platform_settings")
         .select("key, value")
@@ -131,7 +108,6 @@ Deno.serve(async (req) => {
 
       const baseDeliveryFee = parseFloat(settingsMap["base_delivery_fee"]) || 500;
 
-      // Check customer wallet balance
       const { data: customerWallet } = await supabase
         .from("wallets")
         .select("id, balance, test_balance")
@@ -155,7 +131,6 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Debit customer wallet for delivery fee
       if (order.payment_status === "paid" && customerWallet) {
         await supabase.rpc("admin_adjust_wallet_balance", {
           p_wallet_id: customerWallet.id,
@@ -166,7 +141,6 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Update order
       const newTotal = Number(order.total) + baseDeliveryFee;
       const { error: updateErr } = await supabase
         .from("orders")
