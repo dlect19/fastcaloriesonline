@@ -4,7 +4,6 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { RiderSidebar } from './RiderSidebar';
 import { ApkUpdateBanner } from '@/components/shared/ApkUpdateBanner';
 import riderLogo from '@/assets/rider-logo.png';
-import { downloadApk } from '@/lib/apkInstall';
 import { AppDownloadBanner } from '@/components/shared/AppDownloadBanner';
 
 interface RiderMobileHeaderProps {
