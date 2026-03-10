@@ -173,6 +173,26 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
           document.addEventListener('mousedown', suppressMapFromPac, true);
           document.addEventListener('touchstart', suppressMapFromPac, true);
 
+          // Fix: On mobile, Google Places pac-item touchend doesn't trigger click.
+          // Forward touchend to click so suggestions are actually selectable.
+          const forwardTouchToClick = (evt: TouchEvent) => {
+            const target = evt.target as HTMLElement;
+            if (target?.closest('.pac-container .pac-item')) {
+              evt.preventDefault();
+              evt.stopPropagation();
+              target.closest('.pac-item')?.dispatchEvent(
+                new MouseEvent('mousedown', { bubbles: true, cancelable: true })
+              );
+              target.closest('.pac-item')?.dispatchEvent(
+                new MouseEvent('mouseup', { bubbles: true, cancelable: true })
+              );
+              target.closest('.pac-item')?.dispatchEvent(
+                new MouseEvent('click', { bubbles: true, cancelable: true })
+              );
+            }
+          };
+          document.addEventListener('touchend', forwardTouchToClick, true);
+
           autocomplete.addListener('place_changed', () => {
             ignoreMapClickRef.current = true;
             const place = autocomplete.getPlace();
@@ -191,6 +211,7 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
           const cleanup = () => {
             document.removeEventListener('mousedown', suppressMapFromPac, true);
             document.removeEventListener('touchstart', suppressMapFromPac, true);
+            document.removeEventListener('touchend', forwardTouchToClick, true);
           };
           cleanupRef.current = cleanup;
         }
