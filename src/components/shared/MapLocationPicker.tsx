@@ -151,10 +151,16 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
           autocompleteRef.current = autocomplete;
 
           // Suppress map click when interacting with autocomplete dropdown
-          searchInputRef.current.addEventListener('focus', () => { ignoreMapClickRef.current = true; });
+          searchInputRef.current.addEventListener('focus', () => { 
+            ignoreMapClickRef.current = true; 
+            setSearchFocused(true);
+          });
           searchInputRef.current.addEventListener('blur', () => {
             // Longer delay to let pac-container tap register on mobile
-            setTimeout(() => { ignoreMapClickRef.current = false; }, 800);
+            setTimeout(() => { 
+              ignoreMapClickRef.current = false; 
+              setSearchFocused(false);
+            }, 1200);
           });
 
           // Intercept touches/clicks on the pac-container to keep map clicks suppressed
