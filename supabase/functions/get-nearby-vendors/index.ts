@@ -435,19 +435,6 @@ serve(async (req) => {
         store_type: outlet.store_type,
         social_media_handles: outlet.social_media_handles,
 });
-
-// Ray-casting point-in-polygon algorithm
-function pointInPolygon(lat: number, lng: number, polygon: { lat: number; lng: number }[]): boolean {
-  if (!polygon || polygon.length < 3) return false;
-  let inside = false;
-  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    const xi = polygon[i].lat, yi = polygon[i].lng;
-    const xj = polygon[j].lat, yj = polygon[j].lng;
-    const intersect = ((yi > lng) !== (yj > lng)) && (lat < (xj - xi) * (lng - yi) / (yj - yi) + xi);
-    if (intersect) inside = !inside;
-  }
-  return inside;
-}
     }
 
     // Sort: open first, then by distance
