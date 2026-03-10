@@ -242,7 +242,7 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
           </div>
         </div>
       )}
-      <div ref={mapRef} className="w-full h-full" />
+      <div ref={mapRef} className="w-full h-full" style={searchFocused ? { pointerEvents: 'none' } : undefined} />
     </div>
   );
 }
