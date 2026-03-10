@@ -195,7 +195,7 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
       }
     })();
 
-    return () => { cancelled = true; };
+    return () => { cancelled = true; cleanupRef.current?.(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
