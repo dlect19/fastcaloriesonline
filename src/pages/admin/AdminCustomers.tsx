@@ -81,7 +81,19 @@ export default function AdminCustomers() {
          setLoading(false);
          return;
        }
- 
+
+       // Fetch ALL roles for these users
+       const { data: allRoles } = await supabase
+         .from('user_roles')
+         .select('user_id, role')
+         .in('user_id', customerUserIds);
+
+       const rolesByUser: Record<string, string[]> = {};
+       allRoles?.forEach(r => {
+         if (!rolesByUser[r.user_id]) rolesByUser[r.user_id] = [];
+         rolesByUser[r.user_id].push(r.role);
+       });
+
        // Fetch profiles for these users
        const { data: profilesData } = await supabase
          .from('profiles')
@@ -130,6 +142,7 @@ export default function AdminCustomers() {
          order_count: orderStatsByUser[profile.user_id]?.count || 0,
          total_spent: orderStatsByUser[profile.user_id]?.total || 0,
          wallet_balance: walletsByUser[profile.user_id] || 0,
+         roles: rolesByUser[profile.user_id] || ['customer'],
        })) || [];
  
        setCustomers(customersWithStats);
