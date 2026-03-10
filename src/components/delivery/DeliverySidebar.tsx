@@ -80,6 +80,22 @@ export function DeliverySidebar({ companyName }: DeliverySidebarProps) {
         </ul>
       </nav>
 
+      {/* Switch to Customer App */}
+      <div className="px-4 pb-2">
+        <Button
+          variant="outline"
+          className="w-full justify-start text-muted-foreground text-xs"
+          onClick={() => {
+            localStorage.removeItem('fc_last_portal');
+            navigate('/?portal=customer');
+            setMobileOpen(false);
+          }}
+        >
+          <ExternalLink className="w-4 h-4 mr-2" />
+          Switch to Customer App
+        </Button>
+      </div>
+
       {/* Logout */}
       <div className="p-4 border-t border-border">
         <Button variant="ghost" className="w-full justify-start text-muted-foreground" onClick={handleLogout}>
