@@ -57,19 +57,7 @@ export function RiderMobileHeader({ isOnline, onToggleOnline }: RiderMobileHeade
       </div>
 
       {/* Mobile APK download banner */}
-      {!isStandalone && !dismissed && (
-        <div className="flex items-center gap-2 px-4 py-2 bg-primary/10 border-t border-primary/20">
-          <Download className="w-4 h-4 text-primary shrink-0" />
-          <p className="text-xs text-foreground flex-1">Get the <strong>Rider App</strong> for a better experience</p>
-          <Button size="sm" className="h-7 text-xs shrink-0" disabled={downloading} onClick={handleDownload}>
-            {downloading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
-            {downloading ? 'Opening...' : 'Download'}
-          </Button>
-          <button onClick={handleDismiss} className="text-muted-foreground hover:text-foreground p-1">
-            <span className="text-xs">✕</span>
-          </button>
-        </div>
-      )}
+      <AppDownloadBanner appType="rider" />
 
       {/* APK Update notification */}
       <ApkUpdateBanner appType="rider" />

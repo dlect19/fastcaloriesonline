@@ -327,7 +327,7 @@ export default function Home() {
         onLocationClick={() => setLocationDialogOpen(true)}
       />
 
-      <PWAInstallBanner />
+      <AppDownloadBanner appType="customer" />
       <ApkUpdateBanner appType="customer" />
 
       <main className="container py-6 space-y-6">
