@@ -9,6 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { RiderReviewForm } from '@/components/order/RiderReviewForm';
 import { DisputeReportForm } from '@/components/order/DisputeReportForm';
 import { RiderInfoCard } from '@/components/order/RiderInfoCard';
+import { DeliveryTypeSwitcher } from '@/components/order/DeliveryTypeSwitcher';
 import { ArrowLeft, Package, Check, Truck, MapPin, Phone, Loader2, Store, Clock, Bike, ShieldCheck, Star, CreditCard, AlertTriangle } from 'lucide-react';
 import { format, differenceInMinutes } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -387,6 +388,9 @@ export default function OrderDetail() {
             )}
           </CardContent>
         </Card>
+
+        {/* Delivery Type Switcher - Allow customer to change delivery option */}
+        <DeliveryTypeSwitcher order={order} onSwitched={fetchOrder} />
 
         {/* Rider Info - Only for delivery orders when picked up or on the way */}
         {order.delivery_type !== 'self_pickup' && order.rider_id && ['picked_up', 'on_the_way'].includes(order.status) && (

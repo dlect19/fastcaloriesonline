@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { getGoogleMapsDistance } from '../_shared/google-maps.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -51,10 +52,6 @@ Deno.serve(async (req) => {
       .eq('order_id', orderId)
       .maybeSingle();
 
-    // Note: dispatch_offers.distance_km is rider-to-vendor distance, NOT delivery distance.
-    // We always calculate vendor-to-customer distance instead.
-
-    // Collect vendor-to-customer coordinates from dispatch_request
     if (request?.vendor_latitude && request?.vendor_longitude && request?.customer_latitude && request?.customer_longitude) {
       originLat = request.vendor_latitude;
       originLng = request.vendor_longitude;
@@ -62,8 +59,8 @@ Deno.serve(async (req) => {
       destLng = request.customer_longitude;
     }
 
-    // Step 3: Fallback to order's address vs vendor
-    if (!originLat && !distanceKm) {
+    // Step 2: Fallback to order's address vs vendor
+    if (!originLat) {
       const { data: order } = await supabase
         .from('orders')
         .select('vendor_id, delivery_address_id')
@@ -85,33 +82,11 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Step 4: Calculate distance using Google Maps API or Haversine fallback
+    // Step 3: Calculate distance using shared Google Maps helper (direct, no edge-to-edge call)
     if (!distanceKm && originLat && originLng && destLat && destLng) {
-      // Try Google Maps Distance Matrix
-      try {
-        const googleRes = await supabase.functions.invoke('calculate-distance', {
-          body: { originLat, originLng, destLat, destLng },
-        });
-
-        if (googleRes.data?.distanceInKm) {
-          distanceKm = googleRes.data.distanceInKm;
-          console.log(`Google Maps distance for order ${orderId}: ${distanceKm} km`);
-        }
-      } catch (err) {
-        console.warn('Google Maps distance failed:', err);
-      }
-
-      // Haversine fallback
-      if (!distanceKm) {
-        const R = 6371;
-        const dLat = (destLat - originLat) * Math.PI / 180;
-        const dLon = (destLng - originLng) * Math.PI / 180;
-        const a = Math.sin(dLat / 2) ** 2 +
-          Math.cos(originLat * Math.PI / 180) * Math.cos(destLat * Math.PI / 180) *
-          Math.sin(dLon / 2) ** 2;
-        distanceKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        console.log(`Haversine fallback for order ${orderId}: ${Math.round(distanceKm * 10) / 10} km`);
-      }
+      const result = await getGoogleMapsDistance(originLat, originLng, destLat, destLng);
+      distanceKm = result.distanceKm;
+      console.log(`Distance for order ${orderId}: ${distanceKm} km via ${result.source}`);
     }
 
     if (distanceKm > 0) {

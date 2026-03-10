@@ -28,8 +28,8 @@ Deno.serve(async (req) => {
       .from("user_roles")
       .select("role")
       .eq("user_id", user.id);
-    console.log("User roles:", JSON.stringify(roles));
-    if (!roles?.some((r: any) => r.role === "admin")) throw new Error("Admin access required");
+    const isAdmin = roles?.some((r: any) => r.role === "admin");
+    console.log("User roles:", JSON.stringify(roles), "isAdmin:", isAdmin);
 
     const { orderId, newDeliveryType } = await req.json();
     if (!orderId || !["delivery", "self_pickup"].includes(newDeliveryType)) {
@@ -42,6 +42,15 @@ Deno.serve(async (req) => {
       .eq("id", orderId)
       .single();
     if (orderErr || !order) throw new Error("Order not found");
+
+    // Allow admin OR order owner (customer)
+    const isOrderOwner = order.user_id === user.id;
+    if (!isAdmin && !isOrderOwner) throw new Error("Access denied - not admin or order owner");
+
+    // Customer can only switch if no rider assigned (delivery→pickup)
+    if (!isAdmin && isOrderOwner && order.rider_id && order.delivery_type !== "self_pickup") {
+      throw new Error("Cannot switch - a rider is already assigned to this order");
+    }
 
     if (order.status === "delivered" || order.status === "cancelled") {
       throw new Error("Cannot change delivery type on completed/cancelled orders");
