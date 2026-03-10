@@ -25,12 +25,6 @@ export function DeliveryTypeSwitcher({ order, onSwitched }: DeliveryTypeSwitcher
   const isDelivered = order.status === 'delivered';
   const isTest = order.environment === 'development';
 
-  // Don't show for completed/cancelled orders
-  if (isCancelled || isDelivered) return null;
-
-  // If delivery and rider assigned, disable switching
-  if (isDelivery && hasRider) return null;
-
   useEffect(() => {
     if (!user) return;
     // Fetch wallet balance and base delivery fee
