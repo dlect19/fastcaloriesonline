@@ -39,15 +39,20 @@ async function escalateToNextTier(
   const nextTier = tierOrder[currentIndex + 1];
   console.log(`Escalating from ${currentTier} to ${nextTier}`);
 
-  // Get dispatch settings
-  const { data: settings } = await supabase
-    .from('platform_settings')
-    .select('key, value')
-    .in('key', ['dispatch_acceptance_timeout_seconds']);
+  // Get dispatch settings and vehicle configs
+  const [{ data: settings }, { data: vehicleConfigs }] = await Promise.all([
+    supabase.from('platform_settings').select('key, value').in('key', ['dispatch_acceptance_timeout_seconds']),
+    supabase.from('vehicle_type_configs').select('vehicle_type, dispatch_radius_km').eq('is_active', true),
+  ]);
   
   const settingsMap: Record<string, string> = {};
   settings?.forEach((s: any) => { settingsMap[s.key] = s.value; });
   const timeoutSeconds = parseInt(settingsMap.dispatch_acceptance_timeout_seconds || '60');
+
+  const vehicleDispatchRadii: Record<string, number | null> = {};
+  (vehicleConfigs || []).forEach((c: any) => {
+    vehicleDispatchRadii[c.vehicle_type] = c.dispatch_radius_km;
+  });
 
   // Find riders for the next tier
   const { data: riders } = await supabase
