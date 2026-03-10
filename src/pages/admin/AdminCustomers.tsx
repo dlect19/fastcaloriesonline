@@ -315,6 +315,7 @@ export default function AdminCustomers() {
                       <th className="text-left py-3 px-4 font-medium">Orders</th>
                       <th className="text-left py-3 px-4 font-medium">Total Spent</th>
                       <th className="text-left py-3 px-4 font-medium">Wallet</th>
+                      <th className="text-left py-3 px-4 font-medium">Roles</th>
                       <th className="text-left py-3 px-4 font-medium">Joined</th>
                       <th className="text-left py-3 px-4 font-medium">Actions</th>
                     </tr>
