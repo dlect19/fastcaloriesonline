@@ -309,6 +309,44 @@ export default function AdminCoverageAreas() {
     setEditDialog({ open: true, area, isNew: false });
   };
 
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchQuery(value);
+    if (value.length < 3) { setSearchSuggestions([]); setShowSuggestions(false); return; }
+    clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      if (!autocompleteServiceRef.current) return;
+      setSearchLoading(true);
+      autocompleteServiceRef.current.getPlacePredictions(
+        { input: value, componentRestrictions: { country: 'ng' }, types: ['(regions)'] },
+        (predictions, status) => {
+          setSearchLoading(false);
+          if (status === google.maps.places.PlacesServiceStatus.OK && predictions) {
+            setSearchSuggestions(predictions.map(p => ({ place_id: p.place_id, description: p.description })));
+            setShowSuggestions(true);
+          } else { setSearchSuggestions([]); setShowSuggestions(false); }
+        }
+      );
+    }, 300);
+  }, []);
+
+  const handleSelectSearchSuggestion = useCallback((suggestion: { place_id: string; description: string }) => {
+    if (!placesServiceRef.current) return;
+    setSearchSuggestions([]); setShowSuggestions(false); setSearchQuery(suggestion.description);
+    placesServiceRef.current.getDetails(
+      { placeId: suggestion.place_id, fields: ['geometry'] },
+      (place, status) => {
+        if (status === google.maps.places.PlacesServiceStatus.OK && place?.geometry?.location) {
+          mapInstanceRef.current?.setCenter(place.geometry.location);
+          if (place.geometry.viewport) {
+            mapInstanceRef.current?.fitBounds(place.geometry.viewport);
+          } else {
+            mapInstanceRef.current?.setZoom(13);
+          }
+        }
+      }
+    );
+  }, []);
+
   const focusArea = (area: CoverageArea) => {
     if (!mapInstanceRef.current || !area.polygon?.length) return;
     const bounds = new google.maps.LatLngBounds();
