@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
           delivery_type: "self_pickup",
           delivery_fee: 0,
           total: newTotal,
-          delivery_address: "Self-pickup at vendor",
+          delivery_address_text: "Self-pickup at vendor",
           rider_id: null,
         })
         .eq("id", orderId);
