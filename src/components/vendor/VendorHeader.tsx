@@ -58,8 +58,8 @@ export function VendorHeader({ vendor }: VendorHeaderProps) {
             {/* Info */}
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between gap-2">
-                <div>
-                  <h1 className="text-xl font-bold text-foreground truncate">{vendor.name}</h1>
+                <div className="min-w-0">
+                  <h1 className="text-xl font-bold text-foreground break-words">{vendor.name}</h1>
                   <p className="text-sm text-muted-foreground">{categoryLabels[vendor.category]}</p>
                 </div>
                 <Badge variant={vendor.is_open ? 'secondary' : 'destructive'} className="shrink-0">

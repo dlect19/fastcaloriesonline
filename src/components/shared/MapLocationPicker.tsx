@@ -36,6 +36,7 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
   const markerRef = useRef<google.maps.Marker | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const ignoreMapClickRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -131,7 +132,7 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
         }
 
         map.addListener('click', (e: google.maps.MapMouseEvent) => {
-          if (!e.latLng) return;
+          if (!e.latLng || ignoreMapClickRef.current) return;
           const lat = e.latLng.lat();
           const lng = e.latLng.lng();
           placeMarker(lat, lng);
@@ -147,7 +148,14 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
           autocomplete.bindTo('bounds', map);
           autocompleteRef.current = autocomplete;
 
+          // Suppress map click when interacting with autocomplete dropdown
+          searchInputRef.current.addEventListener('focus', () => { ignoreMapClickRef.current = true; });
+          searchInputRef.current.addEventListener('blur', () => {
+            setTimeout(() => { ignoreMapClickRef.current = false; }, 300);
+          });
+
           autocomplete.addListener('place_changed', () => {
+            ignoreMapClickRef.current = true;
             const place = autocomplete.getPlace();
             if (place.geometry?.location) {
               const lat = place.geometry.location.lat();
@@ -157,6 +165,7 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
               placeMarker(lat, lng);
               onLocationSelect(lat, lng);
             }
+            setTimeout(() => { ignoreMapClickRef.current = false; }, 500);
           });
         }
 
