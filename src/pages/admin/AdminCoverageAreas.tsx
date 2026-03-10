@@ -7,7 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Plus, Trash2, Pencil, MapPin, Loader2, Save, X, Eye, EyeOff } from 'lucide-react';
+import { Plus, Trash2, Pencil, MapPin, Loader2, Save, X, Eye, EyeOff, Search } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 
@@ -54,6 +54,9 @@ export default function AdminCoverageAreas() {
   const drawingPointsRef = useRef<LatLng[]>([]);
   const previewPolygonRef = useRef<google.maps.Polygon | null>(null);
   const previewMarkersRef = useRef<google.maps.Marker[]>([]);
+  const autocompleteServiceRef = useRef<google.maps.places.AutocompleteService | null>(null);
+  const placesServiceRef = useRef<google.maps.places.PlacesService | null>(null);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   const [areas, setAreas] = useState<CoverageArea[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,6 +67,10 @@ export default function AdminCoverageAreas() {
   const [editName, setEditName] = useState('');
   const [editColor, setEditColor] = useState('#FF8C00');
   const [saving, setSaving] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchSuggestions, setSearchSuggestions] = useState<{ place_id: string; description: string }[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
 
   const fetchAreas = useCallback(async () => {
     const { data, error } = await supabase.from('coverage_areas').select('*').order('created_at', { ascending: true });
@@ -98,6 +105,8 @@ export default function AdminCoverageAreas() {
           fullscreenControl: true,
         });
         mapInstanceRef.current = map;
+        autocompleteServiceRef.current = new google.maps.places.AutocompleteService();
+        placesServiceRef.current = new google.maps.places.PlacesService(map);
         setMapLoading(false);
       } catch (err) {
         console.error('Map init error:', err);
@@ -300,6 +309,44 @@ export default function AdminCoverageAreas() {
     setEditDialog({ open: true, area, isNew: false });
   };
 
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchQuery(value);
+    if (value.length < 3) { setSearchSuggestions([]); setShowSuggestions(false); return; }
+    clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      if (!autocompleteServiceRef.current) return;
+      setSearchLoading(true);
+      autocompleteServiceRef.current.getPlacePredictions(
+        { input: value, componentRestrictions: { country: 'ng' }, types: ['(regions)'] },
+        (predictions, status) => {
+          setSearchLoading(false);
+          if (status === google.maps.places.PlacesServiceStatus.OK && predictions) {
+            setSearchSuggestions(predictions.map(p => ({ place_id: p.place_id, description: p.description })));
+            setShowSuggestions(true);
+          } else { setSearchSuggestions([]); setShowSuggestions(false); }
+        }
+      );
+    }, 300);
+  }, []);
+
+  const handleSelectSearchSuggestion = useCallback((suggestion: { place_id: string; description: string }) => {
+    if (!placesServiceRef.current) return;
+    setSearchSuggestions([]); setShowSuggestions(false); setSearchQuery(suggestion.description);
+    placesServiceRef.current.getDetails(
+      { placeId: suggestion.place_id, fields: ['geometry'] },
+      (place, status) => {
+        if (status === google.maps.places.PlacesServiceStatus.OK && place?.geometry?.location) {
+          mapInstanceRef.current?.setCenter(place.geometry.location);
+          if (place.geometry.viewport) {
+            mapInstanceRef.current?.fitBounds(place.geometry.viewport);
+          } else {
+            mapInstanceRef.current?.setZoom(13);
+          }
+        }
+      }
+    );
+  }, []);
+
   const focusArea = (area: CoverageArea) => {
     if (!mapInstanceRef.current || !area.polygon?.length) return;
     const bounds = new google.maps.LatLngBounds();
@@ -348,6 +395,37 @@ export default function AdminCoverageAreas() {
                     <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                   </div>
                 )}
+                {/* Search bar */}
+                <div className="absolute top-3 left-3 right-3 z-20" style={{ maxWidth: '400px' }}>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => handleSearchChange(e.target.value)}
+                      onFocus={() => { if (searchSuggestions.length > 0) setShowSuggestions(true); }}
+                      onBlur={() => { setTimeout(() => setShowSuggestions(false), 200); }}
+                      placeholder="Search city, town, state, LGA..."
+                      className="w-full h-10 pl-9 pr-3 rounded-lg border border-input bg-background text-sm shadow-md focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                    {searchLoading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />}
+                  </div>
+                  {showSuggestions && searchSuggestions.length > 0 && (
+                    <div className="mt-1 bg-background border border-input rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                      {searchSuggestions.map((s) => (
+                        <button
+                          key={s.place_id}
+                          type="button"
+                          onMouseDown={(e) => { e.preventDefault(); handleSelectSearchSuggestion(s); }}
+                          className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted transition-colors flex items-start gap-2 border-b border-border last:border-b-0"
+                        >
+                          <MapPin className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                          <span className="text-foreground">{s.description}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <div ref={mapRef} className="w-full rounded-lg" style={{ height: '500px' }} />
               </CardContent>
             </Card>
