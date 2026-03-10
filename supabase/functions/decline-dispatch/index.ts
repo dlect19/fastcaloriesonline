@@ -52,7 +52,7 @@ async function escalateToNextTier(
   // Find riders for the next tier
   const { data: riders } = await supabase
     .from('rider_profiles')
-    .select('id, user_id, current_latitude, current_longitude, preferred_latitude, preferred_longitude, work_radius_km, delivery_company_id, affiliated_vendor_id')
+    .select('id, user_id, current_latitude, current_longitude, preferred_latitude, preferred_longitude, work_radius_km, delivery_company_id, affiliated_vendor_id, vehicle_type')
     .eq('is_online', true)
     .eq('is_verified', true)
     .eq('is_email_verified', true)
