@@ -1,7 +1,6 @@
 /// <reference types="google.maps" />
 import { useEffect, useRef, useState, useCallback } from 'react';
-
-import { Loader2, Search } from 'lucide-react';
+import { Loader2, Search, MapPin } from 'lucide-react';
 
 interface MapLocationPickerProps {
   latitude?: number;
@@ -10,6 +9,11 @@ interface MapLocationPickerProps {
   height?: string;
   markerColor?: string;
   showSearchBar?: boolean;
+}
+
+interface PlaceSuggestion {
+  place_id: string;
+  description: string;
 }
 
 let googleMapsPromise: Promise<void> | null = null;
@@ -34,13 +38,17 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const markerRef = useRef<google.maps.Marker | null>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
-  const ignoreMapClickRef = useRef(false);
-  const cleanupRef = useRef<(() => void) | null>(null);
+  const autocompleteServiceRef = useRef<google.maps.places.AutocompleteService | null>(null);
+  const placesServiceRef = useRef<google.maps.places.PlacesService | null>(null);
+  const sessionTokenRef = useRef<google.maps.places.AutocompleteSessionToken | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchFocused, setSearchFocused] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
 
   const defaultLat = latitude || 6.5244;
   const defaultLng = longitude || 3.3792;
@@ -81,6 +89,81 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
     }
   }, [onLocationSelect, createMarkerIcon]);
 
+  // Handle search input changes - fetch suggestions via AutocompleteService
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchQuery(value);
+    if (value.length < 3) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      if (!autocompleteServiceRef.current) return;
+
+      if (!sessionTokenRef.current) {
+        sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
+      }
+
+      setSearchLoading(true);
+      autocompleteServiceRef.current.getPlacePredictions(
+        {
+          input: value,
+          componentRestrictions: { country: 'ng' },
+          sessionToken: sessionTokenRef.current,
+        },
+        (predictions, status) => {
+          setSearchLoading(false);
+          if (status === google.maps.places.PlacesServiceStatus.OK && predictions) {
+            setSuggestions(
+              predictions.map((p) => ({
+                place_id: p.place_id,
+                description: p.description,
+              }))
+            );
+            setShowSuggestions(true);
+          } else {
+            setSuggestions([]);
+            setShowSuggestions(false);
+          }
+        }
+      );
+    }, 300);
+  }, []);
+
+  // Handle suggestion selection - get place details and set marker
+  const handleSelectSuggestion = useCallback((suggestion: PlaceSuggestion) => {
+    if (!placesServiceRef.current) return;
+
+    setSuggestions([]);
+    setShowSuggestions(false);
+    setSearchQuery(suggestion.description);
+    setSearchLoading(true);
+
+    placesServiceRef.current.getDetails(
+      {
+        placeId: suggestion.place_id,
+        fields: ['geometry', 'name', 'formatted_address'],
+        sessionToken: sessionTokenRef.current || undefined,
+      },
+      (place, status) => {
+        setSearchLoading(false);
+        // Reset session token after getDetails (ends the session)
+        sessionTokenRef.current = null;
+
+        if (status === google.maps.places.PlacesServiceStatus.OK && place?.geometry?.location) {
+          const lat = place.geometry.location.lat();
+          const lng = place.geometry.location.lng();
+          mapInstanceRef.current?.setCenter({ lat, lng });
+          mapInstanceRef.current?.setZoom(16);
+          placeMarker(lat, lng);
+          onLocationSelect(lat, lng);
+        }
+      }
+    );
+  }, [placeMarker, onLocationSelect]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -105,7 +188,6 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
         }
         
         const data = await response.json();
-        console.log('Maps key response:', data);
         const apiKey = data?.key;
         
         if (!apiKey) {
@@ -129,92 +211,21 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
         });
         mapInstanceRef.current = map;
 
+        // Initialize services for custom autocomplete
+        autocompleteServiceRef.current = new google.maps.places.AutocompleteService();
+        placesServiceRef.current = new google.maps.places.PlacesService(map);
+
         if (latitude && longitude) {
           placeMarker(latitude, longitude);
         }
 
         map.addListener('click', (e: google.maps.MapMouseEvent) => {
-          if (!e.latLng || ignoreMapClickRef.current) return;
+          if (!e.latLng) return;
           const lat = e.latLng.lat();
           const lng = e.latLng.lng();
           placeMarker(lat, lng);
           onLocationSelect(lat, lng);
         });
-
-        // Set up Places Autocomplete on the search input
-        if (showSearchBar && searchInputRef.current) {
-          const autocomplete = new google.maps.places.Autocomplete(searchInputRef.current, {
-            componentRestrictions: { country: 'ng' },
-            fields: ['geometry', 'name', 'formatted_address'],
-          });
-          autocomplete.bindTo('bounds', map);
-          autocompleteRef.current = autocomplete;
-
-          // Suppress map click when interacting with autocomplete dropdown
-          searchInputRef.current.addEventListener('focus', () => { 
-            ignoreMapClickRef.current = true; 
-            setSearchFocused(true);
-          });
-          searchInputRef.current.addEventListener('blur', () => {
-            // Longer delay to let pac-container tap register on mobile
-            setTimeout(() => { 
-              ignoreMapClickRef.current = false; 
-              setSearchFocused(false);
-            }, 1200);
-          });
-
-          // Intercept touches/clicks on the pac-container to keep map clicks suppressed
-          const suppressMapFromPac = (evt: Event) => {
-            const target = evt.target as HTMLElement;
-            if (target?.closest('.pac-container')) {
-              ignoreMapClickRef.current = true;
-            }
-          };
-          document.addEventListener('mousedown', suppressMapFromPac, true);
-          document.addEventListener('touchstart', suppressMapFromPac, true);
-
-          // Fix: On mobile, Google Places pac-item touchend doesn't trigger click.
-          // Forward touchend to click so suggestions are actually selectable.
-          const forwardTouchToClick = (evt: TouchEvent) => {
-            const target = evt.target as HTMLElement;
-            if (target?.closest('.pac-container .pac-item')) {
-              evt.preventDefault();
-              evt.stopPropagation();
-              target.closest('.pac-item')?.dispatchEvent(
-                new MouseEvent('mousedown', { bubbles: true, cancelable: true })
-              );
-              target.closest('.pac-item')?.dispatchEvent(
-                new MouseEvent('mouseup', { bubbles: true, cancelable: true })
-              );
-              target.closest('.pac-item')?.dispatchEvent(
-                new MouseEvent('click', { bubbles: true, cancelable: true })
-              );
-            }
-          };
-          document.addEventListener('touchend', forwardTouchToClick, true);
-
-          autocomplete.addListener('place_changed', () => {
-            ignoreMapClickRef.current = true;
-            const place = autocomplete.getPlace();
-            if (place.geometry?.location) {
-              const lat = place.geometry.location.lat();
-              const lng = place.geometry.location.lng();
-              map.setCenter({ lat, lng });
-              map.setZoom(16);
-              placeMarker(lat, lng);
-              onLocationSelect(lat, lng);
-            }
-            setTimeout(() => { ignoreMapClickRef.current = false; }, 1000);
-          });
-
-          // Cleanup listeners on unmount
-          const cleanup = () => {
-            document.removeEventListener('mousedown', suppressMapFromPac, true);
-            document.removeEventListener('touchstart', suppressMapFromPac, true);
-            document.removeEventListener('touchend', forwardTouchToClick, true);
-          };
-          cleanupRef.current = cleanup;
-        }
 
         setLoading(false);
       } catch (err) {
@@ -223,7 +234,7 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
       }
     })();
 
-    return () => { cancelled = true; cleanupRef.current?.(); };
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -253,17 +264,39 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
       {showSearchBar && (
         <div className="absolute top-3 left-3 right-3 z-20">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
             <input
-              ref={searchInputRef}
               type="text"
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
+              onBlur={() => { setTimeout(() => setShowSuggestions(false), 200); }}
               placeholder="Search for a landmark or address..."
               className="w-full h-10 pl-9 pr-3 rounded-lg border border-input bg-background text-sm shadow-md focus:outline-none focus:ring-2 focus:ring-primary"
             />
+            {searchLoading && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />}
           </div>
+          {showSuggestions && suggestions.length > 0 && (
+            <div className="mt-1 bg-background border border-input rounded-lg shadow-lg max-h-48 overflow-y-auto">
+              {suggestions.map((suggestion) => (
+                <button
+                  key={suggestion.place_id}
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault(); // Prevent blur from firing before click
+                    handleSelectSuggestion(suggestion);
+                  }}
+                  className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted active:bg-muted transition-colors flex items-start gap-2 border-b border-border last:border-b-0"
+                >
+                  <MapPin className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                  <span className="text-foreground">{suggestion.description}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
-      <div ref={mapRef} className="w-full h-full" style={searchFocused ? { pointerEvents: 'none' } : undefined} />
+      <div ref={mapRef} className="w-full h-full" />
     </div>
   );
 }
