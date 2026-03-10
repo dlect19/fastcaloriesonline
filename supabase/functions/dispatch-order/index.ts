@@ -205,15 +205,23 @@ function calculateRiderPayout(
   };
 }
 
-async function getVehicleTypeConfigs(supabase: any): Promise<Record<string, number>> {
+interface VehicleTypeConfig {
+  maxDeliveryDistanceKm: number;
+  dispatchRadiusKm: number | null;
+}
+
+async function getVehicleTypeConfigs(supabase: any): Promise<Record<string, VehicleTypeConfig>> {
   const { data } = await supabase
     .from('vehicle_type_configs')
-    .select('vehicle_type, max_delivery_distance_km')
+    .select('vehicle_type, max_delivery_distance_km, dispatch_radius_km')
     .eq('is_active', true);
 
-  const configs: Record<string, number> = {};
+  const configs: Record<string, VehicleTypeConfig> = {};
   (data || []).forEach((c: any) => {
-    configs[c.vehicle_type] = c.max_delivery_distance_km;
+    configs[c.vehicle_type] = {
+      maxDeliveryDistanceKm: c.max_delivery_distance_km,
+      dispatchRadiusKm: c.dispatch_radius_km,
+    };
   });
   return configs;
 }
