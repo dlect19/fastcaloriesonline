@@ -54,6 +54,9 @@ export default function AdminCoverageAreas() {
   const drawingPointsRef = useRef<LatLng[]>([]);
   const previewPolygonRef = useRef<google.maps.Polygon | null>(null);
   const previewMarkersRef = useRef<google.maps.Marker[]>([]);
+  const autocompleteServiceRef = useRef<google.maps.places.AutocompleteService | null>(null);
+  const placesServiceRef = useRef<google.maps.places.PlacesService | null>(null);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   const [areas, setAreas] = useState<CoverageArea[]>([]);
   const [loading, setLoading] = useState(true);
