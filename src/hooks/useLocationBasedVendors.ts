@@ -109,6 +109,8 @@ export function useLocationBasedVendors({
 
       setVendors(data.vendors || []);
       setMaxRadius(data.max_radius_km || 10);
+      setCustomerInCoverage(data.customer_in_coverage !== false);
+      setCoverageAreas((data.coverage_areas || []).map((a: any) => ({ id: a.id, name: a.name, color: a.color })));
     } catch (err) {
       console.error('Error fetching nearby vendors:', err);
       setError('Failed to load vendors');
