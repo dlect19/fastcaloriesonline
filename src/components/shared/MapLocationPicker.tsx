@@ -148,7 +148,14 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
           autocomplete.bindTo('bounds', map);
           autocompleteRef.current = autocomplete;
 
+          // Suppress map click when interacting with autocomplete dropdown
+          searchInputRef.current.addEventListener('focus', () => { ignoreMapClickRef.current = true; });
+          searchInputRef.current.addEventListener('blur', () => {
+            setTimeout(() => { ignoreMapClickRef.current = false; }, 300);
+          });
+
           autocomplete.addListener('place_changed', () => {
+            ignoreMapClickRef.current = true;
             const place = autocomplete.getPlace();
             if (place.geometry?.location) {
               const lat = place.geometry.location.lat();
@@ -158,6 +165,7 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
               placeMarker(lat, lng);
               onLocationSelect(lat, lng);
             }
+            setTimeout(() => { ignoreMapClickRef.current = false; }, 500);
           });
         }
 
