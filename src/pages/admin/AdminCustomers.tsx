@@ -374,7 +374,7 @@ export default function AdminCustomers() {
                     ))}
                     {filteredCustomers.length === 0 && (
                       <tr>
-                        <td colSpan={7} className="py-8 text-center text-muted-foreground">
+                        <td colSpan={8} className="py-8 text-center text-muted-foreground">
                           No customers found
                         </td>
                       </tr>
