@@ -132,7 +132,7 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
         }
 
         map.addListener('click', (e: google.maps.MapMouseEvent) => {
-          if (!e.latLng) return;
+          if (!e.latLng || ignoreMapClickRef.current) return;
           const lat = e.latLng.lat();
           const lng = e.latLng.lng();
           placeMarker(lat, lng);
