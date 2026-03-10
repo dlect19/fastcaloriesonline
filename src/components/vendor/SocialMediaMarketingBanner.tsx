@@ -72,6 +72,7 @@ export function SocialMediaMarketingBanner({
   const bannerRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const [downloading, setDownloading] = useState(false);
+  const customLogos = useSocialLogos();
 
   const activeHandles = Object.entries(socialHandles || {}).filter(
     ([, val]) => val && val.trim()
