@@ -728,57 +728,70 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
         {/* ── Change Delivery Type ── */}
         {activeOrder.status !== 'delivered' && activeOrder.status !== 'cancelled' && (
           <Card>
-            <CardContent className="py-3 px-4 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 min-w-0">
-                <Repeat className="w-4 h-4 text-primary shrink-0" />
-                <div>
-                  <p className="text-sm font-medium">Delivery Method</p>
-                  <p className="text-xs text-muted-foreground">
-                    Currently: {(activeOrder.delivery_type || 'delivery').replace(/_/g, ' ')}
-                  </p>
+            <CardContent className="py-3 px-4 space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Repeat className="w-4 h-4 text-primary shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium">Delivery Method</p>
+                    <p className="text-xs text-muted-foreground">
+                      Currently: {(activeOrder.delivery_type || 'delivery').replace(/_/g, ' ')}
+                      {activeOrder.delivery_type !== 'self_pickup' && Number(activeOrder.delivery_fee) > 0 && (
+                        <span> • Fee: ₦{Number(activeOrder.delivery_fee).toLocaleString()}</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Select
+                    value={activeOrder.delivery_type || 'delivery'}
+                    onValueChange={async (newType) => {
+                      if (newType === (activeOrder.delivery_type || 'delivery')) return;
+                      const isSwitchingToPickup = newType === 'self_pickup';
+                      const fee = Number(activeOrder.delivery_fee) || 0;
+                      const confirmMsg = isSwitchingToPickup
+                        ? `Switch to Self-Pickup? ₦${fee.toLocaleString()} delivery fee will be refunded to the customer's wallet.`
+                        : `Switch to Delivery? The base delivery fee will be charged from the customer's wallet.`;
+                      if (!window.confirm(confirmMsg)) return;
+
+                      setChangingDeliveryType(true);
+                      try {
+                        const { data, error } = await supabase.functions.invoke('switch-delivery-type', {
+                          body: { orderId: activeOrder.id, newDeliveryType: newType },
+                        });
+                        if (error) throw error;
+                        if (!data?.success) throw new Error(data?.message || 'Failed to switch');
+                        toast({ title: '✅ Delivery method updated', description: data.message });
+                        // Refresh order data
+                        const { data: refreshed } = await supabase
+                          .from('orders')
+                          .select('*')
+                          .eq('id', activeOrder.id)
+                          .single();
+                        if (refreshed) setLiveOrder(refreshed as unknown as Order);
+                        onUpdated();
+                      } catch (e: any) {
+                        toast({ title: 'Error', description: e.message, variant: 'destructive' });
+                      } finally {
+                        setChangingDeliveryType(false);
+                      }
+                    }}
+                    disabled={changingDeliveryType}
+                  >
+                    <SelectTrigger className="w-36 h-8 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="delivery">Delivery</SelectItem>
+                      <SelectItem value="self_pickup">Self Pickup</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {changingDeliveryType && <Loader2 className="w-4 h-4 animate-spin text-primary" />}
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Select
-                  value={activeOrder.delivery_type || 'delivery'}
-                  onValueChange={async (newType) => {
-                    if (newType === (activeOrder.delivery_type || 'delivery')) return;
-                    setChangingDeliveryType(true);
-                    try {
-                      const updates: Record<string, any> = {
-                        delivery_type: newType,
-                      };
-                      // If switching to self_pickup, zero out delivery fee
-                      if (newType === 'self_pickup') {
-                        updates.delivery_fee = 0;
-                        updates.delivery_address = `Self-pickup at vendor`;
-                      }
-                      const { error } = await supabase
-                        .from('orders')
-                        .update(updates)
-                        .eq('id', activeOrder.id);
-                      if (error) throw error;
-                      toast({ title: `✅ Changed to ${newType.replace(/_/g, ' ')}` });
-                      setLiveOrder(prev => prev ? { ...prev, ...updates } : prev);
-                      onUpdated();
-                    } catch (e: any) {
-                      toast({ title: 'Error', description: e.message, variant: 'destructive' });
-                    } finally {
-                      setChangingDeliveryType(false);
-                    }
-                  }}
-                  disabled={changingDeliveryType}
-                >
-                  <SelectTrigger className="w-36 h-8 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="delivery">Delivery</SelectItem>
-                    <SelectItem value="self_pickup">Self Pickup</SelectItem>
-                  </SelectContent>
-                </Select>
-                {changingDeliveryType && <Loader2 className="w-4 h-4 animate-spin text-primary" />}
-              </div>
+              <p className="text-[10px] text-muted-foreground">
+                Switching refunds or charges the delivery fee from the customer's wallet automatically
+              </p>
             </CardContent>
           </Card>
         )}
