@@ -17,15 +17,18 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("Unauthorized");
+    console.log("Auth header present:", !!authHeader);
+    if (!authHeader) throw new Error("Unauthorized - no auth header");
     const token = authHeader.replace("Bearer ", "");
     const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
-    if (authErr || !user) throw new Error("Unauthorized");
+    console.log("User resolved:", !!user, "Auth error:", authErr?.message);
+    if (authErr || !user) throw new Error("Unauthorized - invalid token");
 
     const { data: roles } = await supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", user.id);
+    console.log("User roles:", JSON.stringify(roles));
     if (!roles?.some((r: any) => r.role === "admin")) throw new Error("Admin access required");
 
     const { orderId, newDeliveryType } = await req.json();
