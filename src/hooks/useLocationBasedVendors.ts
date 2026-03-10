@@ -142,6 +142,8 @@ export function useLocationBasedVendors({
     geoError,
     hasLocation,
     maxRadius,
+    customerInCoverage,
+    coverageAreas,
     refetch: fetchVendors,
     requestLocation: getCurrentPosition,
   };
