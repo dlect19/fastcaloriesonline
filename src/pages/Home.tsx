@@ -13,6 +13,7 @@ import { CartButton } from '@/components/cart/CartButton';
 import { ActionHints } from '@/components/home/ActionHints';
 import { PWAInstallBanner } from '@/components/home/PWAInstallBanner';
 import { ApkUpdateBanner } from '@/components/shared/ApkUpdateBanner';
+import { AppDownloadBanner } from '@/components/shared/AppDownloadBanner';
 import { AIMealRecommendation } from '@/components/home/AIMealRecommendation';
 import { SpinWheelWidget } from '@/components/home/SpinWheelWidget';
 import { LocationSearch } from '@/components/home/LocationSearch';
