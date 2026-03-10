@@ -13,6 +13,7 @@ import { IncomingOrderCall } from '@/components/vendor/IncomingOrderCall';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ApkUpdateBanner } from '@/components/shared/ApkUpdateBanner';
+import { AppDownloadBanner } from '@/components/shared/AppDownloadBanner';
 
 interface VendorLayoutProps {
   children: ReactNode;
