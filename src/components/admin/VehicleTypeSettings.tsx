@@ -15,6 +15,7 @@ interface VehicleConfig {
   max_delivery_distance_km: number;
   base_delivery_rate: number;
   per_km_rate: number | null;
+  dispatch_radius_km: number | null;
   is_active: boolean;
   sort_order: number;
 }
