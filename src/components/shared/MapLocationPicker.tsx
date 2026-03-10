@@ -36,6 +36,7 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
   const markerRef = useRef<google.maps.Marker | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const ignoreMapClickRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
