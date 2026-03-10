@@ -88,7 +88,7 @@ export function VehicleTypeSettings() {
           Vehicle Type Distance Rules
         </CardTitle>
         <CardDescription>
-          Configure max delivery distance and base rates per vehicle type
+          Configure max delivery distance, dispatch radius, and base rates per vehicle type
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
