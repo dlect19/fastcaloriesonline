@@ -211,6 +211,7 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
           const cleanup = () => {
             document.removeEventListener('mousedown', suppressMapFromPac, true);
             document.removeEventListener('touchstart', suppressMapFromPac, true);
+            document.removeEventListener('touchend', forwardTouchToClick, true);
           };
           cleanupRef.current = cleanup;
         }
