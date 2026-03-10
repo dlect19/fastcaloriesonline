@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, Package, Users, Wallet, ArrowUpRight, Settings, LogOut, Truck, Menu, X, MessageSquare } from 'lucide-react';
+import { Home, Package, Users, Wallet, ArrowUpRight, Settings, LogOut, Truck, Menu, X, MessageSquare, ExternalLink } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
