@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, Search, ShoppingBag, Heart, User, MessageSquare } from 'lucide-react';
+import { Home, Search, ShoppingBag, User, MapPin, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import fastCaloriesFooterLogo from '@/assets/fast-calories-footer-logo.png';
 
@@ -7,7 +7,7 @@ const navItems = [
   { id: 'home', icon: Home, label: 'Home', path: '/' },
   { id: 'search', icon: Search, label: 'Explore', path: '/explore' },
   { id: 'orders', icon: ShoppingBag, label: 'Orders', path: '/orders' },
-  { id: 'support', icon: MessageSquare, label: 'Support', path: '/support' },
+  { id: 'coverage', icon: MapPin, label: 'Coverage', path: '/coverage' },
   { id: 'profile', icon: User, label: 'Profile', path: '/profile' },
 ];
 
