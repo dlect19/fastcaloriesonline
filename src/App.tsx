@@ -98,6 +98,7 @@ import RiderSupport from "./pages/rider/RiderSupport";
 import AdminSupport from "./pages/admin/AdminSupport";
 import AdminNotifications from "./pages/admin/AdminNotifications";
 import AdminCoverageAreas from "./pages/admin/AdminCoverageAreas";
+import CoverageMap from "./pages/CoverageMap";
 import WorkspaceLogin from "./pages/WorkspaceLogin";
 import { playGlobalNotificationSound } from '@/lib/globalAudio';
 import { useFcmNotifications } from '@/hooks/useFcmNotifications';
@@ -152,6 +153,7 @@ const App = () => {
               <Route path="/rewards" element={<Rewards />} />
               <Route path="/profile-setup" element={<ProfileSetup />} />
               <Route path="/support" element={<CustomerSupport />} />
+              <Route path="/coverage" element={<CoverageMap />} />
               {/* Landing Pages */}
               <Route path="/become-vendor" element={<VendorLanding />} />
               <Route path="/become-rider" element={<RiderLanding />} />
