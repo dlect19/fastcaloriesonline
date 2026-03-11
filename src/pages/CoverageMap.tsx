@@ -162,7 +162,7 @@ export default function CoverageMap() {
   }, [loading, latitude, longitude, coverageAreas]);
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="h-screen bg-background flex flex-col overflow-hidden">
       {/* Header */}
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3">
         <div className="flex items-center gap-3">
@@ -192,7 +192,7 @@ export default function CoverageMap() {
       )}
 
       {/* Map */}
-      <div className="flex-1 relative" style={{ minHeight: 'calc(100vh - 200px)' }}>
+      <div className="flex-1 relative min-h-0">
         {(loading || mapLoading) && (
           <div className="absolute inset-0 flex items-center justify-center bg-background z-10">
             <div className="flex flex-col items-center gap-2">
