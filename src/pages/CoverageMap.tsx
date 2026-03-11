@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, MapPin, Loader2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, MapPin, Loader2, AlertCircle, Search, ChevronDown, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { BottomNav } from '@/components/home/BottomNav';
 import { supabase } from '@/integrations/supabase/client';
 import { useGeolocation } from '@/hooks/useGeolocation';
@@ -15,14 +16,28 @@ interface CoverageArea {
   is_active: boolean;
 }
 
+interface SearchSuggestion {
+  place_id: string;
+  description: string;
+}
+
 export default function CoverageMap() {
   const navigate = useNavigate();
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
+  const autocompleteServiceRef = useRef<google.maps.places.AutocompleteService | null>(null);
+  const placesServiceRef = useRef<google.maps.places.PlacesService | null>(null);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [coverageAreas, setCoverageAreas] = useState<CoverageArea[]>([]);
   const [loading, setLoading] = useState(true);
   const [mapLoading, setMapLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [legendOpen, setLegendOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchSuggestions, setSearchSuggestions] = useState<SearchSuggestion[]>([]);
+  const [searchOpen, setSearchOpen] = useState(false);
+
   const { latitude, longitude, getCurrentPosition } = useGeolocation();
 
   // Fetch coverage areas
@@ -78,7 +93,7 @@ export default function CoverageMap() {
 
         const center = latitude && longitude
           ? { lat: latitude, lng: longitude }
-          : { lat: 9.06, lng: 7.49 }; // Default: Nigeria center
+          : { lat: 9.06, lng: 7.49 };
 
         const map = new google.maps.Map(mapContainerRef.current, {
           center,
@@ -93,6 +108,10 @@ export default function CoverageMap() {
           ],
         });
         mapInstanceRef.current = map;
+
+        // Init Places services
+        autocompleteServiceRef.current = new google.maps.places.AutocompleteService();
+        placesServiceRef.current = new google.maps.places.PlacesService(map);
 
         // Draw coverage polygons
         const bounds = new google.maps.LatLngBounds();
@@ -114,7 +133,6 @@ export default function CoverageMap() {
           polygon.setMap(map);
           hasPolygons = true;
 
-          // Info window on click
           const infoWindow = new google.maps.InfoWindow();
           polygon.addListener('click', (e: google.maps.MapMouseEvent) => {
             infoWindow.setContent(`
@@ -130,7 +148,6 @@ export default function CoverageMap() {
           coords.forEach(c => bounds.extend(new google.maps.LatLng(c.lat, c.lng)));
         });
 
-        // Customer marker
         if (latitude && longitude) {
           new google.maps.Marker({
             position: { lat: latitude, lng: longitude },
@@ -161,35 +178,156 @@ export default function CoverageMap() {
     initMap();
   }, [loading, latitude, longitude, coverageAreas]);
 
+  // Search handler with debounce
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchQuery(value);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+
+    if (!value.trim() || !autocompleteServiceRef.current) {
+      setSearchSuggestions([]);
+      return;
+    }
+
+    searchDebounceRef.current = setTimeout(() => {
+      autocompleteServiceRef.current!.getPlacePredictions(
+        {
+          input: value,
+          componentRestrictions: { country: 'ng' },
+          types: ['(regions)'],
+        },
+        (predictions, status) => {
+          if (status === google.maps.places.PlacesServiceStatus.OK && predictions) {
+            setSearchSuggestions(
+              predictions.map(p => ({ place_id: p.place_id, description: p.description }))
+            );
+          } else {
+            setSearchSuggestions([]);
+          }
+        }
+      );
+    }, 300);
+  }, []);
+
+  const handleSelectSuggestion = useCallback((suggestion: SearchSuggestion) => {
+    if (!placesServiceRef.current || !mapInstanceRef.current) return;
+
+    placesServiceRef.current.getDetails(
+      { placeId: suggestion.place_id, fields: ['geometry'] },
+      (place, status) => {
+        if (status === google.maps.places.PlacesServiceStatus.OK && place?.geometry?.location) {
+          mapInstanceRef.current!.setCenter(place.geometry.location);
+          if (place.geometry.viewport) {
+            mapInstanceRef.current!.fitBounds(place.geometry.viewport);
+          } else {
+            mapInstanceRef.current!.setZoom(13);
+          }
+        }
+      }
+    );
+
+    setSearchQuery(suggestion.description);
+    setSearchSuggestions([]);
+    setSearchOpen(false);
+  }, []);
+
   return (
     <div className="h-screen bg-background flex flex-col overflow-hidden">
       {/* Header */}
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" className="flex-shrink-0" onClick={() => navigate('/')}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
-          <div>
+          <div className="flex-1 min-w-0">
             <h1 className="text-lg font-bold text-foreground">Delivery Coverage</h1>
-            <p className="text-xs text-muted-foreground">Areas where we deliver</p>
           </div>
+          {/* Coverage Areas Dropdown */}
+          {coverageAreas.length > 0 && (
+            <div className="relative">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1 text-xs"
+                onClick={() => setLegendOpen(!legendOpen)}
+              >
+                <MapPin className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Areas</span>
+                <span className="inline sm:hidden">{coverageAreas.length}</span>
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${legendOpen ? 'rotate-180' : ''}`} />
+              </Button>
+
+              {legendOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setLegendOpen(false)} />
+                  <div className="absolute right-0 top-full mt-1 z-50 bg-background border border-border rounded-lg shadow-lg p-2 min-w-[200px] max-h-[250px] overflow-y-auto">
+                    <p className="text-xs font-medium text-muted-foreground px-2 py-1 mb-1">Coverage Zones</p>
+                    {coverageAreas.map((area) => (
+                      <button
+                        key={area.id}
+                        className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-secondary text-left text-sm"
+                        onClick={() => {
+                          // Pan to area center
+                          const coords = area.polygon as Array<{ lat: number; lng: number }>;
+                          if (coords?.length && mapInstanceRef.current) {
+                            const bounds = new google.maps.LatLngBounds();
+                            coords.forEach(c => bounds.extend(new google.maps.LatLng(c.lat, c.lng)));
+                            mapInstanceRef.current.fitBounds(bounds, 40);
+                          }
+                          setLegendOpen(false);
+                        }}
+                      >
+                        <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: area.color }} />
+                        <span className="truncate">{area.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </header>
 
-      {/* Legend */}
-      {coverageAreas.length > 0 && (
-        <div className="px-4 py-2 flex flex-wrap gap-2 border-b border-border bg-secondary/30">
-          {coverageAreas.map((area) => (
-            <span
-              key={area.id}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-background border border-border"
+      {/* Search Bar */}
+      <div className="relative z-30 px-3 py-2 bg-background border-b border-border">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Search city, town, state..."
+            value={searchQuery}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            onFocus={() => setSearchOpen(true)}
+            className="pl-9 pr-8 h-9 text-sm"
+          />
+          {searchQuery && (
+            <button
+              className="absolute right-3 top-1/2 -translate-y-1/2"
+              onClick={() => { setSearchQuery(''); setSearchSuggestions([]); }}
             >
-              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: area.color }} />
-              {area.name}
-            </span>
-          ))}
+              <X className="w-4 h-4 text-muted-foreground" />
+            </button>
+          )}
         </div>
-      )}
+
+        {/* Search Suggestions */}
+        {searchOpen && searchSuggestions.length > 0 && (
+          <>
+            <div className="fixed inset-0 z-20" onClick={() => { setSearchOpen(false); setSearchSuggestions([]); }} />
+            <div className="absolute left-3 right-3 top-full mt-1 z-30 bg-background border border-border rounded-lg shadow-lg max-h-[200px] overflow-y-auto">
+              {searchSuggestions.map((s) => (
+                <button
+                  key={s.place_id}
+                  className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-secondary text-left text-sm border-b border-border last:border-0"
+                  onClick={() => handleSelectSuggestion(s)}
+                >
+                  <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                  <span className="truncate">{s.description}</span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
 
       {/* Map */}
       <div className="flex-1 relative min-h-0">
