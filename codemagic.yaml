@@ -99,7 +99,7 @@ workflows:
             -scheme App \
             -sdk iphonesimulator \
             -configuration Debug \
-            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
             CODE_SIGNING_ALLOWED=NO
     artifacts:
       - ios/App/build/**/*.app
