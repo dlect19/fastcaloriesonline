@@ -192,7 +192,7 @@ export default function CoverageMap() {
       )}
 
       {/* Map */}
-      <div className="flex-1 relative" style={{ minHeight: 'calc(100vh - 200px)' }}>
+      <div className="flex-1 relative min-h-0">
         {(loading || mapLoading) && (
           <div className="absolute inset-0 flex items-center justify-center bg-background z-10">
             <div className="flex flex-col items-center gap-2">
