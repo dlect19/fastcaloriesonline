@@ -10,7 +10,17 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "cap:sync": "npm run build && npx cap sync",
+    "cap:sync:android": "npm run build && npx cap sync android",
+    "cap:sync:ios": "npm run build && npx cap sync ios",
+    "cap:open:android": "npx cap open android",
+    "cap:open:ios": "npx cap open ios",
+    "cap:run:android": "npm run cap:sync:android && npx cap run android",
+    "cap:run:ios": "npm run cap:sync:ios && npx cap run ios",
+    "android:build": "cd android && ./gradlew assembleDebug",
+    "android:release": "cd android && ./gradlew assembleRelease",
+    "mobile:setup": "npm run build && npx cap sync"
   },
   "dependencies": {
     "@capacitor-firebase/messaging": "^8.1.0",

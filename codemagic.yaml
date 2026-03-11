@@ -77,7 +77,6 @@ workflows:
     environment:
       node: 22
       xcode: latest
-      cocoapods: default
     scripts:
       - name: Install dependencies
         script: |
@@ -85,17 +84,18 @@ workflows:
       - name: Build web assets
         script: |
           npm run build
-      - name: Add iOS platform
-        script: |
-          npx cap add ios || true
-      - name: Sync Capacitor (includes pod install)
+      - name: Sync Capacitor
         script: |
           npx cap sync ios
+      - name: Resolve Swift Package Manager dependencies
+        script: |
+          cd ios/App
+          xcodebuild -resolvePackageDependencies -project App.xcodeproj -scheme App
       - name: Build iOS
         script: |
           cd ios/App
           xcodebuild build \
-            -workspace App.xcworkspace \
+            -project App.xcodeproj \
             -scheme App \
             -sdk iphonesimulator \
             -configuration Debug \
@@ -111,7 +111,6 @@ workflows:
     environment:
       node: 22
       xcode: latest
-      cocoapods: default
       groups:
         - ios_credentials
     scripts:
@@ -121,12 +120,13 @@ workflows:
       - name: Build web assets
         script: |
           npm run build
-      - name: Add iOS platform
-        script: |
-          npx cap add ios || true
-      - name: Sync Capacitor (includes pod install)
+      - name: Sync Capacitor
         script: |
           npx cap sync ios
+      - name: Resolve Swift Package Manager dependencies
+        script: |
+          cd ios/App
+          xcodebuild -resolvePackageDependencies -project App.xcodeproj -scheme App
       - name: Set up code signing
         script: |
           keychain initialize
@@ -137,7 +137,7 @@ workflows:
         script: |
           cd ios/App
           xcode-project build-ipa \
-            --workspace App.xcworkspace \
+            --project App.xcodeproj \
             --scheme App
     artifacts:
       - ios/App/build/ios/ipa/*.ipa
