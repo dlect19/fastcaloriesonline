@@ -18,7 +18,7 @@ interface VendorGroupCardProps {
   customerLon: number | null;
   deliveryType: 'delivery' | 'self_pickup';
   onClearGroup: (vendorId: string, outletId?: string) => void;
-  onFeesCalculated: (vendorId: string, deliveryFee: number, packagingFee: number, distanceKm: number | null, surgeFee: number) => void;
+  onFeesCalculated: (vendorId: string, deliveryFee: number, packagingFee: number, distanceKm: number | null, surgeFee: number, feeLoading: boolean) => void;
 }
 
 export function VendorGroupCard({
