@@ -285,6 +285,6 @@ export default function AdminDeliveryCompanies() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </AdminLayout>
   );
 }
