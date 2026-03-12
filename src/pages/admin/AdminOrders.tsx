@@ -107,16 +107,28 @@ export default function AdminOrders() {
       
       if (data && data.length > 0) {
         const userIds = [...new Set(data.map(o => o.user_id).filter(Boolean))];
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('user_id, full_name, phone')
-          .in('user_id', userIds);
+        const riderIds = [...new Set(data.map(o => o.rider_id).filter(Boolean))];
 
-        const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
+        const [profilesRes, riderProfilesRes, riderNamesRes] = await Promise.all([
+          supabase.from('profiles').select('user_id, full_name, phone').in('user_id', userIds),
+          riderIds.length > 0
+            ? supabase.from('rider_profiles').select('user_id, vehicle_type').in('user_id', riderIds)
+            : { data: [] },
+          riderIds.length > 0
+            ? supabase.from('profiles').select('user_id, full_name, phone').in('user_id', riderIds)
+            : { data: [] },
+        ]);
+
+        const profileMap = new Map(profilesRes.data?.map(p => [p.user_id, p]) || []);
+        const riderProfileMap = new Map((riderProfilesRes.data || []).map((r: any) => [r.user_id, r]));
+        const riderNameMap = new Map((riderNamesRes.data || []).map((r: any) => [r.user_id, r]));
+
         const enriched = data.map(order => ({
           ...order,
           customer_name: profileMap.get(order.user_id)?.full_name || 'N/A',
           customer_phone: profileMap.get(order.user_id)?.phone || 'N/A',
+          rider_name: order.rider_id ? (riderNameMap.get(order.rider_id)?.full_name || 'Assigned') : null,
+          rider_vehicle: order.rider_id ? (riderProfileMap.get(order.rider_id)?.vehicle_type || null) : null,
         }));
         setOrders(enriched);
       } else {
