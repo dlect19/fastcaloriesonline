@@ -446,15 +446,12 @@ export default function AdminCustomerWallets() {
 
   if (permLoading || loading) {
     return (
-      <div className="flex min-h-screen">
-        <AdminSidebar />
-        <main className="flex-1 p-8">
+      <AdminLayout>
           <div className="animate-pulse space-y-4">
             <div className="h-8 bg-muted rounded w-48" />
             <div className="h-64 bg-muted rounded" />
           </div>
-        </main>
-      </div>
+      </AdminLayout>
     );
   }
 
