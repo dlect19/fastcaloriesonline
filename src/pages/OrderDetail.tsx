@@ -301,6 +301,32 @@ export default function OrderDetail() {
           </Alert>
         )}
 
+        {/* Customer Cancel Button - show for pending/confirmed orders only */}
+        {cancelSettings.enabled && ['pending', 'confirmed'].includes(order.status) && order.status !== 'cancelled' && (
+          <Button
+            variant="outline"
+            className="w-full border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+            onClick={() => setCancelDialogOpen(true)}
+          >
+            <XCircle className="w-4 h-4 mr-2" />
+            Cancel Order
+          </Button>
+        )}
+
+        {/* Prep Time Notification */}
+        {order.prep_minutes && ['preparing'].includes(order.status) && (
+          <Alert className="border-primary bg-primary/5">
+            <Clock className="h-5 w-5 text-primary" />
+            <AlertTitle className="text-primary">Order Being Prepared</AlertTitle>
+            <AlertDescription>
+              Estimated ready in <span className="font-bold text-foreground">{order.prep_minutes} minutes</span>
+              {order.estimated_delivery_at && (
+                <> — around <span className="font-bold text-foreground">{format(new Date(order.estimated_delivery_at), 'p')}</span></>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Status Tracker */}
         <Card>
           <CardHeader>
