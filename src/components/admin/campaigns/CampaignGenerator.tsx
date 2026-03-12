@@ -11,7 +11,7 @@ import { Sparkles, Loader2, Download, Image as ImageIcon, Shuffle, Save } from '
 
 interface Vendor {
   id: string;
-  business_name: string;
+  name: string;
   logo_url: string | null;
 }
 
