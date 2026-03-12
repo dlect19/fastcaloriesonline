@@ -1621,6 +1621,53 @@ export type Database = {
         }
         Relationships: []
       }
+      order_chat_messages: {
+        Row: {
+          content: string | null
+          created_at: string | null
+          id: string
+          is_read: boolean | null
+          media_url: string | null
+          message_type: string
+          order_id: string
+          sender_id: string
+          sender_role: string
+          storage_path: string | null
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          media_url?: string | null
+          message_type?: string
+          order_id: string
+          sender_id: string
+          sender_role: string
+          storage_path?: string | null
+        }
+        Update: {
+          content?: string | null
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          media_url?: string | null
+          message_type?: string
+          order_id?: string
+          sender_id?: string
+          sender_role?: string
+          storage_path?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_chat_messages_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_financials: {
         Row: {
           company_revenue: number
