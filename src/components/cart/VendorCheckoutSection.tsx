@@ -289,13 +289,7 @@ export function VendorCheckoutSection({
         }
       }
 
-      // Log calories
-      await supabase.from('calorie_logs').insert({
-        user_id: userId,
-        order_id: order.id,
-        calories: group.totalCalories,
-        meal_type: 'order',
-      });
+      // Calories are logged only when the order is delivered (via rider delivery or self-pickup verification)
 
       // Handle promo usage
       if (appliedPromo?.id) await incrementUsage(appliedPromo.id);
