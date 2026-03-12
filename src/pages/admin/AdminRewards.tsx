@@ -230,16 +230,13 @@ export default function AdminRewards() {
 
   if (!hasPermission('manage_promos')) {
     return (
-      <div className="flex min-h-screen">
-        <AdminSidebar />
-        <main className="flex-1 p-8">
+      <AdminLayout>
           <Card>
             <CardContent className="p-8 text-center">
               <p className="text-muted-foreground">You don't have permission to manage rewards.</p>
             </CardContent>
           </Card>
-        </main>
-      </div>
+      </AdminLayout>
     );
   }
 
