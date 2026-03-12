@@ -321,7 +321,6 @@ export default function AdminPromos() {
             )}
           </CardContent>
         </Card>
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

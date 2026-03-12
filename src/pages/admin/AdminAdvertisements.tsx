@@ -441,7 +441,5 @@ export default function AdminAdvertisements() {
             ))}
           </div>
         )}
-      </main>
-    </div>
-  );
+    </AdminLayout>
 }

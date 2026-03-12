@@ -884,7 +884,6 @@ export default function AdminSettings() {
             />
           </div>
         )}
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

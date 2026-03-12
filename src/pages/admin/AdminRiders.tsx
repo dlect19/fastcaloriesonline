@@ -406,7 +406,6 @@ export default function AdminRiders() {
           userId={selectedRiderUserId}
           userName={selectedRiderName}
         />
-      </main>
-    </div>
+    </AdminLayout>
   );
 }
