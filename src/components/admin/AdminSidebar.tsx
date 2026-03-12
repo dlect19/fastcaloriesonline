@@ -1,6 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { Home, Package, Store, Bike, Ticket, Users, Settings, LogOut, Image, Activity, Banknote, Wallet, ArrowDownLeft, Gift, Truck, UserCheck, Star, MessageSquare, DollarSign, UserPlus, Receipt, ClipboardList, Scale, HelpCircle, Percent, ShieldAlert, Megaphone, Gavel, UtensilsCrossed, Map, ExternalLink } from 'lucide-react';
+import { Home, Package, Store, Bike, Ticket, Users, Settings, LogOut, Image, Activity, Banknote, Wallet, ArrowDownLeft, Gift, Truck, UserCheck, Star, MessageSquare, DollarSign, UserPlus, Receipt, ClipboardList, Scale, HelpCircle, Percent, ShieldAlert, Megaphone, Gavel, UtensilsCrossed, Map, ExternalLink, Sparkles } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -37,6 +37,7 @@ const menuItems: MenuItem[] = [
   { icon: Percent, label: 'Commission Promos', path: '/admin/commission-promos', requiredPermission: 'manage_promos' },
   { icon: Gift, label: 'Rewards & Spins', path: '/admin/rewards', requiredPermission: 'manage_promos' },
   { icon: Image, label: 'Carousel', path: '/admin/advertisements', requiredPermission: 'manage_vendors' },
+  { icon: Sparkles, label: 'Campaigns', path: '/admin/campaigns', requiredPermission: 'manage_vendors' },
   { icon: Users, label: 'Users', path: '/admin/users', requiredPermission: 'manage_users' },
   { icon: Users, label: 'Admin Staff', path: '/admin/staff', requiredPermission: 'manage_admin_staff' },
   { icon: DollarSign, label: 'Payroll', path: '/admin/payroll', requiredPermission: 'manage_admin_staff' },

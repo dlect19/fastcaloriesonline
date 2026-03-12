@@ -59,6 +59,7 @@ import AdminStaff from "./pages/admin/AdminStaff";
 import AdminStaffJoin from "./pages/admin/AdminStaffJoin";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminAdvertisements from "./pages/admin/AdminAdvertisements";
+import AdminCampaigns from "./pages/admin/AdminCampaigns";
 import AdminNutrition from "./pages/admin/AdminNutrition";
 import AdminPayouts from "./pages/admin/AdminPayouts";
 import AdminCustomerWallets from "./pages/admin/AdminCustomerWallets";
@@ -200,6 +201,7 @@ const App = () => {
               <Route path="/admin/staff/join/:code" element={<AdminStaffJoin />} />
               <Route path="/admin/settings" element={<AdminSettings />} />
               <Route path="/admin/advertisements" element={<AdminAdvertisements />} />
+              <Route path="/admin/campaigns" element={<AdminCampaigns />} />
               <Route path="/admin/nutrition" element={<AdminNutrition />} />
               <Route path="/admin/payouts" element={<AdminPayouts />} />
               <Route path="/admin/customer-wallets" element={<AdminCustomerWallets />} />

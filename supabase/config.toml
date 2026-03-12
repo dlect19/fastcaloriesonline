@@ -1,1 +1,4 @@
 project_id = "bruyccrjymmpzulqhotw"
+
+[functions.generate-campaign-image]
+verify_jwt = false
