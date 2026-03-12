@@ -813,4 +813,5 @@ export default function AdminPayouts() {
       </AlertDialog>
       </>
     </AdminLayout>
+  );
 }
