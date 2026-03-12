@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { AdminLayout } from '@/components/admin/AdminLayout';
 import { AdminStaffManagement } from '@/components/admin/AdminStaffManagement';
 import { ActivityLogViewer } from '@/components/shared/ActivityLogViewer';
 import { Loader2 } from 'lucide-react';
