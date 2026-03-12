@@ -146,7 +146,26 @@ export default function Home() {
     });
   }, [autoLat, autoLon, gpsAccuracy]);
 
-  const handleSignOut = async () => {
+  // Fetch nearby vendor IDs for MenuCarousel filtering
+  useEffect(() => {
+    if (!deliveryLocation?.lat || !deliveryLocation?.lon) {
+      setNearbyVendorIds([]);
+      return;
+    }
+    supabase.functions.invoke('get-nearby-vendors', {
+      body: {
+        customer_lat: deliveryLocation.lat,
+        customer_lon: deliveryLocation.lon,
+        customer_state: deliveryLocation.state || null,
+      },
+    }).then(({ data }) => {
+      if (data?.vendors) {
+        const ids = [...new Set(data.vendors.map((v: any) => v.id))];
+        setNearbyVendorIds(ids as string[]);
+      }
+    }).catch(() => {});
+  }, [deliveryLocation?.lat, deliveryLocation?.lon]);
+
     await signOut();
     navigate('/auth');
   };
