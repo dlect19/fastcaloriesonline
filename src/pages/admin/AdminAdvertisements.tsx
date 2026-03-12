@@ -224,10 +224,7 @@ export default function AdminAdvertisements() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex">
-      <AdminSidebar />
-      
-      <main className="flex-1 p-8">
+    <AdminLayout>
         <div className="mb-8 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Carousel / Advertisements</h1>
