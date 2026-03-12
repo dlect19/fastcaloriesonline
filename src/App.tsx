@@ -59,6 +59,7 @@ import AdminStaff from "./pages/admin/AdminStaff";
 import AdminStaffJoin from "./pages/admin/AdminStaffJoin";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminAdvertisements from "./pages/admin/AdminAdvertisements";
+import AdminCampaigns from "./pages/admin/AdminCampaigns";
 import AdminNutrition from "./pages/admin/AdminNutrition";
 import AdminPayouts from "./pages/admin/AdminPayouts";
 import AdminCustomerWallets from "./pages/admin/AdminCustomerWallets";
