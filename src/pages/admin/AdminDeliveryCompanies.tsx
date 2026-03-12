@@ -259,7 +259,7 @@ export default function AdminDeliveryCompanies() {
             )}
           </div>
         </div>
-      </main>
+      
 
       <Dialog open={commissionDialogOpen} onOpenChange={setCommissionDialogOpen}>
         <DialogContent>
