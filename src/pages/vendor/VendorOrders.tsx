@@ -384,6 +384,15 @@ export default function VendorOrders() {
   };
 
   const updateOrderStatus = async (orderId: string, newStatus: OrderStatus) => {
+    // If setting to "preparing" and prep time is enabled, show the prep time dialog instead
+    if (newStatus === 'preparing' && prepTimeSettings.enabled) {
+      const order = orders.find(o => o.id === orderId);
+      if (order) {
+        setPrepTimeDialog({ open: true, order });
+        return;
+      }
+    }
+
     try {
       const order = orders.find(o => o.id === orderId);
       const updateData: any = { status: newStatus };
