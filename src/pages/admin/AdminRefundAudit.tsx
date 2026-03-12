@@ -154,9 +154,7 @@ export default function AdminRefundAudit() {
   const totalPlatform = rows.reduce((s, r) => s + r.platformDebit + r.deliveryCommissionDebit + r.serviceFeDebit, 0);
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AdminSidebar />
-      <main className="flex-1 p-6 overflow-auto">
+    <AdminLayout>
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
