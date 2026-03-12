@@ -886,6 +886,17 @@ export default function VendorOrders() {
             <OrderRiderInfo riderId={order.rider_id} orderStatus={order.status} />
           </div>
         )}
+
+        {/* Chat with customer - available during active orders */}
+        {['preparing', 'ready_for_pickup', 'picked_up', 'on_the_way'].includes(order.status) && (
+          <div className="px-4 pb-4">
+            <VendorOrderChat
+              orderId={order.id}
+              orderNumber={order.order_number}
+              vendorId={order.vendor_id}
+            />
+          </div>
+        )}
       </div>
     );
   };
