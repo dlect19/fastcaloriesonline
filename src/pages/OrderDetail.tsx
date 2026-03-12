@@ -591,6 +591,17 @@ export default function OrderDetail() {
         </Card>
       </main>
 
+      {/* Order Chat - appears when status is preparing or later */}
+      {order.delivery_type !== 'self_pickup' && (
+        <OrderChat
+          orderId={order.id}
+          orderStatus={order.status}
+          riderId={order.rider_id}
+          vendorId={order.vendor_id}
+          senderRole="customer"
+        />
+      )}
+
       {/* Customer Cancel Dialog */}
       <CustomerCancelOrderDialog
         open={cancelDialogOpen}
