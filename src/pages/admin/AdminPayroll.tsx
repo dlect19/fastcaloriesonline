@@ -36,12 +36,11 @@ export default function AdminPayroll() {
 
   if (!isSuperAdmin) {
     return (
-      <div className="flex min-h-screen">
-        <AdminSidebar />
+      <AdminLayout>
         <div className="flex-1 flex items-center justify-center">
           <p className="text-muted-foreground">Access denied. Super admin only.</p>
         </div>
-      </div>
+      </AdminLayout>
     );
   }
 
