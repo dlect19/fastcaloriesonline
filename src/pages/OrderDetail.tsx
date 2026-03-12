@@ -10,7 +10,8 @@ import { RiderReviewForm } from '@/components/order/RiderReviewForm';
 import { DisputeReportForm } from '@/components/order/DisputeReportForm';
 import { RiderInfoCard } from '@/components/order/RiderInfoCard';
 import { DeliveryTypeSwitcher } from '@/components/order/DeliveryTypeSwitcher';
-import { ArrowLeft, Package, Check, Truck, MapPin, Phone, Loader2, Store, Clock, Bike, ShieldCheck, Star, CreditCard, AlertTriangle } from 'lucide-react';
+import { CustomerCancelOrderDialog } from '@/components/order/CustomerCancelOrderDialog';
+import { ArrowLeft, Package, Check, Truck, MapPin, Phone, Loader2, Store, Clock, Bike, ShieldCheck, Star, CreditCard, AlertTriangle, XCircle } from 'lucide-react';
 import { format, differenceInMinutes } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -45,6 +46,8 @@ export default function OrderDetail() {
   const [hasReviewed, setHasReviewed] = useState(false);
   const [processingPayment, setProcessingPayment] = useState(false);
   const [hasDispute, setHasDispute] = useState(false);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [cancelSettings, setCancelSettings] = useState({ enabled: true, countdownMinutes: 3 });
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -53,8 +56,29 @@ export default function OrderDetail() {
     }
     if (id) {
       fetchOrder();
+      fetchCancelSettings();
     }
   }, [id, user, authLoading]);
+
+  const fetchCancelSettings = async () => {
+    try {
+      const { data } = await supabase
+        .from('platform_settings')
+        .select('key, value')
+        .in('key', ['customer_cancel_enabled', 'customer_cancel_countdown_minutes']);
+      
+      if (data) {
+        const map: Record<string, string> = {};
+        data.forEach(d => { map[d.key] = d.value; });
+        setCancelSettings({
+          enabled: map['customer_cancel_enabled'] !== 'false',
+          countdownMinutes: parseInt(map['customer_cancel_countdown_minutes'] || '3') || 3,
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching cancel settings:', err);
+    }
+  };
 
   // Separate effect for realtime subscription
   useEffect(() => {
@@ -273,6 +297,32 @@ export default function OrderDetail() {
             <AlertTitle className="text-destructive">Payment Window Expired</AlertTitle>
             <AlertDescription>
               This order will be cancelled shortly as payment was not completed within 30 minutes.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Customer Cancel Button - show for pending/confirmed orders only */}
+        {cancelSettings.enabled && ['pending', 'confirmed'].includes(order.status) && order.status !== 'cancelled' && (
+          <Button
+            variant="outline"
+            className="w-full border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+            onClick={() => setCancelDialogOpen(true)}
+          >
+            <XCircle className="w-4 h-4 mr-2" />
+            Cancel Order
+          </Button>
+        )}
+
+        {/* Prep Time Notification */}
+        {order.prep_minutes && ['preparing'].includes(order.status) && (
+          <Alert className="border-primary bg-primary/5">
+            <Clock className="h-5 w-5 text-primary" />
+            <AlertTitle className="text-primary">Order Being Prepared</AlertTitle>
+            <AlertDescription>
+              Estimated ready in <span className="font-bold text-foreground">{order.prep_minutes} minutes</span>
+              {order.estimated_delivery_at && (
+                <> — around <span className="font-bold text-foreground">{format(new Date(order.estimated_delivery_at), 'p')}</span></>
+              )}
             </AlertDescription>
           </Alert>
         )}
@@ -539,6 +589,19 @@ export default function OrderDetail() {
           </CardContent>
         </Card>
       </main>
+
+      {/* Customer Cancel Dialog */}
+      <CustomerCancelOrderDialog
+        open={cancelDialogOpen}
+        onOpenChange={setCancelDialogOpen}
+        orderId={order.id}
+        orderNumber={order.order_number}
+        orderTotal={Number(order.total)}
+        paymentStatus={order.payment_status}
+        orderCreatedAt={order.created_at}
+        countdownMinutes={cancelSettings.countdownMinutes}
+        onCancelled={() => fetchOrder()}
+      />
 
       <BottomNav />
     </div>

@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { MapPin, Bike, DollarSign, Settings2, Save, Loader2, CreditCard, Navigation, Clock, Store, Bell, Building2, Package } from 'lucide-react';
+import { OrderControlSettings } from '@/components/admin/OrderControlSettings';
 import { EnvironmentSwitch } from '@/components/admin/EnvironmentSwitch';
 import { AdminTestModeToggle } from '@/components/admin/AdminTestModeToggle';
 import { PaystackBalanceCard } from '@/components/admin/PaystackBalanceCard';
@@ -226,6 +227,22 @@ export default function AdminSettings() {
           }, { onConflict: 'key' });
         }
       }
+
+      // Save order control settings
+      const orderControlKeys = [
+        'customer_cancel_enabled', 'customer_cancel_countdown_minutes',
+        'prep_time_enabled', 'prep_time_restaurant_options', 'prep_time_other_options',
+      ];
+      for (const key of orderControlKeys) {
+        if (settings[key] !== undefined) {
+          await supabase.from('platform_settings').upsert({
+            key,
+            value: settings[key],
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'key' });
+        }
+      }
+
 
       toast({
         title: 'Settings Saved',
@@ -485,6 +502,14 @@ export default function AdminSettings() {
 
             {/* Social Media Platform Logos */}
             <SocialLogoSettings />
+
+            {/* Order Cancel & Prep Time Controls */}
+            <OrderControlSettings
+              settings={settings}
+              onSettingChange={handleSettingChange}
+              onSave={handleSave}
+              saving={saving}
+            />
 
             {/* Vehicle Type Settings */}
             <VehicleTypeSettings />

@@ -1890,6 +1890,7 @@ export type Database = {
           payment_method: string | null
           payment_reference: string | null
           payment_status: string | null
+          prep_minutes: number | null
           promo_code: string | null
           rider_id: string | null
           service_fee: number | null
@@ -1925,6 +1926,7 @@ export type Database = {
           payment_method?: string | null
           payment_reference?: string | null
           payment_status?: string | null
+          prep_minutes?: number | null
           promo_code?: string | null
           rider_id?: string | null
           service_fee?: number | null
@@ -1960,6 +1962,7 @@ export type Database = {
           payment_method?: string | null
           payment_reference?: string | null
           payment_status?: string | null
+          prep_minutes?: number | null
           promo_code?: string | null
           rider_id?: string | null
           service_fee?: number | null

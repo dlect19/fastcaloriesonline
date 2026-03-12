@@ -27,6 +27,7 @@ import { DispatchStatus } from '@/components/vendor/DispatchStatus';
 import { ManualRiderAssignment } from '@/components/vendor/ManualRiderAssignment';
 import { RiderAssignmentDialog } from '@/components/vendor/RiderAssignmentDialog';
 import { CancelOrderDialog } from '@/components/vendor/CancelOrderDialog';
+import { PrepTimeDialog } from '@/components/vendor/PrepTimeDialog';
 import { OrderProofPhotoUpload } from '@/components/vendor/OrderProofPhotoUpload';
 import { PaginationControls } from '@/components/shared/PaginationControls';
 import { useAuth } from '@/hooks/useAuth';
@@ -115,6 +116,8 @@ export default function VendorOrders() {
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
   const [selfPickupDialog, setSelfPickupDialog] = useState<{ open: boolean; order: OrderWithItems | null }>({ open: false, order: null });
   const [cancelDialog, setCancelDialog] = useState<{ open: boolean; order: OrderWithItems | null }>({ open: false, order: null });
+  const [prepTimeDialog, setPrepTimeDialog] = useState<{ open: boolean; order: OrderWithItems | null }>({ open: false, order: null });
+  const [prepTimeSettings, setPrepTimeSettings] = useState<{ enabled: boolean; restaurantOptions?: number[]; otherOptions?: number[] }>({ enabled: true });
   const [showManualAssignForOrder, setShowManualAssignForOrder] = useState<string | null>(null);
   const [riderAssignDialog, setRiderAssignDialog] = useState<{ open: boolean; order: OrderWithItems | null }>({ open: false, order: null });
   const [completedPage, setCompletedPage] = useState(1);
@@ -138,7 +141,33 @@ export default function VendorOrders() {
     }
 
     fetchData();
+    fetchPrepTimeSettings();
   }, [user, authLoading, navigate, selectedOutletId, outletReady]);
+
+  const fetchPrepTimeSettings = async () => {
+    try {
+      const { data } = await supabase
+        .from('platform_settings')
+        .select('key, value')
+        .in('key', ['prep_time_enabled', 'prep_time_restaurant_options', 'prep_time_other_options']);
+      
+      if (data) {
+        const map: Record<string, string> = {};
+        data.forEach(d => { map[d.key] = d.value; });
+        const parseOptions = (val: string | undefined, def: number[]) => {
+          if (!val) return def;
+          return val.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n) && n > 0);
+        };
+        setPrepTimeSettings({
+          enabled: map['prep_time_enabled'] !== 'false',
+          restaurantOptions: parseOptions(map['prep_time_restaurant_options'], [5, 10, 15, 30]),
+          otherOptions: parseOptions(map['prep_time_other_options'], [10, 15, 20, 25, 30, 35, 40]),
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching prep time settings:', err);
+    }
+  };
 
   // Subscribe to real-time order updates — scoped to selected outlet
   useEffect(() => {
@@ -355,6 +384,15 @@ export default function VendorOrders() {
   };
 
   const updateOrderStatus = async (orderId: string, newStatus: OrderStatus) => {
+    // If setting to "preparing" and prep time is enabled, show the prep time dialog instead
+    if (newStatus === 'preparing' && prepTimeSettings.enabled) {
+      const order = orders.find(o => o.id === orderId);
+      if (order) {
+        setPrepTimeDialog({ open: true, order });
+        return;
+      }
+    }
+
     try {
       const order = orders.find(o => o.id === orderId);
       const updateData: any = { status: newStatus };
@@ -930,7 +968,28 @@ export default function VendorOrders() {
             />
           )}
 
-          {/* Rider assignment / dispatch dialog (failsafe UI so actions never “disappear”) */}
+          {/* Prep Time Dialog */}
+          {prepTimeDialog.order && vendor && (
+            <PrepTimeDialog
+              open={prepTimeDialog.open}
+              onOpenChange={(open) => setPrepTimeDialog({ ...prepTimeDialog, open })}
+              orderId={prepTimeDialog.order.id}
+              orderNumber={prepTimeDialog.order.order_number}
+              vendorCategory={vendor.category || 'restaurant'}
+              prepTimeOptions={
+                vendor.category === 'restaurant'
+                  ? prepTimeSettings.restaurantOptions
+                  : prepTimeSettings.otherOptions
+              }
+              onConfirmed={() => {
+                stopRepeating();
+                fetchData();
+                setPrepTimeDialog({ open: false, order: null });
+              }}
+            />
+          )}
+
+          {/* Rider assignment / dispatch dialog */}
           <RiderAssignmentDialog
             open={riderAssignDialog.open}
             onOpenChange={(open) => setRiderAssignDialog((prev) => ({ ...prev, open }))}
