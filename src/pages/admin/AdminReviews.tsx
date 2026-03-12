@@ -126,6 +126,7 @@ export default function AdminReviews() {
           <Skeleton className="h-32 rounded-2xl" />
           <Skeleton className="h-64 rounded-2xl" />
       </AdminLayout>
+    );
   }
 
   return (
