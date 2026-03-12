@@ -551,7 +551,6 @@ export default function AdminDisputes() {
             </DialogContent>
           </Dialog>
         </div>
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

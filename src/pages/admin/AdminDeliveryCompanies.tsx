@@ -154,10 +154,8 @@ export default function AdminDeliveryCompanies() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <AdminSidebar />
-      <main className="lg:ml-64">
-        <div className="p-6 space-y-6">
+    <AdminLayout>
+        <div className="space-y-6">
           <div>
             <div className="flex items-center gap-3 mb-2">
               <h1 className="text-2xl font-bold">Delivery Companies</h1>

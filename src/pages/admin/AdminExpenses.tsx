@@ -101,7 +101,6 @@ export default function AdminExpenses() {
             />
           </DialogContent>
         </Dialog>
-      </main>
-    </div>
+    </AdminLayout>
   );
 }
