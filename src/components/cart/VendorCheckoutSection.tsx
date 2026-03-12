@@ -107,7 +107,8 @@ export function VendorCheckoutSection({
 
   const hasDeliveryLocation = deliveryLocation && deliveryLocation.lat !== null && deliveryLocation.lon !== null;
 
-  const handleFeesCalculated = useCallback((_vendorId: string, df: number, pf: number, dk: number | null, sf: number) => {
+  const handleFeesCalculated = useCallback((_vendorId: string, df: number, pf: number, dk: number | null, sf: number, loading: boolean) => {
+    setFeeCalculating(loading);
     setVendorFees(prev => {
       if (prev.deliveryFee === df && prev.packagingFee === pf && prev.surgeFee === sf) return prev;
       return { deliveryFee: df, packagingFee: pf, distanceKm: dk, surgeFee: sf };
