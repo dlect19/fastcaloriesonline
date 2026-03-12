@@ -98,7 +98,7 @@ export function CampaignGenerator() {
         body: {
           prompt: prompt || title,
           campaign_type: campaignType,
-          vendor_name: vendor?.business_name || null,
+        vendor_name: vendor?.name || null,
           vendor_logo_url: vendor?.logo_url || null,
           menu_items: menuItems,
         },
