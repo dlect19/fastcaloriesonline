@@ -168,7 +168,7 @@ export function CampaignGenerator() {
       // Create ad in carousel
       const { data: ad, error: adError } = await supabase.from('advertisements').insert({
         title,
-        description: prompt || `${vendor?.business_name || 'Fast Calories'} campaign`,
+        description: prompt || `${vendor?.name || 'Fast Calories'} campaign`,
         image_url: generatedImageUrl,
         is_active: true,
         display_order: 0,
