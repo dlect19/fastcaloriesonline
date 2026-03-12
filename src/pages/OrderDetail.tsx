@@ -590,6 +590,19 @@ export default function OrderDetail() {
         </Card>
       </main>
 
+      {/* Customer Cancel Dialog */}
+      <CustomerCancelOrderDialog
+        open={cancelDialogOpen}
+        onOpenChange={setCancelDialogOpen}
+        orderId={order.id}
+        orderNumber={order.order_number}
+        orderTotal={Number(order.total)}
+        paymentStatus={order.payment_status}
+        orderCreatedAt={order.created_at}
+        countdownMinutes={cancelSettings.countdownMinutes}
+        onCancelled={() => fetchOrder()}
+      />
+
       <BottomNav />
     </div>
   );
