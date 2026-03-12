@@ -8,6 +8,7 @@ import { CategoryPills } from '@/components/home/CategoryPills';
 import { PromoBanner } from '@/components/home/PromoBanner';
 import { CalorieWidget } from '@/components/home/CalorieWidget';
 import { VendorGrid } from '@/components/home/VendorGrid';
+import { MenuCarousel } from '@/components/home/MenuCarousel';
 import { BottomNav } from '@/components/home/BottomNav';
 import { CartButton } from '@/components/cart/CartButton';
 import { ActionHints } from '@/components/home/ActionHints';
@@ -395,17 +396,20 @@ export default function Home() {
         {/* Action Hints - Orders & Next Steps */}
         <ActionHints />
 
-        {/* Calorie Widget */}
-        <CalorieWidget />
+        {/* Calorie + AI Meal side by side */}
+        <div className="grid grid-cols-2 gap-3">
+          <CalorieWidget className="!p-3" />
+          <AIMealRecommendation />
+        </div>
 
         {/* Spin Wheel Widget */}
         <SpinWheelWidget />
 
-        {/* AI Meal Recommendations */}
-        <AIMealRecommendation />
-
         {/* Promo Banner */}
         <PromoBanner />
+
+        {/* Random Menu Carousel */}
+        <MenuCarousel />
 
         {/* Location Search - Order for any address */}
         <LocationSearch

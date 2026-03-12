@@ -16,7 +16,7 @@ import { ReferralCard } from '@/components/profile/ReferralCard';
 import { VirtualAccountCard } from '@/components/profile/VirtualAccountCard';
 import { CreateDVADialog } from '@/components/profile/CreateDVADialog';
 import { DeleteAccountDialog } from '@/components/shared/DeleteAccountDialog';
-import { Leaf, ArrowLeft, Receipt, ChevronRight, Wallet, Plus, Building2, User } from 'lucide-react';
+import { Leaf, ArrowLeft, Receipt, ChevronRight, Wallet, Plus, Building2, User, MessageCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Tables } from '@/integrations/supabase/types';
 
@@ -243,7 +243,26 @@ export default function Profile() {
         {/* Referral Card */}
         <ReferralCard />
 
-
+        {/* Support / Chat */}
+        <Card
+          className="border-0 shadow-soft cursor-pointer hover:bg-muted/50 transition-colors"
+          onClick={() => navigate('/support')}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <MessageCircle className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <p className="font-medium">Support & Chat</p>
+                  <p className="text-sm text-muted-foreground">Get help or chat with support</p>
+                </div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-muted-foreground" />
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Health Goals */}
         <CalorieGoalCard profile={profile} onUpdate={fetchProfileData} />
