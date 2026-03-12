@@ -433,6 +433,12 @@ export default function Home() {
         {/* Random Menu Carousel */}
         <MenuCarousel nearbyVendorIds={nearbyVendorIds} />
 
+        {/* Combo Deals Carousel */}
+        <CombosCarousel nearbyVendorIds={nearbyVendorIds} />
+
+        {/* Discounts Carousel */}
+        <DiscountsCarousel nearbyVendorIds={nearbyVendorIds} />
+
         {/* Location Search - Order for any address */}
         <LocationSearch
           onLocationSelect={handleLocationSelect}
