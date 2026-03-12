@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { AdminLayout } from '@/components/admin/AdminLayout';
 import { AdminTestModeToggle } from '@/components/admin/AdminTestModeToggle';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
