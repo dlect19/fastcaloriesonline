@@ -26,12 +26,11 @@ export default function AdminPayroll() {
 
   if (authLoading || permLoading) {
     return (
-      <div className="flex min-h-screen">
-        <AdminSidebar />
+      <AdminLayout>
         <div className="flex-1 flex items-center justify-center">
           <p className="text-muted-foreground">Loading...</p>
         </div>
-      </div>
+      </AdminLayout>
     );
   }
 
