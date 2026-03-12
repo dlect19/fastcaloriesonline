@@ -4,8 +4,8 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useRiderLocationSubscription } from '@/hooks/useRiderLocation';
-import { calculateDistance, formatDistance, calculateETA, formatETA } from '@/lib/location';
-import { MapPin, Bike, Clock, Package, CheckCircle2, Navigation } from 'lucide-react';
+import { calculateDistance, formatDistance } from '@/lib/location';
+import { MapPin, Bike, Package, CheckCircle2, Navigation } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
 
 interface DeliveryTrackingProps {

@@ -55,14 +55,11 @@ export function PrepTimeDialog({
 
     setProcessing(true);
     try {
-      const estimatedAt = new Date(Date.now() + minutes * 60 * 1000).toISOString();
-      
       const { error } = await supabase
         .from('orders')
         .update({
           status: 'preparing',
           prep_minutes: minutes,
-          estimated_delivery_at: estimatedAt,
         })
         .eq('id', orderId);
 
