@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useAdminPermissions } from '@/hooks/useAdminPermissions';
-import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { AdminLayout } from '@/components/admin/AdminLayout';
 import { CompanyProfitCard } from '@/components/admin/CompanyProfitCard';
 import { PaystackBalanceCard } from '@/components/admin/PaystackBalanceCard';
 import { NinBvnBalanceCard } from '@/components/admin/NinBvnBalanceCard';
