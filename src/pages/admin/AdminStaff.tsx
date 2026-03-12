@@ -52,10 +52,7 @@ export default function AdminStaff() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex">
-      <AdminSidebar />
-      <main className="flex-1 p-8">
-        <Tabs defaultValue="staff">
+    <AdminLayout>
           <TabsList>
             <TabsTrigger value="staff">Staff</TabsTrigger>
             <TabsTrigger value="activity">Activity Log</TabsTrigger>
