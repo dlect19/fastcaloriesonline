@@ -438,9 +438,7 @@ export default function AdminChargebacks() {
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AdminSidebar />
-      <main className="flex-1 p-8 overflow-auto">
+    <AdminLayout>
         <div className="max-w-7xl mx-auto space-y-6">
           <div>
             <h1 className="text-2xl font-bold">Chargebacks & Wallet Debits</h1>
