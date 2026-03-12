@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useAdminPermissions } from '@/hooks/useAdminPermissions';
-import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { AdminLayout } from '@/components/admin/AdminLayout';
 import { PayrollEmployeeList } from '@/components/admin/payroll/PayrollEmployeeList';
 import { PayrollRunDialog } from '@/components/admin/payroll/PayrollRunDialog';
 import { PayrollHistory } from '@/components/admin/payroll/PayrollHistory';
