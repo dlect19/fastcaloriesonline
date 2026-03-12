@@ -97,21 +97,8 @@ export function AdminOutletList({ vendors, onRefresh }: AdminOutletListProps) {
     }
     setBulkLoading(false);
   };
-      for (const vendorId of Object.keys(expanded)) {
-        if (expanded[vendorId]) {
-          const { data } = await supabase
-            .from('vendor_outlets')
-            .select('*')
-            .eq('vendor_id', vendorId)
-            .order('is_default', { ascending: false })
-            .order('created_at', { ascending: true });
-          setOutlets(prev => ({ ...prev, [vendorId]: data || [] }));
-        }
-      }
-      onRefresh();
-    }
-    setBulkLoading(false);
-  };
+
+
 
   return (
     <>
