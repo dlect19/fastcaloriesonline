@@ -48,6 +48,7 @@ export default function Home() {
     } catch { return null; }
   });
   const [locationDialogOpen, setLocationDialogOpen] = useState(false);
+  const [nearbyVendorIds, setNearbyVendorIds] = useState<string[]>([]);
   const navigate = useNavigate();
 
   // Auto-fetch GPS location on app load for logged-in users — use fresh position (no cache)
