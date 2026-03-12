@@ -16,7 +16,7 @@ import { ReferralCard } from '@/components/profile/ReferralCard';
 import { VirtualAccountCard } from '@/components/profile/VirtualAccountCard';
 import { CreateDVADialog } from '@/components/profile/CreateDVADialog';
 import { DeleteAccountDialog } from '@/components/shared/DeleteAccountDialog';
-import { Leaf, ArrowLeft, Receipt, ChevronRight, Wallet, Plus, Building2, User } from 'lucide-react';
+import { Leaf, ArrowLeft, Receipt, ChevronRight, Wallet, Plus, Building2, User, MessageCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Tables } from '@/integrations/supabase/types';
 
