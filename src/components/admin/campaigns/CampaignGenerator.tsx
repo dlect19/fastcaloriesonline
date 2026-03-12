@@ -37,9 +37,9 @@ export function CampaignGenerator() {
     setLoadingVendors(true);
     const { data } = await supabase
       .from('vendors')
-      .select('id, business_name, logo_url')
+      .select('id, name, logo_url')
       .eq('is_active', true)
-      .order('business_name');
+      .order('name');
     setVendors(data || []);
     setLoadingVendors(false);
   };
