@@ -164,9 +164,7 @@ export default function AdminReferrals() {
   };
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AdminSidebar />
-      <main className="flex-1 p-6 overflow-y-auto">
+    <AdminLayout>
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold">Referral Program</h1>
