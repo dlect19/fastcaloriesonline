@@ -355,9 +355,7 @@ export default function AdminCoverageAreas() {
   };
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AdminSidebar />
-      <main className="flex-1 p-4 md:p-6 overflow-auto">
+    <AdminLayout>
         <div className="flex items-center justify-between mb-4">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Coverage Areas</h1>
