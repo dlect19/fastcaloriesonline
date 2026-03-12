@@ -421,6 +421,75 @@ export type Database = {
           },
         ]
       }
+      campaigns: {
+        Row: {
+          advertisement_id: string | null
+          campaign_type: string
+          created_at: string | null
+          created_by: string
+          description: string | null
+          id: string
+          image_url: string | null
+          is_pushed_to_carousel: boolean | null
+          prompt_used: string | null
+          status: string
+          storage_path: string | null
+          title: string
+          updated_at: string | null
+          vendor_id: string | null
+          vendor_name: string | null
+        }
+        Insert: {
+          advertisement_id?: string | null
+          campaign_type?: string
+          created_at?: string | null
+          created_by: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          is_pushed_to_carousel?: boolean | null
+          prompt_used?: string | null
+          status?: string
+          storage_path?: string | null
+          title: string
+          updated_at?: string | null
+          vendor_id?: string | null
+          vendor_name?: string | null
+        }
+        Update: {
+          advertisement_id?: string | null
+          campaign_type?: string
+          created_at?: string | null
+          created_by?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          is_pushed_to_carousel?: boolean | null
+          prompt_used?: string | null
+          status?: string
+          storage_path?: string | null
+          title?: string
+          updated_at?: string | null
+          vendor_id?: string | null
+          vendor_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaigns_advertisement_id_fkey"
+            columns: ["advertisement_id"]
+            isOneToOne: false
+            referencedRelation: "advertisements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaigns_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       combo_addon_groups: {
         Row: {
           addon_group_id: string
