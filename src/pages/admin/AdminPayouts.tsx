@@ -735,7 +735,6 @@ export default function AdminPayouts() {
             </TabsContent>
           </Tabs>
         </div>
-      </main>
 
       {/* Confirmation Dialogs */}
       <AlertDialog open={dialogAction === 'approve'} onOpenChange={() => setDialogAction(null)}>
