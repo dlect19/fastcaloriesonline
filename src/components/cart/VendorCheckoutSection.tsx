@@ -139,6 +139,11 @@ export function VendorCheckoutSection({
   }, [gpsLat, gpsLon, gpsLoading, hasDeliveryLocation]);
 
   const handleCheckout = async () => {
+    if (isPricingCalculating) {
+      toast({ title: 'Still calculating fees', description: 'Please wait a moment before paying.', variant: 'default' });
+      return;
+    }
+
     // Warn about rider availability but allow checkout (admin can manually assign riders)
     if (deliveryType === 'delivery' && !riderAvailability.deliveryAllowed) {
       toast({ title: 'Limited Rider Availability', description: 'No riders are currently available. Your order will be placed and a rider will be assigned shortly. You can also switch to Self Pickup.', variant: 'default' });
