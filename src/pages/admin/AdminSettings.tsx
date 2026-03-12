@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { MapPin, Bike, DollarSign, Settings2, Save, Loader2, CreditCard, Navigation, Clock, Store, Bell, Building2, Package } from 'lucide-react';
+import { OrderControlSettings } from '@/components/admin/OrderControlSettings';
 import { EnvironmentSwitch } from '@/components/admin/EnvironmentSwitch';
 import { AdminTestModeToggle } from '@/components/admin/AdminTestModeToggle';
 import { PaystackBalanceCard } from '@/components/admin/PaystackBalanceCard';
