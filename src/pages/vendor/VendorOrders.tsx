@@ -968,7 +968,28 @@ export default function VendorOrders() {
             />
           )}
 
-          {/* Rider assignment / dispatch dialog (failsafe UI so actions never “disappear”) */}
+          {/* Prep Time Dialog */}
+          {prepTimeDialog.order && vendor && (
+            <PrepTimeDialog
+              open={prepTimeDialog.open}
+              onOpenChange={(open) => setPrepTimeDialog({ ...prepTimeDialog, open })}
+              orderId={prepTimeDialog.order.id}
+              orderNumber={prepTimeDialog.order.order_number}
+              vendorCategory={vendor.category || 'restaurant'}
+              prepTimeOptions={
+                vendor.category === 'restaurant'
+                  ? prepTimeSettings.restaurantOptions
+                  : prepTimeSettings.otherOptions
+              }
+              onConfirmed={() => {
+                stopRepeating();
+                fetchData();
+                setPrepTimeDialog({ open: false, order: null });
+              }}
+            />
+          )}
+
+          {/* Rider assignment / dispatch dialog */}
           <RiderAssignmentDialog
             open={riderAssignDialog.open}
             onOpenChange={(open) => setRiderAssignDialog((prev) => ({ ...prev, open }))}
