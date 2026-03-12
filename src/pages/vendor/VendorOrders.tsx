@@ -675,6 +675,11 @@ export default function VendorOrders() {
             </CollapsibleContent>
           </Collapsible>
 
+          {/* Prep time countdown for preparing orders */}
+          {order.status === 'preparing' && order.estimated_delivery_at && (
+            <PrepCountdown estimatedAt={order.estimated_delivery_at} prepMinutes={order.prep_minutes} />
+          )}
+
           {/* Food proof photo upload for preparing/ready orders */}
           {['preparing', 'ready_for_pickup'].includes(order.status) && vendor && (
             <div className="mb-3">

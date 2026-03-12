@@ -378,9 +378,9 @@ export default function OrderDetail() {
                         )}>
                           {status.label}
                         </p>
-                        {isCurrent && order.estimated_delivery_at && order.delivery_type !== 'self_pickup' && (
+                        {isCurrent && order.estimated_delivery_at && (
                           <p className="text-sm text-primary">
-                            Est. arrival: {format(new Date(order.estimated_delivery_at), 'p')}
+                            {order.status === 'preparing' ? 'Est. ready' : 'Est. arrival'}: {format(new Date(order.estimated_delivery_at), 'p')}
                           </p>
                         )}
                       </div>
