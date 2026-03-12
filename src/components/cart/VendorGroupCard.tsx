@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { VendorGroup, useCart } from '@/hooks/useCart';
 import { CartItemCard } from '@/components/cart/CartItemCard';
 import { TakeawayPackDisplay } from '@/components/cart/TakeawayPackDisplay';
