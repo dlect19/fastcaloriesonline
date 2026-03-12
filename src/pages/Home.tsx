@@ -429,7 +429,7 @@ export default function Home() {
         <PromoBanner />
 
         {/* Random Menu Carousel */}
-        <MenuCarousel />
+        <MenuCarousel nearbyVendorIds={nearbyVendorIds} />
 
         {/* Location Search - Order for any address */}
         <LocationSearch
