@@ -381,7 +381,7 @@ export default function AdminCustomers() {
               </div>
             </CardContent>
           </Card>
-        </main>
+        
 
         {/* Load Wallet Dialog */}
         <Dialog open={loadDialogOpen} onOpenChange={setLoadDialogOpen}>
