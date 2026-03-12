@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { AdminLayout } from '@/components/admin/AdminLayout';
 import { PromoImpactCard } from '@/components/admin/PromoImpactCard';
 import { CompanyProfitCard } from '@/components/admin/CompanyProfitCard';
 import { FinancialResetDialog } from '@/components/admin/FinancialResetDialog';
