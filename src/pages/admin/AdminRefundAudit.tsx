@@ -278,7 +278,6 @@ export default function AdminRefundAudit() {
             </CardContent>
           </Card>
         </div>
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

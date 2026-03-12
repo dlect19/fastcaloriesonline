@@ -498,7 +498,6 @@ export default function AdminNutrition() {
             )}
           </CardContent>
         </Card>
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

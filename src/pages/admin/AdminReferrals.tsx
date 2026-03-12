@@ -314,7 +314,6 @@ export default function AdminReferrals() {
             )}
           </CardContent>
         </Card>
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

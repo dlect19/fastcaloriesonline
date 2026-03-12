@@ -968,6 +968,6 @@ export default function AdminCustomerWallets() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </AdminLayout>
   );
 }

@@ -64,7 +64,6 @@ export default function AdminStaff() {
             <ActivityLogViewer entityType="admin" />
           </TabsContent>
         </Tabs>
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

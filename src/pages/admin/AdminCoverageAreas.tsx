@@ -504,8 +504,7 @@ export default function AdminCoverageAreas() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </main>
-    </div>
+    </AdminLayout>
   );
 }
 

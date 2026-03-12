@@ -707,6 +707,6 @@ export default function AdminChargebacks() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </AdminLayout>
   );
 }

@@ -216,7 +216,6 @@ export default function AdminRequisitions() {
             })}
           </div>
         )}
-      </main>
-    </div>
+    </AdminLayout>
   );
 }
