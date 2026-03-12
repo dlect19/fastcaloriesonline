@@ -557,12 +557,17 @@ export function VendorCheckoutSection({
       <Button
         className="w-full h-14 text-base font-semibold shadow-button gradient-primary border-0"
         onClick={handleCheckout}
-        disabled={isPlacing || isOtherPlacing || isWalletDisabled || (deliveryType === 'delivery' && !hasDeliveryLocation)}
+        disabled={isPlacing || isOtherPlacing || isWalletDisabled || (deliveryType === 'delivery' && !hasDeliveryLocation) || (deliveryType === 'delivery' && feeCalculating)}
       >
         {isPlacing ? (
           <>
             <Loader2 className="w-5 h-5 mr-2 animate-spin" />
             Processing...
+          </>
+        ) : (deliveryType === 'delivery' && feeCalculating) ? (
+          <>
+            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+            Calculating delivery fee...
           </>
         ) : insufficientBalance ? (
           <>
