@@ -37,9 +37,7 @@ export default function AdminExpenses() {
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AdminSidebar />
-      <main className="flex-1 p-8 overflow-auto">
+    <AdminLayout>
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Expenses</h1>
