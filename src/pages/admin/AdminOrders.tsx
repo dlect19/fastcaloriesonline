@@ -269,9 +269,9 @@ export default function AdminOrders() {
                 <tbody>
                   {paginatedOrders.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="py-12 text-center text-muted-foreground">
-                        No orders found matching your filters
-                      </td>
+                     <td colSpan={10} className="py-12 text-center text-muted-foreground">
+                         No orders found matching your filters
+                       </td>
                     </tr>
                   ) : paginatedOrders.map((order) => {
                     const light = getAttentionLight(order);
