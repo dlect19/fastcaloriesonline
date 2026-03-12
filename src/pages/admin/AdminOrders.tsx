@@ -293,7 +293,17 @@ export default function AdminOrders() {
                         <td className="py-3 px-4">{order.customer_name}</td>
                         <td className="py-3 px-4 text-muted-foreground">{order.customer_phone}</td>
                         <td className="py-3 px-4">{order.vendors?.name}</td>
-                        <td className="py-3 px-4">{getStatusBadge(order.status)}</td>
+                         <td className="py-3 px-4">{getStatusBadge(order.status)}</td>
+                         <td className="py-3 px-4">
+                           {order.rider_name ? (
+                             <span className="text-sm flex items-center gap-1">
+                               <span className="text-primary">🏍️</span>
+                               {order.rider_name}
+                             </span>
+                           ) : (
+                             <span className="text-xs text-muted-foreground">—</span>
+                           )}
+                         </td>
                         <td className="py-3 px-4">₦{Number(order.total).toLocaleString()}</td>
                         <td className="py-3 px-4 text-muted-foreground">
                           {format(new Date(order.created_at), 'PP')}
