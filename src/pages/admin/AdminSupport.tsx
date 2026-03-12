@@ -504,6 +504,7 @@ export default function AdminSupport() {
               </div>
             )}
           </div>
+        )}
     </AdminLayout>
   );
 }
