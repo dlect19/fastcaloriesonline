@@ -133,7 +133,7 @@ export function CampaignGenerator() {
         image_url: generatedImageUrl,
         storage_path: storagePath,
         vendor_id: selectedVendorId || null,
-        vendor_name: vendor?.business_name || null,
+        vendor_name: vendor?.name || null,
         status: 'published',
         created_by: user!.id,
       });
