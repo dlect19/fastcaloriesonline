@@ -46,6 +46,8 @@ export default function OrderDetail() {
   const [hasReviewed, setHasReviewed] = useState(false);
   const [processingPayment, setProcessingPayment] = useState(false);
   const [hasDispute, setHasDispute] = useState(false);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [cancelSettings, setCancelSettings] = useState({ enabled: true, countdownMinutes: 3 });
 
   useEffect(() => {
     if (!authLoading && !user) {
