@@ -237,10 +237,7 @@ export default function AdminCustomers() {
     }
   
     return (
-      <div className="min-h-screen bg-background flex">
-        <AdminSidebar />
-        
-        <main className="flex-1 p-8">
+    <AdminLayout>
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-foreground">Customers</h1>
             <p className="text-muted-foreground">View all platform customers</p>

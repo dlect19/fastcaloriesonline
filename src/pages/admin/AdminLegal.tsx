@@ -134,9 +134,7 @@ export default function AdminLegal() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex">
-      <AdminSidebar />
-      <main className="flex-1 p-4 md:p-8">
+    <AdminLayout>
         <div className="mb-6">
           <h1 className="text-2xl md:text-3xl font-bold text-foreground flex items-center gap-2">
             <Scale className="w-7 h-7" />

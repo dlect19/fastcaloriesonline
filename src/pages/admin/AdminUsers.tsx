@@ -60,9 +60,7 @@ export default function AdminUsers() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex">
-      <AdminSidebar />
-      <main className="flex-1 p-8">
+    <AdminLayout>
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground">Users</h1>
           <p className="text-muted-foreground">View all platform users</p>

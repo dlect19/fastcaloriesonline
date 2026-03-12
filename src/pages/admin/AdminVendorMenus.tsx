@@ -201,9 +201,7 @@ export default function AdminVendorMenus() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex">
-      <AdminSidebar />
-      <main className="flex-1 p-8">
+    <AdminLayout>
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-foreground">Vendor Menus</h1>
           <p className="text-muted-foreground">Browse and manage vendor menu items & cuisine categories</p>

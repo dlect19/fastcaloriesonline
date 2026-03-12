@@ -202,9 +202,7 @@ export default function AdminVendorCommissionPromos() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex">
-      <AdminSidebar />
-      <main className="flex-1 p-8">
+    <AdminLayout>
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Vendor Commission Promos</h1>
