@@ -338,7 +338,6 @@ export default function AdminWalletFunding() {
             </CardContent>
           </Card>
         </div>
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

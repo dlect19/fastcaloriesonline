@@ -269,7 +269,6 @@ export default function AdminReviews() {
             )}
           </CardContent>
         </Card>
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

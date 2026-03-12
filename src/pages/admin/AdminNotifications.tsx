@@ -260,7 +260,6 @@ export default function AdminNotifications() {
             </CardContent>
           </Card>
         </div>
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

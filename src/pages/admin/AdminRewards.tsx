@@ -723,8 +723,6 @@ export default function AdminRewards() {
               </Card>
             </TabsContent>
           </Tabs>
-        </div>
-      </main>
-    </div>
+    </AdminLayout>
   );
 }
