@@ -177,6 +177,13 @@ export default function Orders() {
                     </Badge>
                   </div>
 
+                  {order.status === 'preparing' && order.estimated_delivery_at && (
+                    <p className="text-xs text-primary mb-1 flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      Est. ready: {new Date(order.estimated_delivery_at).toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  )}
+
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-muted-foreground">

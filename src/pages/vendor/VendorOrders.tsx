@@ -38,6 +38,42 @@ import { supabase } from '@/integrations/supabase/client';
 import type { Tables, Database } from '@/integrations/supabase/types';
 import { usePersistedOutletId } from '@/hooks/usePersistedOutletId';
 
+function PrepCountdown({ estimatedAt, prepMinutes }: { estimatedAt: string; prepMinutes?: number | null }) {
+  const [timeLeft, setTimeLeft] = useState('');
+  const [isOverdue, setIsOverdue] = useState(false);
+
+  useEffect(() => {
+    const update = () => {
+      const now = Date.now();
+      const target = new Date(estimatedAt).getTime();
+      const diff = target - now;
+      if (diff <= 0) {
+        const overMs = Math.abs(diff);
+        const overMin = Math.floor(overMs / 60000);
+        const overSec = Math.floor((overMs % 60000) / 1000);
+        setTimeLeft(`+${overMin}:${overSec.toString().padStart(2, '0')} overdue`);
+        setIsOverdue(true);
+      } else {
+        const min = Math.floor(diff / 60000);
+        const sec = Math.floor((diff % 60000) / 1000);
+        setTimeLeft(`${min}:${sec.toString().padStart(2, '0')}`);
+        setIsOverdue(false);
+      }
+    };
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [estimatedAt]);
+
+  return (
+    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg mb-3 text-sm font-medium ${isOverdue ? 'bg-destructive/10 text-destructive' : 'bg-primary/10 text-primary'}`}>
+      <Clock className="w-4 h-4" />
+      <span>Prep countdown: {timeLeft}</span>
+      {prepMinutes && <span className="text-xs opacity-70">({prepMinutes} min set)</span>}
+    </div>
+  );
+}
+
 type Order = Tables<'orders'>;
 type OrderItem = Tables<'order_items'>;
 type OrderStatus = Database['public']['Enums']['order_status'];
@@ -674,6 +710,11 @@ export default function VendorOrders() {
               </div>
             </CollapsibleContent>
           </Collapsible>
+
+          {/* Prep time countdown for preparing orders */}
+          {order.status === 'preparing' && order.estimated_delivery_at && (
+            <PrepCountdown estimatedAt={order.estimated_delivery_at} prepMinutes={order.prep_minutes} />
+          )}
 
           {/* Food proof photo upload for preparing/ready orders */}
           {['preparing', 'ready_for_pickup'].includes(order.status) && vendor && (
