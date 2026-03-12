@@ -59,7 +59,7 @@ export function CampaignGenerator() {
       const shuffled = products.sort(() => 0.5 - Math.random()).slice(0, 3);
       setMenuItems(shuffled.map(p => p.name));
     }
-    toast({ title: 'Random vendor selected', description: random.business_name });
+    toast({ title: 'Random vendor selected', description: random.name });
   };
 
   const handleVendorChange = async (vendorId: string) => {
