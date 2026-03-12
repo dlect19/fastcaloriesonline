@@ -677,7 +677,6 @@ export default function AdminDashboard() {
            <FinancialResetDialog onResetComplete={handleResetComplete} />
           </CardContent>
         </Card>
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

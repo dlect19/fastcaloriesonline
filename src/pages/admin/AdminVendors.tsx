@@ -328,6 +328,6 @@ export default function AdminVendors() {
         userId={selectedVendorUserId}
         userName={selectedVendorName}
       />
-    </div>
+    </AdminLayout>
   );
 }

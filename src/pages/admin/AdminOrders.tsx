@@ -335,7 +335,6 @@ export default function AdminOrders() {
           order={trackOrder}
           onUpdated={fetchOrders}
         />
-      </main>
-    </div>
+    </AdminLayout>
   );
 }
