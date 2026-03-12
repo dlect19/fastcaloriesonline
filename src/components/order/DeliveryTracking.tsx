@@ -4,8 +4,8 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useRiderLocationSubscription } from '@/hooks/useRiderLocation';
-import { calculateDistance, formatDistance, calculateETA, formatETA } from '@/lib/location';
-import { MapPin, Bike, Clock, Package, CheckCircle2, Navigation } from 'lucide-react';
+import { calculateDistance, formatDistance } from '@/lib/location';
+import { MapPin, Bike, Package, CheckCircle2, Navigation } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
 
 interface DeliveryTrackingProps {
@@ -126,9 +126,8 @@ export function DeliveryTracking({ orderId, customerLat, customerLon }: Delivery
   const currentStatusIndex = statusSteps.findIndex(s => s.status === order.status);
   const progress = ((currentStatusIndex + 1) / statusSteps.length) * 100;
 
-  // Calculate rider distance and ETA
+  // Calculate rider distance
   let riderDistanceKm: number | null = null;
-  let etaMinutes: number | null = null;
 
   if (
     riderLocation.latitude &&
@@ -143,7 +142,6 @@ export function DeliveryTracking({ orderId, customerLat, customerLon }: Delivery
       customerLat,
       customerLon
     );
-    etaMinutes = calculateETA(riderDistanceKm, 0); // No prep time, rider already has food
   }
 
   return (
@@ -209,22 +207,15 @@ export function DeliveryTracking({ orderId, customerLat, customerLon }: Delivery
               </div>
             </div>
 
-            {/* Distance & ETA */}
-            {riderDistanceKm !== null && etaMinutes !== null && (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-3 bg-secondary rounded-lg text-center">
+            {/* Distance */}
+            {riderDistanceKm !== null && (
+              <div className="flex justify-center">
+                <div className="p-3 bg-secondary rounded-lg text-center min-w-[140px]">
                   <div className="flex items-center justify-center gap-1 text-primary mb-1">
                     <MapPin className="w-4 h-4" />
                     <span className="text-lg font-bold">{formatDistance(riderDistanceKm)}</span>
                   </div>
                   <p className="text-xs text-muted-foreground">Distance</p>
-                </div>
-                <div className="p-3 bg-secondary rounded-lg text-center">
-                  <div className="flex items-center justify-center gap-1 text-primary mb-1">
-                    <Clock className="w-4 h-4" />
-                    <span className="text-lg font-bold">{formatETA(etaMinutes)}</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">ETA</p>
                 </div>
               </div>
             )}
