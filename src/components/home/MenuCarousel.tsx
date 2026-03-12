@@ -89,6 +89,26 @@ export function MenuCarousel({ nearbyVendorIds }: MenuCarouselProps) {
     }
   };
 
+  const useAutoScroll = (ref: React.RefObject<HTMLDivElement>) => {
+    useEffect(() => {
+      if (!ref.current) return;
+      const el = ref.current;
+      const interval = setInterval(() => {
+        if (!el) return;
+        const maxScroll = el.scrollWidth - el.clientWidth;
+        if (el.scrollLeft >= maxScroll - 2) {
+          el.scrollTo({ left: 0, behavior: 'smooth' });
+        } else {
+          el.scrollBy({ left: 140, behavior: 'smooth' });
+        }
+      }, 3000);
+      return () => clearInterval(interval);
+    }, [ref, items]);
+  };
+
+  useAutoScroll(scrollRef1);
+  useAutoScroll(scrollRef2);
+
   const scroll = (ref: React.RefObject<HTMLDivElement>, dir: 'left' | 'right') => {
     if (!ref.current) return;
     const amount = dir === 'left' ? -200 : 200;
