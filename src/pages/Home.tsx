@@ -165,7 +165,7 @@ export default function Home() {
       }
     }).catch(() => {});
   }, [deliveryLocation?.lat, deliveryLocation?.lon]);
-
+  const handleSignOut = async () => {
     await signOut();
     navigate('/auth');
   };
