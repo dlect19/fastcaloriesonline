@@ -126,9 +126,8 @@ export function DeliveryTracking({ orderId, customerLat, customerLon }: Delivery
   const currentStatusIndex = statusSteps.findIndex(s => s.status === order.status);
   const progress = ((currentStatusIndex + 1) / statusSteps.length) * 100;
 
-  // Calculate rider distance and ETA
+  // Calculate rider distance
   let riderDistanceKm: number | null = null;
-  let etaMinutes: number | null = null;
 
   if (
     riderLocation.latitude &&
@@ -143,7 +142,6 @@ export function DeliveryTracking({ orderId, customerLat, customerLon }: Delivery
       customerLat,
       customerLon
     );
-    etaMinutes = calculateETA(riderDistanceKm, 0); // No prep time, rider already has food
   }
 
   return (
