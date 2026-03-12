@@ -220,12 +220,11 @@ export default function AdminRewards() {
 
   if (permLoading || settingsLoading) {
     return (
-      <div className="flex min-h-screen">
-        <AdminSidebar />
-        <main className="flex-1 p-8 flex items-center justify-center">
+      <AdminLayout>
+        <div className="flex items-center justify-center min-h-[50vh]">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        </main>
-      </div>
+        </div>
+      </AdminLayout>
     );
   }
 
