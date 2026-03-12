@@ -61,8 +61,8 @@ export function VendorGroupCard({
 
   // Report fees back to parent (include extra package fee in delivery fee)
   useMemo(() => {
-    onFeesCalculated(group.vendorId, deliveryFee + extraPackageFee, packagingFee, distanceKm, deliveryType === 'self_pickup' ? 0 : (surgeFee || 0));
-  }, [group.vendorId, deliveryFee, extraPackageFee, packagingFee, distanceKm, surgeFee, deliveryType]);
+    onFeesCalculated(group.vendorId, deliveryFee + extraPackageFee, packagingFee, distanceKm, deliveryType === 'self_pickup' ? 0 : (surgeFee || 0), feeLoading);
+  }, [group.vendorId, deliveryFee, extraPackageFee, packagingFee, distanceKm, surgeFee, deliveryType, feeLoading]);
 
   const hasMultiplePackages = group.packageCount > 1;
 
