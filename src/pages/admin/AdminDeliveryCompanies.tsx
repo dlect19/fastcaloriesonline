@@ -149,8 +149,7 @@ export default function AdminDeliveryCompanies() {
               {[1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-2xl" />)}
             </div>
           </div>
-        </main>
-      </div>
+      </AdminLayout>
     );
   }
 
