@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
