@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clock, CheckCircle, XCircle, Package, ChevronDown, ChevronUp, ShoppingBag, Store, Search, Bike } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, Package, ChevronDown, ChevronUp, ShoppingBag, Store, Search, Bike, MessageSquare } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -27,6 +27,7 @@ import { DispatchStatus } from '@/components/vendor/DispatchStatus';
 import { ManualRiderAssignment } from '@/components/vendor/ManualRiderAssignment';
 import { RiderAssignmentDialog } from '@/components/vendor/RiderAssignmentDialog';
 import { CancelOrderDialog } from '@/components/vendor/CancelOrderDialog';
+import { VendorOrderChat } from '@/components/vendor/VendorOrderChat';
 import { PrepTimeDialog } from '@/components/vendor/PrepTimeDialog';
 import { OrderProofPhotoUpload } from '@/components/vendor/OrderProofPhotoUpload';
 import { PaginationControls } from '@/components/shared/PaginationControls';
@@ -883,6 +884,17 @@ export default function VendorOrders() {
         {order.delivery_type !== 'self_pickup' && order.rider_id && (
           <div className="px-4 pb-4">
             <OrderRiderInfo riderId={order.rider_id} orderStatus={order.status} />
+          </div>
+        )}
+
+        {/* Chat with customer - available during active orders */}
+        {['preparing', 'ready_for_pickup', 'picked_up', 'on_the_way'].includes(order.status) && (
+          <div className="px-4 pb-4">
+            <VendorOrderChat
+              orderId={order.id}
+              orderNumber={order.order_number}
+              vendorId={order.vendor_id}
+            />
           </div>
         )}
       </div>

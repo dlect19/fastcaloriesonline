@@ -107,16 +107,28 @@ export default function AdminOrders() {
       
       if (data && data.length > 0) {
         const userIds = [...new Set(data.map(o => o.user_id).filter(Boolean))];
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('user_id, full_name, phone')
-          .in('user_id', userIds);
+        const riderIds = [...new Set(data.map(o => o.rider_id).filter(Boolean))];
 
-        const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
+        const [profilesRes, riderProfilesRes, riderNamesRes] = await Promise.all([
+          supabase.from('profiles').select('user_id, full_name, phone').in('user_id', userIds),
+          riderIds.length > 0
+            ? supabase.from('rider_profiles').select('user_id, vehicle_type').in('user_id', riderIds)
+            : { data: [] },
+          riderIds.length > 0
+            ? supabase.from('profiles').select('user_id, full_name, phone').in('user_id', riderIds)
+            : { data: [] },
+        ]);
+
+        const profileMap = new Map(profilesRes.data?.map(p => [p.user_id, p]) || []);
+        const riderProfileMap = new Map((riderProfilesRes.data || []).map((r: any) => [r.user_id, r]));
+        const riderNameMap = new Map((riderNamesRes.data || []).map((r: any) => [r.user_id, r]));
+
         const enriched = data.map(order => ({
           ...order,
           customer_name: profileMap.get(order.user_id)?.full_name || 'N/A',
           customer_phone: profileMap.get(order.user_id)?.phone || 'N/A',
+          rider_name: order.rider_id ? (riderNameMap.get(order.rider_id)?.full_name || 'Assigned') : null,
+          rider_vehicle: order.rider_id ? (riderProfileMap.get(order.rider_id)?.vehicle_type || null) : null,
         }));
         setOrders(enriched);
       } else {
@@ -247,18 +259,19 @@ export default function AdminOrders() {
                     <th className="text-left py-3 px-4 font-medium">Customer</th>
                     <th className="text-left py-3 px-4 font-medium">Phone</th>
                     <th className="text-left py-3 px-4 font-medium">Vendor</th>
-                    <th className="text-left py-3 px-4 font-medium">Status</th>
-                    <th className="text-left py-3 px-4 font-medium">Total</th>
-                    <th className="text-left py-3 px-4 font-medium">Date</th>
-                    <th className="text-left py-3 px-4 font-medium">Actions</th>
+                     <th className="text-left py-3 px-4 font-medium">Status</th>
+                     <th className="text-left py-3 px-4 font-medium">Rider</th>
+                     <th className="text-left py-3 px-4 font-medium">Total</th>
+                     <th className="text-left py-3 px-4 font-medium">Date</th>
+                     <th className="text-left py-3 px-4 font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {paginatedOrders.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="py-12 text-center text-muted-foreground">
-                        No orders found matching your filters
-                      </td>
+                     <td colSpan={10} className="py-12 text-center text-muted-foreground">
+                         No orders found matching your filters
+                       </td>
                     </tr>
                   ) : paginatedOrders.map((order) => {
                     const light = getAttentionLight(order);
@@ -280,7 +293,17 @@ export default function AdminOrders() {
                         <td className="py-3 px-4">{order.customer_name}</td>
                         <td className="py-3 px-4 text-muted-foreground">{order.customer_phone}</td>
                         <td className="py-3 px-4">{order.vendors?.name}</td>
-                        <td className="py-3 px-4">{getStatusBadge(order.status)}</td>
+                         <td className="py-3 px-4">{getStatusBadge(order.status)}</td>
+                         <td className="py-3 px-4">
+                           {order.rider_name ? (
+                             <span className="text-sm flex items-center gap-1">
+                               <span className="text-primary">🏍️</span>
+                               {order.rider_name}
+                             </span>
+                           ) : (
+                             <span className="text-xs text-muted-foreground">—</span>
+                           )}
+                         </td>
                         <td className="py-3 px-4">₦{Number(order.total).toLocaleString()}</td>
                         <td className="py-3 px-4 text-muted-foreground">
                           {format(new Date(order.created_at), 'PP')}

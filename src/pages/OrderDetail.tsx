@@ -9,6 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { RiderReviewForm } from '@/components/order/RiderReviewForm';
 import { DisputeReportForm } from '@/components/order/DisputeReportForm';
 import { RiderInfoCard } from '@/components/order/RiderInfoCard';
+import { OrderChat } from '@/components/order/OrderChat';
 import { DeliveryTypeSwitcher } from '@/components/order/DeliveryTypeSwitcher';
 import { CustomerCancelOrderDialog } from '@/components/order/CustomerCancelOrderDialog';
 import { ArrowLeft, Package, Check, Truck, MapPin, Phone, Loader2, Store, Clock, Bike, ShieldCheck, Star, CreditCard, AlertTriangle, XCircle } from 'lucide-react';
@@ -442,8 +443,8 @@ export default function OrderDetail() {
         {/* Delivery Type Switcher - Allow customer to change delivery option */}
         <DeliveryTypeSwitcher order={order} onSwitched={fetchOrder} />
 
-        {/* Rider Info - Only for delivery orders when picked up or on the way */}
-        {order.delivery_type !== 'self_pickup' && order.rider_id && ['picked_up', 'on_the_way'].includes(order.status) && (
+        {/* Rider Info - Show as soon as rider is assigned */}
+        {order.delivery_type !== 'self_pickup' && order.rider_id && !['pending', 'cancelled', 'delivered'].includes(order.status) && (
           <RiderInfoCard riderId={order.rider_id} />
         )}
 
@@ -589,6 +590,17 @@ export default function OrderDetail() {
           </CardContent>
         </Card>
       </main>
+
+      {/* Order Chat - appears when status is preparing or later */}
+      {order.delivery_type !== 'self_pickup' && (
+        <OrderChat
+          orderId={order.id}
+          orderStatus={order.status}
+          riderId={order.rider_id}
+          vendorId={order.vendor_id}
+          senderRole="customer"
+        />
+      )}
 
       {/* Customer Cancel Dialog */}
       <CustomerCancelOrderDialog
