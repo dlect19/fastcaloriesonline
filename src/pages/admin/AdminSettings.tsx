@@ -228,6 +228,22 @@ export default function AdminSettings() {
         }
       }
 
+      // Save order control settings
+      const orderControlKeys = [
+        'customer_cancel_enabled', 'customer_cancel_countdown_minutes',
+        'prep_time_enabled', 'prep_time_restaurant_options', 'prep_time_other_options',
+      ];
+      for (const key of orderControlKeys) {
+        if (settings[key] !== undefined) {
+          await supabase.from('platform_settings').upsert({
+            key,
+            value: settings[key],
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'key' });
+        }
+      }
+
+
       toast({
         title: 'Settings Saved',
         description: 'All platform settings have been updated successfully.',
