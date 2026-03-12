@@ -107,10 +107,13 @@ export function VendorCheckoutSection({
 
   const hasDeliveryLocation = deliveryLocation && deliveryLocation.lat !== null && deliveryLocation.lon !== null;
 
+  const isDeliveryFeeCalculating = deliveryType === 'delivery' && !!hasDeliveryLocation && (feeCalculating || vendorFees.distanceKm === null);
+  const isPricingCalculating = serviceFeeLoading || isDeliveryFeeCalculating;
+
   const handleFeesCalculated = useCallback((_vendorId: string, df: number, pf: number, dk: number | null, sf: number, loading: boolean) => {
     setFeeCalculating(loading);
     setVendorFees(prev => {
-      if (prev.deliveryFee === df && prev.packagingFee === pf && prev.surgeFee === sf) return prev;
+      if (prev.deliveryFee === df && prev.packagingFee === pf && prev.distanceKm === dk && prev.surgeFee === sf) return prev;
       return { deliveryFee: df, packagingFee: pf, distanceKm: dk, surgeFee: sf };
     });
   }, []);
@@ -136,6 +139,11 @@ export function VendorCheckoutSection({
   }, [gpsLat, gpsLon, gpsLoading, hasDeliveryLocation]);
 
   const handleCheckout = async () => {
+    if (isPricingCalculating) {
+      toast({ title: 'Still calculating fees', description: 'Please wait a moment before paying.', variant: 'default' });
+      return;
+    }
+
     // Warn about rider availability but allow checkout (admin can manually assign riders)
     if (deliveryType === 'delivery' && !riderAvailability.deliveryAllowed) {
       toast({ title: 'Limited Rider Availability', description: 'No riders are currently available. Your order will be placed and a rider will be assigned shortly. You can also switch to Self Pickup.', variant: 'default' });
@@ -557,17 +565,17 @@ export function VendorCheckoutSection({
       <Button
         className="w-full h-14 text-base font-semibold shadow-button gradient-primary border-0"
         onClick={handleCheckout}
-        disabled={isPlacing || isOtherPlacing || isWalletDisabled || (deliveryType === 'delivery' && !hasDeliveryLocation) || (deliveryType === 'delivery' && feeCalculating)}
+        disabled={isPlacing || isOtherPlacing || isWalletDisabled || (deliveryType === 'delivery' && !hasDeliveryLocation) || isPricingCalculating}
       >
         {isPlacing ? (
           <>
             <Loader2 className="w-5 h-5 mr-2 animate-spin" />
             Processing...
           </>
-        ) : (deliveryType === 'delivery' && feeCalculating) ? (
+        ) : isPricingCalculating ? (
           <>
             <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-            Calculating delivery fee...
+            {isDeliveryFeeCalculating ? 'Calculating delivery fee...' : 'Calculating total...'}
           </>
         ) : insufficientBalance ? (
           <>

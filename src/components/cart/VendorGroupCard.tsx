@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { VendorGroup, useCart } from '@/hooks/useCart';
 import { CartItemCard } from '@/components/cart/CartItemCard';
 import { TakeawayPackDisplay } from '@/components/cart/TakeawayPackDisplay';
@@ -59,10 +59,14 @@ export function VendorGroupCard({
     return allApplicablePacks.reduce((sum, pack) => sum + pack.price, 0);
   }, [allApplicablePacks]);
 
+  const hasCoordinates = vendorLocation.latitude !== null && vendorLocation.longitude !== null && customerLat !== null && customerLon !== null;
+
+  const isFeeLoading = deliveryType === 'delivery' && hasCoordinates && (feeLoading || distanceKm === null);
+
   // Report fees back to parent (include extra package fee in delivery fee)
-  useMemo(() => {
-    onFeesCalculated(group.vendorId, deliveryFee + extraPackageFee, packagingFee, distanceKm, deliveryType === 'self_pickup' ? 0 : (surgeFee || 0), feeLoading);
-  }, [group.vendorId, deliveryFee, extraPackageFee, packagingFee, distanceKm, surgeFee, deliveryType, feeLoading]);
+  useEffect(() => {
+    onFeesCalculated(group.vendorId, deliveryFee + extraPackageFee, packagingFee, distanceKm, deliveryType === 'self_pickup' ? 0 : (surgeFee || 0), isFeeLoading);
+  }, [group.vendorId, deliveryFee, extraPackageFee, packagingFee, distanceKm, surgeFee, deliveryType, isFeeLoading, onFeesCalculated]);
 
   const hasMultiplePackages = group.packageCount > 1;
 
