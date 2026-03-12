@@ -273,46 +273,45 @@ export function AIMealRecommendation() {
   const remaining = calorieData.target - calorieData.consumed;
   const consumedPercent = Math.min((calorieData.consumed / calorieData.target) * 100, 100);
 
+  // Compact view (no recommendations yet)
+  const compactView = recommendations.length === 0;
+
   return (
-    <Card className="bg-gradient-to-br from-primary/10 via-background to-secondary/10 border-primary/20">
-      <CardHeader className="pb-3">
+    <Card className="bg-gradient-to-br from-primary/10 via-background to-secondary/10 border-primary/20 h-full">
+      <CardHeader className="pb-2 p-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
-              <Sparkles className="w-4 h-4 text-primary" />
+          <div className="flex items-center gap-1.5">
+            <div className="w-6 h-6 rounded-md bg-primary/20 flex items-center justify-center">
+              <Sparkles className="w-3 h-3 text-primary" />
             </div>
-            <CardTitle className="text-base font-semibold">AI Meal Suggestions</CardTitle>
+            <CardTitle className="text-xs font-semibold">AI Meals</CardTitle>
           </div>
           {recommendations.length > 0 && (
-            <Button variant="ghost" size="sm" onClick={getRecommendations} disabled={loading}>
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={getRecommendations} disabled={loading}>
+              <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
             </Button>
           )}
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {recommendations.length === 0 ? (
-          <div className="text-center py-4">
-            <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-primary/10 flex items-center justify-center">
-              <Utensils className="w-6 h-6 text-primary" />
+      <CardContent className="p-3 pt-0">
+        {compactView ? (
+          <div className="text-center py-2">
+            <div className="w-8 h-8 mx-auto mb-2 rounded-full bg-primary/10 flex items-center justify-center">
+              <Utensils className="w-4 h-4 text-primary" />
             </div>
-            <p className="text-sm text-muted-foreground mb-3">
-              Get personalized meal suggestions based on your calorie goals
-              {orderHistory.length > 0 && ' & order history'}
+            <p className="text-[10px] text-muted-foreground mb-2">
+              AI meal ideas for you
             </p>
-            <p className="text-xs text-muted-foreground mb-4">
-              {remaining} kcal remaining today
-            </p>
-            <Button onClick={getRecommendations} disabled={loading} className="gap-2">
+            <Button size="sm" className="h-7 text-xs gap-1" onClick={getRecommendations} disabled={loading}>
               {loading ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Analyzing your profile...
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Loading...
                 </>
               ) : (
                 <>
-                  <Sparkles className="w-4 h-4" />
-                  Get AI Recommendations
+                  <Sparkles className="w-3 h-3" />
+                  Get Ideas
                 </>
               )}
             </Button>
