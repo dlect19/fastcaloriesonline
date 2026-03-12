@@ -18,7 +18,7 @@ interface VendorGroupCardProps {
   customerLon: number | null;
   deliveryType: 'delivery' | 'self_pickup';
   onClearGroup: (vendorId: string, outletId?: string) => void;
-  onFeesCalculated: (vendorId: string, deliveryFee: number, packagingFee: number, distanceKm: number | null, surgeFee: number) => void;
+  onFeesCalculated: (vendorId: string, deliveryFee: number, packagingFee: number, distanceKm: number | null, surgeFee: number, feeLoading: boolean) => void;
 }
 
 export function VendorGroupCard({
@@ -33,7 +33,7 @@ export function VendorGroupCard({
   const { getApplicablePacks } = useTakeawayPacks(group.vendorId);
   const { getExtraPackageFee, extraPackageFeePerPack } = useCart();
 
-  const { fee: calculatedDeliveryFee, distanceKm, surgeFee } = useDeliveryFee({
+  const { fee: calculatedDeliveryFee, distanceKm, surgeFee, loading: feeLoading } = useDeliveryFee({
     vendorLat: vendorLocation.latitude,
     vendorLon: vendorLocation.longitude,
     customerLat,
@@ -61,8 +61,8 @@ export function VendorGroupCard({
 
   // Report fees back to parent (include extra package fee in delivery fee)
   useMemo(() => {
-    onFeesCalculated(group.vendorId, deliveryFee + extraPackageFee, packagingFee, distanceKm, deliveryType === 'self_pickup' ? 0 : (surgeFee || 0));
-  }, [group.vendorId, deliveryFee, extraPackageFee, packagingFee, distanceKm, surgeFee, deliveryType]);
+    onFeesCalculated(group.vendorId, deliveryFee + extraPackageFee, packagingFee, distanceKm, deliveryType === 'self_pickup' ? 0 : (surgeFee || 0), feeLoading);
+  }, [group.vendorId, deliveryFee, extraPackageFee, packagingFee, distanceKm, surgeFee, deliveryType, feeLoading]);
 
   const hasMultiplePackages = group.packageCount > 1;
 
