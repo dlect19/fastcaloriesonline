@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Flame } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -88,6 +88,26 @@ export function MenuCarousel({ nearbyVendorIds }: MenuCarouselProps) {
       setLoading(false);
     }
   };
+
+  const useAutoScroll = (ref: React.RefObject<HTMLDivElement>) => {
+    useEffect(() => {
+      if (!ref.current) return;
+      const el = ref.current;
+      const interval = setInterval(() => {
+        if (!el) return;
+        const maxScroll = el.scrollWidth - el.clientWidth;
+        if (el.scrollLeft >= maxScroll - 2) {
+          el.scrollTo({ left: 0, behavior: 'smooth' });
+        } else {
+          el.scrollBy({ left: 140, behavior: 'smooth' });
+        }
+      }, 3000);
+      return () => clearInterval(interval);
+    }, [ref, items]);
+  };
+
+  useAutoScroll(scrollRef1);
+  useAutoScroll(scrollRef2);
 
   const scroll = (ref: React.RefObject<HTMLDivElement>, dir: 'left' | 'right') => {
     if (!ref.current) return;
