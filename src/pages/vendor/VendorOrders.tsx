@@ -27,6 +27,7 @@ import { DispatchStatus } from '@/components/vendor/DispatchStatus';
 import { ManualRiderAssignment } from '@/components/vendor/ManualRiderAssignment';
 import { RiderAssignmentDialog } from '@/components/vendor/RiderAssignmentDialog';
 import { CancelOrderDialog } from '@/components/vendor/CancelOrderDialog';
+import { PrepTimeDialog } from '@/components/vendor/PrepTimeDialog';
 import { OrderProofPhotoUpload } from '@/components/vendor/OrderProofPhotoUpload';
 import { PaginationControls } from '@/components/shared/PaginationControls';
 import { useAuth } from '@/hooks/useAuth';
