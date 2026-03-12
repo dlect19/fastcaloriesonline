@@ -241,10 +241,7 @@ export default function AdminRewards() {
   }
 
   return (
-    <div className="flex min-h-screen bg-muted/30">
-      <AdminSidebar />
-      <main className="flex-1 p-8 overflow-auto">
-        <div className="max-w-6xl mx-auto space-y-6">
+    <AdminLayout>
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
