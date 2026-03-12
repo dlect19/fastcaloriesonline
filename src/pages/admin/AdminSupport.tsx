@@ -278,10 +278,7 @@ export default function AdminSupport() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex">
-      <AdminSidebar />
-
-      <main className="flex-1 ml-0 lg:ml-64">
+    <AdminLayout>
         {activeTicket ? (
           // Chat View
           <div className="flex flex-col h-screen">
