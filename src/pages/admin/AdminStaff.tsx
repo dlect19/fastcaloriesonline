@@ -40,17 +40,14 @@ export default function AdminStaff() {
 
   if (!hasPermission('manage_admin_staff')) {
     return (
-      <div className="min-h-screen bg-background flex">
-        <AdminSidebar />
-        <main className="flex-1 p-8">
+      <AdminLayout>
           <div className="flex items-center justify-center min-h-[60vh]">
             <div className="text-center">
               <h2 className="text-xl font-semibold mb-2">Access Denied</h2>
               <p className="text-muted-foreground">Only Super Admins can manage admin staff.</p>
             </div>
           </div>
-        </main>
-      </div>
+      </AdminLayout>
     );
   }
 
