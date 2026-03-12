@@ -70,8 +70,7 @@ export function AdminOutletList({ vendors, onRefresh }: AdminOutletListProps) {
     const { error } = await supabase
       .from('vendor_outlets')
       .update({ is_open: open })
-      .eq('is_approved', true)
-      .eq('is_active', true);
+      .eq('is_active', true) as { error: any };
 
     if (error) {
       toast({ title: 'Failed to update outlets', variant: 'destructive' });
@@ -81,9 +80,23 @@ export function AdminOutletList({ vendors, onRefresh }: AdminOutletListProps) {
       await supabase
         .from('vendors')
         .update({ is_open: open })
-        .eq('is_active', true)
-        .eq('is_approved', true);
+        .eq('is_active', true);
       // Refresh expanded outlets
+      for (const vendorId of Object.keys(expanded)) {
+        if (expanded[vendorId]) {
+          const { data } = await supabase
+            .from('vendor_outlets')
+            .select('*')
+            .eq('vendor_id', vendorId)
+            .order('is_default', { ascending: false })
+            .order('created_at', { ascending: true });
+          setOutlets(prev => ({ ...prev, [vendorId]: data || [] }));
+        }
+      }
+      onRefresh();
+    }
+    setBulkLoading(false);
+  };
       for (const vendorId of Object.keys(expanded)) {
         if (expanded[vendorId]) {
           const { data } = await supabase
