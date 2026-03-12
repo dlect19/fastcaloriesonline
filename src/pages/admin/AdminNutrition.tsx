@@ -278,9 +278,7 @@ export default function AdminNutrition() {
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AdminSidebar />
-      <main className="flex-1 p-6 space-y-6 overflow-auto">
+    <AdminLayout>
         <div>
           <h1 className="text-2xl font-bold text-foreground">Nutrition Analytics</h1>
           <p className="text-muted-foreground">Consumer calorie and food class consumption data</p>
