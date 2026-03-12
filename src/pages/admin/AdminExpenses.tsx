@@ -28,12 +28,11 @@ export default function AdminExpenses() {
 
   if (authLoading || permLoading) {
     return (
-      <div className="flex min-h-screen">
-        <AdminSidebar />
-        <div className="flex-1 flex items-center justify-center">
+      <AdminLayout>
+        <div className="flex items-center justify-center min-h-[50vh]">
           <p className="text-muted-foreground">Loading...</p>
         </div>
-      </div>
+      </AdminLayout>
     );
   }
 
