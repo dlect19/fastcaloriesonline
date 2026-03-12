@@ -586,11 +586,8 @@ export default function AdminPayouts() {
   const totalProcessed = completedPayouts.reduce((sum, p) => sum + Number(p.amount), 0);
 
   return (
-    <div className="min-h-screen bg-background flex">
-      <AdminSidebar />
-      <main className="flex-1 lg:ml-0">
-        <div className="p-6 space-y-6">
-          <div className="flex items-center justify-between">
+    <AdminLayout>
+        <div className="space-y-6">
             <div>
               <h1 className="text-2xl font-bold text-foreground">Payout Management</h1>
               <p className="text-muted-foreground">

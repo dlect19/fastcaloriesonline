@@ -94,7 +94,6 @@ export default function AdminPayroll() {
           onOpenChange={setRunDialogOpen}
           onSuccess={() => setRefreshKey(k => k + 1)}
         />
-      </main>
-    </div>
+    </AdminLayout>
   );
 }
