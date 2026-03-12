@@ -457,6 +457,7 @@ export default function AdminCustomerWallets() {
 
   return (
     <AdminLayout>
+      <>
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
