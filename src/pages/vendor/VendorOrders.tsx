@@ -141,7 +141,33 @@ export default function VendorOrders() {
     }
 
     fetchData();
+    fetchPrepTimeSettings();
   }, [user, authLoading, navigate, selectedOutletId, outletReady]);
+
+  const fetchPrepTimeSettings = async () => {
+    try {
+      const { data } = await supabase
+        .from('platform_settings')
+        .select('key, value')
+        .in('key', ['prep_time_enabled', 'prep_time_restaurant_options', 'prep_time_other_options']);
+      
+      if (data) {
+        const map: Record<string, string> = {};
+        data.forEach(d => { map[d.key] = d.value; });
+        const parseOptions = (val: string | undefined, def: number[]) => {
+          if (!val) return def;
+          return val.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n) && n > 0);
+        };
+        setPrepTimeSettings({
+          enabled: map['prep_time_enabled'] !== 'false',
+          restaurantOptions: parseOptions(map['prep_time_restaurant_options'], [5, 10, 15, 30]),
+          otherOptions: parseOptions(map['prep_time_other_options'], [10, 15, 20, 25, 30, 35, 40]),
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching prep time settings:', err);
+    }
+  };
 
   // Subscribe to real-time order updates — scoped to selected outlet
   useEffect(() => {
