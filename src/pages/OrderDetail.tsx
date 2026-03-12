@@ -56,8 +56,29 @@ export default function OrderDetail() {
     }
     if (id) {
       fetchOrder();
+      fetchCancelSettings();
     }
   }, [id, user, authLoading]);
+
+  const fetchCancelSettings = async () => {
+    try {
+      const { data } = await supabase
+        .from('platform_settings')
+        .select('key, value')
+        .in('key', ['customer_cancel_enabled', 'customer_cancel_countdown_minutes']);
+      
+      if (data) {
+        const map: Record<string, string> = {};
+        data.forEach(d => { map[d.key] = d.value; });
+        setCancelSettings({
+          enabled: map['customer_cancel_enabled'] !== 'false',
+          countdownMinutes: parseInt(map['customer_cancel_countdown_minutes'] || '3') || 3,
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching cancel settings:', err);
+    }
+  };
 
   // Separate effect for realtime subscription
   useEffect(() => {
