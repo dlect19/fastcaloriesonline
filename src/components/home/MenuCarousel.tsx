@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Flame } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -24,7 +24,12 @@ function shuffleArray<T>(arr: T[]): T[] {
   return shuffled;
 }
 
-export function MenuCarousel() {
+interface MenuCarouselProps {
+  /** Only show products from these vendor IDs (nearby vendors) */
+  nearbyVendorIds?: string[];
+}
+
+export function MenuCarousel({ nearbyVendorIds }: MenuCarouselProps) {
   const navigate = useNavigate();
   const [items, setItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,15 +38,21 @@ export function MenuCarousel() {
 
   useEffect(() => {
     fetchRandomMenuItems();
-  }, []);
+  }, [nearbyVendorIds]);
 
   const fetchRandomMenuItems = async () => {
     try {
-      const { data: products, error } = await supabase
+      let query = supabase
         .from('products')
         .select('id, name, price, calories, image_url, vendor_id')
-        .eq('is_available', true)
-        .limit(100);
+        .eq('is_available', true);
+
+      // Filter to only nearby vendors if provided
+      if (nearbyVendorIds && nearbyVendorIds.length > 0) {
+        query = query.in('vendor_id', nearbyVendorIds);
+      }
+
+      const { data: products, error } = await query.limit(100);
 
       if (error) throw error;
       if (!products || products.length === 0) {
