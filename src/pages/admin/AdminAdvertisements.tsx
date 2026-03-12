@@ -442,4 +442,5 @@ export default function AdminAdvertisements() {
           </div>
         )}
     </AdminLayout>
+  );
 }
