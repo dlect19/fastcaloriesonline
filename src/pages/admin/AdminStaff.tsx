@@ -53,6 +53,7 @@ export default function AdminStaff() {
 
   return (
     <AdminLayout>
+        <Tabs defaultValue="staff">
           <TabsList>
             <TabsTrigger value="staff">Staff</TabsTrigger>
             <TabsTrigger value="activity">Activity Log</TabsTrigger>

@@ -712,7 +712,6 @@ export default function AdminCustomerWallets() {
             </TabsContent>
           </Tabs>
         </div>
-      </main>
 
       {/* Transaction History Dialog */}
       <Dialog open={showTransactions} onOpenChange={setShowTransactions}>

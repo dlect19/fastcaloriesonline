@@ -562,7 +562,7 @@ export default function AdminChargebacks() {
             ))}
           </Tabs>
         </div>
-      </main>
+      
 
       {/* Transaction History */}
       <Dialog open={showTransactions} onOpenChange={setShowTransactions}>
