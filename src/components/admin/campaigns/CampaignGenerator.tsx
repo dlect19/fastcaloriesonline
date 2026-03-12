@@ -247,7 +247,7 @@ export function CampaignGenerator() {
                     </SelectTrigger>
                     <SelectContent>
                       {vendors.map(v => (
-                        <SelectItem key={v.id} value={v.id}>{v.business_name}</SelectItem>
+                        <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
