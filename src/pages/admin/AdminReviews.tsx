@@ -129,9 +129,7 @@ export default function AdminReviews() {
   }
 
   return (
-    <div className="flex min-h-screen">
-      <AdminSidebar />
-      <main className="flex-1 p-6 space-y-6">
+    <AdminLayout>
         <div>
           <h1 className="text-2xl font-bold text-foreground">Vendor Reviews</h1>
           <p className="text-muted-foreground">{reviews.length} total reviews</p>
