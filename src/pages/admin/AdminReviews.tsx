@@ -121,9 +121,7 @@ export default function AdminReviews() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen">
-        <AdminSidebar />
-        <main className="flex-1 p-6 space-y-6">
+      <AdminLayout>
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-32 rounded-2xl" />
           <Skeleton className="h-64 rounded-2xl" />
