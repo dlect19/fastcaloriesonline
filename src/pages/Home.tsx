@@ -8,6 +8,7 @@ import { CategoryPills } from '@/components/home/CategoryPills';
 import { PromoBanner } from '@/components/home/PromoBanner';
 import { CalorieWidget } from '@/components/home/CalorieWidget';
 import { VendorGrid } from '@/components/home/VendorGrid';
+import { MenuCarousel } from '@/components/home/MenuCarousel';
 import { BottomNav } from '@/components/home/BottomNav';
 import { CartButton } from '@/components/cart/CartButton';
 import { ActionHints } from '@/components/home/ActionHints';
