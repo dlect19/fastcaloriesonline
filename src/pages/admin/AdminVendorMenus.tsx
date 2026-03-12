@@ -327,7 +327,6 @@ export default function AdminVendorMenus() {
             </CardContent>
           </Card>
         )}
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

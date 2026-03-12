@@ -310,7 +310,6 @@ export default function AdminLegal() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

@@ -106,8 +106,7 @@ export default function AdminUsers() {
             </div>
           </CardContent>
         </Card>
-      </main>
       <AdminChangeEmailDialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen} userId={selectedUserId} userName={selectedUserName} />
-    </div>
+    </AdminLayout>
   );
 }

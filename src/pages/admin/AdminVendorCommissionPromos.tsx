@@ -334,7 +334,6 @@ export default function AdminVendorCommissionPromos() {
             )}
           </CardContent>
         </Card>
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

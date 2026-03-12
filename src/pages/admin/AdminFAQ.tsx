@@ -269,7 +269,6 @@ export default function AdminFAQ() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

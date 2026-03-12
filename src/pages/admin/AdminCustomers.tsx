@@ -446,6 +446,6 @@ export default function AdminCustomers() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
+    </AdminLayout>
     );
   }
