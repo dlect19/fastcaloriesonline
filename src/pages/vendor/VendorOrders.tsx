@@ -116,6 +116,8 @@ export default function VendorOrders() {
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
   const [selfPickupDialog, setSelfPickupDialog] = useState<{ open: boolean; order: OrderWithItems | null }>({ open: false, order: null });
   const [cancelDialog, setCancelDialog] = useState<{ open: boolean; order: OrderWithItems | null }>({ open: false, order: null });
+  const [prepTimeDialog, setPrepTimeDialog] = useState<{ open: boolean; order: OrderWithItems | null }>({ open: false, order: null });
+  const [prepTimeSettings, setPrepTimeSettings] = useState<{ enabled: boolean; restaurantOptions?: number[]; otherOptions?: number[] }>({ enabled: true });
   const [showManualAssignForOrder, setShowManualAssignForOrder] = useState<string | null>(null);
   const [riderAssignDialog, setRiderAssignDialog] = useState<{ open: boolean; order: OrderWithItems | null }>({ open: false, order: null });
   const [completedPage, setCompletedPage] = useState(1);
