@@ -487,6 +487,14 @@ export default function AdminSettings() {
             {/* Social Media Platform Logos */}
             <SocialLogoSettings />
 
+            {/* Order Cancel & Prep Time Controls */}
+            <OrderControlSettings
+              settings={settings}
+              onSettingChange={handleSettingChange}
+              onSave={handleSave}
+              saving={saving}
+            />
+
             {/* Vehicle Type Settings */}
             <VehicleTypeSettings />
 
