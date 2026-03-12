@@ -89,7 +89,7 @@ export function MenuCarousel({ nearbyVendorIds }: MenuCarouselProps) {
     }
   };
 
-  const useAutoScroll = (ref: React.RefObject<HTMLDivElement>) => {
+  const useAutoScroll = (ref: React.RefObject<HTMLDivElement>, intervalMs: number) => {
     useEffect(() => {
       if (!ref.current) return;
       const el = ref.current;
@@ -101,13 +101,13 @@ export function MenuCarousel({ nearbyVendorIds }: MenuCarouselProps) {
         } else {
           el.scrollBy({ left: 140, behavior: 'smooth' });
         }
-      }, 3000);
+      }, intervalMs);
       return () => clearInterval(interval);
-    }, [ref, items]);
+    }, [ref, items, intervalMs]);
   };
 
-  useAutoScroll(scrollRef1);
-  useAutoScroll(scrollRef2);
+  useAutoScroll(scrollRef1, 3000);
+  useAutoScroll(scrollRef2, 4500);
 
   const scroll = (ref: React.RefObject<HTMLDivElement>, dir: 'left' | 'right') => {
     if (!ref.current) return;
