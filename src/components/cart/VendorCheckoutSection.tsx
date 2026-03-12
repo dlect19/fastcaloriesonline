@@ -88,6 +88,7 @@ export function VendorCheckoutSection({
   const [selectedDiscountType, setSelectedDiscountType] = useState<'none' | 'promo' | 'spin' | 'platform'>('none');
   const [selectedSpinDiscountId, setSelectedSpinDiscountId] = useState<string | null>(null);
   const [vendorFees, setVendorFees] = useState<VendorFees>({ deliveryFee: 0, packagingFee: 0, distanceKm: null, surgeFee: 0 });
+  const [feeCalculating, setFeeCalculating] = useState(false);
   const [showFundDialog, setShowFundDialog] = useState(false);
 
   const { calculateServiceFee, loading: serviceFeeLoading } = useServiceFee();
