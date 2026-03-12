@@ -569,10 +569,8 @@ export default function AdminPayouts() {
 
   if (authLoading || loading || envLoading) {
     return (
-      <div className="min-h-screen bg-background flex">
-        <AdminSidebar />
-        <main className="flex-1 lg:ml-0">
-          <div className="p-6 space-y-6">
+      <AdminLayout>
+          <div className="space-y-6">
             <Skeleton className="h-8 w-48" />
             <div className="grid gap-4">
               {[1, 2, 3].map(i => (
@@ -580,8 +578,7 @@ export default function AdminPayouts() {
               ))}
             </div>
           </div>
-        </main>
-      </div>
+      </AdminLayout>
     );
   }
 
