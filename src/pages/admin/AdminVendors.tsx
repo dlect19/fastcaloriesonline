@@ -320,7 +320,7 @@ export default function AdminVendors() {
             <AdminOutletList vendors={vendors} onRefresh={fetchVendors} />
           </TabsContent>
         </Tabs>
-      </main>
+      
 
       <AdminChangeEmailDialog
         open={emailDialogOpen}
