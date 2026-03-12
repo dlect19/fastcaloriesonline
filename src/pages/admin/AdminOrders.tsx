@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -171,10 +171,7 @@ export default function AdminOrders() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex">
-      <AdminSidebar />
-      
-      <main className="flex-1 p-8">
+    <AdminLayout>
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Orders</h1>
@@ -338,7 +335,6 @@ export default function AdminOrders() {
           order={trackOrder}
           onUpdated={fetchOrders}
         />
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

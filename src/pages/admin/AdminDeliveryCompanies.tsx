@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { AdminLayout } from '@/components/admin/AdminLayout';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
@@ -142,25 +142,20 @@ export default function AdminDeliveryCompanies() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
-        <AdminSidebar />
-        <main className="lg:ml-64">
-          <div className="p-6 space-y-6">
+      <AdminLayout>
+          <div className="space-y-6">
             <Skeleton className="h-8 w-48" />
             <div className="space-y-4">
               {[1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-2xl" />)}
             </div>
           </div>
-        </main>
-      </div>
+      </AdminLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <AdminSidebar />
-      <main className="lg:ml-64">
-        <div className="p-6 space-y-6">
+    <AdminLayout>
+        <div className="space-y-6">
           <div>
             <div className="flex items-center gap-3 mb-2">
               <h1 className="text-2xl font-bold">Delivery Companies</h1>
@@ -264,7 +259,7 @@ export default function AdminDeliveryCompanies() {
             )}
           </div>
         </div>
-      </main>
+      
 
       <Dialog open={commissionDialogOpen} onOpenChange={setCommissionDialogOpen}>
         <DialogContent>
@@ -290,6 +285,6 @@ export default function AdminDeliveryCompanies() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </AdminLayout>
   );
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
@@ -266,24 +266,19 @@ export default function AdminNutrition() {
 
   if (permissionsLoading || isLoading) {
     return (
-      <div className="flex min-h-screen bg-background">
-        <AdminSidebar />
-        <main className="flex-1 p-6">
+      <AdminLayout>
           <div className="animate-pulse space-y-4">
             <div className="h-8 bg-muted rounded w-1/4" />
             <div className="grid grid-cols-4 gap-4">
               {[1, 2, 3, 4].map(i => <div key={i} className="h-24 bg-muted rounded" />)}
             </div>
           </div>
-        </main>
-      </div>
+      </AdminLayout>
     );
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AdminSidebar />
-      <main className="flex-1 p-6 space-y-6 overflow-auto">
+    <AdminLayout>
         <div>
           <h1 className="text-2xl font-bold text-foreground">Nutrition Analytics</h1>
           <p className="text-muted-foreground">Consumer calorie and food class consumption data</p>
@@ -503,7 +498,6 @@ export default function AdminNutrition() {
             )}
           </CardContent>
         </Card>
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

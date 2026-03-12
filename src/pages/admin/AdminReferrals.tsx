@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { AdminLayout } from '@/components/admin/AdminLayout';
 import { AdminTestModeToggle } from '@/components/admin/AdminTestModeToggle';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -164,9 +164,7 @@ export default function AdminReferrals() {
   };
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AdminSidebar />
-      <main className="flex-1 p-6 overflow-y-auto">
+    <AdminLayout>
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold">Referral Program</h1>
@@ -316,7 +314,6 @@ export default function AdminReferrals() {
             )}
           </CardContent>
         </Card>
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

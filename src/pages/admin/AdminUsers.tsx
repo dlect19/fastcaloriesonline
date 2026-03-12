@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -60,9 +60,7 @@ export default function AdminUsers() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex">
-      <AdminSidebar />
-      <main className="flex-1 p-8">
+    <AdminLayout>
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground">Users</h1>
           <p className="text-muted-foreground">View all platform users</p>
@@ -108,8 +106,7 @@ export default function AdminUsers() {
             </div>
           </CardContent>
         </Card>
-      </main>
       <AdminChangeEmailDialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen} userId={selectedUserId} userName={selectedUserName} />
-    </div>
+    </AdminLayout>
   );
 }

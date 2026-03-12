@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAdminPermissions } from '@/hooks/useAdminPermissions';
-import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -446,23 +446,18 @@ export default function AdminCustomerWallets() {
 
   if (permLoading || loading) {
     return (
-      <div className="flex min-h-screen">
-        <AdminSidebar />
-        <main className="flex-1 p-8">
+      <AdminLayout>
           <div className="animate-pulse space-y-4">
             <div className="h-8 bg-muted rounded w-48" />
             <div className="h-64 bg-muted rounded" />
           </div>
-        </main>
-      </div>
+      </AdminLayout>
     );
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AdminSidebar />
-      <main className="flex-1 p-8 overflow-auto">
-        <div className="max-w-7xl mx-auto space-y-6">
+    <AdminLayout>
+      <div className="space-y-6">
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
@@ -717,8 +712,6 @@ export default function AdminCustomerWallets() {
               </Card>
             </TabsContent>
           </Tabs>
-        </div>
-      </main>
 
       {/* Transaction History Dialog */}
       <Dialog open={showTransactions} onOpenChange={setShowTransactions}>
@@ -974,6 +967,7 @@ export default function AdminCustomerWallets() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </AdminLayout>
   );
 }

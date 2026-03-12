@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -201,9 +201,7 @@ export default function AdminVendorMenus() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex">
-      <AdminSidebar />
-      <main className="flex-1 p-8">
+    <AdminLayout>
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-foreground">Vendor Menus</h1>
           <p className="text-muted-foreground">Browse and manage vendor menu items & cuisine categories</p>
@@ -329,7 +327,6 @@ export default function AdminVendorMenus() {
             </CardContent>
           </Card>
         )}
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

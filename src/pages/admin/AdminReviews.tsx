@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { AdminLayout } from '@/components/admin/AdminLayout';
 import { supabase } from '@/integrations/supabase/client';
 
 interface ReviewWithDetails {
@@ -121,21 +121,16 @@ export default function AdminReviews() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen">
-        <AdminSidebar />
-        <main className="flex-1 p-6 space-y-6">
+      <AdminLayout>
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-32 rounded-2xl" />
           <Skeleton className="h-64 rounded-2xl" />
-        </main>
-      </div>
+      </AdminLayout>
     );
   }
 
   return (
-    <div className="flex min-h-screen">
-      <AdminSidebar />
-      <main className="flex-1 p-6 space-y-6">
+    <AdminLayout>
         <div>
           <h1 className="text-2xl font-bold text-foreground">Vendor Reviews</h1>
           <p className="text-muted-foreground">{reviews.length} total reviews</p>
@@ -275,7 +270,6 @@ export default function AdminReviews() {
             )}
           </CardContent>
         </Card>
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

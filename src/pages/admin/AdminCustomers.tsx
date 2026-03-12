@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -237,10 +237,7 @@ export default function AdminCustomers() {
     }
   
     return (
-      <div className="min-h-screen bg-background flex">
-        <AdminSidebar />
-        
-        <main className="flex-1 p-8">
+    <AdminLayout>
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-foreground">Customers</h1>
             <p className="text-muted-foreground">View all platform customers</p>
@@ -384,7 +381,7 @@ export default function AdminCustomers() {
               </div>
             </CardContent>
           </Card>
-        </main>
+        
 
         {/* Load Wallet Dialog */}
         <Dialog open={loadDialogOpen} onOpenChange={setLoadDialogOpen}>
@@ -449,6 +446,6 @@ export default function AdminCustomers() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
+    </AdminLayout>
     );
   }

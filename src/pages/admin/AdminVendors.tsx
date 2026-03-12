@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -160,10 +160,7 @@ export default function AdminVendors() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex">
-      <AdminSidebar />
-      
-      <main className="flex-1 p-8">
+    <AdminLayout>
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
             <h1 className="text-3xl font-bold text-foreground">Vendors</h1>
@@ -323,7 +320,7 @@ export default function AdminVendors() {
             <AdminOutletList vendors={vendors} onRefresh={fetchVendors} />
           </TabsContent>
         </Tabs>
-      </main>
+      
 
       <AdminChangeEmailDialog
         open={emailDialogOpen}
@@ -331,6 +328,6 @@ export default function AdminVendors() {
         userId={selectedVendorUserId}
         userName={selectedVendorName}
       />
-    </div>
+    </AdminLayout>
   );
 }

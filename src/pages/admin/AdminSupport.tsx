@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -278,10 +278,7 @@ export default function AdminSupport() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex">
-      <AdminSidebar />
-
-      <main className="flex-1 ml-0 lg:ml-64">
+    <AdminLayout>
         {activeTicket ? (
           // Chat View
           <div className="flex flex-col h-screen">
@@ -508,7 +505,6 @@ export default function AdminSupport() {
             )}
           </div>
         )}
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

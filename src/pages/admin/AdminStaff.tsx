@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { AdminLayout } from '@/components/admin/AdminLayout';
 import { AdminStaffManagement } from '@/components/admin/AdminStaffManagement';
 import { ActivityLogViewer } from '@/components/shared/ActivityLogViewer';
 import { Loader2 } from 'lucide-react';
@@ -40,24 +40,19 @@ export default function AdminStaff() {
 
   if (!hasPermission('manage_admin_staff')) {
     return (
-      <div className="min-h-screen bg-background flex">
-        <AdminSidebar />
-        <main className="flex-1 p-8">
+      <AdminLayout>
           <div className="flex items-center justify-center min-h-[60vh]">
             <div className="text-center">
               <h2 className="text-xl font-semibold mb-2">Access Denied</h2>
               <p className="text-muted-foreground">Only Super Admins can manage admin staff.</p>
             </div>
           </div>
-        </main>
-      </div>
+      </AdminLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background flex">
-      <AdminSidebar />
-      <main className="flex-1 p-8">
+    <AdminLayout>
         <Tabs defaultValue="staff">
           <TabsList>
             <TabsTrigger value="staff">Staff</TabsTrigger>
@@ -70,7 +65,6 @@ export default function AdminStaff() {
             <ActivityLogViewer entityType="admin" />
           </TabsContent>
         </Tabs>
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

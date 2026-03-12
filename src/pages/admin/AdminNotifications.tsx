@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -105,9 +105,7 @@ export default function AdminNotifications() {
     : `Send to ${broadcastTarget.charAt(0).toUpperCase() + broadcastTarget.slice(1)}`;
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AdminSidebar />
-      <main className="flex-1 p-8 overflow-auto">
+    <AdminLayout>
         <div className="max-w-2xl mx-auto space-y-8">
           <div>
             <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
@@ -262,7 +260,6 @@ export default function AdminNotifications() {
             </CardContent>
           </Card>
         </div>
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

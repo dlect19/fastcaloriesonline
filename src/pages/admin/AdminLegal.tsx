@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -134,9 +134,7 @@ export default function AdminLegal() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex">
-      <AdminSidebar />
-      <main className="flex-1 p-4 md:p-8">
+    <AdminLayout>
         <div className="mb-6">
           <h1 className="text-2xl md:text-3xl font-bold text-foreground flex items-center gap-2">
             <Scale className="w-7 h-7" />
@@ -312,7 +310,6 @@ export default function AdminLegal() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

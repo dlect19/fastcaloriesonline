@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useAdminPermissions } from '@/hooks/useAdminPermissions';
-import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { AdminLayout } from '@/components/admin/AdminLayout';
 import { PayrollEmployeeList } from '@/components/admin/payroll/PayrollEmployeeList';
 import { PayrollRunDialog } from '@/components/admin/payroll/PayrollRunDialog';
 import { PayrollHistory } from '@/components/admin/payroll/PayrollHistory';
@@ -26,30 +26,26 @@ export default function AdminPayroll() {
 
   if (authLoading || permLoading) {
     return (
-      <div className="flex min-h-screen">
-        <AdminSidebar />
+      <AdminLayout>
         <div className="flex-1 flex items-center justify-center">
           <p className="text-muted-foreground">Loading...</p>
         </div>
-      </div>
+      </AdminLayout>
     );
   }
 
   if (!isSuperAdmin) {
     return (
-      <div className="flex min-h-screen">
-        <AdminSidebar />
+      <AdminLayout>
         <div className="flex-1 flex items-center justify-center">
           <p className="text-muted-foreground">Access denied. Super admin only.</p>
         </div>
-      </div>
+      </AdminLayout>
     );
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AdminSidebar />
-      <main className="flex-1 p-8 overflow-auto">
+    <AdminLayout>
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Payroll</h1>
@@ -98,7 +94,6 @@ export default function AdminPayroll() {
           onOpenChange={setRunDialogOpen}
           onSuccess={() => setRefreshKey(k => k + 1)}
         />
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

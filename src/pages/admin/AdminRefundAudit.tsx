@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -154,9 +154,7 @@ export default function AdminRefundAudit() {
   const totalPlatform = rows.reduce((s, r) => s + r.platformDebit + r.deliveryCommissionDebit + r.serviceFeDebit, 0);
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AdminSidebar />
-      <main className="flex-1 p-6 overflow-auto">
+    <AdminLayout>
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
@@ -280,7 +278,6 @@ export default function AdminRefundAudit() {
             </CardContent>
           </Card>
         </div>
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

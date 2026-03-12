@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -245,9 +245,7 @@ export default function AdminDisputes() {
   const totalPlatformDeductions = disputes.reduce((s, d) => s + Number(d.platform_deduction), 0);
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AdminSidebar />
-      <main className="flex-1 p-6 overflow-auto">
+    <AdminLayout>
         <div className="max-w-7xl mx-auto space-y-6">
           <div>
             <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
@@ -553,7 +551,6 @@ export default function AdminDisputes() {
             </DialogContent>
           </Dialog>
         </div>
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -261,10 +261,7 @@ export default function AdminSettings() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex">
-      <AdminSidebar />
-      
-      <main className="flex-1 p-8">
+    <AdminLayout>
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
             <Settings2 className="w-8 h-8" />
@@ -887,7 +884,6 @@ export default function AdminSettings() {
             />
           </div>
         )}
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

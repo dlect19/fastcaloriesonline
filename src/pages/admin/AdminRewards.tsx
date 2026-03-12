@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -220,35 +220,28 @@ export default function AdminRewards() {
 
   if (permLoading || settingsLoading) {
     return (
-      <div className="flex min-h-screen">
-        <AdminSidebar />
-        <main className="flex-1 p-8 flex items-center justify-center">
+      <AdminLayout>
+        <div className="flex items-center justify-center min-h-[50vh]">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        </main>
-      </div>
+        </div>
+      </AdminLayout>
     );
   }
 
   if (!hasPermission('manage_promos')) {
     return (
-      <div className="flex min-h-screen">
-        <AdminSidebar />
-        <main className="flex-1 p-8">
+      <AdminLayout>
           <Card>
             <CardContent className="p-8 text-center">
               <p className="text-muted-foreground">You don't have permission to manage rewards.</p>
             </CardContent>
           </Card>
-        </main>
-      </div>
+      </AdminLayout>
     );
   }
 
   return (
-    <div className="flex min-h-screen bg-muted/30">
-      <AdminSidebar />
-      <main className="flex-1 p-8 overflow-auto">
-        <div className="max-w-6xl mx-auto space-y-6">
+    <AdminLayout>
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
@@ -730,8 +723,6 @@ export default function AdminRewards() {
               </Card>
             </TabsContent>
           </Tabs>
-        </div>
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

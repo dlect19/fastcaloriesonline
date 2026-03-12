@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAdminPermissions } from '@/hooks/useAdminPermissions';
-import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -429,19 +429,16 @@ export default function AdminChargebacks() {
 
   if (permLoading) {
     return (
-      <div className="flex min-h-screen">
-        <AdminSidebar />
-        <main className="flex-1 p-8 flex items-center justify-center">
+      <AdminLayout>
+        <div className="flex items-center justify-center min-h-[50vh]">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        </main>
-      </div>
+        </div>
+      </AdminLayout>
     );
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AdminSidebar />
-      <main className="flex-1 p-8 overflow-auto">
+    <AdminLayout>
         <div className="max-w-7xl mx-auto space-y-6">
           <div>
             <h1 className="text-2xl font-bold">Chargebacks & Wallet Debits</h1>
@@ -565,7 +562,7 @@ export default function AdminChargebacks() {
             ))}
           </Tabs>
         </div>
-      </main>
+      
 
       {/* Transaction History */}
       <Dialog open={showTransactions} onOpenChange={setShowTransactions}>
@@ -710,6 +707,6 @@ export default function AdminChargebacks() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </AdminLayout>
   );
 }
