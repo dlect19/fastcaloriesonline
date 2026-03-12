@@ -396,17 +396,20 @@ export default function Home() {
         {/* Action Hints - Orders & Next Steps */}
         <ActionHints />
 
-        {/* Calorie Widget */}
-        <CalorieWidget />
+        {/* Calorie + AI Meal side by side */}
+        <div className="grid grid-cols-2 gap-3">
+          <CalorieWidget className="!p-3" />
+          <AIMealRecommendation />
+        </div>
 
         {/* Spin Wheel Widget */}
         <SpinWheelWidget />
 
-        {/* AI Meal Recommendations */}
-        <AIMealRecommendation />
-
         {/* Promo Banner */}
         <PromoBanner />
+
+        {/* Random Menu Carousel */}
+        <MenuCarousel />
 
         {/* Location Search - Order for any address */}
         <LocationSearch

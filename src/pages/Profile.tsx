@@ -243,7 +243,26 @@ export default function Profile() {
         {/* Referral Card */}
         <ReferralCard />
 
-
+        {/* Support / Chat */}
+        <Card
+          className="border-0 shadow-soft cursor-pointer hover:bg-muted/50 transition-colors"
+          onClick={() => navigate('/support')}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <MessageCircle className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <p className="font-medium">Support & Chat</p>
+                  <p className="text-sm text-muted-foreground">Get help or chat with support</p>
+                </div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-muted-foreground" />
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Health Goals */}
         <CalorieGoalCard profile={profile} onUpdate={fetchProfileData} />
