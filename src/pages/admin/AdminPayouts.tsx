@@ -809,6 +809,6 @@ export default function AdminPayouts() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </AdminLayout>
   );
 }
