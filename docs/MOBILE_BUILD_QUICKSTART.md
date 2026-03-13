@@ -77,7 +77,8 @@ npm run android:release     # Release APK (needs signing)
 4. **Trigger Build**
    - Select workflow: `android-debug`, `android-release`, `ios-debug`, or `ios-release`
    - Click "Start new build"
-   - Download artifacts when complete
+   - Open the successful build itself and look for the `Artifacts` section on the build details page
+   - For `ios-debug`, download the `.app` file from artifacts or from the build email
 
 ## 📦 Available Workflows
 
@@ -87,6 +88,25 @@ npm run android:release     # Release APK (needs signing)
 | `android-release` | Android | Release | Production/Store |
 | `ios-debug` | iOS | Debug | Simulator testing |
 | `ios-release` | iOS | Release | App Store |
+
+## 📥 Downloading From Codemagic
+
+After a successful build:
+
+1. Open your app in Codemagic.
+2. Open the build history.
+3. Click the successful build row, for example `iOS Debug Build`.
+4. On the build details page, scroll to `Artifacts`.
+5. Click the artifact file name to download it.
+
+Expected files:
+
+- `android-debug`: `.apk`
+- `android-release`: `.apk`
+- `ios-debug`: `.app`
+- `ios-release`: `.ipa`
+
+If you do not see an iOS debug artifact, it usually means the app was built into a different folder than the artifact rule expected. This project is now configured to write the debug app into a fixed Xcode build folder so Codemagic can display it reliably.
 
 ## 🔧 Important Configuration
 

@@ -99,10 +99,15 @@ workflows:
             -scheme App \
             -sdk iphonesimulator \
             -configuration Debug \
+            -derivedDataPath build \
             -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
             CODE_SIGNING_ALLOWED=NO
     artifacts:
-      - ios/App/build/**/*.app
+      - ios/App/build/Build/Products/Debug-iphonesimulator/*.app
+    publishing:
+      email:
+        recipients:
+          - dlect19@gmail.com
 
   ios-release:
     name: iOS Release Build
