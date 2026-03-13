@@ -22,6 +22,7 @@ export function AdminOutletList({ vendors, onRefresh }: AdminOutletListProps) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [geoLockOutlet, setGeoLockOutlet] = useState<any | null>(null);
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkDeliveryMode, setBulkDeliveryMode] = useState<string>('');
 
   const toggleExpand = async (vendorId: string) => {
     if (expanded[vendorId]) {
