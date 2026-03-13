@@ -260,6 +260,12 @@ export function AdminOutletList({ vendors, onRefresh }: AdminOutletListProps) {
                             {outlet.address || 'No address'}, {outlet.city || ''}
                             {outlet.outlet_code ? ` • ${outlet.outlet_code}` : ''}
                           </p>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <Badge variant="outline" className="text-xs gap-1">
+                              {deliveryModeIcon(outlet.delivery_mode)}
+                              {deliveryModeLabel(outlet.delivery_mode)}
+                            </Badge>
+                          </div>
                         </div>
                         <div className="flex items-center gap-3">
                           {/* Open/Close toggle */}
