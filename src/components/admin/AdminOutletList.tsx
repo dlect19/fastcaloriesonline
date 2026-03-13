@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Check, X, MapPin, Loader2, Store, ChevronDown, ChevronRight, Power, PowerOff } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Check, X, MapPin, Loader2, Store, ChevronDown, ChevronRight, Power, PowerOff, Bike, Building2, Users } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { OutletGeoLockManager } from './OutletGeoLockManager';
 import { OutletCoordinateEditor } from './OutletCoordinateEditor';
@@ -21,6 +22,7 @@ export function AdminOutletList({ vendors, onRefresh }: AdminOutletListProps) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [geoLockOutlet, setGeoLockOutlet] = useState<any | null>(null);
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkDeliveryMode, setBulkDeliveryMode] = useState<string>('');
 
   const toggleExpand = async (vendorId: string) => {
     if (expanded[vendorId]) {
@@ -98,6 +100,64 @@ export function AdminOutletList({ vendors, onRefresh }: AdminOutletListProps) {
     setBulkLoading(false);
   };
 
+  const changeOutletDeliveryMode = async (outletId: string, vendorId: string, newMode: string) => {
+    const { error } = await supabase.from('vendor_outlets').update({ delivery_mode: newMode }).eq('id', outletId);
+    if (error) {
+      toast({ title: 'Failed to update delivery mode', variant: 'destructive' });
+      return;
+    }
+    toast({ title: `Delivery mode set to ${deliveryModeLabel(newMode)}` });
+    toggleExpand(vendorId);
+  };
+
+  const bulkChangeDeliveryMode = async (mode: string) => {
+    if (!mode) return;
+    setBulkLoading(true);
+    const { error } = await supabase
+      .from('vendor_outlets')
+      .update({ delivery_mode: mode })
+      .eq('is_active', true) as { error: any };
+
+    if (error) {
+      toast({ title: 'Failed to update delivery mode', variant: 'destructive' });
+    } else {
+      // Also update vendors table
+      await supabase.from('vendors').update({ delivery_mode: mode }).eq('is_active', true);
+      toast({ title: `All active outlets set to ${deliveryModeLabel(mode)}` });
+      for (const vendorId of Object.keys(expanded)) {
+        if (expanded[vendorId]) {
+          const { data } = await supabase
+            .from('vendor_outlets')
+            .select('*')
+            .eq('vendor_id', vendorId)
+            .order('is_default', { ascending: false })
+            .order('created_at', { ascending: true });
+          setOutlets(prev => ({ ...prev, [vendorId]: data || [] }));
+        }
+      }
+      onRefresh();
+    }
+    setBulkLoading(false);
+    setBulkDeliveryMode('');
+  };
+
+  const deliveryModeLabel = (mode: string) => {
+    switch (mode) {
+      case 'own': return 'Own Riders';
+      case 'platform': return 'Platform';
+      case 'both': return 'Both';
+      default: return mode || 'Not set';
+    }
+  };
+
+  const deliveryModeIcon = (mode: string) => {
+    switch (mode) {
+      case 'own': return <Users className="w-3 h-3" />;
+      case 'platform': return <Building2 className="w-3 h-3" />;
+      case 'both': return <Bike className="w-3 h-3" />;
+      default: return null;
+    }
+  };
 
 
   return (
@@ -110,6 +170,16 @@ export function AdminOutletList({ vendors, onRefresh }: AdminOutletListProps) {
               Vendor Outlets
             </CardTitle>
             <div className="flex items-center gap-2">
+              <Select value={bulkDeliveryMode} onValueChange={(v) => bulkChangeDeliveryMode(v)}>
+                <SelectTrigger className="w-[160px] h-8 text-xs">
+                  <SelectValue placeholder="Set All Delivery Mode" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="own">Own Riders</SelectItem>
+                  <SelectItem value="platform">Platform Riders</SelectItem>
+                  <SelectItem value="both">Both</SelectItem>
+                </SelectContent>
+              </Select>
               <Button
                 variant="outline"
                 size="sm"
@@ -190,8 +260,28 @@ export function AdminOutletList({ vendors, onRefresh }: AdminOutletListProps) {
                             {outlet.address || 'No address'}, {outlet.city || ''}
                             {outlet.outlet_code ? ` • ${outlet.outlet_code}` : ''}
                           </p>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <Badge variant="outline" className="text-xs gap-1">
+                              {deliveryModeIcon(outlet.delivery_mode)}
+                              {deliveryModeLabel(outlet.delivery_mode)}
+                            </Badge>
+                          </div>
                         </div>
                         <div className="flex items-center gap-3">
+                          {/* Delivery Mode selector */}
+                          <Select
+                            value={outlet.delivery_mode || 'platform'}
+                            onValueChange={(v) => changeOutletDeliveryMode(outlet.id, vendor.id, v)}
+                          >
+                            <SelectTrigger className="w-[130px] h-7 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="own">Own Riders</SelectItem>
+                              <SelectItem value="platform">Platform</SelectItem>
+                              <SelectItem value="both">Both</SelectItem>
+                            </SelectContent>
+                          </Select>
                           {/* Open/Close toggle */}
                           {outlet.is_approved && outlet.is_active && (
                             <div className="flex items-center gap-1.5">
