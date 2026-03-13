@@ -8,11 +8,34 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Sparkles, Loader2, Download, Image as ImageIcon, Shuffle, Save } from 'lucide-react';
+import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
+
+const SOCIAL_FORMATS = [
+  { value: 'app_carousel', label: 'App Carousel', size: '1200×600' },
+  { value: 'facebook_post', label: 'Facebook Post', size: '1200×630' },
+  { value: 'facebook_story', label: 'Facebook / IG Story', size: '1080×1920' },
+  { value: 'instagram_post', label: 'Instagram Post', size: '1080×1080' },
+  { value: 'tiktok', label: 'TikTok', size: '1080×1920' },
+  { value: 'x_post', label: 'X / Twitter Post', size: '1200×675' },
+  { value: 'whatsapp_status', label: 'WhatsApp Status', size: '1080×1920' },
+  { value: 'youtube_thumbnail', label: 'YouTube Thumbnail', size: '1280×720' },
+];
 
 interface Vendor {
   id: string;
   name: string;
   logo_url: string | null;
+}
+
+async function imageToBase64(src: string): Promise<string> {
+  const res = await fetch(src);
+  const blob = await res.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
 }
 
 export function CampaignGenerator() {
@@ -22,6 +45,7 @@ export function CampaignGenerator() {
   const [selectedVendorId, setSelectedVendorId] = useState('');
   const [title, setTitle] = useState('');
   const [prompt, setPrompt] = useState('');
+  const [format, setFormat] = useState('app_carousel');
   const [menuItems, setMenuItems] = useState<string[]>([]);
   const [generatedImageUrl, setGeneratedImageUrl] = useState('');
   const [storagePath, setStoragePath] = useState('');
@@ -48,7 +72,6 @@ export function CampaignGenerator() {
     if (vendors.length === 0) return;
     const random = vendors[Math.floor(Math.random() * vendors.length)];
     setSelectedVendorId(random.id);
-    // Fetch random menu items for this vendor
     const { data: products } = await supabase
       .from('products')
       .select('name')
@@ -64,7 +87,6 @@ export function CampaignGenerator() {
 
   const handleVendorChange = async (vendorId: string) => {
     setSelectedVendorId(vendorId);
-    // Fetch menu items
     const { data: products } = await supabase
       .from('products')
       .select('name')
@@ -94,13 +116,23 @@ export function CampaignGenerator() {
     try {
       const vendor = vendors.find(v => v.id === selectedVendorId);
 
+      // Convert FC logo to base64
+      let platformLogoBase64: string | null = null;
+      try {
+        platformLogoBase64 = await imageToBase64(fastCaloriesLogo);
+      } catch (e) {
+        console.warn('Could not load platform logo:', e);
+      }
+
       const { data, error } = await supabase.functions.invoke('generate-campaign-image', {
         body: {
           prompt: prompt || title,
           campaign_type: campaignType,
-        vendor_name: vendor?.name || null,
+          vendor_name: vendor?.name || null,
           vendor_logo_url: vendor?.logo_url || null,
+          platform_logo_base64: platformLogoBase64,
           menu_items: menuItems,
+          format,
         },
       });
 
@@ -165,7 +197,6 @@ export function CampaignGenerator() {
       const { data: { user } } = await supabase.auth.getUser();
       const vendor = vendors.find(v => v.id === selectedVendorId);
 
-      // Create ad in carousel
       const { data: ad, error: adError } = await supabase.from('advertisements').insert({
         title,
         description: prompt || `${vendor?.name || 'Fast Calories'} campaign`,
@@ -177,7 +208,6 @@ export function CampaignGenerator() {
 
       if (adError) throw adError;
 
-      // Save campaign linked to ad
       const { error } = await supabase.from('campaigns').insert({
         title,
         campaign_type: campaignType,
@@ -203,6 +233,7 @@ export function CampaignGenerator() {
   };
 
   const selectedVendor = vendors.find(v => v.id === selectedVendorId);
+  const selectedFormatInfo = SOCIAL_FORMATS.find(f => f.value === format);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -224,16 +255,32 @@ export function CampaignGenerator() {
             />
           </div>
 
-          <div>
-            <Label>Campaign Type</Label>
-            <Select value={campaignType} onValueChange={setCampaignType}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="vendor_promo">Vendor Promotion</SelectItem>
-                <SelectItem value="platform_branding">Fast Calories Branding</SelectItem>
-                <SelectItem value="seasonal">Seasonal / Event</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Campaign Type</Label>
+              <Select value={campaignType} onValueChange={setCampaignType}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="vendor_promo">Vendor Promotion</SelectItem>
+                  <SelectItem value="platform_branding">Fast Calories Branding</SelectItem>
+                  <SelectItem value="seasonal">Seasonal / Event</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>Format / Size</Label>
+              <Select value={format} onValueChange={setFormat}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {SOCIAL_FORMATS.map(f => (
+                    <SelectItem key={f.value} value={f.value}>
+                      {f.label} ({f.size})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {campaignType === 'vendor_promo' && (
@@ -257,6 +304,20 @@ export function CampaignGenerator() {
                 </Button>
               </div>
 
+              {/* Logo preview */}
+              {selectedVendor && (
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                  <img src={fastCaloriesLogo} alt="FC Logo" className="h-8 w-8 object-contain rounded" />
+                  <span className="text-xs text-muted-foreground">+</span>
+                  {selectedVendor.logo_url ? (
+                    <img src={selectedVendor.logo_url} alt={selectedVendor.name} className="h-8 w-8 object-contain rounded" />
+                  ) : (
+                    <div className="h-8 w-8 rounded bg-muted flex items-center justify-center text-xs text-muted-foreground">N/A</div>
+                  )}
+                  <span className="text-xs text-muted-foreground">Logos will be included in generated image</span>
+                </div>
+              )}
+
               {menuItems.length > 0 && (
                 <div className="p-3 rounded-lg bg-muted/50">
                   <p className="text-xs font-medium text-muted-foreground mb-1">Featured menu items:</p>
@@ -269,6 +330,13 @@ export function CampaignGenerator() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {campaignType !== 'vendor_promo' && (
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+              <img src={fastCaloriesLogo} alt="FC Logo" className="h-8 w-8 object-contain rounded" />
+              <span className="text-xs text-muted-foreground">Fast Calories logo will be included in generated image</span>
             </div>
           )}
 
@@ -296,7 +364,7 @@ export function CampaignGenerator() {
             ) : (
               <>
                 <Sparkles className="w-5 h-5" />
-                Generate Campaign Image
+                Generate {selectedFormatInfo?.label || ''} Image
               </>
             )}
           </Button>
@@ -306,7 +374,7 @@ export function CampaignGenerator() {
       {/* Right: Preview */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Preview</CardTitle>
+          <CardTitle className="text-lg">Preview {selectedFormatInfo && <span className="text-sm font-normal text-muted-foreground">({selectedFormatInfo.size})</span>}</CardTitle>
         </CardHeader>
         <CardContent>
           {generating ? (
