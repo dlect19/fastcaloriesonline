@@ -31,6 +31,13 @@ export function useFcmNotifications() {
 
   const registerFcmToken = useCallback(async () => {
     try {
+      const { Capacitor } = await import('@capacitor/core');
+      if (!Capacitor.isNativePlatform()) return;
+      if (!Capacitor.isPluginAvailable('FirebaseMessaging')) {
+        console.info('FirebaseMessaging plugin not available on this native build; skipping FCM registration.');
+        return;
+      }
+
       // Dynamically import Firebase messaging plugin
       const { FirebaseMessaging } = await import('@capacitor-firebase/messaging');
 

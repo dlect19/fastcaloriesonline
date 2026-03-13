@@ -14,43 +14,44 @@ export function useCapacitorPush() {
       try {
         const { Capacitor } = await import('@capacitor/core');
         if (!Capacitor.isNativePlatform()) return;
+        const platform = Capacitor.getPlatform();
 
         const { PushNotifications } = await import('@capacitor/push-notifications');
 
-        // Create order-calls channel (used by CALL-type notifications from backend)
-        await PushNotifications.createChannel({
-          id: 'order-calls-v6',
-          name: 'Urgent Order Calls',
-          description: 'Full-screen urgent alerts for new orders',
-          sound: 'fastcaloriesvendor',
-          importance: 5,
-          visibility: 1,
-          vibration: true,
-        });
+        // Notification channels are Android-only.
+        if (platform === 'android') {
+          await PushNotifications.createChannel({
+            id: 'order-calls-v6',
+            name: 'Urgent Order Calls',
+            description: 'Full-screen urgent alerts for new orders',
+            sound: 'fastcaloriesvendor',
+            importance: 5,
+            visibility: 1,
+            vibration: true,
+          });
 
-        // Create vendor orders channel with custom sound
-        await PushNotifications.createChannel({
-          id: 'vendor-orders-v3',
-          name: 'New Order Alerts',
-          description: 'Urgent sound for new orders',
-          sound: 'fastcaloriesvendor',
-          importance: 5,
-          visibility: 1,
-          vibration: true,
-        });
+          await PushNotifications.createChannel({
+            id: 'vendor-orders-v3',
+            name: 'New Order Alerts',
+            description: 'Urgent sound for new orders',
+            sound: 'fastcaloriesvendor',
+            importance: 5,
+            visibility: 1,
+            vibration: true,
+          });
 
-        // Create rider orders channel with custom sound
-        await PushNotifications.createChannel({
-          id: 'rider-orders',
-          name: 'Rider Dispatch',
-          description: 'Notifications for new rider dispatch offers',
-          sound: 'fastcaloriesrider',
-          importance: 5,
-          visibility: 1,
-          vibration: true,
-        });
+          await PushNotifications.createChannel({
+            id: 'rider-orders',
+            name: 'Rider Dispatch',
+            description: 'Notifications for new rider dispatch offers',
+            sound: 'fastcaloriesrider',
+            importance: 5,
+            visibility: 1,
+            vibration: true,
+          });
+        }
 
-        // Request permissions (Android 13+)
+        // Request permissions on supported native platforms.
         let permStatus = await PushNotifications.checkPermissions();
         if (permStatus.receive === 'prompt') {
           permStatus = await PushNotifications.requestPermissions();
