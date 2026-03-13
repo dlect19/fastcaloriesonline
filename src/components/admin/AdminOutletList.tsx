@@ -268,6 +268,20 @@ export function AdminOutletList({ vendors, onRefresh }: AdminOutletListProps) {
                           </div>
                         </div>
                         <div className="flex items-center gap-3">
+                          {/* Delivery Mode selector */}
+                          <Select
+                            value={outlet.delivery_mode || 'platform'}
+                            onValueChange={(v) => changeOutletDeliveryMode(outlet.id, vendor.id, v)}
+                          >
+                            <SelectTrigger className="w-[130px] h-7 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="own">Own Riders</SelectItem>
+                              <SelectItem value="platform">Platform</SelectItem>
+                              <SelectItem value="both">Both</SelectItem>
+                            </SelectContent>
+                          </Select>
                           {/* Open/Close toggle */}
                           {outlet.is_approved && outlet.is_active && (
                             <div className="flex items-center gap-1.5">
