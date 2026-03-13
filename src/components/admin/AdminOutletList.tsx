@@ -100,6 +100,64 @@ export function AdminOutletList({ vendors, onRefresh }: AdminOutletListProps) {
     setBulkLoading(false);
   };
 
+  const changeOutletDeliveryMode = async (outletId: string, vendorId: string, newMode: string) => {
+    const { error } = await supabase.from('vendor_outlets').update({ delivery_mode: newMode }).eq('id', outletId);
+    if (error) {
+      toast({ title: 'Failed to update delivery mode', variant: 'destructive' });
+      return;
+    }
+    toast({ title: `Delivery mode set to ${deliveryModeLabel(newMode)}` });
+    toggleExpand(vendorId);
+  };
+
+  const bulkChangeDeliveryMode = async (mode: string) => {
+    if (!mode) return;
+    setBulkLoading(true);
+    const { error } = await supabase
+      .from('vendor_outlets')
+      .update({ delivery_mode: mode })
+      .eq('is_active', true) as { error: any };
+
+    if (error) {
+      toast({ title: 'Failed to update delivery mode', variant: 'destructive' });
+    } else {
+      // Also update vendors table
+      await supabase.from('vendors').update({ delivery_mode: mode }).eq('is_active', true);
+      toast({ title: `All active outlets set to ${deliveryModeLabel(mode)}` });
+      for (const vendorId of Object.keys(expanded)) {
+        if (expanded[vendorId]) {
+          const { data } = await supabase
+            .from('vendor_outlets')
+            .select('*')
+            .eq('vendor_id', vendorId)
+            .order('is_default', { ascending: false })
+            .order('created_at', { ascending: true });
+          setOutlets(prev => ({ ...prev, [vendorId]: data || [] }));
+        }
+      }
+      onRefresh();
+    }
+    setBulkLoading(false);
+    setBulkDeliveryMode('');
+  };
+
+  const deliveryModeLabel = (mode: string) => {
+    switch (mode) {
+      case 'own': return 'Own Riders';
+      case 'platform': return 'Platform';
+      case 'both': return 'Both';
+      default: return mode || 'Not set';
+    }
+  };
+
+  const deliveryModeIcon = (mode: string) => {
+    switch (mode) {
+      case 'own': return <Users className="w-3 h-3" />;
+      case 'platform': return <Building2 className="w-3 h-3" />;
+      case 'both': return <Bike className="w-3 h-3" />;
+      default: return null;
+    }
+  };
 
 
   return (
