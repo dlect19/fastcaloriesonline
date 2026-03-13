@@ -13,7 +13,6 @@ serve(async (req) => {
   }
 
   try {
-    // Auth check
     const authHeader = req.headers.get("authorization");
     if (!authHeader) throw new Error("Missing authorization header");
 
@@ -25,7 +24,6 @@ serve(async (req) => {
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     if (authError || !user) throw new Error("Unauthorized");
 
-    // Check admin role
     const { data: roles } = await supabase
       .from("user_roles")
       .select("role")
@@ -34,12 +32,27 @@ serve(async (req) => {
       throw new Error("Admin access required");
     }
 
-    const { prompt, campaign_type, vendor_name, vendor_logo_url, menu_items } = await req.json();
+    const { prompt, campaign_type, vendor_name, vendor_logo_url, platform_logo_base64, menu_items, format } = await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    // Build a rich prompt for image generation
+    // Format dimensions
+    const FORMAT_SIZES: Record<string, { w: number; h: number; label: string }> = {
+      facebook_post: { w: 1200, h: 630, label: "Facebook Post (1200×630)" },
+      facebook_story: { w: 1080, h: 1920, label: "Facebook Story (1080×1920)" },
+      instagram_post: { w: 1080, h: 1080, label: "Instagram Post (1080×1080)" },
+      instagram_story: { w: 1080, h: 1920, label: "Instagram Story (1080×1920)" },
+      tiktok: { w: 1080, h: 1920, label: "TikTok (1080×1920)" },
+      x_post: { w: 1200, h: 675, label: "X/Twitter Post (1200×675)" },
+      whatsapp_status: { w: 1080, h: 1920, label: "WhatsApp Status (1080×1920)" },
+      youtube_thumbnail: { w: 1280, h: 720, label: "YouTube Thumbnail (1280×720)" },
+      app_carousel: { w: 1200, h: 600, label: "App Carousel (1200×600)" },
+    };
+
+    const selectedFormat = FORMAT_SIZES[format] || FORMAT_SIZES.app_carousel;
+
+    // Build prompt
     let imagePrompt = "";
 
     if (campaign_type === "vendor_promo" && vendor_name) {
@@ -47,16 +60,44 @@ serve(async (req) => {
       if (menu_items && menu_items.length > 0) {
         imagePrompt += `Feature these menu items prominently: ${menu_items.join(", ")}. `;
       }
-      imagePrompt += `Include the Fast Calories brand name subtly. Modern food photography style, appetizing colors, clean layout suitable for a mobile app banner. High quality marketing material.`;
+      imagePrompt += `Include the "Fast Calories" brand name/logo subtly in the design. The image MUST incorporate and prominently display the vendor's logo provided. `;
+      imagePrompt += `Modern food photography style, appetizing colors, clean layout. Dimensions: ${selectedFormat.w}x${selectedFormat.h} pixels for ${selectedFormat.label}. High quality marketing material.`;
     } else if (campaign_type === "platform_branding") {
-      imagePrompt = `Create a professional marketing banner for "Fast Calories" food delivery app. ${prompt || "Show the app's convenience and speed"}. Modern, clean design with appetizing food imagery. The Fast Calories brand name should be prominent. Suitable for social media and app carousel. High quality digital marketing material.`;
+      imagePrompt = `Create a professional marketing banner for "Fast Calories" food delivery app. ${prompt || "Show the app's convenience and speed"}. The "Fast Calories" brand logo provided MUST be prominently displayed in the design. Modern, clean design with appetizing food imagery. Dimensions: ${selectedFormat.w}x${selectedFormat.h} pixels for ${selectedFormat.label}. High quality digital marketing material.`;
     } else if (campaign_type === "seasonal") {
-      imagePrompt = `Create a festive promotional banner for "Fast Calories" food delivery app. ${prompt || "Seasonal celebration theme"}. Include the Fast Calories brand name. Appetizing food imagery with seasonal/holiday decorations. Modern marketing design suitable for mobile app and social media. High quality.`;
+      imagePrompt = `Create a festive promotional banner for "Fast Calories" food delivery app. ${prompt || "Seasonal celebration theme"}. Include the "Fast Calories" brand logo provided prominently. Appetizing food imagery with seasonal/holiday decorations. Dimensions: ${selectedFormat.w}x${selectedFormat.h} pixels for ${selectedFormat.label}. High quality.`;
     } else {
-      imagePrompt = `Create a professional food delivery promotional banner. ${prompt || "Fast Calories delivery service promotion"}. Include "Fast Calories" branding. Modern design, appetizing food imagery. High quality marketing material.`;
+      imagePrompt = `Create a professional food delivery promotional banner. ${prompt || "Fast Calories delivery service promotion"}. Include the "Fast Calories" branding/logo provided. Modern design, appetizing food imagery. Dimensions: ${selectedFormat.w}x${selectedFormat.h} pixels for ${selectedFormat.label}. High quality marketing material.`;
     }
 
-    console.log("Generating image with prompt:", imagePrompt);
+    console.log("Generating image with prompt:", imagePrompt, "format:", format);
+
+    // Build multimodal content with logos
+    const contentParts: any[] = [{ type: "text", text: imagePrompt }];
+
+    // Add Fast Calories logo
+    if (platform_logo_base64) {
+      contentParts.push({
+        type: "image_url",
+        image_url: { url: platform_logo_base64 },
+      });
+      contentParts.push({
+        type: "text",
+        text: "Above is the Fast Calories brand logo. Incorporate it into the banner design.",
+      });
+    }
+
+    // Add vendor logo
+    if (vendor_logo_url) {
+      contentParts.push({
+        type: "image_url",
+        image_url: { url: vendor_logo_url },
+      });
+      contentParts.push({
+        type: "text",
+        text: `Above is the ${vendor_name || "vendor"} logo. Include it prominently in the banner.`,
+      });
+    }
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -69,7 +110,7 @@ serve(async (req) => {
         messages: [
           {
             role: "user",
-            content: imagePrompt,
+            content: contentParts,
           },
         ],
         modalities: ["image", "text"],
@@ -101,7 +142,6 @@ serve(async (req) => {
       throw new Error("No image was generated. Try a different prompt.");
     }
 
-    // Decode base64 and upload to storage
     const base64Data = imageData.replace(/^data:image\/\w+;base64,/, "");
     const imageBytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
     const fileName = `campaign_${Date.now()}_${crypto.randomUUID().slice(0, 8)}.png`;
