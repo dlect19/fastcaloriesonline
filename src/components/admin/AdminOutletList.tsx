@@ -170,6 +170,16 @@ export function AdminOutletList({ vendors, onRefresh }: AdminOutletListProps) {
               Vendor Outlets
             </CardTitle>
             <div className="flex items-center gap-2">
+              <Select value={bulkDeliveryMode} onValueChange={(v) => bulkChangeDeliveryMode(v)}>
+                <SelectTrigger className="w-[160px] h-8 text-xs">
+                  <SelectValue placeholder="Set All Delivery Mode" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="own">Own Riders</SelectItem>
+                  <SelectItem value="platform">Platform Riders</SelectItem>
+                  <SelectItem value="both">Both</SelectItem>
+                </SelectContent>
+              </Select>
               <Button
                 variant="outline"
                 size="sm"
