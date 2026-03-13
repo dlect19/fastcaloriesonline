@@ -87,6 +87,9 @@ workflows:
       - name: Sync Capacitor
         script: |
           npx cap sync ios
+      - name: Disable Firebase Messaging for simulator build
+        script: |
+          node -e "const fs=require('fs'); const path='ios/App/App/capacitor.config.json'; const config=JSON.parse(fs.readFileSync(path,'utf8')); config.packageClassList=(config.packageClassList||[]).filter(name => name !== 'FirebaseMessagingPlugin'); fs.writeFileSync(path, JSON.stringify(config, null, '\t') + '\n');"
       - name: Resolve Swift Package Manager dependencies
         script: |
           cd ios/App

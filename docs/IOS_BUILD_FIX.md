@@ -138,7 +138,7 @@ xcodebuild build \
   -scheme App \                      # Your app scheme
   -sdk iphonesimulator \             # Simulator SDK
   -configuration Debug \             # Debug configuration
-  -destination 'platform=iOS Simulator,name=iPhone 15' \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   CODE_SIGNING_ALLOWED=NO            # No signing for debug
 ```
 
@@ -218,6 +218,46 @@ Ensure all Capacitor plugins are:
 ✅ **No CocoaPods installation needed**
 ✅ **Build commands updated to use `.xcodeproj`**
 ✅ **Both debug and release workflows fixed**
+
+## Appetize And Simulator Note
+
+If the `ios-debug` build crashes immediately on Appetize or another iOS simulator with a Firebase error like:
+
+```text
+Could not locate configuration file: 'GoogleService-Info.plist'
+FirebaseApp.configure() could not find a valid GoogleService-Info.plist
+```
+
+that means the native Firebase Messaging plugin is loading during app startup, but the iOS Firebase config file has not been added yet.
+
+For this project, the `ios-debug` Codemagic workflow removes `FirebaseMessagingPlugin` from the generated Capacitor iOS plugin list before the simulator build. This allows the app to launch on Appetize for UI testing without requiring Firebase iOS setup.
+
+Important:
+
+- `ios-debug` is intended for simulator and Appetize testing
+- push notification features that depend on Firebase Messaging will not work in that debug simulator build
+- `ios-release` is unchanged and should still use the full native plugin set once proper iOS Firebase configuration is added
+
+Your next Codemagic build should succeed! 🎉
+
+## Appetize And Simulator Note
+
+If the `ios-debug` build crashes immediately on Appetize or another iOS simulator with a Firebase error like:
+
+```text
+Could not locate configuration file: 'GoogleService-Info.plist'
+FirebaseApp.configure() could not find a valid GoogleService-Info.plist
+```
+
+that means the native Firebase Messaging plugin is loading during app startup, but the iOS Firebase config file has not been added yet.
+
+For this project, the `ios-debug` Codemagic workflow now removes `FirebaseMessagingPlugin` from the generated Capacitor iOS plugin list before the simulator build. This allows the app to launch on Appetize for UI testing without requiring Firebase iOS setup.
+
+Important:
+
+- `ios-debug` is now intended for simulator and Appetize testing
+- push notification features that depend on Firebase Messaging will not work in that debug simulator build
+- `ios-release` is unchanged and should still use the full native plugin set once proper iOS Firebase configuration is added
 
 Your next Codemagic build should succeed! 🎉
 
