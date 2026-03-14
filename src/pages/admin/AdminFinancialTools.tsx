@@ -127,6 +127,7 @@ function ReverseRefundTool() {
         service_fee: orderData.service_fee || 0,
         delivery_fee: orderData.delivery_fee || 0,
         discount: orderData.discount || 0,
+        packaging_fee: orderData.packaging_fee || 0,
         vendor_name: vendor?.name || 'Unknown',
         customer_name: profile?.full_name || 'Unknown',
         customer_email: '',
