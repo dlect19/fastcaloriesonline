@@ -289,8 +289,8 @@ function ReverseRefundTool() {
             )}
 
             {order.refund_tx ? (
-              <div className="border rounded-lg p-3 bg-amber-50 dark:bg-amber-950/30 space-y-2">
-                <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 font-medium">
+              <div className="border rounded-lg p-3 bg-destructive/10 space-y-2">
+                <div className="flex items-center gap-2 text-destructive font-medium">
                   <AlertTriangle className="w-4 h-4" />
                   Refund Found
                 </div>
