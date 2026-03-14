@@ -188,11 +188,13 @@ function ReverseRefundTool() {
 
       if (!vendorWallet) throw new Error('Vendor wallet not found');
 
-      // 4. Credit vendor wallet with their share
+      // 4. Credit vendor wallet with their share (menu_price - commission + packaging)
       const commissionRate = vendorUser.commission_rate || 15;
       const menuPrice = order.subtotal + order.discount;
+      const packagingFee = order.packaging_fee || 0;
       const platformCommission = Math.round(menuPrice * (commissionRate / 100) * 100) / 100;
-      const vendorShare = menuPrice - platformCommission;
+      const vendorShare = menuPrice - platformCommission + packagingFee;
+      const serviceFee = order.service_fee;
 
       const { error: creditError } = await supabase.rpc('admin_adjust_wallet_balance', {
         p_wallet_id: vendorWallet.id,
@@ -205,9 +207,49 @@ function ReverseRefundTool() {
 
       if (creditError) throw creditError;
 
+      // 5. Restore platform share (commission + service fee)
+      const platformShare = platformCommission + serviceFee;
+      if (platformShare > 0) {
+        const { data: platformWallet } = await supabase
+          .from('platform_wallet')
+          .select('id')
+          .limit(1)
+          .single();
+
+        if (platformWallet) {
+          const balanceCol = isTest ? 'test_balance' : 'balance';
+          const { data: currentPw } = await supabase
+            .from('platform_wallet')
+            .select('balance, test_balance')
+            .eq('id', platformWallet.id)
+            .single();
+
+          const currentBal = Number(isTest ? currentPw?.test_balance : currentPw?.balance) || 0;
+          const newBal = currentBal + platformShare;
+
+          await supabase
+            .from('platform_wallet')
+            .update({ [balanceCol]: newBal, updated_at: new Date().toISOString() })
+            .eq('id', platformWallet.id);
+
+          // Record platform transaction
+          await supabase.from('wallet_transactions').insert({
+            wallet_type: 'platform',
+            category: 'platform_commission',
+            transaction_type: 'credit',
+            amount: platformShare,
+            order_id: order.id,
+            platform_wallet_id: platformWallet.id,
+            environment: order.environment,
+            status: 'completed',
+            notes: `[REFUND REVERSAL] Platform share restored for order #${order.order_number} (commission ₦${platformCommission.toLocaleString()} + service fee ₦${serviceFee.toLocaleString()})`,
+          });
+        }
+      }
+
       toast({
         title: 'Refund Reversed Successfully',
-        description: `Debited ₦${refundAmount.toLocaleString()} from customer, credited ₦${vendorShare.toLocaleString()} to vendor (${order.vendor_name})`,
+        description: `Debited ₦${refundAmount.toLocaleString()} from customer. Credited ₦${vendorShare.toLocaleString()} to vendor, ₦${platformShare.toLocaleString()} to platform.`,
       });
 
       // Refresh order data
