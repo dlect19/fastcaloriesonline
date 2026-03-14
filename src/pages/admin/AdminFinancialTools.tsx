@@ -97,7 +97,7 @@ function ReverseRefundTool() {
       // Get customer info
       const { data: profile } = await supabase
         .from('profiles')
-        .select('full_name, email')
+        .select('full_name')
         .eq('id', orderData.user_id || '')
         .maybeSingle();
 
