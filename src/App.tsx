@@ -99,6 +99,7 @@ import RiderSupport from "./pages/rider/RiderSupport";
 import AdminSupport from "./pages/admin/AdminSupport";
 import AdminNotifications from "./pages/admin/AdminNotifications";
 import AdminCoverageAreas from "./pages/admin/AdminCoverageAreas";
+import AdminFinancialTools from "./pages/admin/AdminFinancialTools";
 import CoverageMap from "./pages/CoverageMap";
 import WorkspaceLogin from "./pages/WorkspaceLogin";
 import { playGlobalNotificationSound } from '@/lib/globalAudio';
@@ -221,6 +222,7 @@ const App = () => {
               <Route path="/admin/support" element={<AdminSupport />} />
               <Route path="/admin/notifications" element={<AdminNotifications />} />
               <Route path="/admin/coverage-areas" element={<AdminCoverageAreas />} />
+              <Route path="/admin/financial-tools" element={<AdminFinancialTools />} />
               {/* Legal Pages (public) */}
               <Route path="/legal" element={<LegalPage />} />
               <Route path="/legal/:type" element={<LegalPage />} />

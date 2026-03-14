@@ -49,6 +49,7 @@ const menuItems: MenuItem[] = [
   { icon: MessageSquare, label: 'Support', path: '/admin/support', requiredPermission: 'handle_support' },
   { icon: Megaphone, label: 'Notifications', path: '/admin/notifications', requiredPermission: 'platform_settings' },
   { icon: Map, label: 'Coverage Areas', path: '/admin/coverage-areas', requiredPermission: 'platform_settings' },
+  { icon: DollarSign, label: 'Financial Tools', path: '/admin/financial-tools', requiredPermission: 'process_withdrawals' },
   { icon: Settings, label: 'Settings', path: '/admin/settings', requiredPermission: 'platform_settings' },
 ];
 
