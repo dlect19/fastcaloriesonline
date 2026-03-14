@@ -78,7 +78,7 @@ function ReverseRefundTool() {
 
       const { data: orderData, error } = await supabase
         .from('orders')
-        .select('id, order_number, status, payment_status, subtotal, total, service_fee, delivery_fee, discount, vendor_id, user_id, environment, cancellation_reason, cancelled_at')
+        .select('id, order_number, status, payment_status, subtotal, total, service_fee, delivery_fee, discount, packaging_fee, vendor_id, user_id, environment, cancellation_reason, cancelled_at')
         .eq('order_number', cleanNumber)
         .maybeSingle();
 
