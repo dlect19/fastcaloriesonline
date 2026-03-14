@@ -128,7 +128,7 @@ function ReverseRefundTool() {
         discount: orderData.discount || 0,
         vendor_name: vendor?.name || 'Unknown',
         customer_name: profile?.full_name || 'Unknown',
-        customer_email: profile?.email || '',
+        customer_email: '',
         refund_tx: refundTx,
         vendor_share_tx: vendorShareTx,
       });
