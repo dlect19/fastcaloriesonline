@@ -23,6 +23,7 @@ interface OrderDetails {
   service_fee: number;
   delivery_fee: number;
   discount: number;
+  packaging_fee: number;
   vendor_id: string;
   vendor_name: string;
   user_id: string;
