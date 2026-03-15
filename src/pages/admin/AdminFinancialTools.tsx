@@ -149,6 +149,23 @@ function ReverseRefundTool() {
       const isTest = order.environment === 'development';
       const env = isTest ? 'development' : 'production';
 
+      // 0. Duplicate prevention: check if a reversal debit already exists for this order
+      const { data: existingReversal } = await supabase
+        .from('wallet_transactions')
+        .select('id')
+        .eq('order_id', order.id)
+        .eq('transaction_type', 'debit')
+        .eq('wallet_type', 'customer')
+        .ilike('notes', '%REFUND REVERSAL%')
+        .limit(1)
+        .maybeSingle();
+
+      if (existingReversal) {
+        toast({ title: 'Already Reversed', description: `A refund reversal has already been processed for order #${order.order_number}`, variant: 'destructive' });
+        setReversing(false);
+        return;
+      }
+
       // 1. Find customer wallet
       const { data: customerWallet } = await supabase
         .from('wallets')
@@ -160,7 +177,7 @@ function ReverseRefundTool() {
       if (!customerWallet) throw new Error('Customer wallet not found');
 
       // 2. Debit customer wallet (reverse the refund)
-      const { data: debitResult, error: debitError } = await supabase.rpc('admin_adjust_wallet_balance', {
+      const { error: debitError } = await supabase.rpc('admin_adjust_wallet_balance', {
         p_wallet_id: customerWallet.id,
         p_amount: refundAmount,
         p_adjust_type: 'debit',
@@ -249,9 +266,49 @@ function ReverseRefundTool() {
         }
       }
 
+      // 6. Restore order_financials
+      const companyRevenue = platformCommission + serviceFee - order.discount;
+      const revenueStatus = companyRevenue > 0 ? 'profit' : companyRevenue === 0 ? 'break_even' : 'loss';
+
+      // Check if order_financials exists; upsert accordingly
+      const { data: existingFinancials } = await supabase
+        .from('order_financials')
+        .select('id')
+        .eq('order_id', order.id)
+        .maybeSingle();
+
+      if (existingFinancials) {
+        await supabase.from('order_financials').update({
+          revenue_status: revenueStatus,
+          company_revenue: companyRevenue,
+        }).eq('order_id', order.id);
+      } else {
+        await supabase.from('order_financials').insert({
+          order_id: order.id,
+          outlet_id: null,
+          menu_price: menuPrice,
+          vendor_commission_percentage: commissionRate,
+          vendor_commission_amount: platformCommission,
+          promo_discount_amount: order.discount,
+          vendor_payout: vendorShare,
+          company_revenue: companyRevenue,
+          revenue_status: revenueStatus,
+          environment: order.environment,
+          service_fee_amount: serviceFee,
+        });
+      }
+
+      // 7. Update order status from cancelled back to completed
+      await supabase.from('orders').update({
+        status: 'delivered',
+        payment_status: 'paid',
+        cancellation_reason: null,
+        cancelled_at: null,
+      }).eq('id', order.id);
+
       toast({
         title: 'Refund Reversed Successfully',
-        description: `Debited ₦${refundAmount.toLocaleString()} from customer. Credited ₦${vendorShare.toLocaleString()} to vendor, ₦${platformShare.toLocaleString()} to platform.`,
+        description: `Debited ₦${refundAmount.toLocaleString()} from customer. Credited ₦${vendorShare.toLocaleString()} to vendor, ₦${platformShare.toLocaleString()} to platform. Order restored to delivered.`,
       });
 
       // Refresh order data
