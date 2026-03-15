@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Search, RotateCcw, Gift, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Loader2, Search, RotateCcw, Gift, AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -42,9 +42,12 @@ export default function AdminFinancialTools() {
       <div className="p-4 md:p-6 space-y-6">
         <h1 className="text-2xl font-bold text-foreground">Financial Tools</h1>
         <Tabs defaultValue="reverse-refund">
-          <TabsList>
+          <TabsList className="flex-wrap">
             <TabsTrigger value="reverse-refund" className="gap-2">
               <RotateCcw className="w-4 h-4" /> Reverse Refund
+            </TabsTrigger>
+            <TabsTrigger value="update-status" className="gap-2">
+              <RefreshCw className="w-4 h-4" /> Update Status
             </TabsTrigger>
             <TabsTrigger value="bonus" className="gap-2">
               <Gift className="w-4 h-4" /> Bonus Top-up
@@ -52,6 +55,9 @@ export default function AdminFinancialTools() {
           </TabsList>
           <TabsContent value="reverse-refund">
             <ReverseRefundTool />
+          </TabsContent>
+          <TabsContent value="update-status">
+            <UpdateOrderStatusTool />
           </TabsContent>
           <TabsContent value="bonus">
             <BonusTopupTool />
@@ -417,6 +423,198 @@ function ReverseRefundTool() {
                 No refund transaction found for this order.
               </div>
             )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function UpdateOrderStatusTool() {
+  const { toast } = useToast();
+  const [orderNumber, setOrderNumber] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [order, setOrder] = useState<{ id: string; order_number: string; status: string; payment_status: string; vendor_name: string; customer_name: string; total: number; cancellation_reason: string | null } | null>(null);
+  const [newStatus, setNewStatus] = useState('');
+
+  const ORDER_STATUSES = [
+    { value: 'pending', label: 'Pending' },
+    { value: 'confirmed', label: 'Confirmed' },
+    { value: 'preparing', label: 'Preparing' },
+    { value: 'ready_for_pickup', label: 'Ready for Pickup' },
+    { value: 'picked_up', label: 'Picked Up' },
+    { value: 'on_the_way', label: 'On the Way' },
+    { value: 'delivered', label: 'Delivered' },
+    { value: 'cancelled', label: 'Cancelled' },
+  ];
+
+  const lookupOrder = async () => {
+    if (!orderNumber.trim()) return;
+    setLoading(true);
+    setOrder(null);
+    setNewStatus('');
+    try {
+      const cleanNumber = orderNumber.trim().replace(/^#/, '');
+      const { data: orderData, error } = await supabase
+        .from('orders')
+        .select('id, order_number, status, payment_status, total, vendor_id, user_id, cancellation_reason')
+        .eq('order_number', cleanNumber)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!orderData) {
+        toast({ title: 'Not found', description: `No order found with number ${cleanNumber}`, variant: 'destructive' });
+        return;
+      }
+
+      const [vendorRes, profileRes] = await Promise.all([
+        supabase.from('vendors').select('name').eq('id', orderData.vendor_id).single(),
+        supabase.from('profiles').select('full_name').eq('user_id', orderData.user_id || '').maybeSingle(),
+      ]);
+
+      setOrder({
+        ...orderData,
+        vendor_name: vendorRes.data?.name || 'Unknown',
+        customer_name: profileRes.data?.full_name || 'Unknown',
+      });
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateStatus = async () => {
+    if (!order || !newStatus || newStatus === order.status) return;
+    setUpdating(true);
+    try {
+      const updateData: any = {
+        status: newStatus,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (newStatus === 'delivered') {
+        updateData.delivered_at = new Date().toISOString();
+        updateData.cancellation_reason = null;
+        updateData.cancelled_at = null;
+      }
+
+      if (newStatus === 'cancelled') {
+        updateData.cancelled_at = new Date().toISOString();
+        updateData.cancellation_reason = 'Manually cancelled by admin';
+      }
+
+      // Clear cancellation fields when moving away from cancelled
+      if (order.status === 'cancelled' && newStatus !== 'cancelled') {
+        updateData.cancellation_reason = null;
+        updateData.cancelled_at = null;
+      }
+
+      const { error } = await supabase
+        .from('orders')
+        .update(updateData)
+        .eq('id', order.id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Status Updated',
+        description: `Order #${order.order_number} changed from "${order.status}" to "${newStatus}"`,
+      });
+
+      await lookupOrder();
+    } catch (err: any) {
+      toast({ title: 'Update Failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <RefreshCw className="w-5 h-5" /> Update Order Status
+        </CardTitle>
+        <CardDescription>
+          Manually update an order's status (e.g. restore a mistakenly cancelled order to delivered).
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="flex gap-3">
+          <Input
+            placeholder="Enter order number (e.g. FC-260314-5999)"
+            value={orderNumber}
+            onChange={e => setOrderNumber(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && lookupOrder()}
+            className="max-w-sm"
+          />
+          <Button onClick={lookupOrder} disabled={loading || !orderNumber.trim()}>
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
+            Lookup
+          </Button>
+        </div>
+
+        {order && (
+          <div className="space-y-4 border rounded-lg p-4 bg-muted/30">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div>
+                <span className="text-muted-foreground">Order</span>
+                <p className="font-semibold">#{order.order_number}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Current Status</span>
+                <p><Badge variant={order.status === 'cancelled' ? 'destructive' : order.status === 'delivered' ? 'default' : 'secondary'}>{order.status.replace(/_/g, ' ')}</Badge></p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Vendor</span>
+                <p className="font-medium">{order.vendor_name}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Customer</span>
+                <p className="font-medium">{order.customer_name}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Total</span>
+                <p className="font-semibold">₦{Number(order.total).toLocaleString()}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Payment</span>
+                <p><Badge variant="outline">{order.payment_status}</Badge></p>
+              </div>
+            </div>
+
+            {order.cancellation_reason && (
+              <div className="text-sm">
+                <span className="text-muted-foreground">Cancellation Reason:</span>
+                <p className="text-destructive">{order.cancellation_reason}</p>
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row items-start sm:items-end gap-3 pt-2 border-t">
+              <div className="space-y-1.5 w-full sm:w-auto">
+                <Label>New Status</Label>
+                <Select value={newStatus} onValueChange={setNewStatus}>
+                  <SelectTrigger className="w-full sm:w-52">
+                    <SelectValue placeholder="Select new status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ORDER_STATUSES.filter(s => s.value !== order.status).map(s => (
+                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                onClick={updateStatus}
+                disabled={updating || !newStatus || newStatus === order.status}
+                className="gap-2"
+              >
+                {updating ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                Update Status
+              </Button>
+            </div>
           </div>
         )}
       </CardContent>
