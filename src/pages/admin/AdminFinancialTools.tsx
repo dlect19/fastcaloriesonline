@@ -42,9 +42,12 @@ export default function AdminFinancialTools() {
       <div className="p-4 md:p-6 space-y-6">
         <h1 className="text-2xl font-bold text-foreground">Financial Tools</h1>
         <Tabs defaultValue="reverse-refund">
-          <TabsList>
+          <TabsList className="flex-wrap">
             <TabsTrigger value="reverse-refund" className="gap-2">
               <RotateCcw className="w-4 h-4" /> Reverse Refund
+            </TabsTrigger>
+            <TabsTrigger value="update-status" className="gap-2">
+              <RefreshCw className="w-4 h-4" /> Update Status
             </TabsTrigger>
             <TabsTrigger value="bonus" className="gap-2">
               <Gift className="w-4 h-4" /> Bonus Top-up
@@ -52,6 +55,9 @@ export default function AdminFinancialTools() {
           </TabsList>
           <TabsContent value="reverse-refund">
             <ReverseRefundTool />
+          </TabsContent>
+          <TabsContent value="update-status">
+            <UpdateOrderStatusTool />
           </TabsContent>
           <TabsContent value="bonus">
             <BonusTopupTool />
