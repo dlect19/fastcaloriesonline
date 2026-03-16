@@ -34,6 +34,32 @@ const defaultPromos: PromoItem[] = [
   },
 ];
 
+const CAMPAIGN_BUCKET_SEGMENT = '/storage/v1/object/public/campaign-images/';
+
+const normalizeCampaignImageUrl = (url?: string | null): string | null => {
+  if (!url || !url.startsWith('http') || !url.includes(CAMPAIGN_BUCKET_SEGMENT)) {
+    return url ?? null;
+  }
+
+  try {
+    const incomingUrl = new URL(url);
+    const currentBackendUrl = new URL(import.meta.env.VITE_SUPABASE_URL);
+
+    if (incomingUrl.origin === currentBackendUrl.origin) {
+      return url;
+    }
+
+    const objectPath = url.split(CAMPAIGN_BUCKET_SEGMENT)[1];
+    if (!objectPath) {
+      return url;
+    }
+
+    return `${currentBackendUrl.origin}${CAMPAIGN_BUCKET_SEGMENT}${objectPath}`;
+  } catch {
+    return url;
+  }
+};
+
 export function PromoBanner() {
   const navigate = useNavigate();
   const [current, setCurrent] = useState(0);
