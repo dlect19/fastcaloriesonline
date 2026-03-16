@@ -9,7 +9,7 @@ interface ServiceFeeConfig {
   max: number;
 }
 
-const defaultConfig: ServiceFeeConfig = {
+const defaultDeliveryConfig: ServiceFeeConfig = {
   type: 'fixed',
   fixed: 100,
   percentage: 5,
@@ -17,8 +17,17 @@ const defaultConfig: ServiceFeeConfig = {
   max: 1000,
 };
 
+const defaultPickupConfig: ServiceFeeConfig = {
+  type: 'fixed',
+  fixed: 50,
+  percentage: 3,
+  min: 50,
+  max: 500,
+};
+
 export function useServiceFee() {
-  const [config, setConfig] = useState<ServiceFeeConfig>(defaultConfig);
+  const [deliveryConfig, setDeliveryConfig] = useState<ServiceFeeConfig>(defaultDeliveryConfig);
+  const [pickupConfig, setPickupConfig] = useState<ServiceFeeConfig>(defaultPickupConfig);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -28,22 +37,30 @@ export function useServiceFee() {
           .from('platform_settings')
           .select('key, value')
           .in('key', [
-            'service_fee_type',
-            'service_fee_fixed',
-            'service_fee_percentage',
-            'service_fee_min',
-            'service_fee_max',
+            'service_fee_type', 'service_fee_fixed', 'service_fee_percentage',
+            'service_fee_min', 'service_fee_max',
+            'service_fee_type_pickup', 'service_fee_fixed_pickup', 'service_fee_percentage_pickup',
+            'service_fee_min_pickup', 'service_fee_max_pickup',
           ]);
 
         if (data) {
           const m: Record<string, string> = {};
           data.forEach(s => { m[s.key] = s.value; });
-          setConfig({
+
+          setDeliveryConfig({
             type: (m.service_fee_type as ServiceFeeConfig['type']) || 'fixed',
             fixed: parseFloat(m.service_fee_fixed || '100'),
             percentage: parseFloat(m.service_fee_percentage || '5'),
             min: parseFloat(m.service_fee_min || '100'),
             max: parseFloat(m.service_fee_max || '1000'),
+          });
+
+          setPickupConfig({
+            type: (m.service_fee_type_pickup as ServiceFeeConfig['type']) || 'fixed',
+            fixed: parseFloat(m.service_fee_fixed_pickup || '50'),
+            percentage: parseFloat(m.service_fee_percentage_pickup || '3'),
+            min: parseFloat(m.service_fee_min_pickup || '50'),
+            max: parseFloat(m.service_fee_max_pickup || '500'),
           });
         }
       } catch (err) {
@@ -55,7 +72,7 @@ export function useServiceFee() {
     fetchConfig();
   }, []);
 
-  const calculateServiceFee = useCallback((orderAmount: number): number => {
+  const calcFee = (config: ServiceFeeConfig, orderAmount: number): number => {
     switch (config.type) {
       case 'fixed':
         return config.fixed;
@@ -68,7 +85,12 @@ export function useServiceFee() {
       default:
         return config.fixed;
     }
-  }, [config]);
+  };
 
-  return { config, calculateServiceFee, loading };
+  const calculateServiceFee = useCallback((orderAmount: number, deliveryType: string = 'delivery'): number => {
+    const config = deliveryType === 'self_pickup' ? pickupConfig : deliveryConfig;
+    return calcFee(config, orderAmount);
+  }, [deliveryConfig, pickupConfig]);
+
+  return { deliveryConfig, pickupConfig, config: deliveryConfig, calculateServiceFee, loading };
 }
