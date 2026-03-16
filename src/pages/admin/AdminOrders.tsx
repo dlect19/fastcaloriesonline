@@ -294,6 +294,13 @@ export default function AdminOrders() {
                         <td className="py-3 px-4">{order.customer_name}</td>
                         <td className="py-3 px-4 text-muted-foreground">{order.customer_phone}</td>
                         <td className="py-3 px-4">{order.vendors?.name}</td>
+                        <td className="py-3 px-4">
+                          {order.delivery_type === 'self_pickup' ? (
+                            <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">🏪 Pickup</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs">🚚 Delivery</Badge>
+                          )}
+                        </td>
                          <td className="py-3 px-4">{getStatusBadge(order.status)}</td>
                          <td className="py-3 px-4">
                            {order.rider_name ? (
