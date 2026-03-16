@@ -111,7 +111,7 @@ export function PromoBanner() {
               onClick={() => handleBannerClick(promo)}
               className={cn(
                 'min-w-full h-36 relative overflow-hidden flex flex-col justify-center',
-                !promo.image_url && `bg-gradient-to-r ${promo.gradient}`,
+                `bg-gradient-to-r ${promo.gradient}`,
                 promo.link_url && 'cursor-pointer'
               )}
             >
@@ -120,6 +120,10 @@ export function PromoBanner() {
                   src={promo.image_url}
                   alt={promo.title}
                   className="absolute inset-0 w-full h-full object-cover"
+                  onError={(e) => {
+                    // Hide broken image, gradient fallback will show
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
                 />
               )}
               <div className={cn("relative z-10 p-5", promo.image_url && "bg-black/30")}>
