@@ -25,6 +25,34 @@ const GRADIENT_OPTIONS = [
   { value: 'from-slate-600 to-slate-800', label: 'Dark' },
 ];
 
+const CAMPAIGN_BUCKET_SEGMENT = '/storage/v1/object/public/campaign-images/';
+
+const normalizeCampaignImageUrl = (url: string): string => {
+  if (!url.startsWith('http') || !url.includes(CAMPAIGN_BUCKET_SEGMENT)) {
+    return url;
+  }
+
+  try {
+    const incomingUrl = new URL(url);
+    const currentBackendUrl = new URL(import.meta.env.VITE_SUPABASE_URL);
+
+    if (incomingUrl.origin === currentBackendUrl.origin) {
+      return url;
+    }
+
+    const objectPath = url.split(CAMPAIGN_BUCKET_SEGMENT)[1];
+    if (!objectPath) {
+      return url;
+    }
+
+    return `${currentBackendUrl.origin}${CAMPAIGN_BUCKET_SEGMENT}${objectPath}`;
+  } catch {
+    return url;
+  }
+};
+
+const isImageUrl = (value: string) => value.startsWith('http') || value.startsWith('data:');
+
 export default function AdminAdvertisements() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -360,15 +388,32 @@ export default function AdminAdvertisements() {
                     className="flex transition-transform duration-500 ease-out"
                     style={{ transform: `translateX(-${previewIndex * 100}%)` }}
                   >
-                    {activeAds.map((ad) => (
-                      <div
-                        key={ad.id}
-                        className={`min-w-full h-36 bg-gradient-to-r p-5 flex flex-col justify-center ${ad.image_url}`}
-                      >
-                        <h3 className="text-xl font-bold text-white mb-1">{ad.title}</h3>
-                        <p className="text-white/90 text-sm">{ad.description}</p>
-                      </div>
-                    ))}
+                    {activeAds.map((ad) => {
+                      const normalizedImageUrl = normalizeCampaignImageUrl(ad.image_url);
+                      const hasImage = isImageUrl(normalizedImageUrl);
+
+                      return (
+                        <div
+                          key={ad.id}
+                          className={`min-w-full h-36 relative overflow-hidden flex flex-col justify-center ${hasImage ? 'bg-gradient-to-r from-primary to-emerald-600' : `bg-gradient-to-r ${normalizedImageUrl}`}`}
+                        >
+                          {hasImage && (
+                            <img
+                              src={normalizedImageUrl}
+                              alt={ad.title}
+                              className="absolute inset-0 w-full h-full object-cover"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).style.display = 'none';
+                              }}
+                            />
+                          )}
+                          <div className={`relative z-10 p-5 ${hasImage ? 'bg-black/30' : ''}`}>
+                            <h3 className="text-xl font-bold text-white mb-1">{ad.title}</h3>
+                            <p className="text-white/90 text-sm">{ad.description}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
                 {activeAds.length > 1 && (
@@ -414,9 +459,28 @@ export default function AdminAdvertisements() {
                       <GripVertical className="w-5 h-5 text-muted-foreground" />
                     </div>
                     
-                    <div className={`w-24 h-14 rounded-lg bg-gradient-to-r ${ad.image_url} flex items-center justify-center shrink-0`}>
-                      <span className="text-white text-xs font-medium">Preview</span>
-                    </div>
+                    {(() => {
+                      const normalizedImageUrl = normalizeCampaignImageUrl(ad.image_url);
+                      const hasImage = isImageUrl(normalizedImageUrl);
+
+                      return (
+                        <div className={`w-24 h-14 rounded-lg relative overflow-hidden flex items-center justify-center shrink-0 ${hasImage ? 'bg-gradient-to-r from-primary to-emerald-600' : `bg-gradient-to-r ${normalizedImageUrl}`}`}>
+                          {hasImage && (
+                            <img
+                              src={normalizedImageUrl}
+                              alt={ad.title}
+                              className="absolute inset-0 w-full h-full object-cover"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).style.display = 'none';
+                              }}
+                            />
+                          )}
+                          <span className={`relative z-10 text-white text-xs font-medium ${hasImage ? 'bg-black/30 px-1.5 py-0.5 rounded' : ''}`}>
+                            Preview
+                          </span>
+                        </div>
+                      );
+                    })()}
                     
                     <div className="flex-1 min-w-0">
                       <h3 className="font-medium text-foreground truncate">{ad.title}</h3>
