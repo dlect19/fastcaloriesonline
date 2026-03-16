@@ -388,15 +388,32 @@ export default function AdminAdvertisements() {
                     className="flex transition-transform duration-500 ease-out"
                     style={{ transform: `translateX(-${previewIndex * 100}%)` }}
                   >
-                    {activeAds.map((ad) => (
-                      <div
-                        key={ad.id}
-                        className={`min-w-full h-36 bg-gradient-to-r p-5 flex flex-col justify-center ${ad.image_url}`}
-                      >
-                        <h3 className="text-xl font-bold text-white mb-1">{ad.title}</h3>
-                        <p className="text-white/90 text-sm">{ad.description}</p>
-                      </div>
-                    ))}
+                    {activeAds.map((ad) => {
+                      const normalizedImageUrl = normalizeCampaignImageUrl(ad.image_url);
+                      const hasImage = isImageUrl(normalizedImageUrl);
+
+                      return (
+                        <div
+                          key={ad.id}
+                          className={`min-w-full h-36 relative overflow-hidden flex flex-col justify-center ${hasImage ? 'bg-gradient-to-r from-primary to-emerald-600' : `bg-gradient-to-r ${normalizedImageUrl}`}`}
+                        >
+                          {hasImage && (
+                            <img
+                              src={normalizedImageUrl}
+                              alt={ad.title}
+                              className="absolute inset-0 w-full h-full object-cover"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).style.display = 'none';
+                              }}
+                            />
+                          )}
+                          <div className={`relative z-10 p-5 ${hasImage ? 'bg-black/30' : ''}`}>
+                            <h3 className="text-xl font-bold text-white mb-1">{ad.title}</h3>
+                            <p className="text-white/90 text-sm">{ad.description}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
                 {activeAds.length > 1 && (
