@@ -459,9 +459,28 @@ export default function AdminAdvertisements() {
                       <GripVertical className="w-5 h-5 text-muted-foreground" />
                     </div>
                     
-                    <div className={`w-24 h-14 rounded-lg bg-gradient-to-r ${ad.image_url} flex items-center justify-center shrink-0`}>
-                      <span className="text-white text-xs font-medium">Preview</span>
-                    </div>
+                    {(() => {
+                      const normalizedImageUrl = normalizeCampaignImageUrl(ad.image_url);
+                      const hasImage = isImageUrl(normalizedImageUrl);
+
+                      return (
+                        <div className={`w-24 h-14 rounded-lg relative overflow-hidden flex items-center justify-center shrink-0 ${hasImage ? 'bg-gradient-to-r from-primary to-emerald-600' : `bg-gradient-to-r ${normalizedImageUrl}`}`}>
+                          {hasImage && (
+                            <img
+                              src={normalizedImageUrl}
+                              alt={ad.title}
+                              className="absolute inset-0 w-full h-full object-cover"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).style.display = 'none';
+                              }}
+                            />
+                          )}
+                          <span className={`relative z-10 text-white text-xs font-medium ${hasImage ? 'bg-black/30 px-1.5 py-0.5 rounded' : ''}`}>
+                            Preview
+                          </span>
+                        </div>
+                      );
+                    })()}
                     
                     <div className="flex-1 min-w-0">
                       <h3 className="font-medium text-foreground truncate">{ad.title}</h3>
