@@ -25,6 +25,34 @@ const GRADIENT_OPTIONS = [
   { value: 'from-slate-600 to-slate-800', label: 'Dark' },
 ];
 
+const CAMPAIGN_BUCKET_SEGMENT = '/storage/v1/object/public/campaign-images/';
+
+const normalizeCampaignImageUrl = (url: string): string => {
+  if (!url.startsWith('http') || !url.includes(CAMPAIGN_BUCKET_SEGMENT)) {
+    return url;
+  }
+
+  try {
+    const incomingUrl = new URL(url);
+    const currentBackendUrl = new URL(import.meta.env.VITE_SUPABASE_URL);
+
+    if (incomingUrl.origin === currentBackendUrl.origin) {
+      return url;
+    }
+
+    const objectPath = url.split(CAMPAIGN_BUCKET_SEGMENT)[1];
+    if (!objectPath) {
+      return url;
+    }
+
+    return `${currentBackendUrl.origin}${CAMPAIGN_BUCKET_SEGMENT}${objectPath}`;
+  } catch {
+    return url;
+  }
+};
+
+const isImageUrl = (value: string) => value.startsWith('http') || value.startsWith('data:');
+
 export default function AdminAdvertisements() {
   const navigate = useNavigate();
   const { toast } = useToast();
