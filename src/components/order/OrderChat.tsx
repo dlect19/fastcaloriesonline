@@ -48,7 +48,7 @@ export function OrderChat({ orderId, orderStatus, riderId, vendorId, senderRole 
   const chatPartnerRole = riderId && ['picked_up', 'on_the_way'].includes(orderStatus) ? 'rider' : 'vendor';
 
   // Chat is enabled from "preparing" onwards until "delivered"
-  const isChatEnabled = ['preparing', 'ready_for_pickup', 'picked_up', 'on_the_way'].includes(orderStatus);
+  const isChatEnabled = ['confirmed', 'preparing', 'ready_for_pickup', 'picked_up', 'on_the_way'].includes(orderStatus);
 
   useEffect(() => {
     if (!orderId || !isOpen) return;

@@ -888,7 +888,7 @@ export default function VendorOrders() {
         )}
 
         {/* Chat with customer - available during active orders */}
-        {['preparing', 'ready_for_pickup', 'picked_up', 'on_the_way'].includes(order.status) && (
+        {['confirmed', 'preparing', 'ready_for_pickup', 'picked_up', 'on_the_way'].includes(order.status) && (
           <div className="px-4 pb-4">
             <VendorOrderChat
               orderId={order.id}
