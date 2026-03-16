@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Package, Clock, CheckCircle, XCircle, ChevronRight, RefreshCw } from 'lucide-react';
+import { Package, Clock, CheckCircle, XCircle, ChevronRight, RefreshCw, Store, Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
