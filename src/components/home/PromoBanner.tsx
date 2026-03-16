@@ -9,6 +9,7 @@ interface PromoItem {
   title: string;
   subtitle: string;
   gradient: string;
+  image_url?: string | null;
   link_url?: string | null;
 }
 
@@ -62,13 +63,17 @@ export function PromoBanner() {
       if (error) throw error;
 
       if (data && data.length > 0) {
-        const formattedPromos: PromoItem[] = data.map((ad) => ({
-          id: ad.id,
-          title: ad.title,
-          subtitle: ad.description || '',
-          gradient: ad.image_url || 'from-primary to-emerald-600',
-          link_url: ad.link_url,
-        }));
+        const formattedPromos: PromoItem[] = data.map((ad) => {
+          const isUrl = ad.image_url?.startsWith('http') || ad.image_url?.startsWith('data:');
+          return {
+            id: ad.id,
+            title: ad.title,
+            subtitle: ad.description || '',
+            gradient: isUrl ? 'from-primary to-emerald-600' : (ad.image_url || 'from-primary to-emerald-600'),
+            image_url: isUrl ? ad.image_url : null,
+            link_url: ad.link_url,
+          };
+        });
         setPromos(formattedPromos);
       }
     } catch (error) {
@@ -105,13 +110,22 @@ export function PromoBanner() {
               key={promo.id}
               onClick={() => handleBannerClick(promo)}
               className={cn(
-                'min-w-full h-36 bg-gradient-to-r p-5 flex flex-col justify-center',
-                promo.gradient,
+                'min-w-full h-36 relative overflow-hidden flex flex-col justify-center',
+                !promo.image_url && `bg-gradient-to-r ${promo.gradient}`,
                 promo.link_url && 'cursor-pointer'
               )}
             >
-              <h3 className="text-xl font-bold text-white mb-1">{promo.title}</h3>
-              <p className="text-white/90 text-sm">{promo.subtitle}</p>
+              {promo.image_url && (
+                <img
+                  src={promo.image_url}
+                  alt={promo.title}
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+              )}
+              <div className={cn("relative z-10 p-5", promo.image_url && "bg-black/30")}>
+                <h3 className="text-xl font-bold text-white mb-1">{promo.title}</h3>
+                <p className="text-white/90 text-sm">{promo.subtitle}</p>
+              </div>
             </div>
           ))}
         </div>
