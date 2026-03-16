@@ -259,6 +259,7 @@ export default function AdminOrders() {
                     <th className="text-left py-3 px-4 font-medium">Customer</th>
                     <th className="text-left py-3 px-4 font-medium">Phone</th>
                     <th className="text-left py-3 px-4 font-medium">Vendor</th>
+                    <th className="text-left py-3 px-4 font-medium">Type</th>
                      <th className="text-left py-3 px-4 font-medium">Status</th>
                      <th className="text-left py-3 px-4 font-medium">Rider</th>
                      <th className="text-left py-3 px-4 font-medium">Total</th>
@@ -269,7 +270,7 @@ export default function AdminOrders() {
                 <tbody>
                   {paginatedOrders.length === 0 ? (
                     <tr>
-                     <td colSpan={10} className="py-12 text-center text-muted-foreground">
+                     <td colSpan={11} className="py-12 text-center text-muted-foreground">
                          No orders found matching your filters
                        </td>
                     </tr>
@@ -293,6 +294,13 @@ export default function AdminOrders() {
                         <td className="py-3 px-4">{order.customer_name}</td>
                         <td className="py-3 px-4 text-muted-foreground">{order.customer_phone}</td>
                         <td className="py-3 px-4">{order.vendors?.name}</td>
+                        <td className="py-3 px-4">
+                          {order.delivery_type === 'self_pickup' ? (
+                            <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">🏪 Pickup</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs">🚚 Delivery</Badge>
+                          )}
+                        </td>
                          <td className="py-3 px-4">{getStatusBadge(order.status)}</td>
                          <td className="py-3 px-4">
                            {order.rider_name ? (

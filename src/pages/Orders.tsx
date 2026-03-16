@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Package, Clock, CheckCircle, XCircle, ChevronRight, RefreshCw } from 'lucide-react';
+import { Package, Clock, CheckCircle, XCircle, ChevronRight, RefreshCw, Store, Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -182,6 +182,19 @@ export default function Orders() {
                       <Clock className="w-3 h-3" />
                       Est. ready: {new Date(order.estimated_delivery_at).toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit' })}
                     </p>
+                  )}
+
+                  {/* Delivery type indicator */}
+                  {order.delivery_type === 'self_pickup' ? (
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <Store className="w-3.5 h-3.5 text-primary" />
+                      <span className="text-xs font-medium text-primary">Self-Pickup • No delivery fee!</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <Truck className="w-3.5 h-3.5 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">Delivery</span>
+                    </div>
                   )}
 
                   <div className="flex items-center justify-between">
