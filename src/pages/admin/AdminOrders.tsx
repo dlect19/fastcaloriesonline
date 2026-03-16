@@ -259,6 +259,7 @@ export default function AdminOrders() {
                     <th className="text-left py-3 px-4 font-medium">Customer</th>
                     <th className="text-left py-3 px-4 font-medium">Phone</th>
                     <th className="text-left py-3 px-4 font-medium">Vendor</th>
+                    <th className="text-left py-3 px-4 font-medium">Type</th>
                      <th className="text-left py-3 px-4 font-medium">Status</th>
                      <th className="text-left py-3 px-4 font-medium">Rider</th>
                      <th className="text-left py-3 px-4 font-medium">Total</th>
