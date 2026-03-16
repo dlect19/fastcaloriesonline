@@ -63,13 +63,17 @@ export function PromoBanner() {
       if (error) throw error;
 
       if (data && data.length > 0) {
-        const formattedPromos: PromoItem[] = data.map((ad) => ({
-          id: ad.id,
-          title: ad.title,
-          subtitle: ad.description || '',
-          gradient: ad.image_url || 'from-primary to-emerald-600',
-          link_url: ad.link_url,
-        }));
+        const formattedPromos: PromoItem[] = data.map((ad) => {
+          const isUrl = ad.image_url?.startsWith('http') || ad.image_url?.startsWith('data:');
+          return {
+            id: ad.id,
+            title: ad.title,
+            subtitle: ad.description || '',
+            gradient: isUrl ? 'from-primary to-emerald-600' : (ad.image_url || 'from-primary to-emerald-600'),
+            image_url: isUrl ? ad.image_url : null,
+            link_url: ad.link_url,
+          };
+        });
         setPromos(formattedPromos);
       }
     } catch (error) {
