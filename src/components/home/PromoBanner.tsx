@@ -9,6 +9,7 @@ interface PromoItem {
   title: string;
   subtitle: string;
   gradient: string;
+  image_url?: string | null;
   link_url?: string | null;
 }
 
