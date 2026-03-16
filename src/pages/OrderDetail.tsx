@@ -570,7 +570,11 @@ export default function OrderDetail() {
               )}
               <div className="flex justify-between text-muted-foreground">
                 <span>Delivery Fee</span>
-                <span>₦{Number(order.delivery_fee || 0).toLocaleString()}</span>
+                {order.delivery_type === 'self_pickup' ? (
+                  <span className="text-primary font-medium">₦0 — Self-Pickup 🎉</span>
+                ) : (
+                  <span>₦{Number(order.delivery_fee || 0).toLocaleString()}</span>
+                )}
               </div>
               <div className="flex justify-between text-muted-foreground">
                 <span>Service Fee</span>
@@ -580,6 +584,11 @@ export default function OrderDetail() {
                 <div className="flex justify-between text-calorie-low">
                   <span>Discount</span>
                   <span>-₦{Number(order.discount).toLocaleString()}</span>
+                </div>
+              )}
+              {order.delivery_type === 'self_pickup' && (
+                <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 text-center">
+                  <p className="text-xs font-medium text-primary">🏪 Self-Pickup Order — You saved on delivery!</p>
                 </div>
               )}
               <div className="flex justify-between font-bold text-lg pt-2 border-t">

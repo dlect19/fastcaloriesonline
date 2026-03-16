@@ -184,6 +184,19 @@ export default function Orders() {
                     </p>
                   )}
 
+                  {/* Delivery type indicator */}
+                  {order.delivery_type === 'self_pickup' ? (
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <Store className="w-3.5 h-3.5 text-primary" />
+                      <span className="text-xs font-medium text-primary">Self-Pickup • No delivery fee!</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <Truck className="w-3.5 h-3.5 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">Delivery</span>
+                    </div>
+                  )}
+
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-muted-foreground">
