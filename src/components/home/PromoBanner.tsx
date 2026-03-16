@@ -90,13 +90,15 @@ export function PromoBanner() {
 
       if (data && data.length > 0) {
         const formattedPromos: PromoItem[] = data.map((ad) => {
-          const isUrl = ad.image_url?.startsWith('http') || ad.image_url?.startsWith('data:');
+          const normalizedImageUrl = normalizeCampaignImageUrl(ad.image_url);
+          const isUrl = normalizedImageUrl?.startsWith('http') || normalizedImageUrl?.startsWith('data:');
+
           return {
             id: ad.id,
             title: ad.title,
             subtitle: ad.description || '',
-            gradient: isUrl ? 'from-primary to-emerald-600' : (ad.image_url || 'from-primary to-emerald-600'),
-            image_url: isUrl ? ad.image_url : null,
+            gradient: isUrl ? 'from-primary to-emerald-600' : (normalizedImageUrl || 'from-primary to-emerald-600'),
+            image_url: isUrl ? normalizedImageUrl : null,
             link_url: ad.link_url,
           };
         });
