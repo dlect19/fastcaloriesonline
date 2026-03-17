@@ -11,7 +11,7 @@ import { Eye, EyeOff, Loader2, Truck, Building2 } from 'lucide-react';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 import { ForgotPasswordModal } from '@/components/auth/ForgotPasswordModal';
 import { TermsAcceptanceCheckbox } from '@/components/auth/TermsAcceptanceCheckbox';
-import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
+
 
 export default function DeliveryCompanyAuth() {
   const navigate = useNavigate();
