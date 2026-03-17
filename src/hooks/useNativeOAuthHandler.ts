@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
-import { Browser } from '@capacitor/browser';
+
 import { supabase } from '@/integrations/supabase/client';
 
 const OAUTH_TIMEOUT_MS = 25000;
