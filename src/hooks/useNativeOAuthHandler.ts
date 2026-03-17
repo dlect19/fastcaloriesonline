@@ -66,7 +66,12 @@ export function useNativeOAuthHandler() {
           if (error) throw error;
         }
 
-        await Browser.close().catch(() => undefined);
+        try {
+          const { Browser } = await import('@capacitor/browser');
+          await Browser.close();
+        } catch {
+          // Browser plugin may not be available
+        }
       } catch (err) {
         console.error('Failed to handle OAuth deep link:', err);
         lastHandledUrlRef.current = null;
