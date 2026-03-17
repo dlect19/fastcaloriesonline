@@ -452,6 +452,72 @@ export default function RiderAuth() {
     );
   }
 
+  // Google OAuth: show rider profile completion form
+  if (googleCompleteProfile) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="flex justify-center mb-4">
+              <img src={riderLogo} alt="Fast Calories Rider" className="w-24 h-24 object-contain" />
+            </div>
+            <CardTitle className="text-2xl">Complete Your Rider Profile</CardTitle>
+            <CardDescription>
+              Signed in as {googleEmail}. Please provide your rider details to continue.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Full Name</Label>
+              <Input value={fullName} onChange={(e) => setFullName(e.target.value)} required />
+            </div>
+            <div className="space-y-2">
+              <Label>Phone Number</Label>
+              <Input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} required />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Vehicle Type</Label>
+                <Input value={vehicleType} onChange={(e) => setVehicleType(e.target.value)} placeholder="e.g., Motorcycle" required />
+              </div>
+              <div className="space-y-2">
+                <Label>Plate Number <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                <Input value={vehiclePlate} onChange={(e) => setVehiclePlate(e.target.value)} placeholder="N/A for bicycles" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-primary" />
+                National Identification Number (NIN)
+              </Label>
+              <Input
+                value={ninNumber}
+                onChange={(e) => setNinNumber(e.target.value.replace(/\D/g, '').slice(0, 11))}
+                placeholder="Enter 11-digit NIN"
+                maxLength={11}
+                required
+              />
+              <div className="flex items-start gap-2 text-xs text-muted-foreground">
+                <AlertCircle className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                <span>Your NIN is required for security verification.</span>
+              </div>
+            </div>
+            <Button className="w-full" onClick={handleGoogleCompleteRiderProfile} disabled={loading}>
+              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Complete Registration
+            </Button>
+            <Button variant="ghost" className="w-full" onClick={async () => {
+              await supabase.auth.signOut();
+              setGoogleCompleteProfile(false);
+            }}>
+              Cancel
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
