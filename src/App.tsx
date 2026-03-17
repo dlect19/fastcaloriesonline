@@ -7,6 +7,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { CartProvider } from "@/hooks/useCart";
 import { PWAUpdateBanner } from "@/components/PWAUpdateBanner";
 import { ForceUpdateOverlay } from "@/components/ForceUpdateOverlay";
+import { NetworkStatusOverlay } from "@/components/NetworkStatusOverlay";
 import Home from "./pages/Home";
 import Auth from "./pages/Auth";
 import Profile from "./pages/Profile";
