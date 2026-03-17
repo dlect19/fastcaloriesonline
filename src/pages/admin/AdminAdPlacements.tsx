@@ -276,6 +276,10 @@ export default function AdminAdPlacements() {
             <DollarSign className="w-4 h-4" />
             CPM Pricing
           </TabsTrigger>
+          <TabsTrigger value="credits" className="gap-2">
+            <Gift className="w-4 h-4" />
+            Admin Credits
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="placements">
