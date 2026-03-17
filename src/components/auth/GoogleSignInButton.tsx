@@ -11,6 +11,17 @@ interface GoogleSignInButtonProps {
   label?: string;
 }
 
+const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> => {
+  return new Promise((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+
+    promise
+      .then((value) => resolve(value))
+      .catch((error) => reject(error))
+      .finally(() => window.clearTimeout(timeoutId));
+  });
+};
+
 export function GoogleSignInButton({ redirectPath, disabled, label = 'Continue with Google' }: GoogleSignInButtonProps) {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
@@ -22,14 +33,22 @@ export function GoogleSignInButton({ redirectPath, disabled, label = 'Continue w
       const isNative = Capacitor.isNativePlatform();
 
       if (isNative) {
+        if (!navigator.onLine) {
+          throw new Error('No internet connection. Please reconnect and try again.');
+        }
+
         const nativeRedirectUri = 'com.fastcalories.customer://oauth/callback';
-        const { data, error } = await supabase.auth.signInWithOAuth({
-          provider: 'google',
-          options: {
-            skipBrowserRedirect: true,
-            redirectTo: nativeRedirectUri,
-          },
-        });
+        const { data, error } = await withTimeout(
+          supabase.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+              skipBrowserRedirect: true,
+              redirectTo: nativeRedirectUri,
+            },
+          }),
+          15000,
+          'Google sign-in timed out. Please check your network and try again.'
+        );
 
         if (error) throw error;
         if (!data?.url) throw new Error('Unable to start Google sign-in');

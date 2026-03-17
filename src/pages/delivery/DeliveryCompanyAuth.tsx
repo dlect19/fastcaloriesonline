@@ -48,9 +48,8 @@ export default function DeliveryCompanyAuth() {
 
   // Listen for Google OAuth callback
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
-        const user = session.user;
+    const handleGoogleOAuthState = async (user: any) => {
+      try {
         const isOAuth = user.app_metadata?.provider === 'google';
         if (!isOAuth) return;
 
@@ -67,10 +66,19 @@ export default function DeliveryCompanyAuth() {
           setOwnerName(user.user_metadata?.full_name || user.user_metadata?.name || '');
           setGoogleCompleteProfile(true);
         }
+      } catch (error: any) {
+        toast({ title: 'Google sign-in check failed', description: error.message || 'Please try again', variant: 'destructive' });
+      }
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        void handleGoogleOAuthState(session.user);
       }
     });
+
     return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, [navigate, toast]);
 
   const handleGoogleCompleteCompanyProfile = async () => {
     if (!googleUserId) return;

@@ -77,14 +77,11 @@ export default function VendorAuth() {
 
   // Listen for auth state changes (Google OAuth callback)
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
-        const user = session.user;
-        // Check if this is a Google OAuth user (provider check)
+    const handleGoogleOAuthState = async (user: any) => {
+      try {
         const isOAuth = user.app_metadata?.provider === 'google' || user.app_metadata?.providers?.includes('google');
-        if (!isOAuth) return; // Only handle Google OAuth here
+        if (!isOAuth) return;
 
-        // Check if user already has a vendor profile
         const { data: vendors } = await supabase
           .from('vendors')
           .select('id')
@@ -92,7 +89,6 @@ export default function VendorAuth() {
           .limit(1);
 
         if (vendors && vendors.length > 0) {
-          // Existing vendor - check role and go to dashboard
           const { data: roles } = await supabase
             .from('user_roles')
             .select('role')
@@ -107,17 +103,24 @@ export default function VendorAuth() {
             await supabase.auth.signOut();
           }
         } else {
-          // New user or user without vendor profile - show business info form
           setGoogleUserId(user.id);
           setGoogleEmail(user.email || '');
           setGoogleFullName(user.user_metadata?.full_name || user.user_metadata?.name || '');
           setGoogleCompleteProfile(true);
         }
+      } catch (error: any) {
+        toast({ title: 'Google sign-in check failed', description: error.message || 'Please try again', variant: 'destructive' });
+      }
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        void handleGoogleOAuthState(session.user);
       }
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [navigate, toast]);
 
   const handleGoogleSignIn = async () => {
     setLoading(true);
