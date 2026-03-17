@@ -65,6 +65,14 @@ export default function AdminAdPlacements() {
   const [rejectionReason, setRejectionReason] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // Admin credit form
+  const [creditDialog, setCreditDialog] = useState(false);
+  const [creditVendorSearch, setCreditVendorSearch] = useState('');
+  const [creditVendors, setCreditVendors] = useState<Array<{id: string; name: string; wallet_balance: number; wallet_id: string}>>([]);
+  const [selectedCreditVendor, setSelectedCreditVendor] = useState<{id: string; name: string; wallet_balance: number; wallet_id: string} | null>(null);
+  const [creditAmount, setCreditAmount] = useState('');
+  const [creditNotes, setCreditNotes] = useState('');
+
   // Pricing form
   const [pricingDialog, setPricingDialog] = useState(false);
   const [editingPricing, setEditingPricing] = useState<AdPricing | null>(null);
