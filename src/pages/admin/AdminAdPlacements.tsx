@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, Eye, MousePointer, DollarSign, CheckCircle, XCircle, Clock, BarChart3 } from 'lucide-react';
+import { Loader2, Eye, MousePointer, DollarSign, CheckCircle, XCircle, Clock, BarChart3, Gift, Search } from 'lucide-react';
 
 type AdPlacement = {
   id: string;
