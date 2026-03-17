@@ -11,7 +11,7 @@ import { Eye, EyeOff, Loader2, Truck, Building2 } from 'lucide-react';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 import { ForgotPasswordModal } from '@/components/auth/ForgotPasswordModal';
 import { TermsAcceptanceCheckbox } from '@/components/auth/TermsAcceptanceCheckbox';
-import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
+
 
 export default function DeliveryCompanyAuth() {
   const navigate = useNavigate();
@@ -458,11 +458,6 @@ export default function DeliveryCompanyAuth() {
                   {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                   Login
                 </Button>
-                <div className="relative my-4">
-                  <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border" /></div>
-                  <div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-2 text-muted-foreground">Or</span></div>
-                </div>
-                <GoogleSignInButton redirectPath="/delivery/auth" label="Sign in with Google" />
               </form>
             </TabsContent>
 

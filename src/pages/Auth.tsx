@@ -13,7 +13,7 @@ import customerAppImg from '@/assets/landing-customer-app.png';
 import vendorRestaurantImg from '@/assets/landing-vendor-restaurant.png';
 import { ForgotPasswordModal } from '@/components/auth/ForgotPasswordModal';
 import { TermsAcceptanceCheckbox } from '@/components/auth/TermsAcceptanceCheckbox';
-import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
+
 
 const emailSchema = z.string().email('Please enter a valid email address');
 const passwordSchema = z.string().min(6, 'Password must be at least 6 characters');
@@ -398,17 +398,6 @@ export default function Auth() {
             </Button>
           </form>
 
-          {/* Google Sign In Divider */}
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-border" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">Or</span>
-            </div>
-          </div>
-
-          <GoogleSignInButton redirectPath="/auth" />
 
           {/* Toggle */}
           <div className="mt-8 text-center">

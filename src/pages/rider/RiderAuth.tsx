@@ -12,7 +12,7 @@ import riderLogo from '@/assets/rider-logo.png';
 import { ForgotPasswordModal } from '@/components/auth/ForgotPasswordModal';
 import { EmailVerificationOTP } from '@/components/rider/EmailVerificationOTP';
 import { TermsAcceptanceCheckbox } from '@/components/auth/TermsAcceptanceCheckbox';
-import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
+
 
 export default function RiderAuth() {
   const navigate = useNavigate();
@@ -585,11 +585,6 @@ export default function RiderAuth() {
                   {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                   Login
                 </Button>
-                <div className="relative my-4">
-                  <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border" /></div>
-                  <div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-2 text-muted-foreground">Or</span></div>
-                </div>
-                <GoogleSignInButton redirectPath="/rider/auth" label="Sign in with Google" />
               </form>
             </TabsContent>
 
