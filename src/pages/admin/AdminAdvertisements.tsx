@@ -172,6 +172,11 @@ export default function AdminAdvertisements() {
             is_active: formData.is_active,
             display_order: formData.display_order,
             target_audience: formData.target_audience,
+            starts_at: formData.starts_at || null,
+            ends_at: formData.ends_at || null,
+            target_latitude: formData.target_latitude ? parseFloat(formData.target_latitude) : null,
+            target_longitude: formData.target_longitude ? parseFloat(formData.target_longitude) : null,
+            target_radius_km: formData.target_radius_km || 0,
           });
 
         if (error) throw error;
