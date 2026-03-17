@@ -12,6 +12,7 @@ import riderLogo from '@/assets/rider-logo.png';
 import { ForgotPasswordModal } from '@/components/auth/ForgotPasswordModal';
 import { EmailVerificationOTP } from '@/components/rider/EmailVerificationOTP';
 import { TermsAcceptanceCheckbox } from '@/components/auth/TermsAcceptanceCheckbox';
+import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
 
 export default function RiderAuth() {
   const navigate = useNavigate();
