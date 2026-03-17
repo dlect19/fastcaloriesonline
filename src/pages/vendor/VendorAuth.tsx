@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from 'react-router-dom';
 import { Store, Mail, Lock, User, Phone, MapPin, Eye, EyeOff, Link2 } from 'lucide-react';
 import { StoreTypeField, type StoreType, type SocialMediaHandles } from '@/components/vendor/StoreTypeField';
@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { lovable } from '@/integrations/lovable/index';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 import { ForgotPasswordModal } from '@/components/auth/ForgotPasswordModal';
 import { TermsAcceptanceCheckbox } from '@/components/auth/TermsAcceptanceCheckbox';
@@ -22,6 +23,12 @@ export default function VendorAuth() {
   const [activeTab, setActiveTab] = useState<AuthTab>('login');
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
+
+  // Google OAuth: after Google auth, if no vendor profile, show business info step
+  const [googleCompleteProfile, setGoogleCompleteProfile] = useState(false);
+  const [googleUserId, setGoogleUserId] = useState<string | null>(null);
+  const [googleEmail, setGoogleEmail] = useState('');
+  const [googleFullName, setGoogleFullName] = useState('');
 
   // Login state
   const [loginEmail, setLoginEmail] = useState('');
@@ -57,6 +64,122 @@ export default function VendorAuth() {
   const [linkStoreType, setLinkStoreType] = useState<StoreType>('physical');
   const [linkSocialHandles, setLinkSocialHandles] = useState<SocialMediaHandles>({});
 
+  // Google business info state (reused for google signup completion)
+  const [gBusinessName, setGBusinessName] = useState('');
+  const [gBusinessCategory, setGBusinessCategory] = useState<'restaurant' | 'pharmacy' | 'market'>('restaurant');
+  const [gAddress, setGAddress] = useState('');
+  const [gCity, setGCity] = useState('');
+  const [gState, setGState] = useState('Lagos');
+  const [gPhone, setGPhone] = useState('');
+  const [gStoreType, setGStoreType] = useState<StoreType>('physical');
+  const [gSocialHandles, setGSocialHandles] = useState<SocialMediaHandles>({});
+  const [gTermsAccepted, setGTermsAccepted] = useState(false);
+
+  // Listen for auth state changes (Google OAuth callback)
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        const user = session.user;
+        // Check if this is a Google OAuth user (provider check)
+        const isOAuth = user.app_metadata?.provider === 'google' || user.app_metadata?.providers?.includes('google');
+        if (!isOAuth) return; // Only handle Google OAuth here
+
+        // Check if user already has a vendor profile
+        const { data: vendors } = await supabase
+          .from('vendors')
+          .select('id')
+          .eq('user_id', user.id)
+          .limit(1);
+
+        if (vendors && vendors.length > 0) {
+          // Existing vendor - check role and go to dashboard
+          const { data: roles } = await supabase
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', user.id)
+            .eq('role', 'vendor');
+
+          if (roles && roles.length > 0) {
+            toast({ title: 'Welcome back!', description: 'Redirecting to your dashboard...' });
+            navigate('/vendor/dashboard');
+          } else {
+            toast({ title: 'Not a vendor', description: 'This Google account is not registered as a vendor.', variant: 'destructive' });
+            await supabase.auth.signOut();
+          }
+        } else {
+          // New user or user without vendor profile - show business info form
+          setGoogleUserId(user.id);
+          setGoogleEmail(user.email || '');
+          setGoogleFullName(user.user_metadata?.full_name || user.user_metadata?.name || '');
+          setGoogleCompleteProfile(true);
+        }
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
+    try {
+      const result = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin + '/vendor/auth',
+      });
+      if (result.error) {
+        throw result.error;
+      }
+      // If redirected, the page will reload and onAuthStateChange will handle it
+    } catch (error: any) {
+      toast({ title: 'Google sign-in failed', description: error.message, variant: 'destructive' });
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleCompleteProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!gTermsAccepted) {
+      toast({ title: 'Agreement required', description: 'You must agree to the Terms & Conditions before continuing.', variant: 'destructive' });
+      return;
+    }
+    if (!gBusinessName.trim()) {
+      toast({ title: 'Business name required', variant: 'destructive' });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Add vendor role
+      const { error: roleError } = await supabase.rpc('add_vendor_role');
+      if (roleError) throw roleError;
+
+      // Create vendor profile
+      const { error: vendorError } = await supabase
+        .from('vendors')
+        .insert({
+          user_id: googleUserId,
+          name: gBusinessName,
+          category: gBusinessCategory,
+          address: gAddress,
+          city: gCity,
+          state: gState,
+          phone: gPhone || null,
+          email: googleEmail,
+          is_active: false,
+          store_type: gStoreType,
+          social_media_handles: gSocialHandles,
+        } as any);
+
+      if (vendorError) throw vendorError;
+
+      toast({ title: 'Vendor account created!', description: 'Your business profile has been set up. Redirecting...' });
+      navigate('/vendor/dashboard');
+    } catch (error: any) {
+      toast({ title: 'Registration failed', description: error.message, variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -69,7 +192,6 @@ export default function VendorAuth() {
 
       if (error) throw error;
 
-      // Check if user has vendor role
       const { data: roles } = await supabase
         .from('user_roles')
         .select('role')
@@ -81,7 +203,6 @@ export default function VendorAuth() {
         throw new Error('This account is not registered as a vendor. Use "Link Account" if you want to add vendor access to your existing customer account.');
       }
 
-      // Check if vendor profile exists (use limit(1) to handle multiple profiles)
       const { data: vendors } = await supabase
         .from('vendors')
         .select('id')
@@ -89,23 +210,14 @@ export default function VendorAuth() {
         .limit(1);
 
       if (!vendors || vendors.length === 0) {
-        // Has vendor role but no profile - rare edge case
         await supabase.auth.signOut();
         throw new Error('Vendor profile not found. Please contact support.');
       }
 
-      toast({
-        title: 'Welcome back!',
-        description: 'Redirecting to your dashboard...',
-      });
-
+      toast({ title: 'Welcome back!', description: 'Redirecting to your dashboard...' });
       navigate('/vendor/dashboard');
     } catch (error: any) {
-      toast({
-        title: 'Login failed',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast({ title: 'Login failed', description: error.message, variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -115,58 +227,35 @@ export default function VendorAuth() {
     e.preventDefault();
 
     if (!termsAccepted) {
-      toast({
-        title: 'Agreement required',
-        description: 'You must agree to the Terms & Conditions before continuing.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Agreement required', description: 'You must agree to the Terms & Conditions before continuing.', variant: 'destructive' });
       return;
     }
-    
-    
-    // Validate passwords match
+
     if (signupPassword !== confirmPassword) {
-      toast({
-        title: 'Passwords do not match',
-        description: 'Please make sure your passwords match.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Passwords do not match', description: 'Please make sure your passwords match.', variant: 'destructive' });
       return;
     }
 
     if (signupPassword.length < 6) {
-      toast({
-        title: 'Password too short',
-        description: 'Password must be at least 6 characters.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Password too short', description: 'Password must be at least 6 characters.', variant: 'destructive' });
       return;
     }
 
     setLoading(true);
 
     try {
-      // Create auth user
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: signupEmail,
         password: signupPassword,
         options: {
           emailRedirectTo: `${window.location.origin}/vendor/dashboard`,
-          data: {
-            full_name: fullName,
-          },
+          data: { full_name: fullName },
         },
       });
 
       if (authError) {
-        // Check if user already exists
         if (authError.message.includes('User already registered')) {
-          toast({
-            title: 'Account already exists',
-            description: 'An account with this email already exists. Use "Link Account" to add vendor access to your existing account.',
-            variant: 'destructive',
-          });
-          // Pre-fill the link form with the email
+          toast({ title: 'Account already exists', description: 'Use "Link Account" to add vendor access.', variant: 'destructive' });
           setLinkEmail(signupEmail);
           setLinkBusinessName(businessName);
           setLinkBusinessCategory(businessCategory);
@@ -179,15 +268,12 @@ export default function VendorAuth() {
         }
         throw authError;
       }
-      
+
       if (!authData.user) throw new Error('Failed to create user');
 
-      // Add vendor role using the new function
       const { error: roleError } = await supabase.rpc('add_vendor_role');
-
       if (roleError) throw roleError;
 
-      // Create vendor profile
       const { error: vendorError } = await supabase
         .from('vendors')
         .insert({
@@ -206,31 +292,18 @@ export default function VendorAuth() {
 
       if (vendorError) throw vendorError;
 
-      // Send custom verification email via edge function
       try {
         const verificationUrl = `${window.location.origin}/verify-email`;
         await supabase.functions.invoke('send-verification-email', {
-          body: {
-            email: signupEmail,
-            verificationUrl,
-            userName: fullName,
-            platform: 'vendor',
-          },
+          body: { email: signupEmail, verificationUrl, userName: fullName, platform: 'vendor' },
         });
       } catch (emailError) {
         console.error('Failed to send custom verification email:', emailError);
       }
 
-      // Navigate to verification pending page
-      navigate('/verification-pending', {
-        state: { email: signupEmail, platform: 'vendor' },
-      });
+      navigate('/verification-pending', { state: { email: signupEmail, platform: 'vendor' } });
     } catch (error: any) {
-      toast({
-        title: 'Registration failed',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast({ title: 'Registration failed', description: error.message, variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -241,7 +314,6 @@ export default function VendorAuth() {
     setLoading(true);
 
     try {
-      // Sign in with existing account
       const { data, error } = await supabase.auth.signInWithPassword({
         email: linkEmail,
         password: linkPassword,
@@ -249,7 +321,6 @@ export default function VendorAuth() {
 
       if (error) throw error;
 
-      // Check if already a vendor (use limit(1) to handle multiple profiles)
       const { data: existingVendors } = await supabase
         .from('vendors')
         .select('id')
@@ -257,20 +328,14 @@ export default function VendorAuth() {
         .limit(1);
 
       if (existingVendors && existingVendors.length > 0) {
-        toast({
-          title: 'Already a vendor',
-          description: 'This account is already registered as a vendor.',
-        });
+        toast({ title: 'Already a vendor', description: 'This account is already registered as a vendor.' });
         navigate('/vendor/dashboard');
         return;
       }
 
-      // Add vendor role using the new function
       const { error: roleError } = await supabase.rpc('add_vendor_role');
-
       if (roleError) throw roleError;
 
-      // Create vendor profile
       const { error: vendorError } = await supabase
         .from('vendors')
         .insert({
@@ -289,22 +354,133 @@ export default function VendorAuth() {
 
       if (vendorError) throw vendorError;
 
-      toast({
-        title: 'Vendor account created!',
-        description: 'Your vendor profile has been set up successfully. Redirecting to dashboard...',
-      });
-
+      toast({ title: 'Vendor account created!', description: 'Your vendor profile has been set up successfully. Redirecting to dashboard...' });
       navigate('/vendor/dashboard');
     } catch (error: any) {
-      toast({
-        title: 'Failed to link account',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast({ title: 'Failed to link account', description: error.message, variant: 'destructive' });
     } finally {
       setLoading(false);
     }
   };
+
+  // Google complete profile form (shown after Google OAuth for new vendors)
+  if (googleCompleteProfile) {
+    return (
+      <div className="min-h-screen bg-background flex">
+        <div className="hidden lg:flex lg:w-1/2 gradient-primary flex-col justify-center items-center p-12">
+          <div className="max-w-md text-center">
+            <div className="w-24 h-24 rounded-2xl bg-primary-foreground flex items-center justify-center mx-auto mb-6 p-2">
+              <img src={fastCaloriesLogo} alt="Fast Calories" className="w-full h-full object-contain" />
+            </div>
+            <h1 className="text-3xl font-bold text-primary-foreground mb-4">Almost There!</h1>
+            <p className="text-primary-foreground/80 text-lg">
+              Complete your business information to start selling on Fast Calories.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex-1 flex items-center justify-center p-6 overflow-y-auto">
+          <div className="w-full max-w-md">
+            <div className="flex items-center gap-2 mb-8 lg:hidden">
+              <img src={fastCaloriesLogo} alt="Fast Calories" className="h-14 w-auto" />
+            </div>
+
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-foreground">Complete Your Business Profile</h2>
+              <p className="text-muted-foreground mt-1">
+                Signed in as <strong>{googleEmail}</strong>
+                {googleFullName && <> ({googleFullName})</>}
+              </p>
+            </div>
+
+            <form onSubmit={handleGoogleCompleteProfile} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Business Name *</Label>
+                  <div className="relative">
+                    <Store className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input placeholder="My Restaurant" value={gBusinessName} onChange={e => setGBusinessName(e.target.value)} className="pl-10" required />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Category *</Label>
+                  <Select value={gBusinessCategory} onValueChange={v => setGBusinessCategory(v as any)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="restaurant">Restaurant</SelectItem>
+                      <SelectItem value="pharmacy">Pharmacy</SelectItem>
+                      <SelectItem value="market">Market</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <StoreTypeField storeType={gStoreType} onStoreTypeChange={setGStoreType} socialHandles={gSocialHandles} onSocialHandlesChange={setGSocialHandles} compact />
+
+              <div className="space-y-2">
+                <Label>Business Address {gStoreType === 'online' ? '(Optional)' : '*'}</Label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                  <Input placeholder="123 Main Street" value={gAddress} onChange={e => setGAddress(e.target.value)} className="pl-10" required={gStoreType !== 'online'} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>City *</Label>
+                  <Input placeholder="Lagos" value={gCity} onChange={e => setGCity(e.target.value)} required />
+                </div>
+                <div className="space-y-2">
+                  <Label>State *</Label>
+                  <Input placeholder="Lagos" value={gState} onChange={e => setGState(e.target.value)} required />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Phone Number *</Label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                  <Input placeholder="08012345678" value={gPhone} onChange={e => setGPhone(e.target.value)} className="pl-10" required />
+                </div>
+              </div>
+
+              <TermsAcceptanceCheckbox accepted={gTermsAccepted} onAcceptedChange={setGTermsAccepted} disabled={loading} />
+
+              <Button type="submit" className="w-full h-12" disabled={loading || !gTermsAccepted}>
+                {loading ? 'Creating vendor profile...' : 'Complete Registration'}
+              </Button>
+
+              <Button type="button" variant="ghost" className="w-full" onClick={async () => {
+                await supabase.auth.signOut();
+                setGoogleCompleteProfile(false);
+                setGoogleUserId(null);
+              }}>
+                Cancel & Sign Out
+              </Button>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const GoogleButton = ({ label }: { label: string }) => (
+    <Button
+      type="button"
+      variant="outline"
+      className="w-full h-12 gap-3 text-foreground border-border hover:bg-muted"
+      onClick={handleGoogleSignIn}
+      disabled={loading}
+    >
+      <svg className="w-5 h-5" viewBox="0 0 24 24">
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+      </svg>
+      {label}
+    </Button>
+  );
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -405,11 +581,7 @@ export default function VendorAuth() {
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                       tabIndex={-1}
                     >
-                      {showLoginPassword ? (
-                        <EyeOff className="w-5 h-5" />
-                      ) : (
-                        <Eye className="w-5 h-5" />
-                      )}
+                      {showLoginPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                     </button>
                   </div>
                   <button
@@ -424,11 +596,26 @@ export default function VendorAuth() {
                 <Button type="submit" className="w-full h-12" disabled={loading}>
                   {loading ? 'Signing in...' : 'Sign In'}
                 </Button>
+
+                <div className="relative my-4">
+                  <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border" /></div>
+                  <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">or</span></div>
+                </div>
+
+                <GoogleButton label="Sign in with Google" />
               </form>
             </TabsContent>
 
             <TabsContent value="signup">
               <form onSubmit={handleSignup} className="space-y-4">
+                {/* Google signup option first */}
+                <GoogleButton label="Sign up with Google" />
+
+                <div className="relative my-4">
+                  <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border" /></div>
+                  <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">or register with email</span></div>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="full-name">Full Name</Label>
@@ -496,11 +683,7 @@ export default function VendorAuth() {
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                       tabIndex={-1}
                     >
-                      {showSignupPassword ? (
-                        <EyeOff className="w-5 h-5" />
-                      ) : (
-                        <Eye className="w-5 h-5" />
-                      )}
+                      {showSignupPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                     </button>
                   </div>
                 </div>
@@ -524,11 +707,7 @@ export default function VendorAuth() {
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                       tabIndex={-1}
                     >
-                      {showConfirmPassword ? (
-                        <EyeOff className="w-5 h-5" />
-                      ) : (
-                        <Eye className="w-5 h-5" />
-                      )}
+                      {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                     </button>
                   </div>
                 </div>
@@ -593,31 +772,15 @@ export default function VendorAuth() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="city">City</Label>
-                    <Input
-                      id="city"
-                      placeholder="Lagos"
-                      value={city}
-                      onChange={(e) => setCity(e.target.value)}
-                      required
-                    />
+                    <Input id="city" placeholder="Lagos" value={city} onChange={(e) => setCity(e.target.value)} required />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="state">State</Label>
-                    <Input
-                      id="state"
-                      placeholder="Lagos"
-                      value={state}
-                      onChange={(e) => setState(e.target.value)}
-                      required
-                    />
+                    <Input id="state" placeholder="Lagos" value={state} onChange={(e) => setState(e.target.value)} required />
                   </div>
                 </div>
 
-                <TermsAcceptanceCheckbox
-                  accepted={termsAccepted}
-                  onAcceptedChange={setTermsAccepted}
-                  disabled={loading}
-                />
+                <TermsAcceptanceCheckbox accepted={termsAccepted} onAcceptedChange={setTermsAccepted} disabled={loading} />
 
                 <Button type="submit" className="w-full h-12" disabled={loading || !termsAccepted}>
                   {loading ? 'Creating account...' : 'Create Vendor Account'}
@@ -636,6 +799,13 @@ export default function VendorAuth() {
                     </p>
                   </div>
                 </div>
+              </div>
+
+              <GoogleButton label="Link with Google Account" />
+
+              <div className="relative my-4">
+                <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border" /></div>
+                <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">or use email & password</span></div>
               </div>
 
               <form onSubmit={handleLinkAccount} className="space-y-4">
@@ -674,11 +844,7 @@ export default function VendorAuth() {
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                       tabIndex={-1}
                     >
-                      {showLinkPassword ? (
-                        <EyeOff className="w-5 h-5" />
-                      ) : (
-                        <Eye className="w-5 h-5" />
-                      )}
+                      {showLinkPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                     </button>
                   </div>
                 </div>
@@ -705,9 +871,7 @@ export default function VendorAuth() {
                   <div className="space-y-2">
                     <Label>Category</Label>
                     <Select value={linkBusinessCategory} onValueChange={(v) => setLinkBusinessCategory(v as any)}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="restaurant">Restaurant</SelectItem>
                         <SelectItem value="pharmacy">Pharmacy</SelectItem>
@@ -743,23 +907,11 @@ export default function VendorAuth() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="link-city">City</Label>
-                    <Input
-                      id="link-city"
-                      placeholder="Lagos"
-                      value={linkCity}
-                      onChange={(e) => setLinkCity(e.target.value)}
-                      required
-                    />
+                    <Input id="link-city" placeholder="Lagos" value={linkCity} onChange={(e) => setLinkCity(e.target.value)} required />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="link-state">State</Label>
-                    <Input
-                      id="link-state"
-                      placeholder="Lagos"
-                      value={linkState}
-                      onChange={(e) => setLinkState(e.target.value)}
-                      required
-                    />
+                    <Input id="link-state" placeholder="Lagos" value={linkState} onChange={(e) => setLinkState(e.target.value)} required />
                   </div>
                 </div>
 
@@ -767,13 +919,7 @@ export default function VendorAuth() {
                   <Label htmlFor="link-phone">Phone (Optional)</Label>
                   <div className="relative">
                     <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                    <Input
-                      id="link-phone"
-                      placeholder="08012345678"
-                      value={linkPhone}
-                      onChange={(e) => setLinkPhone(e.target.value)}
-                      className="pl-10"
-                    />
+                    <Input id="link-phone" placeholder="08012345678" value={linkPhone} onChange={(e) => setLinkPhone(e.target.value)} className="pl-10" />
                   </div>
                 </div>
 
