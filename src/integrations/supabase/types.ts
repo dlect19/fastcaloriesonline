@@ -4242,6 +4242,47 @@ export type Database = {
         }
         Relationships: []
       }
+      vendor_ad_images: {
+        Row: {
+          created_at: string
+          format: string | null
+          id: string
+          image_url: string
+          source: string | null
+          storage_path: string | null
+          user_id: string
+          vendor_id: string
+        }
+        Insert: {
+          created_at?: string
+          format?: string | null
+          id?: string
+          image_url: string
+          source?: string | null
+          storage_path?: string | null
+          user_id: string
+          vendor_id: string
+        }
+        Update: {
+          created_at?: string
+          format?: string | null
+          id?: string
+          image_url?: string
+          source?: string | null
+          storage_path?: string | null
+          user_id?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_ad_images_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendor_commission_promos: {
         Row: {
           created_at: string

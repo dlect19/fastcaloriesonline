@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, Eye, MousePointer, DollarSign, Plus, Wallet, ArrowUpRight, ArrowDownLeft, Megaphone, Clock, Sparkles, Upload, Image as ImageIcon } from 'lucide-react';
+import { Loader2, Eye, MousePointer, DollarSign, Plus, Wallet, ArrowUpRight, ArrowDownLeft, Megaphone, Clock, Sparkles, Upload, Image as ImageIcon, Trash2, ImagePlus } from 'lucide-react';
 import { VendorLayout } from '@/components/vendor/VendorLayout';
 
 interface AdWallet {
@@ -60,6 +60,15 @@ interface WalletTx {
   created_at: string;
 }
 
+interface SavedAdImage {
+  id: string;
+  image_url: string;
+  storage_path: string | null;
+  format: string | null;
+  source: string;
+  created_at: string;
+}
+
 const statusColors: Record<string, string> = {
   pending_review: 'bg-amber-100 text-amber-800',
   approved: 'bg-blue-100 text-blue-800',
@@ -89,6 +98,7 @@ export default function VendorAdvertising() {
   const [pricingOptions, setPricingOptions] = useState<AdPricing[]>([]);
   const [walletTxs, setWalletTxs] = useState<WalletTx[]>([]);
   const [aiImagePrice, setAiImagePrice] = useState(500);
+  const [savedImages, setSavedImages] = useState<SavedAdImage[]>([]);
   
   // Create ad form
   const [createDialog, setCreateDialog] = useState(false);
@@ -174,17 +184,19 @@ export default function VendorAdvertising() {
       }
       setWallet(adWallet as AdWallet);
 
-      const [placementsRes, pricingRes, txRes, priceRes] = await Promise.all([
+      const [placementsRes, pricingRes, txRes, priceRes, savedImgRes] = await Promise.all([
         supabase.from('ad_placements').select('*').eq('vendor_id', vendor.id).order('created_at', { ascending: false }),
         supabase.from('ad_pricing').select('*').eq('is_active', true).order('cpm_rate', { ascending: true }),
         adWallet ? supabase.from('ad_wallet_transactions').select('*').eq('ad_wallet_id', adWallet.id).order('created_at', { ascending: false }).limit(50) : Promise.resolve({ data: [] }),
         supabase.from('platform_settings').select('value').eq('key', 'ai_ad_image_price').single(),
+        supabase.from('vendor_ad_images').select('*').eq('vendor_id', vendor.id).order('created_at', { ascending: false }).limit(5),
       ]);
 
       setPlacements((placementsRes.data as AdPlacement[]) || []);
       setPricingOptions((pricingRes.data as AdPricing[]) || []);
       setWalletTxs((txRes.data as WalletTx[]) || []);
       if (priceRes.data?.value) setAiImagePrice(Number(priceRes.data.value));
+      setSavedImages((savedImgRes.data as SavedAdImage[]) || []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -300,6 +312,12 @@ export default function VendorAdvertising() {
         }
       }
 
+      // Check saved images limit
+      if (savedImages.length >= 5) {
+        toast({ title: 'Image limit reached', description: 'You can save up to 5 ad images. Delete an old one first.', variant: 'destructive' });
+        return;
+      }
+
       // Upload
       setUploadingImage(true);
       try {
@@ -309,8 +327,21 @@ export default function VendorAdvertising() {
         if (uploadErr) throw uploadErr;
         
         const { data: urlData } = supabase.storage.from('campaign-images').getPublicUrl(path);
-        setAdForm(prev => ({ ...prev, image_url: urlData.publicUrl }));
-        toast({ title: 'Image uploaded!' });
+        const publicUrl = urlData.publicUrl;
+        setAdForm(prev => ({ ...prev, image_url: publicUrl }));
+
+        // Save to vendor_ad_images
+        const selectedPricing = pricingOptions.find(p => p.id === adForm.pricing_id);
+        await supabase.from('vendor_ad_images').insert({
+          vendor_id: vendorId,
+          user_id: user!.id,
+          image_url: publicUrl,
+          storage_path: path,
+          format: selectedPricing?.placement_type || adForm.placement_type,
+          source: 'upload',
+        });
+        await fetchVendorData();
+        toast({ title: 'Image uploaded & saved!' });
       } catch (err: any) {
         toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
       } finally {
@@ -331,6 +362,10 @@ export default function VendorAdvertising() {
       toast({ title: 'Insufficient ad wallet balance', description: `AI generation costs ₦${aiImagePrice}`, variant: 'destructive' });
       return;
     }
+    if (savedImages.length >= 5) {
+      toast({ title: 'Image limit reached', description: 'You can save up to 5 ad images. Delete an old one first.', variant: 'destructive' });
+      return;
+    }
     
     setGeneratingImage(true);
     try {
@@ -346,13 +381,29 @@ export default function VendorAdvertising() {
       if (data?.error) throw new Error(data.error);
 
       setAdForm(prev => ({ ...prev, image_url: data.image_url }));
-      // Refresh wallet balance
+      // Refresh wallet balance + saved images
       fetchVendorData();
       toast({ title: 'Image generated!', description: `₦${data.cost} deducted from ad wallet` });
     } catch (err: any) {
       toast({ title: 'Generation failed', description: err.message, variant: 'destructive' });
     } finally {
       setGeneratingImage(false);
+    }
+  };
+
+  const handleDeleteSavedImage = async (img: SavedAdImage) => {
+    try {
+      if (img.storage_path) {
+        await supabase.storage.from('campaign-images').remove([img.storage_path]);
+      }
+      await supabase.from('vendor_ad_images').delete().eq('id', img.id);
+      setSavedImages(prev => prev.filter(i => i.id !== img.id));
+      if (adForm.image_url === img.image_url) {
+        setAdForm(prev => ({ ...prev, image_url: '' }));
+      }
+      toast({ title: 'Image deleted' });
+    } catch (err: any) {
+      toast({ title: 'Delete failed', description: err.message, variant: 'destructive' });
     }
   };
 
@@ -656,6 +707,37 @@ export default function VendorAdvertising() {
                       <><Sparkles className="w-4 h-4 mr-1" />Generate Image — ₦{aiImagePrice}</>
                     )}
                   </Button>
+                </div>
+              )}
+
+              {/* Saved Images Gallery */}
+              {savedImages.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                    <ImagePlus className="w-3 h-3" />Saved Images ({savedImages.length}/5)
+                  </Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {savedImages.map(img => (
+                      <div
+                        key={img.id}
+                        className={`relative rounded-md overflow-hidden border-2 cursor-pointer transition-all ${adForm.image_url === img.image_url ? 'border-primary ring-2 ring-primary/30' : 'border-border hover:border-primary/50'}`}
+                        onClick={() => setAdForm(prev => ({ ...prev, image_url: img.image_url }))}
+                      >
+                        <img src={img.image_url} alt="Saved ad" className="w-full h-16 object-cover" />
+                        <Button
+                          variant="destructive"
+                          size="icon"
+                          className="absolute top-0.5 right-0.5 h-5 w-5"
+                          onClick={(e) => { e.stopPropagation(); handleDeleteSavedImage(img); }}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                        <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[9px] px-1 text-center truncate">
+                          {img.source === 'ai_generated' ? '✨ AI' : '📤 Upload'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
