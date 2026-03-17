@@ -433,8 +433,8 @@ export default function Home() {
 
         {/* Announcement Ad Popup */}
         <AnnouncementAd
-          userLatitude={deliveryLocation?.latitude || null}
-          userLongitude={deliveryLocation?.longitude || null}
+          userLatitude={deliveryLocation?.lat || null}
+          userLongitude={deliveryLocation?.lon || null}
         />
 
         {/* Random Menu Carousel */}
