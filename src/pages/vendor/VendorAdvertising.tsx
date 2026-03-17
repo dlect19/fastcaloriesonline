@@ -60,6 +60,15 @@ interface WalletTx {
   created_at: string;
 }
 
+interface SavedAdImage {
+  id: string;
+  image_url: string;
+  storage_path: string | null;
+  format: string | null;
+  source: string;
+  created_at: string;
+}
+
 const statusColors: Record<string, string> = {
   pending_review: 'bg-amber-100 text-amber-800',
   approved: 'bg-blue-100 text-blue-800',
