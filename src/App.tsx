@@ -137,6 +137,7 @@ const App = () => {
     <AuthProvider>
       <CartProvider>
         <TooltipProvider>
+          <NetworkStatusOverlay />
           <ForceUpdateOverlay />
           <PWAUpdateBanner />
           <Toaster />
