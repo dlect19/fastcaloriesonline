@@ -377,7 +377,7 @@ export default function AdminAdvertisements() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Label>Start Date/Time</Label>
+                    <Label>Start Date/Time (WAT)</Label>
                     <Input
                       type="datetime-local"
                       value={formData.starts_at}
@@ -385,7 +385,7 @@ export default function AdminAdvertisements() {
                     />
                   </div>
                   <div>
-                    <Label>End Date/Time</Label>
+                    <Label>End Date/Time (WAT)</Label>
                     <Input
                       type="datetime-local"
                       value={formData.ends_at}

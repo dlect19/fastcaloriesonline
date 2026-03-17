@@ -760,8 +760,8 @@ export default function VendorAdvertising() {
             <div><Label>Budget (₦)</Label><Input type="number" value={adForm.budget} onChange={e => setAdForm({ ...adForm, budget: Number(e.target.value) })} min={1000} /></div>
             <div><Label>Target Radius (km from your location)</Label><Input type="number" value={adForm.target_radius_km} onChange={e => setAdForm({ ...adForm, target_radius_km: Number(e.target.value) })} min={1} max={100} /></div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Start Date</Label><Input type="datetime-local" value={adForm.starts_at} onChange={e => setAdForm({ ...adForm, starts_at: e.target.value })} /></div>
-              <div><Label>End Date</Label><Input type="datetime-local" value={adForm.ends_at} onChange={e => setAdForm({ ...adForm, ends_at: e.target.value })} /></div>
+              <div><Label>Start Date (WAT)</Label><Input type="datetime-local" value={adForm.starts_at} onChange={e => setAdForm({ ...adForm, starts_at: e.target.value })} /></div>
+              <div><Label>End Date (WAT)</Label><Input type="datetime-local" value={adForm.ends_at} onChange={e => setAdForm({ ...adForm, ends_at: e.target.value })} /></div>
             </div>
             <div className="bg-muted/50 rounded-lg p-3 text-sm text-muted-foreground">
               <p>Your ad will target customers within <strong>{adForm.target_radius_km} km</strong> of your outlet.</p>
