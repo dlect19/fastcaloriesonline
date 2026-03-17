@@ -163,6 +163,17 @@ export function VendorCheckoutSection({
       return;
     }
 
+    // Prompt delivery address confirmation before proceeding
+    if (deliveryType === 'delivery' && hasDeliveryLocation) {
+      setShowAddressConfirm(true);
+      return;
+    }
+
+    await proceedWithOrder();
+  };
+
+  const proceedWithOrder = async () => {
+    setShowAddressConfirm(false);
     onPlacingChange(group.vendorId);
     try {
       // Validate products
