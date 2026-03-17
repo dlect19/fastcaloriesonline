@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { watLocalToISO, utcToWATLocal } from '@/lib/wat-timezone';
 import { useNavigate } from 'react-router-dom';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -151,8 +152,8 @@ export default function AdminAdvertisements() {
             is_active: formData.is_active,
             display_order: formData.display_order,
             target_audience: formData.target_audience,
-            starts_at: formData.starts_at || null,
-            ends_at: formData.ends_at || null,
+            starts_at: formData.starts_at ? watLocalToISO(formData.starts_at) : null,
+            ends_at: formData.ends_at ? watLocalToISO(formData.ends_at) : null,
             target_latitude: formData.target_latitude ? parseFloat(formData.target_latitude) : null,
             target_longitude: formData.target_longitude ? parseFloat(formData.target_longitude) : null,
             target_radius_km: formData.target_radius_km || 0,
@@ -172,8 +173,8 @@ export default function AdminAdvertisements() {
             is_active: formData.is_active,
             display_order: formData.display_order,
             target_audience: formData.target_audience,
-            starts_at: formData.starts_at || null,
-            ends_at: formData.ends_at || null,
+            starts_at: formData.starts_at ? watLocalToISO(formData.starts_at) : null,
+            ends_at: formData.ends_at ? watLocalToISO(formData.ends_at) : null,
             target_latitude: formData.target_latitude ? parseFloat(formData.target_latitude) : null,
             target_longitude: formData.target_longitude ? parseFloat(formData.target_longitude) : null,
             target_radius_km: formData.target_radius_km || 0,
@@ -208,8 +209,8 @@ export default function AdminAdvertisements() {
       is_active: ad.is_active ?? true,
       display_order: ad.display_order ?? 0,
       target_audience: ad.target_audience || 'all',
-      starts_at: ad.starts_at ? ad.starts_at.slice(0, 16) : '',
-      ends_at: ad.ends_at ? ad.ends_at.slice(0, 16) : '',
+      starts_at: utcToWATLocal(ad.starts_at),
+      ends_at: utcToWATLocal(ad.ends_at),
       target_latitude: (ad as any).target_latitude?.toString() || '',
       target_longitude: (ad as any).target_longitude?.toString() || '',
       target_radius_km: (ad as any).target_radius_km || 0,
@@ -377,7 +378,7 @@ export default function AdminAdvertisements() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Label>Start Date/Time</Label>
+                    <Label>Start Date/Time (WAT)</Label>
                     <Input
                       type="datetime-local"
                       value={formData.starts_at}
@@ -385,7 +386,7 @@ export default function AdminAdvertisements() {
                     />
                   </div>
                   <div>
-                    <Label>End Date/Time</Label>
+                    <Label>End Date/Time (WAT)</Label>
                     <Input
                       type="datetime-local"
                       value={formData.ends_at}

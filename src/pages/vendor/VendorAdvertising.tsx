@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { watLocalToISO, formatWATDate } from '@/lib/wat-timezone';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -456,8 +457,8 @@ export default function VendorAdvertising() {
         target_latitude: vendorLat,
         target_longitude: vendorLng,
         target_radius_km: adForm.target_radius_km,
-        starts_at: adForm.starts_at,
-        ends_at: adForm.ends_at,
+        starts_at: watLocalToISO(adForm.starts_at),
+        ends_at: watLocalToISO(adForm.ends_at),
         ad_pricing_id: adForm.pricing_id,
         budget: adForm.budget,
         cpm_rate: selectedPricing.cpm_rate,
@@ -545,7 +546,7 @@ export default function VendorAdvertising() {
                         <span className="flex items-center gap-1"><Eye className="w-3 h-3" />{p.total_impressions} impressions</span>
                         <span className="flex items-center gap-1"><MousePointer className="w-3 h-3" />{p.total_clicks} clicks</span>
                         <span className="flex items-center gap-1"><DollarSign className="w-3 h-3" />₦{p.spent.toLocaleString()} / ₦{p.budget.toLocaleString()}</span>
-                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{new Date(p.starts_at).toLocaleDateString()} - {new Date(p.ends_at).toLocaleDateString()}</span>
+                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{formatWATDate(p.starts_at)} - {formatWATDate(p.ends_at)}</span>
                       </div>
                     </CardContent>
                   </Card>
@@ -760,8 +761,8 @@ export default function VendorAdvertising() {
             <div><Label>Budget (₦)</Label><Input type="number" value={adForm.budget} onChange={e => setAdForm({ ...adForm, budget: Number(e.target.value) })} min={1000} /></div>
             <div><Label>Target Radius (km from your location)</Label><Input type="number" value={adForm.target_radius_km} onChange={e => setAdForm({ ...adForm, target_radius_km: Number(e.target.value) })} min={1} max={100} /></div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Start Date</Label><Input type="datetime-local" value={adForm.starts_at} onChange={e => setAdForm({ ...adForm, starts_at: e.target.value })} /></div>
-              <div><Label>End Date</Label><Input type="datetime-local" value={adForm.ends_at} onChange={e => setAdForm({ ...adForm, ends_at: e.target.value })} /></div>
+              <div><Label>Start Date (WAT)</Label><Input type="datetime-local" value={adForm.starts_at} onChange={e => setAdForm({ ...adForm, starts_at: e.target.value })} /></div>
+              <div><Label>End Date (WAT)</Label><Input type="datetime-local" value={adForm.ends_at} onChange={e => setAdForm({ ...adForm, ends_at: e.target.value })} /></div>
             </div>
             <div className="bg-muted/50 rounded-lg p-3 text-sm text-muted-foreground">
               <p>Your ad will target customers within <strong>{adForm.target_radius_km} km</strong> of your outlet.</p>
