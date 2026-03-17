@@ -179,6 +179,7 @@ const App = () => {
               <Route path="/vendor/staff/join/:code" element={<VendorStaffJoin />} />
               <Route path="/vendor/staff-login/:vendorId?" element={<VendorStaffLogin />} />
               <Route path="/vendor/support" element={<VendorSupport />} />
+              <Route path="/vendor/advertising" element={<VendorAdvertising />} />
               {/* Rider Portal Routes */}
               <Route path="/rider/auth" element={<RiderAuth />} />
               <Route path="/rider/dashboard" element={<RiderDashboard />} />
