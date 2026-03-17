@@ -96,6 +96,7 @@ import DeliveryRiderJoin from "./pages/delivery/DeliveryRiderJoin";
 import DeliverySupport from "./pages/delivery/DeliverySupport";
 import DeliveryStaff from "./pages/delivery/DeliveryStaff";
 import VendorSupport from "./pages/vendor/VendorSupport";
+import VendorAdvertising from "./pages/vendor/VendorAdvertising";
 import RiderSupport from "./pages/rider/RiderSupport";
 import AdminSupport from "./pages/admin/AdminSupport";
 import AdminNotifications from "./pages/admin/AdminNotifications";
