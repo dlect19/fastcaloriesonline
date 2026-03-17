@@ -324,6 +324,66 @@ export default function DeliveryCompanyAuth() {
     }
   };
 
+  // Google OAuth: show company profile completion form
+  if (googleCompleteProfile) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="flex justify-center mb-4">
+              <div className="relative">
+                <img src={fastCaloriesLogo} alt="Fast Calories" className="w-20 h-20 object-contain" />
+                <div className="absolute -bottom-1 -right-1 bg-primary rounded-full p-1">
+                  <Truck className="w-4 h-4 text-primary-foreground" />
+                </div>
+              </div>
+            </div>
+            <CardTitle className="text-2xl">Complete Company Registration</CardTitle>
+            <CardDescription>Signed in as {googleEmail}. Please provide your company details.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2"><Building2 className="w-4 h-4" />Company Name</Label>
+              <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="e.g., Swift Logistics Ltd" required />
+            </div>
+            <div className="space-y-2">
+              <Label>Owner/Manager Name</Label>
+              <Input value={ownerName} onChange={(e) => setOwnerName(e.target.value)} required />
+            </div>
+            <div className="space-y-2">
+              <Label>Phone Number</Label>
+              <Input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} required />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>City</Label>
+                <Input value={city} onChange={(e) => setCity(e.target.value)} required />
+              </div>
+              <div className="space-y-2">
+                <Label>State</Label>
+                <Input value={state} onChange={(e) => setState(e.target.value)} required />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Business Address</Label>
+              <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Office address" required />
+            </div>
+            <Button className="w-full" onClick={handleGoogleCompleteCompanyProfile} disabled={loading}>
+              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Complete Registration
+            </Button>
+            <Button variant="ghost" className="w-full" onClick={async () => {
+              await supabase.auth.signOut();
+              setGoogleCompleteProfile(false);
+            }}>
+              Cancel
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
