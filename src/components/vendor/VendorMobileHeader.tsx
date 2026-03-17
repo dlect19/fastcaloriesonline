@@ -50,6 +50,7 @@ export function VendorMobileHeader({ vendorName = 'My Restaurant', vendorId, onO
               <DropdownMenuItem onClick={() => navigate('/vendor/staff')}>Staff</DropdownMenuItem>
               <DropdownMenuItem onClick={() => navigate('/vendor/reviews')}>Reviews</DropdownMenuItem>
               <DropdownMenuItem onClick={() => navigate('/vendor/withdraw')}>Withdraw</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate('/vendor/advertising')}>Advertising</DropdownMenuItem>
               <DropdownMenuItem onClick={() => navigate('/vendor/hours')}>Working Hours</DropdownMenuItem>
               <DropdownMenuItem onClick={() => navigate('/vendor/store-settings')}>Store Settings</DropdownMenuItem>
               <DropdownMenuSeparator />
