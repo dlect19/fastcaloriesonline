@@ -47,12 +47,14 @@ export function useNativeOAuthHandler() {
       lastHandledUrlRef.current = url;
 
       try {
+        // Parse tokens from either hash fragment or query params
         const parsedUrl = new URL(url);
         const hashParams = new URLSearchParams(parsedUrl.hash.replace(/^#/, ''));
+        const queryParams = parsedUrl.searchParams;
 
-        const accessToken = hashParams.get('access_token') ?? parsedUrl.searchParams.get('access_token');
-        const refreshToken = hashParams.get('refresh_token') ?? parsedUrl.searchParams.get('refresh_token');
-        const authCode = parsedUrl.searchParams.get('code');
+        const accessToken = hashParams.get('access_token') ?? queryParams.get('access_token');
+        const refreshToken = hashParams.get('refresh_token') ?? queryParams.get('refresh_token');
+        const authCode = queryParams.get('code');
 
         if (accessToken && refreshToken) {
           await withTimeout(
@@ -80,8 +82,10 @@ export function useNativeOAuthHandler() {
       }
     };
 
+    // Check current URL for OAuth tokens (handles HTTPS redirect back to app)
     void handleOAuthCallback(window.location.href);
 
+    // Listen for deep link / appUrlOpen events
     App.addListener('appUrlOpen', ({ url }) => {
       void handleOAuthCallback(url);
     }).then((listener) => {
@@ -92,6 +96,25 @@ export function useNativeOAuthHandler() {
       cleanup = () => {
         void listener.remove();
       };
+    });
+
+    // Also listen for browser finished events to check URL
+    import('@capacitor/browser').then(({ Browser }) => {
+      Browser.addListener('browserFinished', () => {
+        void handleOAuthCallback(window.location.href);
+      }).then((listener) => {
+        if (disposed) {
+          void listener.remove();
+          return;
+        }
+        const prevCleanup = cleanup;
+        cleanup = () => {
+          prevCleanup?.();
+          void listener.remove();
+        };
+      });
+    }).catch(() => {
+      // Browser plugin not available
     });
 
     return () => {
