@@ -564,6 +564,12 @@ export default function AdminAdvertisements() {
                     <div className="flex-1 min-w-0">
                       <h3 className="font-medium text-foreground truncate">{ad.title}</h3>
                       <p className="text-sm text-muted-foreground truncate">{ad.description}</p>
+                      <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
+                        <span>{(ad as any).total_impressions || 0} views</span>
+                        <span>{(ad as any).total_clicks || 0} clicks</span>
+                        {ad.starts_at && <span>From {new Date(ad.starts_at).toLocaleDateString()}</span>}
+                        {ad.ends_at && <span>Until {new Date(ad.ends_at).toLocaleDateString()}</span>}
+                      </div>
                     </div>
                     
                     <div className="flex items-center gap-2 shrink-0">
