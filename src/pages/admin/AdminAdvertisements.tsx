@@ -374,8 +374,61 @@ export default function AdminAdvertisements() {
                     </SelectContent>
                   </Select>
                 </div>
-                
-                <div className="flex items-center gap-2">
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Start Date/Time</Label>
+                    <Input
+                      type="datetime-local"
+                      value={formData.starts_at}
+                      onChange={(e) => setFormData({ ...formData, starts_at: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label>End Date/Time</Label>
+                    <Input
+                      type="datetime-local"
+                      value={formData.ends_at}
+                      onChange={(e) => setFormData({ ...formData, ends_at: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="border rounded-lg p-3 space-y-3">
+                  <Label className="text-sm font-medium">Location Targeting (optional)</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">Latitude</Label>
+                      <Input
+                        type="number"
+                        step="any"
+                        value={formData.target_latitude}
+                        onChange={(e) => setFormData({ ...formData, target_latitude: e.target.value })}
+                        placeholder="6.5244"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Longitude</Label>
+                      <Input
+                        type="number"
+                        step="any"
+                        value={formData.target_longitude}
+                        onChange={(e) => setFormData({ ...formData, target_longitude: e.target.value })}
+                        placeholder="3.3792"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Radius (km) — 0 = show everywhere</Label>
+                    <Input
+                      type="number"
+                      value={formData.target_radius_km}
+                      onChange={(e) => setFormData({ ...formData, target_radius_km: parseInt(e.target.value) || 0 })}
+                      min={0}
+                    />
+                  </div>
+                </div>
+
                   <Switch
                     checked={formData.is_active}
                     onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
