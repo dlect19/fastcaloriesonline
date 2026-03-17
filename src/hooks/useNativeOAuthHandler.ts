@@ -17,35 +17,41 @@ export function useNativeOAuthHandler() {
         const { App } = await import('@capacitor/app');
 
         const listener = await App.addListener('appUrlOpen', async ({ url }) => {
-          // Check if this is an OAuth callback URL
-          if (url && (url.includes('access_token') || url.includes('code=') || url.includes('#'))) {
-            try {
-              // Extract the fragment/hash from the URL
-              const hashIndex = url.indexOf('#');
-              if (hashIndex !== -1) {
-                const hash = url.substring(hashIndex + 1);
-                const params = new URLSearchParams(hash);
-                const accessToken = params.get('access_token');
-                const refreshToken = params.get('refresh_token');
+          if (!url) return;
 
-                if (accessToken && refreshToken) {
-                  await supabase.auth.setSession({
-                    access_token: accessToken,
-                    refresh_token: refreshToken,
-                  });
-                }
-              }
+          const isOAuthCallback =
+            url.includes('access_token=') ||
+            url.includes('refresh_token=') ||
+            url.includes('code=');
 
-              // Close in-app browser if still open
-              try {
-                const { Browser } = await import('@capacitor/browser');
-                await Browser.close();
-              } catch {
-                // Browser might not be open
-              }
-            } catch (err) {
-              console.error('Failed to handle OAuth deep link:', err);
+          if (!isOAuthCallback) return;
+
+          try {
+            const parsedUrl = new URL(url);
+            const hashParams = new URLSearchParams(parsedUrl.hash.replace(/^#/, ''));
+
+            const accessToken = hashParams.get('access_token') ?? parsedUrl.searchParams.get('access_token');
+            const refreshToken = hashParams.get('refresh_token') ?? parsedUrl.searchParams.get('refresh_token');
+            const authCode = parsedUrl.searchParams.get('code');
+
+            if (accessToken && refreshToken) {
+              await supabase.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken,
+              });
+            } else if (authCode) {
+              const { error } = await supabase.auth.exchangeCodeForSession(url);
+              if (error) throw error;
             }
+
+            try {
+              const { Browser } = await import('@capacitor/browser');
+              await Browser.close();
+            } catch {
+              // Browser might not be open
+            }
+          } catch (err) {
+            console.error('Failed to handle OAuth deep link:', err);
           }
         });
 
