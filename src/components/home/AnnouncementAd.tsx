@@ -80,7 +80,7 @@ export function AnnouncementAd({ userLatitude, userLongitude }: AnnouncementAdPr
     });
 
     // Track impression
-    trackImpression(pick.advertisement_id || pick.id, pick.id, userLatitude || undefined, userLongitude || undefined);
+    trackImpression(pick.advertisement_id || pick.id, pick.id);
   };
 
   if (!ad || dismissed) return null;
