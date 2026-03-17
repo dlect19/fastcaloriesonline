@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, Eye, MousePointer, DollarSign, CheckCircle, XCircle, Clock, BarChart3 } from 'lucide-react';
+import { Loader2, Eye, MousePointer, DollarSign, CheckCircle, XCircle, Clock, BarChart3, Gift, Search } from 'lucide-react';
 
 type AdPlacement = {
   id: string;
@@ -64,6 +64,14 @@ export default function AdminAdPlacements() {
   const [reviewDialog, setReviewDialog] = useState<AdPlacement | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // Admin credit form
+  const [creditDialog, setCreditDialog] = useState(false);
+  const [creditVendorSearch, setCreditVendorSearch] = useState('');
+  const [creditVendors, setCreditVendors] = useState<Array<{id: string; name: string; wallet_balance: number; wallet_id: string}>>([]);
+  const [selectedCreditVendor, setSelectedCreditVendor] = useState<{id: string; name: string; wallet_balance: number; wallet_id: string} | null>(null);
+  const [creditAmount, setCreditAmount] = useState('');
+  const [creditNotes, setCreditNotes] = useState('');
 
   // Pricing form
   const [pricingDialog, setPricingDialog] = useState(false);
@@ -194,6 +202,63 @@ export default function AdminAdPlacements() {
 
   const pendingCount = placements.filter(p => p.status === 'pending_review').length;
 
+  const searchVendorsForCredit = async (q: string) => {
+    setCreditVendorSearch(q);
+    if (q.length < 2) { setCreditVendors([]); return; }
+    const { data: vendors } = await supabase.from('vendors').select('id, name').ilike('name', `%${q}%`).limit(10);
+    if (!vendors) return;
+    const results = await Promise.all(vendors.map(async v => {
+      const { data: wallet } = await supabase.from('ad_wallets').select('id, balance').eq('vendor_id', v.id).maybeSingle();
+      return { id: v.id, name: v.name, wallet_balance: wallet?.balance || 0, wallet_id: wallet?.id || '' };
+    }));
+    setCreditVendors(results);
+  };
+
+  const handleAdminCredit = async () => {
+    if (!selectedCreditVendor || !creditAmount) return;
+    const amount = parseFloat(creditAmount);
+    if (amount <= 0) return;
+    setSaving(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      let walletId = selectedCreditVendor.wallet_id;
+      
+      // Create wallet if doesn't exist
+      if (!walletId) {
+        const { data: vendor } = await supabase.from('vendors').select('user_id').eq('id', selectedCreditVendor.id).single();
+        const { data: newWallet } = await supabase.from('ad_wallets').insert({
+          vendor_id: selectedCreditVendor.id,
+          user_id: vendor?.user_id || '',
+        }).select('id').single();
+        walletId = newWallet?.id || '';
+      }
+
+      const currentBal = selectedCreditVendor.wallet_balance || 0;
+      const newBal = currentBal + amount;
+
+      await supabase.from('ad_wallets').update({ balance: newBal, total_funded: newBal }).eq('id', walletId);
+      await supabase.from('ad_wallet_transactions').insert({
+        ad_wallet_id: walletId,
+        vendor_id: selectedCreditVendor.id,
+        transaction_type: 'credit',
+        category: 'admin_credit',
+        amount,
+        balance_after: newBal,
+        notes: creditNotes || `Admin credit by ${user?.email}`,
+      });
+
+      toast({ title: 'Credited!', description: `₦${amount.toLocaleString()} added to ${selectedCreditVendor.name}'s ad wallet` });
+      setCreditDialog(false);
+      setSelectedCreditVendor(null);
+      setCreditAmount('');
+      setCreditNotes('');
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <AdminLayout>
       <div className="mb-6">
@@ -210,6 +275,10 @@ export default function AdminAdPlacements() {
           <TabsTrigger value="pricing" className="gap-2">
             <DollarSign className="w-4 h-4" />
             CPM Pricing
+          </TabsTrigger>
+          <TabsTrigger value="credits" className="gap-2">
+            <Gift className="w-4 h-4" />
+            Admin Credits
           </TabsTrigger>
         </TabsList>
 
@@ -278,6 +347,63 @@ export default function AdminAdPlacements() {
               </Card>
             ))}
           </div>
+        </TabsContent>
+
+        <TabsContent value="credits">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Credit Vendor Ad Wallet</CardTitle>
+              <p className="text-sm text-muted-foreground">Manually add promotional credits to a vendor's advertising wallet</p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label>Search Vendor</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    className="pl-9"
+                    placeholder="Type vendor name..."
+                    value={creditVendorSearch}
+                    onChange={e => searchVendorsForCredit(e.target.value)}
+                  />
+                </div>
+                {creditVendors.length > 0 && !selectedCreditVendor && (
+                  <div className="mt-2 border rounded-lg max-h-40 overflow-y-auto">
+                    {creditVendors.map(v => (
+                      <button
+                        key={v.id}
+                        className="w-full text-left px-3 py-2 hover:bg-muted flex justify-between items-center text-sm"
+                        onClick={() => { setSelectedCreditVendor(v); setCreditVendorSearch(v.name); }}
+                      >
+                        <span className="font-medium text-foreground">{v.name}</span>
+                        <span className="text-muted-foreground">Wallet: ₦{v.wallet_balance.toLocaleString()}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {selectedCreditVendor && (
+                  <div className="mt-2 p-3 bg-muted/50 rounded-lg flex justify-between items-center">
+                    <div>
+                      <p className="font-medium text-foreground">{selectedCreditVendor.name}</p>
+                      <p className="text-xs text-muted-foreground">Current ad wallet: ₦{selectedCreditVendor.wallet_balance.toLocaleString()}</p>
+                    </div>
+                    <Button size="sm" variant="ghost" onClick={() => { setSelectedCreditVendor(null); setCreditVendorSearch(''); setCreditVendors([]); }}>Change</Button>
+                  </div>
+                )}
+              </div>
+              <div>
+                <Label>Credit Amount (₦)</Label>
+                <Input type="number" value={creditAmount} onChange={e => setCreditAmount(e.target.value)} placeholder="10000" min={100} />
+              </div>
+              <div>
+                <Label>Notes (optional)</Label>
+                <Textarea value={creditNotes} onChange={e => setCreditNotes(e.target.value)} placeholder="Promotional credit, welcome bonus, etc." rows={2} />
+              </div>
+              <Button onClick={handleAdminCredit} disabled={saving || !selectedCreditVendor || !creditAmount} className="w-full">
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : `Credit ₦${parseFloat(creditAmount || '0').toLocaleString()}`}
+              </Button>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 

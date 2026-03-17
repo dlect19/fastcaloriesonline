@@ -6,6 +6,7 @@ import { getPortalRedirect } from '@/hooks/usePortalMemory';
 import { Header } from '@/components/home/Header';
 import { CategoryPills } from '@/components/home/CategoryPills';
 import { PromoBanner } from '@/components/home/PromoBanner';
+import { AnnouncementAd } from '@/components/home/AnnouncementAd';
 import { CalorieWidget } from '@/components/home/CalorieWidget';
 import { VendorGrid } from '@/components/home/VendorGrid';
 import { MenuCarousel } from '@/components/home/MenuCarousel';
@@ -429,6 +430,12 @@ export default function Home() {
 
         {/* Promo Banner */}
         <PromoBanner />
+
+        {/* Announcement Ad Popup */}
+        <AnnouncementAd
+          userLatitude={deliveryLocation?.lat || null}
+          userLongitude={deliveryLocation?.lon || null}
+        />
 
         {/* Random Menu Carousel */}
         <MenuCarousel nearbyVendorIds={nearbyVendorIds} />
