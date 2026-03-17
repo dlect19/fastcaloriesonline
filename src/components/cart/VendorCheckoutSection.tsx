@@ -6,6 +6,7 @@ import { OrderSummary } from '@/components/cart/OrderSummary';
 import { PromoCodeInput } from '@/components/cart/PromoCodeInput';
 import { ActiveDiscountSelector } from '@/components/cart/ActiveDiscountSelector';
 import { FundWalletDialog } from '@/components/profile/FundWalletDialog';
+import { DeliveryAddressConfirmDialog } from '@/components/cart/DeliveryAddressConfirmDialog';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
