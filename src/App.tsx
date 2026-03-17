@@ -107,6 +107,7 @@ import WorkspaceLogin from "./pages/WorkspaceLogin";
 import { playGlobalNotificationSound } from '@/lib/globalAudio';
 import { useFcmNotifications } from '@/hooks/useFcmNotifications';
 import { usePortalMemory } from '@/hooks/usePortalMemory';
+import { useNativeOAuthHandler } from '@/hooks/useNativeOAuthHandler';
 
 const queryClient = new QueryClient();
 
@@ -127,6 +128,8 @@ const PortalTracker = () => {
 const App = () => {
   // Register FCM token on native Capacitor platforms
   useFcmNotifications();
+  // Handle OAuth deep link callbacks on native platforms
+  useNativeOAuthHandler();
 
   return (
   <QueryClientProvider client={queryClient}>
