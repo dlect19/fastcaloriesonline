@@ -41,6 +41,11 @@ export default function RiderAuth() {
   const [vehiclePlate, setVehiclePlate] = useState('');
   const [ninNumber, setNinNumber] = useState('');
 
+  // Google OAuth: complete rider profile after Google sign-in
+  const [googleCompleteProfile, setGoogleCompleteProfile] = useState(false);
+  const [googleUserId, setGoogleUserId] = useState<string | null>(null);
+  const [googleEmail, setGoogleEmail] = useState('');
+
   useEffect(() => {
     checkUser();
   }, []);
