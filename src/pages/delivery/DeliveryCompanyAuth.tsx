@@ -37,9 +37,74 @@ export default function DeliveryCompanyAuth() {
   const [state, setState] = useState('');
   const [address, setAddress] = useState('');
 
+  // Google OAuth: complete company profile after Google sign-in
+  const [googleCompleteProfile, setGoogleCompleteProfile] = useState(false);
+  const [googleUserId, setGoogleUserId] = useState<string | null>(null);
+  const [googleEmail, setGoogleEmail] = useState('');
+
   useEffect(() => {
     checkUser();
   }, []);
+
+  // Listen for Google OAuth callback
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        const user = session.user;
+        const isOAuth = user.app_metadata?.provider === 'google';
+        if (!isOAuth) return;
+
+        const { data: roles } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', user.id);
+
+        if (roles?.some(r => r.role === 'delivery_company')) {
+          navigate('/delivery/dashboard');
+        } else {
+          setGoogleUserId(user.id);
+          setGoogleEmail(user.email || '');
+          setOwnerName(user.user_metadata?.full_name || user.user_metadata?.name || '');
+          setGoogleCompleteProfile(true);
+        }
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [navigate]);
+
+  const handleGoogleCompleteCompanyProfile = async () => {
+    if (!googleUserId) return;
+    if (!companyName || !phone || !city || !state) {
+      toast({ title: 'All fields required', description: 'Please fill all company details.', variant: 'destructive' });
+      return;
+    }
+    setLoading(true);
+    try {
+      // Add delivery_company role
+      await supabase.from('user_roles').insert({ user_id: googleUserId, role: 'delivery_company' });
+
+      // Create delivery company
+      await supabase.from('delivery_companies').insert({
+        user_id: googleUserId,
+        name: companyName,
+        email: googleEmail,
+        phone,
+        city,
+        state,
+        address,
+      });
+
+      // Update profile
+      await supabase.from('profiles').update({ phone, full_name: ownerName }).eq('user_id', googleUserId);
+
+      toast({ title: 'Registration successful!', description: 'Your company is pending admin verification.' });
+      navigate('/delivery/dashboard');
+    } catch (error: any) {
+      toast({ title: 'Registration failed', description: error.message, variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const checkUser = async () => {
     const { data: { user } } = await supabase.auth.getUser();
