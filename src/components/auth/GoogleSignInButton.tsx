@@ -53,8 +53,13 @@ export function GoogleSignInButton({ redirectPath, disabled, label = 'Continue w
         if (error) throw error;
         if (!data?.url) throw new Error('Unable to start Google sign-in');
 
-        const { Browser } = await import('@capacitor/browser');
-        await Browser.open({ url: data.url, windowName: '_self' });
+        try {
+          const { Browser } = await import('@capacitor/browser');
+          await Browser.open({ url: data.url, windowName: '_self' });
+        } catch {
+          // Fallback if Browser plugin not available on this platform
+          window.open(data.url, '_blank');
+        }
         return;
       }
 
