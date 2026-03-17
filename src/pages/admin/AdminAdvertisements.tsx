@@ -208,6 +208,11 @@ export default function AdminAdvertisements() {
       is_active: ad.is_active ?? true,
       display_order: ad.display_order ?? 0,
       target_audience: ad.target_audience || 'all',
+      starts_at: ad.starts_at ? ad.starts_at.slice(0, 16) : '',
+      ends_at: ad.ends_at ? ad.ends_at.slice(0, 16) : '',
+      target_latitude: (ad as any).target_latitude?.toString() || '',
+      target_longitude: (ad as any).target_longitude?.toString() || '',
+      target_radius_km: (ad as any).target_radius_km || 0,
     });
     setDialogOpen(true);
   };
