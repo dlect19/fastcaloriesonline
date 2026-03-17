@@ -192,24 +192,26 @@ export default function VendorAuth() {
 
       if (error) throw error;
 
-      const { data: roles } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', data.user.id)
-        .eq('role', 'vendor');
+      // Run role and vendor checks in parallel for faster login
+      const [rolesResult, vendorsResult] = await Promise.all([
+        supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', data.user.id)
+          .eq('role', 'vendor'),
+        supabase
+          .from('vendors')
+          .select('id')
+          .eq('user_id', data.user.id)
+          .limit(1),
+      ]);
 
-      if (!roles || roles.length === 0) {
+      if (!rolesResult.data || rolesResult.data.length === 0) {
         await supabase.auth.signOut();
         throw new Error('This account is not registered as a vendor. Use "Link Account" if you want to add vendor access to your existing customer account.');
       }
 
-      const { data: vendors } = await supabase
-        .from('vendors')
-        .select('id')
-        .eq('user_id', data.user.id)
-        .limit(1);
-
-      if (!vendors || vendors.length === 0) {
+      if (!vendorsResult.data || vendorsResult.data.length === 0) {
         await supabase.auth.signOut();
         throw new Error('Vendor profile not found. Please contact support.');
       }
