@@ -31,6 +31,39 @@
 </head>
 
   <body>
+    <div id="app-loader" style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#f0fdf4;z-index:99999;transition:opacity .4s ease">
+      <!-- Brand icon -->
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" style="margin-bottom:24px">
+        <circle cx="12" cy="12" r="12" fill="#16a34a"/>
+        <path d="M7 12.5l3 3 7-7" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <div style="font-family:system-ui,-apple-system,sans-serif;font-size:20px;font-weight:700;color:#15803d;margin-bottom:8px">Fast Calories</div>
+      <div style="font-family:system-ui,-apple-system,sans-serif;font-size:13px;color:#4ade80;margin-bottom:24px">Eat Smart, Live Healthy</div>
+      <!-- Progress bar -->
+      <div style="width:200px;height:4px;background:#dcfce7;border-radius:4px;overflow:hidden">
+        <div id="app-loader-bar" style="width:0%;height:100%;background:linear-gradient(90deg,#16a34a,#4ade80);border-radius:4px;transition:width .3s ease"></div>
+      </div>
+    </div>
+    <script>
+      // Animate progress bar while app loads
+      (function(){
+        var bar=document.getElementById('app-loader-bar');
+        var w=0;
+        var iv=setInterval(function(){
+          w+=Math.random()*15;
+          if(w>90)w=90;
+          if(bar)bar.style.width=w+'%';
+        },300);
+        window.__dismissLoader=function(){
+          clearInterval(iv);
+          if(bar)bar.style.width='100%';
+          setTimeout(function(){
+            var el=document.getElementById('app-loader');
+            if(el){el.style.opacity='0';setTimeout(function(){el.remove()},400)}
+          },200);
+        };
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
