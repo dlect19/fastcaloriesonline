@@ -710,6 +710,37 @@ export default function VendorAdvertising() {
                 </div>
               )}
 
+              {/* Saved Images Gallery */}
+              {savedImages.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                    <ImagePlus className="w-3 h-3" />Saved Images ({savedImages.length}/5)
+                  </Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {savedImages.map(img => (
+                      <div
+                        key={img.id}
+                        className={`relative rounded-md overflow-hidden border-2 cursor-pointer transition-all ${adForm.image_url === img.image_url ? 'border-primary ring-2 ring-primary/30' : 'border-border hover:border-primary/50'}`}
+                        onClick={() => setAdForm(prev => ({ ...prev, image_url: img.image_url }))}
+                      >
+                        <img src={img.image_url} alt="Saved ad" className="w-full h-16 object-cover" />
+                        <Button
+                          variant="destructive"
+                          size="icon"
+                          className="absolute top-0.5 right-0.5 h-5 w-5"
+                          onClick={(e) => { e.stopPropagation(); handleDeleteSavedImage(img); }}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                        <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[9px] px-1 text-center truncate">
+                          {img.source === 'ai_generated' ? '✨ AI' : '📤 Upload'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Image preview */}
               {adForm.image_url && (
                 <div className="relative rounded-lg overflow-hidden border border-border">
