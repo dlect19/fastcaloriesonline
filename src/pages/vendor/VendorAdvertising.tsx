@@ -184,17 +184,19 @@ export default function VendorAdvertising() {
       }
       setWallet(adWallet as AdWallet);
 
-      const [placementsRes, pricingRes, txRes, priceRes] = await Promise.all([
+      const [placementsRes, pricingRes, txRes, priceRes, savedImgRes] = await Promise.all([
         supabase.from('ad_placements').select('*').eq('vendor_id', vendor.id).order('created_at', { ascending: false }),
         supabase.from('ad_pricing').select('*').eq('is_active', true).order('cpm_rate', { ascending: true }),
         adWallet ? supabase.from('ad_wallet_transactions').select('*').eq('ad_wallet_id', adWallet.id).order('created_at', { ascending: false }).limit(50) : Promise.resolve({ data: [] }),
         supabase.from('platform_settings').select('value').eq('key', 'ai_ad_image_price').single(),
+        supabase.from('vendor_ad_images').select('*').eq('vendor_id', vendor.id).order('created_at', { ascending: false }).limit(5),
       ]);
 
       setPlacements((placementsRes.data as AdPlacement[]) || []);
       setPricingOptions((pricingRes.data as AdPricing[]) || []);
       setWalletTxs((txRes.data as WalletTx[]) || []);
       if (priceRes.data?.value) setAiImagePrice(Number(priceRes.data.value));
+      setSavedImages((savedImgRes.data as SavedAdImage[]) || []);
     } catch (err) {
       console.error(err);
     } finally {
