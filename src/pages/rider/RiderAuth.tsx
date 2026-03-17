@@ -50,6 +50,81 @@ export default function RiderAuth() {
     checkUser();
   }, []);
 
+  // Listen for Google OAuth callback
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        const user = session.user;
+        const isOAuth = user.app_metadata?.provider === 'google';
+        if (!isOAuth) return;
+
+        // Check if already a rider
+        const { data: roles } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', user.id);
+
+        if (roles?.some(r => r.role === 'rider')) {
+          navigate(redirectUrl || '/rider/dashboard');
+        } else {
+          // Need to complete rider profile
+          setGoogleUserId(user.id);
+          setGoogleEmail(user.email || '');
+          setFullName(user.user_metadata?.full_name || user.user_metadata?.name || '');
+          setGoogleCompleteProfile(true);
+        }
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [navigate, redirectUrl]);
+
+  const handleGoogleCompleteRiderProfile = async () => {
+    if (!googleUserId) return;
+    if (!vehicleType) {
+      toast({ title: 'Vehicle type required', variant: 'destructive' });
+      return;
+    }
+    if (!ninNumber || !/^\d{11}$/.test(ninNumber)) {
+      toast({ title: 'Valid 11-digit NIN required', variant: 'destructive' });
+      return;
+    }
+    setLoading(true);
+    try {
+      // Add rider role
+      await supabase.rpc('add_rider_role', { _user_id: googleUserId }).then(async (res) => {
+        if (res.error) {
+          // Fallback: insert directly
+          await supabase.from('user_roles').insert({ user_id: googleUserId, role: 'rider' });
+        }
+      });
+
+      // Create rider profile
+      await supabase.from('rider_profiles').insert({
+        user_id: googleUserId,
+        vehicle_type: vehicleType,
+        vehicle_plate: vehiclePlate || null,
+        nin_number: ninNumber,
+        nin_submitted_at: new Date().toISOString(),
+        email: googleEmail,
+      });
+
+      // Update profile with phone
+      if (phone) {
+        await supabase.from('profiles').update({ phone, full_name: fullName }).eq('user_id', googleUserId);
+      }
+
+      // Update wallet type
+      await supabase.from('wallets').update({ wallet_type: 'rider' }).eq('user_id', googleUserId);
+
+      toast({ title: 'Registration successful!', description: 'Your account is pending admin verification.' });
+      navigate(redirectUrl || '/rider/dashboard');
+    } catch (error: any) {
+      toast({ title: 'Registration failed', description: error.message, variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const checkUser = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
@@ -59,7 +134,6 @@ export default function RiderAuth() {
         .eq('user_id', user.id);
       
       if (roles?.some(r => r.role === 'rider')) {
-        // If there's a redirect URL (like an invite link), go there instead
         navigate(redirectUrl || '/rider/dashboard');
       }
     }
