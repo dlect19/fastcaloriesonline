@@ -37,7 +37,9 @@ export function GoogleSignInButton({ redirectPath, disabled, label = 'Continue w
           throw new Error('No internet connection. Please reconnect and try again.');
         }
 
-        const nativeRedirectUri = 'com.fastcalories.customer://oauth/callback';
+        // Use HTTPS redirect so the in-app browser can handle the callback
+        // The useNativeOAuthHandler hook will pick up tokens from the deep link
+        const nativeRedirectUri = `${window.location.origin}${redirectPath}`;
         const { data, error } = await withTimeout(
           supabase.auth.signInWithOAuth({
             provider: 'google',
