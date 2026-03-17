@@ -65,7 +65,8 @@ export function MenuCarousel({ nearbyVendorIds }: MenuCarouselProps) {
         .from('vendors')
         .select('id, name')
         .in('id', vendorIds)
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .eq('is_verified', true);
 
       const vendorMap = new Map((vendors || []).map(v => [v.id, v.name]));
 
