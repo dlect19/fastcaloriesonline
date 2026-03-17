@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAdImpressionTracker } from '@/hooks/useAdImpressionTracker';
@@ -26,6 +27,7 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
 }
 
 export function AnnouncementAd({ userLatitude, userLongitude }: AnnouncementAdProps) {
+  const navigate = useNavigate();
   const [ad, setAd] = useState<AnnouncementAdData | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const { trackImpression, trackClick } = useAdImpressionTracker();
@@ -88,7 +90,12 @@ export function AnnouncementAd({ userLatitude, userLongitude }: AnnouncementAdPr
   const handleClick = () => {
     trackClick(ad.id, ad.ad_placement_id);
     if (ad.link_url) {
-      window.open(ad.link_url, '_blank');
+      if (ad.link_url.startsWith('http')) {
+        window.open(ad.link_url, '_blank');
+      } else {
+        navigate(ad.link_url);
+        setDismissed(true);
+      }
     }
   };
 
