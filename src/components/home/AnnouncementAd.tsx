@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAdImpressionTracker } from '@/hooks/useAdImpressionTracker';
