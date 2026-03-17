@@ -128,6 +128,8 @@ const PortalTracker = () => {
 const App = () => {
   // Register FCM token on native Capacitor platforms
   useFcmNotifications();
+  // Handle OAuth deep link callbacks on native platforms
+  useNativeOAuthHandler();
 
   return (
   <QueryClientProvider client={queryClient}>
