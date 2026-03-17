@@ -40,7 +40,7 @@ export function useNativeOAuthHandler() {
                 refresh_token: refreshToken,
               });
             } else if (authCode) {
-              const { error } = await supabase.auth.exchangeCodeForSession(url);
+              const { error } = await supabase.auth.exchangeCodeForSession(authCode);
               if (error) throw error;
             }
 
