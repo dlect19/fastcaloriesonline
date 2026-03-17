@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { lovable } from '@/integrations/lovable/index';
+import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 interface GoogleSignInButtonProps {
@@ -17,15 +18,66 @@ export function GoogleSignInButton({ redirectPath, disabled, label = 'Continue w
   const handleGoogleSignIn = async () => {
     setLoading(true);
     try {
-      const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin + redirectPath,
-      });
-      if (result.error) {
-        toast({
-          title: 'Google sign-in failed',
-          description: result.error.message || 'Something went wrong',
-          variant: 'destructive',
+      // Check if running inside a native Capacitor app
+      const { Capacitor } = await import('@capacitor/core');
+      const isNative = Capacitor.isNativePlatform();
+
+      if (isNative) {
+        // Native app: use skipBrowserRedirect + in-app browser
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            skipBrowserRedirect: true,
+            redirectTo: `${window.location.origin}${redirectPath}`,
+          },
         });
+
+        if (error) throw error;
+
+        if (data?.url) {
+          const { Browser } = await import('@capacitor/browser');
+          
+          // Listen for the browser to close or redirect back
+          const browserFinished = new Promise<void>((resolve) => {
+            Browser.addListener('browserFinished', () => resolve());
+          });
+
+          // Listen for URL changes to detect the callback
+          Browser.addListener('browserPageLoaded', async () => {
+            // Check if we got a session after the page loads
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (sessionData?.session) {
+              await Browser.close();
+            }
+          });
+
+          await Browser.open({ url: data.url, windowName: '_self' });
+
+          // Wait for browser to finish
+          await browserFinished;
+
+          // After browser closes, check for session
+          const { data: sessionData } = await supabase.auth.getSession();
+          if (sessionData?.session) {
+            // Reload to trigger auth state change
+            window.location.reload();
+          }
+
+          // Clean up listeners
+          Browser.removeAllListeners();
+        }
+      } else {
+        // Web: use the standard Lovable OAuth flow
+        const result = await lovable.auth.signInWithOAuth("google", {
+          redirect_uri: window.location.origin + redirectPath,
+        });
+        if (result.error) {
+          toast({
+            title: 'Google sign-in failed',
+            description: result.error.message || 'Something went wrong',
+            variant: 'destructive',
+          });
+        }
       }
     } catch (error: any) {
       toast({
