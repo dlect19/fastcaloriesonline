@@ -152,6 +152,12 @@ async function handleChargeSuccess(supabase: SupabaseClient, data: any, environm
     return;
   }
 
+  // Check if this is an ad wallet funding transaction
+  if (metadata?.type === "ad_wallet_funding") {
+    await handleAdWalletFunding(supabase, data, environment);
+    return;
+  }
+
   if (!metadata?.order_id) {
     console.log("No order_id in metadata, skipping");
     return;
