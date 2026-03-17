@@ -107,6 +107,7 @@ import WorkspaceLogin from "./pages/WorkspaceLogin";
 import { playGlobalNotificationSound } from '@/lib/globalAudio';
 import { useFcmNotifications } from '@/hooks/useFcmNotifications';
 import { usePortalMemory } from '@/hooks/usePortalMemory';
+import { useNativeOAuthHandler } from '@/hooks/useNativeOAuthHandler';
 
 const queryClient = new QueryClient();
 
