@@ -1,15 +1,19 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
+const serverUrl = process.env.CAP_SERVER_URL;
+
 const config: CapacitorConfig = {
   appId: 'com.fastcalories.customer',
   appName: 'Fast Calories',
   webDir: 'dist',
-  // For production apps, comment out or remove the server config to use bundled assets
-  // Currently configured for live reload during development
-  server: {
-    url: 'https://app.fastcalories.online',
-    cleartext: false
-  },
+  ...(serverUrl
+    ? {
+        server: {
+          url: serverUrl,
+          cleartext: serverUrl.startsWith('http://'),
+        },
+      }
+    : {}),
   plugins: {
     PushNotifications: {
       presentationOptions: ['alert', 'sound', 'badge']

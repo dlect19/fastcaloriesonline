@@ -52,13 +52,11 @@ export default function RiderAuth() {
 
   // Listen for Google OAuth callback
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
-        const user = session.user;
+    const handleGoogleOAuthState = async (user: any) => {
+      try {
         const isOAuth = user.app_metadata?.provider === 'google';
         if (!isOAuth) return;
 
-        // Check if already a rider
         const { data: roles } = await supabase
           .from('user_roles')
           .select('role')
@@ -67,16 +65,24 @@ export default function RiderAuth() {
         if (roles?.some(r => r.role === 'rider')) {
           navigate(redirectUrl || '/rider/dashboard');
         } else {
-          // Need to complete rider profile
           setGoogleUserId(user.id);
           setGoogleEmail(user.email || '');
           setFullName(user.user_metadata?.full_name || user.user_metadata?.name || '');
           setGoogleCompleteProfile(true);
         }
+      } catch (error: any) {
+        toast({ title: 'Google sign-in check failed', description: error.message || 'Please try again', variant: 'destructive' });
+      }
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        void handleGoogleOAuthState(session.user);
       }
     });
+
     return () => subscription.unsubscribe();
-  }, [navigate, redirectUrl]);
+  }, [navigate, redirectUrl, toast]);
 
   const handleGoogleCompleteRiderProfile = async () => {
     if (!googleUserId) return;
