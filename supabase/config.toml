@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.paystack-initialize-ad-funding]
 verify_jwt = false
+
+[functions.generate-vendor-ad-image]
+verify_jwt = false

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, Eye, MousePointer, DollarSign, Plus, Wallet, ArrowUpRight, ArrowDownLeft, Megaphone, BarChart3, Clock } from 'lucide-react';
+import { Loader2, Eye, MousePointer, DollarSign, Plus, Wallet, ArrowUpRight, ArrowDownLeft, Megaphone, Clock, Sparkles, Upload, Image as ImageIcon } from 'lucide-react';
 import { VendorLayout } from '@/components/vendor/VendorLayout';
 
 interface AdWallet {
@@ -69,9 +69,15 @@ const statusColors: Record<string, string> = {
   rejected: 'bg-red-100 text-red-800',
 };
 
+const FORMAT_DIMENSIONS: Record<string, { w: number; h: number; label: string }> = {
+  carousel: { w: 1200, h: 400, label: 'App Carousel (1200×400)' },
+  announcement: { w: 1080, h: 1080, label: 'Announcement (1080×1080)' },
+};
+
 export default function VendorAdvertising() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
   
   const [loading, setLoading] = useState(true);
@@ -82,6 +88,7 @@ export default function VendorAdvertising() {
   const [placements, setPlacements] = useState<AdPlacement[]>([]);
   const [pricingOptions, setPricingOptions] = useState<AdPricing[]>([]);
   const [walletTxs, setWalletTxs] = useState<WalletTx[]>([]);
+  const [aiImagePrice, setAiImagePrice] = useState(500);
   
   // Create ad form
   const [createDialog, setCreateDialog] = useState(false);
@@ -89,6 +96,13 @@ export default function VendorAdvertising() {
   const [saving, setSaving] = useState(false);
   const [fundAmount, setFundAmount] = useState('');
   const [fundMode, setFundMode] = useState<'earnings' | 'direct'>('earnings');
+  
+  // Image options
+  const [imageMode, setImageMode] = useState<'upload' | 'ai'>('upload');
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiMenuItems, setAiMenuItems] = useState('');
+  const [generatingImage, setGeneratingImage] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   
   const [adForm, setAdForm] = useState({
     title: '',
@@ -106,6 +120,24 @@ export default function VendorAdvertising() {
     if (!authLoading && !user) navigate('/vendor/auth');
   }, [user, authLoading]);
 
+  // Handle Paystack callback
+  useEffect(() => {
+    const reference = searchParams.get('reference') || searchParams.get('trxref');
+    if (reference && user) {
+      toast({ title: 'Payment received!', description: 'Your ad wallet is being credited. This may take a moment.' });
+      // Clear URL params
+      setSearchParams({}, { replace: true });
+      // Poll for balance update
+      let attempts = 0;
+      const poll = setInterval(async () => {
+        attempts++;
+        if (attempts > 10) { clearInterval(poll); return; }
+        await fetchVendorData();
+      }, 3000);
+      setTimeout(() => clearInterval(poll), 35000);
+    }
+  }, [searchParams, user]);
+
   useEffect(() => {
     if (user) fetchVendorData();
   }, [user]);
@@ -113,14 +145,12 @@ export default function VendorAdvertising() {
   const fetchVendorData = async () => {
     setLoading(true);
     try {
-      // Get vendor info with coordinates
       const { data: vendor } = await supabase.from('vendors').select('id, latitude, longitude').eq('user_id', user!.id).single();
       if (!vendor) { navigate('/vendor/auth'); return; }
       setVendorId(vendor.id);
       setVendorLat(vendor.latitude);
       setVendorLng(vendor.longitude);
 
-      // Get or create ad wallet
       let { data: adWallet } = await supabase.from('ad_wallets').select('*').eq('vendor_id', vendor.id).single();
       if (!adWallet) {
         const { data: newWallet } = await supabase.from('ad_wallets').insert({
@@ -131,16 +161,17 @@ export default function VendorAdvertising() {
       }
       setWallet(adWallet as AdWallet);
 
-      // Fetch placements, pricing, transactions
-      const [placementsRes, pricingRes, txRes] = await Promise.all([
+      const [placementsRes, pricingRes, txRes, priceRes] = await Promise.all([
         supabase.from('ad_placements').select('*').eq('vendor_id', vendor.id).order('created_at', { ascending: false }),
         supabase.from('ad_pricing').select('*').eq('is_active', true).order('cpm_rate', { ascending: true }),
         adWallet ? supabase.from('ad_wallet_transactions').select('*').eq('ad_wallet_id', adWallet.id).order('created_at', { ascending: false }).limit(50) : Promise.resolve({ data: [] }),
+        supabase.from('platform_settings').select('value').eq('key', 'ai_ad_image_price').single(),
       ]);
 
       setPlacements((placementsRes.data as AdPlacement[]) || []);
       setPricingOptions((pricingRes.data as AdPricing[]) || []);
       setWalletTxs((txRes.data as WalletTx[]) || []);
+      if (priceRes.data?.value) setAiImagePrice(Number(priceRes.data.value));
     } catch (err) {
       console.error(err);
     } finally {
@@ -153,8 +184,7 @@ export default function VendorAdvertising() {
     if (!amount || amount <= 0 || !wallet || !vendorId) return;
     setSaving(true);
     try {
-      // Check vendor's withdrawable balance
-      const { data: vendorWallet } = await supabase.from('wallets').select('eligible_balance, menu_earnings_balance').eq('user_id', user!.id).eq('wallet_type', 'vendor').single();
+      const { data: vendorWallet } = await supabase.from('wallets').select('eligible_balance, menu_earnings_balance, balance').eq('user_id', user!.id).eq('wallet_type', 'vendor').single();
       const available = vendorWallet?.menu_earnings_balance || 0;
       if (amount > available) {
         toast({ title: 'Insufficient balance', description: `Available: ₦${available.toLocaleString()}`, variant: 'destructive' });
@@ -162,8 +192,6 @@ export default function VendorAdvertising() {
         return;
       }
 
-      // Debit vendor wallet, credit ad wallet
-      // We'll use a simple RPC approach: debit earnings and credit ad wallet
       const newAdBal = wallet.balance + amount;
       await supabase.from('ad_wallets').update({ 
         balance: newAdBal, 
@@ -180,19 +208,6 @@ export default function VendorAdvertising() {
         notes: 'Funded from menu earnings',
       });
 
-      // Debit vendor earnings wallet via RPC
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      // Use direct wallet update (simplified - in production use a proper edge function)
-      const { error: debitErr } = await supabase.from('wallets')
-        .update({ 
-          menu_earnings_balance: (vendorWallet?.menu_earnings_balance || 0) - amount,
-          eligible_balance: (vendorWallet?.eligible_balance || 0) - amount,
-          balance: ((vendorWallet as any)?.balance || 0) - amount,
-        })
-        .eq('user_id', user!.id)
-        .eq('wallet_type', 'vendor');
-
-      // Record in wallet_transactions
       const { data: vWallet } = await supabase.from('wallets').select('id').eq('user_id', user!.id).eq('wallet_type', 'vendor').single();
       if (vWallet) {
         await supabase.from('wallet_transactions').insert({
@@ -239,11 +254,104 @@ export default function VendorAdvertising() {
     }
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !vendorId) return;
+
+    // Get required dimensions for the selected format
+    const selectedPricing = pricingOptions.find(p => p.id === adForm.pricing_id);
+    const placementType = selectedPricing?.placement_type || adForm.placement_type;
+    const dims = FORMAT_DIMENSIONS[placementType];
+
+    // Validate image dimensions
+    const img = new window.Image();
+    const objectUrl = URL.createObjectURL(file);
+    
+    img.onload = async () => {
+      URL.revokeObjectURL(objectUrl);
+      
+      if (dims) {
+        const tolerancePct = 0.1; // 10% tolerance
+        const minW = dims.w * (1 - tolerancePct);
+        const maxW = dims.w * (1 + tolerancePct);
+        const minH = dims.h * (1 - tolerancePct);
+        const maxH = dims.h * (1 + tolerancePct);
+        
+        if (img.width < minW || img.width > maxW || img.height < minH || img.height > maxH) {
+          toast({
+            title: 'Image size mismatch',
+            description: `Required: ${dims.w}×${dims.h}px (±10%). Your image: ${img.width}×${img.height}px`,
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
+
+      // Upload
+      setUploadingImage(true);
+      try {
+        const ext = file.name.split('.').pop() || 'png';
+        const path = `vendor-ads/${vendorId}/${Date.now()}.${ext}`;
+        const { error: uploadErr } = await supabase.storage.from('campaign-images').upload(path, file, { contentType: file.type });
+        if (uploadErr) throw uploadErr;
+        
+        const { data: urlData } = supabase.storage.from('campaign-images').getPublicUrl(path);
+        setAdForm(prev => ({ ...prev, image_url: urlData.publicUrl }));
+        toast({ title: 'Image uploaded!' });
+      } catch (err: any) {
+        toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
+      } finally {
+        setUploadingImage(false);
+      }
+    };
+    
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      toast({ title: 'Invalid image file', variant: 'destructive' });
+    };
+    
+    img.src = objectUrl;
+  };
+
+  const handleGenerateAiImage = async () => {
+    if (!wallet || wallet.balance < aiImagePrice) {
+      toast({ title: 'Insufficient ad wallet balance', description: `AI generation costs ₦${aiImagePrice}`, variant: 'destructive' });
+      return;
+    }
+    
+    setGeneratingImage(true);
+    try {
+      const selectedPricing = pricingOptions.find(p => p.id === adForm.pricing_id);
+      const format = selectedPricing?.placement_type || adForm.placement_type;
+      const menuItems = aiMenuItems.split(',').map(s => s.trim()).filter(Boolean);
+
+      const { data, error } = await supabase.functions.invoke('generate-vendor-ad-image', {
+        body: { prompt: aiPrompt, format, menu_items: menuItems },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      setAdForm(prev => ({ ...prev, image_url: data.image_url }));
+      // Refresh wallet balance
+      fetchVendorData();
+      toast({ title: 'Image generated!', description: `₦${data.cost} deducted from ad wallet` });
+    } catch (err: any) {
+      toast({ title: 'Generation failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setGeneratingImage(false);
+    }
+  };
+
   const handleCreateAd = async () => {
     if (!wallet || !vendorId) return;
     const selectedPricing = pricingOptions.find(p => p.id === adForm.pricing_id);
     if (!selectedPricing) {
       toast({ title: 'Select a pricing plan', variant: 'destructive' });
+      return;
+    }
+    if (!adForm.image_url) {
+      toast({ title: 'Image required', description: 'Upload or generate an ad image', variant: 'destructive' });
       return;
     }
     if (adForm.budget < selectedPricing.min_budget) {
@@ -261,7 +369,6 @@ export default function VendorAdvertising() {
 
     setSaving(true);
     try {
-      // Debit ad wallet
       const newBal = wallet.balance - adForm.budget;
       await supabase.from('ad_wallets').update({ balance: newBal, total_spent: (wallet.total_spent || 0) + adForm.budget }).eq('id', wallet.id);
       
@@ -275,14 +382,13 @@ export default function VendorAdvertising() {
         notes: `Ad placement: ${adForm.title}`,
       });
 
-      // Create placement
       await supabase.from('ad_placements').insert({
         vendor_id: vendorId,
         user_id: user!.id,
         title: adForm.title,
         description: adForm.description || null,
         image_url: adForm.image_url || null,
-        placement_type: adForm.placement_type,
+        placement_type: selectedPricing.placement_type,
         target_latitude: vendorLat,
         target_longitude: vendorLng,
         target_radius_km: adForm.target_radius_km,
@@ -297,6 +403,8 @@ export default function VendorAdvertising() {
       toast({ title: 'Submitted!', description: 'Your ad is pending admin review' });
       setCreateDialog(false);
       setAdForm({ title: '', description: '', image_url: '', placement_type: 'carousel', target_radius_km: 10, starts_at: '', ends_at: '', budget: 5000, pricing_id: '' });
+      setAiPrompt('');
+      setAiMenuItems('');
       fetchVendorData();
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
@@ -314,6 +422,9 @@ export default function VendorAdvertising() {
       </VendorLayout>
     );
   }
+
+  const selectedPricingForForm = pricingOptions.find(p => p.id === adForm.pricing_id);
+  const currentFormatDims = FORMAT_DIMENSIONS[selectedPricingForForm?.placement_type || adForm.placement_type];
 
   return (
     <VendorLayout>
@@ -421,14 +532,14 @@ export default function VendorAdvertising() {
             </div>
             <div>
               <Label>Amount (₦)</Label>
-              <Input type="number" value={fundAmount} onChange={e => setFundAmount(e.target.value)} placeholder="5000" min={1000} />
+              <Input type="number" value={fundAmount} onChange={e => setFundAmount(e.target.value)} placeholder="5000" min={fundMode === 'direct' ? 1000 : 100} />
             </div>
             {fundMode === 'direct' && (
-              <p className="text-xs text-muted-foreground">You'll be redirected to Paystack to complete payment via card or bank transfer.</p>
+              <p className="text-xs text-muted-foreground">Minimum ₦1,000. You'll be redirected to Paystack to complete payment.</p>
             )}
             <Button
               className="w-full"
-              disabled={saving || !fundAmount || parseFloat(fundAmount) < 1000}
+              disabled={saving || !fundAmount || (fundMode === 'direct' ? parseFloat(fundAmount) < 1000 : parseFloat(fundAmount) <= 0)}
               onClick={fundMode === 'earnings' ? handleFundFromEarnings : handleFundViaPaystack}
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : fundMode === 'earnings' ? 'Fund from Earnings' : `Pay ₦${parseFloat(fundAmount || '0').toLocaleString()} via Paystack`}
@@ -444,12 +555,15 @@ export default function VendorAdvertising() {
           <div className="space-y-4">
             <div><Label>Title *</Label><Input value={adForm.title} onChange={e => setAdForm({ ...adForm, title: e.target.value })} placeholder="Summer Special Deal" /></div>
             <div><Label>Description</Label><Textarea value={adForm.description} onChange={e => setAdForm({ ...adForm, description: e.target.value })} placeholder="Describe your ad" rows={2} /></div>
-            <div><Label>Image URL (optional)</Label><Input value={adForm.image_url} onChange={e => setAdForm({ ...adForm, image_url: e.target.value })} placeholder="https://..." /></div>
+            
+            {/* Pricing Plan - must be selected first for format-aware image */}
             <div>
-              <Label>Pricing Plan</Label>
+              <Label>Pricing Plan *</Label>
               <Select value={adForm.pricing_id} onValueChange={v => {
                 const p = pricingOptions.find(o => o.id === v);
                 setAdForm({ ...adForm, pricing_id: v, placement_type: p?.placement_type || 'carousel', budget: Math.max(adForm.budget, p?.min_budget || 5000) });
+                // Reset image when format changes
+                setAdForm(prev => ({ ...prev, pricing_id: v, placement_type: p?.placement_type || 'carousel', budget: Math.max(prev.budget, p?.min_budget || 5000), image_url: '' }));
               }}>
                 <SelectTrigger><SelectValue placeholder="Select plan" /></SelectTrigger>
                 <SelectContent>
@@ -459,6 +573,95 @@ export default function VendorAdvertising() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Image Section */}
+            <div className="space-y-3">
+              <Label>Ad Image *</Label>
+              {currentFormatDims && (
+                <p className="text-xs text-muted-foreground">Required size: {currentFormatDims.w}×{currentFormatDims.h}px — {currentFormatDims.label}</p>
+              )}
+              
+              <div className="flex gap-2">
+                <Button
+                  variant={imageMode === 'upload' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setImageMode('upload')}
+                  className="flex-1"
+                >
+                  <Upload className="w-4 h-4 mr-1" />Upload
+                </Button>
+                <Button
+                  variant={imageMode === 'ai' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setImageMode('ai')}
+                  className="flex-1"
+                >
+                  <Sparkles className="w-4 h-4 mr-1" />AI Generate (₦{aiImagePrice})
+                </Button>
+              </div>
+
+              {imageMode === 'upload' ? (
+                <div>
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    disabled={uploadingImage || !adForm.pricing_id}
+                    className="cursor-pointer"
+                  />
+                  {!adForm.pricing_id && <p className="text-xs text-amber-600 mt-1">Select a pricing plan first to know the required image size</p>}
+                  {uploadingImage && <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" />Uploading...</p>}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {!adForm.pricing_id && <p className="text-xs text-amber-600">Select a pricing plan first</p>}
+                  <Textarea
+                    value={aiPrompt}
+                    onChange={e => setAiPrompt(e.target.value)}
+                    placeholder="Describe what you want in your ad (e.g., 'Show our jollof rice and fried chicken with a festive vibe')"
+                    rows={2}
+                    disabled={!adForm.pricing_id}
+                  />
+                  <Input
+                    value={aiMenuItems}
+                    onChange={e => setAiMenuItems(e.target.value)}
+                    placeholder="Menu items (comma separated): Jollof Rice, Fried Chicken, Suya"
+                    disabled={!adForm.pricing_id}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Uses your restaurant logo + Fast Calories branding. Cost: ₦{aiImagePrice} from ad wallet (balance: ₦{wallet?.balance?.toLocaleString() || 0})
+                  </p>
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    disabled={generatingImage || !adForm.pricing_id || (wallet?.balance || 0) < aiImagePrice}
+                    onClick={handleGenerateAiImage}
+                  >
+                    {generatingImage ? (
+                      <><Loader2 className="w-4 h-4 animate-spin mr-1" />Generating...</>
+                    ) : (
+                      <><Sparkles className="w-4 h-4 mr-1" />Generate Image — ₦{aiImagePrice}</>
+                    )}
+                  </Button>
+                </div>
+              )}
+
+              {/* Image preview */}
+              {adForm.image_url && (
+                <div className="relative rounded-lg overflow-hidden border border-border">
+                  <img src={adForm.image_url} alt="Ad preview" className="w-full h-auto object-contain max-h-48" />
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="absolute top-2 right-2"
+                    onClick={() => setAdForm(prev => ({ ...prev, image_url: '' }))}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              )}
+            </div>
+
             <div><Label>Budget (₦)</Label><Input type="number" value={adForm.budget} onChange={e => setAdForm({ ...adForm, budget: Number(e.target.value) })} min={1000} /></div>
             <div><Label>Target Radius (km from your location)</Label><Input type="number" value={adForm.target_radius_km} onChange={e => setAdForm({ ...adForm, target_radius_km: Number(e.target.value) })} min={1} max={100} /></div>
             <div className="grid grid-cols-2 gap-3">
@@ -467,9 +670,9 @@ export default function VendorAdvertising() {
             </div>
             <div className="bg-muted/50 rounded-lg p-3 text-sm text-muted-foreground">
               <p>Your ad will target customers within <strong>{adForm.target_radius_km} km</strong> of your outlet.</p>
-              <p className="mt-1">Estimated impressions: ~{Math.floor((adForm.budget / (pricingOptions.find(p => p.id === adForm.pricing_id)?.cpm_rate || 500)) * 1000).toLocaleString()}</p>
+              <p className="mt-1">Estimated impressions: ~{Math.floor((adForm.budget / (selectedPricingForForm?.cpm_rate || 500)) * 1000).toLocaleString()}</p>
             </div>
-            <Button className="w-full" disabled={saving || !adForm.title || !adForm.pricing_id} onClick={handleCreateAd}>
+            <Button className="w-full" disabled={saving || !adForm.title || !adForm.pricing_id || !adForm.image_url} onClick={handleCreateAd}>
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : `Submit for Review — ₦${adForm.budget.toLocaleString()}`}
             </Button>
           </div>
