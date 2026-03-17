@@ -611,6 +611,14 @@ export function VendorCheckoutSection({
           callbackUrl={`${window.location.origin}/cart?funded=true`}
         />
       )}
+
+      {/* Delivery Address Confirmation Dialog */}
+      <DeliveryAddressConfirmDialog
+        open={showAddressConfirm}
+        addressLabel={deliveryLocation?.label || 'Unknown location'}
+        onConfirm={proceedWithOrder}
+        onCancel={() => setShowAddressConfirm(false)}
+      />
     </div>
   );
 }
