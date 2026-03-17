@@ -202,6 +202,63 @@ export default function AdminAdPlacements() {
 
   const pendingCount = placements.filter(p => p.status === 'pending_review').length;
 
+  const searchVendorsForCredit = async (q: string) => {
+    setCreditVendorSearch(q);
+    if (q.length < 2) { setCreditVendors([]); return; }
+    const { data: vendors } = await supabase.from('vendors').select('id, name').ilike('name', `%${q}%`).limit(10);
+    if (!vendors) return;
+    const results = await Promise.all(vendors.map(async v => {
+      const { data: wallet } = await supabase.from('ad_wallets').select('id, balance').eq('vendor_id', v.id).maybeSingle();
+      return { id: v.id, name: v.name, wallet_balance: wallet?.balance || 0, wallet_id: wallet?.id || '' };
+    }));
+    setCreditVendors(results);
+  };
+
+  const handleAdminCredit = async () => {
+    if (!selectedCreditVendor || !creditAmount) return;
+    const amount = parseFloat(creditAmount);
+    if (amount <= 0) return;
+    setSaving(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      let walletId = selectedCreditVendor.wallet_id;
+      
+      // Create wallet if doesn't exist
+      if (!walletId) {
+        const { data: vendor } = await supabase.from('vendors').select('user_id').eq('id', selectedCreditVendor.id).single();
+        const { data: newWallet } = await supabase.from('ad_wallets').insert({
+          vendor_id: selectedCreditVendor.id,
+          user_id: vendor?.user_id || '',
+        }).select('id').single();
+        walletId = newWallet?.id || '';
+      }
+
+      const currentBal = selectedCreditVendor.wallet_balance || 0;
+      const newBal = currentBal + amount;
+
+      await supabase.from('ad_wallets').update({ balance: newBal, total_funded: newBal }).eq('id', walletId);
+      await supabase.from('ad_wallet_transactions').insert({
+        ad_wallet_id: walletId,
+        vendor_id: selectedCreditVendor.id,
+        transaction_type: 'credit',
+        category: 'admin_credit',
+        amount,
+        balance_after: newBal,
+        notes: creditNotes || `Admin credit by ${user?.email}`,
+      });
+
+      toast({ title: 'Credited!', description: `₦${amount.toLocaleString()} added to ${selectedCreditVendor.name}'s ad wallet` });
+      setCreditDialog(false);
+      setSelectedCreditVendor(null);
+      setCreditAmount('');
+      setCreditNotes('');
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <AdminLayout>
       <div className="mb-6">
