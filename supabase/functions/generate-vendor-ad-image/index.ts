@@ -45,7 +45,7 @@ serve(async (req) => {
     // Get ad wallet
     const { data: adWallet } = await supabase
       .from("ad_wallets")
-      .select("id, balance")
+      .select("id, balance, total_spent")
       .eq("vendor_id", vendor.id)
       .single();
 
