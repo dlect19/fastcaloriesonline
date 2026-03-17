@@ -348,6 +348,63 @@ export default function AdminAdPlacements() {
             ))}
           </div>
         </TabsContent>
+
+        <TabsContent value="credits">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Credit Vendor Ad Wallet</CardTitle>
+              <p className="text-sm text-muted-foreground">Manually add promotional credits to a vendor's advertising wallet</p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label>Search Vendor</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    className="pl-9"
+                    placeholder="Type vendor name..."
+                    value={creditVendorSearch}
+                    onChange={e => searchVendorsForCredit(e.target.value)}
+                  />
+                </div>
+                {creditVendors.length > 0 && !selectedCreditVendor && (
+                  <div className="mt-2 border rounded-lg max-h-40 overflow-y-auto">
+                    {creditVendors.map(v => (
+                      <button
+                        key={v.id}
+                        className="w-full text-left px-3 py-2 hover:bg-muted flex justify-between items-center text-sm"
+                        onClick={() => { setSelectedCreditVendor(v); setCreditVendorSearch(v.name); }}
+                      >
+                        <span className="font-medium text-foreground">{v.name}</span>
+                        <span className="text-muted-foreground">Wallet: ₦{v.wallet_balance.toLocaleString()}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {selectedCreditVendor && (
+                  <div className="mt-2 p-3 bg-muted/50 rounded-lg flex justify-between items-center">
+                    <div>
+                      <p className="font-medium text-foreground">{selectedCreditVendor.name}</p>
+                      <p className="text-xs text-muted-foreground">Current ad wallet: ₦{selectedCreditVendor.wallet_balance.toLocaleString()}</p>
+                    </div>
+                    <Button size="sm" variant="ghost" onClick={() => { setSelectedCreditVendor(null); setCreditVendorSearch(''); setCreditVendors([]); }}>Change</Button>
+                  </div>
+                )}
+              </div>
+              <div>
+                <Label>Credit Amount (₦)</Label>
+                <Input type="number" value={creditAmount} onChange={e => setCreditAmount(e.target.value)} placeholder="10000" min={100} />
+              </div>
+              <div>
+                <Label>Notes (optional)</Label>
+                <Textarea value={creditNotes} onChange={e => setCreditNotes(e.target.value)} placeholder="Promotional credit, welcome bonus, etc." rows={2} />
+              </div>
+              <Button onClick={handleAdminCredit} disabled={saving || !selectedCreditVendor || !creditAmount} className="w-full">
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : `Credit ₦${parseFloat(creditAmount || '0').toLocaleString()}`}
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
 
       {/* Review Dialog */}
