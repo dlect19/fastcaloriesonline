@@ -429,6 +429,7 @@ export default function AdminAdvertisements() {
                   </div>
                 </div>
 
+                <div className="flex items-center gap-2">
                   <Switch
                     checked={formData.is_active}
                     onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
