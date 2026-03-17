@@ -98,6 +98,7 @@ export default function VendorAdvertising() {
   const [pricingOptions, setPricingOptions] = useState<AdPricing[]>([]);
   const [walletTxs, setWalletTxs] = useState<WalletTx[]>([]);
   const [aiImagePrice, setAiImagePrice] = useState(500);
+  const [savedImages, setSavedImages] = useState<SavedAdImage[]>([]);
   
   // Create ad form
   const [createDialog, setCreateDialog] = useState(false);
