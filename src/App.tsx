@@ -206,6 +206,7 @@ const App = () => {
               <Route path="/admin/settings" element={<AdminSettings />} />
               <Route path="/admin/advertisements" element={<AdminAdvertisements />} />
               <Route path="/admin/campaigns" element={<AdminCampaigns />} />
+              <Route path="/admin/ad-placements" element={<AdminAdPlacements />} />
               <Route path="/admin/nutrition" element={<AdminNutrition />} />
               <Route path="/admin/payouts" element={<AdminPayouts />} />
               <Route path="/admin/customer-wallets" element={<AdminCustomerWallets />} />
