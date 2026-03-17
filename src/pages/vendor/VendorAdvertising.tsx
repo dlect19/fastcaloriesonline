@@ -545,7 +545,7 @@ export default function VendorAdvertising() {
                         <span className="flex items-center gap-1"><Eye className="w-3 h-3" />{p.total_impressions} impressions</span>
                         <span className="flex items-center gap-1"><MousePointer className="w-3 h-3" />{p.total_clicks} clicks</span>
                         <span className="flex items-center gap-1"><DollarSign className="w-3 h-3" />₦{p.spent.toLocaleString()} / ₦{p.budget.toLocaleString()}</span>
-                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{new Date(p.starts_at).toLocaleDateString()} - {new Date(p.ends_at).toLocaleDateString()}</span>
+                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{formatWATDate(p.starts_at)} - {formatWATDate(p.ends_at)}</span>
                       </div>
                     </CardContent>
                   </Card>
