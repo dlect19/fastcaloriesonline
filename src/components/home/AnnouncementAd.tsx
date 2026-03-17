@@ -27,6 +27,7 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
 }
 
 export function AnnouncementAd({ userLatitude, userLongitude }: AnnouncementAdProps) {
+  const navigate = useNavigate();
   const [ad, setAd] = useState<AnnouncementAdData | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const { trackImpression, trackClick } = useAdImpressionTracker();
