@@ -91,12 +91,7 @@ export default function RiderAuth() {
     setLoading(true);
     try {
       // Add rider role
-      await supabase.rpc('add_rider_role', { _user_id: googleUserId }).then(async (res) => {
-        if (res.error) {
-          // Fallback: insert directly
-          await supabase.from('user_roles').insert({ user_id: googleUserId, role: 'rider' });
-        }
-      });
+      await supabase.from('user_roles').insert({ user_id: googleUserId, role: 'rider' });
 
       // Create rider profile
       await supabase.from('rider_profiles').insert({
