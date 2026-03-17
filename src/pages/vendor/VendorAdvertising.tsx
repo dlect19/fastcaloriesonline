@@ -312,6 +312,12 @@ export default function VendorAdvertising() {
         }
       }
 
+      // Check saved images limit
+      if (savedImages.length >= 5) {
+        toast({ title: 'Image limit reached', description: 'You can save up to 5 ad images. Delete an old one first.', variant: 'destructive' });
+        return;
+      }
+
       // Upload
       setUploadingImage(true);
       try {
@@ -321,8 +327,21 @@ export default function VendorAdvertising() {
         if (uploadErr) throw uploadErr;
         
         const { data: urlData } = supabase.storage.from('campaign-images').getPublicUrl(path);
-        setAdForm(prev => ({ ...prev, image_url: urlData.publicUrl }));
-        toast({ title: 'Image uploaded!' });
+        const publicUrl = urlData.publicUrl;
+        setAdForm(prev => ({ ...prev, image_url: publicUrl }));
+
+        // Save to vendor_ad_images
+        const selectedPricing = pricingOptions.find(p => p.id === adForm.pricing_id);
+        await supabase.from('vendor_ad_images').insert({
+          vendor_id: vendorId,
+          user_id: user!.id,
+          image_url: publicUrl,
+          storage_path: path,
+          format: selectedPricing?.placement_type || adForm.placement_type,
+          source: 'upload',
+        });
+        await fetchVendorData();
+        toast({ title: 'Image uploaded & saved!' });
       } catch (err: any) {
         toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
       } finally {
