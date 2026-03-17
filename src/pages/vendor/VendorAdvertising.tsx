@@ -13,7 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2, Eye, MousePointer, DollarSign, Plus, Wallet, ArrowUpRight, ArrowDownLeft, Megaphone, BarChart3, Clock } from 'lucide-react';
-import { VendorBottomNav } from '@/components/vendor/VendorBottomNav';
+import { VendorLayout } from '@/components/vendor/VendorLayout';
 
 interface AdWallet {
   id: string;
@@ -307,15 +307,17 @@ export default function VendorAdvertising() {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
+      <VendorLayout>
+        <div className="p-6 flex items-center justify-center min-h-[50vh]">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </VendorLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20">
-      <div className="p-4 max-w-2xl mx-auto">
+    <VendorLayout>
+      <div className="p-6">
         <h1 className="text-2xl font-bold text-foreground mb-1">Advertising</h1>
         <p className="text-sm text-muted-foreground mb-6">Promote your business to nearby customers</p>
 
@@ -473,8 +475,6 @@ export default function VendorAdvertising() {
           </div>
         </DialogContent>
       </Dialog>
-
-      <VendorBottomNav />
-    </div>
+    </VendorLayout>
   );
 }
