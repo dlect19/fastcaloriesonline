@@ -2,3 +2,6 @@ project_id = "bruyccrjymmpzulqhotw"
 
 [functions.generate-campaign-image]
 verify_jwt = false
+
+[functions.paystack-initialize-ad-funding]
+verify_jwt = false

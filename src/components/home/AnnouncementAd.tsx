@@ -86,7 +86,7 @@ export function AnnouncementAd({ userLatitude, userLongitude }: AnnouncementAdPr
   if (!ad || dismissed) return null;
 
   const handleClick = () => {
-    trackClick(ad.id, ad.ad_placement_id, userLatitude || undefined, userLongitude || undefined);
+    trackClick(ad.id, ad.ad_placement_id);
     if (ad.link_url) {
       window.open(ad.link_url, '_blank');
     }

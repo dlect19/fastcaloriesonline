@@ -430,6 +430,12 @@ export default function Home() {
         {/* Promo Banner */}
         <PromoBanner />
 
+        {/* Announcement Ad Popup */}
+        <AnnouncementAd
+          userLatitude={deliveryLocation?.latitude || null}
+          userLongitude={deliveryLocation?.longitude || null}
+        />
+
         {/* Random Menu Carousel */}
         <MenuCarousel nearbyVendorIds={nearbyVendorIds} />
 
