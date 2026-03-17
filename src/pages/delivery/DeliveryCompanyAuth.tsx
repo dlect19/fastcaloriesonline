@@ -11,6 +11,7 @@ import { Eye, EyeOff, Loader2, Truck, Building2 } from 'lucide-react';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 import { ForgotPasswordModal } from '@/components/auth/ForgotPasswordModal';
 import { TermsAcceptanceCheckbox } from '@/components/auth/TermsAcceptanceCheckbox';
+import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
 
 export default function DeliveryCompanyAuth() {
   const navigate = useNavigate();
@@ -36,9 +37,74 @@ export default function DeliveryCompanyAuth() {
   const [state, setState] = useState('');
   const [address, setAddress] = useState('');
 
+  // Google OAuth: complete company profile after Google sign-in
+  const [googleCompleteProfile, setGoogleCompleteProfile] = useState(false);
+  const [googleUserId, setGoogleUserId] = useState<string | null>(null);
+  const [googleEmail, setGoogleEmail] = useState('');
+
   useEffect(() => {
     checkUser();
   }, []);
+
+  // Listen for Google OAuth callback
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        const user = session.user;
+        const isOAuth = user.app_metadata?.provider === 'google';
+        if (!isOAuth) return;
+
+        const { data: roles } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', user.id);
+
+        if (roles?.some(r => r.role === 'delivery_company')) {
+          navigate('/delivery/dashboard');
+        } else {
+          setGoogleUserId(user.id);
+          setGoogleEmail(user.email || '');
+          setOwnerName(user.user_metadata?.full_name || user.user_metadata?.name || '');
+          setGoogleCompleteProfile(true);
+        }
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [navigate]);
+
+  const handleGoogleCompleteCompanyProfile = async () => {
+    if (!googleUserId) return;
+    if (!companyName || !phone || !city || !state) {
+      toast({ title: 'All fields required', description: 'Please fill all company details.', variant: 'destructive' });
+      return;
+    }
+    setLoading(true);
+    try {
+      // Add delivery_company role
+      await supabase.from('user_roles').insert({ user_id: googleUserId, role: 'delivery_company' });
+
+      // Create delivery company
+      await supabase.from('delivery_companies').insert({
+        user_id: googleUserId,
+        name: companyName,
+        email: googleEmail,
+        phone,
+        city,
+        state,
+        address,
+      });
+
+      // Update profile
+      await supabase.from('profiles').update({ phone, full_name: ownerName }).eq('user_id', googleUserId);
+
+      toast({ title: 'Registration successful!', description: 'Your company is pending admin verification.' });
+      navigate('/delivery/dashboard');
+    } catch (error: any) {
+      toast({ title: 'Registration failed', description: error.message, variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const checkUser = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -258,6 +324,66 @@ export default function DeliveryCompanyAuth() {
     }
   };
 
+  // Google OAuth: show company profile completion form
+  if (googleCompleteProfile) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="flex justify-center mb-4">
+              <div className="relative">
+                <img src={fastCaloriesLogo} alt="Fast Calories" className="w-20 h-20 object-contain" />
+                <div className="absolute -bottom-1 -right-1 bg-primary rounded-full p-1">
+                  <Truck className="w-4 h-4 text-primary-foreground" />
+                </div>
+              </div>
+            </div>
+            <CardTitle className="text-2xl">Complete Company Registration</CardTitle>
+            <CardDescription>Signed in as {googleEmail}. Please provide your company details.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2"><Building2 className="w-4 h-4" />Company Name</Label>
+              <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="e.g., Swift Logistics Ltd" required />
+            </div>
+            <div className="space-y-2">
+              <Label>Owner/Manager Name</Label>
+              <Input value={ownerName} onChange={(e) => setOwnerName(e.target.value)} required />
+            </div>
+            <div className="space-y-2">
+              <Label>Phone Number</Label>
+              <Input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} required />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>City</Label>
+                <Input value={city} onChange={(e) => setCity(e.target.value)} required />
+              </div>
+              <div className="space-y-2">
+                <Label>State</Label>
+                <Input value={state} onChange={(e) => setState(e.target.value)} required />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Business Address</Label>
+              <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Office address" required />
+            </div>
+            <Button className="w-full" onClick={handleGoogleCompleteCompanyProfile} disabled={loading}>
+              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Complete Registration
+            </Button>
+            <Button variant="ghost" className="w-full" onClick={async () => {
+              await supabase.auth.signOut();
+              setGoogleCompleteProfile(false);
+            }}>
+              Cancel
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
@@ -324,6 +450,11 @@ export default function DeliveryCompanyAuth() {
                   {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                   Login
                 </Button>
+                <div className="relative my-4">
+                  <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border" /></div>
+                  <div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-2 text-muted-foreground">Or</span></div>
+                </div>
+                <GoogleSignInButton redirectPath="/delivery/auth" label="Sign in with Google" />
               </form>
             </TabsContent>
 

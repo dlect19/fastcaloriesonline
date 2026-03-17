@@ -12,6 +12,7 @@ import riderLogo from '@/assets/rider-logo.png';
 import { ForgotPasswordModal } from '@/components/auth/ForgotPasswordModal';
 import { EmailVerificationOTP } from '@/components/rider/EmailVerificationOTP';
 import { TermsAcceptanceCheckbox } from '@/components/auth/TermsAcceptanceCheckbox';
+import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
 
 export default function RiderAuth() {
   const navigate = useNavigate();
@@ -40,9 +41,84 @@ export default function RiderAuth() {
   const [vehiclePlate, setVehiclePlate] = useState('');
   const [ninNumber, setNinNumber] = useState('');
 
+  // Google OAuth: complete rider profile after Google sign-in
+  const [googleCompleteProfile, setGoogleCompleteProfile] = useState(false);
+  const [googleUserId, setGoogleUserId] = useState<string | null>(null);
+  const [googleEmail, setGoogleEmail] = useState('');
+
   useEffect(() => {
     checkUser();
   }, []);
+
+  // Listen for Google OAuth callback
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        const user = session.user;
+        const isOAuth = user.app_metadata?.provider === 'google';
+        if (!isOAuth) return;
+
+        // Check if already a rider
+        const { data: roles } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', user.id);
+
+        if (roles?.some(r => r.role === 'rider')) {
+          navigate(redirectUrl || '/rider/dashboard');
+        } else {
+          // Need to complete rider profile
+          setGoogleUserId(user.id);
+          setGoogleEmail(user.email || '');
+          setFullName(user.user_metadata?.full_name || user.user_metadata?.name || '');
+          setGoogleCompleteProfile(true);
+        }
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [navigate, redirectUrl]);
+
+  const handleGoogleCompleteRiderProfile = async () => {
+    if (!googleUserId) return;
+    if (!vehicleType) {
+      toast({ title: 'Vehicle type required', variant: 'destructive' });
+      return;
+    }
+    if (!ninNumber || !/^\d{11}$/.test(ninNumber)) {
+      toast({ title: 'Valid 11-digit NIN required', variant: 'destructive' });
+      return;
+    }
+    setLoading(true);
+    try {
+      // Add rider role
+      await supabase.from('user_roles').insert({ user_id: googleUserId, role: 'rider' });
+
+      // Create rider profile
+      await supabase.from('rider_profiles').insert({
+        user_id: googleUserId,
+        vehicle_type: vehicleType,
+        vehicle_plate: vehiclePlate || null,
+        nin_number: ninNumber,
+        nin_submitted_at: new Date().toISOString(),
+        email: googleEmail,
+      });
+
+      // Update profile with phone
+      if (phone) {
+        await supabase.from('profiles').update({ phone, full_name: fullName }).eq('user_id', googleUserId);
+      }
+
+      // Update wallet type
+      await supabase.from('wallets').update({ wallet_type: 'rider' }).eq('user_id', googleUserId);
+
+      toast({ title: 'Registration successful!', description: 'Your account is pending admin verification.' });
+      navigate(redirectUrl || '/rider/dashboard');
+    } catch (error: any) {
+      toast({ title: 'Registration failed', description: error.message, variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const checkUser = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -53,7 +129,6 @@ export default function RiderAuth() {
         .eq('user_id', user.id);
       
       if (roles?.some(r => r.role === 'rider')) {
-        // If there's a redirect URL (like an invite link), go there instead
         navigate(redirectUrl || '/rider/dashboard');
       }
     }
@@ -377,6 +452,72 @@ export default function RiderAuth() {
     );
   }
 
+  // Google OAuth: show rider profile completion form
+  if (googleCompleteProfile) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="flex justify-center mb-4">
+              <img src={riderLogo} alt="Fast Calories Rider" className="w-24 h-24 object-contain" />
+            </div>
+            <CardTitle className="text-2xl">Complete Your Rider Profile</CardTitle>
+            <CardDescription>
+              Signed in as {googleEmail}. Please provide your rider details to continue.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Full Name</Label>
+              <Input value={fullName} onChange={(e) => setFullName(e.target.value)} required />
+            </div>
+            <div className="space-y-2">
+              <Label>Phone Number</Label>
+              <Input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} required />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Vehicle Type</Label>
+                <Input value={vehicleType} onChange={(e) => setVehicleType(e.target.value)} placeholder="e.g., Motorcycle" required />
+              </div>
+              <div className="space-y-2">
+                <Label>Plate Number <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                <Input value={vehiclePlate} onChange={(e) => setVehiclePlate(e.target.value)} placeholder="N/A for bicycles" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-primary" />
+                National Identification Number (NIN)
+              </Label>
+              <Input
+                value={ninNumber}
+                onChange={(e) => setNinNumber(e.target.value.replace(/\D/g, '').slice(0, 11))}
+                placeholder="Enter 11-digit NIN"
+                maxLength={11}
+                required
+              />
+              <div className="flex items-start gap-2 text-xs text-muted-foreground">
+                <AlertCircle className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                <span>Your NIN is required for security verification.</span>
+              </div>
+            </div>
+            <Button className="w-full" onClick={handleGoogleCompleteRiderProfile} disabled={loading}>
+              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Complete Registration
+            </Button>
+            <Button variant="ghost" className="w-full" onClick={async () => {
+              await supabase.auth.signOut();
+              setGoogleCompleteProfile(false);
+            }}>
+              Cancel
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
@@ -438,6 +579,11 @@ export default function RiderAuth() {
                   {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                   Login
                 </Button>
+                <div className="relative my-4">
+                  <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border" /></div>
+                  <div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-2 text-muted-foreground">Or</span></div>
+                </div>
+                <GoogleSignInButton redirectPath="/rider/auth" label="Sign in with Google" />
               </form>
             </TabsContent>
 
