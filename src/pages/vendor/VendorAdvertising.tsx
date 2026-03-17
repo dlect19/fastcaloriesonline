@@ -446,7 +446,7 @@ export default function VendorAdvertising() {
         </DialogContent>
       </Dialog>
 
-      <BottomNav portalType="vendor" />
+      <VendorBottomNav />
     </div>
   );
 }
