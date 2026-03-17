@@ -72,6 +72,11 @@ export default function AdminAdvertisements() {
     is_active: true,
     display_order: 0,
     target_audience: 'all',
+    starts_at: '',
+    ends_at: '',
+    target_latitude: '',
+    target_longitude: '',
+    target_radius_km: 0,
   });
 
   const activeAds = ads.filter(ad => ad.is_active);
@@ -146,6 +151,11 @@ export default function AdminAdvertisements() {
             is_active: formData.is_active,
             display_order: formData.display_order,
             target_audience: formData.target_audience,
+            starts_at: formData.starts_at || null,
+            ends_at: formData.ends_at || null,
+            target_latitude: formData.target_latitude ? parseFloat(formData.target_latitude) : null,
+            target_longitude: formData.target_longitude ? parseFloat(formData.target_longitude) : null,
+            target_radius_km: formData.target_radius_km || 0,
           })
           .eq('id', editingAd.id);
 
@@ -162,6 +172,11 @@ export default function AdminAdvertisements() {
             is_active: formData.is_active,
             display_order: formData.display_order,
             target_audience: formData.target_audience,
+            starts_at: formData.starts_at || null,
+            ends_at: formData.ends_at || null,
+            target_latitude: formData.target_latitude ? parseFloat(formData.target_latitude) : null,
+            target_longitude: formData.target_longitude ? parseFloat(formData.target_longitude) : null,
+            target_radius_km: formData.target_radius_km || 0,
           });
 
         if (error) throw error;
@@ -193,6 +208,11 @@ export default function AdminAdvertisements() {
       is_active: ad.is_active ?? true,
       display_order: ad.display_order ?? 0,
       target_audience: ad.target_audience || 'all',
+      starts_at: ad.starts_at ? ad.starts_at.slice(0, 16) : '',
+      ends_at: ad.ends_at ? ad.ends_at.slice(0, 16) : '',
+      target_latitude: (ad as any).target_latitude?.toString() || '',
+      target_longitude: (ad as any).target_longitude?.toString() || '',
+      target_radius_km: (ad as any).target_radius_km || 0,
     });
     setDialogOpen(true);
   };
@@ -243,6 +263,11 @@ export default function AdminAdvertisements() {
       is_active: true,
       display_order: ads.length,
       target_audience: 'all',
+      starts_at: '',
+      ends_at: '',
+      target_latitude: '',
+      target_longitude: '',
+      target_radius_km: 0,
     });
   };
 
@@ -349,7 +374,61 @@ export default function AdminAdvertisements() {
                     </SelectContent>
                   </Select>
                 </div>
-                
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Start Date/Time</Label>
+                    <Input
+                      type="datetime-local"
+                      value={formData.starts_at}
+                      onChange={(e) => setFormData({ ...formData, starts_at: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label>End Date/Time</Label>
+                    <Input
+                      type="datetime-local"
+                      value={formData.ends_at}
+                      onChange={(e) => setFormData({ ...formData, ends_at: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="border rounded-lg p-3 space-y-3">
+                  <Label className="text-sm font-medium">Location Targeting (optional)</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">Latitude</Label>
+                      <Input
+                        type="number"
+                        step="any"
+                        value={formData.target_latitude}
+                        onChange={(e) => setFormData({ ...formData, target_latitude: e.target.value })}
+                        placeholder="6.5244"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Longitude</Label>
+                      <Input
+                        type="number"
+                        step="any"
+                        value={formData.target_longitude}
+                        onChange={(e) => setFormData({ ...formData, target_longitude: e.target.value })}
+                        placeholder="3.3792"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Radius (km) — 0 = show everywhere</Label>
+                    <Input
+                      type="number"
+                      value={formData.target_radius_km}
+                      onChange={(e) => setFormData({ ...formData, target_radius_km: parseInt(e.target.value) || 0 })}
+                      min={0}
+                    />
+                  </div>
+                </div>
+
                 <div className="flex items-center gap-2">
                   <Switch
                     checked={formData.is_active}
@@ -485,6 +564,12 @@ export default function AdminAdvertisements() {
                     <div className="flex-1 min-w-0">
                       <h3 className="font-medium text-foreground truncate">{ad.title}</h3>
                       <p className="text-sm text-muted-foreground truncate">{ad.description}</p>
+                      <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
+                        <span>{(ad as any).total_impressions || 0} views</span>
+                        <span>{(ad as any).total_clicks || 0} clicks</span>
+                        {ad.starts_at && <span>From {new Date(ad.starts_at).toLocaleDateString()}</span>}
+                        {ad.ends_at && <span>Until {new Date(ad.ends_at).toLocaleDateString()}</span>}
+                      </div>
                     </div>
                     
                     <div className="flex items-center gap-2 shrink-0">

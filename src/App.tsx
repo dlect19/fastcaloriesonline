@@ -60,6 +60,7 @@ import AdminStaffJoin from "./pages/admin/AdminStaffJoin";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminAdvertisements from "./pages/admin/AdminAdvertisements";
 import AdminCampaigns from "./pages/admin/AdminCampaigns";
+import AdminAdPlacements from "./pages/admin/AdminAdPlacements";
 import AdminNutrition from "./pages/admin/AdminNutrition";
 import AdminPayouts from "./pages/admin/AdminPayouts";
 import AdminCustomerWallets from "./pages/admin/AdminCustomerWallets";
@@ -95,6 +96,7 @@ import DeliveryRiderJoin from "./pages/delivery/DeliveryRiderJoin";
 import DeliverySupport from "./pages/delivery/DeliverySupport";
 import DeliveryStaff from "./pages/delivery/DeliveryStaff";
 import VendorSupport from "./pages/vendor/VendorSupport";
+import VendorAdvertising from "./pages/vendor/VendorAdvertising";
 import RiderSupport from "./pages/rider/RiderSupport";
 import AdminSupport from "./pages/admin/AdminSupport";
 import AdminNotifications from "./pages/admin/AdminNotifications";
@@ -177,6 +179,7 @@ const App = () => {
               <Route path="/vendor/staff/join/:code" element={<VendorStaffJoin />} />
               <Route path="/vendor/staff-login/:vendorId?" element={<VendorStaffLogin />} />
               <Route path="/vendor/support" element={<VendorSupport />} />
+              <Route path="/vendor/advertising" element={<VendorAdvertising />} />
               {/* Rider Portal Routes */}
               <Route path="/rider/auth" element={<RiderAuth />} />
               <Route path="/rider/dashboard" element={<RiderDashboard />} />
@@ -203,6 +206,7 @@ const App = () => {
               <Route path="/admin/settings" element={<AdminSettings />} />
               <Route path="/admin/advertisements" element={<AdminAdvertisements />} />
               <Route path="/admin/campaigns" element={<AdminCampaigns />} />
+              <Route path="/admin/ad-placements" element={<AdminAdPlacements />} />
               <Route path="/admin/nutrition" element={<AdminNutrition />} />
               <Route path="/admin/payouts" element={<AdminPayouts />} />
               <Route path="/admin/customer-wallets" element={<AdminCustomerWallets />} />

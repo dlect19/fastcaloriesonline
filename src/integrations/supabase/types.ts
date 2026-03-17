@@ -80,6 +80,300 @@ export type Database = {
         }
         Relationships: []
       }
+      ad_impressions: {
+        Row: {
+          ad_placement_id: string | null
+          advertisement_id: string | null
+          created_at: string
+          event_type: string
+          id: string
+          viewer_latitude: number | null
+          viewer_longitude: number | null
+          viewer_user_id: string | null
+        }
+        Insert: {
+          ad_placement_id?: string | null
+          advertisement_id?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          viewer_latitude?: number | null
+          viewer_longitude?: number | null
+          viewer_user_id?: string | null
+        }
+        Update: {
+          ad_placement_id?: string | null
+          advertisement_id?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          viewer_latitude?: number | null
+          viewer_longitude?: number | null
+          viewer_user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_impressions_ad_placement_id_fkey"
+            columns: ["ad_placement_id"]
+            isOneToOne: false
+            referencedRelation: "ad_placements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ad_impressions_advertisement_id_fkey"
+            columns: ["advertisement_id"]
+            isOneToOne: false
+            referencedRelation: "advertisements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ad_placements: {
+        Row: {
+          ad_pricing_id: string | null
+          advertisement_id: string | null
+          approved_at: string | null
+          approved_by: string | null
+          budget: number
+          cpm_rate: number
+          created_at: string
+          description: string | null
+          ends_at: string
+          id: string
+          image_url: string | null
+          link_url: string | null
+          placement_type: string
+          rejection_reason: string | null
+          spent: number
+          starts_at: string
+          status: string
+          target_latitude: number | null
+          target_longitude: number | null
+          target_radius_km: number | null
+          title: string
+          total_clicks: number
+          total_impressions: number
+          updated_at: string
+          user_id: string
+          vendor_id: string
+        }
+        Insert: {
+          ad_pricing_id?: string | null
+          advertisement_id?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          budget?: number
+          cpm_rate?: number
+          created_at?: string
+          description?: string | null
+          ends_at: string
+          id?: string
+          image_url?: string | null
+          link_url?: string | null
+          placement_type?: string
+          rejection_reason?: string | null
+          spent?: number
+          starts_at: string
+          status?: string
+          target_latitude?: number | null
+          target_longitude?: number | null
+          target_radius_km?: number | null
+          title: string
+          total_clicks?: number
+          total_impressions?: number
+          updated_at?: string
+          user_id: string
+          vendor_id: string
+        }
+        Update: {
+          ad_pricing_id?: string | null
+          advertisement_id?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          budget?: number
+          cpm_rate?: number
+          created_at?: string
+          description?: string | null
+          ends_at?: string
+          id?: string
+          image_url?: string | null
+          link_url?: string | null
+          placement_type?: string
+          rejection_reason?: string | null
+          spent?: number
+          starts_at?: string
+          status?: string
+          target_latitude?: number | null
+          target_longitude?: number | null
+          target_radius_km?: number | null
+          title?: string
+          total_clicks?: number
+          total_impressions?: number
+          updated_at?: string
+          user_id?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_placements_ad_pricing_id_fkey"
+            columns: ["ad_pricing_id"]
+            isOneToOne: false
+            referencedRelation: "ad_pricing"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ad_placements_advertisement_id_fkey"
+            columns: ["advertisement_id"]
+            isOneToOne: false
+            referencedRelation: "advertisements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ad_placements_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ad_pricing: {
+        Row: {
+          cpm_rate: number
+          created_at: string
+          id: string
+          is_active: boolean
+          max_duration_days: number
+          min_budget: number
+          min_duration_days: number
+          name: string
+          placement_type: string
+          updated_at: string
+        }
+        Insert: {
+          cpm_rate?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          max_duration_days?: number
+          min_budget?: number
+          min_duration_days?: number
+          name: string
+          placement_type?: string
+          updated_at?: string
+        }
+        Update: {
+          cpm_rate?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          max_duration_days?: number
+          min_budget?: number
+          min_duration_days?: number
+          name?: string
+          placement_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ad_wallet_transactions: {
+        Row: {
+          ad_wallet_id: string
+          amount: number
+          balance_after: number
+          category: string
+          created_at: string
+          id: string
+          metadata: Json | null
+          notes: string | null
+          reference: string | null
+          transaction_type: string
+          vendor_id: string
+        }
+        Insert: {
+          ad_wallet_id: string
+          amount: number
+          balance_after?: number
+          category: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          notes?: string | null
+          reference?: string | null
+          transaction_type: string
+          vendor_id: string
+        }
+        Update: {
+          ad_wallet_id?: string
+          amount?: number
+          balance_after?: number
+          category?: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          notes?: string | null
+          reference?: string | null
+          transaction_type?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_wallet_transactions_ad_wallet_id_fkey"
+            columns: ["ad_wallet_id"]
+            isOneToOne: false
+            referencedRelation: "ad_wallets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ad_wallet_transactions_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ad_wallets: {
+        Row: {
+          balance: number
+          created_at: string
+          id: string
+          total_funded: number
+          total_spent: number
+          updated_at: string
+          user_id: string
+          vendor_id: string
+        }
+        Insert: {
+          balance?: number
+          created_at?: string
+          id?: string
+          total_funded?: number
+          total_spent?: number
+          updated_at?: string
+          user_id: string
+          vendor_id: string
+        }
+        Update: {
+          balance?: number
+          created_at?: string
+          id?: string
+          total_funded?: number
+          total_spent?: number
+          updated_at?: string
+          user_id?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_wallets_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: true
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       addon_groups: {
         Row: {
           created_at: string
@@ -334,6 +628,7 @@ export type Database = {
       }
       advertisements: {
         Row: {
+          ad_placement_id: string | null
           created_at: string
           description: string | null
           display_order: number | null
@@ -344,9 +639,15 @@ export type Database = {
           link_url: string | null
           starts_at: string | null
           target_audience: string | null
+          target_latitude: number | null
+          target_longitude: number | null
+          target_radius_km: number | null
           title: string
+          total_clicks: number
+          total_impressions: number
         }
         Insert: {
+          ad_placement_id?: string | null
           created_at?: string
           description?: string | null
           display_order?: number | null
@@ -357,9 +658,15 @@ export type Database = {
           link_url?: string | null
           starts_at?: string | null
           target_audience?: string | null
+          target_latitude?: number | null
+          target_longitude?: number | null
+          target_radius_km?: number | null
           title: string
+          total_clicks?: number
+          total_impressions?: number
         }
         Update: {
+          ad_placement_id?: string | null
           created_at?: string
           description?: string | null
           display_order?: number | null
@@ -370,9 +677,22 @@ export type Database = {
           link_url?: string | null
           starts_at?: string | null
           target_audience?: string | null
+          target_latitude?: number | null
+          target_longitude?: number | null
+          target_radius_km?: number | null
           title?: string
+          total_clicks?: number
+          total_impressions?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "advertisements_ad_placement_id_fkey"
+            columns: ["ad_placement_id"]
+            isOneToOne: false
+            referencedRelation: "ad_placements"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       calorie_logs: {
         Row: {
