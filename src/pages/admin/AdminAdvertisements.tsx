@@ -72,6 +72,11 @@ export default function AdminAdvertisements() {
     is_active: true,
     display_order: 0,
     target_audience: 'all',
+    starts_at: '',
+    ends_at: '',
+    target_latitude: '',
+    target_longitude: '',
+    target_radius_km: 0,
   });
 
   const activeAds = ads.filter(ad => ad.is_active);
