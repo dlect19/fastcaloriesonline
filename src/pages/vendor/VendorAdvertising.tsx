@@ -120,21 +120,34 @@ export default function VendorAdvertising() {
     if (!authLoading && !user) navigate('/vendor/auth');
   }, [user, authLoading]);
 
-  // Handle Paystack callback
+  // Handle Paystack callback - verify payment server-side
   useEffect(() => {
     const reference = searchParams.get('reference') || searchParams.get('trxref');
     if (reference && user) {
-      toast({ title: 'Payment received!', description: 'Your ad wallet is being credited. This may take a moment.' });
-      // Clear URL params
       setSearchParams({}, { replace: true });
-      // Poll for balance update
-      let attempts = 0;
-      const poll = setInterval(async () => {
-        attempts++;
-        if (attempts > 10) { clearInterval(poll); return; }
+      toast({ title: 'Verifying payment...', description: 'Please wait while we confirm your payment.' });
+      
+      const verifyPayment = async () => {
+        try {
+          const { data, error } = await supabase.functions.invoke('verify-ad-wallet-funding', {
+            body: { reference },
+          });
+          
+          if (error) throw error;
+          
+          if (data?.success) {
+            toast({ title: 'Ad Wallet Funded!', description: data.message || `₦${data.amount?.toLocaleString()} added to your ad wallet.` });
+          } else {
+            toast({ title: 'Verification Issue', description: data?.error || 'Could not verify payment. Please contact support.', variant: 'destructive' });
+          }
+        } catch (err) {
+          console.error('Ad wallet funding verification error:', err);
+          toast({ title: 'Verification Error', description: 'Could not verify payment. Please contact support.', variant: 'destructive' });
+        }
         await fetchVendorData();
-      }, 3000);
-      setTimeout(() => clearInterval(poll), 35000);
+      };
+      
+      verifyPayment();
     }
   }, [searchParams, user]);
 
