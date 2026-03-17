@@ -71,17 +71,35 @@ export default function ProfileSetup() {
       return;
     }
 
+    if (!user) {
+      toast({
+        title: 'Authentication required',
+        description: 'Please sign in again to complete your profile.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setLoading(true);
     try {
-      const { error } = await supabase
+      const trimmedFullName = fullName.trim();
+      const trimmedPhone = phone.trim();
+
+      const { data: savedProfile, error } = await supabase
         .from('profiles')
-        .update({
-          full_name: fullName.trim(),
-          phone: phone.trim(),
-        })
-        .eq('user_id', user!.id);
+        .upsert(
+          {
+            user_id: user.id,
+            full_name: trimmedFullName,
+            phone: trimmedPhone,
+          },
+          { onConflict: 'user_id' }
+        )
+        .select('id')
+        .single();
 
       if (error) throw error;
+      if (!savedProfile?.id) throw new Error('Failed to save profile record');
 
       // Link referral if stored
       const storedReferralCode = localStorage.getItem('fc_referral_code');
@@ -93,23 +111,17 @@ export default function ProfileSetup() {
             .ilike('referral_code', storedReferralCode)
             .single();
 
-          const { data: myProfile } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('user_id', user!.id)
-            .single();
-
-          if (referrerProfile && myProfile && referrerProfile.id !== myProfile.id) {
+          if (referrerProfile && referrerProfile.id !== savedProfile.id) {
             // Update referred_by
             await supabase
               .from('profiles')
               .update({ referred_by: referrerProfile.id })
-              .eq('id', myProfile.id);
+              .eq('id', savedProfile.id);
 
             // Create referral record
             await supabase.from('referrals').insert({
               referrer_id: referrerProfile.id,
-              referred_id: myProfile.id,
+              referred_id: savedProfile.id,
               status: 'pending',
             });
           }
