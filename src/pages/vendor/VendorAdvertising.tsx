@@ -362,6 +362,10 @@ export default function VendorAdvertising() {
       toast({ title: 'Insufficient ad wallet balance', description: `AI generation costs ₦${aiImagePrice}`, variant: 'destructive' });
       return;
     }
+    if (savedImages.length >= 5) {
+      toast({ title: 'Image limit reached', description: 'You can save up to 5 ad images. Delete an old one first.', variant: 'destructive' });
+      return;
+    }
     
     setGeneratingImage(true);
     try {
@@ -377,13 +381,29 @@ export default function VendorAdvertising() {
       if (data?.error) throw new Error(data.error);
 
       setAdForm(prev => ({ ...prev, image_url: data.image_url }));
-      // Refresh wallet balance
+      // Refresh wallet balance + saved images
       fetchVendorData();
       toast({ title: 'Image generated!', description: `₦${data.cost} deducted from ad wallet` });
     } catch (err: any) {
       toast({ title: 'Generation failed', description: err.message, variant: 'destructive' });
     } finally {
       setGeneratingImage(false);
+    }
+  };
+
+  const handleDeleteSavedImage = async (img: SavedAdImage) => {
+    try {
+      if (img.storage_path) {
+        await supabase.storage.from('campaign-images').remove([img.storage_path]);
+      }
+      await supabase.from('vendor_ad_images').delete().eq('id', img.id);
+      setSavedImages(prev => prev.filter(i => i.id !== img.id));
+      if (adForm.image_url === img.image_url) {
+        setAdForm(prev => ({ ...prev, image_url: '' }));
+      }
+      toast({ title: 'Image deleted' });
+    } catch (err: any) {
+      toast({ title: 'Delete failed', description: err.message, variant: 'destructive' });
     }
   };
 
