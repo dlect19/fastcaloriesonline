@@ -91,6 +91,7 @@ export function VendorCheckoutSection({
   const [vendorFees, setVendorFees] = useState<VendorFees>({ deliveryFee: 0, packagingFee: 0, distanceKm: null, surgeFee: 0 });
   const [feeCalculating, setFeeCalculating] = useState(false);
   const [showFundDialog, setShowFundDialog] = useState(false);
+  const [showAddressConfirm, setShowAddressConfirm] = useState(false);
 
   const { calculateServiceFee, loading: serviceFeeLoading } = useServiceFee();
   const riderAvailability = useRiderAvailability();
