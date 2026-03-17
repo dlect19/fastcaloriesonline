@@ -90,7 +90,12 @@ export function AnnouncementAd({ userLatitude, userLongitude }: AnnouncementAdPr
   const handleClick = () => {
     trackClick(ad.id, ad.ad_placement_id);
     if (ad.link_url) {
-      window.open(ad.link_url, '_blank');
+      if (ad.link_url.startsWith('http')) {
+        window.open(ad.link_url, '_blank');
+      } else {
+        navigate(ad.link_url);
+        setDismissed(true);
+      }
     }
   };
 
