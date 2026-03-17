@@ -13,7 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2, Eye, MousePointer, DollarSign, Plus, Wallet, ArrowUpRight, ArrowDownLeft, Megaphone, BarChart3, Clock } from 'lucide-react';
-import { BottomNav } from '@/components/BottomNav';
+import { VendorBottomNav } from '@/components/vendor/VendorBottomNav';
 
 interface AdWallet {
   id: string;
