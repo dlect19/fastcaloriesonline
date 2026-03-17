@@ -162,11 +162,16 @@ serve(async (req) => {
 
     // Deduct from ad wallet
     const newBalance = adWallet.balance - aiPrice;
-    await supabase.from("ad_wallets").update({
+    const { error: updateError } = await supabase.from("ad_wallets").update({
       balance: newBalance,
-      total_spent: (adWallet as any).total_spent + aiPrice,
+      total_spent: (adWallet.total_spent || 0) + aiPrice,
       updated_at: new Date().toISOString(),
     }).eq("id", adWallet.id);
+
+    if (updateError) {
+      console.error("Wallet deduction error:", updateError);
+      throw new Error("Failed to deduct from ad wallet");
+    }
 
     await supabase.from("ad_wallet_transactions").insert({
       ad_wallet_id: adWallet.id,
@@ -176,6 +181,16 @@ serve(async (req) => {
       amount: aiPrice,
       balance_after: newBalance,
       notes: `AI ad image generation (${selectedFormat.label})`,
+    });
+
+    // Save to vendor_ad_images
+    await supabase.from("vendor_ad_images").insert({
+      vendor_id: vendor.id,
+      user_id: user.id,
+      image_url: publicUrlData.publicUrl,
+      storage_path: storagePath,
+      format: format,
+      source: "ai_generated",
     });
 
     return new Response(
