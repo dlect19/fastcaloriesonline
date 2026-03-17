@@ -218,6 +218,27 @@ export default function VendorAdvertising() {
     }
   };
 
+  const handleFundViaPaystack = async () => {
+    const amount = parseFloat(fundAmount);
+    if (!amount || amount < 1000) return;
+    setSaving(true);
+    try {
+      const callbackUrl = `${window.location.origin}/vendor/advertising`;
+      const { data, error } = await supabase.functions.invoke('paystack-initialize-ad-funding', {
+        body: { amount, callbackUrl },
+      });
+      if (error) throw error;
+      if (data?.authorization_url) {
+        window.location.href = data.authorization_url;
+      } else {
+        throw new Error('No payment URL returned');
+      }
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+      setSaving(false);
+    }
+  };
+
   const handleCreateAd = async () => {
     if (!wallet || !vendorId) return;
     const selectedPricing = pricingOptions.find(p => p.id === adForm.pricing_id);
