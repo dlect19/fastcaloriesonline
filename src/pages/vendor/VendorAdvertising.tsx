@@ -475,8 +475,6 @@ export default function VendorAdvertising() {
           </div>
         </DialogContent>
       </Dialog>
-
-      </div>
     </VendorLayout>
   );
 }
