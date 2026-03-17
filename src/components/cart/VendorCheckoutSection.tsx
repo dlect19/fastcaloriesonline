@@ -6,6 +6,7 @@ import { OrderSummary } from '@/components/cart/OrderSummary';
 import { PromoCodeInput } from '@/components/cart/PromoCodeInput';
 import { ActiveDiscountSelector } from '@/components/cart/ActiveDiscountSelector';
 import { FundWalletDialog } from '@/components/profile/FundWalletDialog';
+import { DeliveryAddressConfirmDialog } from '@/components/cart/DeliveryAddressConfirmDialog';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
@@ -90,6 +91,7 @@ export function VendorCheckoutSection({
   const [vendorFees, setVendorFees] = useState<VendorFees>({ deliveryFee: 0, packagingFee: 0, distanceKm: null, surgeFee: 0 });
   const [feeCalculating, setFeeCalculating] = useState(false);
   const [showFundDialog, setShowFundDialog] = useState(false);
+  const [showAddressConfirm, setShowAddressConfirm] = useState(false);
 
   const { calculateServiceFee, loading: serviceFeeLoading } = useServiceFee();
   const riderAvailability = useRiderAvailability();
@@ -161,6 +163,17 @@ export function VendorCheckoutSection({
       return;
     }
 
+    // Prompt delivery address confirmation before proceeding
+    if (deliveryType === 'delivery' && hasDeliveryLocation) {
+      setShowAddressConfirm(true);
+      return;
+    }
+
+    await proceedWithOrder();
+  };
+
+  const proceedWithOrder = async () => {
+    setShowAddressConfirm(false);
     onPlacingChange(group.vendorId);
     try {
       // Validate products
@@ -598,6 +611,14 @@ export function VendorCheckoutSection({
           callbackUrl={`${window.location.origin}/cart?funded=true`}
         />
       )}
+
+      {/* Delivery Address Confirmation Dialog */}
+      <DeliveryAddressConfirmDialog
+        open={showAddressConfirm}
+        addressLabel={deliveryLocation?.label || 'Unknown location'}
+        onConfirm={proceedWithOrder}
+        onCancel={() => setShowAddressConfirm(false)}
+      />
     </div>
   );
 }
