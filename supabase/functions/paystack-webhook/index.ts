@@ -620,4 +620,82 @@ async function handleDVAFunding(supabase: SupabaseClient, data: any, environment
   console.log(`DVA funding successful: ${reference}, wallet ${wallet.id}, new balance: ${newBalance}`);
 }
 
+// Handle ad wallet funding via Paystack
+// deno-lint-ignore no-explicit-any
+async function handleAdWalletFunding(supabase: SupabaseClient, data: any, environment: string) {
+  const reference = data.reference as string;
+  const amount = (data.amount as number) / 100;
+  const metadata = data.metadata;
+  const vendorId = metadata?.vendor_id as string;
+  const adWalletId = metadata?.ad_wallet_id as string;
+
+  console.log(`Processing ad wallet funding: ${reference}, amount: ${amount}, vendor: ${vendorId}`);
+
+  if (!vendorId || !adWalletId) {
+    console.error("Missing vendor_id or ad_wallet_id in ad wallet funding metadata");
+    return;
+  }
+
+  // Idempotency check
+  const { data: existingTx } = await supabase
+    .from("ad_wallet_transactions")
+    .select("id")
+    .eq("reference", reference)
+    .eq("category", "paystack_funding")
+    .maybeSingle();
+
+  if (existingTx) {
+    console.log(`Ad wallet funding ${reference} already processed, skipping`);
+    return;
+  }
+
+  // Get ad wallet
+  const { data: adWallet, error: walletError } = await supabase
+    .from("ad_wallets")
+    .select("*")
+    .eq("id", adWalletId)
+    .single();
+
+  if (walletError || !adWallet) {
+    console.error("Ad wallet not found:", adWalletId);
+    return;
+  }
+
+  const newBalance = Number(adWallet.balance || 0) + amount;
+
+  // Insert transaction
+  const { error: insertError } = await supabase.from("ad_wallet_transactions").insert({
+    ad_wallet_id: adWalletId,
+    vendor_id: vendorId,
+    transaction_type: "credit",
+    category: "paystack_funding",
+    amount: amount,
+    balance_after: newBalance,
+    reference: reference,
+    notes: `Funded via Paystack (${data.channel || 'card'})`,
+    metadata: {
+      payment_channel: data.channel,
+      card_type: data.authorization?.card_type,
+      bank: data.authorization?.bank,
+    },
+  });
+
+  if (insertError) {
+    console.error("Error inserting ad wallet transaction:", insertError);
+    return;
+  }
+
+  // Update wallet balance
+  await supabase
+    .from("ad_wallets")
+    .update({
+      balance: newBalance,
+      total_funded: Number(adWallet.total_funded || 0) + amount,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", adWalletId);
+
+  console.log(`Ad wallet funding successful: ${reference}, new balance: ${newBalance}`);
+}
+
 serve(handler);
