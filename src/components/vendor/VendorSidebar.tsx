@@ -47,6 +47,7 @@ const navItems: {
   { id: 'reviews', icon: Star, label: 'Reviews', path: '/vendor/reviews', permission: 'view_dashboard' },
   { id: 'earnings', icon: Wallet, label: 'Earnings', path: '/vendor/earnings', permission: 'view_earnings' },
   { id: 'withdraw', icon: ArrowUpRight, label: 'Withdraw', path: '/vendor/withdraw', permission: 'request_withdrawal' },
+  { id: 'advertising', icon: Megaphone, label: 'Advertising', path: '/vendor/advertising', permission: 'view_dashboard' },
   { id: 'hours', icon: Clock, label: 'Working Hours', path: '/vendor/hours', permission: 'edit_settings' },
   { id: 'store-settings', icon: Settings2, label: 'Store Settings', path: '/vendor/store-settings', permission: 'edit_settings' },
   { id: 'support', icon: MessageSquare, label: 'Support', path: '/vendor/support' },
