@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.generate-vendor-ad-image]
 verify_jwt = false
+
+[functions.verify-ad-wallet-funding]
+verify_jwt = false
