@@ -316,7 +316,6 @@ function MenuRow({ items, scrollRef, label, onScroll, onNavigate }: {
               ) : (
                 <p className="text-xs font-bold text-primary mt-1">₦{item.price.toLocaleString()}</p>
               )}
-              )}
             </div>
           </button>
         ))}
