@@ -25,8 +25,12 @@ export default function FreeMeals() {
   const { user } = useAuth();
   const { toast } = useToast();
   const { promos, loading, redeemFreeMeal, refreshPromos } = useFreeMealPromos();
+  const { vendorGroups } = useCart();
   const [redeemingId, setRedeemingId] = useState<string | null>(null);
   const [confirmPromo, setConfirmPromo] = useState<FreeMealWithProgress | null>(null);
+
+  // Build a map of vendor cart subtotals
+  const vendorCartTotals = new Map(vendorGroups.map(g => [g.vendorId, g.subtotal]));
 
   const handleRedeem = async (promo: FreeMealWithProgress) => {
     setConfirmPromo(promo);
