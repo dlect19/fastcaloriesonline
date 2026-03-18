@@ -305,9 +305,17 @@ function MenuRow({ items, scrollRef, label, onScroll, onNavigate }: {
               <p className="text-xs font-medium text-foreground truncate">{item.name}</p>
               <p className="text-[10px] text-muted-foreground truncate">{item.vendor_name}</p>
               {item.isFreeMealPromo ? (
-                <p className="text-[10px] font-bold text-green-600 mt-1 truncate">{item.freeMealLabel}</p>
+                <>
+                  <p className="text-[10px] font-bold text-green-600 mt-0.5">{item.freeMealLabel}</p>
+                  {item.promoItems && item.promoItems.length > 0 && (
+                    <p className="text-[8px] text-muted-foreground mt-0.5 line-clamp-2">
+                      {item.promoItems.map(pi => `${pi.quantity}x ${pi.name}`).join(' + ')}
+                    </p>
+                  )}
+                </>
               ) : (
                 <p className="text-xs font-bold text-primary mt-1">₦{item.price.toLocaleString()}</p>
+              )}
               )}
             </div>
           </button>
