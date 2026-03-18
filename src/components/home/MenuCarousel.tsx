@@ -1,9 +1,8 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Flame } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Flame, Gift } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
-import { cn } from '@/lib/utils';
 
 interface MenuItem {
   id: string;
@@ -13,6 +12,8 @@ interface MenuItem {
   image_url: string | null;
   vendor_id: string;
   vendor_name: string;
+  isFreeMealPromo?: boolean;
+  freeMealLabel?: string;
 }
 
 function shuffleArray<T>(arr: T[]): T[] {
@@ -25,7 +26,6 @@ function shuffleArray<T>(arr: T[]): T[] {
 }
 
 interface MenuCarouselProps {
-  /** Only show products from these vendor IDs (nearby vendors) */
   nearbyVendorIds?: string[];
 }
 
@@ -42,34 +42,46 @@ export function MenuCarousel({ nearbyVendorIds }: MenuCarouselProps) {
 
   const fetchRandomMenuItems = async () => {
     try {
-      let query = supabase
+      // Fetch products and free meal promos in parallel
+      let productQuery = supabase
         .from('products')
         .select('id, name, price, calories, image_url, vendor_id')
         .eq('is_available', true);
 
-      // Filter to only nearby vendors if provided
       if (nearbyVendorIds && nearbyVendorIds.length > 0) {
-        query = query.in('vendor_id', nearbyVendorIds);
+        productQuery = productQuery.in('vendor_id', nearbyVendorIds);
       }
 
-      const { data: products, error } = await query.limit(100);
+      const [productsResult, promosResult] = await Promise.all([
+        productQuery.limit(100),
+        supabase
+          .from('free_meal_promos')
+          .select('id, product_id, product_name, product_image_url, vendor_id, vendor_name, meal_value, order_threshold')
+          .eq('is_active', true),
+      ]);
 
+      const { data: products, error } = productsResult;
       if (error) throw error;
       if (!products || products.length === 0) {
         setLoading(false);
         return;
       }
 
-      const vendorIds = [...new Set(products.map(p => p.vendor_id))];
+      // Collect all vendor IDs (products + promos)
+      const promos = promosResult.data || [];
+      const promoVendorIds = promos.map(p => p.vendor_id);
+      const allVendorIds = [...new Set([...products.map(p => p.vendor_id), ...promoVendorIds])];
+
       const { data: vendors } = await supabase
         .from('vendors')
         .select('id, name')
-        .in('id', vendorIds)
+        .in('id', allVendorIds)
         .eq('is_active', true)
         .eq('is_verified', true);
 
       const vendorMap = new Map((vendors || []).map(v => [v.id, v.name]));
 
+      // Build regular menu items
       const menuItems: MenuItem[] = products
         .filter(p => vendorMap.has(p.vendor_id))
         .map(p => ({
@@ -82,7 +94,32 @@ export function MenuCarousel({ nearbyVendorIds }: MenuCarouselProps) {
           vendor_name: vendorMap.get(p.vendor_id) || '',
         }));
 
-      setItems(shuffleArray(menuItems));
+      // Build free meal promo items (only from verified vendors)
+      const freeMealItems: MenuItem[] = promos
+        .filter(p => vendorMap.has(p.vendor_id))
+        .map(p => ({
+          id: `promo-${p.id}`,
+          name: p.product_name,
+          price: 0,
+          calories: null,
+          image_url: p.product_image_url,
+          vendor_id: p.vendor_id,
+          vendor_name: vendorMap.get(p.vendor_id) || p.vendor_name,
+          isFreeMealPromo: true,
+          freeMealLabel: `FREE with ₦${p.order_threshold.toLocaleString()}+ order`,
+        }));
+
+      // Remove duplicates: exclude products that are already in free meal promos
+      const promoProductIds = new Set(promos.map(p => p.product_id));
+      const filteredMenu = menuItems.filter(m => !promoProductIds.has(m.id));
+
+      const shuffledMenu = shuffleArray(filteredMenu);
+      const shuffledPromos = shuffleArray(freeMealItems);
+
+      // Prioritize free meal promos at the start of the list
+      const combined = [...shuffledPromos, ...shuffledMenu];
+
+      setItems(combined);
     } catch (err) {
       console.error('Error fetching menu items:', err);
     } finally {
@@ -112,8 +149,7 @@ export function MenuCarousel({ nearbyVendorIds }: MenuCarouselProps) {
 
   const scroll = (ref: React.RefObject<HTMLDivElement>, dir: 'left' | 'right') => {
     if (!ref.current) return;
-    const amount = dir === 'left' ? -200 : 200;
-    ref.current.scrollBy({ left: amount, behavior: 'smooth' });
+    ref.current.scrollBy({ left: dir === 'left' ? -200 : 200, behavior: 'smooth' });
   };
 
   if (loading) {
@@ -135,54 +171,62 @@ export function MenuCarousel({ nearbyVendorIds }: MenuCarouselProps) {
   const row1 = items.slice(0, half);
   const row2 = items.slice(half);
 
-  const renderRow = (
-    rowItems: MenuItem[],
-    ref: React.RefObject<HTMLDivElement>,
-    label: string
-  ) => (
+  return (
+    <section className="space-y-4">
+      <h2 className="text-lg font-bold text-foreground">🔥 Popular Picks</h2>
+      <MenuRow items={row1} scrollRef={scrollRef1} label="Trending Now" onScroll={scroll} onNavigate={(vendorId) => navigate(`/vendor/${vendorId}`)} />
+      {row2.length > 0 && <MenuRow items={row2} scrollRef={scrollRef2} label="You Might Like" onScroll={scroll} onNavigate={(vendorId) => navigate(`/vendor/${vendorId}`)} />}
+    </section>
+  );
+}
+
+// Extracted row component for cleanliness
+function MenuRow({ items, scrollRef, label, onScroll, onNavigate }: {
+  items: MenuItem[];
+  scrollRef: React.RefObject<HTMLDivElement>;
+  label: string;
+  onScroll: (ref: React.RefObject<HTMLDivElement>, dir: 'left' | 'right') => void;
+  onNavigate: (vendorId: string) => void;
+}) {
+  return (
     <div className="relative group">
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-sm font-semibold text-foreground">{label}</h3>
         <div className="flex gap-1">
-          <button
-            onClick={() => scroll(ref, 'left')}
-            className="w-6 h-6 rounded-full bg-secondary flex items-center justify-center text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
-          >
+          <button onClick={() => onScroll(scrollRef, 'left')} className="w-6 h-6 rounded-full bg-secondary flex items-center justify-center text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors">
             <ChevronLeft className="w-3.5 h-3.5" />
           </button>
-          <button
-            onClick={() => scroll(ref, 'right')}
-            className="w-6 h-6 rounded-full bg-secondary flex items-center justify-center text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
-          >
+          <button onClick={() => onScroll(scrollRef, 'right')} className="w-6 h-6 rounded-full bg-secondary flex items-center justify-center text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors">
             <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
       <div
-        ref={ref}
+        ref={scrollRef}
         className="flex gap-3 overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-1"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
-        {rowItems.map((item) => (
+        {items.map((item) => (
           <button
             key={item.id}
-            onClick={() => navigate(`/vendor/${item.vendor_id}`)}
+            onClick={() => onNavigate(item.vendor_id)}
             className="w-36 shrink-0 snap-start bg-card rounded-xl border border-border overflow-hidden shadow-soft hover:shadow-card transition-all group/card"
           >
             <div className="h-20 bg-secondary overflow-hidden relative">
               {item.image_url ? (
-                <img
-                  src={item.image_url}
-                  alt={item.name}
-                  className="w-full h-full object-cover group-hover/card:scale-105 transition-transform duration-300"
-                  loading="lazy"
-                />
+                <img src={item.image_url} alt={item.name} className="w-full h-full object-cover group-hover/card:scale-105 transition-transform duration-300" loading="lazy" />
               ) : (
                 <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
                   <span className="text-2xl">🍽️</span>
                 </div>
               )}
-              {item.calories && (
+              {item.isFreeMealPromo && (
+                <div className="absolute top-1 left-1 flex items-center gap-0.5 bg-green-600 text-white px-1.5 py-0.5 rounded-full">
+                  <Gift className="w-2.5 h-2.5" />
+                  <span className="text-[9px] font-bold">FREE</span>
+                </div>
+              )}
+              {item.calories && !item.isFreeMealPromo && (
                 <div className="absolute bottom-1 right-1 flex items-center gap-0.5 bg-card/90 backdrop-blur-sm px-1.5 py-0.5 rounded-full">
                   <Flame className="w-2.5 h-2.5 text-calorie-medium" />
                   <span className="text-[10px] font-medium text-foreground">{item.calories}</span>
@@ -192,19 +236,15 @@ export function MenuCarousel({ nearbyVendorIds }: MenuCarouselProps) {
             <div className="p-2">
               <p className="text-xs font-medium text-foreground truncate">{item.name}</p>
               <p className="text-[10px] text-muted-foreground truncate">{item.vendor_name}</p>
-              <p className="text-xs font-bold text-primary mt-1">₦{item.price.toLocaleString()}</p>
+              {item.isFreeMealPromo ? (
+                <p className="text-[10px] font-bold text-green-600 mt-1 truncate">{item.freeMealLabel}</p>
+              ) : (
+                <p className="text-xs font-bold text-primary mt-1">₦{item.price.toLocaleString()}</p>
+              )}
             </div>
           </button>
         ))}
       </div>
     </div>
-  );
-
-  return (
-    <section className="space-y-4">
-      <h2 className="text-lg font-bold text-foreground">🔥 Popular Picks</h2>
-      {renderRow(row1, scrollRef1, 'Trending Now')}
-      {row2.length > 0 && renderRow(row2, scrollRef2, 'You Might Like')}
-    </section>
   );
 }
