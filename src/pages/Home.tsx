@@ -20,6 +20,7 @@ import { ApkUpdateBanner } from '@/components/shared/ApkUpdateBanner';
 import { AppDownloadBanner } from '@/components/shared/AppDownloadBanner';
 import { AIMealRecommendation } from '@/components/home/AIMealRecommendation';
 import { SpinWheelWidget } from '@/components/home/SpinWheelWidget';
+import { FreeMealBanner } from '@/components/home/FreeMealBanner';
 import { LocationSearch } from '@/components/home/LocationSearch';
 import { Button } from '@/components/ui/button';
 import { LogOut, Flame, Star, ChevronRight, Sparkles, Heart, ShieldCheck, Building2, MapPinOff } from 'lucide-react';
