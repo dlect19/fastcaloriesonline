@@ -54,6 +54,8 @@ export default function VendorDetail() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
+  const { vendorGroups } = useCart();
+  const vendorCartTotal = vendorGroups.find(g => g.vendorId === id)?.subtotal || 0;
 
   // Location state — prefer delivery address from Home page over raw GPS
   const { latitude: gpsLat, longitude: gpsLon, loading: geoLoading, getCurrentPosition } = useGeolocation();
