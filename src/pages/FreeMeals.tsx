@@ -184,11 +184,13 @@ export default function FreeMeals() {
 
 function FreeMealCard({
   promo,
+  cartTotal = 0,
   onRedeem,
   isRedeeming,
   onViewVendor,
 }: {
   promo: FreeMealWithProgress;
+  cartTotal?: number;
   onRedeem: (p: FreeMealWithProgress) => void;
   isRedeeming: boolean;
   onViewVendor: () => void;
