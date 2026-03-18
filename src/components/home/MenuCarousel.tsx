@@ -116,20 +116,18 @@ export function MenuCarousel({ nearbyVendorIds }: MenuCarouselProps) {
       const shuffledMenu = shuffleArray(filteredMenu);
       const shuffledPromos = shuffleArray(freeMealItems);
 
-      // Interleave free meal promos every 4 items in the list
+      // Interleave free meal promos every 4 items with unique keys
       const interleaved: MenuItem[] = [];
-      let promoIndex = 0;
-      // Start with a promo if available
+      let promoInsertCount = 0;
       if (shuffledPromos.length > 0) {
-        interleaved.push(shuffledPromos[promoIndex % shuffledPromos.length]);
-        promoIndex++;
+        const p = shuffledPromos[0];
+        interleaved.push({ ...p, id: `${p.id}-repeat-${promoInsertCount++}` });
       }
       for (let i = 0; i < shuffledMenu.length; i++) {
         interleaved.push(shuffledMenu[i]);
-        // After every 4 regular items, insert a promo (cycling through promos)
         if ((i + 1) % 4 === 0 && shuffledPromos.length > 0) {
-          interleaved.push(shuffledPromos[promoIndex % shuffledPromos.length]);
-          promoIndex++;
+          const p = shuffledPromos[promoInsertCount % shuffledPromos.length];
+          interleaved.push({ ...p, id: `${p.id}-repeat-${promoInsertCount++}` });
         }
       }
 
