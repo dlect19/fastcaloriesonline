@@ -64,9 +64,15 @@ export function MenuCarousel({ nearbyVendorIds }: MenuCarouselProps) {
       // Build promos query — only those with show_in_carousel = true
       const promosQuery = supabase
         .from('free_meal_promos')
-        .select('id, product_id, product_name, product_image_url, vendor_id, vendor_name, meal_value, order_threshold')
+        .select('id, product_id, product_name, product_image_url, banner_image_url, vendor_id, vendor_name, meal_value, order_threshold')
         .eq('is_active', true)
         .eq('show_in_carousel', true);
+
+      // Fetch promo items for content display
+      const promoItemsQuery = supabase
+        .from('free_meal_promo_items')
+        .select('promo_id, quantity, product_id, takeaway_pack_id, products:product_id(name), takeaway_packs:takeaway_pack_id(name)')
+        .order('sort_order');
 
       // Also fetch user's redemptions if logged in
       const redemptionsPromise = user
