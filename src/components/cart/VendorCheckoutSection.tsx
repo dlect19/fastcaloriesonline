@@ -19,6 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import { usePromoCode } from '@/hooks/usePromoCode';
 import { useSpinWheel } from '@/hooks/useSpinWheel';
 import { usePlatformPromos } from '@/hooks/usePlatformPromos';
+import { useFreeMealPromos } from '@/hooks/useFreeMealPromos';
 import { supabase } from '@/integrations/supabase/client';
 import { useServiceFee } from '@/hooks/useServiceFee';
 import { useRiderAvailability } from '@/hooks/useRiderAvailability';
@@ -95,6 +96,7 @@ export function VendorCheckoutSection({
 
   const { calculateServiceFee, loading: serviceFeeLoading } = useServiceFee();
   const riderAvailability = useRiderAvailability();
+  const { updateProgress: updateFreeMealProgress } = useFreeMealPromos();
   const serviceFee = calculateServiceFee(group.subtotal, deliveryType);
   const extraPackageFee = deliveryType === 'self_pickup' ? 0 : getExtraPackageFee(group.vendorId, group.outletId);
   const packageCount = getPackageCount(group.vendorId, group.outletId);
@@ -338,6 +340,14 @@ export function VendorCheckoutSection({
         title: 'Order Placed!',
         description: `Your order from ${group.vendorName} has been paid.`,
       });
+
+      // Track free meal promo progress based on order subtotal
+      try {
+        await updateFreeMealProgress(group.subtotal, order.id);
+      } catch (e) {
+        // Non-blocking - don't fail the order if progress tracking fails
+        console.error('Free meal progress update failed:', e);
+      }
 
       onOrderPlaced(group.vendorId, order.id);
     } catch (error) {
