@@ -29,8 +29,11 @@ export default function FreeMeals() {
   const [redeemingId, setRedeemingId] = useState<string | null>(null);
   const [confirmPromo, setConfirmPromo] = useState<FreeMealWithProgress | null>(null);
 
-  // Build a map of vendor cart subtotals
-  const vendorCartTotals = new Map(vendorGroups.map(g => [g.vendorId, g.subtotal]));
+  // Build a map of vendor cart subtotals (sum across all outlets)
+  const vendorCartTotals = new Map<string, number>();
+  vendorGroups.forEach(g => {
+    vendorCartTotals.set(g.vendorId, (vendorCartTotals.get(g.vendorId) || 0) + g.subtotal);
+  });
 
   const handleRedeem = async (promo: FreeMealWithProgress) => {
     setConfirmPromo(promo);
