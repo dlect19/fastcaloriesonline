@@ -5,6 +5,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Skeleton } from '@/components/ui/skeleton';
 
+interface PromoItemDetail {
+  name: string;
+  quantity: number;
+  type: 'product' | 'takeaway_pack';
+}
+
 interface MenuItem {
   id: string;
   name: string;
@@ -15,6 +21,7 @@ interface MenuItem {
   vendor_name: string;
   isFreeMealPromo?: boolean;
   freeMealLabel?: string;
+  promoItems?: PromoItemDetail[];
 }
 
 function shuffleArray<T>(arr: T[]): T[] {
@@ -57,9 +64,15 @@ export function MenuCarousel({ nearbyVendorIds }: MenuCarouselProps) {
       // Build promos query — only those with show_in_carousel = true
       const promosQuery = supabase
         .from('free_meal_promos')
-        .select('id, product_id, product_name, product_image_url, vendor_id, vendor_name, meal_value, order_threshold')
+        .select('id, product_id, product_name, product_image_url, banner_image_url, vendor_id, vendor_name, meal_value, order_threshold')
         .eq('is_active', true)
         .eq('show_in_carousel', true);
+
+      // Fetch promo items for content display
+      const promoItemsQuery = supabase
+        .from('free_meal_promo_items')
+        .select('promo_id, quantity, product_id, takeaway_pack_id, products:product_id(name), takeaway_packs:takeaway_pack_id(name)')
+        .order('sort_order');
 
       // Also fetch user's redemptions if logged in
       const redemptionsPromise = user
@@ -70,10 +83,11 @@ export function MenuCarousel({ nearbyVendorIds }: MenuCarouselProps) {
             .eq('status', 'redeemed')
         : Promise.resolve({ data: null });
 
-      const [productsResult, promosResult, redemptionsResult] = await Promise.all([
+      const [productsResult, promosResult, redemptionsResult, promoItemsResult] = await Promise.all([
         productQuery.limit(100),
         promosQuery,
         redemptionsPromise,
+        promoItemsQuery,
       ]);
 
       const { data: products, error } = productsResult;
@@ -122,6 +136,19 @@ export function MenuCarousel({ nearbyVendorIds }: MenuCarouselProps) {
           vendor_name: vendorMap.get(p.vendor_id) || '',
         }));
 
+      // Build promo items map
+      const promoItemsData = (promoItemsResult as any)?.data || [];
+      const promoItemsMap = new Map<string, PromoItemDetail[]>();
+      for (const pi of promoItemsData) {
+        const arr = promoItemsMap.get(pi.promo_id) || [];
+        arr.push({
+          name: pi.products?.name || pi.takeaway_packs?.name || 'Item',
+          quantity: pi.quantity,
+          type: pi.product_id ? 'product' : 'takeaway_pack',
+        });
+        promoItemsMap.set(pi.promo_id, arr);
+      }
+
       // Build free meal promo items (only from verified vendors)
       const freeMealItems: MenuItem[] = promos
         .filter(p => vendorMap.has(p.vendor_id))
@@ -130,11 +157,12 @@ export function MenuCarousel({ nearbyVendorIds }: MenuCarouselProps) {
           name: p.product_name,
           price: 0,
           calories: null,
-          image_url: p.product_image_url,
+          image_url: p.banner_image_url || p.product_image_url,
           vendor_id: p.vendor_id,
           vendor_name: vendorMap.get(p.vendor_id) || p.vendor_name,
           isFreeMealPromo: true,
-          freeMealLabel: `FREE with ₦${p.order_threshold.toLocaleString()}+ order`,
+          freeMealLabel: `FREE · ₦${p.meal_value.toLocaleString()} value`,
+          promoItems: promoItemsMap.get(p.id) || [],
         }));
 
       // Remove duplicates: exclude products that are already in free meal promos
@@ -277,7 +305,14 @@ function MenuRow({ items, scrollRef, label, onScroll, onNavigate }: {
               <p className="text-xs font-medium text-foreground truncate">{item.name}</p>
               <p className="text-[10px] text-muted-foreground truncate">{item.vendor_name}</p>
               {item.isFreeMealPromo ? (
-                <p className="text-[10px] font-bold text-green-600 mt-1 truncate">{item.freeMealLabel}</p>
+                <>
+                  <p className="text-[10px] font-bold text-green-600 mt-0.5">{item.freeMealLabel}</p>
+                  {item.promoItems && item.promoItems.length > 0 && (
+                    <p className="text-[8px] text-muted-foreground mt-0.5 line-clamp-2">
+                      {item.promoItems.map(pi => `${pi.quantity}x ${pi.name}`).join(' + ')}
+                    </p>
+                  )}
+                </>
               ) : (
                 <p className="text-xs font-bold text-primary mt-1">₦{item.price.toLocaleString()}</p>
               )}
