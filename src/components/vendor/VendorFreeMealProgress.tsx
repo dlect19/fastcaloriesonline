@@ -22,9 +22,10 @@ interface PromoProgress {
 
 interface VendorFreeMealProgressProps {
   vendorId: string;
+  cartTotal?: number;
 }
 
-export function VendorFreeMealProgress({ vendorId }: VendorFreeMealProgressProps) {
+export function VendorFreeMealProgress({ vendorId, cartTotal = 0 }: VendorFreeMealProgressProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [promos, setPromos] = useState<PromoProgress[]>([]);
