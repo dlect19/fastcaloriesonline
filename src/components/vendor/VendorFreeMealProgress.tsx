@@ -78,22 +78,22 @@ export function VendorFreeMealProgress({ vendorId, cartTotal = 0 }: VendorFreeMe
         const canRedeem = isEligible && periodRedemptions < promo.max_redemptions_per_period;
         const alreadyRedeemed = isEligible && periodRedemptions >= promo.max_redemptions_per_period;
 
-        // Always show active promos for this vendor
-        {
-          results.push({
-            id: promo.id,
-            product_name: promo.product_name,
-            product_image_url: promo.product_image_url,
-            vendor_name: promo.vendor_name,
-            meal_value: promo.meal_value,
-            order_threshold: promo.order_threshold,
-            promo_period_days: promo.promo_period_days,
-            progress_percent: progressPercent,
-            highest_order: highestOrder,
-            can_redeem: canRedeem,
-            already_redeemed: alreadyRedeemed,
-          });
-        }
+        // Hide promos that have already been redeemed in this period
+        if (alreadyRedeemed) continue;
+
+        results.push({
+          id: promo.id,
+          product_name: promo.product_name,
+          product_image_url: promo.product_image_url,
+          vendor_name: promo.vendor_name,
+          meal_value: promo.meal_value,
+          order_threshold: promo.order_threshold,
+          promo_period_days: promo.promo_period_days,
+          progress_percent: progressPercent,
+          highest_order: highestOrder,
+          can_redeem: canRedeem,
+          already_redeemed: false,
+        });
       }
 
       setPromos(results);

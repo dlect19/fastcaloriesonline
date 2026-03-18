@@ -232,10 +232,16 @@ export default function Cart() {
               </div>
             ))}
 
-            {/* Free Meal Progress per vendor */}
-            {vendorGroups.map((group) => (
-              <VendorFreeMealProgress key={`fmp-${group.vendorId}`} vendorId={group.vendorId} cartTotal={group.subtotal} />
-            ))}
+            {/* Free Meal Progress per vendor (deduplicated, summing subtotals across outlets) */}
+            {(() => {
+              const vendorTotals = new Map<string, number>();
+              vendorGroups.forEach(g => {
+                vendorTotals.set(g.vendorId, (vendorTotals.get(g.vendorId) || 0) + g.subtotal);
+              });
+              return Array.from(vendorTotals.entries()).map(([vendorId, total]) => (
+                <VendorFreeMealProgress key={`fmp-${vendorId}`} vendorId={vendorId} cartTotal={total} />
+              ));
+            })()}
 
             {/* Per-vendor checkout sections */}
             {vendorGroups.map((group) => (
