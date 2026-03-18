@@ -445,7 +445,7 @@ export default function VendorDetail() {
       <FreeMealButton vendorId={id!} />
 
       {/* Free Meal Progress — shows tier badge + progress bar */}
-      <VendorFreeMealProgress vendorId={id!} />
+      <VendorFreeMealProgress vendorId={id!} cartTotal={vendorCartTotal} />
 
       {/* Package Selector */}
       <div className="container py-3">
