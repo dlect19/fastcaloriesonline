@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useFreeMealPromos, FreeMealWithProgress } from '@/hooks/useFreeMealPromos';
 import { useAuth } from '@/hooks/useAuth';
+import { useCart } from '@/hooks/useCart';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Gift, Utensils, Clock, CheckCircle2, Store, UtensilsCrossed } from 'lucide-react';
 import {
