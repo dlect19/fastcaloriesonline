@@ -29,8 +29,11 @@ export default function FreeMeals() {
   const [redeemingId, setRedeemingId] = useState<string | null>(null);
   const [confirmPromo, setConfirmPromo] = useState<FreeMealWithProgress | null>(null);
 
-  // Build a map of vendor cart subtotals
-  const vendorCartTotals = new Map(vendorGroups.map(g => [g.vendorId, g.subtotal]));
+  // Build a map of vendor cart subtotals (sum across all outlets)
+  const vendorCartTotals = new Map<string, number>();
+  vendorGroups.forEach(g => {
+    vendorCartTotals.set(g.vendorId, (vendorCartTotals.get(g.vendorId) || 0) + g.subtotal);
+  });
 
   const handleRedeem = async (promo: FreeMealWithProgress) => {
     setConfirmPromo(promo);
@@ -108,7 +111,16 @@ export default function FreeMeals() {
             </CardContent>
           </Card>
         ) : (
-          promos.map(promo => {
+          promos
+            .filter(promo => {
+              // Hide promos already redeemed in current period
+              const cartTotal = vendorCartTotals.get(promo.vendor_id) || 0;
+              const effectiveHighest = Math.max(promo.progress?.highest_order_amount || 0, cartTotal);
+              const isEligible = effectiveHighest >= promo.order_threshold;
+              const alreadyRedeemed = isEligible && promo.redemptions_in_period >= promo.max_redemptions_per_period;
+              return !alreadyRedeemed;
+            })
+            .map(promo => {
             const cartTotal = vendorCartTotals.get(promo.vendor_id) || 0;
             const effectiveHighest = Math.max(promo.progress?.highest_order_amount || 0, cartTotal);
             const adjustedPercent = Math.min((effectiveHighest / promo.order_threshold) * 100, 100);
