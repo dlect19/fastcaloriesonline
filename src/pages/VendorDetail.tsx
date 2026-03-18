@@ -13,6 +13,7 @@ import { BottomNav } from '@/components/home/BottomNav';
 import { VendorAccessDenied } from '@/components/vendor/VendorAccessDenied';
 import { ArrowLeft, Leaf, Search, Package, Heart } from 'lucide-react';
 import { FreeMealButton } from '@/components/vendor/FreeMealButton';
+import { VendorFreeMealProgress } from '@/components/vendor/VendorFreeMealProgress';
 import { PackageSelector } from '@/components/cart/PackageSelector';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -439,6 +440,9 @@ export default function VendorDetail() {
 
       {/* Free Meal Button — shows when customer has met threshold */}
       <FreeMealButton vendorId={id!} />
+
+      {/* Free Meal Progress — shows tier badge + progress bar */}
+      <VendorFreeMealProgress vendorId={id!} />
 
       {/* Package Selector */}
       <div className="container py-3">
