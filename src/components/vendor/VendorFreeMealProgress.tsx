@@ -100,7 +100,7 @@ export function VendorFreeMealProgress({ vendorId, cartTotal = 0 }: VendorFreeMe
     };
 
     fetch();
-  }, [user, vendorId]);
+  }, [user, vendorId, cartTotal]);
 
   if (promos.length === 0) return null;
 
