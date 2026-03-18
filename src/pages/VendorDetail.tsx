@@ -12,6 +12,7 @@ import { CartButton } from '@/components/cart/CartButton';
 import { BottomNav } from '@/components/home/BottomNav';
 import { VendorAccessDenied } from '@/components/vendor/VendorAccessDenied';
 import { ArrowLeft, Leaf, Search, Package, Heart } from 'lucide-react';
+import { FreeMealButton } from '@/components/vendor/FreeMealButton';
 import { PackageSelector } from '@/components/cart/PackageSelector';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
