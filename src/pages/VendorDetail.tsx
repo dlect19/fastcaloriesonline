@@ -437,6 +437,9 @@ export default function VendorDetail() {
       {/* Vendor Header */}
       <VendorHeader vendor={vendor} />
 
+      {/* Free Meal Button — shows when customer has met threshold */}
+      <FreeMealButton vendorId={id!} />
+
       {/* Package Selector */}
       <div className="container py-3">
         <div className="bg-card rounded-xl border border-border p-3">
