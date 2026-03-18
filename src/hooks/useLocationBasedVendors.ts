@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useGeolocation } from './useGeolocation';
 import type { Tables } from '@/integrations/supabase/types';
+import { invokeGetNearbyVendors } from '@/lib/getNearbyVendors';
 
 type Vendor = Tables<'vendors'>;
 
@@ -81,13 +81,11 @@ export function useLocationBasedVendors({
     }
 
     try {
-      const { data, error: invokeError } = await supabase.functions.invoke('get-nearby-vendors', {
-        body: {
-          customer_lat: latitude,
-          customer_lon: longitude,
-          category: category === 'all' ? null : category,
-          customer_state: addressState || null,
-        },
+      const { data, error: invokeError } = await invokeGetNearbyVendors({
+        customer_lat: latitude,
+        customer_lon: longitude,
+        category: category === 'all' ? null : category,
+        customer_state: addressState || null,
       });
 
       if (invokeError) {
@@ -97,17 +95,17 @@ export function useLocationBasedVendors({
         return;
       }
 
-      if (!data.success) {
-        if (data.error === 'customer_location_required') {
+      if (!data?.success) {
+        if (data?.error === 'customer_location_required') {
           setNoLocationError(true);
         } else {
-          setError(data.message || 'Failed to load vendors');
+          setError(data?.message || 'Failed to load vendors');
         }
         setVendors([]);
         return;
       }
 
-      setVendors(data.vendors || []);
+      setVendors((data.vendors || []) as VendorWithDistance[]);
       setMaxRadius(data.max_radius_km || 10);
       setCustomerInCoverage(data.customer_in_coverage !== false);
       setCoverageAreas((data.coverage_areas || []).map((a: any) => ({ id: a.id, name: a.name, color: a.color })));
@@ -170,13 +168,11 @@ export async function checkVendorAccess(
   }
 
   try {
-    const { data, error } = await supabase.functions.invoke('get-nearby-vendors', {
-      body: {
-        customer_lat: customerLat,
-        customer_lon: customerLon,
-        vendor_id: vendorId,
-        outlet_id: outletId,
-      },
+    const { data, error } = await invokeGetNearbyVendors({
+      customer_lat: customerLat,
+      customer_lon: customerLon,
+      vendor_id: vendorId,
+      outlet_id: outletId,
     });
 
     if (error) {
@@ -189,20 +185,20 @@ export async function checkVendorAccess(
       };
     }
 
-    if (!data.success) {
+    if (!data?.success) {
       return {
         success: false,
         vendor: null,
-        error: data.error,
-        message: data.message,
-        distance: data.distance,
-        max_radius: data.max_radius,
+        error: data?.error,
+        message: data?.message,
+        distance: data?.distance,
+        max_radius: data?.max_radius,
       };
     }
 
     return {
       success: true,
-      vendor: data.vendor,
+      vendor: data.vendor as VendorWithDistance,
     };
   } catch (err) {
     console.error('Error checking vendor access:', err);

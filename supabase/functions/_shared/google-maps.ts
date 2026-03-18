@@ -13,22 +13,33 @@ export async function getGoogleMapsDistance(
   const apiKey = Deno.env.get('GOOGLE_MAPS_KEY');
 
   if (apiKey) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort('google_maps_timeout'), 4000);
+
     try {
       const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${originLat},${originLng}&destinations=${destLat},${destLng}&key=${apiKey}`;
-      const response = await fetch(url);
-      const data = await response.json();
+      const response = await fetch(url, { signal: controller.signal });
 
-      const element = data?.rows?.[0]?.elements?.[0];
-      if (data.status === 'OK' && element?.status === 'OK') {
-        return {
-          distanceKm: Math.round((element.distance.value / 1000) * 10) / 10,
-          durationMinutes: Math.round(element.duration.value / 60),
-          source: 'google_maps',
-        };
+      if (!response.ok) {
+        console.warn('Google Maps API HTTP error:', response.status);
+      } else {
+        const data = await response.json();
+        const element = data?.rows?.[0]?.elements?.[0];
+
+        if (data.status === 'OK' && element?.status === 'OK') {
+          return {
+            distanceKm: Math.round((element.distance.value / 1000) * 10) / 10,
+            durationMinutes: Math.round(element.duration.value / 60),
+            source: 'google_maps',
+          };
+        }
+
+        console.warn('Google Maps API returned non-OK status:', data.status, element?.status);
       }
-      console.warn('Google Maps API returned non-OK status:', data.status, element?.status);
     } catch (err) {
       console.warn('Google Maps API call failed, using Haversine fallback:', err);
+    } finally {
+      clearTimeout(timeout);
     }
   }
 
