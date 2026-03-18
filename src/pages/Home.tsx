@@ -429,6 +429,9 @@ export default function Home() {
         {/* Spin Wheel Widget */}
         <SpinWheelWidget />
 
+        {/* Free Meal Promo Banner */}
+        <FreeMealBanner />
+
         {/* Promo Banner */}
         <PromoBanner />
 
