@@ -136,6 +136,19 @@ export function MenuCarousel({ nearbyVendorIds }: MenuCarouselProps) {
           vendor_name: vendorMap.get(p.vendor_id) || '',
         }));
 
+      // Build promo items map
+      const promoItemsData = (promoItemsResult as any)?.data || [];
+      const promoItemsMap = new Map<string, PromoItemDetail[]>();
+      for (const pi of promoItemsData) {
+        const arr = promoItemsMap.get(pi.promo_id) || [];
+        arr.push({
+          name: pi.products?.name || pi.takeaway_packs?.name || 'Item',
+          quantity: pi.quantity,
+          type: pi.product_id ? 'product' : 'takeaway_pack',
+        });
+        promoItemsMap.set(pi.promo_id, arr);
+      }
+
       // Build free meal promo items (only from verified vendors)
       const freeMealItems: MenuItem[] = promos
         .filter(p => vendorMap.has(p.vendor_id))
@@ -144,11 +157,12 @@ export function MenuCarousel({ nearbyVendorIds }: MenuCarouselProps) {
           name: p.product_name,
           price: 0,
           calories: null,
-          image_url: p.product_image_url,
+          image_url: p.banner_image_url || p.product_image_url,
           vendor_id: p.vendor_id,
           vendor_name: vendorMap.get(p.vendor_id) || p.vendor_name,
           isFreeMealPromo: true,
-          freeMealLabel: `FREE with ₦${p.order_threshold.toLocaleString()}+ order`,
+          freeMealLabel: `FREE · ₦${p.meal_value.toLocaleString()} value`,
+          promoItems: promoItemsMap.get(p.id) || [],
         }));
 
       // Remove duplicates: exclude products that are already in free meal promos
