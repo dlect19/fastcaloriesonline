@@ -84,7 +84,19 @@ export function MenuCarousel({ nearbyVendorIds }: MenuCarouselProps) {
       }
 
       // Collect all vendor IDs (products + promos)
-      const promos = promosResult.data || [];
+      const allPromos = promosResult.data || [];
+      const redemptions = (redemptionsResult as any)?.data || [];
+
+      // Filter out promos the user already redeemed in the current period
+      const redeemedPromoIds = new Set<string>();
+      if (user && redemptions.length > 0) {
+        // Group redemptions by promo_id — we just need to know if ANY redemption exists
+        for (const r of redemptions) {
+          redeemedPromoIds.add(r.promo_id);
+        }
+      }
+
+      const promos = allPromos.filter((p: any) => !redeemedPromoIds.has(p.id));
       const promoVendorIds = promos.map(p => p.vendor_id);
       const allVendorIds = [...new Set([...products.map(p => p.vendor_id), ...promoVendorIds])];
 
