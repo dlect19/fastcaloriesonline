@@ -22,9 +22,10 @@ interface PromoProgress {
 
 interface VendorFreeMealProgressProps {
   vendorId: string;
+  cartTotal?: number;
 }
 
-export function VendorFreeMealProgress({ vendorId }: VendorFreeMealProgressProps) {
+export function VendorFreeMealProgress({ vendorId, cartTotal = 0 }: VendorFreeMealProgressProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [promos, setPromos] = useState<PromoProgress[]>([]);
@@ -63,7 +64,8 @@ export function VendorFreeMealProgress({ vendorId }: VendorFreeMealProgressProps
         if (periodEnd) periodEnd.setDate(periodEnd.getDate() + promo.promo_period_days);
         const isPeriodValid = periodEnd ? now <= periodEnd : false;
 
-        const highestOrder = isPeriodValid ? (progress?.highest_order_amount || 0) : 0;
+        const dbHighest = isPeriodValid ? (progress?.highest_order_amount || 0) : 0;
+        const highestOrder = Math.max(dbHighest, cartTotal);
         const progressPercent = Math.min((highestOrder / promo.order_threshold) * 100, 100);
 
         const periodRedemptions = redemptions?.filter(r => {
@@ -98,7 +100,7 @@ export function VendorFreeMealProgress({ vendorId }: VendorFreeMealProgressProps
     };
 
     fetch();
-  }, [user, vendorId]);
+  }, [user, vendorId, cartTotal]);
 
   if (promos.length === 0) return null;
 
