@@ -441,6 +441,9 @@ export default function VendorDetail() {
       {/* Free Meal Button — shows when customer has met threshold */}
       <FreeMealButton vendorId={id!} />
 
+      {/* Free Meal Progress — shows tier badge + progress bar */}
+      <VendorFreeMealProgress vendorId={id!} />
+
       {/* Package Selector */}
       <div className="container py-3">
         <div className="bg-card rounded-xl border border-border p-3">
