@@ -1906,6 +1906,58 @@ export type Database = {
           },
         ]
       }
+      free_meal_promo_items: {
+        Row: {
+          created_at: string
+          id: string
+          product_id: string | null
+          promo_id: string
+          quantity: number
+          sort_order: number | null
+          takeaway_pack_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          product_id?: string | null
+          promo_id: string
+          quantity?: number
+          sort_order?: number | null
+          takeaway_pack_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          product_id?: string | null
+          promo_id?: string
+          quantity?: number
+          sort_order?: number | null
+          takeaway_pack_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "free_meal_promo_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "free_meal_promo_items_promo_id_fkey"
+            columns: ["promo_id"]
+            isOneToOne: false
+            referencedRelation: "free_meal_promos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "free_meal_promo_items_takeaway_pack_id_fkey"
+            columns: ["takeaway_pack_id"]
+            isOneToOne: false
+            referencedRelation: "takeaway_packs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       free_meal_promos: {
         Row: {
           banner_image_url: string | null
