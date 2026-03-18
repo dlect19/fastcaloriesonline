@@ -81,6 +81,8 @@ import AdminFAQ from "./pages/admin/AdminFAQ";
 import LegalPage from "./pages/legal/LegalPage";
 import Install from "./pages/Install";
 import Rewards from "./pages/Rewards";
+import FreeMeals from "./pages/FreeMeals";
+import AdminFreeMeals from "./pages/admin/AdminFreeMeals";
 import TransactionHistoryPage from "./pages/profile/TransactionHistoryPage";
 import WalletPage from "./pages/profile/WalletPage";
 import NotFound from "./pages/NotFound";
