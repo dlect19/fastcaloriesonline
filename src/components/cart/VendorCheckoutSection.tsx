@@ -340,6 +340,14 @@ export function VendorCheckoutSection({
         description: `Your order from ${group.vendorName} has been paid.`,
       });
 
+      // Track free meal promo progress based on order subtotal
+      try {
+        await updateFreeMealProgress(group.subtotal, order.id);
+      } catch (e) {
+        // Non-blocking - don't fail the order if progress tracking fails
+        console.error('Free meal progress update failed:', e);
+      }
+
       onOrderPlaced(group.vendorId, order.id);
     } catch (error) {
       console.error('Error placing order:', error);
