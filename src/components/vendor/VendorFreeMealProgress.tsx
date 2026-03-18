@@ -92,6 +92,7 @@ export function VendorFreeMealProgress({ vendorId }: VendorFreeMealProgressProps
             already_redeemed: alreadyRedeemed,
           });
         }
+      }
 
       setPromos(results);
     };
