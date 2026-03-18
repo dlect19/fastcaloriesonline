@@ -271,6 +271,8 @@ function FreeMealCard({
                   <span className="text-green-600 font-semibold flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3" /> Threshold met!
                   </span>
+                ) : cartTotal > 0 ? (
+                  `₦${Math.round(cartTotal).toLocaleString()} in cart`
                 ) : (
                   `₦${Math.round(promo.progress?.highest_order_amount || 0).toLocaleString()} highest order`
                 )}
