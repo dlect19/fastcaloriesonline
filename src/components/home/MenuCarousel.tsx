@@ -5,6 +5,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Skeleton } from '@/components/ui/skeleton';
 
+interface PromoItemDetail {
+  name: string;
+  quantity: number;
+  type: 'product' | 'takeaway_pack';
+}
+
 interface MenuItem {
   id: string;
   name: string;
@@ -15,6 +21,7 @@ interface MenuItem {
   vendor_name: string;
   isFreeMealPromo?: boolean;
   freeMealLabel?: string;
+  promoItems?: PromoItemDetail[];
 }
 
 function shuffleArray<T>(arr: T[]): T[] {
