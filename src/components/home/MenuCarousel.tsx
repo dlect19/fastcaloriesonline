@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Flame, Gift } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface MenuItem {
@@ -31,6 +32,7 @@ interface MenuCarouselProps {
 
 export function MenuCarousel({ nearbyVendorIds }: MenuCarouselProps) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [items, setItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
   const scrollRef1 = useRef<HTMLDivElement>(null);
@@ -38,7 +40,7 @@ export function MenuCarousel({ nearbyVendorIds }: MenuCarouselProps) {
 
   useEffect(() => {
     fetchRandomMenuItems();
-  }, [nearbyVendorIds]);
+  }, [nearbyVendorIds, user]);
 
   const fetchRandomMenuItems = async () => {
     try {
@@ -52,12 +54,26 @@ export function MenuCarousel({ nearbyVendorIds }: MenuCarouselProps) {
         productQuery = productQuery.in('vendor_id', nearbyVendorIds);
       }
 
-      const [productsResult, promosResult] = await Promise.all([
+      // Build promos query — only those with show_in_carousel = true
+      const promosQuery = supabase
+        .from('free_meal_promos')
+        .select('id, product_id, product_name, product_image_url, vendor_id, vendor_name, meal_value, order_threshold')
+        .eq('is_active', true)
+        .eq('show_in_carousel', true);
+
+      // Also fetch user's redemptions if logged in
+      const redemptionsPromise = user
+        ? supabase
+            .from('free_meal_redemptions')
+            .select('promo_id, redeemed_at')
+            .eq('user_id', user.id)
+            .eq('status', 'redeemed')
+        : Promise.resolve({ data: null });
+
+      const [productsResult, promosResult, redemptionsResult] = await Promise.all([
         productQuery.limit(100),
-        supabase
-          .from('free_meal_promos')
-          .select('id, product_id, product_name, product_image_url, vendor_id, vendor_name, meal_value, order_threshold')
-          .eq('is_active', true),
+        promosQuery,
+        redemptionsPromise,
       ]);
 
       const { data: products, error } = productsResult;
