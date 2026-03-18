@@ -19,6 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import { usePromoCode } from '@/hooks/usePromoCode';
 import { useSpinWheel } from '@/hooks/useSpinWheel';
 import { usePlatformPromos } from '@/hooks/usePlatformPromos';
+import { useFreeMealPromos } from '@/hooks/useFreeMealPromos';
 import { supabase } from '@/integrations/supabase/client';
 import { useServiceFee } from '@/hooks/useServiceFee';
 import { useRiderAvailability } from '@/hooks/useRiderAvailability';
