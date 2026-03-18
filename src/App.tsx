@@ -162,6 +162,7 @@ const App = () => {
               <Route path="/profile/transactions" element={<TransactionHistoryPage />} />
               <Route path="/profile/wallet" element={<WalletPage />} />
               <Route path="/rewards" element={<Rewards />} />
+              <Route path="/free-meals" element={<FreeMeals />} />
               <Route path="/profile-setup" element={<ProfileSetup />} />
               <Route path="/support" element={<CustomerSupport />} />
               <Route path="/coverage" element={<CoverageMap />} />
