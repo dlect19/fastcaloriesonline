@@ -81,6 +81,8 @@ import AdminFAQ from "./pages/admin/AdminFAQ";
 import LegalPage from "./pages/legal/LegalPage";
 import Install from "./pages/Install";
 import Rewards from "./pages/Rewards";
+import FreeMeals from "./pages/FreeMeals";
+import AdminFreeMeals from "./pages/admin/AdminFreeMeals";
 import TransactionHistoryPage from "./pages/profile/TransactionHistoryPage";
 import WalletPage from "./pages/profile/WalletPage";
 import NotFound from "./pages/NotFound";
@@ -160,6 +162,7 @@ const App = () => {
               <Route path="/profile/transactions" element={<TransactionHistoryPage />} />
               <Route path="/profile/wallet" element={<WalletPage />} />
               <Route path="/rewards" element={<Rewards />} />
+              <Route path="/free-meals" element={<FreeMeals />} />
               <Route path="/profile-setup" element={<ProfileSetup />} />
               <Route path="/support" element={<CustomerSupport />} />
               <Route path="/coverage" element={<CoverageMap />} />
@@ -205,6 +208,7 @@ const App = () => {
               <Route path="/admin/promos" element={<AdminPromos />} />
               <Route path="/admin/commission-promos" element={<AdminVendorCommissionPromos />} />
               <Route path="/admin/rewards" element={<AdminRewards />} />
+              <Route path="/admin/free-meals" element={<AdminFreeMeals />} />
               <Route path="/admin/users" element={<AdminUsers />} />
               <Route path="/admin/staff" element={<AdminStaff />} />
               <Route path="/admin/staff/join/:code" element={<AdminStaffJoin />} />
