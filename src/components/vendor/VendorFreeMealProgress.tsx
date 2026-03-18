@@ -76,8 +76,8 @@ export function VendorFreeMealProgress({ vendorId }: VendorFreeMealProgressProps
         const canRedeem = isEligible && periodRedemptions < promo.max_redemptions_per_period;
         const alreadyRedeemed = isEligible && periodRedemptions >= promo.max_redemptions_per_period;
 
-        // Only show if there's some progress or the user can redeem
-        if (highestOrder > 0 || canRedeem) {
+        // Always show active promos for this vendor
+        {
           results.push({
             id: promo.id,
             product_name: promo.product_name,
