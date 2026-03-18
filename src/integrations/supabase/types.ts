@@ -1922,6 +1922,7 @@ export type Database = {
           product_image_url: string | null
           product_name: string
           promo_period_days: number
+          show_in_carousel: boolean
           updated_at: string
           vendor_id: string
           vendor_name: string
@@ -1941,6 +1942,7 @@ export type Database = {
           product_image_url?: string | null
           product_name: string
           promo_period_days?: number
+          show_in_carousel?: boolean
           updated_at?: string
           vendor_id: string
           vendor_name: string
@@ -1960,6 +1962,7 @@ export type Database = {
           product_image_url?: string | null
           product_name?: string
           promo_period_days?: number
+          show_in_carousel?: boolean
           updated_at?: string
           vendor_id?: string
           vendor_name?: string
