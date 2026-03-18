@@ -83,10 +83,11 @@ export function MenuCarousel({ nearbyVendorIds }: MenuCarouselProps) {
             .eq('status', 'redeemed')
         : Promise.resolve({ data: null });
 
-      const [productsResult, promosResult, redemptionsResult] = await Promise.all([
+      const [productsResult, promosResult, redemptionsResult, promoItemsResult] = await Promise.all([
         productQuery.limit(100),
         promosQuery,
         redemptionsPromise,
+        promoItemsQuery,
       ]);
 
       const { data: products, error } = productsResult;
