@@ -265,20 +265,33 @@ serve(async (req) => {
       try {
         const googleKey = Deno.env.get("GOOGLE_MAPS_KEY");
         if (googleKey) {
-          const geoRes = await fetch(
-            `https://maps.googleapis.com/maps/api/geocode/json?latlng=${customer_lat},${customer_lon}&key=${googleKey}`
-          );
-          const geoData = await geoRes.json();
-          console.log("Reverse geocode status:", geoData?.status, "results count:", geoData?.results?.length);
-          for (const result of (geoData?.results || [])) {
-            const stateComponent = result?.address_components?.find(
-              (c: any) => c.types?.includes("administrative_area_level_1")
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort("reverse_geocode_timeout"), 4000);
+
+          try {
+            const geoRes = await fetch(
+              `https://maps.googleapis.com/maps/api/geocode/json?latlng=${customer_lat},${customer_lon}&key=${googleKey}`,
+              { signal: controller.signal }
             );
-            if (stateComponent) {
-              customerState = stateComponent.long_name?.toLowerCase() || null;
-              console.log("Found customer state from GPS:", customerState);
-              break;
+
+            if (geoRes.ok) {
+              const geoData = await geoRes.json();
+              console.log("Reverse geocode status:", geoData?.status, "results count:", geoData?.results?.length);
+              for (const result of (geoData?.results || [])) {
+                const stateComponent = result?.address_components?.find(
+                  (c: any) => c.types?.includes("administrative_area_level_1")
+                );
+                if (stateComponent) {
+                  customerState = stateComponent.long_name?.toLowerCase() || null;
+                  console.log("Found customer state from GPS:", customerState);
+                  break;
+                }
+              }
+            } else {
+              console.log("Reverse geocode HTTP error:", geoRes.status);
             }
+          } finally {
+            clearTimeout(timeout);
           }
         }
       } catch (e) {

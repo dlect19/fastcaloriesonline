@@ -29,6 +29,7 @@ import { PushNotificationBanner } from '@/components/shared/PushNotificationBann
 import { useCapacitorPush } from '@/hooks/useCapacitorPush';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { supabase } from '@/integrations/supabase/client';
+import { invokeGetNearbyVendors } from '@/lib/getNearbyVendors';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 import fastCaloriesFullLogo from '@/assets/fast-calories-full-logo.png';
 
@@ -156,19 +157,25 @@ export default function Home() {
       setNearbyVendorIds([]);
       return;
     }
-    supabase.functions.invoke('get-nearby-vendors', {
-      body: {
-        customer_lat: deliveryLocation.lat,
-        customer_lon: deliveryLocation.lon,
-        customer_state: deliveryLocation.state || null,
-      },
-    }).then(({ data }) => {
-      if (data?.vendors) {
+
+    let isCancelled = false;
+
+    invokeGetNearbyVendors({
+      customer_lat: deliveryLocation.lat,
+      customer_lon: deliveryLocation.lon,
+      customer_state: deliveryLocation.state || null,
+    })
+      .then(({ data, error }) => {
+        if (isCancelled || error || !data?.vendors) return;
         const ids = [...new Set(data.vendors.map((v: any) => v.id))];
         setNearbyVendorIds(ids as string[]);
-      }
-    }).catch(() => {});
-  }, [deliveryLocation?.lat, deliveryLocation?.lon]);
+      })
+      .catch(() => {});
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [deliveryLocation?.lat, deliveryLocation?.lon, deliveryLocation?.state]);
   const handleSignOut = async () => {
     await signOut();
     navigate('/auth');
