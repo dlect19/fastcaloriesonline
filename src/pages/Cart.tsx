@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { BottomNav } from '@/components/home/BottomNav';
 import { VendorCheckoutSection } from '@/components/cart/VendorCheckoutSection';
 import { ArrowLeft, ShoppingBag, Leaf } from 'lucide-react';
+import { VendorFreeMealProgress } from '@/components/vendor/VendorFreeMealProgress';
 import { useToast } from '@/hooks/use-toast';
 import { useLegalAcceptance } from '@/hooks/useLegalAcceptance';
 import { LegalAcceptanceDialog } from '@/components/shared/LegalAcceptanceDialog';
@@ -229,6 +230,11 @@ export default function Cart() {
                   View Order
                 </Button>
               </div>
+            ))}
+
+            {/* Free Meal Progress per vendor */}
+            {vendorGroups.map((group) => (
+              <VendorFreeMealProgress key={`fmp-${group.vendorId}`} vendorId={group.vendorId} />
             ))}
 
             {/* Per-vendor checkout sections */}
