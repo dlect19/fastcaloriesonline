@@ -14,6 +14,7 @@ import { VendorAccessDenied } from '@/components/vendor/VendorAccessDenied';
 import { ArrowLeft, Leaf, Search, Package, Heart } from 'lucide-react';
 import { FreeMealButton } from '@/components/vendor/FreeMealButton';
 import { VendorFreeMealProgress } from '@/components/vendor/VendorFreeMealProgress';
+import { useCart } from '@/hooks/useCart';
 import { PackageSelector } from '@/components/cart/PackageSelector';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -53,6 +54,8 @@ export default function VendorDetail() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
+  const { vendorGroups } = useCart();
+  const vendorCartTotal = vendorGroups.find(g => g.vendorId === id)?.subtotal || 0;
 
   // Location state — prefer delivery address from Home page over raw GPS
   const { latitude: gpsLat, longitude: gpsLon, loading: geoLoading, getCurrentPosition } = useGeolocation();
@@ -442,7 +445,7 @@ export default function VendorDetail() {
       <FreeMealButton vendorId={id!} />
 
       {/* Free Meal Progress — shows tier badge + progress bar */}
-      <VendorFreeMealProgress vendorId={id!} />
+      <VendorFreeMealProgress vendorId={id!} cartTotal={vendorCartTotal} />
 
       {/* Package Selector */}
       <div className="container py-3">

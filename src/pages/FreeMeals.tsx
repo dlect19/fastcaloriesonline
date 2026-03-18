@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useFreeMealPromos, FreeMealWithProgress } from '@/hooks/useFreeMealPromos';
 import { useAuth } from '@/hooks/useAuth';
+import { useCart } from '@/hooks/useCart';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Gift, Utensils, Clock, CheckCircle2, Store, UtensilsCrossed } from 'lucide-react';
 import {
@@ -24,8 +25,12 @@ export default function FreeMeals() {
   const { user } = useAuth();
   const { toast } = useToast();
   const { promos, loading, redeemFreeMeal, refreshPromos } = useFreeMealPromos();
+  const { vendorGroups } = useCart();
   const [redeemingId, setRedeemingId] = useState<string | null>(null);
   const [confirmPromo, setConfirmPromo] = useState<FreeMealWithProgress | null>(null);
+
+  // Build a map of vendor cart subtotals
+  const vendorCartTotals = new Map(vendorGroups.map(g => [g.vendorId, g.subtotal]));
 
   const handleRedeem = async (promo: FreeMealWithProgress) => {
     setConfirmPromo(promo);
@@ -103,15 +108,26 @@ export default function FreeMeals() {
             </CardContent>
           </Card>
         ) : (
-          promos.map(promo => (
-            <FreeMealCard
-              key={promo.id}
-              promo={promo}
-              onRedeem={handleRedeem}
-              isRedeeming={redeemingId === promo.id}
-              onViewVendor={() => navigate(`/vendor/${promo.vendor_id}`)}
-            />
-          ))
+          promos.map(promo => {
+            const cartTotal = vendorCartTotals.get(promo.vendor_id) || 0;
+            const effectiveHighest = Math.max(promo.progress?.highest_order_amount || 0, cartTotal);
+            const adjustedPercent = Math.min((effectiveHighest / promo.order_threshold) * 100, 100);
+            const adjustedPromo = {
+              ...promo,
+              progress_percent: adjustedPercent,
+              can_redeem: effectiveHighest >= promo.order_threshold && promo.redemptions_in_period < promo.max_redemptions_per_period,
+            };
+            return (
+              <FreeMealCard
+                key={promo.id}
+                promo={adjustedPromo}
+                cartTotal={cartTotal}
+                onRedeem={handleRedeem}
+                isRedeeming={redeemingId === promo.id}
+                onViewVendor={() => navigate(`/vendor/${promo.vendor_id}`)}
+              />
+            );
+          })
         )}
 
         {/* How it Works */}
@@ -168,11 +184,13 @@ export default function FreeMeals() {
 
 function FreeMealCard({
   promo,
+  cartTotal = 0,
   onRedeem,
   isRedeeming,
   onViewVendor,
 }: {
   promo: FreeMealWithProgress;
+  cartTotal?: number;
   onRedeem: (p: FreeMealWithProgress) => void;
   isRedeeming: boolean;
   onViewVendor: () => void;
@@ -253,6 +271,8 @@ function FreeMealCard({
                   <span className="text-green-600 font-semibold flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3" /> Threshold met!
                   </span>
+                ) : cartTotal > 0 ? (
+                  `₦${Math.round(cartTotal).toLocaleString()} in cart`
                 ) : (
                   `₦${Math.round(promo.progress?.highest_order_amount || 0).toLocaleString()} highest order`
                 )}
