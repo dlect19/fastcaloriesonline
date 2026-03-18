@@ -111,7 +111,16 @@ export default function FreeMeals() {
             </CardContent>
           </Card>
         ) : (
-          promos.map(promo => {
+          promos
+            .filter(promo => {
+              // Hide promos already redeemed in current period
+              const cartTotal = vendorCartTotals.get(promo.vendor_id) || 0;
+              const effectiveHighest = Math.max(promo.progress?.highest_order_amount || 0, cartTotal);
+              const isEligible = effectiveHighest >= promo.order_threshold;
+              const alreadyRedeemed = isEligible && promo.redemptions_in_period >= promo.max_redemptions_per_period;
+              return !alreadyRedeemed;
+            })
+            .map(promo => {
             const cartTotal = vendorCartTotals.get(promo.vendor_id) || 0;
             const effectiveHighest = Math.max(promo.progress?.highest_order_amount || 0, cartTotal);
             const adjustedPercent = Math.min((effectiveHighest / promo.order_threshold) * 100, 100);
