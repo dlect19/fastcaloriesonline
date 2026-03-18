@@ -232,6 +232,11 @@ export default function Cart() {
               </div>
             ))}
 
+            {/* Free Meal Progress per vendor */}
+            {vendorGroups.map((group) => (
+              <VendorFreeMealProgress key={`fmp-${group.vendorId}`} vendorId={group.vendorId} />
+            ))}
+
             {/* Per-vendor checkout sections */}
             {vendorGroups.map((group) => (
               <VendorCheckoutSection
