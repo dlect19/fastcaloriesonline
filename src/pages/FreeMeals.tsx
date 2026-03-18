@@ -108,15 +108,26 @@ export default function FreeMeals() {
             </CardContent>
           </Card>
         ) : (
-          promos.map(promo => (
-            <FreeMealCard
-              key={promo.id}
-              promo={promo}
-              onRedeem={handleRedeem}
-              isRedeeming={redeemingId === promo.id}
-              onViewVendor={() => navigate(`/vendor/${promo.vendor_id}`)}
-            />
-          ))
+          promos.map(promo => {
+            const cartTotal = vendorCartTotals.get(promo.vendor_id) || 0;
+            const effectiveHighest = Math.max(promo.progress?.highest_order_amount || 0, cartTotal);
+            const adjustedPercent = Math.min((effectiveHighest / promo.order_threshold) * 100, 100);
+            const adjustedPromo = {
+              ...promo,
+              progress_percent: adjustedPercent,
+              can_redeem: effectiveHighest >= promo.order_threshold && promo.redemptions_in_period < promo.max_redemptions_per_period,
+            };
+            return (
+              <FreeMealCard
+                key={promo.id}
+                promo={adjustedPromo}
+                cartTotal={cartTotal}
+                onRedeem={handleRedeem}
+                isRedeeming={redeemingId === promo.id}
+                onViewVendor={() => navigate(`/vendor/${promo.vendor_id}`)}
+              />
+            );
+          })
         )}
 
         {/* How it Works */}
