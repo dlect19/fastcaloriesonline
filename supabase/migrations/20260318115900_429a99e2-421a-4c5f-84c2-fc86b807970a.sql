@@ -1,0 +1,1 @@
+ALTER TABLE public.free_meal_promos ADD COLUMN IF NOT EXISTS show_in_carousel BOOLEAN NOT NULL DEFAULT true;
