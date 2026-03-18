@@ -1855,6 +1855,194 @@ export type Database = {
           },
         ]
       }
+      free_meal_progress: {
+        Row: {
+          created_at: string
+          highest_order_amount: number
+          id: string
+          is_eligible: boolean
+          period_start: string
+          promo_id: string
+          qualifying_order_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          highest_order_amount?: number
+          id?: string
+          is_eligible?: boolean
+          period_start?: string
+          promo_id: string
+          qualifying_order_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          highest_order_amount?: number
+          id?: string
+          is_eligible?: boolean
+          period_start?: string
+          promo_id?: string
+          qualifying_order_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "free_meal_progress_promo_id_fkey"
+            columns: ["promo_id"]
+            isOneToOne: false
+            referencedRelation: "free_meal_promos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "free_meal_progress_qualifying_order_id_fkey"
+            columns: ["qualifying_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      free_meal_promos: {
+        Row: {
+          banner_image_url: string | null
+          banner_text: string | null
+          created_at: string
+          created_by: string
+          id: string
+          is_active: boolean
+          max_redemptions_per_period: number
+          meal_value: number
+          order_threshold: number
+          outlet_id: string | null
+          product_id: string
+          product_image_url: string | null
+          product_name: string
+          promo_period_days: number
+          updated_at: string
+          vendor_id: string
+          vendor_name: string
+        }
+        Insert: {
+          banner_image_url?: string | null
+          banner_text?: string | null
+          created_at?: string
+          created_by: string
+          id?: string
+          is_active?: boolean
+          max_redemptions_per_period?: number
+          meal_value: number
+          order_threshold: number
+          outlet_id?: string | null
+          product_id: string
+          product_image_url?: string | null
+          product_name: string
+          promo_period_days?: number
+          updated_at?: string
+          vendor_id: string
+          vendor_name: string
+        }
+        Update: {
+          banner_image_url?: string | null
+          banner_text?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          is_active?: boolean
+          max_redemptions_per_period?: number
+          meal_value?: number
+          order_threshold?: number
+          outlet_id?: string | null
+          product_id?: string
+          product_image_url?: string | null
+          product_name?: string
+          promo_period_days?: number
+          updated_at?: string
+          vendor_id?: string
+          vendor_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "free_meal_promos_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_outlets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "free_meal_promos_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "free_meal_promos_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      free_meal_redemptions: {
+        Row: {
+          id: string
+          meal_value: number
+          order_id: string | null
+          promo_id: string
+          qualifying_order_id: string | null
+          redeemed_at: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          meal_value: number
+          order_id?: string | null
+          promo_id: string
+          qualifying_order_id?: string | null
+          redeemed_at?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          meal_value?: number
+          order_id?: string | null
+          promo_id?: string
+          qualifying_order_id?: string | null
+          redeemed_at?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "free_meal_redemptions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "free_meal_redemptions_promo_id_fkey"
+            columns: ["promo_id"]
+            isOneToOne: false
+            referencedRelation: "free_meal_promos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "free_meal_redemptions_qualifying_order_id_fkey"
+            columns: ["qualifying_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       legal_acceptances: {
         Row: {
           accepted_at: string
