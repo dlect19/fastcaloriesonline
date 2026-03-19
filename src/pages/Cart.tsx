@@ -175,7 +175,7 @@ export default function Cart() {
             <h1 className="text-xl font-bold text-foreground">Your Cart</h1>
             {isMultiVendor ? (
               <p className="text-sm text-muted-foreground">
-                {vendorGroups.length} vendor{vendorGroups.length !== 1 ? 's' : ''} • {items.length} item{items.length !== 1 ? 's' : ''}
+                {new Set(vendorGroups.map(g => g.vendorId)).size} vendor{new Set(vendorGroups.map(g => g.vendorId)).size !== 1 ? 's' : ''} • {items.length} item{items.length !== 1 ? 's' : ''}
               </p>
             ) : vendorGroups[0]?.vendorName ? (
               <p className="text-sm text-muted-foreground">From {vendorGroups[0].vendorName}</p>
