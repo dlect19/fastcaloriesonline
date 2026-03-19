@@ -46,10 +46,10 @@ export default function FreeMeals() {
     if (result) {
       toast({
         title: '🎉 Free Meal Redeemed!',
-        description: `Your ${confirmPromo.product_name} has been claimed. Visit ${confirmPromo.vendor_name} to enjoy it!`,
+        description: `Your ${confirmPromo.product_name} has been claimed. Proceed to checkout!`,
       });
-      // Navigate to vendor to place the order
-      navigate(`/vendor/${confirmPromo.vendor_id}`);
+      // Navigate to cart/checkout
+      navigate('/cart');
     } else {
       toast({
         title: 'Redemption Failed',

@@ -260,6 +260,7 @@ export default function AdminOrders() {
                     <th className="text-left py-3 px-4 font-medium">Phone</th>
                     <th className="text-left py-3 px-4 font-medium">Vendor</th>
                     <th className="text-left py-3 px-4 font-medium">Type</th>
+                    <th className="text-left py-3 px-4 font-medium">Promo</th>
                      <th className="text-left py-3 px-4 font-medium">Status</th>
                      <th className="text-left py-3 px-4 font-medium">Rider</th>
                      <th className="text-left py-3 px-4 font-medium">Total</th>
@@ -270,7 +271,7 @@ export default function AdminOrders() {
                 <tbody>
                   {paginatedOrders.length === 0 ? (
                     <tr>
-                     <td colSpan={11} className="py-12 text-center text-muted-foreground">
+                     <td colSpan={12} className="py-12 text-center text-muted-foreground">
                          No orders found matching your filters
                        </td>
                     </tr>
@@ -299,6 +300,19 @@ export default function AdminOrders() {
                             <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">🏪 Pickup</Badge>
                           ) : (
                             <Badge variant="outline" className="text-xs">🚚 Delivery</Badge>
+                          )}
+                         </td>
+                        <td className="py-3 px-4">
+                          {order.promo_code ? (
+                            <Badge className="bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/30 text-xs font-mono">
+                              🏷️ {order.promo_code}
+                            </Badge>
+                          ) : order.discount > 0 ? (
+                            <Badge variant="outline" className="text-xs text-muted-foreground">
+                              -₦{Number(order.discount).toLocaleString()}
+                            </Badge>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
                           )}
                         </td>
                          <td className="py-3 px-4">{getStatusBadge(order.status)}</td>
