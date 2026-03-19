@@ -368,7 +368,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   // Legacy compat: first vendor in cart
   const vendorId = vendorGroups.length > 0 ? vendorGroups[0].vendorId : null;
   const vendorName = vendorGroups.length > 0 ? vendorGroups[0].vendorName : null;
-  const isMultiVendor = vendorGroups.length > 1;
+  const isMultiVendor = new Set(vendorGroups.map(g => g.vendorId)).size > 1;
 
   return (
     <CartContext.Provider value={{
