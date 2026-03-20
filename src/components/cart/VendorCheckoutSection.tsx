@@ -150,7 +150,7 @@ export function VendorCheckoutSection({
 
     // Warn about rider availability but allow checkout (admin can manually assign riders)
     if (deliveryType === 'delivery' && !riderAvailability.deliveryAllowed) {
-      toast({ title: 'Limited Rider Availability', description: 'No riders are currently available. Your order will be placed and a rider will be assigned shortly. You can also switch to Self Pickup.', variant: 'default' });
+      toast({ title: 'Limited Rider Availability', description: 'No riders are currently available. Your order will be placed and a rider will be assigned shortly. You can also switch to Carryout.', variant: 'default' });
     }
     if (deliveryType === 'delivery' && !hasDeliveryLocation) {
       toast({ title: 'No delivery location', description: 'Please set your delivery location from the home screen header.', variant: 'destructive' });
