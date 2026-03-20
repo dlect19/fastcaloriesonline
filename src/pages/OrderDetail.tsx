@@ -27,7 +27,7 @@ const DELIVERY_ORDER_STATUSES = [
   { key: 'delivered', label: 'Delivered', icon: MapPin },
 ];
 
-const SELF_PICKUP_ORDER_STATUSES = [
+const CARRYOUT_ORDER_STATUSES = [
   { key: 'pending', label: 'Order Placed', icon: Package },
   { key: 'confirmed', label: 'Confirmed', icon: Check },
   { key: 'preparing', label: 'Preparing', icon: Store },
