@@ -241,7 +241,7 @@ export function OrderChat({ orderId, orderStatus, riderId, vendorId, senderRole 
     return (
       <Button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-20 right-4 z-30 rounded-full w-14 h-14 shadow-lg"
+        className="fixed bottom-24 right-4 z-30 rounded-full w-14 h-14 shadow-lg"
         size="icon"
       >
         <MessageSquare className="w-6 h-6" />
