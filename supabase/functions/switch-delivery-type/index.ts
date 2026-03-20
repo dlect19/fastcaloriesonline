@@ -125,7 +125,7 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({
           success: true,
-          message: `Switched to self-pickup. ₦${originalDeliveryFee.toLocaleString()} delivery fee refunded to customer wallet.`,
+          message: `Switched to carryout. ₦${originalDeliveryFee.toLocaleString()} delivery fee refunded to customer wallet.`,
           refundedAmount: originalDeliveryFee,
           newTotal,
         }),
