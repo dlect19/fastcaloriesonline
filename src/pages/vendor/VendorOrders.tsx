@@ -737,7 +737,7 @@ export default function VendorOrders() {
               {/* Show delivery type indicator */}
               {order.delivery_type === 'self_pickup' ? (
                 <p className="text-xs text-primary mt-1 flex items-center gap-1">
-                  <Store className="w-3 h-3" /> Self-Pickup
+                  <Store className="w-3 h-3" /> Carryout
                 </p>
               ) : order.delivery_address_text && (
                 <p className="text-xs text-muted-foreground mt-1 line-clamp-1">

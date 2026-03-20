@@ -117,7 +117,7 @@ export function useRiderAvailability() {
           blockReason = `Delivery service is currently unavailable. Operating hours: ${openHour}:00 - ${closeHour}:00. Please select Carryout.`;
         } else if (onlineRiders === 0) {
           deliveryAllowed = false;
-          blockReason = 'No riders available at the moment. To avoid long waiting time, please select Self Pickup.';
+          blockReason = 'No riders available at the moment. To avoid long waiting time, please select Carryout.';
         }
       }
 

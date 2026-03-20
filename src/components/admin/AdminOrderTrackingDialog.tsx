@@ -849,7 +849,7 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
           <Card className="border-primary/30 bg-primary/5">
             <CardContent className="py-3 px-4 flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium">Self-Pickup Order</p>
+                <p className="text-sm font-medium">Carryout Order</p>
                 <p className="text-xs text-muted-foreground">Manually complete if customer has collected</p>
               </div>
               <Button size="sm" onClick={handleCompleteOrder} disabled={completing} className="gap-1">
