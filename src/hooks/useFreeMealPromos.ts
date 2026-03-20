@@ -197,12 +197,29 @@ export function useFreeMealPromos() {
       const promo = promos.find(p => p.id === promoId);
       if (!promo || !promo.can_redeem) return null;
 
+      const qOrderId = qualifyingOrderId || promo.progress?.qualifying_order_id || null;
+
+      // Guard: check that the qualifying order is at least 'preparing' so user can't cancel it after claiming
+      if (qOrderId) {
+        const { data: qOrder } = await supabase
+          .from('orders')
+          .select('status')
+          .eq('id', qOrderId)
+          .maybeSingle();
+
+        const nonCancellableStatuses = ['preparing', 'ready_for_pickup', 'searching_for_rider', 'picked_up', 'on_the_way', 'delivered'];
+        if (!qOrder || !nonCancellableStatuses.includes(qOrder.status)) {
+          console.warn('Qualifying order is still cancellable, blocking redemption');
+          return { error: 'Your qualifying order must be at least in "Preparing" status before you can claim your free meal. This prevents abuse.' };
+        }
+      }
+
       const { data, error } = await supabase
         .from('free_meal_redemptions')
         .insert({
           user_id: user.id,
           promo_id: promoId,
-          qualifying_order_id: qualifyingOrderId || promo.progress?.qualifying_order_id || null,
+          qualifying_order_id: qOrderId,
           meal_value: promo.meal_value,
           status: 'redeemed',
         })

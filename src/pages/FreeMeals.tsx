@@ -43,12 +43,17 @@ export default function FreeMeals() {
     if (!confirmPromo) return;
     setRedeemingId(confirmPromo.id);
     const result = await redeemFreeMeal(confirmPromo.id);
-    if (result) {
+    if (result && 'error' in result) {
+      toast({
+        title: 'Cannot Claim Yet',
+        description: result.error as string,
+        variant: 'destructive',
+      });
+    } else if (result) {
       toast({
         title: '🎉 Free Meal Redeemed!',
         description: `Your ${confirmPromo.product_name} has been claimed. Proceed to checkout!`,
       });
-      // Navigate to cart/checkout
       navigate('/cart');
     } else {
       toast({
