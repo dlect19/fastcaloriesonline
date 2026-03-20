@@ -123,7 +123,7 @@ export function DeliveryTypeSwitcher({ order, onSwitched }: DeliveryTypeSwitcher
             </Button>
           </div>
         ) : (
-          {/* Carryout → Delivery */}
+          // Carryout → Delivery
           <div className="space-y-2">
             {insufficientFunds ? (
               <Alert className="border-destructive/30 bg-destructive/5">
