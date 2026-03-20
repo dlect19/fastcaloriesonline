@@ -101,7 +101,7 @@ Deno.serve(async (req) => {
             balance_after: newBal,
             status: "completed",
             environment: isTest ? "development" : "production",
-            notes: `Delivery fee refund - order #${order.order_number} switched to self-pickup by admin`,
+            notes: `Delivery fee refund - order #${order.order_number} switched to carryout by admin`,
           });
 
           console.log(`Refunded ₦${originalDeliveryFee} to customer wallet ${customerWallet.id}`);
