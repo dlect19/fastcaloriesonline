@@ -27,7 +27,7 @@ const DELIVERY_ORDER_STATUSES = [
   { key: 'delivered', label: 'Delivered', icon: MapPin },
 ];
 
-const SELF_PICKUP_ORDER_STATUSES = [
+const CARRYOUT_ORDER_STATUSES = [
   { key: 'pending', label: 'Order Placed', icon: Package },
   { key: 'confirmed', label: 'Confirmed', icon: Check },
   { key: 'preparing', label: 'Preparing', icon: Store },
@@ -177,7 +177,7 @@ export default function OrderDetail() {
   };
 
   const getOrderStatuses = () => {
-    return order?.delivery_type === 'self_pickup' ? SELF_PICKUP_ORDER_STATUSES : DELIVERY_ORDER_STATUSES;
+    return order?.delivery_type === 'self_pickup' ? CARRYOUT_ORDER_STATUSES : DELIVERY_ORDER_STATUSES;
   };
 
   const getCurrentStepIndex = () => {
@@ -434,7 +434,7 @@ export default function OrderDetail() {
             </div>
             {order.delivery_type === 'self_pickup' && (
               <p className="text-xs text-primary mt-2 flex items-center gap-1">
-                <Store className="w-3 h-3" /> Self-Pickup Order
+                <Store className="w-3 h-3" /> Carryout Order
               </p>
             )}
           </CardContent>
@@ -571,7 +571,7 @@ export default function OrderDetail() {
               <div className="flex justify-between text-muted-foreground">
                 <span>Delivery Fee</span>
                 {order.delivery_type === 'self_pickup' ? (
-                  <span className="text-primary font-medium">₦0 — Self-Pickup 🎉</span>
+                  <span className="text-primary font-medium">₦0 — Carryout 🎉</span>
                 ) : (
                   <span>₦{Number(order.delivery_fee || 0).toLocaleString()}</span>
                 )}
@@ -588,7 +588,7 @@ export default function OrderDetail() {
               )}
               {order.delivery_type === 'self_pickup' && (
                 <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 text-center">
-                  <p className="text-xs font-medium text-primary">🏪 Self-Pickup Order — You saved on delivery!</p>
+                  <p className="text-xs font-medium text-primary">🏪 Carryout Order — You saved on delivery!</p>
                 </div>
               )}
               <div className="flex justify-between font-bold text-lg pt-2 border-t">

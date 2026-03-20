@@ -150,7 +150,7 @@ export function VendorCheckoutSection({
 
     // Warn about rider availability but allow checkout (admin can manually assign riders)
     if (deliveryType === 'delivery' && !riderAvailability.deliveryAllowed) {
-      toast({ title: 'Limited Rider Availability', description: 'No riders are currently available. Your order will be placed and a rider will be assigned shortly. You can also switch to Self Pickup.', variant: 'default' });
+      toast({ title: 'Limited Rider Availability', description: 'No riders are currently available. Your order will be placed and a rider will be assigned shortly. You can also switch to Carryout.', variant: 'default' });
     }
     if (deliveryType === 'delivery' && !hasDeliveryLocation) {
       toast({ title: 'No delivery location', description: 'Please set your delivery location from the home screen header.', variant: 'destructive' });
@@ -227,7 +227,7 @@ export function VendorCheckoutSection({
           delivery_address_id: null,
           delivery_address_text: deliveryType === 'delivery'
             ? deliveryLocation?.label || 'GPS Location'
-            : `Self-pickup at ${group.vendorName}`,
+            : `Carryout at ${group.vendorName}`,
           delivery_instructions: deliveryInstructions,
           delivery_type: deliveryType,
           status: 'pending',
@@ -388,7 +388,7 @@ export function VendorCheckoutSection({
             <div className="flex items-center gap-3">
               <Store className="w-5 h-5 text-muted-foreground" />
               <div>
-                <Label className="font-medium">Self-Pickup</Label>
+                <Label className="font-medium">Carryout</Label>
                 <p className="text-xs text-muted-foreground">Pick up at {group.vendorName}</p>
               </div>
             </div>
@@ -404,7 +404,7 @@ export function VendorCheckoutSection({
               <AlertTriangle className="w-5 h-5 text-warning shrink-0" />
               <div className="flex-1">
                 <p className="text-sm font-medium text-warning">No riders available right now</p>
-                <p className="text-xs text-muted-foreground mt-0.5">You can still place your order — a rider will be assigned shortly. Or switch to Self Pickup.</p>
+                <p className="text-xs text-muted-foreground mt-0.5">You can still place your order — a rider will be assigned shortly. Or switch to Carryout.</p>
               </div>
             </div>
           )}

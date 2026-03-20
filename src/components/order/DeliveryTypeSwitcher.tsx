@@ -59,7 +59,7 @@ export function DeliveryTypeSwitcher({ order, onSwitched }: DeliveryTypeSwitcher
 
   const deliveryFee = Number(order.delivery_fee) || baseDeliveryFee;
 
-  // For self-pickup → delivery: check wallet has enough
+  // For carryout → delivery: check wallet has enough
   const canSwitchToDelivery = !isDelivery && walletBalance !== null && walletBalance >= baseDeliveryFee;
   const insufficientFunds = !isDelivery && walletBalance !== null && walletBalance < baseDeliveryFee;
 
@@ -78,7 +78,7 @@ export function DeliveryTypeSwitcher({ order, onSwitched }: DeliveryTypeSwitcher
       }
 
       toast({
-        title: isDelivery ? '✅ Switched to Self-Pickup' : '✅ Switched to Delivery',
+        title: isDelivery ? '✅ Switched to Carryout' : '✅ Switched to Delivery',
         description: data.message,
       });
       onSwitched();
@@ -102,10 +102,10 @@ export function DeliveryTypeSwitcher({ order, onSwitched }: DeliveryTypeSwitcher
         </div>
 
         {isDelivery ? (
-          // Delivery → Self-Pickup (no rider assigned, so allowed)
+          // Delivery → Carryout (no rider assigned, so allowed)
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground">
-              Switch to self-pickup and get ₦{deliveryFee.toLocaleString()} delivery fee refunded to your wallet.
+              Switch to carryout and get ₦{deliveryFee.toLocaleString()} delivery fee refunded to your wallet.
             </p>
             <Button
               onClick={handleSwitch}
@@ -119,11 +119,11 @@ export function DeliveryTypeSwitcher({ order, onSwitched }: DeliveryTypeSwitcher
               ) : (
                 <Store className="w-4 h-4 mr-2" />
               )}
-              Switch to Self-Pickup
+              Switch to Carryout
             </Button>
           </div>
         ) : (
-          // Self-Pickup → Delivery
+          // Carryout → Delivery
           <div className="space-y-2">
             {insufficientFunds ? (
               <Alert className="border-destructive/30 bg-destructive/5">

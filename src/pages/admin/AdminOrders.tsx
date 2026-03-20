@@ -297,7 +297,7 @@ export default function AdminOrders() {
                         <td className="py-3 px-4">{order.vendors?.name}</td>
                         <td className="py-3 px-4">
                           {order.delivery_type === 'self_pickup' ? (
-                            <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">🏪 Pickup</Badge>
+                            <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">🏪 Carryout</Badge>
                           ) : (
                             <Badge variant="outline" className="text-xs">🚚 Delivery</Badge>
                           )}

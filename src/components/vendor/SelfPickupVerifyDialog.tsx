@@ -96,7 +96,7 @@ export function SelfPickupVerifyDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ShoppingBag className="w-5 h-5 text-primary" />
-            Verify Self-Pickup
+            Verify Carryout
           </DialogTitle>
           <DialogDescription>
             Order #{orderNumber}

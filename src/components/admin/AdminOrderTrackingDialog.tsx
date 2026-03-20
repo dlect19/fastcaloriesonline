@@ -750,7 +750,7 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
                       const isSwitchingToPickup = newType === 'self_pickup';
                       const fee = Number(activeOrder.delivery_fee) || 0;
                       const confirmMsg = isSwitchingToPickup
-                        ? `Switch to Self-Pickup? ₦${fee.toLocaleString()} delivery fee will be refunded to the customer's wallet.`
+                        ? `Switch to Carryout? ₦${fee.toLocaleString()} delivery fee will be refunded to the customer's wallet.`
                         : `Switch to Delivery? The base delivery fee will be charged from the customer's wallet.`;
                       if (!window.confirm(confirmMsg)) return;
 
@@ -798,7 +798,7 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="delivery">Delivery</SelectItem>
-                      <SelectItem value="self_pickup">Self Pickup</SelectItem>
+                      <SelectItem value="self_pickup">Carryout</SelectItem>
                     </SelectContent>
                   </Select>
                   {changingDeliveryType && <Loader2 className="w-4 h-4 animate-spin text-primary" />}
@@ -849,7 +849,7 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
           <Card className="border-primary/30 bg-primary/5">
             <CardContent className="py-3 px-4 flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium">Self-Pickup Order</p>
+                <p className="text-sm font-medium">Carryout Order</p>
                 <p className="text-xs text-muted-foreground">Manually complete if customer has collected</p>
               </div>
               <Button size="sm" onClick={handleCompleteOrder} disabled={completing} className="gap-1">

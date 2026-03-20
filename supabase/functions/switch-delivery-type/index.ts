@@ -101,7 +101,7 @@ Deno.serve(async (req) => {
             balance_after: newBal,
             status: "completed",
             environment: isTest ? "development" : "production",
-            notes: `Delivery fee refund - order #${order.order_number} switched to self-pickup by admin`,
+            notes: `Delivery fee refund - order #${order.order_number} switched to carryout by admin`,
           });
 
           console.log(`Refunded ₦${originalDeliveryFee} to customer wallet ${customerWallet.id}`);
@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
           delivery_type: "self_pickup",
           delivery_fee: 0,
           total: newTotal,
-          delivery_address_text: "Self-pickup at vendor",
+          delivery_address_text: "Carryout at vendor",
           rider_id: null,
         })
         .eq("id", orderId);
@@ -125,7 +125,7 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({
           success: true,
-          message: `Switched to self-pickup. ₦${originalDeliveryFee.toLocaleString()} delivery fee refunded to customer wallet.`,
+          message: `Switched to carryout. ₦${originalDeliveryFee.toLocaleString()} delivery fee refunded to customer wallet.`,
           refundedAmount: originalDeliveryFee,
           newTotal,
         }),

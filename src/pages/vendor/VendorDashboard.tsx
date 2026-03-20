@@ -714,7 +714,7 @@ export default function VendorDashboard() {
                               ))}
                               {order.delivery_type && (
                                 <p className="text-xs text-muted-foreground pt-1 border-t border-border mt-2">
-                                  Type: {order.delivery_type === 'pickup' ? 'Self Pickup' : 'Delivery'}
+                                  Type: {order.delivery_type === 'pickup' ? 'Carryout' : 'Delivery'}
                                 </p>
                               )}
                             </div>

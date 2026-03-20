@@ -138,7 +138,7 @@ export function ServiceFeeSettings({ settings, onSettingChange, onSave, saving }
           Service Fee Configuration
         </CardTitle>
         <CardDescription>
-          Configure separate service fees for delivery and self-pickup orders
+          Configure separate service fees for delivery and carryout orders
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -150,7 +150,7 @@ export function ServiceFeeSettings({ settings, onSettingChange, onSave, saving }
             </TabsTrigger>
             <TabsTrigger value="pickup" className="flex items-center gap-2">
               <Store className="w-4 h-4" />
-              Self-Pickup
+              Carryout
             </TabsTrigger>
           </TabsList>
           <TabsContent value="delivery" className="mt-4">

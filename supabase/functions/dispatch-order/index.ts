@@ -382,7 +382,7 @@ Deno.serve(async (req) => {
 
     if (order.delivery_type === 'self_pickup') {
       return new Response(
-        JSON.stringify({ success: true, message: 'Self-pickup order, no rider needed' }),
+        JSON.stringify({ success: true, message: 'Carryout order, no rider needed' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
