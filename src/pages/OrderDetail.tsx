@@ -177,7 +177,7 @@ export default function OrderDetail() {
   };
 
   const getOrderStatuses = () => {
-    return order?.delivery_type === 'self_pickup' ? SELF_PICKUP_ORDER_STATUSES : DELIVERY_ORDER_STATUSES;
+    return order?.delivery_type === 'self_pickup' ? CARRYOUT_ORDER_STATUSES : DELIVERY_ORDER_STATUSES;
   };
 
   const getCurrentStepIndex = () => {
