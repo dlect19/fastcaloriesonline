@@ -750,7 +750,7 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
                       const isSwitchingToPickup = newType === 'self_pickup';
                       const fee = Number(activeOrder.delivery_fee) || 0;
                       const confirmMsg = isSwitchingToPickup
-                        ? `Switch to Self-Pickup? ₦${fee.toLocaleString()} delivery fee will be refunded to the customer's wallet.`
+                        ? `Switch to Carryout? ₦${fee.toLocaleString()} delivery fee will be refunded to the customer's wallet.`
                         : `Switch to Delivery? The base delivery fee will be charged from the customer's wallet.`;
                       if (!window.confirm(confirmMsg)) return;
 
