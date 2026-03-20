@@ -643,6 +643,78 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
           </Card>
         )}
 
+        {/* ── Admin Manual Status Change ── */}
+        {activeOrder.status !== 'delivered' && activeOrder.status !== 'cancelled' && (
+          <Card className="border-orange-200 bg-orange-50/50">
+            <CardContent className="py-3 px-4 space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <RefreshCw className="w-4 h-4 text-orange-600 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium">Manual Status Override</p>
+                    <p className="text-xs text-muted-foreground">
+                      Current: <span className="capitalize">{activeOrder.status.replace(/_/g, ' ')}</span>
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Select
+                    value={activeOrder.status}
+                    onValueChange={async (newStatus) => {
+                      if (newStatus === activeOrder.status) return;
+                      const confirmMsg = `Change order status from "${activeOrder.status.replace(/_/g, ' ')}" to "${newStatus.replace(/_/g, ' ')}"?\n\nThis is a manual override and won't trigger financial operations.`;
+                      if (!window.confirm(confirmMsg)) return;
+
+                      setChangingStatus(true);
+                      try {
+                        const updateData: any = { status: newStatus, updated_at: new Date().toISOString() };
+                        if (newStatus === 'delivered') {
+                          updateData.delivered_at = new Date().toISOString();
+                        }
+                        const { error } = await supabase
+                          .from('orders')
+                          .update(updateData)
+                          .eq('id', activeOrder.id);
+                        if (error) throw error;
+                        toast({ title: '✅ Status updated', description: `Order is now "${newStatus.replace(/_/g, ' ')}"` });
+                        const { data: refreshed } = await supabase
+                          .from('orders')
+                          .select('*')
+                          .eq('id', activeOrder.id)
+                          .single();
+                        if (refreshed) setLiveOrder(refreshed as unknown as Order);
+                        onUpdated();
+                      } catch (e: any) {
+                        toast({ title: 'Error', description: e.message, variant: 'destructive' });
+                      } finally {
+                        setChangingStatus(false);
+                      }
+                    }}
+                    disabled={changingStatus}
+                  >
+                    <SelectTrigger className="w-44 h-8 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="confirmed">Confirmed</SelectItem>
+                      <SelectItem value="preparing">Preparing</SelectItem>
+                      <SelectItem value="ready_for_pickup">Ready for Pickup</SelectItem>
+                      <SelectItem value="picked_up">Picked Up</SelectItem>
+                      <SelectItem value="on_the_way">On the Way</SelectItem>
+                      <SelectItem value="delivered">Delivered</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {changingStatus && <Loader2 className="w-4 h-4 animate-spin text-orange-600" />}
+                </div>
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                ⚠️ Manual override only — does not trigger financial settlements or notifications
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
         <Separator />
 
         {/* ── Info Cards: Vendor + Customer ── */}
