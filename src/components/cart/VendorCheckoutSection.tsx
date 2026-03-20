@@ -388,7 +388,7 @@ export function VendorCheckoutSection({
             <div className="flex items-center gap-3">
               <Store className="w-5 h-5 text-muted-foreground" />
               <div>
-                <Label className="font-medium">Self-Pickup</Label>
+                <Label className="font-medium">Carryout</Label>
                 <p className="text-xs text-muted-foreground">Pick up at {group.vendorName}</p>
               </div>
             </div>
