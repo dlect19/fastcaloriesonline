@@ -78,7 +78,7 @@ export function DeliveryTypeSwitcher({ order, onSwitched }: DeliveryTypeSwitcher
       }
 
       toast({
-        title: isDelivery ? '✅ Switched to Self-Pickup' : '✅ Switched to Delivery',
+        title: isDelivery ? '✅ Switched to Carryout' : '✅ Switched to Delivery',
         description: data.message,
       });
       onSwitched();
