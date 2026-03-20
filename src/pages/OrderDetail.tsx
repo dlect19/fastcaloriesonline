@@ -571,7 +571,7 @@ export default function OrderDetail() {
               <div className="flex justify-between text-muted-foreground">
                 <span>Delivery Fee</span>
                 {order.delivery_type === 'self_pickup' ? (
-                  <span className="text-primary font-medium">₦0 — Self-Pickup 🎉</span>
+                  <span className="text-primary font-medium">₦0 — Carryout 🎉</span>
                 ) : (
                   <span>₦{Number(order.delivery_fee || 0).toLocaleString()}</span>
                 )}
