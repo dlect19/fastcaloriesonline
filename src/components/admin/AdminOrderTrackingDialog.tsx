@@ -798,7 +798,7 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="delivery">Delivery</SelectItem>
-                      <SelectItem value="self_pickup">Self Pickup</SelectItem>
+                      <SelectItem value="self_pickup">Carryout</SelectItem>
                     </SelectContent>
                   </Select>
                   {changingDeliveryType && <Loader2 className="w-4 h-4 animate-spin text-primary" />}
