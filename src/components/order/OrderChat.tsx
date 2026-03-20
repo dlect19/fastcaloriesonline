@@ -241,7 +241,7 @@ export function OrderChat({ orderId, orderStatus, riderId, vendorId, senderRole 
     return (
       <Button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-20 right-4 z-30 rounded-full w-14 h-14 shadow-lg"
+        className="fixed bottom-24 right-4 z-30 rounded-full w-14 h-14 shadow-lg"
         size="icon"
       >
         <MessageSquare className="w-6 h-6" />
@@ -255,7 +255,7 @@ export function OrderChat({ orderId, orderStatus, riderId, vendorId, senderRole 
   }
 
   return (
-    <Card className="fixed bottom-20 right-2 left-2 sm:left-auto sm:right-4 sm:w-96 z-40 shadow-2xl max-h-[60vh] flex flex-col">
+    <Card className="fixed bottom-24 right-2 left-2 sm:left-auto sm:right-4 sm:w-96 z-40 shadow-2xl max-h-[55vh] flex flex-col">
       <CardHeader className="py-3 px-4 flex-row items-center justify-between border-b">
         <CardTitle className="text-sm flex items-center gap-2">
           <MessageSquare className="w-4 h-4 text-primary" />
