@@ -588,7 +588,7 @@ export default function OrderDetail() {
               )}
               {order.delivery_type === 'self_pickup' && (
                 <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 text-center">
-                  <p className="text-xs font-medium text-primary">🏪 Self-Pickup Order — You saved on delivery!</p>
+                  <p className="text-xs font-medium text-primary">🏪 Carryout Order — You saved on delivery!</p>
                 </div>
               )}
               <div className="flex justify-between font-bold text-lg pt-2 border-t">

@@ -102,10 +102,10 @@ export function DeliveryTypeSwitcher({ order, onSwitched }: DeliveryTypeSwitcher
         </div>
 
         {isDelivery ? (
-          // Delivery → Self-Pickup (no rider assigned, so allowed)
+          // Delivery → Carryout (no rider assigned, so allowed)
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground">
-              Switch to self-pickup and get ₦{deliveryFee.toLocaleString()} delivery fee refunded to your wallet.
+              Switch to carryout and get ₦{deliveryFee.toLocaleString()} delivery fee refunded to your wallet.
             </p>
             <Button
               onClick={handleSwitch}

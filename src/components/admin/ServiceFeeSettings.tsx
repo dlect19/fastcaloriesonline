@@ -150,7 +150,7 @@ export function ServiceFeeSettings({ settings, onSettingChange, onSave, saving }
             </TabsTrigger>
             <TabsTrigger value="pickup" className="flex items-center gap-2">
               <Store className="w-4 h-4" />
-              Self-Pickup
+              Carryout
             </TabsTrigger>
           </TabsList>
           <TabsContent value="delivery" className="mt-4">
