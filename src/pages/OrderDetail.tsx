@@ -434,7 +434,7 @@ export default function OrderDetail() {
             </div>
             {order.delivery_type === 'self_pickup' && (
               <p className="text-xs text-primary mt-2 flex items-center gap-1">
-                <Store className="w-3 h-3" /> Self-Pickup Order
+                <Store className="w-3 h-3" /> Carryout Order
               </p>
             )}
           </CardContent>

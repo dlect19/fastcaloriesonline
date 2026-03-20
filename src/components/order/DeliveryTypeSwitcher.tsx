@@ -59,7 +59,7 @@ export function DeliveryTypeSwitcher({ order, onSwitched }: DeliveryTypeSwitcher
 
   const deliveryFee = Number(order.delivery_fee) || baseDeliveryFee;
 
-  // For self-pickup → delivery: check wallet has enough
+  // For carryout → delivery: check wallet has enough
   const canSwitchToDelivery = !isDelivery && walletBalance !== null && walletBalance >= baseDeliveryFee;
   const insufficientFunds = !isDelivery && walletBalance !== null && walletBalance < baseDeliveryFee;
 
