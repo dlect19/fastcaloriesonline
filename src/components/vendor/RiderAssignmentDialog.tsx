@@ -58,7 +58,7 @@ export function RiderAssignmentDialog({ open, onOpenChange, order, vendor, onAss
         {!order ? null : order.delivery_type === 'self_pickup' ? (
           <Card>
             <CardContent className="py-4 text-sm text-muted-foreground">
-              This is a self-pickup order—no rider is required.
+              This is a carryout order—no rider is required.
             </CardContent>
           </Card>
         ) : order.rider_id ? (
