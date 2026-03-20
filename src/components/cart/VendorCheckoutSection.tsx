@@ -404,7 +404,7 @@ export function VendorCheckoutSection({
               <AlertTriangle className="w-5 h-5 text-warning shrink-0" />
               <div className="flex-1">
                 <p className="text-sm font-medium text-warning">No riders available right now</p>
-                <p className="text-xs text-muted-foreground mt-0.5">You can still place your order — a rider will be assigned shortly. Or switch to Self Pickup.</p>
+                <p className="text-xs text-muted-foreground mt-0.5">You can still place your order — a rider will be assigned shortly. Or switch to Carryout.</p>
               </div>
             </div>
           )}
