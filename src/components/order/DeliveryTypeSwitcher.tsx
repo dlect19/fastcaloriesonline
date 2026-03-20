@@ -119,7 +119,7 @@ export function DeliveryTypeSwitcher({ order, onSwitched }: DeliveryTypeSwitcher
               ) : (
                 <Store className="w-4 h-4 mr-2" />
               )}
-              Switch to Self-Pickup
+              Switch to Carryout
             </Button>
           </div>
         ) : (
