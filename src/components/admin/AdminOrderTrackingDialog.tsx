@@ -159,6 +159,7 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
   const [assigning, setAssigning] = useState(false);
   const [dispatching, setDispatching] = useState(false);
   const [changingDeliveryType, setChangingDeliveryType] = useState(false);
+  const [changingStatus, setChangingStatus] = useState(false);
 
   const activeOrder = liveOrder || order;
 
