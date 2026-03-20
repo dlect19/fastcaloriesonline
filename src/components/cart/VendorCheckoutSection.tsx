@@ -227,7 +227,7 @@ export function VendorCheckoutSection({
           delivery_address_id: null,
           delivery_address_text: deliveryType === 'delivery'
             ? deliveryLocation?.label || 'GPS Location'
-            : `Self-pickup at ${group.vendorName}`,
+            : `Carryout at ${group.vendorName}`,
           delivery_instructions: deliveryInstructions,
           delivery_type: deliveryType,
           status: 'pending',
