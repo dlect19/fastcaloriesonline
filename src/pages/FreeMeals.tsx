@@ -8,6 +8,8 @@ import { useFreeMealPromos, FreeMealWithProgress } from '@/hooks/useFreeMealProm
 import { useAuth } from '@/hooks/useAuth';
 import { useCart } from '@/hooks/useCart';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { addFreeMealPromoItemsToCart } from '@/lib/freeMealCart';
 import { ArrowLeft, Gift, Utensils, Clock, CheckCircle2, Store, UtensilsCrossed } from 'lucide-react';
 import {
   AlertDialog,
@@ -25,7 +27,7 @@ export default function FreeMeals() {
   const { user } = useAuth();
   const { toast } = useToast();
   const { promos, loading, redeemFreeMeal, refreshPromos } = useFreeMealPromos();
-  const { vendorGroups } = useCart();
+  const { vendorGroups, addItem } = useCart();
   const [redeemingId, setRedeemingId] = useState<string | null>(null);
   const [confirmPromo, setConfirmPromo] = useState<FreeMealWithProgress | null>(null);
 
@@ -50,11 +52,30 @@ export default function FreeMeals() {
         variant: 'destructive',
       });
     } else if (result) {
-      toast({
-        title: '🎉 Free Meal Redeemed!',
-        description: `Your ${confirmPromo.product_name} has been claimed. Proceed to checkout!`,
-      });
-      navigate('/cart');
+      try {
+        const { addedCount } = await addFreeMealPromoItemsToCart(confirmPromo.id, addItem);
+        toast({
+          title: '🎉 Free Meal Redeemed!',
+          description: `${addedCount} item${addedCount > 1 ? 's' : ''} added to checkout cart. Delivery and service fees still apply.`,
+        });
+        navigate('/cart');
+      } catch (cartError) {
+        const redemptionId = (result as { id?: string }).id;
+        if (redemptionId && user?.id) {
+          await supabase
+            .from('free_meal_redemptions')
+            .delete()
+            .eq('id', redemptionId)
+            .eq('user_id', user.id);
+          await refreshPromos();
+        }
+
+        toast({
+          title: 'Could not add free meal to cart',
+          description: cartError instanceof Error ? cartError.message : 'Please try claiming again.',
+          variant: 'destructive',
+        });
+      }
     } else {
       toast({
         title: 'Redemption Failed',
@@ -183,7 +204,7 @@ export default function FreeMeals() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               You're about to claim <strong>{confirmPromo?.product_name}</strong> (worth ₦{confirmPromo?.meal_value.toLocaleString()}) from <strong>{confirmPromo?.vendor_name}</strong>.
-              You'll be redirected to the vendor's page to place your order with the free meal.
+              This free meal will be added to your checkout cart (delivery and service fees still apply).
               This can only be used once per promo period.
             </AlertDialogDescription>
           </AlertDialogHeader>
