@@ -207,7 +207,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   };
 
   const removeItem = (itemId: string) => {
-    setItems(items.filter(i => i.id !== itemId));
+    setItems(prev => prev.filter(i => i.id !== itemId));
   };
 
   const updateQuantity = (itemId: string, quantity: number) => {
