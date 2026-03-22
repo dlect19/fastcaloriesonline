@@ -24,6 +24,9 @@ export interface CartItem {
   imageUrl?: string;
   addons?: CartAddon[];
   addonsDescription?: string;
+  isFreeMeal?: boolean;
+  freeMealPromoId?: string;
+  originalPrice?: number;
   packageIndex: number; // which package this item belongs to (0-based)
 }
 
@@ -183,7 +186,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const existingIndex = items.findIndex(i => {
       const existingAddonsKey = i.addons ? JSON.stringify(i.addons.map(a => `${a.groupName}:${a.itemName}`).sort()) : '';
       return i.productId === item.productId && i.vendorId === item.vendorId && i.outletId === item.outletId 
-        && existingAddonsKey === addonsKey && i.packageIndex === pkgIdx;
+        && existingAddonsKey === addonsKey
+        && i.packageIndex === pkgIdx
+        && i.price === item.price
+        && i.freeMealPromoId === item.freeMealPromoId;
     });
     
     if (existingIndex >= 0) {

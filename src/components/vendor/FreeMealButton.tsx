@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Gift, ChevronRight, Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { useCart } from '@/hooks/useCart';
+import { addFreeMealPromoItemsToCart } from '@/lib/freeMealCart';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,6 +33,7 @@ export function FreeMealButton({ vendorId }: FreeMealButtonProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { addItem } = useCart();
   const [eligiblePromo, setEligiblePromo] = useState<EligiblePromo | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [redeeming, setRedeeming] = useState(false);
@@ -113,22 +115,53 @@ export function FreeMealButton({ vendorId }: FreeMealButtonProps) {
         .eq('promo_id', eligiblePromo.id)
         .single();
 
-      const { error } = await supabase
+      const qOrderId = prog?.qualifying_order_id || null;
+
+      if (qOrderId) {
+        const { data: qOrder } = await supabase
+          .from('orders')
+          .select('status')
+          .eq('id', qOrderId)
+          .maybeSingle();
+
+        const nonCancellableStatuses = ['preparing', 'ready_for_pickup', 'searching_for_rider', 'picked_up', 'on_the_way', 'delivered'];
+        if (!qOrder || !nonCancellableStatuses.includes(qOrder.status)) {
+          throw new Error('Your qualifying order must be at least in "Preparing" status before you can claim your free meal.');
+        }
+      }
+
+      const { data: redemption, error } = await supabase
         .from('free_meal_redemptions')
         .insert({
           user_id: user.id,
           promo_id: eligiblePromo.id,
-          qualifying_order_id: prog?.qualifying_order_id || null,
+          qualifying_order_id: qOrderId,
           meal_value: eligiblePromo.meal_value,
           status: 'redeemed',
-        });
+        })
+        .select('id')
+        .single();
 
       if (error) throw error;
 
-      toast({
-        title: '🎉 Free Meal Claimed!',
-        description: `Your ${eligiblePromo.product_name} has been redeemed. Proceed to checkout!`,
-      });
+      try {
+        const { addedCount } = await addFreeMealPromoItemsToCart(eligiblePromo.id, addItem);
+
+        toast({
+          title: '🎉 Free Meal Claimed!',
+          description: `${addedCount} item${addedCount > 1 ? 's' : ''} added to checkout cart. Delivery and service fees still apply.`,
+        });
+      } catch (cartError) {
+        if (redemption?.id) {
+          await supabase
+            .from('free_meal_redemptions')
+            .delete()
+            .eq('id', redemption.id)
+            .eq('user_id', user.id);
+        }
+
+        throw cartError;
+      }
 
       setConfirmOpen(false);
       setEligiblePromo(null);
@@ -137,7 +170,7 @@ export function FreeMealButton({ vendorId }: FreeMealButtonProps) {
     } catch (err) {
       toast({
         title: 'Failed to redeem',
-        description: 'Please try again.',
+        description: err instanceof Error ? err.message : 'Please try again.',
         variant: 'destructive',
       });
     } finally {
