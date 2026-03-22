@@ -1,0 +1,1 @@
+DELETE FROM free_meal_redemptions WHERE id = 'a5620400-00b0-4273-8b83-f917fd667cf6';
