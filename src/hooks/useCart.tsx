@@ -181,27 +181,29 @@ export function CartProvider({ children }: { children: ReactNode }) {
       return { ...prev, [key]: metas };
     });
 
-    // Check if same item with same addons already exists in same package
-    const addonsKey = item.addons ? JSON.stringify(item.addons.map(a => `${a.groupName}:${a.itemName}`).sort()) : '';
-    const existingIndex = items.findIndex(i => {
-      const existingAddonsKey = i.addons ? JSON.stringify(i.addons.map(a => `${a.groupName}:${a.itemName}`).sort()) : '';
-      return i.productId === item.productId && i.vendorId === item.vendorId && i.outletId === item.outletId 
-        && existingAddonsKey === addonsKey
-        && i.packageIndex === pkgIdx
-        && i.price === item.price
-        && i.freeMealPromoId === item.freeMealPromoId;
+    // Use functional update to avoid stale closure when addItem is called multiple times in a loop
+    setItems(prevItems => {
+      const addonsKey = item.addons ? JSON.stringify(item.addons.map(a => `${a.groupName}:${a.itemName}`).sort()) : '';
+      const existingIndex = prevItems.findIndex(i => {
+        const existingAddonsKey = i.addons ? JSON.stringify(i.addons.map(a => `${a.groupName}:${a.itemName}`).sort()) : '';
+        return i.productId === item.productId && i.vendorId === item.vendorId && i.outletId === item.outletId 
+          && existingAddonsKey === addonsKey
+          && i.packageIndex === pkgIdx
+          && i.price === item.price
+          && i.freeMealPromoId === item.freeMealPromoId;
+      });
+      
+      if (existingIndex >= 0) {
+        return prevItems.map((i, idx) => 
+          idx === existingIndex 
+            ? { ...i, quantity: i.quantity + item.quantity }
+            : i
+        );
+      } else {
+        const newItem: CartItem = { ...item, id: crypto.randomUUID(), packageIndex: pkgIdx };
+        return [...prevItems, newItem];
+      }
     });
-    
-    if (existingIndex >= 0) {
-      setItems(items.map((i, idx) => 
-        idx === existingIndex 
-          ? { ...i, quantity: i.quantity + item.quantity }
-          : i
-      ));
-    } else {
-      const newItem: CartItem = { ...item, id: crypto.randomUUID(), packageIndex: pkgIdx };
-      setItems([...items, newItem]);
-    }
   };
 
   const removeItem = (itemId: string) => {
