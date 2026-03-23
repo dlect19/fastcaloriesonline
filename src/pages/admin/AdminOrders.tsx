@@ -419,7 +419,16 @@ export default function AdminOrders() {
                              <span className="text-xs text-muted-foreground">—</span>
                            )}
                          </td>
-                        <td className="py-3 px-4">₦{Number(order.total).toLocaleString()}</td>
+                        <td className="py-3 px-4">
+                          <div>
+                            <span>₦{Number(order.total).toLocaleString()}</span>
+                            {order.is_free_meal && Number(order.free_meal_value) > 0 && (
+                              <p className="text-[10px] text-green-600">
+                                Free: ₦{Number(order.free_meal_value).toLocaleString()}
+                              </p>
+                            )}
+                          </div>
+                        </td>
                         <td className="py-3 px-4 text-muted-foreground">
                           {format(new Date(order.created_at), 'PP')}
                         </td>
