@@ -137,6 +137,30 @@ export default function AdminOrders() {
           rider_vehicle: order.rider_id ? (riderProfileMap.get(order.rider_id)?.vehicle_type || null) : null,
         }));
         setOrders(enriched);
+
+        // Compute free meal stats from audit table
+        const freeMealOrders = data.filter((o: any) => o.is_free_meal);
+        const totalValue = freeMealOrders.reduce((s: number, o: any) => s + (Number(o.free_meal_value) || 0), 0);
+        
+        // Also get audit stats
+        const { data: auditData } = await supabase
+          .from('free_meal_audit')
+          .select('status, platform_cost');
+        
+        let claimed = 0, pending = 0, expired = 0;
+        auditData?.forEach((a: any) => {
+          if (a.status === 'claimed' || a.status === 'vendor_paid') claimed += a.platform_cost || 0;
+          else if (a.status === 'in_progress' || a.status === 'qualified') pending += a.platform_cost || 0;
+          else if (a.status === 'expired') expired += a.platform_cost || 0;
+        });
+
+        setFreeMealStats({
+          total: freeMealOrders.length,
+          claimed,
+          pending,
+          expired,
+          totalValue,
+        });
       } else {
         setOrders([]);
       }
