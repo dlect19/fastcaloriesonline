@@ -83,18 +83,28 @@ export async function addFreeMealPromoItemsToCart(
   }
 
   if (addedCount === 0 && promo.product_id) {
+    const { data: fallbackProduct } = await supabase
+      .from('products')
+      .select('name, image_url, calories, price')
+      .eq('id', promo.product_id)
+      .maybeSingle();
+
+    const fallbackOriginalPrice = Number(fallbackProduct?.price || 0);
+
     addItem({
       productId: promo.product_id,
-      productName: promo.product_name,
+      productName: fallbackProduct?.name || promo.product_name,
       vendorId: promo.vendor_id,
       vendorName: promo.vendor_name,
       outletId: promo.outlet_id ?? undefined,
       price: 0,
+      originalPrice: fallbackOriginalPrice,
       quantity: 1,
-      calories: 0,
-      imageUrl: promo.product_image_url || undefined,
+      calories: Number(fallbackProduct?.calories || 0),
+      imageUrl: fallbackProduct?.image_url || promo.product_image_url || undefined,
       isFreeMeal: true,
       freeMealPromoId: promoId,
+      _adminFreeQty: 1,
     });
     addedCount = 1;
   }
