@@ -96,7 +96,16 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 const CART_STORAGE_KEY = 'fast-calories-cart';
 
 function calculateItemSubtotal(item: CartItem): number {
-  const menuTotal = item.price * item.quantity;
+  let menuTotal: number;
+  
+  if (item.isFreeMeal && item._adminFreeQty && item.quantity > item._adminFreeQty) {
+    // Free qty at ₦0, extras at original price
+    const extraQty = item.quantity - item._adminFreeQty;
+    menuTotal = extraQty * (item.originalPrice || 0);
+  } else {
+    menuTotal = item.price * item.quantity;
+  }
+  
   const addonTotal = (item.addons || []).reduce((aSum, addon) => {
     return aSum + addon.price * (addon.quantity || 1);
   }, 0);
