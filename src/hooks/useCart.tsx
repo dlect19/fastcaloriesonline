@@ -215,9 +215,26 @@ export function CartProvider({ children }: { children: ReactNode }) {
       removeItem(itemId);
       return;
     }
-    setItems(items.map(i => 
-      i.id === itemId ? { ...i, quantity } : i
-    ));
+    setItems(prevItems => {
+      return prevItems.map(i => {
+        if (i.id !== itemId) return i;
+
+        // Free meal item: admin-set quantity stays at ₦0, extras at original price
+        if (i.isFreeMeal && i.freeMealPromoId) {
+          const freeQty = i._adminFreeQty ?? i.quantity; // original admin quantity
+          if (quantity > freeQty) {
+            // Split: freeQty at ₦0 already exists, just update quantity
+            // Price becomes weighted: (freeQty * 0 + extraQty * originalPrice) / totalQty
+            // Better approach: keep price at 0 for free portion, track extras
+            return { ...i, quantity, _adminFreeQty: freeQty };
+          }
+          // Reducing back to or below free qty
+          return { ...i, quantity: Math.max(1, quantity), _adminFreeQty: freeQty };
+        }
+
+        return { ...i, quantity };
+      });
+    });
   };
 
   const updateItem = (itemId: string, updates: Partial<Omit<CartItem, 'id'>>) => {
