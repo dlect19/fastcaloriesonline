@@ -162,6 +162,17 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
   const [changingStatus, setChangingStatus] = useState(false);
 
   const activeOrder = liveOrder || order;
+  const hasFreeMealItems = orderItems.some(item => item.is_free_meal_item);
+  const isFreeMealOrder = Boolean((activeOrder as any).is_free_meal || (activeOrder as any).free_meal_promo_id || hasFreeMealItems);
+  const effectiveFoodSubtotal = isFreeMealOrder
+    ? Number((activeOrder as any).menu_subtotal || activeOrder.subtotal || 0)
+    : Number(activeOrder.subtotal || 0);
+  const inferredFreeMealValue = orderItems.reduce((sum, item) => {
+    if (!item.is_free_meal_item) return sum;
+    const unit = Number(item.original_unit_price || item.unit_price || 0);
+    return sum + unit * item.quantity;
+  }, 0);
+  const freeMealValue = Number((activeOrder as any).free_meal_value || inferredFreeMealValue || 0);
 
   /* ---------- fetch vendor, customer, rider info ---------- */
 
@@ -754,7 +765,7 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
         <Card>
           <CardContent className="py-3 px-4 space-y-2">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-              <div><span className="text-muted-foreground">Subtotal</span><p className="font-medium">₦{Number(activeOrder.subtotal).toLocaleString()}</p></div>
+              <div><span className="text-muted-foreground">{isFreeMealOrder ? 'Food Subtotal' : 'Subtotal'}</span><p className="font-medium">₦{effectiveFoodSubtotal.toLocaleString()}</p></div>
               <div><span className="text-muted-foreground">Delivery Fee</span><p className="font-medium">₦{Number(activeOrder.delivery_fee || 0).toLocaleString()}</p></div>
               <div><span className="text-muted-foreground">Service Fee</span><p className="font-medium">₦{Number(activeOrder.service_fee || 0).toLocaleString()}</p></div>
               <div><span className="text-muted-foreground">Total</span><p className="font-semibold text-primary">₦{Number(activeOrder.total).toLocaleString()}</p></div>
@@ -790,7 +801,7 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
         </Card>
 
         {/* ── Free Meal Info ── */}
-        {(activeOrder as any).is_free_meal && (
+        {isFreeMealOrder && (
           <Card className="border-green-500/30 bg-green-500/5">
             <CardContent className="py-3 px-4 space-y-1">
               <div className="flex items-center gap-2">
@@ -800,7 +811,7 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
               <div className="grid grid-cols-2 gap-2 text-xs mt-2">
                 <div>
                   <span className="text-muted-foreground">Free Meal Value</span>
-                  <p className="font-semibold text-green-600">₦{Number((activeOrder as any).free_meal_value || 0).toLocaleString()}</p>
+                  <p className="font-semibold text-green-600">₦{freeMealValue.toLocaleString()}</p>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Customer Paid</span>
