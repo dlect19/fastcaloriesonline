@@ -114,18 +114,33 @@ export function MenuCarousel({ nearbyVendorIds }: MenuCarouselProps) {
       const promoVendorIds = promos.map(p => p.vendor_id);
       const allVendorIds = [...new Set([...products.map(p => p.vendor_id), ...promoVendorIds])];
 
+      // Fetch active/approved outlets for cross-referencing
+      const { data: outlets } = await supabase
+        .from('vendor_outlets')
+        .select('id, vendor_id, outlet_name')
+        .in('vendor_id', allVendorIds)
+        .eq('is_active', true)
+        .eq('is_approved', true);
+
+      const activeOutletIds = new Set((outlets || []).map(o => o.id));
+      const vendorsWithActiveOutlets = new Set((outlets || []).map(o => o.vendor_id));
+
+      // Also fetch vendor names
       const { data: vendors } = await supabase
         .from('vendors')
         .select('id, name')
-        .in('id', allVendorIds)
-        .eq('is_active', true)
-        .eq('is_verified', true);
+        .in('id', allVendorIds);
 
       const vendorMap = new Map((vendors || []).map(v => [v.id, v.name]));
 
-      // Build regular menu items
+      // Build regular menu items - filter by outlet status
       const menuItems: MenuItem[] = products
-        .filter(p => vendorMap.has(p.vendor_id))
+        .filter(p => {
+          // If product has outlet_id, check that specific outlet is active/approved
+          if (p.outlet_id) return activeOutletIds.has(p.outlet_id);
+          // If no outlet_id, check vendor has at least one active outlet
+          return vendorsWithActiveOutlets.has(p.vendor_id);
+        })
         .map(p => ({
           id: p.id,
           name: p.name,

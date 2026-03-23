@@ -74,17 +74,30 @@ export function DiscountsCarousel({ nearbyVendorIds }: DiscountsCarouselProps) {
       if (discounted.length === 0) { setLoading(false); return; }
 
       const vendorIds = [...new Set(discounted.map(p => p.vendor_id))];
+
+      // Fetch active/approved outlets for cross-referencing
+      const { data: outlets } = await supabase
+        .from('vendor_outlets')
+        .select('id, vendor_id')
+        .in('vendor_id', vendorIds)
+        .eq('is_active', true)
+        .eq('is_approved', true);
+
+      const activeOutletIds = new Set((outlets || []).map(o => o.id));
+      const vendorsWithActiveOutlets = new Set((outlets || []).map(o => o.vendor_id));
+
       const { data: vendors } = await supabase
         .from('vendors')
         .select('id, name')
-        .in('id', vendorIds)
-        .eq('is_active', true)
-        .eq('is_verified', true);
+        .in('id', vendorIds);
 
       const vendorMap = new Map((vendors || []).map(v => [v.id, v.name]));
 
       const discountItems: DiscountItem[] = discounted
-        .filter(p => vendorMap.has(p.vendor_id))
+        .filter(p => {
+          if (p.outlet_id) return activeOutletIds.has(p.outlet_id);
+          return vendorsWithActiveOutlets.has(p.vendor_id);
+        })
         .map(p => ({
           id: p.id,
           name: p.name,
