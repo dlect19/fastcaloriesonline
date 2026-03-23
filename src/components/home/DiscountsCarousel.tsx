@@ -56,7 +56,7 @@ export function DiscountsCarousel({ nearbyVendorIds }: DiscountsCarouselProps) {
     try {
       let query = supabase
         .from('products')
-        .select('id, name, price, discount_price, calories, image_url, vendor_id')
+        .select('id, name, price, discount_price, calories, image_url, vendor_id, outlet_id')
         .eq('is_available', true)
         .not('discount_price', 'is', null)
         .gt('discount_price', 0);
