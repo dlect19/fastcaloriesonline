@@ -209,6 +209,23 @@ export function VendorCheckoutSection({
       const groupKey = group.outletId ? `${group.vendorId}|${group.outletId}` : `${group.vendorId}|`;
       const metas = packageMetas[groupKey] || [{ recipientName: '', note: '' }];
 
+      // Check if this order contains free meal items
+      const hasFreeMealItems = group.items.some(i => i.isFreeMeal);
+      const freeMealValue = hasFreeMealItems 
+        ? group.items.filter(i => i.isFreeMeal).reduce((sum, i) => sum + (i.originalPrice || 0) * (i._adminFreeQty || i.quantity), 0)
+        : 0;
+      const freeMealPromoId = hasFreeMealItems 
+        ? group.items.find(i => i.isFreeMeal)?.freeMealPromoId || null 
+        : null;
+
+      // For free meal orders, menu_subtotal should reflect actual food value for vendor payment
+      const actualMenuSubtotal = hasFreeMealItems
+        ? group.items.reduce((sum, i) => {
+            if (i.isFreeMeal) return sum + (i.originalPrice || 0) * i.quantity;
+            return sum + i.price * i.quantity;
+          }, 0)
+        : group.subtotal;
+
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert({
@@ -217,7 +234,7 @@ export function VendorCheckoutSection({
           discount: promoDiscount,
           vendor_id: group.vendorId,
           order_number: '',
-          menu_subtotal: group.subtotal,
+          menu_subtotal: actualMenuSubtotal,
           subtotal: group.subtotal + vendorFees.packagingFee - promoDiscount,
           packaging_fee: vendorFees.packagingFee,
           delivery_fee: deliveryFee,
@@ -236,7 +253,10 @@ export function VendorCheckoutSection({
           outlet_id: group.outletId || null,
           package_count: packageCount,
           extra_package_fee: extraPackageFee,
-        })
+          is_free_meal: hasFreeMealItems,
+          free_meal_value: freeMealValue,
+          free_meal_promo_id: freeMealPromoId,
+        } as any)
         .select()
         .single();
 

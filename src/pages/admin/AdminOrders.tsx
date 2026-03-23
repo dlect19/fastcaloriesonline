@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Loader2, XCircle, Eye, Search } from 'lucide-react';
+import { Loader2, XCircle, Eye, Search, Gift, DollarSign, Clock, CheckCircle2 } from 'lucide-react';
 import { format, differenceInMinutes, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { AdminCancelOrderDialog } from '@/components/admin/AdminCancelOrderDialog';
 import { AdminOrderTrackingDialog } from '@/components/admin/AdminOrderTrackingDialog';
@@ -15,6 +15,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DateRangeFilter, type DateRange } from '@/components/shared/DateRangeFilter';
 import { PaginationControls } from '@/components/shared/PaginationControls';
+import { Switch } from '@/components/ui/switch';
 
 const ONGOING_STATUSES = ['pending', 'confirmed', 'preparing', 'ready_for_pickup', 'picked_up', 'on_the_way'];
 const PAST_STATUSES = ['delivered', 'cancelled'];
