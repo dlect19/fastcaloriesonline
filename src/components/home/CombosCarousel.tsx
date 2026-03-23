@@ -56,7 +56,7 @@ export function CombosCarousel({ nearbyVendorIds }: CombosCarouselProps) {
     try {
       let query = supabase
         .from('combos')
-        .select('id, name, combo_price, original_price, image_url, description, vendor_id')
+        .select('id, name, combo_price, original_price, image_url, description, vendor_id, outlet_id')
         .eq('is_available', true);
 
       if (nearbyVendorIds && nearbyVendorIds.length > 0) {
