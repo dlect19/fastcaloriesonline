@@ -59,7 +59,14 @@ export function CartItemCard({ item }: CartItemCardProps) {
 
           {/* Details */}
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-foreground truncate">{item.productName}</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-foreground truncate">{item.productName}</h3>
+              {item.isFreeMeal && (
+                <Badge className="bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/30 text-[10px] gap-0.5 shrink-0">
+                  <Gift className="w-2.5 h-2.5" /> FREE
+                </Badge>
+              )}
+            </div>
             
             {/* Add-ons display with quantity breakdown */}
             {hasAddons && (
