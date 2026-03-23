@@ -497,6 +497,13 @@ export default function AdminFreeMeals() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+        </TabsContent>
+
+        <TabsContent value="audit">
+          <FreeMealAuditDashboard />
+        </TabsContent>
+      </Tabs>
     </AdminLayout>
   );
 }
