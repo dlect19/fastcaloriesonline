@@ -247,15 +247,69 @@ export default function AdminOrders() {
           </div>
         </div>
 
+        {/* Free Meal Financial Summary Cards */}
+        {(freeMealStats.total > 0 || freeMealStats.pending > 0 || freeMealStats.claimed > 0) && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <Card>
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <Gift className="w-4 h-4 text-green-500" />
+                  <span className="text-xs text-muted-foreground">Free Meal Orders</span>
+                </div>
+                <p className="text-lg font-bold text-foreground">{freeMealStats.total}</p>
+                <p className="text-xs text-muted-foreground">₦{freeMealStats.totalValue.toLocaleString()} total value</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <Clock className="w-4 h-4 text-amber-500" />
+                  <span className="text-xs text-muted-foreground">Pending (Reserved)</span>
+                </div>
+                <p className="text-lg font-bold text-foreground">₦{freeMealStats.pending.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">From platform profit</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <CheckCircle2 className="w-4 h-4 text-green-500" />
+                  <span className="text-xs text-muted-foreground">Claimed (Spent)</span>
+                </div>
+                <p className="text-lg font-bold text-foreground">₦{freeMealStats.claimed.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">Deducted from profit</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <XCircle className="w-4 h-4 text-destructive" />
+                  <span className="text-xs text-muted-foreground">Expired (Unused)</span>
+                </div>
+                <p className="text-lg font-bold text-foreground">₦{freeMealStats.expired.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">Returned to profit</p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         {/* Tabs + Date filter + Per-page selector */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
-          <Tabs value={orderTab} onValueChange={(v) => setOrderTab(v as any)}>
-            <TabsList>
-              <TabsTrigger value="all">All ({orders.length})</TabsTrigger>
-              <TabsTrigger value="ongoing">Ongoing ({ongoingCount})</TabsTrigger>
-              <TabsTrigger value="past">Past ({pastCount})</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <div className="flex items-center gap-3">
+            <Tabs value={orderTab} onValueChange={(v) => setOrderTab(v as any)}>
+              <TabsList>
+                <TabsTrigger value="all">All ({orders.length})</TabsTrigger>
+                <TabsTrigger value="ongoing">Ongoing ({ongoingCount})</TabsTrigger>
+                <TabsTrigger value="past">Past ({pastCount})</TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <div className="flex items-center gap-2">
+              <Switch checked={freeMealOnly} onCheckedChange={setFreeMealOnly} />
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <Gift className="w-3 h-3" /> Free Meal
+              </span>
+            </div>
+          </div>
           <div className="flex items-center gap-3 flex-wrap">
             <DateRangeFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
             <div className="flex items-center gap-2">
