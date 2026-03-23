@@ -261,14 +261,21 @@ export function VendorCheckoutSection({
       const orderItems = group.items.map(item => {
         // Find the package_id for this item's packageIndex
         const pkg = createdPackages?.find(p => p.sort_order === item.packageIndex);
+        // For free meal items: store original price so vendor sees real value
+        const actualUnitPrice = item.isFreeMeal ? (item.originalPrice || 0) : item.price;
+        const actualTotalPrice = item.isFreeMeal 
+          ? (item.originalPrice || 0) * item.quantity 
+          : item.price * item.quantity;
         return {
           order_id: order.id,
           package_id: pkg?.id || null,
           product_id: item.addonsDescription ? null : item.productId,
           product_name: item.productName,
           quantity: item.quantity,
-          unit_price: item.price,
-          total_price: item.price * item.quantity,
+          unit_price: actualUnitPrice,
+          total_price: actualTotalPrice,
+          original_unit_price: item.isFreeMeal ? (item.originalPrice || 0) : null,
+          is_free_meal_item: item.isFreeMeal || false,
           calories: item.calories * item.quantity,
           special_instructions: item.addonsDescription || null,
         };
