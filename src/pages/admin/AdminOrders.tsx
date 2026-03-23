@@ -33,7 +33,7 @@ export default function AdminOrders() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [freeMealOnly, setFreeMealOnly] = useState(false);
-  const [freeMealStats, setFreeMealStats] = useState({ total: 0, claimed: 0, pending: 0, expired: 0, totalValue: 0 });
+  const [freeMealStats, setFreeMealStats] = useState({ total: 0, claimed: 0, pending: 0, expired: 0, cancelled: 0, totalValue: 0 });
 
   useEffect(() => {
     checkAuth();
