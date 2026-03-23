@@ -62,6 +62,9 @@ export default function AdminOrders() {
     if (orderTab === 'ongoing') result = result.filter(o => ONGOING_STATUSES.includes(o.status));
     if (orderTab === 'past') result = result.filter(o => PAST_STATUSES.includes(o.status));
 
+    // Free meal filter
+    if (freeMealOnly) result = result.filter(o => o.is_free_meal);
+
     // Date range filter
     if (dateRange.from) {
       result = result.filter(o => {
@@ -85,7 +88,7 @@ export default function AdminOrders() {
     }
 
     return result;
-  }, [orders, orderTab, dateRange, searchQuery]);
+  }, [orders, orderTab, dateRange, searchQuery, freeMealOnly]);
 
   const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
   const paginatedOrders = useMemo(() => {
