@@ -27,6 +27,7 @@ export interface CartItem {
   isFreeMeal?: boolean;
   freeMealPromoId?: string;
   originalPrice?: number;
+  _adminFreeQty?: number; // admin-set free quantity (extras charged at originalPrice)
   packageIndex: number; // which package this item belongs to (0-based)
 }
 
@@ -95,7 +96,16 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 const CART_STORAGE_KEY = 'fast-calories-cart';
 
 function calculateItemSubtotal(item: CartItem): number {
-  const menuTotal = item.price * item.quantity;
+  let menuTotal: number;
+  
+  if (item.isFreeMeal && item._adminFreeQty && item.quantity > item._adminFreeQty) {
+    // Free qty at ₦0, extras at original price
+    const extraQty = item.quantity - item._adminFreeQty;
+    menuTotal = extraQty * (item.originalPrice || 0);
+  } else {
+    menuTotal = item.price * item.quantity;
+  }
+  
   const addonTotal = (item.addons || []).reduce((aSum, addon) => {
     return aSum + addon.price * (addon.quantity || 1);
   }, 0);
@@ -215,9 +225,26 @@ export function CartProvider({ children }: { children: ReactNode }) {
       removeItem(itemId);
       return;
     }
-    setItems(items.map(i => 
-      i.id === itemId ? { ...i, quantity } : i
-    ));
+    setItems(prevItems => {
+      return prevItems.map(i => {
+        if (i.id !== itemId) return i;
+
+        // Free meal item: admin-set quantity stays at ₦0, extras at original price
+        if (i.isFreeMeal && i.freeMealPromoId) {
+          const freeQty = i._adminFreeQty ?? i.quantity; // original admin quantity
+          if (quantity > freeQty) {
+            // Split: freeQty at ₦0 already exists, just update quantity
+            // Price becomes weighted: (freeQty * 0 + extraQty * originalPrice) / totalQty
+            // Better approach: keep price at 0 for free portion, track extras
+            return { ...i, quantity, _adminFreeQty: freeQty };
+          }
+          // Reducing back to or below free qty
+          return { ...i, quantity: Math.max(1, quantity), _adminFreeQty: freeQty };
+        }
+
+        return { ...i, quantity };
+      });
+    });
   };
 
   const updateItem = (itemId: string, updates: Partial<Omit<CartItem, 'id'>>) => {

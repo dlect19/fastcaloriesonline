@@ -8,11 +8,13 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FreeMealComboBuilder, PromoItem } from '@/components/admin/FreeMealComboBuilder';
+import FreeMealAuditDashboard from '@/components/admin/FreeMealAuditDashboard';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Trash2, Gift, UtensilsCrossed, Loader2, Store, Pencil, Eye, EyeOff, Package, ImagePlus, X } from 'lucide-react';
+import { Plus, Trash2, Gift, UtensilsCrossed, Loader2, Store, Pencil, Eye, EyeOff, Package, ImagePlus, X, BarChart3 } from 'lucide-react';
 import { useRef } from 'react';
 
 interface Vendor {
@@ -280,11 +282,25 @@ export default function AdminFreeMeals() {
             Build combo-style free meals from vendor menus for customers to earn
           </p>
         </div>
-        <Button onClick={() => { resetForm(); setShowDialog(true); }}>
-          <Plus className="w-4 h-4 mr-2" />
-          Add Free Meal
-        </Button>
       </div>
+
+      <Tabs defaultValue="promos" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="promos">
+            <Gift className="w-4 h-4 mr-1" /> Manage Promos
+          </TabsTrigger>
+          <TabsTrigger value="audit">
+            <BarChart3 className="w-4 h-4 mr-1" /> Audit & Financials
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="promos">
+          <div className="flex justify-end mb-4">
+            <Button onClick={() => { resetForm(); setShowDialog(true); }}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Free Meal
+            </Button>
+          </div>
 
       {loading ? (
         <div className="flex items-center justify-center py-20">
@@ -481,6 +497,13 @@ export default function AdminFreeMeals() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+        </TabsContent>
+
+        <TabsContent value="audit">
+          <FreeMealAuditDashboard />
+        </TabsContent>
+      </Tabs>
     </AdminLayout>
   );
 }

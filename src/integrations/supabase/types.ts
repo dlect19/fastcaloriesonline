@@ -1855,6 +1855,97 @@ export type Database = {
           },
         ]
       }
+      free_meal_audit: {
+        Row: {
+          claimed_at: string | null
+          created_at: string
+          customer_extra_spend: number
+          environment: string
+          expired_at: string | null
+          id: string
+          meal_value: number
+          notes: string | null
+          period_end: string
+          period_start: string
+          platform_cost: number
+          promo_id: string
+          qualified_at: string | null
+          qualifying_order_id: string | null
+          redemption_id: string | null
+          status: string
+          updated_at: string
+          user_id: string
+          vendor_credit: number
+          vendor_paid_at: string | null
+        }
+        Insert: {
+          claimed_at?: string | null
+          created_at?: string
+          customer_extra_spend?: number
+          environment?: string
+          expired_at?: string | null
+          id?: string
+          meal_value?: number
+          notes?: string | null
+          period_end: string
+          period_start?: string
+          platform_cost?: number
+          promo_id: string
+          qualified_at?: string | null
+          qualifying_order_id?: string | null
+          redemption_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+          vendor_credit?: number
+          vendor_paid_at?: string | null
+        }
+        Update: {
+          claimed_at?: string | null
+          created_at?: string
+          customer_extra_spend?: number
+          environment?: string
+          expired_at?: string | null
+          id?: string
+          meal_value?: number
+          notes?: string | null
+          period_end?: string
+          period_start?: string
+          platform_cost?: number
+          promo_id?: string
+          qualified_at?: string | null
+          qualifying_order_id?: string | null
+          redemption_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+          vendor_credit?: number
+          vendor_paid_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "free_meal_audit_promo_id_fkey"
+            columns: ["promo_id"]
+            isOneToOne: false
+            referencedRelation: "free_meal_promos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "free_meal_audit_qualifying_order_id_fkey"
+            columns: ["qualifying_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "free_meal_audit_redemption_id_fkey"
+            columns: ["redemption_id"]
+            isOneToOne: false
+            referencedRelation: "free_meal_redemptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       free_meal_progress: {
         Row: {
           created_at: string
@@ -1910,6 +2001,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          max_free_quantity: number
           product_id: string | null
           promo_id: string
           quantity: number
@@ -1919,6 +2011,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          max_free_quantity?: number
           product_id?: string | null
           promo_id: string
           quantity?: number
@@ -1928,6 +2021,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          max_free_quantity?: number
           product_id?: string | null
           promo_id?: string
           quantity?: number

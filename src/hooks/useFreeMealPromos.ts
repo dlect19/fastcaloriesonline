@@ -168,6 +168,9 @@ export function useFreeMealPromos() {
           }
         } else {
           // Create new or reset period
+          const periodEnd = new Date();
+          periodEnd.setDate(periodEnd.getDate() + promo.promo_period_days);
+          
           await supabase
             .from('free_meal_progress')
             .upsert({
@@ -179,6 +182,23 @@ export function useFreeMealPromos() {
               is_eligible: orderAmount >= promo.order_threshold,
               updated_at: now.toISOString(),
             }, { onConflict: 'user_id,promo_id' });
+
+          // Create audit record for journey tracking
+          await supabase
+            .from('free_meal_audit')
+            .insert({
+              promo_id: promo.id,
+              user_id: user.id,
+              status: orderAmount >= promo.order_threshold ? 'qualified' : 'in_progress',
+              qualifying_order_id: orderId,
+              meal_value: promo.meal_value,
+              platform_cost: promo.meal_value,
+              period_start: now.toISOString(),
+              period_end: periodEnd.toISOString(),
+              qualified_at: orderAmount >= promo.order_threshold ? now.toISOString() : null,
+              notes: `Customer started free meal journey with order ₦${orderAmount.toLocaleString()}`,
+              environment: 'production',
+            });
         }
       }
 
@@ -227,6 +247,30 @@ export function useFreeMealPromos() {
         .single();
 
       if (error) throw error;
+
+      // Create audit record for tracking & vendor payment
+      const periodStart = promo.progress?.period_start ? new Date(promo.progress.period_start) : new Date();
+      const periodEnd = new Date(periodStart);
+      periodEnd.setDate(periodEnd.getDate() + promo.promo_period_days);
+
+      await supabase
+        .from('free_meal_audit')
+        .insert({
+          promo_id: promoId,
+          user_id: user.id,
+          status: 'claimed',
+          qualifying_order_id: qOrderId,
+          redemption_id: data.id,
+          meal_value: promo.meal_value,
+          platform_cost: promo.meal_value,
+          vendor_credit: promo.meal_value,
+          period_start: periodStart.toISOString(),
+          period_end: periodEnd.toISOString(),
+          qualified_at: promo.progress?.period_start || new Date().toISOString(),
+          claimed_at: new Date().toISOString(),
+          notes: `Free meal claimed: ${promo.product_name} from ${promo.vendor_name}`,
+          environment: 'production',
+        });
 
       // Refresh
       await fetchPromos();
