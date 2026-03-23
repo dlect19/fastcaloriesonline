@@ -913,7 +913,14 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
               {orderItems.map((item, i) => (
                 <div key={i} className="flex items-start justify-between text-sm border-b last:border-0 pb-1.5 last:pb-0">
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium">{item.quantity}× {item.product_name}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-medium">{item.quantity}× {item.product_name}</p>
+                      {item.is_free_meal_item && (
+                        <Badge className="bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/30 text-[9px] gap-0.5">
+                          <Gift className="w-2 h-2" /> FREE
+                        </Badge>
+                      )}
+                    </div>
                     {item.order_item_addons && item.order_item_addons.length > 0 && (
                       <div className="text-xs text-muted-foreground mt-0.5">
                         {item.order_item_addons.map((a, j) => (
@@ -924,6 +931,16 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
                     {item.special_instructions && (
                       <p className="text-xs text-muted-foreground italic mt-0.5">Note: {item.special_instructions}</p>
                     )}
+                  </div>
+                  <div className="text-right shrink-0 ml-2">
+                    {item.is_free_meal_item ? (
+                      <div>
+                        <p className="font-medium text-green-600">₦{Number(item.total_price || 0).toLocaleString()}</p>
+                        <p className="text-[10px] text-muted-foreground">Platform pays</p>
+                      </div>
+                    ) : item.total_price ? (
+                      <p className="font-medium">₦{Number(item.total_price).toLocaleString()}</p>
+                    ) : null}
                   </div>
                 </div>
               ))}
