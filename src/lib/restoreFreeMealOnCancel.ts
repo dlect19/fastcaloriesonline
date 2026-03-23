@@ -2,11 +2,11 @@ import { supabase } from '@/integrations/supabase/client';
 
 /**
  * Restores a free meal redemption when an order is cancelled.
- * Deletes the redemption record and related audit entries so the user can claim again.
+ * Deletes the redemption record and marks audit entries as 'cancelled'
+ * so the customer can claim again and admin stats update correctly.
  */
 export async function restoreFreeMealOnCancel(orderId: string): Promise<boolean> {
   try {
-    // Check if this order is a free meal order
     const { data: order } = await supabase
       .from('orders')
       .select('user_id, is_free_meal, free_meal_promo_id')
@@ -15,7 +15,7 @@ export async function restoreFreeMealOnCancel(orderId: string): Promise<boolean>
 
     if (!order?.is_free_meal || !order.free_meal_promo_id) return false;
 
-    // Find the redemption
+    // Find the redemption(s)
     const { data: redemptions } = await supabase
       .from('free_meal_redemptions')
       .select('id')
@@ -29,7 +29,18 @@ export async function restoreFreeMealOnCancel(orderId: string): Promise<boolean>
       // Delete audit first (FK constraint)
       await supabase
         .from('free_meal_audit')
-        .delete()
+        .update({ 
+          status: 'cancelled', 
+          notes: 'Free meal restored — qualifying order was cancelled',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('redemption_id', r.id);
+
+      // Delete redemption so user can claim again
+      // First remove FK reference in audit
+      await supabase
+        .from('free_meal_audit')
+        .update({ redemption_id: null })
         .eq('redemption_id', r.id);
 
       await supabase
