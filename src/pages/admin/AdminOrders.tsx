@@ -147,11 +147,12 @@ export default function AdminOrders() {
           .from('free_meal_audit')
           .select('status, platform_cost');
         
-        let claimed = 0, pending = 0, expired = 0;
+        let claimed = 0, pending = 0, expired = 0, cancelled = 0;
         auditData?.forEach((a: any) => {
           if (a.status === 'claimed' || a.status === 'vendor_paid') claimed += a.platform_cost || 0;
           else if (a.status === 'in_progress' || a.status === 'qualified') pending += a.platform_cost || 0;
           else if (a.status === 'expired') expired += a.platform_cost || 0;
+          else if (a.status === 'cancelled') cancelled += a.platform_cost || 0;
         });
 
         setFreeMealStats({
