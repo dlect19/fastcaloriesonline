@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Loader2, XCircle, Eye, Search } from 'lucide-react';
+import { Loader2, XCircle, Eye, Search, Gift, DollarSign, Clock, CheckCircle2 } from 'lucide-react';
 import { format, differenceInMinutes, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { AdminCancelOrderDialog } from '@/components/admin/AdminCancelOrderDialog';
 import { AdminOrderTrackingDialog } from '@/components/admin/AdminOrderTrackingDialog';
@@ -15,6 +15,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DateRangeFilter, type DateRange } from '@/components/shared/DateRangeFilter';
 import { PaginationControls } from '@/components/shared/PaginationControls';
+import { Switch } from '@/components/ui/switch';
 
 const ONGOING_STATUSES = ['pending', 'confirmed', 'preparing', 'ready_for_pickup', 'picked_up', 'on_the_way'];
 const PAST_STATUSES = ['delivered', 'cancelled'];
@@ -31,6 +32,8 @@ export default function AdminOrders() {
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
+  const [freeMealOnly, setFreeMealOnly] = useState(false);
+  const [freeMealStats, setFreeMealStats] = useState({ total: 0, claimed: 0, pending: 0, expired: 0, totalValue: 0 });
 
   useEffect(() => {
     checkAuth();
@@ -50,7 +53,7 @@ export default function AdminOrders() {
   }, [statusFilter]);
 
   // Reset page when filters change
-  useEffect(() => { setCurrentPage(1); }, [orderTab, dateRange, searchQuery, statusFilter, itemsPerPage]);
+  useEffect(() => { setCurrentPage(1); }, [orderTab, dateRange, searchQuery, statusFilter, itemsPerPage, freeMealOnly]);
 
   const filteredOrders = useMemo(() => {
     let result = orders;
@@ -58,6 +61,9 @@ export default function AdminOrders() {
     // Tab filter
     if (orderTab === 'ongoing') result = result.filter(o => ONGOING_STATUSES.includes(o.status));
     if (orderTab === 'past') result = result.filter(o => PAST_STATUSES.includes(o.status));
+
+    // Free meal filter
+    if (freeMealOnly) result = result.filter(o => o.is_free_meal);
 
     // Date range filter
     if (dateRange.from) {
@@ -82,7 +88,7 @@ export default function AdminOrders() {
     }
 
     return result;
-  }, [orders, orderTab, dateRange, searchQuery]);
+  }, [orders, orderTab, dateRange, searchQuery, freeMealOnly]);
 
   const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
   const paginatedOrders = useMemo(() => {
@@ -131,6 +137,30 @@ export default function AdminOrders() {
           rider_vehicle: order.rider_id ? (riderProfileMap.get(order.rider_id)?.vehicle_type || null) : null,
         }));
         setOrders(enriched);
+
+        // Compute free meal stats from audit table
+        const freeMealOrders = data.filter((o: any) => o.is_free_meal);
+        const totalValue = freeMealOrders.reduce((s: number, o: any) => s + (Number(o.free_meal_value) || 0), 0);
+        
+        // Also get audit stats
+        const { data: auditData } = await supabase
+          .from('free_meal_audit')
+          .select('status, platform_cost');
+        
+        let claimed = 0, pending = 0, expired = 0;
+        auditData?.forEach((a: any) => {
+          if (a.status === 'claimed' || a.status === 'vendor_paid') claimed += a.platform_cost || 0;
+          else if (a.status === 'in_progress' || a.status === 'qualified') pending += a.platform_cost || 0;
+          else if (a.status === 'expired') expired += a.platform_cost || 0;
+        });
+
+        setFreeMealStats({
+          total: freeMealOrders.length,
+          claimed,
+          pending,
+          expired,
+          totalValue,
+        });
       } else {
         setOrders([]);
       }
@@ -217,15 +247,69 @@ export default function AdminOrders() {
           </div>
         </div>
 
+        {/* Free Meal Financial Summary Cards */}
+        {(freeMealStats.total > 0 || freeMealStats.pending > 0 || freeMealStats.claimed > 0) && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <Card>
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <Gift className="w-4 h-4 text-green-500" />
+                  <span className="text-xs text-muted-foreground">Free Meal Orders</span>
+                </div>
+                <p className="text-lg font-bold text-foreground">{freeMealStats.total}</p>
+                <p className="text-xs text-muted-foreground">₦{freeMealStats.totalValue.toLocaleString()} total value</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <Clock className="w-4 h-4 text-amber-500" />
+                  <span className="text-xs text-muted-foreground">Pending (Reserved)</span>
+                </div>
+                <p className="text-lg font-bold text-foreground">₦{freeMealStats.pending.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">From platform profit</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <CheckCircle2 className="w-4 h-4 text-green-500" />
+                  <span className="text-xs text-muted-foreground">Claimed (Spent)</span>
+                </div>
+                <p className="text-lg font-bold text-foreground">₦{freeMealStats.claimed.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">Deducted from profit</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <XCircle className="w-4 h-4 text-destructive" />
+                  <span className="text-xs text-muted-foreground">Expired (Unused)</span>
+                </div>
+                <p className="text-lg font-bold text-foreground">₦{freeMealStats.expired.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">Returned to profit</p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         {/* Tabs + Date filter + Per-page selector */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
-          <Tabs value={orderTab} onValueChange={(v) => setOrderTab(v as any)}>
-            <TabsList>
-              <TabsTrigger value="all">All ({orders.length})</TabsTrigger>
-              <TabsTrigger value="ongoing">Ongoing ({ongoingCount})</TabsTrigger>
-              <TabsTrigger value="past">Past ({pastCount})</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <div className="flex items-center gap-3">
+            <Tabs value={orderTab} onValueChange={(v) => setOrderTab(v as any)}>
+              <TabsList>
+                <TabsTrigger value="all">All ({orders.length})</TabsTrigger>
+                <TabsTrigger value="ongoing">Ongoing ({ongoingCount})</TabsTrigger>
+                <TabsTrigger value="past">Past ({pastCount})</TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <div className="flex items-center gap-2">
+              <Switch checked={freeMealOnly} onCheckedChange={setFreeMealOnly} />
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <Gift className="w-3 h-3" /> Free Meal
+              </span>
+            </div>
+          </div>
           <div className="flex items-center gap-3 flex-wrap">
             <DateRangeFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
             <div className="flex items-center gap-2">
@@ -291,7 +375,16 @@ export default function AdminOrders() {
                             </TooltipProvider>
                           )}
                         </td>
-                        <td className="py-3 px-4 font-medium">{order.order_number}</td>
+                        <td className="py-3 px-4 font-medium">
+                          <div className="flex items-center gap-1.5">
+                            {order.order_number}
+                            {order.is_free_meal && (
+                              <Badge className="bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/30 text-[10px] gap-0.5">
+                                <Gift className="w-2.5 h-2.5" /> Free Meal
+                              </Badge>
+                            )}
+                          </div>
+                        </td>
                         <td className="py-3 px-4">{order.customer_name}</td>
                         <td className="py-3 px-4 text-muted-foreground">{order.customer_phone}</td>
                         <td className="py-3 px-4">{order.vendors?.name}</td>
@@ -326,7 +419,16 @@ export default function AdminOrders() {
                              <span className="text-xs text-muted-foreground">—</span>
                            )}
                          </td>
-                        <td className="py-3 px-4">₦{Number(order.total).toLocaleString()}</td>
+                        <td className="py-3 px-4">
+                          <div>
+                            <span>₦{Number(order.total).toLocaleString()}</span>
+                            {order.is_free_meal && Number(order.free_meal_value) > 0 && (
+                              <p className="text-[10px] text-green-600">
+                                Free: ₦{Number(order.free_meal_value).toLocaleString()}
+                              </p>
+                            )}
+                          </div>
+                        </td>
                         <td className="py-3 px-4 text-muted-foreground">
                           {format(new Date(order.created_at), 'PP')}
                         </td>

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useCart, CartItem } from '@/hooks/useCart';
 import { Button } from '@/components/ui/button';
-import { Minus, Plus, Trash2, Flame, Settings2, Pencil } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Minus, Plus, Trash2, Flame, Settings2, Pencil, Gift } from 'lucide-react';
 import { ProductCustomizationDialog } from '@/components/vendor/ProductCustomizationDialog';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables } from '@/integrations/supabase/types';
@@ -58,7 +59,14 @@ export function CartItemCard({ item }: CartItemCardProps) {
 
           {/* Details */}
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-foreground truncate">{item.productName}</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-foreground truncate">{item.productName}</h3>
+              {item.isFreeMeal && (
+                <Badge className="bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/30 text-[10px] gap-0.5 shrink-0">
+                  <Gift className="w-2.5 h-2.5" /> FREE
+                </Badge>
+              )}
+            </div>
             
             {/* Add-ons display with quantity breakdown */}
             {hasAddons && (
@@ -100,14 +108,30 @@ export function CartItemCard({ item }: CartItemCardProps) {
             </div>
 
             {/* Price */}
-            <p className="font-bold text-foreground mt-2">
-              ₦{(item.price * item.quantity).toLocaleString()}
-              {hasAddons && (
-                <span className="text-xs font-normal text-muted-foreground ml-1">
-                  (incl. add-ons)
-                </span>
+            <div className="mt-2">
+              {item.isFreeMeal ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground line-through">
+                    ₦{((item.originalPrice || 0) * (item._adminFreeQty || item.quantity)).toLocaleString()}
+                  </span>
+                  <span className="font-bold text-green-600">₦0</span>
+                  {item._adminFreeQty && item.quantity > item._adminFreeQty && (
+                    <span className="text-xs text-foreground font-medium">
+                      + ₦{((item.originalPrice || 0) * (item.quantity - item._adminFreeQty)).toLocaleString()} extra
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <p className="font-bold text-foreground">
+                  ₦{(item.price * item.quantity).toLocaleString()}
+                  {hasAddons && (
+                    <span className="text-xs font-normal text-muted-foreground ml-1">
+                      (incl. add-ons)
+                    </span>
+                  )}
+                </p>
               )}
-            </p>
+            </div>
           </div>
 
           {/* Action buttons */}

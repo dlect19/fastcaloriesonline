@@ -137,7 +137,7 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
   const [customer, setCustomer] = useState<CustomerInfo | null>(null);
   const [rider, setRider] = useState<RiderInfo | null>(null);
   const [liveOrder, setLiveOrder] = useState<Order | null>(null);
-  const [orderItems, setOrderItems] = useState<{ product_name: string; quantity: number; special_instructions: string | null; order_item_addons?: { addon_group_name: string; addon_item_name: string; additional_price: number }[] }[]>([]);
+  const [orderItems, setOrderItems] = useState<{ product_name: string; quantity: number; special_instructions: string | null; unit_price?: number; total_price?: number; is_free_meal_item?: boolean; original_unit_price?: number; order_item_addons?: { addon_group_name: string; addon_item_name: string; additional_price: number }[] }[]>([]);
   const [completing, setCompleting] = useState(false);
   const [orderFinancials, setOrderFinancials] = useState<{
     vendor_payout: number;
@@ -294,25 +294,13 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
   }, [order, open, fetchDetails]);
 
   const fetchOrderItems = async (orderId: string) => {
-    const { data: items } = await supabase
-      .from('order_items')
-      .select('product_name, quantity, special_instructions')
-      .eq('order_id', orderId);
-    
-    if (!items || items.length === 0) {
-      setOrderItems([]);
-      return;
-    }
-
-    // Fetch addons separately for each item
-    const itemIds = items.map((_, i) => i);
     const { data: allItems } = await supabase
       .from('order_items')
-      .select('id, product_name, quantity, special_instructions')
+      .select('id, product_name, quantity, special_instructions, unit_price, total_price, is_free_meal_item, original_unit_price')
       .eq('order_id', orderId);
 
-    if (!allItems) {
-      setOrderItems(items.map(it => ({ ...it, order_item_addons: [] })));
+    if (!allItems || allItems.length === 0) {
+      setOrderItems([]);
       return;
     }
 
@@ -333,6 +321,10 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
       product_name: it.product_name,
       quantity: it.quantity,
       special_instructions: it.special_instructions,
+      unit_price: it.unit_price,
+      total_price: it.total_price,
+      is_free_meal_item: (it as any).is_free_meal_item || false,
+      original_unit_price: (it as any).original_unit_price,
       order_item_addons: (addonMap.get(it.id) || []).map(a => ({
         addon_group_name: a.addon_group_name,
         addon_item_name: a.addon_item_name,
@@ -797,6 +789,31 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
           </CardContent>
         </Card>
 
+        {/* ── Free Meal Info ── */}
+        {(activeOrder as any).is_free_meal && (
+          <Card className="border-green-500/30 bg-green-500/5">
+            <CardContent className="py-3 px-4 space-y-1">
+              <div className="flex items-center gap-2">
+                <Gift className="w-4 h-4 text-green-600" />
+                <span className="text-sm font-semibold text-green-700 dark:text-green-400">Free Meal Order (Platform Sponsored)</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs mt-2">
+                <div>
+                  <span className="text-muted-foreground">Free Meal Value</span>
+                  <p className="font-semibold text-green-600">₦{Number((activeOrder as any).free_meal_value || 0).toLocaleString()}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Customer Paid</span>
+                  <p className="font-medium">₦{Number(activeOrder.total).toLocaleString()}</p>
+                </div>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                The vendor receives full food value. Platform absorbs the free meal cost from profit.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
 
         {/* ── Change Delivery Type ── */}
         {activeOrder.status !== 'delivered' && activeOrder.status !== 'cancelled' && (
@@ -896,7 +913,14 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
               {orderItems.map((item, i) => (
                 <div key={i} className="flex items-start justify-between text-sm border-b last:border-0 pb-1.5 last:pb-0">
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium">{item.quantity}× {item.product_name}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-medium">{item.quantity}× {item.product_name}</p>
+                      {item.is_free_meal_item && (
+                        <Badge className="bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/30 text-[9px] gap-0.5">
+                          <Gift className="w-2 h-2" /> FREE
+                        </Badge>
+                      )}
+                    </div>
                     {item.order_item_addons && item.order_item_addons.length > 0 && (
                       <div className="text-xs text-muted-foreground mt-0.5">
                         {item.order_item_addons.map((a, j) => (
@@ -907,6 +931,16 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
                     {item.special_instructions && (
                       <p className="text-xs text-muted-foreground italic mt-0.5">Note: {item.special_instructions}</p>
                     )}
+                  </div>
+                  <div className="text-right shrink-0 ml-2">
+                    {item.is_free_meal_item ? (
+                      <div>
+                        <p className="font-medium text-green-600">₦{Number(item.total_price || 0).toLocaleString()}</p>
+                        <p className="text-[10px] text-muted-foreground">Platform pays</p>
+                      </div>
+                    ) : item.total_price ? (
+                      <p className="font-medium">₦{Number(item.total_price).toLocaleString()}</p>
+                    ) : null}
                   </div>
                 </div>
               ))}

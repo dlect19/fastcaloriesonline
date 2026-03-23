@@ -530,9 +530,16 @@ export default function VendorOrders() {
     <>
       <div className="flex justify-between items-start">
         <div className="flex-1">
-          <p className="font-medium text-foreground">
-            {item.quantity}x {item.product_name}
-          </p>
+          <div className="flex items-center gap-1.5">
+            <p className="font-medium text-foreground">
+              {item.quantity}x {item.product_name}
+            </p>
+            {(item as any).is_free_meal_item && (
+              <span className="inline-flex items-center gap-0.5 bg-green-500/15 text-green-700 dark:text-green-400 border border-green-500/30 rounded-full px-1.5 py-0 text-[10px] font-semibold">
+                🎁 Free Meal
+              </span>
+            )}
+          </div>
           {item.special_instructions && (
             <p className="text-xs text-primary/80 mt-0.5">
               🛠 {item.special_instructions}
