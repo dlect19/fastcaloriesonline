@@ -711,6 +711,7 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
                       <SelectItem value="picked_up">Picked Up</SelectItem>
                       <SelectItem value="on_the_way">On the Way</SelectItem>
                       <SelectItem value="delivered">Delivered</SelectItem>
+                      <SelectItem value="cancelled">Cancelled</SelectItem>
                     </SelectContent>
                   </Select>
                   {changingStatus && <Loader2 className="w-4 h-4 animate-spin text-orange-600" />}
