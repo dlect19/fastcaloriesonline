@@ -27,6 +27,7 @@ export interface CartItem {
   isFreeMeal?: boolean;
   freeMealPromoId?: string;
   originalPrice?: number;
+  _adminFreeQty?: number; // admin-set free quantity (extras charged at originalPrice)
   packageIndex: number; // which package this item belongs to (0-based)
 }
 
