@@ -375,7 +375,16 @@ export default function AdminOrders() {
                             </TooltipProvider>
                           )}
                         </td>
-                        <td className="py-3 px-4 font-medium">{order.order_number}</td>
+                        <td className="py-3 px-4 font-medium">
+                          <div className="flex items-center gap-1.5">
+                            {order.order_number}
+                            {order.is_free_meal && (
+                              <Badge className="bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/30 text-[10px] gap-0.5">
+                                <Gift className="w-2.5 h-2.5" /> Free Meal
+                              </Badge>
+                            )}
+                          </div>
+                        </td>
                         <td className="py-3 px-4">{order.customer_name}</td>
                         <td className="py-3 px-4 text-muted-foreground">{order.customer_phone}</td>
                         <td className="py-3 px-4">{order.vendors?.name}</td>
