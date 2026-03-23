@@ -680,6 +680,10 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
                           .update(updateData)
                           .eq('id', activeOrder.id);
                         if (error) throw error;
+                        // Restore free meal if cancelled
+                        if (newStatus === 'cancelled') {
+                          await restoreFreeMealOnCancel(activeOrder.id);
+                        }
                         toast({ title: '✅ Status updated', description: `Order is now "${newStatus.replace(/_/g, ' ')}"` });
                         const { data: refreshed } = await supabase
                           .from('orders')
