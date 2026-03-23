@@ -24,6 +24,7 @@ import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { OrderPhotoEvidence } from '@/components/admin/OrderPhotoEvidence';
 
+import { restoreFreeMealOnCancel } from '@/lib/restoreFreeMealOnCancel';
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
