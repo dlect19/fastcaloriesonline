@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useCart, CartItem } from '@/hooks/useCart';
 import { Button } from '@/components/ui/button';
-import { Minus, Plus, Trash2, Flame, Settings2, Pencil } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Minus, Plus, Trash2, Flame, Settings2, Pencil, Gift } from 'lucide-react';
 import { ProductCustomizationDialog } from '@/components/vendor/ProductCustomizationDialog';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables } from '@/integrations/supabase/types';
