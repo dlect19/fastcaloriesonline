@@ -33,7 +33,7 @@ export default function AdminOrders() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [freeMealOnly, setFreeMealOnly] = useState(false);
-  const [freeMealStats, setFreeMealStats] = useState({ total: 0, claimed: 0, pending: 0, expired: 0, totalValue: 0 });
+  const [freeMealStats, setFreeMealStats] = useState({ total: 0, claimed: 0, pending: 0, expired: 0, cancelled: 0, totalValue: 0 });
 
   useEffect(() => {
     checkAuth();
@@ -147,11 +147,12 @@ export default function AdminOrders() {
           .from('free_meal_audit')
           .select('status, platform_cost');
         
-        let claimed = 0, pending = 0, expired = 0;
+        let claimed = 0, pending = 0, expired = 0, cancelled = 0;
         auditData?.forEach((a: any) => {
           if (a.status === 'claimed' || a.status === 'vendor_paid') claimed += a.platform_cost || 0;
           else if (a.status === 'in_progress' || a.status === 'qualified') pending += a.platform_cost || 0;
           else if (a.status === 'expired') expired += a.platform_cost || 0;
+          else if (a.status === 'cancelled') cancelled += a.platform_cost || 0;
         });
 
         setFreeMealStats({
@@ -159,6 +160,7 @@ export default function AdminOrders() {
           claimed,
           pending,
           expired,
+          cancelled,
           totalValue,
         });
       } else {
@@ -249,7 +251,7 @@ export default function AdminOrders() {
 
         {/* Free Meal Financial Summary Cards */}
         {(freeMealStats.total > 0 || freeMealStats.pending > 0 || freeMealStats.claimed > 0) && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
             <Card>
               <CardContent className="p-3">
                 <div className="flex items-center gap-2 mb-1">
@@ -290,6 +292,18 @@ export default function AdminOrders() {
                 <p className="text-xs text-muted-foreground">Returned to profit</p>
               </CardContent>
             </Card>
+            {freeMealStats.cancelled > 0 && (
+              <Card>
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <XCircle className="w-4 h-4 text-amber-500" />
+                    <span className="text-xs text-muted-foreground">Cancelled (Restored)</span>
+                  </div>
+                  <p className="text-lg font-bold text-foreground">₦{freeMealStats.cancelled.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground">Returned to customer</p>
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
 
