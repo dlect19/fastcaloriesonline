@@ -101,6 +101,9 @@ export function CustomerCancelOrderDialog({
 
       if (updateError) throw updateError;
 
+      // Restore free meal redemption if applicable
+      await restoreFreeMealOnCancel(orderId);
+
       if (isPaid) {
         const { data: refundData, error: refundError } = await supabase.functions.invoke('process-refund', {
           body: { orderId, reason: `Customer cancelled: ${finalReason}` },

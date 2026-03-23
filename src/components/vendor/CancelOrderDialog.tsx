@@ -79,6 +79,9 @@ export function CancelOrderDialog({
 
       if (updateError) throw updateError;
 
+      // Restore free meal redemption if applicable
+      await restoreFreeMealOnCancel(orderId);
+
       // 2. Only process refund if the order was actually paid
       if (isPaid) {
         const { data: refundData, error: refundError } = await supabase.functions.invoke(
