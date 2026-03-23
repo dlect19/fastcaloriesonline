@@ -75,6 +75,7 @@ export async function addFreeMealPromoItemsToCart(
           addonsDescription: 'Free meal takeaway pack',
           isFreeMeal: true,
           freeMealPromoId: promoId,
+          _adminFreeQty: qty,
         });
         addedCount += qty;
       }
