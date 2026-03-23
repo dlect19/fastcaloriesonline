@@ -163,16 +163,16 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
 
   const activeOrder = liveOrder || order;
   const hasFreeMealItems = orderItems.some(item => item.is_free_meal_item);
-  const isFreeMealOrder = Boolean((activeOrder as any).is_free_meal || (activeOrder as any).free_meal_promo_id || hasFreeMealItems);
+  const isFreeMealOrder = activeOrder ? Boolean((activeOrder as any).is_free_meal || (activeOrder as any).free_meal_promo_id || hasFreeMealItems) : false;
   const effectiveFoodSubtotal = isFreeMealOrder
-    ? Number((activeOrder as any).menu_subtotal || activeOrder.subtotal || 0)
-    : Number(activeOrder.subtotal || 0);
+    ? Number((activeOrder as any)?.menu_subtotal || activeOrder?.subtotal || 0)
+    : Number(activeOrder?.subtotal || 0);
   const inferredFreeMealValue = orderItems.reduce((sum, item) => {
     if (!item.is_free_meal_item) return sum;
     const unit = Number(item.original_unit_price || item.unit_price || 0);
     return sum + unit * item.quantity;
   }, 0);
-  const freeMealValue = Number((activeOrder as any).free_meal_value || inferredFreeMealValue || 0);
+  const freeMealValue = Number((activeOrder as any)?.free_meal_value || inferredFreeMealValue || 0);
 
   /* ---------- fetch vendor, customer, rider info ---------- */
 
