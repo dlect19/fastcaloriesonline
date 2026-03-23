@@ -251,7 +251,7 @@ export default function AdminOrders() {
 
         {/* Free Meal Financial Summary Cards */}
         {(freeMealStats.total > 0 || freeMealStats.pending > 0 || freeMealStats.claimed > 0) && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
             <Card>
               <CardContent className="p-3">
                 <div className="flex items-center gap-2 mb-1">
@@ -292,6 +292,18 @@ export default function AdminOrders() {
                 <p className="text-xs text-muted-foreground">Returned to profit</p>
               </CardContent>
             </Card>
+            {freeMealStats.cancelled > 0 && (
+              <Card>
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <XCircle className="w-4 h-4 text-amber-500" />
+                    <span className="text-xs text-muted-foreground">Cancelled (Restored)</span>
+                  </div>
+                  <p className="text-lg font-bold text-foreground">₦{freeMealStats.cancelled.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground">Returned to customer</p>
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
 
