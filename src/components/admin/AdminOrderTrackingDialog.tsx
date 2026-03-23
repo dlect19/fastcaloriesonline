@@ -797,6 +797,31 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
           </CardContent>
         </Card>
 
+        {/* ── Free Meal Info ── */}
+        {(activeOrder as any).is_free_meal && (
+          <Card className="border-green-500/30 bg-green-500/5">
+            <CardContent className="py-3 px-4 space-y-1">
+              <div className="flex items-center gap-2">
+                <Gift className="w-4 h-4 text-green-600" />
+                <span className="text-sm font-semibold text-green-700 dark:text-green-400">Free Meal Order (Platform Sponsored)</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs mt-2">
+                <div>
+                  <span className="text-muted-foreground">Free Meal Value</span>
+                  <p className="font-semibold text-green-600">₦{Number((activeOrder as any).free_meal_value || 0).toLocaleString()}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Customer Paid</span>
+                  <p className="font-medium">₦{Number(activeOrder.total).toLocaleString()}</p>
+                </div>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                The vendor receives full food value. Platform absorbs the free meal cost from profit.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
 
         {/* ── Change Delivery Type ── */}
         {activeOrder.status !== 'delivered' && activeOrder.status !== 'cancelled' && (
