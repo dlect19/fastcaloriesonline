@@ -294,25 +294,13 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
   }, [order, open, fetchDetails]);
 
   const fetchOrderItems = async (orderId: string) => {
-    const { data: items } = await supabase
-      .from('order_items')
-      .select('product_name, quantity, special_instructions')
-      .eq('order_id', orderId);
-    
-    if (!items || items.length === 0) {
-      setOrderItems([]);
-      return;
-    }
-
-    // Fetch addons separately for each item
-    const itemIds = items.map((_, i) => i);
     const { data: allItems } = await supabase
       .from('order_items')
-      .select('id, product_name, quantity, special_instructions')
+      .select('id, product_name, quantity, special_instructions, unit_price, total_price, is_free_meal_item, original_unit_price')
       .eq('order_id', orderId);
 
-    if (!allItems) {
-      setOrderItems(items.map(it => ({ ...it, order_item_addons: [] })));
+    if (!allItems || allItems.length === 0) {
+      setOrderItems([]);
       return;
     }
 
@@ -333,6 +321,10 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
       product_name: it.product_name,
       quantity: it.quantity,
       special_instructions: it.special_instructions,
+      unit_price: it.unit_price,
+      total_price: it.total_price,
+      is_free_meal_item: (it as any).is_free_meal_item || false,
+      original_unit_price: (it as any).original_unit_price,
       order_item_addons: (addonMap.get(it.id) || []).map(a => ({
         addon_group_name: a.addon_group_name,
         addon_item_name: a.addon_item_name,
