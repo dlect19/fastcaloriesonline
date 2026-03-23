@@ -56,7 +56,7 @@ export function CombosCarousel({ nearbyVendorIds }: CombosCarouselProps) {
     try {
       let query = supabase
         .from('combos')
-        .select('id, name, combo_price, original_price, image_url, description, vendor_id')
+        .select('id, name, combo_price, original_price, image_url, description, vendor_id, outlet_id')
         .eq('is_available', true);
 
       if (nearbyVendorIds && nearbyVendorIds.length > 0) {
@@ -68,17 +68,30 @@ export function CombosCarousel({ nearbyVendorIds }: CombosCarouselProps) {
       if (!combos || combos.length === 0) { setLoading(false); return; }
 
       const vendorIds = [...new Set(combos.map(c => c.vendor_id))];
+
+      // Fetch active/approved outlets for cross-referencing
+      const { data: outlets } = await supabase
+        .from('vendor_outlets')
+        .select('id, vendor_id')
+        .in('vendor_id', vendorIds)
+        .eq('is_active', true)
+        .eq('is_approved', true);
+
+      const activeOutletIds = new Set((outlets || []).map(o => o.id));
+      const vendorsWithActiveOutlets = new Set((outlets || []).map(o => o.vendor_id));
+
       const { data: vendors } = await supabase
         .from('vendors')
         .select('id, name')
-        .in('id', vendorIds)
-        .eq('is_active', true)
-        .eq('is_verified', true);
+        .in('id', vendorIds);
 
       const vendorMap = new Map((vendors || []).map(v => [v.id, v.name]));
 
       const comboItems: ComboItem[] = combos
-        .filter(c => vendorMap.has(c.vendor_id))
+        .filter(c => {
+          if (c.outlet_id) return activeOutletIds.has(c.outlet_id);
+          return vendorsWithActiveOutlets.has(c.vendor_id);
+        })
         .map(c => ({
           id: c.id,
           name: c.name,

@@ -167,25 +167,39 @@ export function AIMealRecommendation() {
       for (const keyword of keywords.slice(0, 3)) {
         const { data: products } = await supabase
           .from('products')
-          .select('id, name, price, calories, image_url, vendor_id')
+          .select('id, name, price, calories, image_url, vendor_id, outlet_id')
           .ilike('name', `%${keyword}%`)
           .eq('is_available', true)
           .limit(10);
 
         if (products && products.length > 0) {
           const vendorIds = [...new Set(products.map(p => p.vendor_id))];
+
+          // Fetch active/approved outlets for cross-referencing
+          const { data: outlets } = await supabase
+            .from('vendor_outlets')
+            .select('id, vendor_id')
+            .in('vendor_id', vendorIds)
+            .eq('is_active', true)
+            .eq('is_approved', true);
+
+          const activeOutletIds = new Set((outlets || []).map(o => o.id));
+          const vendorsWithActiveOutlets = new Set((outlets || []).map(o => o.vendor_id));
+
           const { data: vendors } = await supabase
             .from('vendors')
-            .select('id, name, is_active')
-            .in('id', vendorIds)
-            .eq('is_active', true);
+            .select('id, name')
+            .in('id', vendorIds);
 
           if (vendors) {
             const vendorMap = new Map(vendors.map(v => [v.id, v.name]));
             
             for (const product of products) {
+              const isOutletActive = product.outlet_id
+                ? activeOutletIds.has(product.outlet_id)
+                : vendorsWithActiveOutlets.has(product.vendor_id);
               const vendorName = vendorMap.get(product.vendor_id);
-              if (vendorName && !allMatches.some(m => m.productId === product.id)) {
+              if (vendorName && isOutletActive && !allMatches.some(m => m.productId === product.id)) {
                 allMatches.push({
                   vendorId: product.vendor_id,
                   vendorName,
