@@ -282,11 +282,25 @@ export default function AdminFreeMeals() {
             Build combo-style free meals from vendor menus for customers to earn
           </p>
         </div>
-        <Button onClick={() => { resetForm(); setShowDialog(true); }}>
-          <Plus className="w-4 h-4 mr-2" />
-          Add Free Meal
-        </Button>
       </div>
+
+      <Tabs defaultValue="promos" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="promos">
+            <Gift className="w-4 h-4 mr-1" /> Manage Promos
+          </TabsTrigger>
+          <TabsTrigger value="audit">
+            <BarChart3 className="w-4 h-4 mr-1" /> Audit & Financials
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="promos">
+          <div className="flex justify-end mb-4">
+            <Button onClick={() => { resetForm(); setShowDialog(true); }}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Free Meal
+            </Button>
+          </div>
 
       {loading ? (
         <div className="flex items-center justify-center py-20">
