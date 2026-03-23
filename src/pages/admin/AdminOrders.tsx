@@ -160,6 +160,7 @@ export default function AdminOrders() {
           claimed,
           pending,
           expired,
+          cancelled,
           totalValue,
         });
       } else {
