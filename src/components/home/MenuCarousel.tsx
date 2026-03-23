@@ -54,7 +54,7 @@ export function MenuCarousel({ nearbyVendorIds }: MenuCarouselProps) {
       // Fetch products and free meal promos in parallel
       let productQuery = supabase
         .from('products')
-        .select('id, name, price, calories, image_url, vendor_id')
+        .select('id, name, price, calories, image_url, vendor_id, outlet_id')
         .eq('is_available', true);
 
       if (nearbyVendorIds && nearbyVendorIds.length > 0) {
