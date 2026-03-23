@@ -164,9 +164,9 @@ export function MenuCarousel({ nearbyVendorIds }: MenuCarouselProps) {
         promoItemsMap.set(pi.promo_id, arr);
       }
 
-      // Build free meal promo items (only from verified vendors)
+      // Build free meal promo items (only from vendors with active outlets)
       const freeMealItems: MenuItem[] = promos
-        .filter(p => vendorMap.has(p.vendor_id))
+        .filter(p => vendorsWithActiveOutlets.has(p.vendor_id) && vendorMap.has(p.vendor_id))
         .map(p => ({
           id: `promo-${p.id}`,
           name: p.product_name,
