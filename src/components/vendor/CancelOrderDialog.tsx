@@ -15,6 +15,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { restoreFreeMealOnCancel } from '@/lib/restoreFreeMealOnCancel';
 
 interface CancelOrderDialogProps {
   open: boolean;
@@ -77,6 +78,9 @@ export function CancelOrderDialog({
         .eq('id', orderId);
 
       if (updateError) throw updateError;
+
+      // Restore free meal redemption if applicable
+      await restoreFreeMealOnCancel(orderId);
 
       // 2. Only process refund if the order was actually paid
       if (isPaid) {
