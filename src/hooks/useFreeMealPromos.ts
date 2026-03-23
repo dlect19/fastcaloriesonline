@@ -228,6 +228,30 @@ export function useFreeMealPromos() {
 
       if (error) throw error;
 
+      // Create audit record for tracking & vendor payment
+      const periodStart = promo.progress?.period_start ? new Date(promo.progress.period_start) : new Date();
+      const periodEnd = new Date(periodStart);
+      periodEnd.setDate(periodEnd.getDate() + promo.promo_period_days);
+
+      await supabase
+        .from('free_meal_audit')
+        .insert({
+          promo_id: promoId,
+          user_id: user.id,
+          status: 'claimed',
+          qualifying_order_id: qOrderId,
+          redemption_id: data.id,
+          meal_value: promo.meal_value,
+          platform_cost: promo.meal_value,
+          vendor_credit: promo.meal_value,
+          period_start: periodStart.toISOString(),
+          period_end: periodEnd.toISOString(),
+          qualified_at: promo.progress?.period_start || new Date().toISOString(),
+          claimed_at: new Date().toISOString(),
+          notes: `Free meal claimed: ${promo.product_name} from ${promo.vendor_name}`,
+          environment: 'production',
+        });
+
       // Refresh
       await fetchPromos();
       return data;
