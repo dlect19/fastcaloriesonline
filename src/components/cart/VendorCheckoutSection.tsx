@@ -209,19 +209,48 @@ export function VendorCheckoutSection({
       const groupKey = group.outletId ? `${group.vendorId}|${group.outletId}` : `${group.vendorId}|`;
       const metas = packageMetas[groupKey] || [{ recipientName: '', note: '' }];
 
+      const normalizedGroupItems = group.items.map(item =>
+        item.isFreeMeal || !item.freeMealPromoId ? item : { ...item, isFreeMeal: true }
+      );
+
+      const freeMealItemsMissingOriginal = normalizedGroupItems.filter(
+        i => i.isFreeMeal && (!i.originalPrice || i.originalPrice <= 0) && !!i.productId
+      );
+
+      const originalPriceByProductId = new Map<string, number>();
+      if (freeMealItemsMissingOriginal.length > 0) {
+        const fallbackProductIds = Array.from(new Set(freeMealItemsMissingOriginal.map(i => i.productId)));
+        const { data: fallbackProducts } = await supabase
+          .from('products')
+          .select('id, price')
+          .in('id', fallbackProductIds);
+
+        fallbackProducts?.forEach(p => {
+          originalPriceByProductId.set(p.id, Number(p.price || 0));
+        });
+      }
+
+      const getResolvedOriginalPrice = (item: (typeof normalizedGroupItems)[number]) => {
+        if (!item.isFreeMeal) return Number(item.price || 0);
+        if (item.originalPrice && item.originalPrice > 0) return Number(item.originalPrice);
+        return originalPriceByProductId.get(item.productId) || 0;
+      };
+
       // Check if this order contains free meal items
-      const hasFreeMealItems = group.items.some(i => i.isFreeMeal);
-      const freeMealValue = hasFreeMealItems 
-        ? group.items.filter(i => i.isFreeMeal).reduce((sum, i) => sum + (i.originalPrice || 0) * (i._adminFreeQty || i.quantity), 0)
+      const hasFreeMealItems = normalizedGroupItems.some(i => i.isFreeMeal);
+      const freeMealValue = hasFreeMealItems
+        ? normalizedGroupItems
+            .filter(i => i.isFreeMeal)
+            .reduce((sum, i) => sum + getResolvedOriginalPrice(i) * (i._adminFreeQty || i.quantity), 0)
         : 0;
-      const freeMealPromoId = hasFreeMealItems 
-        ? group.items.find(i => i.isFreeMeal)?.freeMealPromoId || null 
+      const freeMealPromoId = hasFreeMealItems
+        ? normalizedGroupItems.find(i => i.isFreeMeal)?.freeMealPromoId || null
         : null;
 
       // For free meal orders, menu_subtotal should reflect actual food value for vendor payment
       const actualMenuSubtotal = hasFreeMealItems
-        ? group.items.reduce((sum, i) => {
-            if (i.isFreeMeal) return sum + (i.originalPrice || 0) * i.quantity;
+        ? normalizedGroupItems.reduce((sum, i) => {
+            if (i.isFreeMeal) return sum + getResolvedOriginalPrice(i) * i.quantity;
             return sum + i.price * i.quantity;
           }, 0)
         : group.subtotal;
@@ -278,13 +307,13 @@ export function VendorCheckoutSection({
       if (pkgError) throw pkgError;
 
       // Create order items with package_id linking
-      const orderItems = group.items.map(item => {
+      const orderItems = normalizedGroupItems.map(item => {
         // Find the package_id for this item's packageIndex
         const pkg = createdPackages?.find(p => p.sort_order === item.packageIndex);
         // For free meal items: store original price so vendor sees real value
-        const actualUnitPrice = item.isFreeMeal ? (item.originalPrice || 0) : item.price;
+        const actualUnitPrice = item.isFreeMeal ? getResolvedOriginalPrice(item) : item.price;
         const actualTotalPrice = item.isFreeMeal 
-          ? (item.originalPrice || 0) * item.quantity 
+          ? getResolvedOriginalPrice(item) * item.quantity 
           : item.price * item.quantity;
         return {
           order_id: order.id,
@@ -294,7 +323,7 @@ export function VendorCheckoutSection({
           quantity: item.quantity,
           unit_price: actualUnitPrice,
           total_price: actualTotalPrice,
-          original_unit_price: item.isFreeMeal ? (item.originalPrice || 0) : null,
+          original_unit_price: item.isFreeMeal ? getResolvedOriginalPrice(item) : null,
           is_free_meal_item: item.isFreeMeal || false,
           calories: item.calories * item.quantity,
           special_instructions: item.addonsDescription || null,
