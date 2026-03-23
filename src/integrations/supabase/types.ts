@@ -2452,7 +2452,9 @@ export type Database = {
           calories: number | null
           created_at: string
           id: string
+          is_free_meal_item: boolean | null
           order_id: string
+          original_unit_price: number | null
           package_id: string | null
           product_id: string | null
           product_name: string
@@ -2465,7 +2467,9 @@ export type Database = {
           calories?: number | null
           created_at?: string
           id?: string
+          is_free_meal_item?: boolean | null
           order_id: string
+          original_unit_price?: number | null
           package_id?: string | null
           product_id?: string | null
           product_name: string
@@ -2478,7 +2482,9 @@ export type Database = {
           calories?: number | null
           created_at?: string
           id?: string
+          is_free_meal_item?: boolean | null
           order_id?: string
+          original_unit_price?: number | null
           package_id?: string | null
           product_id?: string | null
           product_name?: string
@@ -2654,7 +2660,10 @@ export type Database = {
           environment: string | null
           estimated_delivery_at: string | null
           extra_package_fee: number
+          free_meal_promo_id: string | null
+          free_meal_value: number | null
           id: string
+          is_free_meal: boolean | null
           menu_subtotal: number | null
           order_number: string
           outlet_id: string | null
@@ -2690,7 +2699,10 @@ export type Database = {
           environment?: string | null
           estimated_delivery_at?: string | null
           extra_package_fee?: number
+          free_meal_promo_id?: string | null
+          free_meal_value?: number | null
           id?: string
+          is_free_meal?: boolean | null
           menu_subtotal?: number | null
           order_number: string
           outlet_id?: string | null
@@ -2726,7 +2738,10 @@ export type Database = {
           environment?: string | null
           estimated_delivery_at?: string | null
           extra_package_fee?: number
+          free_meal_promo_id?: string | null
+          free_meal_value?: number | null
           id?: string
+          is_free_meal?: boolean | null
           menu_subtotal?: number | null
           order_number?: string
           outlet_id?: string | null
@@ -2753,6 +2768,13 @@ export type Database = {
             columns: ["delivery_address_id"]
             isOneToOne: false
             referencedRelation: "addresses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_free_meal_promo_id_fkey"
+            columns: ["free_meal_promo_id"]
+            isOneToOne: false
+            referencedRelation: "free_meal_promos"
             referencedColumns: ["id"]
           },
           {
