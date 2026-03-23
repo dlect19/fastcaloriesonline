@@ -8,11 +8,13 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FreeMealComboBuilder, PromoItem } from '@/components/admin/FreeMealComboBuilder';
+import FreeMealAuditDashboard from '@/components/admin/FreeMealAuditDashboard';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Trash2, Gift, UtensilsCrossed, Loader2, Store, Pencil, Eye, EyeOff, Package, ImagePlus, X } from 'lucide-react';
+import { Plus, Trash2, Gift, UtensilsCrossed, Loader2, Store, Pencil, Eye, EyeOff, Package, ImagePlus, X, BarChart3 } from 'lucide-react';
 import { useRef } from 'react';
 
 interface Vendor {
