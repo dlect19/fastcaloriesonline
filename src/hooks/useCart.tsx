@@ -132,10 +132,18 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const saved = localStorage.getItem(CART_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        return (parsed.items || []).map((item: any) => ({
-          ...item,
-          packageIndex: item.packageIndex ?? 0,
-        }));
+        return (parsed.items || []).map((item: any) => {
+          const inferredFreeMeal = Boolean(item.isFreeMeal || item.freeMealPromoId);
+          return {
+            ...item,
+            isFreeMeal: inferredFreeMeal,
+            originalPrice: inferredFreeMeal ? Number(item.originalPrice ?? item.price ?? 0) : item.originalPrice,
+            _adminFreeQty: inferredFreeMeal
+              ? Number(item._adminFreeQty ?? item.quantity ?? 1)
+              : item._adminFreeQty,
+            packageIndex: item.packageIndex ?? 0,
+          };
+        });
       }
     } catch (e) {
       console.error('Failed to hydrate cart items from storage:', e);
@@ -196,18 +204,45 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const addonsKey = item.addons ? JSON.stringify(item.addons.map(a => `${a.groupName}:${a.itemName}`).sort()) : '';
       const existingIndex = prevItems.findIndex(i => {
         const existingAddonsKey = i.addons ? JSON.stringify(i.addons.map(a => `${a.groupName}:${a.itemName}`).sort()) : '';
-        return i.productId === item.productId && i.vendorId === item.vendorId && i.outletId === item.outletId 
+        const sameBaseItem = i.productId === item.productId && i.vendorId === item.vendorId && i.outletId === item.outletId 
           && existingAddonsKey === addonsKey
           && i.packageIndex === pkgIdx
-          && i.price === item.price
-          && i.freeMealPromoId === item.freeMealPromoId;
+          && i.price === item.price;
+
+        if (!sameBaseItem) return false;
+
+        const samePromoIdentity = i.freeMealPromoId === item.freeMealPromoId;
+        const canBackfillLegacyFreeMeal = Boolean(
+          item.isFreeMeal &&
+          item.freeMealPromoId &&
+          !i.freeMealPromoId &&
+          i.price === 0
+        );
+
+        return samePromoIdentity || canBackfillLegacyFreeMeal;
       });
       
       if (existingIndex >= 0) {
         return prevItems.map((i, idx) => 
-          idx === existingIndex 
-            ? { ...i, quantity: i.quantity + item.quantity }
-            : i
+          idx === existingIndex
+            ? (() => {
+                const mergedIsFreeMeal = Boolean(i.isFreeMeal || item.isFreeMeal || i.freeMealPromoId || item.freeMealPromoId);
+                const currentFreeQty = i._adminFreeQty ?? (i.isFreeMeal ? i.quantity : 0);
+                const incomingFreeQty = item._adminFreeQty ?? (item.isFreeMeal ? item.quantity : 0);
+                const mergedOriginalPrice = mergedIsFreeMeal
+                  ? Math.max(Number(i.originalPrice || 0), Number(item.originalPrice || 0))
+                  : i.originalPrice ?? item.originalPrice;
+
+                return {
+                  ...i,
+                  quantity: i.quantity + item.quantity,
+                  isFreeMeal: mergedIsFreeMeal,
+                  freeMealPromoId: i.freeMealPromoId || item.freeMealPromoId,
+                  originalPrice: mergedOriginalPrice,
+                  _adminFreeQty: mergedIsFreeMeal ? currentFreeQty + incomingFreeQty : i._adminFreeQty,
+                };
+              })()
+            : i,
         );
       } else {
         const newItem: CartItem = { ...item, id: crypto.randomUUID(), packageIndex: pkgIdx };
