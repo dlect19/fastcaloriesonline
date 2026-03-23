@@ -28,39 +28,6 @@ export function GoogleSignInButton({ redirectPath, disabled, label = 'Continue w
   const handleGoogleSignIn = async () => {
     setLoading(true);
     try {
-      const { Capacitor } = await import('@capacitor/core');
-      const isNative = Capacitor.isNativePlatform();
-
-      if (isNative) {
-        if (!navigator.onLine) {
-          throw new Error('No internet connection. Please reconnect and try again.');
-        }
-
-        const nativeRedirectUri = `${window.location.origin}${redirectPath}`;
-        const { data, error } = await withTimeout(
-          supabase.auth.signInWithOAuth({
-            provider: 'google',
-            options: {
-              skipBrowserRedirect: true,
-              redirectTo: nativeRedirectUri,
-            },
-          }),
-          15000,
-          'Google sign-in timed out. Please check your network and try again.'
-        );
-
-        if (error) throw error;
-        if (!data?.url) throw new Error('Unable to start Google sign-in');
-
-        try {
-          const { Browser } = await import('@capacitor/browser');
-          await Browser.open({ url: data.url, windowName: '_self' });
-        } catch {
-          window.open(data.url, '_blank');
-        }
-        return;
-      }
-
       const result = await lovable.auth.signInWithOAuth('google', {
         redirect_uri: window.location.origin + redirectPath,
       });
