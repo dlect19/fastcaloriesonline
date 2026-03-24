@@ -8,7 +8,31 @@ import { playGlobalNotificationSound } from '@/lib/globalAudio';
 export function AdminNotificationBell() {
   const [newOrderCount, setNewOrderCount] = useState(0);
   const lastCountRef = useRef(0);
+  const soundIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const navigate = useNavigate();
+
+  // Repeating sound alert when there are pending orders
+  useEffect(() => {
+    if (newOrderCount > 0) {
+      // Play immediately
+      playGlobalNotificationSound();
+      // Repeat every 15 seconds until acknowledged
+      soundIntervalRef.current = setInterval(() => {
+        playGlobalNotificationSound();
+      }, 15000);
+    } else {
+      if (soundIntervalRef.current) {
+        clearInterval(soundIntervalRef.current);
+        soundIntervalRef.current = null;
+      }
+    }
+    return () => {
+      if (soundIntervalRef.current) {
+        clearInterval(soundIntervalRef.current);
+        soundIntervalRef.current = null;
+      }
+    };
+  }, [newOrderCount]);
 
   const fetchPendingOrders = useCallback(async () => {
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
@@ -19,11 +43,6 @@ export function AdminNotificationBell() {
       .gte('created_at', fiveMinutesAgo);
     
     const newCount = count || 0;
-    
-    // Play sound only when count increases (new order arrived)
-    if (newCount > lastCountRef.current && lastCountRef.current >= 0) {
-      playGlobalNotificationSound();
-    }
     lastCountRef.current = newCount;
     setNewOrderCount(newCount);
   }, []);
