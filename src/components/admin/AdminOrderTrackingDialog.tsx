@@ -171,7 +171,8 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
   const inferredFreeMealValue = orderItems.reduce((sum, item) => {
     if (!item.is_free_meal_item) return sum;
     const unit = Number(item.original_unit_price || item.unit_price || 0);
-    return sum + unit * item.quantity;
+    const freeQty = item.free_qty ?? item.quantity; // only count platform-sponsored qty
+    return sum + unit * freeQty;
   }, 0);
   const freeMealValue = Number((activeOrder as any)?.free_meal_value || inferredFreeMealValue || 0);
 
