@@ -29,13 +29,15 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="app.fastcalories.online" />
+                <data android:scheme="https" android:host="fastcaloriesonline.lovable.app" />
+                <data android:scheme="https" android:host="oauth.lovable.app" />
             </intent-filter>
 
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="com.fastcalories.customer" android:host="oauth" android:pathPrefix="/callback" />
+                <data android:scheme="@string/custom_url_scheme" />
             </intent-filter>
 
         </activity>
