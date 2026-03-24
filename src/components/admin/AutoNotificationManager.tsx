@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Plus, Trash2, Clock, Zap, MessageSquare, Loader2, Calendar, Pencil } from 'lucide-react';
 import { EmojiPicker } from '@/components/admin/EmojiPicker';
 import { format } from 'date-fns';
+import { watLocalToISO, utcToWATLocal } from '@/lib/wat-timezone';
 
 interface Template {
   id: string;
