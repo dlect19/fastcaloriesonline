@@ -12,7 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAdminPermissions } from '@/hooks/useAdminPermissions';
 import { usePlatformSettings } from '@/hooks/usePlatformSettings';
-import { Gift, Settings, BarChart3, Percent, Users, DollarSign, Loader2, Save } from 'lucide-react';
+import { Gift, Settings, BarChart3, Percent, Users, DollarSign, Loader2, Save, ShoppingBag } from 'lucide-react';
 import { format, subDays } from 'date-fns';
 
 interface PromoStats {
