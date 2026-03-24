@@ -411,9 +411,15 @@ export default function AdminOrders() {
                          </td>
                         <td className="py-3 px-4">
                           {order.promo_code ? (
-                            <Badge className="bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/30 text-xs font-mono">
-                              🏷️ {order.promo_code}
-                            </Badge>
+                            order.promo_code.startsWith('SPIN-') ? (
+                              <Badge className="bg-primary/15 text-primary border-primary/30 text-xs">
+                                🎰 Spin {order.discount > 0 ? `${Number(order.discount).toLocaleString()}% OFF` : 'Wheel'}
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/30 text-xs font-mono">
+                                🏷️ {order.promo_code}
+                              </Badge>
+                            )
                           ) : order.discount > 0 ? (
                             <Badge variant="outline" className="text-xs text-muted-foreground">
                               -₦{Number(order.discount).toLocaleString()}
