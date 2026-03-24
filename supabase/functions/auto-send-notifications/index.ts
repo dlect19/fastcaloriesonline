@@ -95,18 +95,21 @@ serve(async (req) => {
         );
 
         const result = await response.json();
-        totalSent += result.sent || 0;
+        const sentCount = result.sent || 0;
+        totalSent += sentCount;
         schedulesProcessed++;
 
-        // Update schedule
-        await supabase
-          .from('auto_notification_schedules')
-          .update({
-            last_sent_at: now.toISOString(),
-            total_sent: (schedule.total_sent || 0) + (result.sent || 0),
-            updated_at: now.toISOString(),
-          })
-          .eq('id', schedule.id);
+        // Only update last_sent_at if notifications were actually delivered
+        if (sentCount > 0) {
+          await supabase
+            .from('auto_notification_schedules')
+            .update({
+              last_sent_at: now.toISOString(),
+              total_sent: (schedule.total_sent || 0) + sentCount,
+              updated_at: now.toISOString(),
+            })
+            .eq('id', schedule.id);
+        }
 
         console.log(`Schedule "${schedule.name}" → sent template "${template.title}" to ${result.sent} users`);
       } catch (e) {
