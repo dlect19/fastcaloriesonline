@@ -474,9 +474,14 @@ export function AutoNotificationManager() {
                       )}
                     </div>
                   </div>
-                  <Button variant="ghost" size="icon" className="shrink-0 text-destructive" onClick={() => deleteSchedule(s.id)}>
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  <div className="flex flex-col gap-1 shrink-0">
+                    <Button variant="ghost" size="icon" className="text-primary h-7 w-7" onClick={() => startEditSchedule(s)}>
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="text-destructive h-7 w-7" onClick={() => deleteSchedule(s.id)}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
