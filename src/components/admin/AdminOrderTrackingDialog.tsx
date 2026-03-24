@@ -337,6 +337,7 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
       total_price: it.total_price,
       is_free_meal_item: (it as any).is_free_meal_item || false,
       original_unit_price: (it as any).original_unit_price,
+      free_qty: (it as any).free_qty ?? null,
       order_item_addons: (addonMap.get(it.id) || []).map(a => ({
         addon_group_name: a.addon_group_name,
         addon_item_name: a.addon_item_name,
