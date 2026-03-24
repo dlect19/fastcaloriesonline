@@ -2451,6 +2451,7 @@ export type Database = {
         Row: {
           calories: number | null
           created_at: string
+          free_qty: number | null
           id: string
           is_free_meal_item: boolean | null
           order_id: string
@@ -2466,6 +2467,7 @@ export type Database = {
         Insert: {
           calories?: number | null
           created_at?: string
+          free_qty?: number | null
           id?: string
           is_free_meal_item?: boolean | null
           order_id: string
@@ -2481,6 +2483,7 @@ export type Database = {
         Update: {
           calories?: number | null
           created_at?: string
+          free_qty?: number | null
           id?: string
           is_free_meal_item?: boolean | null
           order_id?: string

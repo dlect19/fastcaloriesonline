@@ -325,6 +325,7 @@ export function VendorCheckoutSection({
           total_price: actualTotalPrice,
           original_unit_price: item.isFreeMeal ? getResolvedOriginalPrice(item) : null,
           is_free_meal_item: item.isFreeMeal || false,
+          free_qty: item.isFreeMeal ? (item._adminFreeQty ?? item.quantity) : null,
           calories: item.calories * item.quantity,
           special_instructions: item.addonsDescription || null,
         };
