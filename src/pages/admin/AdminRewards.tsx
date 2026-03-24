@@ -207,6 +207,7 @@ export default function AdminRewards() {
   useEffect(() => {
     fetchWheelsConfig();
     fetchPromoStats();
+    fetchPromoUsers();
   }, []);
 
   // Save all settings
