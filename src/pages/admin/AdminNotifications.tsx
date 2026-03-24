@@ -6,11 +6,13 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Send, Loader2, Bell, Megaphone, Download, Users } from 'lucide-react';
+import { Send, Loader2, Bell, Megaphone, Download, Users, Zap } from 'lucide-react';
 import { EmojiPicker } from '@/components/admin/EmojiPicker';
 import { ApkUploadCard } from '@/components/admin/ApkUploadCard';
+import { AutoNotificationManager } from '@/components/admin/AutoNotificationManager';
 
 export default function AdminNotifications() {
   const { toast } = useToast();
@@ -31,31 +33,20 @@ export default function AdminNotifications() {
       toast({ title: 'Please fill in title and message', variant: 'destructive' });
       return;
     }
-
     setSending(true);
     setResult(null);
-
     try {
       const { data, error } = await supabase.functions.invoke('broadcast-notification', {
-        body: {
-          title: title.trim(),
-          body: body.trim(),
-          url: url.trim() || '/',
-          target: broadcastTarget,
-        },
+        body: { title: title.trim(), body: body.trim(), url: url.trim() || '/', target: broadcastTarget },
       });
-
       if (error) throw error;
-
       if (data?.sent === 0 && data?.total_targeted === 0) {
         toast({ title: `No ${broadcastTarget} subscribers found`, variant: 'destructive' });
       } else {
         setResult({ sent: data?.sent || 0, failed: data?.failed || 0 });
         const targetLabel = broadcastTarget === 'all' ? '' : ` ${broadcastTarget}`;
         toast({ title: `Notification sent to ${data?.sent || 0}${targetLabel} users` });
-        setTitle('');
-        setBody('');
-        setUrl('/');
+        setTitle(''); setBody(''); setUrl('/');
       }
     } catch (error: any) {
       toast({ title: 'Failed to send', description: error.message, variant: 'destructive' });
@@ -69,26 +60,18 @@ export default function AdminNotifications() {
       toast({ title: 'Please enter a version number', variant: 'destructive' });
       return;
     }
-
     setSendingApk(true);
     try {
       const { data, error } = await supabase.functions.invoke('notify-apk-update', {
-        body: {
-          app_type: apkAppType,
-          version: apkVersion.trim(),
-          changelog: apkChangelog.trim() || 'Bug fixes and improvements',
-        },
+        body: { app_type: apkAppType, version: apkVersion.trim(), changelog: apkChangelog.trim() || 'Bug fixes and improvements' },
       });
-
       if (error) throw error;
-
       const appLabel = apkAppType === 'rider' ? 'Rider' : apkAppType === 'vendor' ? 'Vendor' : 'Customer';
       toast({
         title: `${appLabel} APK update notification sent!`,
         description: `Notified ${data?.notified || 0} of ${data?.total_targeted || 0} ${appLabel.toLowerCase()} users`,
       });
-      setApkVersion('');
-      setApkChangelog('');
+      setApkVersion(''); setApkChangelog('');
     } catch (error: any) {
       toast({ title: 'Failed to send APK update', description: error.message, variant: 'destructive' });
     } finally {
@@ -106,160 +89,126 @@ export default function AdminNotifications() {
 
   return (
     <AdminLayout>
-        <div className="max-w-2xl mx-auto space-y-8">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
-              <Megaphone className="w-8 h-8 text-primary" />
-              Push Notifications
-            </h1>
-            <p className="text-muted-foreground mt-1">Send push notifications to app users</p>
-          </div>
-
-          {/* Broadcast Notification */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Bell className="w-5 h-5 text-primary" />
-                Broadcast Message
-              </CardTitle>
-              <CardDescription>Send a custom push notification to users with notifications enabled</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Target Audience</Label>
-                <Select value={broadcastTarget} onValueChange={(v) => setBroadcastTarget(v as any)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Users</SelectItem>
-                    <SelectItem value="customers">Customers Only</SelectItem>
-                    <SelectItem value="riders">Riders Only</SelectItem>
-                    <SelectItem value="vendors">Vendors Only</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="title">Notification Title</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="title"
-                    placeholder="e.g. 🎉 Weekend Special!"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    className="flex-1"
-                  />
-                  <EmojiPicker onSelect={(emoji) => insertEmoji(emoji, setTitle)} />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="body">Message</Label>
-                <div className="flex gap-2 items-start">
-                  <Textarea
-                    id="body"
-                    placeholder="e.g. Get 20% off all orders this weekend. Order now!"
-                    value={body}
-                    onChange={(e) => setBody(e.target.value)}
-                    rows={3}
-                    className="flex-1"
-                  />
-                  <EmojiPicker onSelect={(emoji) => insertEmoji(emoji, setBody)} />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="url">Link (optional)</Label>
-                <Input
-                  id="url"
-                  placeholder="e.g. /explore or /rewards"
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">Page to open when the user taps the notification</p>
-              </div>
-
-              <Button
-                onClick={handleSendNotification}
-                disabled={sending || !title.trim() || !body.trim()}
-                className="w-full"
-              >
-                {sending ? (
-                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Sending...</>
-                ) : (
-                  <><Send className="w-4 h-4 mr-2" /> {sendButtonLabel}</>
-                )}
-              </Button>
-
-              {result && (
-                <div className="p-3 rounded-lg bg-secondary text-sm">
-                  <p className="flex items-center gap-2">
-                    <Users className="w-4 h-4 text-primary" />
-                    <span><strong>{result.sent}</strong> delivered, <strong>{result.failed}</strong> failed</span>
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* APK Upload */}
-          <ApkUploadCard />
-
-          {/* APK Update Notification */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Download className="w-5 h-5 text-primary" />
-                APK Update Notification
-              </CardTitle>
-              <CardDescription>Notify users about a new APK version and update the version tracker</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>App Type</Label>
-                <Select value={apkAppType} onValueChange={(v) => setApkAppType(v as 'customer' | 'rider' | 'vendor')}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="customer">Customer App</SelectItem>
-                    <SelectItem value="rider">Rider App</SelectItem>
-                    <SelectItem value="vendor">Vendor App</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="apk-version">Version Number</Label>
-                <Input
-                  id="apk-version"
-                  placeholder="e.g. 1.2.0"
-                  value={apkVersion}
-                  onChange={(e) => setApkVersion(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="apk-changelog">What's New</Label>
-                <Textarea
-                  id="apk-changelog"
-                  placeholder="e.g. Faster checkout, improved notifications, bug fixes"
-                  value={apkChangelog}
-                  onChange={(e) => setApkChangelog(e.target.value)}
-                  rows={2}
-                />
-              </div>
-              <Button
-                onClick={handleSendApkUpdate}
-                disabled={sendingApk || !apkVersion.trim()}
-                variant="outline"
-                className="w-full"
-              >
-                {sendingApk ? (
-                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Sending...</>
-                ) : (
-                  <><Download className="w-4 h-4 mr-2" /> Publish Update & Notify</>
-                )}
-              </Button>
-            </CardContent>
-          </Card>
+      <div className="max-w-2xl mx-auto space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
+            <Megaphone className="w-8 h-8 text-primary" />
+            Push Notifications
+          </h1>
+          <p className="text-muted-foreground mt-1">Send and automate push notifications</p>
         </div>
+
+        <Tabs defaultValue="broadcast" className="w-full">
+          <TabsList className="w-full grid grid-cols-3">
+            <TabsTrigger value="broadcast" className="flex items-center gap-1.5">
+              <Bell className="w-4 h-4" /> Broadcast
+            </TabsTrigger>
+            <TabsTrigger value="auto" className="flex items-center gap-1.5">
+              <Zap className="w-4 h-4" /> Auto-Send
+            </TabsTrigger>
+            <TabsTrigger value="apk" className="flex items-center gap-1.5">
+              <Download className="w-4 h-4" /> APK
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="broadcast" className="space-y-6 mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Bell className="w-5 h-5 text-primary" />
+                  Broadcast Message
+                </CardTitle>
+                <CardDescription>Send a custom push notification to users with notifications enabled</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Target Audience</Label>
+                  <Select value={broadcastTarget} onValueChange={(v) => setBroadcastTarget(v as any)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Users</SelectItem>
+                      <SelectItem value="customers">Customers Only</SelectItem>
+                      <SelectItem value="riders">Riders Only</SelectItem>
+                      <SelectItem value="vendors">Vendors Only</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="title">Notification Title</Label>
+                  <div className="flex gap-2">
+                    <Input id="title" placeholder="e.g. 🎉 Weekend Special!" value={title} onChange={(e) => setTitle(e.target.value)} className="flex-1" />
+                    <EmojiPicker onSelect={(emoji) => insertEmoji(emoji, setTitle)} />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="body">Message</Label>
+                  <div className="flex gap-2 items-start">
+                    <Textarea id="body" placeholder="e.g. Get 20% off all orders this weekend!" value={body} onChange={(e) => setBody(e.target.value)} rows={3} className="flex-1" />
+                    <EmojiPicker onSelect={(emoji) => insertEmoji(emoji, setBody)} />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="url">Link (optional)</Label>
+                  <Input id="url" placeholder="e.g. /explore or /rewards" value={url} onChange={(e) => setUrl(e.target.value)} />
+                  <p className="text-xs text-muted-foreground">Page to open when the user taps the notification</p>
+                </div>
+                <Button onClick={handleSendNotification} disabled={sending || !title.trim() || !body.trim()} className="w-full">
+                  {sending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Sending...</> : <><Send className="w-4 h-4 mr-2" /> {sendButtonLabel}</>}
+                </Button>
+                {result && (
+                  <div className="p-3 rounded-lg bg-secondary text-sm">
+                    <p className="flex items-center gap-2">
+                      <Users className="w-4 h-4 text-primary" />
+                      <span><strong>{result.sent}</strong> delivered, <strong>{result.failed}</strong> failed</span>
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="auto" className="mt-4">
+            <AutoNotificationManager />
+          </TabsContent>
+
+          <TabsContent value="apk" className="space-y-6 mt-4">
+            <ApkUploadCard />
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Download className="w-5 h-5 text-primary" />
+                  APK Update Notification
+                </CardTitle>
+                <CardDescription>Notify users about a new APK version</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>App Type</Label>
+                  <Select value={apkAppType} onValueChange={(v) => setApkAppType(v as any)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="customer">Customer App</SelectItem>
+                      <SelectItem value="rider">Rider App</SelectItem>
+                      <SelectItem value="vendor">Vendor App</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Version Number</Label>
+                  <Input placeholder="e.g. 1.2.0" value={apkVersion} onChange={(e) => setApkVersion(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>What's New</Label>
+                  <Textarea placeholder="e.g. Faster checkout, improved notifications" value={apkChangelog} onChange={(e) => setApkChangelog(e.target.value)} rows={2} />
+                </div>
+                <Button onClick={handleSendApkUpdate} disabled={sendingApk || !apkVersion.trim()} variant="outline" className="w-full">
+                  {sendingApk ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Sending...</> : <><Download className="w-4 h-4 mr-2" /> Publish Update & Notify</>}
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
     </AdminLayout>
   );
 }
