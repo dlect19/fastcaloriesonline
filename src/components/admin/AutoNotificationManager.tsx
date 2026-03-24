@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Trash2, Clock, Zap, MessageSquare, Loader2, Calendar } from 'lucide-react';
+import { Plus, Trash2, Clock, Zap, MessageSquare, Loader2, Calendar, Pencil } from 'lucide-react';
 import { EmojiPicker } from '@/components/admin/EmojiPicker';
 import { format } from 'date-fns';
 
@@ -55,7 +55,8 @@ export function AutoNotificationManager() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // New template form
+  // New/edit template form
+  const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
   const [newTitle, setNewTitle] = useState('');
   const [newBody, setNewBody] = useState('');
   const [newCategory, setNewCategory] = useState('engagement');
@@ -88,27 +89,58 @@ export function AutoNotificationManager() {
 
   const categories = [...new Set(templates.map(t => t.category))];
 
-  const addTemplate = async () => {
+  const startEditTemplate = (t: Template) => {
+    setEditingTemplate(t);
+    setNewTitle(t.title);
+    setNewBody(t.body);
+    setNewCategory(t.category);
+    setNewTarget(t.target_audience);
+    setNewUrl(t.url || '/');
+  };
+
+  const cancelEdit = () => {
+    setEditingTemplate(null);
+    setNewTitle(''); setNewBody(''); setNewCategory('engagement'); setNewTarget('all'); setNewUrl('/');
+  };
+
+  const saveTemplate = async () => {
     if (!newTitle.trim() || !newBody.trim()) {
       toast({ title: 'Fill in title and message', variant: 'destructive' });
       return;
     }
     setSaving(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    const { error } = await supabase.from('auto_notification_templates').insert({
-      title: newTitle.trim(),
-      body: newBody.trim(),
-      category: newCategory.trim() || 'general',
-      target_audience: newTarget,
-      url: newUrl.trim() || '/',
-      created_by: user!.id,
-    });
-    if (error) {
-      toast({ title: 'Failed to add', description: error.message, variant: 'destructive' });
+    if (editingTemplate) {
+      const { error } = await supabase.from('auto_notification_templates').update({
+        title: newTitle.trim(),
+        body: newBody.trim(),
+        category: newCategory.trim() || 'general',
+        target_audience: newTarget,
+        url: newUrl.trim() || '/',
+      }).eq('id', editingTemplate.id);
+      if (error) {
+        toast({ title: 'Failed to update', description: error.message, variant: 'destructive' });
+      } else {
+        toast({ title: 'Template updated!' });
+        cancelEdit();
+        fetchData();
+      }
     } else {
-      toast({ title: 'Template added!' });
-      setNewTitle(''); setNewBody(''); setNewUrl('/');
-      fetchData();
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error } = await supabase.from('auto_notification_templates').insert({
+        title: newTitle.trim(),
+        body: newBody.trim(),
+        category: newCategory.trim() || 'general',
+        target_audience: newTarget,
+        url: newUrl.trim() || '/',
+        created_by: user!.id,
+      });
+      if (error) {
+        toast({ title: 'Failed to add', description: error.message, variant: 'destructive' });
+      } else {
+        toast({ title: 'Template added!' });
+        setNewTitle(''); setNewBody(''); setNewUrl('/');
+        fetchData();
+      }
     }
     setSaving(false);
   };
@@ -217,9 +249,14 @@ export function AutoNotificationManager() {
             <Label>Link (optional)</Label>
             <Input placeholder="e.g. /explore" value={newUrl} onChange={e => setNewUrl(e.target.value)} />
           </div>
-          <Button onClick={addTemplate} disabled={saving || !newTitle.trim() || !newBody.trim()}>
-            <Plus className="w-4 h-4 mr-1" /> Add Template
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={saveTemplate} disabled={saving || !newTitle.trim() || !newBody.trim()}>
+              <Plus className="w-4 h-4 mr-1" /> {editingTemplate ? 'Update Template' : 'Add Template'}
+            </Button>
+            {editingTemplate && (
+              <Button variant="outline" onClick={cancelEdit}>Cancel</Button>
+            )}
+          </div>
 
           {/* Templates list */}
           {templates.length > 0 && (
@@ -235,9 +272,14 @@ export function AutoNotificationManager() {
                       <Badge variant="outline" className="text-[10px]">{t.target_audience}</Badge>
                     </div>
                   </div>
-                  <Button variant="ghost" size="icon" className="shrink-0 text-destructive" onClick={() => deleteTemplate(t.id)}>
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  <div className="flex flex-col gap-1 shrink-0">
+                    <Button variant="ghost" size="icon" className="text-primary h-7 w-7" onClick={() => startEditTemplate(t)}>
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="text-destructive h-7 w-7" onClick={() => deleteTemplate(t.id)}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
