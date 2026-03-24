@@ -4,6 +4,7 @@ import { Loader2 } from 'lucide-react';
 import { lovable } from '@/integrations/lovable/index';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { Capacitor } from '@capacitor/core';
 
 interface GoogleSignInButtonProps {
   redirectPath: string;
@@ -11,33 +12,51 @@ interface GoogleSignInButtonProps {
   label?: string;
 }
 
-const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> => {
-  return new Promise((resolve, reject) => {
-    const timeoutId = window.setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
-    promise
-      .then((value) => resolve(value))
-      .catch((error) => reject(error))
-      .finally(() => window.clearTimeout(timeoutId));
-  });
-};
+const NATIVE_REDIRECT_URI = 'com.fastcalories.customer://oauth/callback';
 
 export function GoogleSignInButton({ redirectPath, disabled, label = 'Continue with Google' }: GoogleSignInButtonProps) {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
+  const handleNativeGoogleSignIn = async () => {
+    // On native: use supabase directly with skipBrowserRedirect, then open in Custom Tabs
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        skipBrowserRedirect: true,
+        redirectTo: NATIVE_REDIRECT_URI,
+      },
+    });
+
+    if (error) throw error;
+
+    if (data?.url) {
+      const { Browser } = await import('@capacitor/browser');
+      await Browser.open({ url: data.url, windowName: '_self' });
+    }
+  };
+
+  const handleWebGoogleSignIn = async () => {
+    const result = await lovable.auth.signInWithOAuth('google', {
+      redirect_uri: window.location.origin + redirectPath,
+    });
+
+    if (result.error) {
+      toast({
+        title: 'Google sign-in failed',
+        description: result.error.message || 'Something went wrong',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const handleGoogleSignIn = async () => {
     setLoading(true);
     try {
-      const result = await lovable.auth.signInWithOAuth('google', {
-        redirect_uri: window.location.origin + redirectPath,
-      });
-
-      if (result.error) {
-        toast({
-          title: 'Google sign-in failed',
-          description: result.error.message || 'Something went wrong',
-          variant: 'destructive',
-        });
+      if (Capacitor.isNativePlatform()) {
+        await handleNativeGoogleSignIn();
+      } else {
+        await handleWebGoogleSignIn();
       }
     } catch (error: any) {
       toast({
