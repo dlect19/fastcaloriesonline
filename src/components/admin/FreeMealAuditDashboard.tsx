@@ -101,25 +101,47 @@ export default function FreeMealAuditDashboard() {
           }
         });
 
-        // Pending = customers with actual purchase progress > 0% from free_meal_progress
+        // Pending = one active partial-progress reservation per customer+started-vendor pair
         const { data: progressData } = await supabase
           .from('free_meal_progress')
-          .select('highest_order_amount, promo_id, period_start, free_meal_promos!inner(meal_value, order_threshold, promo_period_days, is_active)')
+          .select('user_id, highest_order_amount, promo_id, period_start, qualifying_order_id, free_meal_promos!inner(vendor_id, meal_value, order_threshold, promo_period_days, is_active)')
           .gt('highest_order_amount', 0);
 
+        const qualifyingOrderIds = [...new Set((progressData || []).map((p: any) => p.qualifying_order_id).filter(Boolean))] as string[];
+        let vendorByOrderId = new Map<string, string>();
+
+        if (qualifyingOrderIds.length > 0) {
+          const { data: qualifyingOrders } = await supabase
+            .from('orders')
+            .select('id, vendor_id')
+            .in('id', qualifyingOrderIds);
+          vendorByOrderId = new Map((qualifyingOrders || []).map((o: any) => [o.id, o.vendor_id]));
+        }
+
         const now = new Date();
+        const countedPendingKeys = new Set<string>();
+
         progressData?.forEach((p: any) => {
           const promo = p.free_meal_promos;
           if (!promo?.is_active) return;
+
+          const startedVendorId = p.qualifying_order_id ? vendorByOrderId.get(p.qualifying_order_id) : null;
+          if (!startedVendorId || promo.vendor_id !== startedVendorId) return;
+
           const periodStart = new Date(p.period_start);
           const periodEnd = new Date(periodStart);
           periodEnd.setDate(periodEnd.getDate() + promo.promo_period_days);
           if (now > periodEnd) return;
+
           const progressPct = (p.highest_order_amount / promo.order_threshold) * 100;
-          if (progressPct > 0 && progressPct < 100) {
-            s.total_pending++;
-            s.pending_cost += promo.meal_value || 0;
-          }
+          if (progressPct <= 0 || progressPct >= 100) return;
+
+          const pendingKey = `${p.user_id}:${startedVendorId}`;
+          if (countedPendingKeys.has(pendingKey)) return;
+
+          countedPendingKeys.add(pendingKey);
+          s.total_pending++;
+          s.pending_cost += promo.meal_value || 0;
         });
 
         setSummary(s);
