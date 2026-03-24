@@ -431,9 +431,14 @@ export function AutoNotificationManager() {
             </div>
           </div>
 
-          <Button onClick={addSchedule} disabled={saving || !schedName.trim()}>
-            <Zap className="w-4 h-4 mr-1" /> Create Schedule
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={saveSchedule} disabled={saving || !schedName.trim()}>
+              <Zap className="w-4 h-4 mr-1" /> {editingSchedule ? 'Update Schedule' : 'Create Schedule'}
+            </Button>
+            {editingSchedule && (
+              <Button variant="outline" onClick={cancelEditSchedule}>Cancel</Button>
+            )}
+          </div>
 
           {/* Schedules list */}
           {schedules.length > 0 && (
