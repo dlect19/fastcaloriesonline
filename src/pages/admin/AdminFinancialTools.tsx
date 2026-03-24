@@ -217,7 +217,9 @@ function ReverseRefundTool() {
       const commissionRate = vendorUser.commission_rate || 15;
       const menuPrice = order.subtotal + order.discount;
       const packagingFee = order.packaging_fee || 0;
-      const platformCommission = Math.round(menuPrice * (commissionRate / 100) * 100) / 100;
+      const grossCommission = Math.round(menuPrice * (commissionRate / 100) * 100) / 100;
+      // Platform absorbs promo discount by reducing its commission
+      const platformCommission = Math.max(0, grossCommission - (order.discount || 0));
       const vendorShare = menuPrice - platformCommission + packagingFee;
       const serviceFee = order.service_fee;
 
@@ -273,7 +275,9 @@ function ReverseRefundTool() {
       }
 
       // 6. Restore order_financials
-      const companyRevenue = platformCommission + serviceFee - order.discount;
+      // Discount already absorbed in reduced commission, so company revenue = reduced commission + service fee
+      const extraPromoCost = Math.max(0, (order.discount || 0) - grossCommission);
+      const companyRevenue = platformCommission + serviceFee - extraPromoCost;
       const revenueStatus = companyRevenue > 0 ? 'profit' : companyRevenue === 0 ? 'break_even' : 'loss';
 
       // Check if order_financials exists; upsert accordingly
