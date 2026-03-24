@@ -22,6 +22,18 @@ interface PromoStats {
   high_discount_winners: number;
 }
 
+interface PromoUser {
+  id: string;
+  order_number: string;
+  customer_name: string;
+  customer_phone: string;
+  promo_code: string | null;
+  discount: number;
+  total: number;
+  created_at: string;
+  vendor_name: string;
+}
+
 interface SpinSegment {
   id: string;
   segment_label: string;
