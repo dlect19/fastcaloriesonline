@@ -154,23 +154,24 @@ export default function AdminOrders() {
           else if (a.status === 'cancelled') cancelled += a.platform_cost || 0;
         });
 
-        // Pending = customers who have actual purchase progress (> 0) toward a free meal
+        // Pending = ONLY customers with partial progress (between 0% and 100%) toward a free meal
+        // NOT from audit table - calculated from live progress data
         const { data: progressData } = await supabase
           .from('free_meal_progress')
           .select('highest_order_amount, promo_id, period_start, free_meal_promos!inner(meal_value, order_threshold, promo_period_days, is_active)')
           .gt('highest_order_amount', 0);
 
         const now = new Date();
+        console.log('[FreeMeal] Progress records:', progressData?.length || 0);
         progressData?.forEach((p: any) => {
           const promo = p.free_meal_promos;
           if (!promo?.is_active) return;
-          // Check period is still valid
           const periodStart = new Date(p.period_start);
           const periodEnd = new Date(periodStart);
           periodEnd.setDate(periodEnd.getDate() + promo.promo_period_days);
-          if (now > periodEnd) return;
-          // Only count if not yet fully qualified (still in progress)
+          if (now > periodEnd) { console.log('[FreeMeal] Skipped - period expired'); return; }
           const progressPct = (p.highest_order_amount / promo.order_threshold) * 100;
+          console.log('[FreeMeal] Progress:', progressPct.toFixed(1) + '%', 'meal_value:', promo.meal_value);
           if (progressPct > 0 && progressPct < 100) {
             pending += promo.meal_value || 0;
           }
