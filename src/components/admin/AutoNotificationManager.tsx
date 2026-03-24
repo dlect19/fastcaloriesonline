@@ -64,7 +64,8 @@ export function AutoNotificationManager() {
   const [newTarget, setNewTarget] = useState('all');
   const [newUrl, setNewUrl] = useState('/');
 
-  // New schedule form
+  // New/edit schedule form
+  const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
   const [schedName, setSchedName] = useState('');
   const [schedTarget, setSchedTarget] = useState('all');
   const [schedCategory, setSchedCategory] = useState('');
