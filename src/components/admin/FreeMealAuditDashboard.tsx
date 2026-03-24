@@ -86,11 +86,6 @@ export default function FreeMealAuditDashboard() {
         };
         allData.forEach((r: any) => {
           switch (r.status) {
-            case 'in_progress':
-            case 'qualified':
-              s.total_pending++;
-              s.pending_cost += r.platform_cost;
-              break;
             case 'claimed':
               s.total_claimed++;
               s.claimed_cost += r.platform_cost;
@@ -105,6 +100,28 @@ export default function FreeMealAuditDashboard() {
               break;
           }
         });
+
+        // Pending = customers with actual purchase progress > 0% from free_meal_progress
+        const { data: progressData } = await supabase
+          .from('free_meal_progress')
+          .select('highest_order_amount, promo_id, period_start, free_meal_promos!inner(meal_value, order_threshold, promo_period_days, is_active)')
+          .gt('highest_order_amount', 0);
+
+        const now = new Date();
+        progressData?.forEach((p: any) => {
+          const promo = p.free_meal_promos;
+          if (!promo?.is_active) return;
+          const periodStart = new Date(p.period_start);
+          const periodEnd = new Date(periodStart);
+          periodEnd.setDate(periodEnd.getDate() + promo.promo_period_days);
+          if (now > periodEnd) return;
+          const progressPct = (p.highest_order_amount / promo.order_threshold) * 100;
+          if (progressPct > 0 && progressPct < 100) {
+            s.total_pending++;
+            s.pending_cost += promo.meal_value || 0;
+          }
+        });
+
         setSummary(s);
       }
     } catch (err) {

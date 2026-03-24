@@ -142,7 +142,7 @@ export default function AdminOrders() {
         const freeMealOrders = data.filter((o: any) => o.is_free_meal);
         const totalValue = freeMealOrders.reduce((s: number, o: any) => s + (Number(o.free_meal_value) || 0), 0);
         
-        // Also get audit stats
+        // Get audit stats for claimed/expired/cancelled
         const { data: auditData } = await supabase
           .from('free_meal_audit')
           .select('status, platform_cost');
@@ -150,9 +150,30 @@ export default function AdminOrders() {
         let claimed = 0, pending = 0, expired = 0, cancelled = 0;
         auditData?.forEach((a: any) => {
           if (a.status === 'claimed' || a.status === 'vendor_paid') claimed += a.platform_cost || 0;
-          else if (a.status === 'in_progress' || a.status === 'qualified') pending += a.platform_cost || 0;
           else if (a.status === 'expired') expired += a.platform_cost || 0;
           else if (a.status === 'cancelled') cancelled += a.platform_cost || 0;
+        });
+
+        // Pending = customers who have actual purchase progress (> 0) toward a free meal
+        const { data: progressData } = await supabase
+          .from('free_meal_progress')
+          .select('highest_order_amount, promo_id, period_start, free_meal_promos!inner(meal_value, order_threshold, promo_period_days, is_active)')
+          .gt('highest_order_amount', 0);
+
+        const now = new Date();
+        progressData?.forEach((p: any) => {
+          const promo = p.free_meal_promos;
+          if (!promo?.is_active) return;
+          // Check period is still valid
+          const periodStart = new Date(p.period_start);
+          const periodEnd = new Date(periodStart);
+          periodEnd.setDate(periodEnd.getDate() + promo.promo_period_days);
+          if (now > periodEnd) return;
+          // Only count if not yet fully qualified (still in progress)
+          const progressPct = (p.highest_order_amount / promo.order_threshold) * 100;
+          if (progressPct > 0 && progressPct < 100) {
+            pending += promo.meal_value || 0;
+          }
         });
 
         setFreeMealStats({
