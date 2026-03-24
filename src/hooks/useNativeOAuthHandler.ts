@@ -39,7 +39,8 @@ export function useNativeOAuthHandler() {
       const isOAuthCallback =
         url.includes('access_token=') ||
         url.includes('refresh_token=') ||
-        url.includes('code=');
+        url.includes('code=') ||
+        url.startsWith('com.fastcalories.customer://oauth');
 
       if (!isOAuthCallback) return;
 
