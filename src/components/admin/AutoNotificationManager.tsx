@@ -272,9 +272,14 @@ export function AutoNotificationManager() {
                       <Badge variant="outline" className="text-[10px]">{t.target_audience}</Badge>
                     </div>
                   </div>
-                  <Button variant="ghost" size="icon" className="shrink-0 text-destructive" onClick={() => deleteTemplate(t.id)}>
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  <div className="flex flex-col gap-1 shrink-0">
+                    <Button variant="ghost" size="icon" className="text-primary h-7 w-7" onClick={() => startEditTemplate(t)}>
+                      <MessageSquare className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="text-destructive h-7 w-7" onClick={() => deleteTemplate(t.id)}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
