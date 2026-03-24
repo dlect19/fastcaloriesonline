@@ -277,7 +277,7 @@ export function AutoNotificationManager() {
               <Select value={schedCategory} onValueChange={setSchedCategory}>
                 <SelectTrigger><SelectValue placeholder="All categories" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All categories</SelectItem>
+                  <SelectItem value="__all__">All categories</SelectItem>
                   {categories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </SelectContent>
               </Select>
