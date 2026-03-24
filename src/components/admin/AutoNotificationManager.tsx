@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Plus, Trash2, Clock, Zap, MessageSquare, Loader2, Calendar, Pencil } from 'lucide-react';
 import { EmojiPicker } from '@/components/admin/EmojiPicker';
 import { format } from 'date-fns';
+import { watLocalToISO, utcToWATLocal } from '@/lib/wat-timezone';
 
 interface Template {
   id: string;
@@ -171,8 +172,8 @@ export function AutoNotificationManager() {
       active_hours_start: schedStartHour,
       active_hours_end: schedEndHour,
       active_days: schedDays,
-      starts_at: schedStartDate ? new Date(schedStartDate).toISOString() : new Date().toISOString(),
-      ends_at: schedEndDate ? new Date(schedEndDate).toISOString() : null,
+      starts_at: schedStartDate ? watLocalToISO(schedStartDate) : new Date().toISOString(),
+      ends_at: schedEndDate ? watLocalToISO(schedEndDate) : null,
       created_by: user!.id,
     });
     if (error) {
