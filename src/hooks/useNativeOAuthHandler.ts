@@ -39,8 +39,9 @@ export function useNativeOAuthHandler() {
       const isOAuthCallback =
         url.includes('access_token=') ||
         url.includes('refresh_token=') ||
+        url.includes('id_token=') ||
         url.includes('code=') ||
-        url.startsWith('com.fastcalories.customer://oauth');
+        url.startsWith('com.fastcalories.customer://');
 
       if (!isOAuthCallback) return;
 
@@ -85,6 +86,17 @@ export function useNativeOAuthHandler() {
 
     // Check current URL for OAuth tokens (handles HTTPS redirect back to app)
     void handleOAuthCallback(window.location.href);
+
+    // Handle cold-start launches from OAuth deep links
+    App.getLaunchUrl()
+      .then(({ url }) => {
+        if (url) {
+          void handleOAuthCallback(url);
+        }
+      })
+      .catch(() => {
+        // Ignore if launch URL is unavailable
+      });
 
     // Listen for deep link / appUrlOpen events
     App.addListener('appUrlOpen', ({ url }) => {

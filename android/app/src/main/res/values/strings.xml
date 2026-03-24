@@ -2,6 +2,6 @@
 <resources>
     <string name="app_name">Fast Calories</string>
     <string name="title_activity_main">Fast Calories</string>
-    <string name="package_name">app.lovable.35bd9daf0ce94743a361ec2d45be6932</string>
-    <string name="custom_url_scheme">app.lovable.35bd9daf0ce94743a361ec2d45be6932</string>
+    <string name="package_name">com.fastcalories.customer</string>
+    <string name="custom_url_scheme">com.fastcalories.customer</string>
 </resources>
