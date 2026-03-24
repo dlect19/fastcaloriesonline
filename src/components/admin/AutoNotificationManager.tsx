@@ -64,7 +64,8 @@ export function AutoNotificationManager() {
   const [newTarget, setNewTarget] = useState('all');
   const [newUrl, setNewUrl] = useState('/');
 
-  // New schedule form
+  // New/edit schedule form
+  const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
   const [schedName, setSchedName] = useState('');
   const [schedTarget, setSchedTarget] = useState('all');
   const [schedCategory, setSchedCategory] = useState('');
@@ -157,14 +158,33 @@ export function AutoNotificationManager() {
     toast({ title: 'Template deleted' });
   };
 
-  const addSchedule = async () => {
+  const startEditSchedule = (s: Schedule) => {
+    setEditingSchedule(s);
+    setSchedName(s.name);
+    setSchedTarget(s.target_audience);
+    setSchedCategory(s.category || '');
+    setSchedInterval(s.interval_minutes);
+    setSchedStartHour(s.active_hours_start);
+    setSchedEndHour(s.active_hours_end);
+    setSchedDays(s.active_days || [0, 1, 2, 3, 4, 5, 6]);
+    setSchedStartDate(utcToWATLocal(s.starts_at));
+    setSchedEndDate(s.ends_at ? utcToWATLocal(s.ends_at) : '');
+  };
+
+  const cancelEditSchedule = () => {
+    setEditingSchedule(null);
+    setSchedName(''); setSchedTarget('all'); setSchedCategory('');
+    setSchedInterval(120); setSchedStartHour(8); setSchedEndHour(21);
+    setSchedDays([0, 1, 2, 3, 4, 5, 6]); setSchedStartDate(''); setSchedEndDate('');
+  };
+
+  const saveSchedule = async () => {
     if (!schedName.trim()) {
       toast({ title: 'Enter a schedule name', variant: 'destructive' });
       return;
     }
     setSaving(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    const { error } = await supabase.from('auto_notification_schedules').insert({
+    const payload = {
       name: schedName.trim(),
       target_audience: schedTarget,
       category: schedCategory || null,
@@ -174,14 +194,30 @@ export function AutoNotificationManager() {
       active_days: schedDays,
       starts_at: schedStartDate ? watLocalToISO(schedStartDate) : new Date().toISOString(),
       ends_at: schedEndDate ? watLocalToISO(schedEndDate) : null,
-      created_by: user!.id,
-    });
-    if (error) {
-      toast({ title: 'Failed to add schedule', description: error.message, variant: 'destructive' });
+    };
+
+    if (editingSchedule) {
+      const { error } = await supabase.from('auto_notification_schedules').update(payload).eq('id', editingSchedule.id);
+      if (error) {
+        toast({ title: 'Failed to update schedule', description: error.message, variant: 'destructive' });
+      } else {
+        toast({ title: 'Schedule updated!' });
+        cancelEditSchedule();
+        fetchData();
+      }
     } else {
-      toast({ title: 'Schedule created!' });
-      setSchedName('');
-      fetchData();
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error } = await supabase.from('auto_notification_schedules').insert({
+        ...payload,
+        created_by: user!.id,
+      });
+      if (error) {
+        toast({ title: 'Failed to add schedule', description: error.message, variant: 'destructive' });
+      } else {
+        toast({ title: 'Schedule created!' });
+        cancelEditSchedule();
+        fetchData();
+      }
     }
     setSaving(false);
   };
@@ -395,9 +431,14 @@ export function AutoNotificationManager() {
             </div>
           </div>
 
-          <Button onClick={addSchedule} disabled={saving || !schedName.trim()}>
-            <Zap className="w-4 h-4 mr-1" /> Create Schedule
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={saveSchedule} disabled={saving || !schedName.trim()}>
+              <Zap className="w-4 h-4 mr-1" /> {editingSchedule ? 'Update Schedule' : 'Create Schedule'}
+            </Button>
+            {editingSchedule && (
+              <Button variant="outline" onClick={cancelEditSchedule}>Cancel</Button>
+            )}
+          </div>
 
           {/* Schedules list */}
           {schedules.length > 0 && (
@@ -433,9 +474,14 @@ export function AutoNotificationManager() {
                       )}
                     </div>
                   </div>
-                  <Button variant="ghost" size="icon" className="shrink-0 text-destructive" onClick={() => deleteSchedule(s.id)}>
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  <div className="flex flex-col gap-1 shrink-0">
+                    <Button variant="ghost" size="icon" className="text-primary h-7 w-7" onClick={() => startEditSchedule(s)}>
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="text-destructive h-7 w-7" onClick={() => deleteSchedule(s.id)}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
