@@ -413,7 +413,7 @@ export default function AdminOrders() {
                           {order.promo_code ? (
                             order.promo_code.startsWith('SPIN-') ? (
                               <Badge className="bg-primary/15 text-primary border-primary/30 text-xs">
-                                🎰 Spin {order.discount > 0 ? `${Number(order.discount).toLocaleString()}% OFF` : 'Wheel'}
+                                🎰 Spin {order.discount > 0 ? `₦${Number(order.discount).toLocaleString()} OFF` : 'Wheel'}
                               </Badge>
                             ) : (
                               <Badge className="bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/30 text-xs font-mono">
