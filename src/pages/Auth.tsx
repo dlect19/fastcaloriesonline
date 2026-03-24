@@ -13,7 +13,7 @@ import customerAppImg from '@/assets/landing-customer-app.png';
 import vendorRestaurantImg from '@/assets/landing-vendor-restaurant.png';
 import { ForgotPasswordModal } from '@/components/auth/ForgotPasswordModal';
 import { TermsAcceptanceCheckbox } from '@/components/auth/TermsAcceptanceCheckbox';
-import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
+
 
 
 const emailSchema = z.string().email('Please enter a valid email address');
@@ -399,15 +399,6 @@ export default function Auth() {
             </Button>
           </form>
 
-          {/* Divider */}
-          <div className="flex items-center gap-3 my-6">
-            <div className="flex-1 h-px bg-border" />
-            <span className="text-sm text-muted-foreground">or</span>
-            <div className="flex-1 h-px bg-border" />
-          </div>
-
-          {/* Google Sign In */}
-          <GoogleSignInButton redirectPath="/" disabled={isLoading} />
 
           {/* Toggle */}
           <div className="mt-8 text-center">
