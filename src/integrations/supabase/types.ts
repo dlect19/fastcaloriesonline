@@ -6001,6 +6001,10 @@ export type Database = {
           workspace_type: string
         }[]
       }
+      restore_free_meal_on_cancel: {
+        Args: { p_order_id: string }
+        Returns: boolean
+      }
       rider_belongs_to_company: {
         Args: { _rider_user_id: string }
         Returns: string
