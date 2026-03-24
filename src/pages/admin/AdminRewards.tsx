@@ -148,6 +148,37 @@ export default function AdminRewards() {
     }
   };
 
+  // Fetch orders that used promos
+  const fetchPromoUsers = async () => {
+    setLoadingPromoUsers(true);
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('id, order_number, customer_name, customer_phone, promo_code, discount, total, created_at, vendors(name)')
+        .gt('discount', 0)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+
+      setPromoUsers((data || []).map((o: any) => ({
+        id: o.id,
+        order_number: o.order_number,
+        customer_name: o.customer_name,
+        customer_phone: o.customer_phone,
+        promo_code: o.promo_code,
+        discount: Number(o.discount),
+        total: Number(o.total),
+        created_at: o.created_at,
+        vendor_name: o.vendors?.name || '—',
+      })));
+    } catch (error) {
+      console.error('Error fetching promo users:', error);
+    } finally {
+      setLoadingPromoUsers(false);
+    }
+  };
+
   // Load settings into local state
   useEffect(() => {
     if (settings) {
