@@ -184,6 +184,9 @@ export function AutoNotificationManager() {
       return;
     }
     setSaving(true);
+    const startsAtIso = schedStartDate ? watLocalToISO(schedStartDate) : new Date().toISOString();
+    const endsAtIso = schedEndDate ? watLocalToISO(schedEndDate) : null;
+
     const payload = {
       name: schedName.trim(),
       target_audience: schedTarget,
@@ -192,16 +195,22 @@ export function AutoNotificationManager() {
       active_hours_start: schedStartHour,
       active_hours_end: schedEndHour,
       active_days: schedDays,
-      starts_at: schedStartDate ? watLocalToISO(schedStartDate) : new Date().toISOString(),
-      ends_at: schedEndDate ? watLocalToISO(schedEndDate) : null,
+      starts_at: startsAtIso,
+      ends_at: endsAtIso,
     };
 
     if (editingSchedule) {
-      const { error } = await supabase.from('auto_notification_schedules').update(payload).eq('id', editingSchedule.id);
+      const { error } = await supabase
+        .from('auto_notification_schedules')
+        .update({
+          ...payload,
+          last_sent_at: null,
+        })
+        .eq('id', editingSchedule.id);
       if (error) {
         toast({ title: 'Failed to update schedule', description: error.message, variant: 'destructive' });
       } else {
-        toast({ title: 'Schedule updated!' });
+        toast({ title: 'Schedule updated! Timer reset.' });
         cancelEditSchedule();
         fetchData();
       }
@@ -375,6 +384,9 @@ export function AutoNotificationManager() {
                   <SelectItem value="1440">24 hours</SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                Auto-send checks every 5 minutes; interval is counted from the last successful delivery.
+              </p>
             </div>
           </div>
 
