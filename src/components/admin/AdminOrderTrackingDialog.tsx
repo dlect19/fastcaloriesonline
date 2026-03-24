@@ -804,6 +804,116 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
                     <p className="font-semibold text-primary">₦{Number(orderFinancials.company_revenue).toLocaleString()}</p>
                   </div>
                 </div>
+                {/* Recalculate Button */}
+                <div className="flex justify-end pt-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs gap-1.5"
+                    disabled={recalculating}
+                    onClick={async () => {
+                      if (!activeOrder) return;
+                      if (!window.confirm('Recalculate financials for this order? This will recompute vendor payout, commission, and platform revenue using current rules (platform absorbs promo discounts).')) return;
+                      setRecalculating(true);
+                      try {
+                        // Get order details
+                        const { data: ord } = await supabase
+                          .from('orders')
+                          .select('id, subtotal, discount, menu_subtotal, packaging_fee, service_fee, delivery_fee, vendor_id, promo_code, environment, order_number')
+                          .eq('id', activeOrder.id)
+                          .single();
+                        if (!ord) throw new Error('Order not found');
+
+                        const menuPrice = Number(ord.menu_subtotal || (Number(ord.subtotal) + Number(ord.discount || 0)));
+                        const packagingFee = Number(ord.packaging_fee || 0);
+                        const promoDiscount = Number(ord.discount || 0);
+                        const serviceFee = Number(ord.service_fee || 0);
+
+                        // Get commission rate
+                        const { data: overrideData } = await supabase
+                          .from('commission_overrides')
+                          .select('percentage_value')
+                          .eq('entity_type', 'vendor')
+                          .eq('entity_id', ord.vendor_id)
+                          .maybeSingle();
+
+                        let commissionRate = 15;
+                        if (overrideData?.percentage_value) {
+                          commissionRate = Number(overrideData.percentage_value);
+                        } else {
+                          const { data: setting } = await supabase
+                            .from('platform_settings')
+                            .select('value')
+                            .eq('key', 'default_vendor_commission_rate')
+                            .maybeSingle();
+                          if (setting) commissionRate = parseFloat(setting.value);
+                        }
+
+                        const grossCommission = Math.round(menuPrice * (commissionRate / 100) * 100) / 100;
+                        const netCommission = Math.max(0, grossCommission - promoDiscount);
+                        const vendorPayout = menuPrice - netCommission + packagingFee;
+                        let companyRevenue = netCommission + serviceFee;
+                        if (promoDiscount > grossCommission) {
+                          companyRevenue -= (promoDiscount - grossCommission);
+                        }
+
+                        // Update order_financials
+                        const { error: updateError } = await supabase
+                          .from('order_financials')
+                          .update({
+                            menu_price: menuPrice,
+                            vendor_commission_percentage: commissionRate,
+                            vendor_commission_amount: netCommission,
+                            promo_discount_amount: promoDiscount,
+                            vendor_payout: vendorPayout,
+                            company_revenue: companyRevenue,
+                            revenue_status: companyRevenue > 0 ? 'profit' : companyRevenue === 0 ? 'break_even' : 'loss',
+                            service_fee_amount: serviceFee,
+                          })
+                          .eq('order_id', activeOrder.id);
+
+                        if (updateError) throw updateError;
+
+                        // Refresh financials display
+                        const { data: fin } = await supabase
+                          .from('order_financials')
+                          .select('vendor_payout, vendor_commission_amount, rider_commission_amount, company_revenue, service_fee_amount')
+                          .eq('order_id', activeOrder.id)
+                          .maybeSingle();
+
+                        if (fin) {
+                          const { data: riderTx } = await supabase
+                            .from('wallet_transactions')
+                            .select('amount')
+                            .eq('order_id', activeOrder.id)
+                            .in('category', ['rider_share', 'vendor_rider_share', 'delivery_company_share'])
+                            .eq('transaction_type', 'credit')
+                            .eq('status', 'completed')
+                            .limit(1)
+                            .maybeSingle();
+
+                          setOrderFinancials({
+                            vendor_payout: fin.vendor_payout,
+                            vendor_commission_amount: fin.vendor_commission_amount,
+                            rider_commission_amount: fin.rider_commission_amount,
+                            rider_share: riderTx?.amount ?? null,
+                            company_revenue: fin.company_revenue,
+                            service_fee_amount: fin.service_fee_amount,
+                          });
+                        }
+
+                        toast({ title: '✅ Financials recalculated', description: `Vendor payout: ₦${vendorPayout.toLocaleString()}, Platform: ₦${companyRevenue.toLocaleString()}` });
+                      } catch (e: any) {
+                        toast({ title: 'Error', description: e.message, variant: 'destructive' });
+                      } finally {
+                        setRecalculating(false);
+                      }
+                    }}
+                  >
+                    {recalculating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                    Recalculate
+                  </Button>
+                </div>
               </>
             )}
           </CardContent>
