@@ -694,6 +694,102 @@ export type Database = {
           },
         ]
       }
+      auto_notification_schedules: {
+        Row: {
+          active_days: number[] | null
+          active_hours_end: number | null
+          active_hours_start: number | null
+          category: string | null
+          created_at: string | null
+          created_by: string
+          ends_at: string | null
+          id: string
+          interval_minutes: number
+          is_active: boolean | null
+          last_sent_at: string | null
+          name: string
+          starts_at: string
+          target_audience: string
+          total_sent: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          active_days?: number[] | null
+          active_hours_end?: number | null
+          active_hours_start?: number | null
+          category?: string | null
+          created_at?: string | null
+          created_by: string
+          ends_at?: string | null
+          id?: string
+          interval_minutes?: number
+          is_active?: boolean | null
+          last_sent_at?: string | null
+          name: string
+          starts_at?: string
+          target_audience?: string
+          total_sent?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          active_days?: number[] | null
+          active_hours_end?: number | null
+          active_hours_start?: number | null
+          category?: string | null
+          created_at?: string | null
+          created_by?: string
+          ends_at?: string | null
+          id?: string
+          interval_minutes?: number
+          is_active?: boolean | null
+          last_sent_at?: string | null
+          name?: string
+          starts_at?: string
+          target_audience?: string
+          total_sent?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      auto_notification_templates: {
+        Row: {
+          body: string
+          category: string
+          created_at: string | null
+          created_by: string
+          id: string
+          is_active: boolean | null
+          target_audience: string
+          title: string
+          updated_at: string | null
+          url: string | null
+        }
+        Insert: {
+          body: string
+          category?: string
+          created_at?: string | null
+          created_by: string
+          id?: string
+          is_active?: boolean | null
+          target_audience?: string
+          title: string
+          updated_at?: string | null
+          url?: string | null
+        }
+        Update: {
+          body?: string
+          category?: string
+          created_at?: string | null
+          created_by?: string
+          id?: string
+          is_active?: boolean | null
+          target_audience?: string
+          title?: string
+          updated_at?: string | null
+          url?: string | null
+        }
+        Relationships: []
+      }
       calorie_logs: {
         Row: {
           calories: number
