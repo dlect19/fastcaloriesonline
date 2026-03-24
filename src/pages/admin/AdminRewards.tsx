@@ -767,6 +767,66 @@ export default function AdminRewards() {
                   )}
                 </CardContent>
               </Card>
+
+              {/* Promo Users */}
+              <Card className="mt-6">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <ShoppingBag className="w-5 h-5" />
+                    Recent Promo Usage (Last 50 Orders)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {loadingPromoUsers ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                    </div>
+                  ) : promoUsers.length === 0 ? (
+                    <p className="text-center py-8 text-muted-foreground">
+                      No promo usage recorded yet
+                    </p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Order #</TableHead>
+                            <TableHead>Customer</TableHead>
+                            <TableHead>Phone</TableHead>
+                            <TableHead>Vendor</TableHead>
+                            <TableHead>Promo</TableHead>
+                            <TableHead>Discount</TableHead>
+                            <TableHead>Order Total</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {promoUsers.map(user => (
+                            <TableRow key={user.id}>
+                              <TableCell className="text-xs">{format(new Date(user.created_at), 'MMM d, HH:mm')}</TableCell>
+                              <TableCell className="font-mono text-xs">{user.order_number}</TableCell>
+                              <TableCell>{user.customer_name}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground">{user.customer_phone}</TableCell>
+                              <TableCell>{user.vendor_name}</TableCell>
+                              <TableCell>
+                                {user.promo_code?.startsWith('SPIN-') ? (
+                                  <Badge className="bg-primary/15 text-primary border-primary/30 text-xs">🎰 Spin Wheel</Badge>
+                                ) : user.promo_code ? (
+                                  <Badge className="bg-orange-500/15 text-orange-700 border-orange-500/30 text-xs font-mono">🏷️ {user.promo_code}</Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-xs">Platform</Badge>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-primary font-medium">₦{user.discount.toLocaleString()}</TableCell>
+                              <TableCell>₦{user.total.toLocaleString()}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </TabsContent>
           </Tabs>
     </AdminLayout>
