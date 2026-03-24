@@ -47,18 +47,23 @@ serve(async (req) => {
       // Check active days
       if (schedule.active_days && !schedule.active_days.includes(currentDay)) continue;
 
-      // Check interval - has enough time passed since last send?
-      // If schedule start time was moved forward after the previous send,
-      // treat it as a fresh schedule so the new start time can trigger immediately.
-      if (schedule.last_sent_at) {
-        const lastSent = new Date(schedule.last_sent_at);
-        const startsAt = schedule.starts_at ? new Date(schedule.starts_at) : null;
-        const startMovedAfterLastSend = startsAt ? startsAt.getTime() > lastSent.getTime() : false;
+      // Check interval using schedule start as the anchor.
+      // This keeps sends aligned to the configured schedule time instead of drifting
+      // based on when the previous delivery happened.
+      const startsAtMs = schedule.starts_at ? new Date(schedule.starts_at).getTime() : now.getTime();
+      const nowMs = now.getTime();
 
-        if (!startMovedAfterLastSend) {
-          const minutesSince = (now.getTime() - lastSent.getTime()) / 60000;
-          if (minutesSince < schedule.interval_minutes) continue;
-        }
+      // Not started yet
+      if (nowMs < startsAtMs) continue;
+
+      const intervalMs = Math.max(1, Number(schedule.interval_minutes || 0)) * 60 * 1000;
+      const slotIndex = Math.floor((nowMs - startsAtMs) / intervalMs);
+      const currentSlotStartMs = startsAtMs + slotIndex * intervalMs;
+
+      // Already sent for this interval slot
+      if (schedule.last_sent_at) {
+        const lastSentMs = new Date(schedule.last_sent_at).getTime();
+        if (lastSentMs >= currentSlotStartMs) continue;
       }
 
       // Pick a random template matching this schedule's criteria
