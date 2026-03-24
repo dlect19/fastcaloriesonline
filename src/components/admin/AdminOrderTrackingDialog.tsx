@@ -929,17 +929,34 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
               </CardTitle>
             </CardHeader>
             <CardContent className="px-4 pb-3 space-y-1.5">
-              {orderItems.map((item, i) => (
+              {orderItems.map((item, i) => {
+                const freeQty = item.is_free_meal_item ? (item.free_qty ?? item.quantity) : 0;
+                const extraQty = item.is_free_meal_item ? Math.max(0, item.quantity - freeQty) : 0;
+                const unitPrice = Number(item.original_unit_price || item.unit_price || 0);
+                const platformCost = unitPrice * freeQty;
+                const customerCost = unitPrice * extraQty;
+
+                return (
                 <div key={i} className="flex items-start justify-between text-sm border-b last:border-0 pb-1.5 last:pb-0">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <p className="font-medium">{item.quantity}× {item.product_name}</p>
+                      <p className="font-medium">
+                        {item.is_free_meal_item && extraQty > 0 
+                          ? `${freeQty}× ${item.product_name}`
+                          : `${item.quantity}× ${item.product_name}`
+                        }
+                      </p>
                       {item.is_free_meal_item && (
                         <Badge className="bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/30 text-[9px] gap-0.5">
                           <Gift className="w-2 h-2" /> FREE
                         </Badge>
                       )}
                     </div>
+                    {item.is_free_meal_item && extraQty > 0 && (
+                      <p className="text-xs text-amber-600 mt-0.5">
+                        + {extraQty}× extra added by customer (₦{customerCost.toLocaleString()})
+                      </p>
+                    )}
                     {item.order_item_addons && item.order_item_addons.length > 0 && (
                       <div className="text-xs text-muted-foreground mt-0.5">
                         {item.order_item_addons.map((a, j) => (
@@ -954,15 +971,19 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
                   <div className="text-right shrink-0 ml-2">
                     {item.is_free_meal_item ? (
                       <div>
-                        <p className="font-medium text-green-600">₦{Number(item.total_price || 0).toLocaleString()}</p>
+                        <p className="font-medium text-green-600">₦{platformCost.toLocaleString()}</p>
                         <p className="text-[10px] text-muted-foreground">Platform pays</p>
+                        {customerCost > 0 && (
+                          <p className="text-[10px] text-amber-600">+₦{customerCost.toLocaleString()} customer</p>
+                        )}
                       </div>
                     ) : item.total_price ? (
                       <p className="font-medium">₦{Number(item.total_price).toLocaleString()}</p>
                     ) : null}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </CardContent>
           </Card>
         )}
