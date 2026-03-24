@@ -12,7 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAdminPermissions } from '@/hooks/useAdminPermissions';
 import { usePlatformSettings } from '@/hooks/usePlatformSettings';
-import { Gift, Settings, BarChart3, Percent, Users, DollarSign, Loader2, Save } from 'lucide-react';
+import { Gift, Settings, BarChart3, Percent, Users, DollarSign, Loader2, Save, ShoppingBag } from 'lucide-react';
 import { format, subDays } from 'date-fns';
 
 interface PromoStats {
@@ -20,6 +20,18 @@ interface PromoStats {
   total_promo_cost: number;
   total_revenue: number;
   high_discount_winners: number;
+}
+
+interface PromoUser {
+  id: string;
+  order_number: string;
+  customer_name: string;
+  customer_phone: string;
+  promo_code: string | null;
+  discount: number;
+  total: number;
+  created_at: string;
+  vendor_name: string;
 }
 
 interface SpinSegment {
@@ -56,7 +68,9 @@ export default function AdminRewards() {
   const [saving, setSaving] = useState(false);
   const [wheelsConfig, setWheelsConfig] = useState<WheelConfig[]>([]);
   const [promoStats, setPromoStats] = useState<PromoStats[]>([]);
+  const [promoUsers, setPromoUsers] = useState<PromoUser[]>([]);
   const [loadingStats, setLoadingStats] = useState(true);
+  const [loadingPromoUsers, setLoadingPromoUsers] = useState(false);
 
   // Local settings state
   const [localSettings, setLocalSettings] = useState({
@@ -134,6 +148,37 @@ export default function AdminRewards() {
     }
   };
 
+  // Fetch orders that used promos
+  const fetchPromoUsers = async () => {
+    setLoadingPromoUsers(true);
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('id, order_number, customer_name, customer_phone, promo_code, discount, total, created_at, vendors(name)')
+        .gt('discount', 0)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+
+      setPromoUsers((data || []).map((o: any) => ({
+        id: o.id,
+        order_number: o.order_number,
+        customer_name: o.customer_name,
+        customer_phone: o.customer_phone,
+        promo_code: o.promo_code,
+        discount: Number(o.discount),
+        total: Number(o.total),
+        created_at: o.created_at,
+        vendor_name: o.vendors?.name || '—',
+      })));
+    } catch (error) {
+      console.error('Error fetching promo users:', error);
+    } finally {
+      setLoadingPromoUsers(false);
+    }
+  };
+
   // Load settings into local state
   useEffect(() => {
     if (settings) {
@@ -162,6 +207,7 @@ export default function AdminRewards() {
   useEffect(() => {
     fetchWheelsConfig();
     fetchPromoStats();
+    fetchPromoUsers();
   }, []);
 
   // Save all settings
@@ -718,6 +764,66 @@ export default function AdminRewards() {
                         ))}
                       </TableBody>
                     </Table>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Promo Users */}
+              <Card className="mt-6">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <ShoppingBag className="w-5 h-5" />
+                    Recent Promo Usage (Last 50 Orders)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {loadingPromoUsers ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                    </div>
+                  ) : promoUsers.length === 0 ? (
+                    <p className="text-center py-8 text-muted-foreground">
+                      No promo usage recorded yet
+                    </p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Order #</TableHead>
+                            <TableHead>Customer</TableHead>
+                            <TableHead>Phone</TableHead>
+                            <TableHead>Vendor</TableHead>
+                            <TableHead>Promo</TableHead>
+                            <TableHead>Discount</TableHead>
+                            <TableHead>Order Total</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {promoUsers.map(user => (
+                            <TableRow key={user.id}>
+                              <TableCell className="text-xs">{format(new Date(user.created_at), 'MMM d, HH:mm')}</TableCell>
+                              <TableCell className="font-mono text-xs">{user.order_number}</TableCell>
+                              <TableCell>{user.customer_name}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground">{user.customer_phone}</TableCell>
+                              <TableCell>{user.vendor_name}</TableCell>
+                              <TableCell>
+                                {user.promo_code?.startsWith('SPIN-') ? (
+                                  <Badge className="bg-primary/15 text-primary border-primary/30 text-xs">🎰 Spin Wheel</Badge>
+                                ) : user.promo_code ? (
+                                  <Badge className="bg-orange-500/15 text-orange-700 border-orange-500/30 text-xs font-mono">🏷️ {user.promo_code}</Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-xs">Platform</Badge>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-primary font-medium">₦{user.discount.toLocaleString()}</TableCell>
+                              <TableCell>₦{user.total.toLocaleString()}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   )}
                 </CardContent>
               </Card>
