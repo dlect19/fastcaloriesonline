@@ -68,7 +68,9 @@ export default function AdminRewards() {
   const [saving, setSaving] = useState(false);
   const [wheelsConfig, setWheelsConfig] = useState<WheelConfig[]>([]);
   const [promoStats, setPromoStats] = useState<PromoStats[]>([]);
+  const [promoUsers, setPromoUsers] = useState<PromoUser[]>([]);
   const [loadingStats, setLoadingStats] = useState(true);
+  const [loadingPromoUsers, setLoadingPromoUsers] = useState(false);
 
   // Local settings state
   const [localSettings, setLocalSettings] = useState({
