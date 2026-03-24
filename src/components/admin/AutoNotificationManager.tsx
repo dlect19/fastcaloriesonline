@@ -274,10 +274,10 @@ export function AutoNotificationManager() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Category Filter (optional)</Label>
-              <Select value={schedCategory} onValueChange={setSchedCategory}>
+              <Select value={schedCategory || '__all__'} onValueChange={v => setSchedCategory(v === '__all__' ? '' : v)}>
                 <SelectTrigger><SelectValue placeholder="All categories" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All categories</SelectItem>
+                  <SelectItem value="__all__">All categories</SelectItem>
                   {categories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </SelectContent>
               </Select>
