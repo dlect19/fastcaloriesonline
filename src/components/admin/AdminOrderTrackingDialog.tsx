@@ -308,7 +308,7 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
   const fetchOrderItems = async (orderId: string) => {
     const { data: allItems } = await supabase
       .from('order_items')
-      .select('id, product_name, quantity, special_instructions, unit_price, total_price, is_free_meal_item, original_unit_price')
+      .select('id, product_name, quantity, special_instructions, unit_price, total_price, is_free_meal_item, original_unit_price, free_qty')
       .eq('order_id', orderId);
 
     if (!allItems || allItems.length === 0) {
