@@ -13,7 +13,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, Eye, MousePointer, DollarSign, CheckCircle, XCircle, Clock, BarChart3, Gift, Search, Plus, Upload, Megaphone } from 'lucide-react';
+import { Loader2, Eye, MousePointer, DollarSign, CheckCircle, XCircle, Clock, BarChart3, Gift, Search, Plus, Upload, Megaphone, Pencil, Trash2 } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 type AdPlacement = {
   id: string;
@@ -89,9 +90,11 @@ export default function AdminAdPlacements() {
     name: '', placement_type: 'carousel', cpm_rate: 500, min_budget: 5000, min_duration_days: 1, max_duration_days: 30,
   });
 
-  // Admin create ad form
+  // Admin create/edit ad form
   const [createDialog, setCreateDialog] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [editingAd, setEditingAd] = useState<AdPlacement | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<AdPlacement | null>(null);
   const [adminAdForm, setAdminAdForm] = useState({
     title: '',
     description: '',
@@ -389,6 +392,90 @@ export default function AdminAdPlacements() {
     }
   };
 
+  const openEditDialog = (p: AdPlacement) => {
+    setEditingAd(p);
+    setAdminAdForm({
+      title: p.title,
+      description: p.description || '',
+      image_url: p.image_url || '',
+      link_url: p.link_url || '',
+      placement_type: p.placement_type,
+      target_latitude: p.target_latitude?.toString() || '',
+      target_longitude: p.target_longitude?.toString() || '',
+      target_radius_km: p.target_radius_km || 0,
+      starts_at: p.starts_at ? new Date(p.starts_at).toISOString().slice(0, 16) : '',
+      ends_at: p.ends_at ? new Date(p.ends_at).toISOString().slice(0, 16) : '',
+    });
+    setCreateDialog(true);
+  };
+
+  const handleUpdateAd = async () => {
+    if (!editingAd || !adminAdForm.title || !adminAdForm.starts_at || !adminAdForm.ends_at) {
+      toast({ title: 'Fill required fields', variant: 'destructive' });
+      return;
+    }
+    setSaving(true);
+    try {
+      await supabase.from('ad_placements').update({
+        title: adminAdForm.title,
+        description: adminAdForm.description || null,
+        image_url: adminAdForm.image_url || null,
+        link_url: adminAdForm.link_url || null,
+        placement_type: adminAdForm.placement_type,
+        target_latitude: adminAdForm.target_latitude ? parseFloat(adminAdForm.target_latitude) : null,
+        target_longitude: adminAdForm.target_longitude ? parseFloat(adminAdForm.target_longitude) : null,
+        target_radius_km: adminAdForm.target_radius_km || 0,
+        starts_at: watLocalToISO(adminAdForm.starts_at),
+        ends_at: watLocalToISO(adminAdForm.ends_at),
+      }).eq('id', editingAd.id);
+
+      // Also update linked advertisement if exists
+      const { data: linkedAd } = await supabase.from('advertisements').select('id').eq('ad_placement_id', editingAd.id).maybeSingle();
+      if (linkedAd) {
+        await supabase.from('advertisements').update({
+          title: adminAdForm.title,
+          description: adminAdForm.description || null,
+          image_url: adminAdForm.image_url || 'from-primary to-emerald-600',
+          link_url: adminAdForm.link_url || null,
+          starts_at: watLocalToISO(adminAdForm.starts_at),
+          ends_at: watLocalToISO(adminAdForm.ends_at),
+          target_latitude: adminAdForm.target_latitude ? parseFloat(adminAdForm.target_latitude) : null,
+          target_longitude: adminAdForm.target_longitude ? parseFloat(adminAdForm.target_longitude) : null,
+          target_radius_km: adminAdForm.target_radius_km || 0,
+        }).eq('id', linkedAd.id);
+      }
+
+      toast({ title: 'Updated!', description: 'Ad placement updated successfully.' });
+      setCreateDialog(false);
+      setEditingAd(null);
+      setAdminAdForm({ title: '', description: '', image_url: '', link_url: '', placement_type: 'carousel', target_latitude: '', target_longitude: '', target_radius_km: 0, starts_at: '', ends_at: '' });
+      fetchData();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteAd = async (p: AdPlacement) => {
+    setSaving(true);
+    try {
+      // Delete linked advertisement first
+      await supabase.from('advertisements').delete().eq('ad_placement_id', p.id);
+      // Delete impressions
+      await supabase.from('ad_impressions').delete().eq('ad_placement_id', p.id);
+      // Delete the placement
+      await supabase.from('ad_placements').delete().eq('id', p.id);
+      toast({ title: 'Deleted', description: 'Ad placement removed.' });
+      setDeleteConfirm(null);
+      fetchData();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const pendingCount = placements.filter(p => p.status === 'pending_review').length;
   const currentAdminDims = FORMAT_DIMENSIONS[adminAdForm.placement_type];
 
@@ -456,9 +543,17 @@ export default function AdminAdPlacements() {
                           <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{formatWATDate(p.starts_at)} - {formatWATDate(p.ends_at)}</span>
                         </div>
                       </div>
-                      {p.status === 'pending_review' && (
-                        <Button size="sm" onClick={() => setReviewDialog(p)}>Review</Button>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {p.status === 'pending_review' && (
+                          <Button size="sm" onClick={() => setReviewDialog(p)}>Review</Button>
+                        )}
+                        <Button size="sm" variant="outline" onClick={() => openEditDialog(p)}>
+                          <Pencil className="w-3 h-3" />
+                        </Button>
+                        <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => setDeleteConfirm(p)}>
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -623,15 +718,15 @@ export default function AdminAdPlacements() {
         </DialogContent>
       </Dialog>
 
-      {/* Admin Create Ad Dialog */}
-      <Dialog open={createDialog} onOpenChange={setCreateDialog}>
+      {/* Admin Create/Edit Ad Dialog */}
+      <Dialog open={createDialog} onOpenChange={(open) => { setCreateDialog(open); if (!open) { setEditingAd(null); setAdminAdForm({ title: '', description: '', image_url: '', link_url: '', placement_type: 'carousel', target_latitude: '', target_longitude: '', target_radius_km: 0, starts_at: '', ends_at: '' }); } }}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Megaphone className="w-5 h-5 text-primary" />
-              Create Admin Ad
+              {editingAd ? 'Edit Ad' : 'Create Admin Ad'}
             </DialogTitle>
-            <p className="text-sm text-muted-foreground">Create an ad placement directly — no payment required. Goes live immediately.</p>
+            <p className="text-sm text-muted-foreground">{editingAd ? 'Update this ad placement.' : 'Create an ad placement directly — no payment required. Goes live immediately.'}</p>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -650,7 +745,7 @@ export default function AdminAdPlacements() {
 
             <div>
               <Label>Placement Type</Label>
-              <Select value={adminAdForm.placement_type} onValueChange={v => setAdminAdForm({ ...adminAdForm, placement_type: v, image_url: '' })}>
+              <Select value={adminAdForm.placement_type} onValueChange={v => setAdminAdForm({ ...adminAdForm, placement_type: v, image_url: editingAd ? adminAdForm.image_url : '' })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="carousel">Carousel (1200×400)</SelectItem>
@@ -721,18 +816,39 @@ export default function AdminAdPlacements() {
               </div>
             </div>
 
-            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 text-sm text-foreground">
-              <p className="font-medium text-emerald-700 dark:text-emerald-400">✅ No payment required</p>
-              <p className="text-xs text-muted-foreground mt-1">This ad will go live immediately after creation. It will appear in the {adminAdForm.placement_type === 'carousel' ? 'home carousel' : 'announcement popup'}.</p>
-            </div>
+            {!editingAd && (
+              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 text-sm text-foreground">
+                <p className="font-medium text-emerald-700 dark:text-emerald-400">✅ No payment required</p>
+                <p className="text-xs text-muted-foreground mt-1">This ad will go live immediately after creation. It will appear in the {adminAdForm.placement_type === 'carousel' ? 'home carousel' : 'announcement popup'}.</p>
+              </div>
+            )}
 
-            <Button className="w-full" disabled={saving || !adminAdForm.title || !adminAdForm.starts_at || !adminAdForm.ends_at} onClick={handleCreateAdminAd}>
-              {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
-              Create & Publish Ad
+            <Button className="w-full" disabled={saving || !adminAdForm.title || !adminAdForm.starts_at || !adminAdForm.ends_at} onClick={editingAd ? handleUpdateAd : handleCreateAdminAd}>
+              {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : editingAd ? <Pencil className="w-4 h-4 mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
+              {editingAd ? 'Save Changes' : 'Create & Publish Ad'}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Ad Placement</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteConfirm?.title}"? This will also remove the linked advertisement. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteConfirm && handleDeleteAd(deleteConfirm)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AdminLayout>
   );
 }
