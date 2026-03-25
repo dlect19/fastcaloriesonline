@@ -172,7 +172,9 @@ export function useFreeMealPromos() {
   const updateProgress = useCallback(async (orderAmount: number, orderId: string) => {
     if (!user) return;
 
-    try {
+    // Gate: only track progress for users who have used their welcome bonus
+    if (welcomeBonusUsed === false) return;
+
       // Get all active promos
       const { data: activePromos } = await supabase
         .from('free_meal_promos')
