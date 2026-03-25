@@ -65,6 +65,57 @@ export function useFreeMealPromos() {
         return;
       }
 
+      // Check if user has claimed their welcome bonus first
+      const { data: orderStats } = await supabase
+        .from('user_order_stats')
+        .select('first_order_promo_used')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      const hasUsedWelcomeBonus = orderStats?.first_order_promo_used === true;
+      setWelcomeBonusUsed(hasUsedWelcomeBonus);
+
+      // Gate: Only show free meal promos to users who have claimed their welcome bonus
+      if (!hasUsedWelcomeBonus) {
+        setPromos([]);
+        setLoading(false);
+        return;
+      }
+
+      // Filter promos by vendor proximity - get vendor store types
+      const vendorIds = [...new Set(activePromos.map(p => p.vendor_id))];
+      const { data: vendorData } = await supabase
+        .from('vendors')
+        .select('id, store_type, state')
+        .in('id', vendorIds);
+
+      // Get user's default address for proximity check
+      const { data: userAddress } = await supabase
+        .from('addresses')
+        .select('state, latitude, longitude')
+        .eq('user_id', user.id)
+        .eq('is_default', true)
+        .maybeSingle();
+
+      // Filter promos: online/both vendors show everywhere, physical vendors only if in same state
+      const filteredPromos = activePromos.filter(promo => {
+        const vendor = vendorData?.find(v => v.id === promo.vendor_id);
+        if (!vendor) return false;
+        
+        // Online or hybrid vendors are visible everywhere
+        if (vendor.store_type === 'online' || vendor.store_type === 'both') return true;
+        
+        // Physical vendors: check if user's address is in the same state
+        if (!userAddress?.state) return false;
+        return vendor.state?.toLowerCase() === userAddress.state.toLowerCase();
+      });
+
+      if (filteredPromos.length === 0) {
+        setPromos([]);
+        setLoading(false);
+        return;
+      }
+
       // Fetch user progress for all promos
       const { data: progressData } = await supabase
         .from('free_meal_progress')
@@ -78,7 +129,7 @@ export function useFreeMealPromos() {
         .eq('user_id', user.id)
         .eq('status', 'redeemed');
 
-      const promosWithProgress: FreeMealWithProgress[] = activePromos.map(promo => {
+      const promosWithProgress: FreeMealWithProgress[] = filteredPromos.map(promo => {
         const progress = progressData?.find(p => p.promo_id === promo.id) || null;
         
         // Check if progress period is still valid
