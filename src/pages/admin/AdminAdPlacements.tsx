@@ -340,7 +340,7 @@ export default function AdminAdPlacements() {
 
       // Create ad placement directly as active (no vendor, no payment)
       const { data: placement, error: placementErr } = await supabase.from('ad_placements').insert({
-        vendor_id: '00000000-0000-0000-0000-000000000000', // platform/admin placeholder
+        vendor_id: null, // admin-created, no vendor
         user_id: user.id,
         title: adminAdForm.title,
         description: adminAdForm.description || null,
@@ -444,7 +444,7 @@ export default function AdminAdPlacements() {
                         <div className="flex items-center gap-2 mb-1">
                           <h3 className="font-medium text-foreground truncate">{p.title}</h3>
                           <span className={`text-xs px-2 py-0.5 rounded-full ${statusColors[p.status] || 'bg-muted'}`}>{p.status.replace('_', ' ')}</span>
-                          {p.vendor_id === '00000000-0000-0000-0000-000000000000' && (
+                          {!p.vendor_id && (
                             <Badge variant="outline" className="text-[10px]">Admin</Badge>
                           )}
                         </div>
