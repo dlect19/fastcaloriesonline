@@ -718,15 +718,15 @@ export default function AdminAdPlacements() {
         </DialogContent>
       </Dialog>
 
-      {/* Admin Create Ad Dialog */}
-      <Dialog open={createDialog} onOpenChange={setCreateDialog}>
+      {/* Admin Create/Edit Ad Dialog */}
+      <Dialog open={createDialog} onOpenChange={(open) => { setCreateDialog(open); if (!open) { setEditingAd(null); setAdminAdForm({ title: '', description: '', image_url: '', link_url: '', placement_type: 'carousel', target_latitude: '', target_longitude: '', target_radius_km: 0, starts_at: '', ends_at: '' }); } }}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Megaphone className="w-5 h-5 text-primary" />
-              Create Admin Ad
+              {editingAd ? 'Edit Ad' : 'Create Admin Ad'}
             </DialogTitle>
-            <p className="text-sm text-muted-foreground">Create an ad placement directly — no payment required. Goes live immediately.</p>
+            <p className="text-sm text-muted-foreground">{editingAd ? 'Update this ad placement.' : 'Create an ad placement directly — no payment required. Goes live immediately.'}</p>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -745,7 +745,7 @@ export default function AdminAdPlacements() {
 
             <div>
               <Label>Placement Type</Label>
-              <Select value={adminAdForm.placement_type} onValueChange={v => setAdminAdForm({ ...adminAdForm, placement_type: v, image_url: '' })}>
+              <Select value={adminAdForm.placement_type} onValueChange={v => setAdminAdForm({ ...adminAdForm, placement_type: v, image_url: editingAd ? adminAdForm.image_url : '' })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="carousel">Carousel (1200×400)</SelectItem>
@@ -816,18 +816,39 @@ export default function AdminAdPlacements() {
               </div>
             </div>
 
-            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 text-sm text-foreground">
-              <p className="font-medium text-emerald-700 dark:text-emerald-400">✅ No payment required</p>
-              <p className="text-xs text-muted-foreground mt-1">This ad will go live immediately after creation. It will appear in the {adminAdForm.placement_type === 'carousel' ? 'home carousel' : 'announcement popup'}.</p>
-            </div>
+            {!editingAd && (
+              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 text-sm text-foreground">
+                <p className="font-medium text-emerald-700 dark:text-emerald-400">✅ No payment required</p>
+                <p className="text-xs text-muted-foreground mt-1">This ad will go live immediately after creation. It will appear in the {adminAdForm.placement_type === 'carousel' ? 'home carousel' : 'announcement popup'}.</p>
+              </div>
+            )}
 
-            <Button className="w-full" disabled={saving || !adminAdForm.title || !adminAdForm.starts_at || !adminAdForm.ends_at} onClick={handleCreateAdminAd}>
-              {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
-              Create & Publish Ad
+            <Button className="w-full" disabled={saving || !adminAdForm.title || !adminAdForm.starts_at || !adminAdForm.ends_at} onClick={editingAd ? handleUpdateAd : handleCreateAdminAd}>
+              {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : editingAd ? <Pencil className="w-4 h-4 mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
+              {editingAd ? 'Save Changes' : 'Create & Publish Ad'}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Ad Placement</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteConfirm?.title}"? This will also remove the linked advertisement. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteConfirm && handleDeleteAd(deleteConfirm)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AdminLayout>
   );
 }
