@@ -528,6 +528,96 @@ export function AutoNotificationManager() {
           )}
         </CardContent>
       </Card>
+
+      {/* Send History Log */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <History className="w-5 h-5 text-primary" />
+                Send History
+              </CardTitle>
+              <CardDescription>Track auto-send delivery status — sent, failed, or no recipients</CardDescription>
+            </div>
+            <Button variant="outline" size="sm" onClick={fetchLogs} disabled={loadingLogs}>
+              {loadingLogs ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Refresh'}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {loadingLogs ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : logs.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">No send attempts logged yet. Logs will appear once the auto-send runs.</p>
+          ) : (
+            <ScrollArea className="max-h-[400px]">
+              <div className="space-y-2">
+                {logs.map(log => {
+                  const statusIcon = log.status === 'sent' ? (
+                    <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
+                  ) : log.status === 'processing' ? (
+                    <Loader2 className="w-4 h-4 text-yellow-500 animate-spin shrink-0" />
+                  ) : log.status === 'no_recipients' ? (
+                    <AlertCircle className="w-4 h-4 text-yellow-500 shrink-0" />
+                  ) : (
+                    <XCircle className="w-4 h-4 text-destructive shrink-0" />
+                  );
+
+                  const statusLabel = log.status === 'sent' ? 'Sent'
+                    : log.status === 'processing' ? 'Processing'
+                    : log.status === 'no_recipients' ? 'No Recipients'
+                    : 'Failed';
+
+                  return (
+                    <div key={log.id} className="flex items-start gap-3 p-3 rounded-lg border border-border bg-card">
+                      {statusIcon}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-medium text-sm">{log.template_title || 'Unknown template'}</p>
+                          <Badge
+                            variant={log.status === 'sent' ? 'default' : log.status === 'failed' ? 'destructive' : 'secondary'}
+                            className="text-[10px]"
+                          >
+                            {statusLabel}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Schedule: {log.schedule_name || 'Unknown'} • Target: {log.target_audience}
+                        </p>
+                        {log.status === 'sent' && (
+                          <div className="flex gap-2 mt-1">
+                            <Badge variant="outline" className="text-[10px]">
+                              <Users className="w-3 h-3 mr-0.5" />
+                              {log.targeted_count} targeted
+                            </Badge>
+                            <Badge variant="outline" className="text-[10px] text-green-600">
+                              {log.sent_count} delivered
+                            </Badge>
+                            {log.failed_count > 0 && (
+                              <Badge variant="outline" className="text-[10px] text-destructive">
+                                {log.failed_count} failed
+                              </Badge>
+                            )}
+                          </div>
+                        )}
+                        {log.error_message && (
+                          <p className="text-[11px] text-destructive mt-1 line-clamp-2">{log.error_message}</p>
+                        )}
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          {format(new Date(log.created_at), 'MMM d, yyyy HH:mm:ss')}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
