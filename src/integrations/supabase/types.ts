@@ -155,7 +155,7 @@ export type Database = {
           total_impressions: number
           updated_at: string
           user_id: string
-          vendor_id: string
+          vendor_id: string | null
         }
         Insert: {
           ad_pricing_id?: string | null
@@ -183,7 +183,7 @@ export type Database = {
           total_impressions?: number
           updated_at?: string
           user_id: string
-          vendor_id: string
+          vendor_id?: string | null
         }
         Update: {
           ad_pricing_id?: string | null
@@ -211,7 +211,7 @@ export type Database = {
           total_impressions?: number
           updated_at?: string
           user_id?: string
-          vendor_id?: string
+          vendor_id?: string | null
         }
         Relationships: [
           {
