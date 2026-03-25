@@ -34,6 +34,15 @@ export function VendorFreeMealProgress({ vendorId, cartTotal = 0 }: VendorFreeMe
     if (!user || !vendorId) return;
 
     const fetch = async () => {
+      // Gate: Only show free meal progress if user has claimed their welcome bonus
+      const { data: orderStats } = await supabase
+        .from('user_order_stats')
+        .select('first_order_promo_used')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (!orderStats?.first_order_promo_used) return;
+
       const { data: activePromos } = await supabase
         .from('free_meal_promos')
         .select('id, product_name, product_image_url, vendor_name, meal_value, order_threshold, promo_period_days, max_redemptions_per_period')

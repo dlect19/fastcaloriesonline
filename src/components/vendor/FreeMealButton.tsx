@@ -42,6 +42,15 @@ export function FreeMealButton({ vendorId }: FreeMealButtonProps) {
     if (!user || !vendorId) return;
 
     const checkEligibility = async () => {
+      // Gate: Only show free meal button if user has claimed their welcome bonus
+      const { data: orderStats } = await supabase
+        .from('user_order_stats')
+        .select('first_order_promo_used')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (!orderStats?.first_order_promo_used) return;
+
       // Get active promos for this vendor
       const { data: promos } = await supabase
         .from('free_meal_promos')
