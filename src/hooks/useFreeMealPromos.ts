@@ -39,6 +39,7 @@ export function useFreeMealPromos() {
   const { user } = useAuth();
   const [promos, setPromos] = useState<FreeMealWithProgress[]>([]);
   const [loading, setLoading] = useState(true);
+  const [welcomeBonusUsed, setWelcomeBonusUsed] = useState<boolean | null>(null);
 
   const fetchPromos = useCallback(async () => {
     setLoading(true);
@@ -58,14 +59,59 @@ export function useFreeMealPromos() {
       }
 
       if (!user) {
-        // Not logged in - show promos without progress
-        setPromos(activePromos.map(p => ({
-          ...p,
-          progress: null,
-          redemptions_in_period: 0,
-          can_redeem: false,
-          progress_percent: 0,
-        })));
+        // Not logged in - don't show free meal promos
+        setPromos([]);
+        setLoading(false);
+        return;
+      }
+
+      // Check if user has claimed their welcome bonus first
+      const { data: orderStats } = await supabase
+        .from('user_order_stats')
+        .select('first_order_promo_used')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      const hasUsedWelcomeBonus = orderStats?.first_order_promo_used === true;
+      setWelcomeBonusUsed(hasUsedWelcomeBonus);
+
+      // Gate: Only show free meal promos to users who have claimed their welcome bonus
+      if (!hasUsedWelcomeBonus) {
+        setPromos([]);
+        setLoading(false);
+        return;
+      }
+
+      // Filter promos by vendor proximity - get vendor store types
+      const vendorIds = [...new Set(activePromos.map(p => p.vendor_id))];
+      const { data: vendorData } = await supabase
+        .from('vendors')
+        .select('id, store_type, state')
+        .in('id', vendorIds);
+
+      // Get user's default address for proximity check
+      const { data: userAddress } = await supabase
+        .from('addresses')
+        .select('state, latitude, longitude')
+        .eq('user_id', user.id)
+        .eq('is_default', true)
+        .maybeSingle();
+
+      // Filter promos: online/both vendors show everywhere, physical vendors only if in same state
+      const filteredPromos = activePromos.filter(promo => {
+        const vendor = vendorData?.find(v => v.id === promo.vendor_id);
+        if (!vendor) return false;
+        
+        // Online or hybrid vendors are visible everywhere
+        if (vendor.store_type === 'online' || vendor.store_type === 'both') return true;
+        
+        // Physical vendors: check if user's address is in the same state
+        if (!userAddress?.state) return false;
+        return vendor.state?.toLowerCase() === userAddress.state.toLowerCase();
+      });
+
+      if (filteredPromos.length === 0) {
+        setPromos([]);
         setLoading(false);
         return;
       }
@@ -83,7 +129,7 @@ export function useFreeMealPromos() {
         .eq('user_id', user.id)
         .eq('status', 'redeemed');
 
-      const promosWithProgress: FreeMealWithProgress[] = activePromos.map(promo => {
+      const promosWithProgress: FreeMealWithProgress[] = filteredPromos.map(promo => {
         const progress = progressData?.find(p => p.promo_id === promo.id) || null;
         
         // Check if progress period is still valid
@@ -125,6 +171,9 @@ export function useFreeMealPromos() {
   // Update progress when an order is placed (call from checkout)
   const updateProgress = useCallback(async (orderAmount: number, orderId: string) => {
     if (!user) return;
+
+    // Gate: only track progress for users who have used their welcome bonus
+    if (welcomeBonusUsed === false) return;
 
     try {
       // Get all active promos
@@ -207,7 +256,7 @@ export function useFreeMealPromos() {
     } catch (error) {
       console.error('Error updating free meal progress:', error);
     }
-  }, [user, fetchPromos]);
+  }, [user, welcomeBonusUsed, fetchPromos]);
 
   // Redeem a free meal
   const redeemFreeMeal = useCallback(async (promoId: string, qualifyingOrderId?: string) => {
@@ -294,6 +343,7 @@ export function useFreeMealPromos() {
     loading,
     hasAvailableFreeMeal,
     hasActivePromos,
+    welcomeBonusUsed,
     updateProgress,
     redeemFreeMeal,
     refreshPromos: fetchPromos,
