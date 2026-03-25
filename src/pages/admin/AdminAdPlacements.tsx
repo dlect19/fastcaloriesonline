@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { formatWATDate } from '@/lib/wat-timezone';
+import { watLocalToISO, formatWATDate } from '@/lib/wat-timezone';
 import { useNavigate } from 'react-router-dom';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, Eye, MousePointer, DollarSign, CheckCircle, XCircle, Clock, BarChart3, Gift, Search } from 'lucide-react';
+import { Loader2, Eye, MousePointer, DollarSign, CheckCircle, XCircle, Clock, BarChart3, Gift, Search, Plus, Upload, Megaphone } from 'lucide-react';
 
 type AdPlacement = {
   id: string;
@@ -21,7 +21,10 @@ type AdPlacement = {
   title: string;
   description: string | null;
   image_url: string | null;
+  link_url: string | null;
   placement_type: string;
+  target_latitude: number | null;
+  target_longitude: number | null;
   target_radius_km: number | null;
   starts_at: string;
   ends_at: string;
@@ -55,6 +58,11 @@ const statusColors: Record<string, string> = {
   rejected: 'bg-red-100 text-red-800',
 };
 
+const FORMAT_DIMENSIONS: Record<string, { w: number; h: number; label: string }> = {
+  carousel: { w: 1200, h: 400, label: 'App Carousel (1200×400)' },
+  announcement: { w: 1080, h: 1080, label: 'Announcement (1080×1080)' },
+};
+
 export default function AdminAdPlacements() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -79,6 +87,22 @@ export default function AdminAdPlacements() {
   const [editingPricing, setEditingPricing] = useState<AdPricing | null>(null);
   const [pricingForm, setPricingForm] = useState({
     name: '', placement_type: 'carousel', cpm_rate: 500, min_budget: 5000, min_duration_days: 1, max_duration_days: 30,
+  });
+
+  // Admin create ad form
+  const [createDialog, setCreateDialog] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [adminAdForm, setAdminAdForm] = useState({
+    title: '',
+    description: '',
+    image_url: '',
+    link_url: '',
+    placement_type: 'carousel',
+    target_latitude: '',
+    target_longitude: '',
+    target_radius_km: 0,
+    starts_at: '',
+    ends_at: '',
   });
 
   useEffect(() => {
@@ -108,19 +132,18 @@ export default function AdminAdPlacements() {
     setSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      // Create the advertisement entry from the placement
       const { data: ad, error: adError } = await supabase.from('advertisements').insert({
         title: placement.title,
         description: placement.description,
         image_url: placement.image_url || 'from-primary to-emerald-600',
-        link_url: null,
+        link_url: placement.link_url || null,
         is_active: true,
         display_order: 99,
         target_audience: 'all',
         starts_at: placement.starts_at,
         ends_at: placement.ends_at,
-        target_latitude: (placement as any).target_latitude,
-        target_longitude: (placement as any).target_longitude,
+        target_latitude: placement.target_latitude,
+        target_longitude: placement.target_longitude,
         target_radius_km: placement.target_radius_km,
         ad_placement_id: placement.id,
       }).select('id').single();
@@ -156,7 +179,6 @@ export default function AdminAdPlacements() {
         rejection_reason: rejectionReason,
       }).eq('id', placement.id);
 
-      // Refund the budget to ad wallet
       const { data: wallet } = await supabase.from('ad_wallets').select('id, balance').eq('vendor_id', placement.vendor_id).single();
       if (wallet) {
         const newBal = (wallet.balance || 0) + placement.budget;
@@ -201,8 +223,6 @@ export default function AdminAdPlacements() {
     }
   };
 
-  const pendingCount = placements.filter(p => p.status === 'pending_review').length;
-
   const searchVendorsForCredit = async (q: string) => {
     setCreditVendorSearch(q);
     if (q.length < 2) { setCreditVendors([]); return; }
@@ -224,7 +244,6 @@ export default function AdminAdPlacements() {
       const { data: { user } } = await supabase.auth.getUser();
       let walletId = selectedCreditVendor.wallet_id;
       
-      // Create wallet if doesn't exist
       if (!walletId) {
         const { data: vendor } = await supabase.from('vendors').select('user_id').eq('id', selectedCreditVendor.id).single();
         const { data: newWallet } = await supabase.from('ad_wallets').insert({
@@ -260,11 +279,129 @@ export default function AdminAdPlacements() {
     }
   };
 
+  // Admin creates an ad placement directly — no payment, auto-approved
+  const handleAdminImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const dims = FORMAT_DIMENSIONS[adminAdForm.placement_type];
+
+    const img = new window.Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    img.onload = async () => {
+      URL.revokeObjectURL(objectUrl);
+
+      if (dims) {
+        const tolerance = 0.15;
+        const minW = dims.w * (1 - tolerance);
+        const maxW = dims.w * (1 + tolerance);
+        const minH = dims.h * (1 - tolerance);
+        const maxH = dims.h * (1 + tolerance);
+        if (img.width < minW || img.width > maxW || img.height < minH || img.height > maxH) {
+          toast({
+            title: 'Image size mismatch',
+            description: `Required: ${dims.w}×${dims.h}px (±15%). Your image: ${img.width}×${img.height}px`,
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
+
+      setUploadingImage(true);
+      try {
+        const ext = file.name.split('.').pop() || 'png';
+        const path = `admin-ads/${Date.now()}.${ext}`;
+        const { error: uploadErr } = await supabase.storage.from('campaign-images').upload(path, file, { contentType: file.type });
+        if (uploadErr) throw uploadErr;
+        const { data: urlData } = supabase.storage.from('campaign-images').getPublicUrl(path);
+        setAdminAdForm(prev => ({ ...prev, image_url: urlData.publicUrl }));
+        toast({ title: 'Image uploaded!' });
+      } catch (err: any) {
+        toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
+      } finally {
+        setUploadingImage(false);
+      }
+    };
+    img.onerror = () => { URL.revokeObjectURL(objectUrl); toast({ title: 'Invalid image', variant: 'destructive' }); };
+    img.src = objectUrl;
+  };
+
+  const handleCreateAdminAd = async () => {
+    if (!adminAdForm.title || !adminAdForm.starts_at || !adminAdForm.ends_at) {
+      toast({ title: 'Fill required fields', description: 'Title, start date, and end date are required', variant: 'destructive' });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      // Create ad placement directly as active (no vendor, no payment)
+      const { data: placement, error: placementErr } = await supabase.from('ad_placements').insert({
+        vendor_id: '00000000-0000-0000-0000-000000000000', // platform/admin placeholder
+        user_id: user.id,
+        title: adminAdForm.title,
+        description: adminAdForm.description || null,
+        image_url: adminAdForm.image_url || null,
+        link_url: adminAdForm.link_url || null,
+        placement_type: adminAdForm.placement_type,
+        target_latitude: adminAdForm.target_latitude ? parseFloat(adminAdForm.target_latitude) : null,
+        target_longitude: adminAdForm.target_longitude ? parseFloat(adminAdForm.target_longitude) : null,
+        target_radius_km: adminAdForm.target_radius_km || 0,
+        starts_at: watLocalToISO(adminAdForm.starts_at),
+        ends_at: watLocalToISO(adminAdForm.ends_at),
+        budget: 0,
+        cpm_rate: 0,
+        status: 'active',
+        approved_by: user.id,
+        approved_at: new Date().toISOString(),
+      }).select('id').single();
+
+      if (placementErr) throw placementErr;
+
+      // Also create the advertisement entry so it shows in the carousel/announcement system
+      await supabase.from('advertisements').insert({
+        title: adminAdForm.title,
+        description: adminAdForm.description || null,
+        image_url: adminAdForm.image_url || 'from-primary to-emerald-600',
+        link_url: adminAdForm.link_url || null,
+        is_active: true,
+        display_order: 99,
+        target_audience: 'all',
+        starts_at: watLocalToISO(adminAdForm.starts_at),
+        ends_at: watLocalToISO(adminAdForm.ends_at),
+        target_latitude: adminAdForm.target_latitude ? parseFloat(adminAdForm.target_latitude) : null,
+        target_longitude: adminAdForm.target_longitude ? parseFloat(adminAdForm.target_longitude) : null,
+        target_radius_km: adminAdForm.target_radius_km || 0,
+        ad_placement_id: placement?.id || null,
+      });
+
+      toast({ title: 'Ad Created!', description: 'Your ad is now live — no payment required.' });
+      setCreateDialog(false);
+      setAdminAdForm({ title: '', description: '', image_url: '', link_url: '', placement_type: 'carousel', target_latitude: '', target_longitude: '', target_radius_km: 0, starts_at: '', ends_at: '' });
+      fetchData();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const pendingCount = placements.filter(p => p.status === 'pending_review').length;
+  const currentAdminDims = FORMAT_DIMENSIONS[adminAdForm.placement_type];
+
   return (
     <AdminLayout>
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-foreground">Ad Placements & Pricing</h1>
-        <p className="text-muted-foreground">Manage vendor ad submissions and CPM pricing</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Ad Placements & Pricing</h1>
+          <p className="text-muted-foreground">Manage vendor ad submissions, create admin ads, and CPM pricing</p>
+        </div>
+        <Button onClick={() => setCreateDialog(true)}>
+          <Plus className="w-4 h-4 mr-2" />Create Admin Ad
+        </Button>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
@@ -287,7 +424,11 @@ export default function AdminAdPlacements() {
           {loading ? (
             <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
           ) : placements.length === 0 ? (
-            <Card><CardContent className="py-12 text-center text-muted-foreground">No ad placements yet. Vendors can submit ads from their dashboard.</CardContent></Card>
+            <Card><CardContent className="py-12 text-center text-muted-foreground">
+              <Megaphone className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
+              <p>No ad placements yet.</p>
+              <p className="text-sm mt-1">Click "Create Admin Ad" to create one, or vendors can submit from their dashboard.</p>
+            </CardContent></Card>
           ) : (
             <div className="space-y-4">
               {placements.map(p => (
@@ -303,12 +444,15 @@ export default function AdminAdPlacements() {
                         <div className="flex items-center gap-2 mb-1">
                           <h3 className="font-medium text-foreground truncate">{p.title}</h3>
                           <span className={`text-xs px-2 py-0.5 rounded-full ${statusColors[p.status] || 'bg-muted'}`}>{p.status.replace('_', ' ')}</span>
+                          {p.vendor_id === '00000000-0000-0000-0000-000000000000' && (
+                            <Badge variant="outline" className="text-[10px]">Admin</Badge>
+                          )}
                         </div>
                         <p className="text-sm text-muted-foreground truncate">{p.description}</p>
                         <div className="flex gap-4 mt-1 text-xs text-muted-foreground">
                           <span className="flex items-center gap-1"><Eye className="w-3 h-3" />{p.total_impressions} views</span>
                           <span className="flex items-center gap-1"><MousePointer className="w-3 h-3" />{p.total_clicks} clicks</span>
-                          <span className="flex items-center gap-1"><DollarSign className="w-3 h-3" />₦{p.spent.toLocaleString()} / ₦{p.budget.toLocaleString()}</span>
+                          {p.budget > 0 && <span className="flex items-center gap-1"><DollarSign className="w-3 h-3" />₦{p.spent.toLocaleString()} / ₦{p.budget.toLocaleString()}</span>}
                           <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{formatWATDate(p.starts_at)} - {formatWATDate(p.ends_at)}</span>
                         </div>
                       </div>
@@ -474,6 +618,117 @@ export default function AdminAdPlacements() {
             </div>
             <Button className="w-full" onClick={savePricing} disabled={saving || !pricingForm.name}>
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Admin Create Ad Dialog */}
+      <Dialog open={createDialog} onOpenChange={setCreateDialog}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Megaphone className="w-5 h-5 text-primary" />
+              Create Admin Ad
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground">Create an ad placement directly — no payment required. Goes live immediately.</p>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Title *</Label>
+              <Input value={adminAdForm.title} onChange={e => setAdminAdForm({ ...adminAdForm, title: e.target.value })} placeholder="Summer Promo — Order Now!" />
+            </div>
+            <div>
+              <Label>Description</Label>
+              <Textarea value={adminAdForm.description} onChange={e => setAdminAdForm({ ...adminAdForm, description: e.target.value })} placeholder="Describe your ad" rows={2} />
+            </div>
+            <div>
+              <Label>Link URL (optional)</Label>
+              <Input value={adminAdForm.link_url} onChange={e => setAdminAdForm({ ...adminAdForm, link_url: e.target.value })} placeholder="/explore or https://..." />
+              <p className="text-xs text-muted-foreground mt-1">Use internal paths (e.g. /explore) or full URLs</p>
+            </div>
+
+            <div>
+              <Label>Placement Type</Label>
+              <Select value={adminAdForm.placement_type} onValueChange={v => setAdminAdForm({ ...adminAdForm, placement_type: v, image_url: '' })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="carousel">Carousel (1200×400)</SelectItem>
+                  <SelectItem value="announcement">Announcement Popup (1080×1080)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Image Upload */}
+            <div className="space-y-3">
+              <Label>Ad Image</Label>
+              {currentAdminDims && (
+                <p className="text-xs text-muted-foreground">Recommended: {currentAdminDims.w}×{currentAdminDims.h}px — {currentAdminDims.label}</p>
+              )}
+              <Input
+                type="file"
+                accept="image/*"
+                onChange={handleAdminImageUpload}
+                disabled={uploadingImage}
+                className="cursor-pointer"
+              />
+              {uploadingImage && <p className="text-xs text-muted-foreground flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" />Uploading...</p>}
+              
+              {adminAdForm.image_url && (
+                <div className="relative rounded-lg overflow-hidden border border-border">
+                  <img src={adminAdForm.image_url} alt="Preview" className="w-full h-auto object-contain max-h-48" />
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="absolute top-2 right-2"
+                    onClick={() => setAdminAdForm(prev => ({ ...prev, image_url: '' }))}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Location Targeting */}
+            <div className="border rounded-lg p-3 space-y-3">
+              <Label className="text-sm font-medium">Location Targeting (optional)</Label>
+              <p className="text-xs text-muted-foreground">Leave empty to show everywhere. Set coordinates + radius to target a specific area.</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs">Latitude</Label>
+                  <Input type="number" step="any" value={adminAdForm.target_latitude} onChange={e => setAdminAdForm({ ...adminAdForm, target_latitude: e.target.value })} placeholder="6.5244" />
+                </div>
+                <div>
+                  <Label className="text-xs">Longitude</Label>
+                  <Input type="number" step="any" value={adminAdForm.target_longitude} onChange={e => setAdminAdForm({ ...adminAdForm, target_longitude: e.target.value })} placeholder="3.3792" />
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs">Radius (km) — 0 = show everywhere</Label>
+                <Input type="number" value={adminAdForm.target_radius_km} onChange={e => setAdminAdForm({ ...adminAdForm, target_radius_km: parseInt(e.target.value) || 0 })} min={0} />
+              </div>
+            </div>
+
+            {/* Dates */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Start Date (WAT) *</Label>
+                <Input type="datetime-local" value={adminAdForm.starts_at} onChange={e => setAdminAdForm({ ...adminAdForm, starts_at: e.target.value })} />
+              </div>
+              <div>
+                <Label>End Date (WAT) *</Label>
+                <Input type="datetime-local" value={adminAdForm.ends_at} onChange={e => setAdminAdForm({ ...adminAdForm, ends_at: e.target.value })} />
+              </div>
+            </div>
+
+            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 text-sm text-foreground">
+              <p className="font-medium text-emerald-700 dark:text-emerald-400">✅ No payment required</p>
+              <p className="text-xs text-muted-foreground mt-1">This ad will go live immediately after creation. It will appear in the {adminAdForm.placement_type === 'carousel' ? 'home carousel' : 'announcement popup'}.</p>
+            </div>
+
+            <Button className="w-full" disabled={saving || !adminAdForm.title || !adminAdForm.starts_at || !adminAdForm.ends_at} onClick={handleCreateAdminAd}>
+              {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
+              Create & Publish Ad
             </Button>
           </div>
         </DialogContent>
