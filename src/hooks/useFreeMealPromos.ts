@@ -39,6 +39,7 @@ export function useFreeMealPromos() {
   const { user } = useAuth();
   const [promos, setPromos] = useState<FreeMealWithProgress[]>([]);
   const [loading, setLoading] = useState(true);
+  const [welcomeBonusUsed, setWelcomeBonusUsed] = useState<boolean | null>(null);
 
   const fetchPromos = useCallback(async () => {
     setLoading(true);
@@ -58,14 +59,8 @@ export function useFreeMealPromos() {
       }
 
       if (!user) {
-        // Not logged in - show promos without progress
-        setPromos(activePromos.map(p => ({
-          ...p,
-          progress: null,
-          redemptions_in_period: 0,
-          can_redeem: false,
-          progress_percent: 0,
-        })));
+        // Not logged in - don't show free meal promos
+        setPromos([]);
         setLoading(false);
         return;
       }
