@@ -554,6 +554,10 @@ export default function AdminAdPlacements() {
                           <Trash2 className="w-3 h-3" />
                         </Button>
                       </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           )}
         </TabsContent>
