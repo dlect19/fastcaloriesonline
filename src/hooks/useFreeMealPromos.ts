@@ -256,7 +256,7 @@ export function useFreeMealPromos() {
     } catch (error) {
       console.error('Error updating free meal progress:', error);
     }
-  }, [user, fetchPromos]);
+  }, [user, welcomeBonusUsed, fetchPromos]);
 
   // Redeem a free meal
   const redeemFreeMeal = useCallback(async (promoId: string, qualifyingOrderId?: string) => {
@@ -343,6 +343,7 @@ export function useFreeMealPromos() {
     loading,
     hasAvailableFreeMeal,
     hasActivePromos,
+    welcomeBonusUsed,
     updateProgress,
     redeemFreeMeal,
     refreshPromos: fetchPromos,
