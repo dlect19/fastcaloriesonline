@@ -90,9 +90,11 @@ export default function AdminAdPlacements() {
     name: '', placement_type: 'carousel', cpm_rate: 500, min_budget: 5000, min_duration_days: 1, max_duration_days: 30,
   });
 
-  // Admin create ad form
+  // Admin create/edit ad form
   const [createDialog, setCreateDialog] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [editingAd, setEditingAd] = useState<AdPlacement | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<AdPlacement | null>(null);
   const [adminAdForm, setAdminAdForm] = useState({
     title: '',
     description: '',
