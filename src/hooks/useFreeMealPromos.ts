@@ -175,6 +175,7 @@ export function useFreeMealPromos() {
     // Gate: only track progress for users who have used their welcome bonus
     if (welcomeBonusUsed === false) return;
 
+    try {
       // Get all active promos
       const { data: activePromos } = await supabase
         .from('free_meal_promos')
