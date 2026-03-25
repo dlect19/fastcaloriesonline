@@ -103,7 +103,19 @@ export function AutoNotificationManager() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, []);
+  const fetchLogs = async () => {
+    setLoadingLogs(true);
+    const { data } = await supabase
+      .from('auto_notification_logs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(50);
+    setLogs((data as NotificationLog[]) || []);
+    setLoadingLogs(false);
+  };
+
+  useEffect(() => { fetchData(); fetchLogs(); }, []);
+
 
   const categories = [...new Set(templates.map(t => t.category))];
 
