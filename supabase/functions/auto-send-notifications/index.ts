@@ -23,7 +23,6 @@ serve(async (req) => {
 
     console.log(`[AUTO-SEND] Running at ${now.toISOString()} | UTC hour: ${utcHour} | WAT hour: ${watHour} | Day: ${currentDay}`);
 
-    // Get active schedules that are due
     const { data: schedules, error: schedErr } = await supabase
       .from('auto_notification_schedules')
       .select('*')
@@ -59,7 +58,7 @@ serve(async (req) => {
         continue;
       }
 
-      // Interval check: use starts_at as anchor
+      // Interval check
       const startsAtMs = schedule.starts_at ? new Date(schedule.starts_at).getTime() : now.getTime();
       const nowMs = now.getTime();
 
@@ -72,21 +71,32 @@ serve(async (req) => {
       const slotIndex = Math.floor((nowMs - startsAtMs) / intervalMs);
       const currentSlotStartMs = startsAtMs + slotIndex * intervalMs;
 
-      console.log(`[AUTO-SEND] "${schedule.name}" — slot ${slotIndex}, slot start: ${new Date(currentSlotStartMs).toISOString()}`);
-
-      // Already sent for this interval slot?
       if (schedule.last_sent_at) {
         const lastSentMs = new Date(schedule.last_sent_at).getTime();
         if (lastSentMs >= currentSlotStartMs) {
           const nextSlotMs = currentSlotStartMs + intervalMs;
-          console.log(`[AUTO-SEND] SKIP "${schedule.name}": already sent at ${schedule.last_sent_at}, next slot at ${new Date(nextSlotMs).toISOString()}`);
+          console.log(`[AUTO-SEND] SKIP "${schedule.name}": already sent, next slot at ${new Date(nextSlotMs).toISOString()}`);
           continue;
         }
       }
 
       console.log(`[AUTO-SEND] "${schedule.name}" is DUE — finding templates...`);
 
-      // Pick a random template matching this schedule's criteria
+      // Create a log entry as "processing"
+      const { data: logEntry } = await supabase
+        .from('auto_notification_logs')
+        .insert({
+          schedule_id: schedule.id,
+          schedule_name: schedule.name,
+          target_audience: schedule.target_audience,
+          status: 'processing',
+        })
+        .select('id')
+        .single();
+
+      const logId = logEntry?.id;
+
+      // Pick a random template
       let query = supabase
         .from('auto_notification_templates')
         .select('*')
@@ -101,22 +111,44 @@ serve(async (req) => {
 
       if (tplErr) {
         console.error(`[AUTO-SEND] Template query error for "${schedule.name}":`, tplErr);
+        if (logId) {
+          await supabase.from('auto_notification_logs').update({
+            status: 'failed',
+            error_message: `Template query error: ${tplErr.message}`,
+          }).eq('id', logId);
+        }
         continue;
       }
 
       if (!templates || templates.length === 0) {
-        console.log(`[AUTO-SEND] No templates found for "${schedule.name}" (audience: ${schedule.target_audience}, category: ${schedule.category || 'any'})`);
+        console.log(`[AUTO-SEND] No templates found for "${schedule.name}"`);
+        if (logId) {
+          await supabase.from('auto_notification_logs').update({
+            status: 'failed',
+            error_message: `No active templates found (audience: ${schedule.target_audience}, category: ${schedule.category || 'any'})`,
+          }).eq('id', logId);
+        }
+        // Still update last_sent_at to avoid retrying same slot
+        await supabase.from('auto_notification_schedules').update({
+          last_sent_at: now.toISOString(),
+          updated_at: now.toISOString(),
+        }).eq('id', schedule.id);
         continue;
       }
 
-      console.log(`[AUTO-SEND] Found ${templates.length} template(s) for "${schedule.name}"`);
-
-      // Pick random template
       const template = templates[Math.floor(Math.random() * templates.length)];
+
+      // Update log with template info
+      if (logId) {
+        await supabase.from('auto_notification_logs').update({
+          template_id: template.id,
+          template_title: template.title,
+        }).eq('id', logId);
+      }
 
       // Send via broadcast-notification
       try {
-        console.log(`[AUTO-SEND] Sending "${template.title}" via broadcast for "${schedule.name}" to target: ${schedule.target_audience}`);
+        console.log(`[AUTO-SEND] Sending "${template.title}" for "${schedule.name}"`);
 
         const response = await fetch(
           `${supabaseUrl}/functions/v1/broadcast-notification`,
@@ -136,16 +168,29 @@ serve(async (req) => {
         );
 
         const resultText = await response.text();
-        console.log(`[AUTO-SEND] Broadcast response for "${schedule.name}": ${response.status} — ${resultText}`);
+        console.log(`[AUTO-SEND] Broadcast response: ${response.status} — ${resultText}`);
 
         let result;
         try { result = JSON.parse(resultText); } catch { result = {}; }
-        
+
         const sentCount = result.sent || 0;
+        const failedCount = result.failed || 0;
+        const targetedCount = result.total_targeted || 0;
         totalSent += sentCount;
         schedulesProcessed++;
 
-        // Update last_sent_at regardless so we don't retry the same slot endlessly
+        // Update log with results
+        if (logId) {
+          await supabase.from('auto_notification_logs').update({
+            status: response.ok && sentCount > 0 ? 'sent' : response.ok && sentCount === 0 ? 'no_recipients' : 'failed',
+            sent_count: sentCount,
+            failed_count: failedCount,
+            targeted_count: targetedCount,
+            error_message: !response.ok ? `HTTP ${response.status}: ${resultText.substring(0, 500)}` : null,
+          }).eq('id', logId);
+        }
+
+        // Update schedule
         await supabase
           .from('auto_notification_schedules')
           .update({
@@ -155,9 +200,15 @@ serve(async (req) => {
           })
           .eq('id', schedule.id);
 
-        console.log(`[AUTO-SEND] ✅ "${schedule.name}" → ${sentCount} sent, last_sent_at updated`);
+        console.log(`[AUTO-SEND] ✅ "${schedule.name}" → ${sentCount} sent, ${failedCount} failed`);
       } catch (e) {
         console.error(`[AUTO-SEND] ❌ Failed "${schedule.name}":`, e);
+        if (logId) {
+          await supabase.from('auto_notification_logs').update({
+            status: 'failed',
+            error_message: e.message || 'Unknown error during broadcast',
+          }).eq('id', logId);
+        }
       }
     }
 

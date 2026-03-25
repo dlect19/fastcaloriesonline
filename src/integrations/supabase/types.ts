@@ -694,6 +694,66 @@ export type Database = {
           },
         ]
       }
+      auto_notification_logs: {
+        Row: {
+          created_at: string | null
+          error_message: string | null
+          failed_count: number | null
+          id: string
+          schedule_id: string | null
+          schedule_name: string | null
+          sent_count: number | null
+          status: string
+          target_audience: string
+          targeted_count: number | null
+          template_id: string | null
+          template_title: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          error_message?: string | null
+          failed_count?: number | null
+          id?: string
+          schedule_id?: string | null
+          schedule_name?: string | null
+          sent_count?: number | null
+          status?: string
+          target_audience?: string
+          targeted_count?: number | null
+          template_id?: string | null
+          template_title?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          error_message?: string | null
+          failed_count?: number | null
+          id?: string
+          schedule_id?: string | null
+          schedule_name?: string | null
+          sent_count?: number | null
+          status?: string
+          target_audience?: string
+          targeted_count?: number | null
+          template_id?: string | null
+          template_title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "auto_notification_logs_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "auto_notification_schedules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "auto_notification_logs_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "auto_notification_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       auto_notification_schedules: {
         Row: {
           active_days: number[] | null
