@@ -543,13 +543,17 @@ export default function AdminAdPlacements() {
                           <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{formatWATDate(p.starts_at)} - {formatWATDate(p.ends_at)}</span>
                         </div>
                       </div>
-                      {p.status === 'pending_review' && (
-                        <Button size="sm" onClick={() => setReviewDialog(p)}>Review</Button>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                      <div className="flex items-center gap-2">
+                        {p.status === 'pending_review' && (
+                          <Button size="sm" onClick={() => setReviewDialog(p)}>Review</Button>
+                        )}
+                        <Button size="sm" variant="outline" onClick={() => openEditDialog(p)}>
+                          <Pencil className="w-3 h-3" />
+                        </Button>
+                        <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => setDeleteConfirm(p)}>
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
             </div>
           )}
         </TabsContent>
