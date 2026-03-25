@@ -67,7 +67,9 @@ export function AutoNotificationManager() {
   const { toast } = useToast();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [logs, setLogs] = useState<NotificationLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingLogs, setLoadingLogs] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // New/edit template form
