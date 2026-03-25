@@ -392,6 +392,90 @@ export default function AdminAdPlacements() {
     }
   };
 
+  const openEditDialog = (p: AdPlacement) => {
+    setEditingAd(p);
+    setAdminAdForm({
+      title: p.title,
+      description: p.description || '',
+      image_url: p.image_url || '',
+      link_url: p.link_url || '',
+      placement_type: p.placement_type,
+      target_latitude: p.target_latitude?.toString() || '',
+      target_longitude: p.target_longitude?.toString() || '',
+      target_radius_km: p.target_radius_km || 0,
+      starts_at: p.starts_at ? new Date(p.starts_at).toISOString().slice(0, 16) : '',
+      ends_at: p.ends_at ? new Date(p.ends_at).toISOString().slice(0, 16) : '',
+    });
+    setCreateDialog(true);
+  };
+
+  const handleUpdateAd = async () => {
+    if (!editingAd || !adminAdForm.title || !adminAdForm.starts_at || !adminAdForm.ends_at) {
+      toast({ title: 'Fill required fields', variant: 'destructive' });
+      return;
+    }
+    setSaving(true);
+    try {
+      await supabase.from('ad_placements').update({
+        title: adminAdForm.title,
+        description: adminAdForm.description || null,
+        image_url: adminAdForm.image_url || null,
+        link_url: adminAdForm.link_url || null,
+        placement_type: adminAdForm.placement_type,
+        target_latitude: adminAdForm.target_latitude ? parseFloat(adminAdForm.target_latitude) : null,
+        target_longitude: adminAdForm.target_longitude ? parseFloat(adminAdForm.target_longitude) : null,
+        target_radius_km: adminAdForm.target_radius_km || 0,
+        starts_at: watLocalToISO(adminAdForm.starts_at),
+        ends_at: watLocalToISO(adminAdForm.ends_at),
+      }).eq('id', editingAd.id);
+
+      // Also update linked advertisement if exists
+      const { data: linkedAd } = await supabase.from('advertisements').select('id').eq('ad_placement_id', editingAd.id).maybeSingle();
+      if (linkedAd) {
+        await supabase.from('advertisements').update({
+          title: adminAdForm.title,
+          description: adminAdForm.description || null,
+          image_url: adminAdForm.image_url || 'from-primary to-emerald-600',
+          link_url: adminAdForm.link_url || null,
+          starts_at: watLocalToISO(adminAdForm.starts_at),
+          ends_at: watLocalToISO(adminAdForm.ends_at),
+          target_latitude: adminAdForm.target_latitude ? parseFloat(adminAdForm.target_latitude) : null,
+          target_longitude: adminAdForm.target_longitude ? parseFloat(adminAdForm.target_longitude) : null,
+          target_radius_km: adminAdForm.target_radius_km || 0,
+        }).eq('id', linkedAd.id);
+      }
+
+      toast({ title: 'Updated!', description: 'Ad placement updated successfully.' });
+      setCreateDialog(false);
+      setEditingAd(null);
+      setAdminAdForm({ title: '', description: '', image_url: '', link_url: '', placement_type: 'carousel', target_latitude: '', target_longitude: '', target_radius_km: 0, starts_at: '', ends_at: '' });
+      fetchData();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteAd = async (p: AdPlacement) => {
+    setSaving(true);
+    try {
+      // Delete linked advertisement first
+      await supabase.from('advertisements').delete().eq('ad_placement_id', p.id);
+      // Delete impressions
+      await supabase.from('ad_impressions').delete().eq('ad_placement_id', p.id);
+      // Delete the placement
+      await supabase.from('ad_placements').delete().eq('id', p.id);
+      toast({ title: 'Deleted', description: 'Ad placement removed.' });
+      setDeleteConfirm(null);
+      fetchData();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const pendingCount = placements.filter(p => p.status === 'pending_review').length;
   const currentAdminDims = FORMAT_DIMENSIONS[adminAdForm.placement_type];
 
