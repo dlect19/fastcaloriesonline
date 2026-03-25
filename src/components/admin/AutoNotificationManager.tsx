@@ -9,10 +9,11 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Trash2, Clock, Zap, MessageSquare, Loader2, Calendar, Pencil } from 'lucide-react';
+import { Plus, Trash2, Clock, Zap, MessageSquare, Loader2, Calendar, Pencil, History, CheckCircle2, XCircle, AlertCircle, Users } from 'lucide-react';
 import { EmojiPicker } from '@/components/admin/EmojiPicker';
 import { format } from 'date-fns';
 import { watLocalToISO, utcToWATLocal } from '@/lib/wat-timezone';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface Template {
   id: string;
