@@ -26,6 +26,19 @@ interface Template {
   created_at: string;
 }
 
+interface NotificationLog {
+  id: string;
+  schedule_name: string | null;
+  template_title: string | null;
+  target_audience: string;
+  status: string;
+  sent_count: number;
+  failed_count: number;
+  targeted_count: number;
+  error_message: string | null;
+  created_at: string;
+}
+
 interface Schedule {
   id: string;
   name: string;
