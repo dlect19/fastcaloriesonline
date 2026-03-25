@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { calculateDistance } from '@/lib/location';
 
 export interface FreeMealPromo {
   id: string;
@@ -82,11 +83,11 @@ export function useFreeMealPromos() {
         return;
       }
 
-      // Filter promos by vendor proximity - get vendor store types
+      // Filter promos by vendor proximity - get vendor store types and location
       const vendorIds = [...new Set(activePromos.map(p => p.vendor_id))];
       const { data: vendorData } = await supabase
         .from('vendors')
-        .select('id, store_type, state')
+        .select('id, store_type, latitude, longitude, sales_radius')
         .in('id', vendorIds);
 
       // Get user's default address for proximity check
@@ -97,7 +98,7 @@ export function useFreeMealPromos() {
         .eq('is_default', true)
         .maybeSingle();
 
-      // Filter promos: online/both vendors show everywhere, physical vendors only if in same state
+      // Filter promos: online/both vendors show everywhere, physical vendors within sales radius
       const filteredPromos = activePromos.filter(promo => {
         const vendor = vendorData?.find(v => v.id === promo.vendor_id);
         if (!vendor) return false;
@@ -105,9 +106,11 @@ export function useFreeMealPromos() {
         // Online or hybrid vendors are visible everywhere
         if (vendor.store_type === 'online' || vendor.store_type === 'both') return true;
         
-        // Physical vendors: check if user's address is in the same state
-        if (!userAddress?.state) return false;
-        return vendor.state?.toLowerCase() === userAddress.state.toLowerCase();
+        // Physical vendors: check if customer is within the vendor's sales radius
+        if (!userAddress?.latitude || !userAddress?.longitude || !vendor.latitude || !vendor.longitude) return false;
+        const distance = calculateDistance(userAddress.latitude, userAddress.longitude, vendor.latitude, vendor.longitude);
+        const vendorRadius = vendor.sales_radius || 10; // default 10km
+        return distance <= vendorRadius;
       });
 
       if (filteredPromos.length === 0) {
