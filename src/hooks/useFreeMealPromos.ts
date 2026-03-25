@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { calculateDistance } from '@/lib/location';
 
 export interface FreeMealPromo {
   id: string;
