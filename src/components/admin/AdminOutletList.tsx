@@ -9,6 +9,8 @@ import { Check, X, MapPin, Loader2, Store, ChevronDown, ChevronRight, Power, Pow
 import { useToast } from '@/hooks/use-toast';
 import { OutletGeoLockManager } from './OutletGeoLockManager';
 import { OutletCoordinateEditor } from './OutletCoordinateEditor';
+import { AddOutletDialog } from '@/components/vendor/AddOutletDialog';
+import { OutletProvider } from '@/hooks/useOutletContext';
 
 interface AdminOutletListProps {
   vendors: any[];
@@ -21,6 +23,7 @@ export function AdminOutletList({ vendors, onRefresh }: AdminOutletListProps) {
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [geoLockOutlet, setGeoLockOutlet] = useState<any | null>(null);
+  const [addOutletVendor, setAddOutletVendor] = useState<any | null>(null);
   const [bulkLoading, setBulkLoading] = useState(false);
   const [bulkDeliveryMode, setBulkDeliveryMode] = useState<string>('');
 
@@ -227,106 +230,117 @@ export function AdminOutletList({ vendors, onRefresh }: AdminOutletListProps) {
                 </button>
 
                 {expanded[vendor.id] && (
-                  <div className="border-t divide-y">
-                    {(outlets[vendor.id] || []).map((outlet) => (
-                      <div key={outlet.id} className="flex items-center justify-between p-4 pl-12 bg-muted/20">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-sm">{outlet.outlet_name}</span>
-                            {outlet.is_default && (
-                              <Badge variant="outline" className="text-xs">Default</Badge>
-                            )}
-                            {!outlet.is_approved && (
-                              <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-600 border-yellow-500/30 text-xs">
-                                Pending Approval
-                              </Badge>
-                            )}
-                            {outlet.is_open ? (
-                              <Badge variant="secondary" className="bg-green-500/10 text-green-600 border-green-500/30 text-xs gap-1">
-                                <Power className="w-2.5 h-2.5" /> Open
-                              </Badge>
-                            ) : (
-                              <Badge variant="secondary" className="bg-red-500/10 text-red-600 border-red-500/30 text-xs gap-1">
-                                <PowerOff className="w-2.5 h-2.5" /> Closed
-                              </Badge>
-                            )}
-                            {outlet.geo_verification_status === 'locked_pending_reverify' && (
-                              <Badge variant="destructive" className="gap-1 text-xs">
-                                <MapPin className="w-3 h-3" /> Geo-Locked
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            {outlet.address || 'No address'}, {outlet.city || ''}
-                            {outlet.outlet_code ? ` • ${outlet.outlet_code}` : ''}
-                          </p>
-                          <div className="flex items-center gap-1 mt-0.5">
-                            <Badge variant="outline" className="text-xs gap-1">
-                              {deliveryModeIcon(outlet.delivery_mode)}
-                              {deliveryModeLabel(outlet.delivery_mode)}
-                            </Badge>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          {/* Delivery Mode selector */}
-                          <Select
-                            value={outlet.delivery_mode || 'platform'}
-                            onValueChange={(v) => changeOutletDeliveryMode(outlet.id, vendor.id, v)}
-                          >
-                            <SelectTrigger className="w-[130px] h-7 text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="own">Own Riders</SelectItem>
-                              <SelectItem value="platform">Platform</SelectItem>
-                              <SelectItem value="both">Both</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          {/* Open/Close toggle */}
-                          {outlet.is_approved && outlet.is_active && (
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-xs text-muted-foreground">
-                                {outlet.is_open ? 'Open' : 'Closed'}
-                              </span>
-                              <Switch
-                                checked={outlet.is_open ?? false}
-                                onCheckedChange={() => toggleOutletOpen(outlet.id, vendor.id, outlet.is_open)}
-                              />
-                            </div>
-                          )}
-
-                          <OutletCoordinateEditor
-                            outlet={outlet}
-                            onUpdate={() => toggleExpand(vendor.id)}
-                          />
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setGeoLockOutlet(outlet)}
-                            className="gap-1"
-                          >
-                            <MapPin className="w-3 h-3" /> Geo
-                          </Button>
-
-                          {!outlet.is_approved ? (
-                            <Button size="sm" onClick={() => approveOutlet(outlet.id)} className="gap-1">
-                              <Check className="w-3 h-3" /> Approve
-                            </Button>
-                          ) : (
+                  <div className="border-t">
+                    <div className="flex justify-end px-4 py-3 bg-muted/20 border-b">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setAddOutletVendor(vendor)}
+                      >
+                        Add Outlet
+                      </Button>
+                    </div>
+                    <div className="divide-y">
+                      {(outlets[vendor.id] || []).map((outlet) => (
+                        <div key={outlet.id} className="flex items-center justify-between p-4 pl-12 bg-muted/20">
+                          <div className="space-y-1">
                             <div className="flex items-center gap-2">
-                              <span className="text-xs text-muted-foreground">Active</span>
-                              <Switch
-                                checked={outlet.is_active}
-                                onCheckedChange={() => toggleOutletActive(outlet.id, vendor.id, outlet.is_active)}
-                              />
+                              <span className="font-medium text-sm">{outlet.outlet_name}</span>
+                              {outlet.is_default && (
+                                <Badge variant="outline" className="text-xs">Default</Badge>
+                              )}
+                              {!outlet.is_approved && (
+                                <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-600 border-yellow-500/30 text-xs">
+                                  Pending Approval
+                                </Badge>
+                              )}
+                              {outlet.is_open ? (
+                                <Badge variant="secondary" className="bg-green-500/10 text-green-600 border-green-500/30 text-xs gap-1">
+                                  <Power className="w-2.5 h-2.5" /> Open
+                                </Badge>
+                              ) : (
+                                <Badge variant="secondary" className="bg-red-500/10 text-red-600 border-red-500/30 text-xs gap-1">
+                                  <PowerOff className="w-2.5 h-2.5" /> Closed
+                                </Badge>
+                              )}
+                              {outlet.geo_verification_status === 'locked_pending_reverify' && (
+                                <Badge variant="destructive" className="gap-1 text-xs">
+                                  <MapPin className="w-3 h-3" /> Geo-Locked
+                                </Badge>
+                              )}
                             </div>
-                          )}
+                            <p className="text-xs text-muted-foreground">
+                              {outlet.address || 'No address'}, {outlet.city || ''}
+                              {outlet.outlet_code ? ` • ${outlet.outlet_code}` : ''}
+                            </p>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <Badge variant="outline" className="text-xs gap-1">
+                                {deliveryModeIcon(outlet.delivery_mode)}
+                                {deliveryModeLabel(outlet.delivery_mode)}
+                              </Badge>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            {/* Delivery Mode selector */}
+                            <Select
+                              value={outlet.delivery_mode || 'platform'}
+                              onValueChange={(v) => changeOutletDeliveryMode(outlet.id, vendor.id, v)}
+                            >
+                              <SelectTrigger className="w-[130px] h-7 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="own">Own Riders</SelectItem>
+                                <SelectItem value="platform">Platform</SelectItem>
+                                <SelectItem value="both">Both</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            {/* Open/Close toggle */}
+                            {outlet.is_approved && outlet.is_active && (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs text-muted-foreground">
+                                  {outlet.is_open ? 'Open' : 'Closed'}
+                                </span>
+                                <Switch
+                                  checked={outlet.is_open ?? false}
+                                  onCheckedChange={() => toggleOutletOpen(outlet.id, vendor.id, outlet.is_open)}
+                                />
+                              </div>
+                            )}
+
+                            <OutletCoordinateEditor
+                              outlet={outlet}
+                              onUpdate={() => toggleExpand(vendor.id)}
+                            />
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setGeoLockOutlet(outlet)}
+                              className="gap-1"
+                            >
+                              <MapPin className="w-3 h-3" /> Geo
+                            </Button>
+
+                            {!outlet.is_approved ? (
+                              <Button size="sm" onClick={() => approveOutlet(outlet.id)} className="gap-1">
+                                <Check className="w-3 h-3" /> Approve
+                              </Button>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-muted-foreground">Active</span>
+                                <Switch
+                                  checked={outlet.is_active}
+                                  onCheckedChange={() => toggleOutletActive(outlet.id, vendor.id, outlet.is_active)}
+                                />
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                    {(outlets[vendor.id] || []).length === 0 && (
-                      <p className="text-sm text-muted-foreground text-center py-4">No outlets found</p>
-                    )}
+                      ))}
+                      {(outlets[vendor.id] || []).length === 0 && (
+                        <p className="text-sm text-muted-foreground text-center py-4">No outlets found</p>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -348,6 +362,24 @@ export function AdminOutletList({ vendors, onRefresh }: AdminOutletListProps) {
             onRefresh();
           }}
         />
+      )}
+
+      {addOutletVendor && (
+        <OutletProvider vendorId={addOutletVendor.id}>
+          <AddOutletDialog
+            open={!!addOutletVendor}
+            vendorId={addOutletVendor.id}
+            onOpenChange={(open) => {
+              if (open) return;
+              const vendorId = addOutletVendor.id;
+              setAddOutletVendor(null);
+              if (expanded[vendorId]) {
+                toggleExpand(vendorId);
+              }
+              onRefresh();
+            }}
+          />
+        </OutletProvider>
       )}
     </>
   );
