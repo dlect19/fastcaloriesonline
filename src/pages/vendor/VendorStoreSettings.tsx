@@ -434,9 +434,9 @@ function VendorStoreSettingsInner() {
           </div>
 
           {/* Auto-save GPS */}
-          {gettingLocation && geoLat && geoLon && selectedOutlet && (
+          {gettingLocation && geoLat && geoLon && selectedOutlet && gpsTargetOutletRef.current === selectedOutlet.id && (
             <GpsAutoSaveOutlet
-              outletId={selectedOutlet.id}
+              outletId={gpsTargetOutletRef.current}
               lat={geoLat}
               lon={geoLon}
               onComplete={() => {
