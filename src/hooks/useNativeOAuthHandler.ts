@@ -33,8 +33,8 @@ export function useNativeOAuthHandler() {
     let cleanup: (() => void) | undefined;
     let disposed = false;
 
-    const handleOAuthCallback = async (url?: string) => {
-      if (!url || disposed || isProcessingRef.current || lastHandledUrlRef.current === url) return;
+    const handleDeepLink = async (url?: string) => {
+      if (!url || disposed) return;
 
       const isOAuthCallback =
         url.includes('access_token=') ||
@@ -43,7 +43,25 @@ export function useNativeOAuthHandler() {
         url.includes('code=') ||
         url.startsWith('com.fastcalories.customer://');
 
-      if (!isOAuthCallback) return;
+      if (!isOAuthCallback) {
+        // Handle general deep links — route to in-app path
+        try {
+          const parsedUrl = new URL(url);
+          const knownHosts = ['app.fastcalories.online', 'fastcaloriesonline.lovable.app'];
+          if (knownHosts.includes(parsedUrl.hostname)) {
+            const path = parsedUrl.pathname + parsedUrl.search + parsedUrl.hash;
+            if (path && path !== '/') {
+              window.location.hash = ''; // clear any hash state
+              // Use history.replaceState + reload to navigate within the SPA
+              window.history.replaceState(null, '', path);
+              window.dispatchEvent(new PopStateEvent('popstate'));
+            }
+          }
+        } catch {
+          // Not a valid URL
+        }
+        return;
+      }
 
       isProcessingRef.current = true;
       lastHandledUrlRef.current = url;
