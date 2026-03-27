@@ -37,6 +37,11 @@ function VendorStoreSettingsInner() {
   const [geocodingAddress, setGeocodingAddress] = useState(false);
   const [saving, setSaving] = useState(false);
   const [gettingLocation, setGettingLocation] = useState(false);
+
+  // Reset GPS state when switching outlets to prevent cross-outlet coordinate pollution
+  useEffect(() => {
+    setGettingLocation(false);
+  }, [selectedOutlet?.id]);
   const [vendorName, setVendorName] = useState('');
   const [vendorData, setVendorData] = useState<{ logo_url: string | null } | null>(null);
   const [maxSalesRadius, setMaxSalesRadius] = useState(50);
