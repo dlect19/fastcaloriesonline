@@ -103,13 +103,13 @@ export function useNativeOAuthHandler() {
     };
 
     // Check current URL for OAuth tokens (handles HTTPS redirect back to app)
-    void handleOAuthCallback(window.location.href);
+    void handleDeepLink(window.location.href);
 
     // Handle cold-start launches from OAuth deep links
     App.getLaunchUrl()
       .then(({ url }) => {
         if (url) {
-          void handleOAuthCallback(url);
+          void handleDeepLink(url);
         }
       })
       .catch(() => {
@@ -118,7 +118,7 @@ export function useNativeOAuthHandler() {
 
     // Listen for deep link / appUrlOpen events
     App.addListener('appUrlOpen', ({ url }) => {
-      void handleOAuthCallback(url);
+      void handleDeepLink(url);
     }).then((listener) => {
       if (disposed) {
         void listener.remove();
@@ -132,7 +132,7 @@ export function useNativeOAuthHandler() {
     // Also listen for browser finished events to check URL
     import('@capacitor/browser').then(({ Browser }) => {
       Browser.addListener('browserFinished', () => {
-        void handleOAuthCallback(window.location.href);
+        void handleDeepLink(window.location.href);
       }).then((listener) => {
         if (disposed) {
           void listener.remove();
