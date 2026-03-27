@@ -37,6 +37,11 @@ function VendorStoreSettingsInner() {
   const [geocodingAddress, setGeocodingAddress] = useState(false);
   const [saving, setSaving] = useState(false);
   const [gettingLocation, setGettingLocation] = useState(false);
+
+  // Reset GPS state when switching outlets to prevent cross-outlet coordinate pollution
+  useEffect(() => {
+    setGettingLocation(false);
+  }, [selectedOutlet?.id]);
   const [vendorName, setVendorName] = useState('');
   const [vendorData, setVendorData] = useState<{ logo_url: string | null } | null>(null);
   const [maxSalesRadius, setMaxSalesRadius] = useState(50);
@@ -46,6 +51,7 @@ function VendorStoreSettingsInner() {
   const [searchLoading, setSearchLoading] = useState(false);
   const sessionTokenRef = useRef(crypto.randomUUID());
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const gpsTargetOutletRef = useRef<string | null>(null);
 
   const searchAddress = async (input: string) => {
     setAddressQuery(input);
@@ -368,6 +374,7 @@ function VendorStoreSettingsInner() {
                 size="sm"
                 className="gap-2"
                 onClick={async () => {
+                  gpsTargetOutletRef.current = selectedOutlet?.id || null;
                   setGettingLocation(true);
                   getCurrentPosition();
                 }}
@@ -427,9 +434,9 @@ function VendorStoreSettingsInner() {
           </div>
 
           {/* Auto-save GPS */}
-          {gettingLocation && geoLat && geoLon && selectedOutlet && (
+          {gettingLocation && geoLat && geoLon && selectedOutlet && gpsTargetOutletRef.current === selectedOutlet.id && (
             <GpsAutoSaveOutlet
-              outletId={selectedOutlet.id}
+              outletId={gpsTargetOutletRef.current}
               lat={geoLat}
               lon={geoLon}
               onComplete={() => {

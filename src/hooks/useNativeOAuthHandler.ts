@@ -33,8 +33,8 @@ export function useNativeOAuthHandler() {
     let cleanup: (() => void) | undefined;
     let disposed = false;
 
-    const handleOAuthCallback = async (url?: string) => {
-      if (!url || disposed || isProcessingRef.current || lastHandledUrlRef.current === url) return;
+    const handleDeepLink = async (url?: string) => {
+      if (!url || disposed) return;
 
       const isOAuthCallback =
         url.includes('access_token=') ||
@@ -43,8 +43,26 @@ export function useNativeOAuthHandler() {
         url.includes('code=') ||
         url.startsWith('com.fastcalories.customer://');
 
-      if (!isOAuthCallback) return;
-
+      if (!isOAuthCallback) {
+        // Handle general deep links — route to in-app path
+        try {
+          const parsedUrl = new URL(url);
+          const knownHosts = ['app.fastcalories.online', 'fastcaloriesonline.lovable.app'];
+          if (knownHosts.includes(parsedUrl.hostname)) {
+            const path = parsedUrl.pathname + parsedUrl.search + parsedUrl.hash;
+            if (path && path !== '/') {
+              window.location.hash = ''; // clear any hash state
+              // Use history.replaceState + reload to navigate within the SPA
+              window.history.replaceState(null, '', path);
+              window.dispatchEvent(new PopStateEvent('popstate'));
+            }
+          }
+        } catch {
+          // Not a valid URL
+        }
+        return;
+      }
+      if (isProcessingRef.current || lastHandledUrlRef.current === url) return;
       isProcessingRef.current = true;
       lastHandledUrlRef.current = url;
 
@@ -85,13 +103,13 @@ export function useNativeOAuthHandler() {
     };
 
     // Check current URL for OAuth tokens (handles HTTPS redirect back to app)
-    void handleOAuthCallback(window.location.href);
+    void handleDeepLink(window.location.href);
 
     // Handle cold-start launches from OAuth deep links
     App.getLaunchUrl()
       .then(({ url }) => {
         if (url) {
-          void handleOAuthCallback(url);
+          void handleDeepLink(url);
         }
       })
       .catch(() => {
@@ -100,7 +118,7 @@ export function useNativeOAuthHandler() {
 
     // Listen for deep link / appUrlOpen events
     App.addListener('appUrlOpen', ({ url }) => {
-      void handleOAuthCallback(url);
+      void handleDeepLink(url);
     }).then((listener) => {
       if (disposed) {
         void listener.remove();
@@ -114,7 +132,7 @@ export function useNativeOAuthHandler() {
     // Also listen for browser finished events to check URL
     import('@capacitor/browser').then(({ Browser }) => {
       Browser.addListener('browserFinished', () => {
-        void handleOAuthCallback(window.location.href);
+        void handleDeepLink(window.location.href);
       }).then((listener) => {
         if (disposed) {
           void listener.remove();
