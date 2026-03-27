@@ -374,6 +374,7 @@ function VendorStoreSettingsInner() {
                 size="sm"
                 className="gap-2"
                 onClick={async () => {
+                  gpsTargetOutletRef.current = selectedOutlet?.id || null;
                   setGettingLocation(true);
                   getCurrentPosition();
                 }}
