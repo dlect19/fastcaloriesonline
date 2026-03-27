@@ -62,7 +62,7 @@ export function useNativeOAuthHandler() {
         }
         return;
       }
-
+      if (isProcessingRef.current || lastHandledUrlRef.current === url) return;
       isProcessingRef.current = true;
       lastHandledUrlRef.current = url;
 
