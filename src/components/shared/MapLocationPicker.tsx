@@ -42,6 +42,7 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
   const placesServiceRef = useRef<google.maps.places.PlacesService | null>(null);
   const sessionTokenRef = useRef<google.maps.places.AutocompleteSessionToken | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const onLocationSelectRef = useRef(onLocationSelect);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +50,10 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
+
+  useEffect(() => {
+    onLocationSelectRef.current = onLocationSelect;
+  }, [onLocationSelect]);
 
   const defaultLat = latitude || 6.5244;
   const defaultLng = longitude || 3.3792;
@@ -84,10 +89,10 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
 
       markerRef.current.addListener('dragend', () => {
         const pos = markerRef.current?.getPosition();
-        if (pos) onLocationSelect(pos.lat(), pos.lng());
+        if (pos) onLocationSelectRef.current(pos.lat(), pos.lng());
       });
     }
-  }, [onLocationSelect, createMarkerIcon]);
+  }, [createMarkerIcon]);
 
   // Handle search input changes - fetch suggestions via AutocompleteService
   const handleSearchChange = useCallback((value: string) => {
@@ -158,11 +163,11 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
           mapInstanceRef.current?.setCenter({ lat, lng });
           mapInstanceRef.current?.setZoom(16);
           placeMarker(lat, lng);
-          onLocationSelect(lat, lng);
+          onLocationSelectRef.current(lat, lng);
         }
       }
     );
-  }, [placeMarker, onLocationSelect]);
+  }, [placeMarker]);
 
   useEffect(() => {
     let cancelled = false;
@@ -224,7 +229,7 @@ export function MapLocationPicker({ latitude, longitude, onLocationSelect, heigh
           const lat = e.latLng.lat();
           const lng = e.latLng.lng();
           placeMarker(lat, lng);
-          onLocationSelect(lat, lng);
+          onLocationSelectRef.current(lat, lng);
         });
 
         setLoading(false);
