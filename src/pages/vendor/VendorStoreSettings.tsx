@@ -51,6 +51,7 @@ function VendorStoreSettingsInner() {
   const [searchLoading, setSearchLoading] = useState(false);
   const sessionTokenRef = useRef(crypto.randomUUID());
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const gpsTargetOutletRef = useRef<string | null>(null);
 
   const searchAddress = async (input: string) => {
     setAddressQuery(input);
