@@ -172,7 +172,8 @@ export function useFreeMealPromos() {
   }, [user]);
 
   // Update progress when an order is placed (call from checkout)
-  const updateProgress = useCallback(async (orderAmount: number, orderId: string) => {
+  // orderAmount should be food-only cost (no takeaway packs, no delivery fee)
+  const updateProgress = useCallback(async (orderAmount: number, orderId: string, vendorId?: string) => {
     if (!user) return;
 
     // Gate: only track progress for users who have used their welcome bonus
@@ -180,10 +181,17 @@ export function useFreeMealPromos() {
 
     try {
       // Get all active promos
-      const { data: activePromos } = await supabase
+      let query = supabase
         .from('free_meal_promos')
         .select('*')
         .eq('is_active', true);
+
+      // Only track progress for the vendor this order belongs to
+      if (vendorId) {
+        query = query.eq('vendor_id', vendorId);
+      }
+
+      const { data: activePromos } = await query;
 
       if (!activePromos) return;
 
