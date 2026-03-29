@@ -398,9 +398,11 @@ export function VendorCheckoutSection({
         description: `Your order from ${group.vendorName} has been paid.`,
       });
 
-      // Track free meal promo progress based on order subtotal
+      // Track free meal promo progress based on food-only subtotal
+      // Use menu_subtotal (excludes takeaway packs and delivery fees)
       try {
-        await updateFreeMealProgress(group.subtotal, order.id);
+        const foodOnlySubtotal = actualMenuSubtotal;
+        await updateFreeMealProgress(foodOnlySubtotal, order.id, group.vendorId);
       } catch (e) {
         // Non-blocking - don't fail the order if progress tracking fails
         console.error('Free meal progress update failed:', e);
