@@ -211,6 +211,17 @@ export default function Auth() {
     if (!urlRef) setReferralCode('');
   };
 
+  if (showPreSignupOTP) {
+    return (
+      <EmailVerificationOTP
+        email={email}
+        platform="customer"
+        onVerified={handleEmailVerified}
+        onBack={() => setShowPreSignupOTP(false)}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-secondary to-background flex flex-col">
       {/* Header with images */}
