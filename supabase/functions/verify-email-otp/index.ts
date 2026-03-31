@@ -8,7 +8,7 @@ const corsHeaders = {
 interface VerifyOTPRequest {
   email: string;
   otp?: string;
-  otpCode?: string; // Alternative field name for compatibility
+  otpCode?: string;
   userId?: string;
   platform: string;
 }
@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
 
     const body: VerifyOTPRequest = await req.json();
     const email = body.email;
-    const otp = body.otp || body.otpCode; // Support both field names
+    const otp = body.otp || body.otpCode;
     const userId = body.userId;
     const platform = body.platform;
 
@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
       .update({ used: true })
       .eq('id', otpRecord.id);
 
-    // Update the appropriate profile based on platform
+    // Update the appropriate profile based on platform (only if userId provided)
     if (platform === 'rider' && userId) {
       const { error: updateError } = await supabase
         .from('rider_profiles')
@@ -81,12 +81,10 @@ Deno.serve(async (req) => {
         console.error('Error updating rider profile:', updateError);
       }
     } else if (platform === 'delivery_company') {
-      // For delivery company, the update is done client-side after receiving success
-      // because we need the company_id which isn't passed here
       console.log('Delivery company email verified via OTP');
     }
 
-    // Update auth user metadata (optional)
+    // Update auth user metadata (optional, only if userId provided)
     if (userId) {
       try {
         await supabase.auth.admin.updateUserById(userId, {

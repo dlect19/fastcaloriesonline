@@ -11,6 +11,7 @@ import { Eye, EyeOff, Loader2, Truck, Building2 } from 'lucide-react';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 import { ForgotPasswordModal } from '@/components/auth/ForgotPasswordModal';
 import { TermsAcceptanceCheckbox } from '@/components/auth/TermsAcceptanceCheckbox';
+import { EmailVerificationOTP } from '@/components/rider/EmailVerificationOTP';
 
 
 export default function DeliveryCompanyAuth() {
@@ -21,6 +22,7 @@ export default function DeliveryCompanyAuth() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [showPreSignupOTP, setShowPreSignupOTP] = useState(false);
 
   // Login state
   const [loginEmail, setLoginEmail] = useState('');
@@ -200,8 +202,12 @@ export default function DeliveryCompanyAuth() {
       return;
     }
 
-    setLoading(true);
+    // Show pre-signup OTP verification
+    setShowPreSignupOTP(true);
+  };
 
+  const proceedWithDeliverySignup = async () => {
+    setLoading(true);
     try {
       // First, try to sign up as a new user
       const { data, error } = await supabase.auth.signUp({
@@ -331,6 +337,17 @@ export default function DeliveryCompanyAuth() {
       setLoading(false);
     }
   };
+
+  if (showPreSignupOTP) {
+    return (
+      <EmailVerificationOTP
+        email={signupEmail}
+        platform="delivery_company"
+        onVerified={() => { setShowPreSignupOTP(false); proceedWithDeliverySignup(); }}
+        onBack={() => setShowPreSignupOTP(false)}
+      />
+    );
+  }
 
   // Google OAuth: show company profile completion form
   if (googleCompleteProfile) {

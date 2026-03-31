@@ -254,10 +254,14 @@ export default function RiderAuth() {
       return;
     }
 
-    setLoading(true);
+    // Show pre-signup email verification OTP
+    setShowEmailVerification(true);
 
+  };
+
+  const proceedWithRiderSignup = async () => {
+    setLoading(true);
     try {
-      // First, try to sign up as a new user
       const redirectUrl = `${window.location.origin}/rider/dashboard`;
       
       const { data, error } = await supabase.auth.signUp({
@@ -438,19 +442,16 @@ export default function RiderAuth() {
   };
 
   const handleEmailVerified = () => {
-    toast({
-      title: 'Registration successful!',
-      description: redirectUrl ? 'You can now join the vendor team!' : 'Your account is pending admin verification.',
-    });
-    // Redirect to invite link if present, otherwise dashboard
-    navigate(redirectUrl || '/rider/dashboard');
+    // Email verified pre-signup — now create the account
+    setShowEmailVerification(false);
+    proceedWithRiderSignup();
   };
 
-  if (showEmailVerification && pendingUserId) {
+  if (showEmailVerification) {
     return (
       <EmailVerificationOTP 
         email={signupEmail}
-        userId={pendingUserId}
+        userId={pendingUserId || undefined}
         platform="rider"
         onVerified={handleEmailVerified}
         onBack={() => setShowEmailVerification(false)}

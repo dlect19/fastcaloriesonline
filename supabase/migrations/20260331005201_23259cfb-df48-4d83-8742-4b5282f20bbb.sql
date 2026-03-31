@@ -1,0 +1,1 @@
+ALTER TABLE public.email_verification_otps ALTER COLUMN user_id DROP NOT NULL;

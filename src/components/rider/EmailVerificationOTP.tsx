@@ -9,7 +9,7 @@ import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 
 interface EmailVerificationOTPProps {
   email: string;
-  userId: string;
+  userId?: string;
   platform: string;
   onVerified: () => void;
   onBack: () => void;

@@ -1,9 +1,8 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { VendorGroup, useCart } from '@/hooks/useCart';
 import { VendorGroupCard } from '@/components/cart/VendorGroupCard';
 import { OrderSummary } from '@/components/cart/OrderSummary';
-import { PromoCodeInput } from '@/components/cart/PromoCodeInput';
 import { ActiveDiscountSelector } from '@/components/cart/ActiveDiscountSelector';
 import { FundWalletDialog } from '@/components/profile/FundWalletDialog';
 import { DeliveryAddressConfirmDialog } from '@/components/cart/DeliveryAddressConfirmDialog';
@@ -16,7 +15,6 @@ import {
   Store, Phone, MapPin, Navigation, Wallet, Loader2, AlertTriangle, TrendingUp,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { usePromoCode } from '@/hooks/usePromoCode';
 import { useSpinWheel } from '@/hooks/useSpinWheel';
 import { usePlatformPromos } from '@/hooks/usePlatformPromos';
 import { useFreeMealPromos } from '@/hooks/useFreeMealPromos';
@@ -78,7 +76,6 @@ export function VendorCheckoutSection({
   const { clearVendorGroup, getExtraPackageFee, getPackageCount, packageMetas, extraPackageFeePerPack } = useCart();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { appliedPromo, incrementUsage, resetAfterOrder } = usePromoCode();
   const { activeDiscounts, getBestDiscount, useDiscount } = useSpinWheel();
   const { eligibility, getBestPlatformPromo, markFirstOrderUsed } = usePlatformPromos();
   const { latitude: gpsLat, longitude: gpsLon, getCurrentPosition, loading: gpsLoading } = useGeolocation();
@@ -87,12 +84,13 @@ export function VendorCheckoutSection({
   const [receiverPhone, setReceiverPhone] = useState('');
   const [promoDiscount, setPromoDiscount] = useState(0);
   const [appliedPromoCode, setAppliedPromoCode] = useState<string | null>(null);
-  const [selectedDiscountType, setSelectedDiscountType] = useState<'none' | 'promo' | 'spin' | 'platform'>('none');
+  const [selectedDiscountType, setSelectedDiscountType] = useState<'none' | 'spin' | 'platform'>('none');
   const [selectedSpinDiscountId, setSelectedSpinDiscountId] = useState<string | null>(null);
   const [vendorFees, setVendorFees] = useState<VendorFees>({ deliveryFee: 0, packagingFee: 0, distanceKm: null, surgeFee: 0 });
   const [feeCalculating, setFeeCalculating] = useState(false);
   const [showFundDialog, setShowFundDialog] = useState(false);
   const [showAddressConfirm, setShowAddressConfirm] = useState(false);
+  const autoAppliedRef = useRef(false);
 
   const { calculateServiceFee, loading: serviceFeeLoading } = useServiceFee();
   const riderAvailability = useRiderAvailability();
@@ -122,10 +120,22 @@ export function VendorCheckoutSection({
     });
   }, []);
 
-  const handlePromoApplied = (discount: number, code: string | null) => {
-    setPromoDiscount(discount);
-    setAppliedPromoCode(code);
-  };
+  // Auto-apply the best platform promo (welcome 10% or loyalty) on mount
+  useEffect(() => {
+    if (autoAppliedRef.current) return;
+    const platformPromo = getBestPlatformPromo();
+    if (platformPromo && selectedDiscountType === 'none') {
+      autoAppliedRef.current = true;
+      setSelectedDiscountType('platform');
+      const discount = Math.round((group.subtotal * platformPromo.discount) / 100);
+      setPromoDiscount(discount);
+      setAppliedPromoCode(platformPromo.type === 'first_order' ? 'WELCOME10' : 'LOYALTY');
+      toast({ 
+        title: `🎉 ${platformPromo.label} applied!`, 
+        description: `You're saving ₦${discount.toLocaleString()} on this order` 
+      });
+    }
+  }, [getBestPlatformPromo, group.subtotal, selectedDiscountType]);
 
   // Handle GPS prompt for customers who haven't set location
   const handlePromptGps = () => {
@@ -137,7 +147,6 @@ export function VendorCheckoutSection({
     if (gpsLat && gpsLon && !hasDeliveryLocation && !gpsLoading) {
       const loc = { lat: gpsLat, lon: gpsLon, label: 'My GPS Location', state: null as string | null };
       localStorage.setItem('fc_delivery_location', JSON.stringify(loc));
-      // Force page reload to pick up the new location
       window.location.reload();
     }
   }, [gpsLat, gpsLon, gpsLoading, hasDeliveryLocation]);
@@ -148,7 +157,6 @@ export function VendorCheckoutSection({
       return;
     }
 
-    // Warn about rider availability but allow checkout (admin can manually assign riders)
     if (deliveryType === 'delivery' && !riderAvailability.deliveryAllowed) {
       toast({ title: 'Limited Rider Availability', description: 'No riders are currently available. Your order will be placed and a rider will be assigned shortly. You can also switch to Carryout.', variant: 'default' });
     }
@@ -165,7 +173,6 @@ export function VendorCheckoutSection({
       return;
     }
 
-    // Prompt delivery address confirmation before proceeding
     if (deliveryType === 'delivery' && hasDeliveryLocation) {
       setShowAddressConfirm(true);
       return;
@@ -198,14 +205,12 @@ export function VendorCheckoutSection({
 
       const promoType = selectedDiscountType === 'spin' ? 'spin'
         : selectedDiscountType === 'platform' ? 'platform_promo'
-        : selectedDiscountType === 'promo' ? 'promo_code'
         : null;
 
       const deliveryInstructions = receiverPhone.trim() ? `Receiver Phone: ${receiverPhone.trim()}` : null;
 
       const groupTotal = total;
 
-      // Get package metas for this vendor
       const groupKey = group.outletId ? `${group.vendorId}|${group.outletId}` : `${group.vendorId}|`;
       const metas = packageMetas[groupKey] || [{ recipientName: '', note: '' }];
 
@@ -236,7 +241,6 @@ export function VendorCheckoutSection({
         return originalPriceByProductId.get(item.productId) || 0;
       };
 
-      // Check if this order contains free meal items
       const hasFreeMealItems = normalizedGroupItems.some(i => i.isFreeMeal);
       const freeMealValue = hasFreeMealItems
         ? normalizedGroupItems
@@ -247,7 +251,6 @@ export function VendorCheckoutSection({
         ? normalizedGroupItems.find(i => i.isFreeMeal)?.freeMealPromoId || null
         : null;
 
-      // For free meal orders, menu_subtotal should reflect actual food value for vendor payment
       const actualMenuSubtotal = hasFreeMealItems
         ? normalizedGroupItems.reduce((sum, i) => {
             if (i.isFreeMeal) return sum + getResolvedOriginalPrice(i) * i.quantity;
@@ -308,9 +311,7 @@ export function VendorCheckoutSection({
 
       // Create order items with package_id linking
       const orderItems = normalizedGroupItems.map(item => {
-        // Find the package_id for this item's packageIndex
         const pkg = createdPackages?.find(p => p.sort_order === item.packageIndex);
-        // For free meal items: store original price so vendor sees real value
         const actualUnitPrice = item.isFreeMeal ? getResolvedOriginalPrice(item) : item.price;
         const actualTotalPrice = item.isFreeMeal 
           ? getResolvedOriginalPrice(item) * item.quantity 
@@ -371,17 +372,13 @@ export function VendorCheckoutSection({
         }
       }
 
-      // Calories are logged only when the order is delivered (via rider delivery or self-pickup verification)
-
       // Handle promo usage
-      if (appliedPromo?.id) await incrementUsage(appliedPromo.id);
       if (selectedDiscountType === 'spin' && selectedSpinDiscountId) {
         await useDiscount(selectedSpinDiscountId, order.id);
       }
       if (selectedDiscountType === 'platform' && eligibility.firstOrderDiscount) {
         await markFirstOrderUsed();
       }
-      resetAfterOrder();
 
       // Pay via wallet
       const { data: paymentResult, error: paymentError } = await supabase.functions.invoke('process-wallet-payment', {
@@ -399,12 +396,10 @@ export function VendorCheckoutSection({
       });
 
       // Track free meal promo progress based on food-only subtotal
-      // Use menu_subtotal (excludes takeaway packs and delivery fees)
       try {
         const foodOnlySubtotal = actualMenuSubtotal;
         await updateFreeMealProgress(foodOnlySubtotal, order.id, group.vendorId);
       } catch (e) {
-        // Non-blocking - don't fail the order if progress tracking fails
         console.error('Free meal progress update failed:', e);
       }
 
@@ -457,7 +452,7 @@ export function VendorCheckoutSection({
             />
           </div>
 
-          {/* Rider availability warning (informational, does not block checkout) */}
+          {/* Rider availability warning */}
           {deliveryType === 'delivery' && !riderAvailability.loading && !riderAvailability.deliveryAllowed && (
             <div className="flex items-center gap-2 p-3 bg-warning/10 rounded-lg border border-warning/20">
               <AlertTriangle className="w-5 h-5 text-warning shrink-0" />
@@ -541,20 +536,10 @@ export function VendorCheckoutSection({
         </div>
       </section>
 
-      {/* Promo Code */}
-      <PromoCodeInput
-        subtotal={group.subtotal}
-        vendorId={group.vendorId}
-        onDiscountApplied={handlePromoApplied}
-        disabled={selectedDiscountType === 'spin' || selectedDiscountType === 'platform'}
-      />
-
-      {/* Active Discount Selector */}
+      {/* Active Discount Selector (spin wheel & platform promos only) */}
       <ActiveDiscountSelector
         activeSpinDiscounts={activeDiscounts}
         platformPromo={getBestPlatformPromo()}
-        hasPromoCode={!!appliedPromoCode && selectedDiscountType !== 'spin' && selectedDiscountType !== 'platform'}
-        promoCodeDiscount={promoDiscount}
         subtotal={group.subtotal}
         selectedType={selectedDiscountType}
         selectedSpinId={selectedSpinDiscountId}
@@ -567,8 +552,6 @@ export function VendorCheckoutSection({
           } else if (type === 'platform') {
             const platformPromo = getBestPlatformPromo();
             if (platformPromo) setPromoDiscount(Math.round((group.subtotal * platformPromo.discount) / 100));
-            setSelectedSpinDiscountId(null);
-          } else if (type === 'promo') {
             setSelectedSpinDiscountId(null);
           } else {
             setPromoDiscount(0);

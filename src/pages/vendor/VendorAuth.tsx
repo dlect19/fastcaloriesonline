@@ -13,6 +13,7 @@ import { lovable } from '@/integrations/lovable/index';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 import { ForgotPasswordModal } from '@/components/auth/ForgotPasswordModal';
 import { TermsAcceptanceCheckbox } from '@/components/auth/TermsAcceptanceCheckbox';
+import { EmailVerificationOTP } from '@/components/rider/EmailVerificationOTP';
 
 type AuthTab = 'login' | 'signup' | 'link';
 
@@ -23,6 +24,7 @@ export default function VendorAuth() {
   const [activeTab, setActiveTab] = useState<AuthTab>('login');
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [showPreSignupOTP, setShowPreSignupOTP] = useState(false);
 
   // Google OAuth: after Google auth, if no vendor profile, show business info step
   const [googleCompleteProfile, setGoogleCompleteProfile] = useState(false);
@@ -246,8 +248,12 @@ export default function VendorAuth() {
       return;
     }
 
-    setLoading(true);
+    // Show pre-signup OTP verification
+    setShowPreSignupOTP(true);
+  };
 
+  const proceedWithVendorSignup = async () => {
+    setLoading(true);
     try {
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: signupEmail,
@@ -297,16 +303,9 @@ export default function VendorAuth() {
 
       if (vendorError) throw vendorError;
 
-      try {
-        const verificationUrl = `${window.location.origin}/verify-email`;
-        await supabase.functions.invoke('send-verification-email', {
-          body: { email: signupEmail, verificationUrl, userName: fullName, platform: 'vendor' },
-        });
-      } catch (emailError) {
-        console.error('Failed to send custom verification email:', emailError);
-      }
-
-      navigate('/verification-pending', { state: { email: signupEmail, platform: 'vendor' } });
+      toast({ title: 'Vendor account created!', description: 'Your email has been verified and your business profile is set up.' });
+      setShowPreSignupOTP(false);
+      navigate('/vendor/dashboard');
     } catch (error: any) {
       toast({ title: 'Registration failed', description: error.message, variant: 'destructive' });
     } finally {
@@ -367,6 +366,17 @@ export default function VendorAuth() {
       setLoading(false);
     }
   };
+
+  if (showPreSignupOTP) {
+    return (
+      <EmailVerificationOTP
+        email={signupEmail}
+        platform="vendor"
+        onVerified={() => { setShowPreSignupOTP(false); proceedWithVendorSignup(); }}
+        onBack={() => setShowPreSignupOTP(false)}
+      />
+    );
+  }
 
   // Google complete profile form (shown after Google OAuth for new vendors)
   if (googleCompleteProfile) {
