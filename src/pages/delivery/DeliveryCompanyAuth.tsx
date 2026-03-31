@@ -338,6 +338,17 @@ export default function DeliveryCompanyAuth() {
     }
   };
 
+  if (showPreSignupOTP) {
+    return (
+      <EmailVerificationOTP
+        email={signupEmail}
+        platform="delivery_company"
+        onVerified={() => { setShowPreSignupOTP(false); proceedWithDeliverySignup(); }}
+        onBack={() => setShowPreSignupOTP(false)}
+      />
+    );
+  }
+
   // Google OAuth: show company profile completion form
   if (googleCompleteProfile) {
     return (

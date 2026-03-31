@@ -367,6 +367,17 @@ export default function VendorAuth() {
     }
   };
 
+  if (showPreSignupOTP) {
+    return (
+      <EmailVerificationOTP
+        email={signupEmail}
+        platform="vendor"
+        onVerified={() => { setShowPreSignupOTP(false); proceedWithVendorSignup(); }}
+        onBack={() => setShowPreSignupOTP(false)}
+      />
+    );
+  }
+
   // Google complete profile form (shown after Google OAuth for new vendors)
   if (googleCompleteProfile) {
     return (
