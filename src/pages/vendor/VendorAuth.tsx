@@ -13,6 +13,7 @@ import { lovable } from '@/integrations/lovable/index';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 import { ForgotPasswordModal } from '@/components/auth/ForgotPasswordModal';
 import { TermsAcceptanceCheckbox } from '@/components/auth/TermsAcceptanceCheckbox';
+import { EmailVerificationOTP } from '@/components/rider/EmailVerificationOTP';
 
 type AuthTab = 'login' | 'signup' | 'link';
 
