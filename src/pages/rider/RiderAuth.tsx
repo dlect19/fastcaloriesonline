@@ -442,12 +442,9 @@ export default function RiderAuth() {
   };
 
   const handleEmailVerified = () => {
-    toast({
-      title: 'Registration successful!',
-      description: redirectUrl ? 'You can now join the vendor team!' : 'Your account is pending admin verification.',
-    });
-    // Redirect to invite link if present, otherwise dashboard
-    navigate(redirectUrl || '/rider/dashboard');
+    // Email verified pre-signup — now create the account
+    setShowEmailVerification(false);
+    proceedWithRiderSignup();
   };
 
   if (showEmailVerification && pendingUserId) {
