@@ -303,16 +303,9 @@ export default function VendorAuth() {
 
       if (vendorError) throw vendorError;
 
-      try {
-        const verificationUrl = `${window.location.origin}/verify-email`;
-        await supabase.functions.invoke('send-verification-email', {
-          body: { email: signupEmail, verificationUrl, userName: fullName, platform: 'vendor' },
-        });
-      } catch (emailError) {
-        console.error('Failed to send custom verification email:', emailError);
-      }
-
-      navigate('/verification-pending', { state: { email: signupEmail, platform: 'vendor' } });
+      toast({ title: 'Vendor account created!', description: 'Your email has been verified and your business profile is set up.' });
+      setShowPreSignupOTP(false);
+      navigate('/vendor/dashboard');
     } catch (error: any) {
       toast({ title: 'Registration failed', description: error.message, variant: 'destructive' });
     } finally {
