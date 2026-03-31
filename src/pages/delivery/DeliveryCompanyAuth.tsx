@@ -22,6 +22,7 @@ export default function DeliveryCompanyAuth() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [showPreSignupOTP, setShowPreSignupOTP] = useState(false);
 
   // Login state
   const [loginEmail, setLoginEmail] = useState('');
