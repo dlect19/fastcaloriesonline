@@ -202,8 +202,12 @@ export default function DeliveryCompanyAuth() {
       return;
     }
 
-    setLoading(true);
+    // Show pre-signup OTP verification
+    setShowPreSignupOTP(true);
+  };
 
+  const proceedWithDeliverySignup = async () => {
+    setLoading(true);
     try {
       // First, try to sign up as a new user
       const { data, error } = await supabase.auth.signUp({
