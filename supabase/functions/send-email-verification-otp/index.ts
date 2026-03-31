@@ -8,7 +8,7 @@ const corsHeaders = {
 
 interface SendOTPRequest {
   email: string;
-  userId: string;
+  userId?: string;
   platform: string;
 }
 
@@ -27,9 +27,9 @@ Deno.serve(async (req) => {
 
     const { email, userId, platform }: SendOTPRequest = await req.json();
 
-    if (!email || !userId) {
+    if (!email) {
       return new Response(
-        JSON.stringify({ error: 'Email and user ID are required' }),
+        JSON.stringify({ error: 'Email is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -55,11 +55,11 @@ Deno.serve(async (req) => {
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes
 
-    // Store OTP
+    // Store OTP (user_id is optional for pre-signup verification)
     const { error: insertError } = await supabase
       .from('email_verification_otps')
       .insert({
-        user_id: userId,
+        user_id: userId || null,
         email,
         otp_code: otpCode,
         platform,
@@ -72,7 +72,10 @@ Deno.serve(async (req) => {
     }
 
     // Send email
-    const platformName = platform === 'rider' ? 'Rider' : platform === 'vendor' ? 'Vendor' : 'User';
+    const platformName = platform === 'rider' ? 'Rider' 
+      : platform === 'vendor' ? 'Vendor' 
+      : platform === 'delivery_company' ? 'Logistics'
+      : 'User';
     
     const { error: emailError } = await resend.emails.send({
       from: 'Fast Calories <noreply@fastcalories.online>',
@@ -95,7 +98,7 @@ Deno.serve(async (req) => {
             <div style="padding: 40px 32px;">
               <h2 style="color: #111827; margin: 0 0 16px 0; font-size: 20px; font-weight: 600;">Verify Your Email</h2>
               <p style="color: #6b7280; margin: 0 0 24px 0; font-size: 15px; line-height: 1.6;">
-                Enter this code to complete your email verification:
+                Enter this code to verify your email address before creating your account:
               </p>
               
               <div style="background-color: #f3f4f6; border-radius: 8px; padding: 24px; text-align: center; margin-bottom: 24px;">
