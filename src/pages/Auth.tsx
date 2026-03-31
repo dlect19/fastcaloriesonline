@@ -130,61 +130,65 @@ export default function Auth() {
           });
         }
       } else {
-        const { error } = await signUp(email, password, fullName);
-        if (error) {
-          if (error.message.includes('User already registered')) {
-            toast({
-              title: 'Account exists',
-              description: 'An account with this email already exists. Please login instead.',
-              variant: 'destructive',
-            });
-            setIsLogin(true);
-          } else {
-            toast({
-              title: 'Sign up failed',
-              description: error.message,
-              variant: 'destructive',
-            });
-          }
+        // For signup: verify email FIRST before creating account
+        setShowPreSignupOTP(true);
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'An unexpected error occurred. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleEmailVerified = async () => {
+    // Email verified — now create the account
+    setIsLoading(true);
+    try {
+      const { error } = await signUp(email, password, fullName);
+      if (error) {
+        if (error.message.includes('User already registered')) {
+          toast({
+            title: 'Account exists',
+            description: 'An account with this email already exists. Please login instead.',
+            variant: 'destructive',
+          });
+          setIsLogin(true);
+          setShowPreSignupOTP(false);
         } else {
-          // Store referral code linkage if provided
-          if (referralCode.trim()) {
-            try {
-              const { data: referrerProfile } = await supabase
-                .from('profiles')
-                .select('id')
-                .ilike('referral_code', referralCode.trim())
-                .single();
-
-              if (referrerProfile) {
-                // We'll link it after the user profile is created (profile-setup or auto-creation)
-                localStorage.setItem('fc_referral_code', referralCode.trim());
-              }
-            } catch {
-              // Ignore invalid referral codes silently
-            }
-          }
-
-          // Send custom verification email via edge function
-          try {
-            const verificationUrl = `${window.location.origin}/verify-email`;
-            await supabase.functions.invoke('send-verification-email', {
-              body: {
-                email,
-                verificationUrl,
-                userName: fullName,
-                platform: 'customer',
-              },
-            });
-          } catch (emailError) {
-            console.error('Failed to send custom verification email:', emailError);
-          }
-          
-          // Navigate to verification pending page
-          navigate('/verification-pending', {
-            state: { email, platform: 'customer' },
+          toast({
+            title: 'Sign up failed',
+            description: error.message,
+            variant: 'destructive',
           });
         }
+      } else {
+        // Store referral code linkage if provided
+        if (referralCode.trim()) {
+          try {
+            const { data: referrerProfile } = await supabase
+              .from('profiles')
+              .select('id')
+              .ilike('referral_code', referralCode.trim())
+              .single();
+
+            if (referrerProfile) {
+              localStorage.setItem('fc_referral_code', referralCode.trim());
+            }
+          } catch {
+            // Ignore invalid referral codes silently
+          }
+        }
+
+        toast({
+          title: 'Account created!',
+          description: 'Your email has been verified and your account is ready.',
+        });
+        setShowPreSignupOTP(false);
+        navigate('/');
       }
     } catch (error) {
       toast({
