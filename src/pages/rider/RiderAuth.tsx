@@ -257,8 +257,11 @@ export default function RiderAuth() {
     // Show pre-signup email verification OTP
     setShowEmailVerification(true);
 
+  };
+
+  const proceedWithRiderSignup = async () => {
+    setLoading(true);
     try {
-      // First, try to sign up as a new user
       const redirectUrl = `${window.location.origin}/rider/dashboard`;
       
       const { data, error } = await supabase.auth.signUp({
