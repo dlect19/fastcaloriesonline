@@ -13,6 +13,7 @@ import customerAppImg from '@/assets/landing-customer-app.png';
 import vendorRestaurantImg from '@/assets/landing-vendor-restaurant.png';
 import { ForgotPasswordModal } from '@/components/auth/ForgotPasswordModal';
 import { TermsAcceptanceCheckbox } from '@/components/auth/TermsAcceptanceCheckbox';
+import { EmailVerificationOTP } from '@/components/rider/EmailVerificationOTP';
 
 
 
