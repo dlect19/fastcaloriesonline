@@ -248,8 +248,12 @@ export default function VendorAuth() {
       return;
     }
 
-    setLoading(true);
+    // Show pre-signup OTP verification
+    setShowPreSignupOTP(true);
+  };
 
+  const proceedWithVendorSignup = async () => {
+    setLoading(true);
     try {
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: signupEmail,
