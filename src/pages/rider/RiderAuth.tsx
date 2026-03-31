@@ -254,7 +254,8 @@ export default function RiderAuth() {
       return;
     }
 
-    setLoading(true);
+    // Show pre-signup email verification OTP
+    setShowEmailVerification(true);
 
     try {
       // First, try to sign up as a new user
