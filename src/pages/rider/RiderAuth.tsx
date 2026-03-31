@@ -447,11 +447,11 @@ export default function RiderAuth() {
     proceedWithRiderSignup();
   };
 
-  if (showEmailVerification && pendingUserId) {
+  if (showEmailVerification) {
     return (
       <EmailVerificationOTP 
         email={signupEmail}
-        userId={pendingUserId}
+        userId={pendingUserId || undefined}
         platform="rider"
         onVerified={handleEmailVerified}
         onBack={() => setShowEmailVerification(false)}
