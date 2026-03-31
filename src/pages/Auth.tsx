@@ -34,6 +34,7 @@ export default function Auth() {
   const [errors, setErrors] = useState<{ email?: string; password?: string; name?: string; confirmPassword?: string }>({});
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [showPreSignupOTP, setShowPreSignupOTP] = useState(false);
 
   // Pre-fill referral code from URL
   const urlRef = useMemo(() => {
