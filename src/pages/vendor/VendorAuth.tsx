@@ -24,6 +24,7 @@ export default function VendorAuth() {
   const [activeTab, setActiveTab] = useState<AuthTab>('login');
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [showPreSignupOTP, setShowPreSignupOTP] = useState(false);
 
   // Google OAuth: after Google auth, if no vendor profile, show business info step
   const [googleCompleteProfile, setGoogleCompleteProfile] = useState(false);
