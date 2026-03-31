@@ -2,7 +2,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Gift, Sparkles, Star, Ticket, Clock } from 'lucide-react';
+import { Gift, Sparkles, Star, Clock } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 interface ActiveDiscount {
@@ -21,25 +21,21 @@ interface PlatformPromo {
 interface ActiveDiscountSelectorProps {
   activeSpinDiscounts: ActiveDiscount[];
   platformPromo: PlatformPromo | null;
-  hasPromoCode: boolean;
-  promoCodeDiscount: number;
   subtotal: number;
-  selectedType: 'none' | 'promo' | 'spin' | 'platform';
+  selectedType: 'none' | 'spin' | 'platform';
   selectedSpinId: string | null;
-  onSelect: (type: 'none' | 'promo' | 'spin' | 'platform', spinId?: string) => void;
+  onSelect: (type: 'none' | 'spin' | 'platform', spinId?: string) => void;
 }
 
 export function ActiveDiscountSelector({
   activeSpinDiscounts,
   platformPromo,
-  hasPromoCode,
-  promoCodeDiscount,
   subtotal,
   selectedType,
   selectedSpinId,
   onSelect,
 }: ActiveDiscountSelectorProps) {
-  const hasAnyDiscount = activeSpinDiscounts.length > 0 || platformPromo || hasPromoCode;
+  const hasAnyDiscount = activeSpinDiscounts.length > 0 || platformPromo;
 
   if (!hasAnyDiscount) return null;
 
@@ -66,7 +62,7 @@ export function ActiveDiscountSelector({
             if (value.startsWith('spin-')) {
               onSelect('spin', value.replace('spin-', ''));
             } else {
-              onSelect(value as 'none' | 'promo' | 'platform');
+              onSelect(value as 'none' | 'platform');
             }
           }}
           className="space-y-3"
@@ -127,25 +123,6 @@ export function ActiveDiscountSelector({
               </Badge>
             </div>
           ))}
-
-          {/* Promo Code (if applied) */}
-          {hasPromoCode && (
-            <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors border-calorie-low/30 bg-calorie-low/5">
-              <RadioGroupItem value="promo" id="discount-promo" />
-              <Label htmlFor="discount-promo" className="flex-1 cursor-pointer">
-                <div className="flex items-center gap-2">
-                  <Ticket className="w-4 h-4 text-calorie-low" />
-                  <span className="font-medium text-foreground">Promo Code</span>
-                </div>
-                <p className="text-sm text-calorie-low font-semibold mt-1">
-                  -₦{promoCodeDiscount.toLocaleString()}
-                </p>
-              </Label>
-              <Badge className="bg-calorie-low text-white">
-                Applied
-              </Badge>
-            </div>
-          )}
         </RadioGroup>
       </CardContent>
     </Card>
