@@ -26,9 +26,10 @@ function shuffleArray<T>(arr: T[]): T[] {
 
 interface DiscountsCarouselProps {
   nearbyVendorIds?: string[];
+  nearbyOutletIds?: string[];
 }
 
-export function DiscountsCarousel({ nearbyVendorIds }: DiscountsCarouselProps) {
+export function DiscountsCarousel({ nearbyVendorIds, nearbyOutletIds }: DiscountsCarouselProps) {
   const navigate = useNavigate();
   const [items, setItems] = useState<DiscountItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,7 +37,7 @@ export function DiscountsCarousel({ nearbyVendorIds }: DiscountsCarouselProps) {
 
   useEffect(() => {
     fetchDiscounts();
-  }, [nearbyVendorIds]);
+  }, [nearbyVendorIds, nearbyOutletIds]);
 
   useEffect(() => {
     if (!scrollRef.current || items.length === 0) return;
@@ -81,12 +82,15 @@ export function DiscountsCarousel({ nearbyVendorIds }: DiscountsCarouselProps) {
       const vendorIds = [...new Set(discounted.map(p => p.vendor_id))];
 
       // Fetch active/approved outlets for cross-referencing
-      const { data: outlets } = await supabase
-        .from('vendor_outlets')
-        .select('id, vendor_id')
-        .in('vendor_id', vendorIds)
-        .eq('is_active', true)
-        .eq('is_approved', true);
+       const nearbyOutletList = nearbyOutletIds || [];
+       const { data: outlets } = nearbyOutletList.length > 0
+         ? await supabase
+             .from('vendor_outlets')
+             .select('id, vendor_id')
+             .in('id', nearbyOutletList)
+             .eq('is_active', true)
+             .eq('is_approved', true)
+         : { data: [] };
 
       const activeOutletIds = new Set((outlets || []).map(o => o.id));
       const vendorsWithActiveOutlets = new Set((outlets || []).map(o => o.vendor_id));

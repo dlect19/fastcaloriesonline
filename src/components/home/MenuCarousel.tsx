@@ -35,9 +35,10 @@ function shuffleArray<T>(arr: T[]): T[] {
 
 interface MenuCarouselProps {
   nearbyVendorIds?: string[];
+  nearbyOutletIds?: string[];
 }
 
-export function MenuCarousel({ nearbyVendorIds }: MenuCarouselProps) {
+export function MenuCarousel({ nearbyVendorIds, nearbyOutletIds }: MenuCarouselProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [items, setItems] = useState<MenuItem[]>([]);
@@ -47,7 +48,7 @@ export function MenuCarousel({ nearbyVendorIds }: MenuCarouselProps) {
 
   useEffect(() => {
     fetchRandomMenuItems();
-  }, [nearbyVendorIds, user]);
+  }, [nearbyVendorIds, nearbyOutletIds, user]);
 
   const fetchRandomMenuItems = async () => {
     setLoading(true);
@@ -121,12 +122,15 @@ export function MenuCarousel({ nearbyVendorIds }: MenuCarouselProps) {
       const allVendorIds = [...new Set([...products.map(p => p.vendor_id), ...promoVendorIds])];
 
       // Fetch active/approved outlets for cross-referencing
-      const { data: outlets } = await supabase
-        .from('vendor_outlets')
-        .select('id, vendor_id, outlet_name')
-        .in('vendor_id', allVendorIds)
-        .eq('is_active', true)
-        .eq('is_approved', true);
+      const nearbyOutletList = nearbyOutletIds || [];
+      const { data: outlets } = nearbyOutletList.length > 0
+        ? await supabase
+            .from('vendor_outlets')
+            .select('id, vendor_id, outlet_name')
+            .in('id', nearbyOutletList)
+            .eq('is_active', true)
+            .eq('is_approved', true)
+        : { data: [] };
 
       const activeOutletIds = new Set((outlets || []).map(o => o.id));
       const vendorsWithActiveOutlets = new Set((outlets || []).map(o => o.vendor_id));
@@ -142,9 +146,9 @@ export function MenuCarousel({ nearbyVendorIds }: MenuCarouselProps) {
       // Build regular menu items - filter by outlet status
       const menuItems: MenuItem[] = products
         .filter(p => {
-          // If product has outlet_id, check that specific outlet is active/approved
+          // If product has outlet_id, check that specific outlet is nearby/active/approved
           if (p.outlet_id) return activeOutletIds.has(p.outlet_id);
-          // If no outlet_id, check vendor has at least one active outlet
+          // If no outlet_id, check vendor has at least one nearby outlet
           return vendorsWithActiveOutlets.has(p.vendor_id);
         })
         .map(p => ({
