@@ -141,7 +141,7 @@ export function CalorieGoalCard({ profile, onUpdate }: CalorieGoalCardProps) {
 
         const { error } = await (supabase
           .from('profiles')
-          .upsert(payload, { onConflict: 'user_id' }) as any);
+          .upsert([payload], { onConflict: 'user_id' }) as any);
 
         if (error) throw error;
       }

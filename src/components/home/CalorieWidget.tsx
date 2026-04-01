@@ -37,6 +37,7 @@ export function CalorieWidget({
   const [todayLogs, setTodayLogs] = useState<CalorieLog[]>([]);
   const [consumed, setConsumed] = useState(0);
   const [target, setTarget] = useState(2000);
+  const [macroTargets, setMacroTargets] = useState({ protein: 0, carbs: 0, fats: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -71,13 +72,18 @@ export function CalorieWidget({
       // Fetch user's calorie target from profile
       const { data: profile } = await supabase
         .from('profiles')
-        .select('daily_calorie_target')
+        .select('daily_calorie_target, daily_protein_target_grams, daily_carbs_target_grams, daily_fat_target_grams')
         .eq('user_id', user?.id)
         .maybeSingle();
 
       if (profile?.daily_calorie_target) {
         setTarget(profile.daily_calorie_target);
       }
+      setMacroTargets({
+        protein: profile?.daily_protein_target_grams || 0,
+        carbs: profile?.daily_carbs_target_grams || 0,
+        fats: profile?.daily_fat_target_grams || 0,
+      });
     } catch (error) {
       console.error('Error fetching calorie data:', error);
     } finally {
@@ -127,6 +133,9 @@ export function CalorieWidget({
     }),
     { carbs: 0, protein: 0, fats: 0 }
   );
+
+  const carbOver = macroTargets.carbs > 0 && macroTotals.carbs > macroTargets.carbs;
+  const remainingForAlert = target - consumed;
 
   return (
     <>
@@ -221,15 +230,34 @@ export function CalorieWidget({
                   <div className="bg-blue-500/10 rounded-xl p-3 text-center">
                     <p className="text-xs text-muted-foreground mb-1">Carbs</p>
                     <p className="text-lg font-bold text-blue-600">{macroTotals.carbs}g</p>
+                    {macroTargets.carbs > 0 && (
+                      <p className="text-[10px] text-muted-foreground">/ {macroTargets.carbs}g</p>
+                    )}
                   </div>
                   <div className="bg-red-500/10 rounded-xl p-3 text-center">
                     <p className="text-xs text-muted-foreground mb-1">Protein</p>
                     <p className="text-lg font-bold text-red-600">{macroTotals.protein}g</p>
+                    {macroTargets.protein > 0 && (
+                      <p className="text-[10px] text-muted-foreground">/ {macroTargets.protein}g</p>
+                    )}
                   </div>
                   <div className="bg-yellow-500/10 rounded-xl p-3 text-center">
                     <p className="text-xs text-muted-foreground mb-1">Fats</p>
                     <p className="text-lg font-bold text-yellow-600">{macroTotals.fats}g</p>
+                    {macroTargets.fats > 0 && (
+                      <p className="text-[10px] text-muted-foreground">/ {macroTargets.fats}g</p>
+                    )}
                   </div>
+                </div>
+
+                <div className="rounded-lg bg-secondary p-3 text-xs text-foreground">
+                  {carbOver ? (
+                    <p>You’ve exceeded your carb limit today.</p>
+                  ) : remainingForAlert > 0 ? (
+                    <p>You have {remainingForAlert.toLocaleString()} kcal left today.</p>
+                  ) : (
+                    <p>You have reached your daily calorie target.</p>
+                  )}
                 </div>
               </div>
             )}
