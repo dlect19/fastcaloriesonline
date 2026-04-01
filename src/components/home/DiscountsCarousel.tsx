@@ -53,17 +53,22 @@ export function DiscountsCarousel({ nearbyVendorIds }: DiscountsCarouselProps) {
   }, [items]);
 
   const fetchDiscounts = async () => {
+    setLoading(true);
+
+    if (!nearbyVendorIds || nearbyVendorIds.length === 0) {
+      setItems([]);
+      setLoading(false);
+      return;
+    }
+
     try {
       let query = supabase
         .from('products')
         .select('id, name, price, discount_price, calories, image_url, vendor_id, outlet_id')
         .eq('is_available', true)
         .not('discount_price', 'is', null)
-        .gt('discount_price', 0);
-
-      if (nearbyVendorIds && nearbyVendorIds.length > 0) {
-        query = query.in('vendor_id', nearbyVendorIds);
-      }
+        .gt('discount_price', 0)
+        .in('vendor_id', nearbyVendorIds);
 
       const { data: products, error } = await query.limit(50);
       if (error) throw error;

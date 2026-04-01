@@ -53,15 +53,20 @@ export function CombosCarousel({ nearbyVendorIds }: CombosCarouselProps) {
   }, [items]);
 
   const fetchCombos = async () => {
+    setLoading(true);
+
+    if (!nearbyVendorIds || nearbyVendorIds.length === 0) {
+      setItems([]);
+      setLoading(false);
+      return;
+    }
+
     try {
       let query = supabase
         .from('combos')
         .select('id, name, combo_price, original_price, image_url, description, vendor_id, outlet_id')
-        .eq('is_available', true);
-
-      if (nearbyVendorIds && nearbyVendorIds.length > 0) {
-        query = query.in('vendor_id', nearbyVendorIds);
-      }
+        .eq('is_available', true)
+        .in('vendor_id', nearbyVendorIds);
 
       const { data: combos, error } = await query.limit(50);
       if (error) throw error;
