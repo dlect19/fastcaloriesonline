@@ -26,9 +26,10 @@ function shuffleArray<T>(arr: T[]): T[] {
 
 interface CombosCarouselProps {
   nearbyVendorIds?: string[];
+  nearbyOutletIds?: string[];
 }
 
-export function CombosCarousel({ nearbyVendorIds }: CombosCarouselProps) {
+export function CombosCarousel({ nearbyVendorIds, nearbyOutletIds }: CombosCarouselProps) {
   const navigate = useNavigate();
   const [items, setItems] = useState<ComboItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,7 +37,7 @@ export function CombosCarousel({ nearbyVendorIds }: CombosCarouselProps) {
 
   useEffect(() => {
     fetchCombos();
-  }, [nearbyVendorIds]);
+  }, [nearbyVendorIds, nearbyOutletIds]);
 
   useEffect(() => {
     if (!scrollRef.current || items.length === 0) return;
@@ -75,12 +76,15 @@ export function CombosCarousel({ nearbyVendorIds }: CombosCarouselProps) {
       const vendorIds = [...new Set(combos.map(c => c.vendor_id))];
 
       // Fetch active/approved outlets for cross-referencing
-      const { data: outlets } = await supabase
-        .from('vendor_outlets')
-        .select('id, vendor_id')
-        .in('vendor_id', vendorIds)
-        .eq('is_active', true)
-        .eq('is_approved', true);
+       const nearbyOutletList = nearbyOutletIds || [];
+       const { data: outlets } = nearbyOutletList.length > 0
+         ? await supabase
+             .from('vendor_outlets')
+             .select('id, vendor_id')
+             .in('id', nearbyOutletList)
+             .eq('is_active', true)
+             .eq('is_approved', true)
+         : { data: [] };
 
       const activeOutletIds = new Set((outlets || []).map(o => o.id));
       const vendorsWithActiveOutlets = new Set((outlets || []).map(o => o.vendor_id));

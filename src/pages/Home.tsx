@@ -54,6 +54,7 @@ export default function Home() {
   });
   const [locationDialogOpen, setLocationDialogOpen] = useState(false);
   const [nearbyVendorIds, setNearbyVendorIds] = useState<string[]>([]);
+  const [nearbyOutletIds, setNearbyOutletIds] = useState<string[]>([]);
   const navigate = useNavigate();
 
   // Auto-fetch GPS location on app load for logged-in users — use fresh position (no cache)
@@ -155,6 +156,7 @@ export default function Home() {
   useEffect(() => {
     if (!deliveryLocation?.lat || !deliveryLocation?.lon) {
       setNearbyVendorIds([]);
+      setNearbyOutletIds([]);
       return;
     }
 
@@ -166,9 +168,15 @@ export default function Home() {
       customer_state: deliveryLocation.state || null,
     })
       .then(({ data, error }) => {
-        if (isCancelled || error || !data?.vendors) return;
+        if (isCancelled || error || !data?.vendors) {
+          setNearbyVendorIds([]);
+          setNearbyOutletIds([]);
+          return;
+        }
         const ids = [...new Set(data.vendors.map((v: any) => v.id))];
+        const outletIds = [...new Set(data.vendors.map((v: any) => v.outlet_id).filter(Boolean))];
         setNearbyVendorIds(ids as string[]);
+        setNearbyOutletIds(outletIds as string[]);
       })
       .catch(() => {});
 
@@ -449,13 +457,13 @@ export default function Home() {
         />
 
         {/* Random Menu Carousel */}
-        <MenuCarousel nearbyVendorIds={nearbyVendorIds} />
+        <MenuCarousel nearbyVendorIds={nearbyVendorIds} nearbyOutletIds={nearbyOutletIds} />
 
         {/* Combo Deals Carousel */}
-        <CombosCarousel nearbyVendorIds={nearbyVendorIds} />
+        <CombosCarousel nearbyVendorIds={nearbyVendorIds} nearbyOutletIds={nearbyOutletIds} />
 
         {/* Discounts Carousel */}
-        <DiscountsCarousel nearbyVendorIds={nearbyVendorIds} />
+        <DiscountsCarousel nearbyVendorIds={nearbyVendorIds} nearbyOutletIds={nearbyOutletIds} />
 
         {/* Location Search - Order for any address */}
         <LocationSearch
