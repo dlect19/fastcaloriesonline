@@ -3753,43 +3753,70 @@ export type Database = {
       }
       profiles: {
         Row: {
+          activity_level: string | null
+          age: number | null
           avatar_url: string | null
           created_at: string
           daily_calorie_target: number | null
+          daily_carbs_target_grams: number | null
+          daily_fat_target_grams: number | null
+          daily_protein_target_grams: number | null
           full_name: string | null
+          gender: string | null
           health_goal: string | null
+          height_cm: number | null
           id: string
           phone: string | null
           referral_code: string | null
           referred_by: string | null
           updated_at: string
           user_id: string
+          weekly_goal_kg: number | null
+          weight_kg: number | null
         }
         Insert: {
+          activity_level?: string | null
+          age?: number | null
           avatar_url?: string | null
           created_at?: string
           daily_calorie_target?: number | null
+          daily_carbs_target_grams?: number | null
+          daily_fat_target_grams?: number | null
+          daily_protein_target_grams?: number | null
           full_name?: string | null
+          gender?: string | null
           health_goal?: string | null
+          height_cm?: number | null
           id?: string
           phone?: string | null
           referral_code?: string | null
           referred_by?: string | null
           updated_at?: string
           user_id: string
+          weekly_goal_kg?: number | null
+          weight_kg?: number | null
         }
         Update: {
+          activity_level?: string | null
+          age?: number | null
           avatar_url?: string | null
           created_at?: string
           daily_calorie_target?: number | null
+          daily_carbs_target_grams?: number | null
+          daily_fat_target_grams?: number | null
+          daily_protein_target_grams?: number | null
           full_name?: string | null
+          gender?: string | null
           health_goal?: string | null
+          height_cm?: number | null
           id?: string
           phone?: string | null
           referral_code?: string | null
           referred_by?: string | null
           updated_at?: string
           user_id?: string
+          weekly_goal_kg?: number | null
+          weight_kg?: number | null
         }
         Relationships: [
           {

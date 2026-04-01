@@ -382,17 +382,17 @@ export default function AdminRewards() {
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* First Order Discount */}
+                    {/* Welcome Bonus */}
                     <div className="space-y-4 p-4 border rounded-lg">
                       <div className="flex items-center justify-between">
-                        <Label className="font-semibold">First Order Discount</Label>
+                        <Label className="font-semibold">Welcome Bonus (First Order)</Label>
                         <Switch
                           checked={localSettings.firstOrderEnabled}
                           onCheckedChange={(v) => setLocalSettings(s => ({ ...s, firstOrderEnabled: v }))}
                         />
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        Apply discount on customer's first successful order
+                        Auto-applies for eligible new customers at checkout
                       </p>
                       <div className="flex items-center gap-2">
                         <Input
