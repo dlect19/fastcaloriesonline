@@ -227,23 +227,23 @@ export function CalorieWidget({
               <div className="space-y-3">
                 <h4 className="font-medium text-foreground">Macronutrients</h4>
                 <div className="grid grid-cols-3 gap-3">
-                  <div className="bg-blue-500/10 rounded-xl p-3 text-center">
+                  <div className="bg-secondary rounded-xl p-3 text-center">
                     <p className="text-xs text-muted-foreground mb-1">Carbs</p>
-                    <p className="text-lg font-bold text-blue-600">{macroTotals.carbs}g</p>
+                    <p className="text-lg font-bold text-foreground">{macroTotals.carbs}g</p>
                     {macroTargets.carbs > 0 && (
                       <p className="text-[10px] text-muted-foreground">/ {macroTargets.carbs}g</p>
                     )}
                   </div>
-                  <div className="bg-red-500/10 rounded-xl p-3 text-center">
+                  <div className="bg-secondary rounded-xl p-3 text-center">
                     <p className="text-xs text-muted-foreground mb-1">Protein</p>
-                    <p className="text-lg font-bold text-red-600">{macroTotals.protein}g</p>
+                    <p className="text-lg font-bold text-foreground">{macroTotals.protein}g</p>
                     {macroTargets.protein > 0 && (
                       <p className="text-[10px] text-muted-foreground">/ {macroTargets.protein}g</p>
                     )}
                   </div>
-                  <div className="bg-yellow-500/10 rounded-xl p-3 text-center">
+                  <div className="bg-secondary rounded-xl p-3 text-center">
                     <p className="text-xs text-muted-foreground mb-1">Fats</p>
-                    <p className="text-lg font-bold text-yellow-600">{macroTotals.fats}g</p>
+                    <p className="text-lg font-bold text-foreground">{macroTotals.fats}g</p>
                     {macroTargets.fats > 0 && (
                       <p className="text-[10px] text-muted-foreground">/ {macroTargets.fats}g</p>
                     )}
