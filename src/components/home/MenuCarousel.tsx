@@ -50,23 +50,29 @@ export function MenuCarousel({ nearbyVendorIds }: MenuCarouselProps) {
   }, [nearbyVendorIds, user]);
 
   const fetchRandomMenuItems = async () => {
+    setLoading(true);
+
+    if (!nearbyVendorIds || nearbyVendorIds.length === 0) {
+      setItems([]);
+      setLoading(false);
+      return;
+    }
+
     try {
       // Fetch products and free meal promos in parallel
       let productQuery = supabase
         .from('products')
         .select('id, name, price, calories, image_url, vendor_id, outlet_id')
         .eq('is_available', true);
-
-      if (nearbyVendorIds && nearbyVendorIds.length > 0) {
-        productQuery = productQuery.in('vendor_id', nearbyVendorIds);
-      }
+      productQuery = productQuery.in('vendor_id', nearbyVendorIds);
 
       // Build promos query — only those with show_in_carousel = true
       const promosQuery = supabase
         .from('free_meal_promos')
         .select('id, product_id, product_name, product_image_url, banner_image_url, vendor_id, vendor_name, meal_value, order_threshold')
         .eq('is_active', true)
-        .eq('show_in_carousel', true);
+        .eq('show_in_carousel', true)
+        .in('vendor_id', nearbyVendorIds);
 
       // Fetch promo items for content display
       const promoItemsQuery = supabase
