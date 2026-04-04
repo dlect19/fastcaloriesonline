@@ -52,6 +52,7 @@ const menuItems: MenuItem[] = [
   { icon: Megaphone, label: 'Notifications', path: '/admin/notifications', requiredPermission: 'platform_settings' },
   { icon: Map, label: 'Coverage Areas', path: '/admin/coverage-areas', requiredPermission: 'platform_settings' },
   { icon: DollarSign, label: 'Financial Tools', path: '/admin/financial-tools', requiredPermission: 'process_withdrawals' },
+  { icon: UserPlus, label: 'Ambassadors', path: '/admin/ambassadors', requiredPermission: 'manage_promos' },
   { icon: Settings, label: 'Settings', path: '/admin/settings', requiredPermission: 'platform_settings' },
 ];
 

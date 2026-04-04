@@ -694,6 +694,207 @@ export type Database = {
           },
         ]
       }
+      ambassador_campaigns: {
+        Row: {
+          ambassador_id: string
+          campaign_name: string
+          created_at: string
+          deliverables: string | null
+          end_date: string | null
+          id: string
+          payment_amount: number
+          start_date: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          ambassador_id: string
+          campaign_name: string
+          created_at?: string
+          deliverables?: string | null
+          end_date?: string | null
+          id?: string
+          payment_amount?: number
+          start_date?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          ambassador_id?: string
+          campaign_name?: string
+          created_at?: string
+          deliverables?: string | null
+          end_date?: string | null
+          id?: string
+          payment_amount?: number
+          start_date?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ambassador_campaigns_ambassador_id_fkey"
+            columns: ["ambassador_id"]
+            isOneToOne: false
+            referencedRelation: "ambassadors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ambassador_level_history: {
+        Row: {
+          ambassador_id: string
+          from_level: number
+          id: string
+          to_level: number
+          upgraded_at: string
+        }
+        Insert: {
+          ambassador_id: string
+          from_level: number
+          id?: string
+          to_level: number
+          upgraded_at?: string
+        }
+        Update: {
+          ambassador_id?: string
+          from_level?: number
+          id?: string
+          to_level?: number
+          upgraded_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ambassador_level_history_ambassador_id_fkey"
+            columns: ["ambassador_id"]
+            isOneToOne: false
+            referencedRelation: "ambassadors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ambassador_performance: {
+        Row: {
+          ambassador_id: string
+          conversion_rate: number | null
+          id: string
+          total_orders: number
+          total_registrations: number
+          total_revenue: number
+          updated_at: string
+        }
+        Insert: {
+          ambassador_id: string
+          conversion_rate?: number | null
+          id?: string
+          total_orders?: number
+          total_registrations?: number
+          total_revenue?: number
+          updated_at?: string
+        }
+        Update: {
+          ambassador_id?: string
+          conversion_rate?: number | null
+          id?: string
+          total_orders?: number
+          total_registrations?: number
+          total_revenue?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ambassador_performance_ambassador_id_fkey"
+            columns: ["ambassador_id"]
+            isOneToOne: false
+            referencedRelation: "ambassadors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ambassador_tiers: {
+        Row: {
+          created_at: string
+          id: string
+          level: number
+          min_orders: number
+          min_registrations: number
+          min_revenue: number
+          name: string
+          reward_description: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          level: number
+          min_orders?: number
+          min_registrations?: number
+          min_revenue?: number
+          name: string
+          reward_description?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          level?: number
+          min_orders?: number
+          min_registrations?: number
+          min_revenue?: number
+          name?: string
+          reward_description?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ambassadors: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          current_level: number
+          email: string | null
+          id: string
+          is_active: boolean
+          name: string
+          notes: string | null
+          package_type: string
+          phone: string | null
+          promo_code: string
+          social_handle: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          current_level?: number
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          notes?: string | null
+          package_type?: string
+          phone?: string | null
+          promo_code: string
+          social_handle?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          current_level?: number
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          notes?: string | null
+          package_type?: string
+          phone?: string | null
+          promo_code?: string
+          social_handle?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       auto_notification_logs: {
         Row: {
           created_at: string | null

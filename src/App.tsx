@@ -105,6 +105,8 @@ import AdminSupport from "./pages/admin/AdminSupport";
 import AdminNotifications from "./pages/admin/AdminNotifications";
 import AdminCoverageAreas from "./pages/admin/AdminCoverageAreas";
 import AdminFinancialTools from "./pages/admin/AdminFinancialTools";
+import AdminAmbassadors from "./pages/admin/AdminAmbassadors";
+import DeleteAccount from "./pages/DeleteAccount";
 import CoverageMap from "./pages/CoverageMap";
 import WorkspaceLogin from "./pages/WorkspaceLogin";
 import { playGlobalNotificationSound } from '@/lib/globalAudio';
@@ -236,6 +238,9 @@ const App = () => {
               <Route path="/admin/notifications" element={<AdminNotifications />} />
               <Route path="/admin/coverage-areas" element={<AdminCoverageAreas />} />
               <Route path="/admin/financial-tools" element={<AdminFinancialTools />} />
+              <Route path="/admin/ambassadors" element={<AdminAmbassadors />} />
+              {/* Public Pages */}
+              <Route path="/delete-account" element={<DeleteAccount />} />
               {/* Legal Pages (public) */}
               <Route path="/legal" element={<LegalPage />} />
               <Route path="/legal/:type" element={<LegalPage />} />
