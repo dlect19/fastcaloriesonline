@@ -236,6 +236,9 @@ const App = () => {
               <Route path="/admin/notifications" element={<AdminNotifications />} />
               <Route path="/admin/coverage-areas" element={<AdminCoverageAreas />} />
               <Route path="/admin/financial-tools" element={<AdminFinancialTools />} />
+              <Route path="/admin/ambassadors" element={<AdminAmbassadors />} />
+              {/* Public Pages */}
+              <Route path="/delete-account" element={<DeleteAccount />} />
               {/* Legal Pages (public) */}
               <Route path="/legal" element={<LegalPage />} />
               <Route path="/legal/:type" element={<LegalPage />} />
