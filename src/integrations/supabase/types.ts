@@ -852,6 +852,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           current_level: number
+          discount_percentage: number
           email: string | null
           id: string
           is_active: boolean
@@ -867,6 +868,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           current_level?: number
+          discount_percentage?: number
           email?: string | null
           id?: string
           is_active?: boolean
@@ -882,6 +884,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           current_level?: number
+          discount_percentage?: number
           email?: string | null
           id?: string
           is_active?: boolean
