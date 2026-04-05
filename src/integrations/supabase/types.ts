@@ -3857,10 +3857,12 @@ export type Database = {
           meal_type: string
           name: string
           nutrient_tags: string[] | null
+          nutrition_source: string | null
           outlet_id: string | null
           price: number
           protein_grams: number | null
           requires_prescription: boolean | null
+          serving_size_grams: number | null
           serving_unit: string | null
           updated_at: string
           vendor_id: string
@@ -3885,10 +3887,12 @@ export type Database = {
           meal_type?: string
           name: string
           nutrient_tags?: string[] | null
+          nutrition_source?: string | null
           outlet_id?: string | null
           price: number
           protein_grams?: number | null
           requires_prescription?: boolean | null
+          serving_size_grams?: number | null
           serving_unit?: string | null
           updated_at?: string
           vendor_id: string
@@ -3913,10 +3917,12 @@ export type Database = {
           meal_type?: string
           name?: string
           nutrient_tags?: string[] | null
+          nutrition_source?: string | null
           outlet_id?: string | null
           price?: number
           protein_grams?: number | null
           requires_prescription?: boolean | null
+          serving_size_grams?: number | null
           serving_unit?: string | null
           updated_at?: string
           vendor_id?: string

@@ -127,6 +127,7 @@ export default function VendorMenu() {
     price: '',
     discount_price: '',
     serving_unit: 'per plate' as ServingUnit,
+    serving_size_grams: '',
     calories: '',
     protein_grams: '',
     carbs_grams: '',
@@ -375,11 +376,13 @@ export default function VendorMenu() {
         price: parseFloat(formData.price),
         discount_price: discountPrice && discountPrice < parseFloat(formData.price) ? discountPrice : null,
         serving_unit: vendor.category === 'restaurant' ? formData.serving_unit : null,
+        serving_size_grams: formData.serving_size_grams ? parseFloat(formData.serving_size_grams) : null,
         calories: finalCalories,
         protein_grams: formData.protein_grams ? parseFloat(formData.protein_grams) : null,
         carbs_grams: formData.carbs_grams ? parseFloat(formData.carbs_grams) : null,
         fats_grams: formData.fats_grams ? parseFloat(formData.fats_grams) : null,
         fiber_grams: formData.fiber_grams ? parseFloat(formData.fiber_grams) : null,
+        nutrition_source: formData.calories || formData.carbs_grams || formData.protein_grams || formData.fats_grams ? 'vendor' : null,
         is_available: formData.is_available,
         calorie_classes: formData.calorie_classes.length > 0 ? formData.calorie_classes : null,
         nutrient_tags: formData.nutrient_tags.length > 0 ? formData.nutrient_tags : null,
@@ -424,6 +427,7 @@ export default function VendorMenu() {
       price: product.price.toString(),
       discount_price: (product as any).discount_price?.toString() || '',
       serving_unit: (product.serving_unit as ServingUnit) || 'per plate',
+      serving_size_grams: (product as any).serving_size_grams?.toString() || '',
       calories: product.calories?.toString() || '',
       protein_grams: product.protein_grams?.toString() || '',
       carbs_grams: product.carbs_grams?.toString() || '',
@@ -614,6 +618,7 @@ export default function VendorMenu() {
       price: '',
       discount_price: '',
       serving_unit: 'per plate',
+      serving_size_grams: '',
       calories: '',
       protein_grams: '',
       carbs_grams: '',
@@ -978,7 +983,72 @@ export default function VendorMenu() {
                   )}
 
                   <div className="border-t pt-4">
-                    <p className="text-sm font-medium mb-3">Nutrition Information</p>
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-sm font-medium">Nutrition Information</p>
+                      {vendor?.category === 'restaurant' && formData.name && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={estimatingCalories}
+                          onClick={async () => {
+                            setEstimatingCalories(true);
+                            try {
+                              const { data, error } = await supabase.functions.invoke('estimate-nutrition', {
+                                body: {
+                                  name: formData.name,
+                                  description: formData.description,
+                                  serving_unit: formData.serving_unit,
+                                  category: vendor?.category,
+                                },
+                              });
+                              if (error) throw error;
+                              if (data?.nutrition) {
+                                const n = data.nutrition;
+                                setFormData(prev => ({
+                                  ...prev,
+                                  calories: n.calories.toString(),
+                                  protein_grams: n.protein_grams.toString(),
+                                  carbs_grams: n.carbs_grams.toString(),
+                                  fats_grams: n.fats_grams.toString(),
+                                  fiber_grams: n.fiber_grams.toString(),
+                                  serving_size_grams: n.serving_size_grams.toString(),
+                                }));
+                                toast({
+                                  title: 'AI Nutrition Estimate',
+                                  description: `${n.confidence} confidence: ${n.notes || 'Values estimated from food databases'}`,
+                                });
+                              }
+                            } catch (err: any) {
+                              toast({ title: 'Estimation failed', description: err.message, variant: 'destructive' });
+                            } finally {
+                              setEstimatingCalories(false);
+                            }
+                          }}
+                        >
+                          {estimatingCalories ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Sparkles className="w-3 h-3 mr-1" />}
+                          AI Estimate
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Serving Size */}
+                    {vendor?.category === 'restaurant' && (
+                      <div className="mb-3">
+                        <Label htmlFor="serving_size_grams">Serving Size (grams)</Label>
+                        <Input
+                          id="serving_size_grams"
+                          type="number"
+                          inputMode="numeric"
+                          value={formData.serving_size_grams}
+                          onChange={(e) => setFormData({ ...formData, serving_size_grams: e.target.value })}
+                          placeholder="e.g. 350g per plate"
+                          min="1"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">Weight of one portion — helps track calories accurately</p>
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-2">
                         <Label htmlFor="carbs">Carbs (g)</Label>
