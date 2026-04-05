@@ -185,7 +185,7 @@ export function CalorieGoalCard({ profile, onUpdate }: CalorieGoalCardProps) {
           <div className="space-y-2">
             <Label>Age</Label>
             {isEditing ? (
-              <Input type="number" inputMode="numeric" pattern="[0-9]*" min={14} max={100} value={age} onChange={(e) => setAge(Math.max(14, Math.min(100, Number(e.target.value) || 14)))} />
+              <Input type="number" inputMode="numeric" pattern="[0-9]*" min={14} max={100} value={age} onChange={(e) => setAge(Number(e.target.value) || 0)} onBlur={() => setAge(prev => Math.max(14, Math.min(100, prev)))} />
             ) : (
               <p className="text-sm text-foreground py-2">{extendedProfile?.age || age} years</p>
             )}
