@@ -131,6 +131,7 @@ export function AmbassadorDetail({ ambassadorId, onBack }: Props) {
         <CardContent>
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div><p className="text-muted-foreground">Promo Code</p><p className="font-mono font-bold">{ambassador.promo_code}</p></div>
+            <div><p className="text-muted-foreground">Discount</p><p className="font-bold text-primary">{ambassador.discount_percentage ?? 10}%</p></div>
             <div><p className="text-muted-foreground">Package</p><p className="font-medium capitalize">{ambassador.package_type}</p></div>
             <div><p className="text-muted-foreground">Email</p><p>{ambassador.email || '—'}</p></div>
             <div><p className="text-muted-foreground">Phone</p><p>{ambassador.phone || '—'}</p></div>
