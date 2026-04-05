@@ -983,7 +983,72 @@ export default function VendorMenu() {
                   )}
 
                   <div className="border-t pt-4">
-                    <p className="text-sm font-medium mb-3">Nutrition Information</p>
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-sm font-medium">Nutrition Information</p>
+                      {vendor?.category === 'restaurant' && formData.name && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={estimatingCalories}
+                          onClick={async () => {
+                            setEstimatingCalories(true);
+                            try {
+                              const { data, error } = await supabase.functions.invoke('estimate-nutrition', {
+                                body: {
+                                  name: formData.name,
+                                  description: formData.description,
+                                  serving_unit: formData.serving_unit,
+                                  category: vendor?.category,
+                                },
+                              });
+                              if (error) throw error;
+                              if (data?.nutrition) {
+                                const n = data.nutrition;
+                                setFormData(prev => ({
+                                  ...prev,
+                                  calories: n.calories.toString(),
+                                  protein_grams: n.protein_grams.toString(),
+                                  carbs_grams: n.carbs_grams.toString(),
+                                  fats_grams: n.fats_grams.toString(),
+                                  fiber_grams: n.fiber_grams.toString(),
+                                  serving_size_grams: n.serving_size_grams.toString(),
+                                }));
+                                toast({
+                                  title: 'AI Nutrition Estimate',
+                                  description: `${n.confidence} confidence: ${n.notes || 'Values estimated from food databases'}`,
+                                });
+                              }
+                            } catch (err: any) {
+                              toast({ title: 'Estimation failed', description: err.message, variant: 'destructive' });
+                            } finally {
+                              setEstimatingCalories(false);
+                            }
+                          }}
+                        >
+                          {estimatingCalories ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Sparkles className="w-3 h-3 mr-1" />}
+                          AI Estimate
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Serving Size */}
+                    {vendor?.category === 'restaurant' && (
+                      <div className="mb-3">
+                        <Label htmlFor="serving_size_grams">Serving Size (grams)</Label>
+                        <Input
+                          id="serving_size_grams"
+                          type="number"
+                          inputMode="numeric"
+                          value={formData.serving_size_grams}
+                          onChange={(e) => setFormData({ ...formData, serving_size_grams: e.target.value })}
+                          placeholder="e.g. 350g per plate"
+                          min="1"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">Weight of one portion — helps track calories accurately</p>
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-2">
                         <Label htmlFor="carbs">Carbs (g)</Label>
