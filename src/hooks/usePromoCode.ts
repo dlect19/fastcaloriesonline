@@ -26,7 +26,80 @@ export function usePromoCode() {
 
     setLoading(true);
     try {
-      // Build query - check for matching code that is active
+      // For new customers: enforce one-promo-only rule
+      // A "new customer" is one who has 0 completed (non-cancelled) orders
+      if (user) {
+        const { count: completedOrders } = await supabase
+          .from('orders')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .not('status', 'eq', 'cancelled');
+
+        if ((completedOrders || 0) === 0) {
+          // New customer — check if they've already used any first-order promo
+          const { count: promoOrders } = await supabase
+            .from('orders')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', user.id)
+            .not('promo_code', 'is', null)
+            .not('status', 'eq', 'cancelled');
+
+          if (promoOrders && promoOrders > 0) {
+            return { valid: false, discount: 0, message: 'You can only use one promo code on your first order' };
+          }
+        }
+      }
+
+      // 1) Check ambassador/influencer promo codes first
+      const { data: ambassador } = await supabase
+        .from('ambassadors')
+        .select('id, name, promo_code, discount_percentage, is_active')
+        .ilike('promo_code', code.trim())
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (ambassador) {
+        // It's an ambassador code — calculate discount as percentage of subtotal
+        const discountPct = ambassador.discount_percentage ?? 10;
+        let calculatedDiscount = Math.round((subtotal * discountPct) / 100);
+        calculatedDiscount = Math.min(calculatedDiscount, subtotal);
+
+        // Check if user already used any ambassador code
+        if (user) {
+          const { data: prevAmbOrders } = await supabase
+            .from('orders')
+            .select('promo_code')
+            .eq('user_id', user.id)
+            .not('status', 'eq', 'cancelled')
+            .not('promo_code', 'is', null);
+
+          if (prevAmbOrders && prevAmbOrders.length > 0) {
+            // Check if any previous order used this ambassador code
+            const usedBefore = prevAmbOrders.some(o => 
+              o.promo_code?.toLowerCase() === ambassador.promo_code.toLowerCase()
+            );
+            if (usedBefore) {
+              return { valid: false, discount: 0, message: "You've already used this ambassador code" };
+            }
+          }
+        }
+
+        return {
+          valid: true,
+          discount: calculatedDiscount,
+          message: `₦${calculatedDiscount.toLocaleString()} discount (${discountPct}% off) via ${ambassador.name}!`,
+          promoData: { 
+            id: `amb_${ambassador.id}`, 
+            code: ambassador.promo_code, 
+            ambassador_id: ambassador.id,
+            discount_type: 'percentage',
+            discount_value: discountPct,
+            is_ambassador: true,
+          },
+        };
+      }
+
+      // 2) Check regular promo_codes table
       let query = supabase
         .from('promo_codes')
         .select('*')
@@ -45,21 +118,18 @@ export function usePromoCode() {
       }
 
       // Find the best matching promo
-      // Priority: vendor-specific promo for this vendor > platform promo
       let promo = promos.find(p => p.vendor_id === vendorId && p.scope === 'vendor');
       if (!promo) {
         promo = promos.find(p => p.scope === 'platform' || !p.vendor_id);
       }
       if (!promo) {
-        promo = promos[0]; // Fallback
+        promo = promos[0];
       }
 
-      // Check if vendor-specific promo matches the current vendor
       if (promo.vendor_id && promo.vendor_id !== vendorId) {
         return { valid: false, discount: 0, message: 'This promo code is not valid for this vendor' };
       }
 
-      // Check validity dates
       const now = new Date();
       if (promo.valid_from && new Date(promo.valid_from) > now) {
         return { valid: false, discount: 0, message: 'This promo code is not yet active' };
@@ -68,15 +138,12 @@ export function usePromoCode() {
         return { valid: false, discount: 0, message: 'This promo code has expired' };
       }
 
-      // Check total usage limit
       if (promo.usage_limit && (promo.used_count || 0) >= promo.usage_limit) {
         return { valid: false, discount: 0, message: 'This promo code has reached its usage limit' };
       }
 
-      // Check per-user usage limit (default to 1 use per user if not set)
       const effectivePerUserLimit = promo.per_user_limit || 1;
       if (user) {
-        // Check promo_usage table first
         const { data: userUsage } = await supabase
           .from('promo_usage')
           .select('used_count')
@@ -85,14 +152,9 @@ export function usePromoCode() {
           .maybeSingle();
 
         if (userUsage && userUsage.used_count >= effectivePerUserLimit) {
-          return { 
-            valid: false, 
-            discount: 0, 
-            message: `You've already used this promo code` 
-          };
+          return { valid: false, discount: 0, message: `You've already used this promo code` };
         }
 
-        // Fallback: also check orders table for this promo code usage
         if (!userUsage) {
           const { count: orderUsageCount } = await supabase
             .from('orders')
@@ -102,22 +164,16 @@ export function usePromoCode() {
             .not('status', 'eq', 'cancelled');
 
           if (orderUsageCount && orderUsageCount >= effectivePerUserLimit) {
-            // Backfill promo_usage record
             await supabase.from('promo_usage').insert({
               promo_id: promo.id,
               user_id: user.id,
               used_count: orderUsageCount,
             });
-            return { 
-              valid: false, 
-              discount: 0, 
-              message: `You've already used this promo code` 
-            };
+            return { valid: false, discount: 0, message: `You've already used this promo code` };
           }
         }
       }
 
-      // Check minimum order amount
       if (promo.min_order_amount && subtotal < promo.min_order_amount) {
         return {
           valid: false,
@@ -126,7 +182,6 @@ export function usePromoCode() {
         };
       }
 
-      // Calculate discount
       let calculatedDiscount = 0;
       if (promo.discount_type === 'percentage') {
         calculatedDiscount = (subtotal * promo.discount_value) / 100;
@@ -137,7 +192,6 @@ export function usePromoCode() {
         calculatedDiscount = promo.discount_value;
       }
 
-      // Ensure discount doesn't exceed subtotal
       calculatedDiscount = Math.min(calculatedDiscount, subtotal);
 
       return {
