@@ -93,9 +93,22 @@ export function ComboCard({ combo, vendor, outletId }: ComboCardProps) {
   const savings = combo.original_price - combo.combo_price;
   const savingsPercent = Math.round((savings / combo.original_price) * 100);
 
-  const totalCalories = combo.items.reduce((sum, item) => {
+  const baseCalories = combo.items.reduce((sum, item) => {
     return sum + (item.product?.calories || 0) * item.quantity;
   }, 0);
+
+  // Include addon calories in total
+  const addonCalories = Object.entries(selectedAddons).reduce((sum, [groupId, itemIds]) => {
+    const group = addonGroups.find(g => g.id === groupId);
+    if (!group) return sum;
+    return sum + itemIds.reduce((iSum, itemId) => {
+      const item = group.items.find(i => i.id === itemId);
+      const qty = addonQuantities[itemId] || 1;
+      return iSum + (item?.calories || 0) * qty;
+    }, 0);
+  }, 0);
+
+  const totalCalories = baseCalories + addonCalories;
 
   // Fetch addon groups when dialog opens
   useEffect(() => {

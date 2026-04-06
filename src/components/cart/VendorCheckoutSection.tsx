@@ -22,6 +22,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useServiceFee } from '@/hooks/useServiceFee';
 import { useRiderAvailability } from '@/hooks/useRiderAvailability';
 import { useGeolocation } from '@/hooks/useGeolocation';
+import { PromoCodeInput } from '@/components/cart/PromoCodeInput';
 
 interface VendorLocation {
   latitude: number | null;
@@ -558,6 +559,24 @@ export function VendorCheckoutSection({
             setSelectedSpinDiscountId(null);
           }
         }}
+      />
+
+      {/* Manual Promo Code Input (ambassador/influencer codes) */}
+      <PromoCodeInput
+        subtotal={group.subtotal}
+        vendorId={group.vendorId}
+        onDiscountApplied={(discount, code) => {
+          if (discount > 0 && code) {
+            setSelectedDiscountType('none');
+            setSelectedSpinDiscountId(null);
+            setPromoDiscount(discount);
+            setAppliedPromoCode(code);
+          } else {
+            setPromoDiscount(0);
+            setAppliedPromoCode(null);
+          }
+        }}
+        disabled={selectedDiscountType !== 'none'}
       />
 
       {/* Wallet Payment Info */}
