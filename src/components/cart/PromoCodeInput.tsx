@@ -94,7 +94,7 @@ export function PromoCodeInput({ subtotal, vendorId, onDiscountApplied, disabled
         </div>
         {disabled && (
           <p className="text-xs text-muted-foreground mt-2">
-            Remove current discount to enter a promo code
+            Only one discount can be applied per order. Remove your current discount (Welcome Bonus or Spin reward) to enter an ambassador or influencer promo code instead.
           </p>
         )}
       </CardContent>
