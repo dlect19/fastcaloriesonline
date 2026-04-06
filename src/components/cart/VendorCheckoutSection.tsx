@@ -22,6 +22,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useServiceFee } from '@/hooks/useServiceFee';
 import { useRiderAvailability } from '@/hooks/useRiderAvailability';
 import { useGeolocation } from '@/hooks/useGeolocation';
+import { PromoCodeInput } from '@/components/cart/PromoCodeInput';
 
 interface VendorLocation {
   latitude: number | null;
