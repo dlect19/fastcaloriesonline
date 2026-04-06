@@ -4,11 +4,13 @@ import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
 import { useAdminPermissions } from '@/hooks/useAdminPermissions';
-import { Flame, Users, TrendingUp, Apple, Search } from 'lucide-react';
+import { Flame, Users, TrendingUp, Apple, Search, Eye } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar } from 'recharts';
+import { AdminCustomerNutritionDetail } from '@/components/admin/AdminCustomerNutritionDetail';
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, subDays, eachDayOfInterval, eachHourOfInterval, eachMonthOfInterval } from 'date-fns';
 
 type TimePeriod = 'today' | 'week' | 'month' | 'year';
@@ -45,6 +47,7 @@ export default function AdminNutrition() {
   const [isLoading, setIsLoading] = useState(true);
   const [period, setPeriod] = useState<TimePeriod>('month');
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedUser, setSelectedUser] = useState<{ userId: string; fullName: string } | null>(null);
   
   const [logs, setLogs] = useState<CalorieLog[]>([]);
   const [profiles, setProfiles] = useState<{ user_id: string; full_name: string | null }[]>([]);
@@ -465,6 +468,7 @@ export default function AdminNutrition() {
                       <TableHead className="text-right">Protein (g)</TableHead>
                       <TableHead className="text-right">Fats (g)</TableHead>
                       <TableHead>Top Class</TableHead>
+                      <TableHead></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -486,6 +490,16 @@ export default function AdminNutrition() {
                             {user.topFoodClass}
                           </span>
                         </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSelectedUser({ userId: user.userId, fullName: user.fullName })}
+                          >
+                            <Eye className="w-4 h-4 mr-1" />
+                            View
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -498,6 +512,16 @@ export default function AdminNutrition() {
             )}
           </CardContent>
         </Card>
+
+        {/* Customer Detail Dialog */}
+        {selectedUser && (
+          <AdminCustomerNutritionDetail
+            open={!!selectedUser}
+            onOpenChange={(open) => !open && setSelectedUser(null)}
+            userId={selectedUser.userId}
+            userName={selectedUser.fullName}
+          />
+        )}
     </AdminLayout>
   );
 }

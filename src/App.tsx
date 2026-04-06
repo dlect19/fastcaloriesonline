@@ -106,6 +106,7 @@ import AdminNotifications from "./pages/admin/AdminNotifications";
 import AdminCoverageAreas from "./pages/admin/AdminCoverageAreas";
 import AdminFinancialTools from "./pages/admin/AdminFinancialTools";
 import AdminAmbassadors from "./pages/admin/AdminAmbassadors";
+import NutritionReport from "./pages/NutritionReport";
 import DeleteAccount from "./pages/DeleteAccount";
 import CoverageMap from "./pages/CoverageMap";
 import WorkspaceLogin from "./pages/WorkspaceLogin";
@@ -168,6 +169,7 @@ const App = () => {
               <Route path="/profile-setup" element={<ProfileSetup />} />
               <Route path="/support" element={<CustomerSupport />} />
               <Route path="/coverage" element={<CoverageMap />} />
+              <Route path="/nutrition-report" element={<NutritionReport />} />
               {/* Landing Pages */}
               <Route path="/become-vendor" element={<VendorLanding />} />
               <Route path="/become-rider" element={<RiderLanding />} />
