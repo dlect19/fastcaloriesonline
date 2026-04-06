@@ -302,9 +302,19 @@ export function CalorieWidget({
             </div>
           </div>
 
-          {/* Footer Action */}
-          <div className="pt-4 border-t border-border">
+          {/* Footer Actions */}
+          <div className="pt-4 border-t border-border space-y-2">
             <Button 
+              className="w-full" 
+              onClick={() => {
+                setShowDetails(false);
+                navigate('/nutrition-report');
+              }}
+            >
+              View Full Report
+            </Button>
+            <Button 
+              variant="outline"
               className="w-full" 
               onClick={() => {
                 setShowDetails(false);
