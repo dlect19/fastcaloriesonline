@@ -561,6 +561,24 @@ export function VendorCheckoutSection({
         }}
       />
 
+      {/* Manual Promo Code Input (ambassador/influencer codes) */}
+      <PromoCodeInput
+        subtotal={group.subtotal}
+        vendorId={group.vendorId}
+        onDiscountApplied={(discount, code) => {
+          if (discount > 0 && code) {
+            setSelectedDiscountType('none');
+            setSelectedSpinDiscountId(null);
+            setPromoDiscount(discount);
+            setAppliedPromoCode(code);
+          } else {
+            setPromoDiscount(0);
+            setAppliedPromoCode(null);
+          }
+        }}
+        disabled={selectedDiscountType !== 'none'}
+      />
+
       {/* Wallet Payment Info */}
       <section className="bg-card rounded-xl border border-border p-4 space-y-3">
         <div className="flex items-center justify-between">
