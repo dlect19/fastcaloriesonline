@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, ChevronRight, Loader2, RefreshCw, Utensils, MapPin, Store, AlertCircle, ExternalLink, BarChart3, TrendingUp } from 'lucide-react';
+import { Sparkles, ChevronRight, Loader2, RefreshCw, Utensils, MapPin, Store, AlertCircle, ExternalLink, BarChart3, TrendingUp, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
@@ -59,6 +61,7 @@ export function AIMealRecommendation() {
   const [recommendations, setRecommendations] = useState<MealRecommendation[]>([]);
   const [tip, setTip] = useState('');
   const [overallAnalysis, setOverallAnalysis] = useState('');
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [calorieData, setCalorieData] = useState({
     target: 2000,
     consumed: 0,
@@ -110,7 +113,6 @@ export function AIMealRecommendation() {
   const fetchOrderHistory = async () => {
     if (!user) return;
     try {
-      // Get the user's most ordered items from the last 30 days
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -131,7 +133,6 @@ export function AIMealRecommendation() {
 
       if (!items) return;
 
-      // Aggregate by product name
       const itemMap = new Map<string, { count: number; calories: number | null }>();
       for (const item of items) {
         const existing = itemMap.get(item.product_name);
@@ -175,7 +176,6 @@ export function AIMealRecommendation() {
         if (products && products.length > 0) {
           const vendorIds = [...new Set(products.map(p => p.vendor_id))];
 
-          // Fetch active/approved outlets for cross-referencing
           const { data: outlets } = await supabase
             .from('vendor_outlets')
             .select('id, vendor_id')
@@ -231,6 +231,7 @@ export function AIMealRecommendation() {
 
   const getRecommendations = async () => {
     setLoading(true);
+    setDialogOpen(true);
     try {
       const { data, error } = await supabase.functions.invoke('ai-meal-recommendation', {
         body: {
@@ -249,7 +250,6 @@ export function AIMealRecommendation() {
       setTip(response.tip || '');
       setOverallAnalysis(response.overallAnalysis || '');
 
-      // Search for each meal across vendors
       const updatedMeals = await Promise.all(
         meals.map(async (meal) => {
           const vendorMatches = await searchVendorsForMeal(meal.name);
@@ -271,10 +271,12 @@ export function AIMealRecommendation() {
   };
 
   const handleVendorClick = (vendorId: string) => {
+    setDialogOpen(false);
     navigate(`/vendor/${vendorId}`);
   };
 
   const handleExplore = (category: string) => {
+    setDialogOpen(false);
     navigate(`/explore?category=${category}`);
   };
 
@@ -287,28 +289,19 @@ export function AIMealRecommendation() {
   const remaining = calorieData.target - calorieData.consumed;
   const consumedPercent = Math.min((calorieData.consumed / calorieData.target) * 100, 100);
 
-  // Compact view (no recommendations yet)
-  const compactView = recommendations.length === 0;
-
   return (
-    <Card className="bg-gradient-to-br from-primary/10 via-background to-secondary/10 border-primary/20 h-full">
-      <CardHeader className="pb-2 p-3">
-        <div className="flex items-center justify-between">
+    <>
+      {/* Compact widget card */}
+      <Card className="bg-gradient-to-br from-primary/10 via-background to-secondary/10 border-primary/20 h-full">
+        <CardHeader className="pb-2 p-3">
           <div className="flex items-center gap-1.5">
             <div className="w-6 h-6 rounded-md bg-primary/20 flex items-center justify-center">
               <Sparkles className="w-3 h-3 text-primary" />
             </div>
             <CardTitle className="text-xs font-semibold">AI Meals</CardTitle>
           </div>
-          {recommendations.length > 0 && (
-            <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={getRecommendations} disabled={loading}>
-              <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
-            </Button>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent className="p-3 pt-0">
-        {compactView ? (
+        </CardHeader>
+        <CardContent className="p-3 pt-0">
           <div className="text-center py-2">
             <div className="w-8 h-8 mx-auto mb-2 rounded-full bg-primary/10 flex items-center justify-center">
               <Utensils className="w-4 h-4 text-primary" />
@@ -330,154 +323,195 @@ export function AIMealRecommendation() {
               )}
             </Button>
           </div>
-        ) : (
-          <>
-            {/* Overall Analysis */}
-            {overallAnalysis && (
-              <div className="p-3 rounded-lg bg-info/10 border border-info/20">
-                <div className="flex items-start gap-2">
-                  <BarChart3 className="w-4 h-4 text-info mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs font-medium text-info mb-1">Daily Analysis</p>
-                    <p className="text-xs text-muted-foreground">{overallAnalysis}</p>
-                  </div>
+        </CardContent>
+      </Card>
+
+      {/* Full-screen dialog for results */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-lg max-h-[85vh] p-0 gap-0">
+          <DialogHeader className="p-4 pb-3 border-b border-border">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
+                  <Sparkles className="w-4 h-4 text-primary" />
                 </div>
-                {/* Calorie progress bar */}
-                <div className="mt-3 space-y-1">
-                  <div className="flex justify-between text-[10px] text-muted-foreground">
-                    <span>{calorieData.consumed} kcal consumed</span>
-                    <span>{remaining} kcal remaining</span>
-                  </div>
-                  <Progress value={consumedPercent} className="h-2" />
+                <div>
+                  <DialogTitle className="text-base">AI Meal Recommendations</DialogTitle>
+                  <p className="text-xs text-muted-foreground">Personalized for your goals</p>
                 </div>
               </div>
-            )}
+              {recommendations.length > 0 && (
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={getRecommendations} disabled={loading}>
+                  <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                </Button>
+              )}
+            </div>
+          </DialogHeader>
 
-            <div className="space-y-3">
-              {recommendations.map((meal, index) => (
-                <div key={index} className="p-3 rounded-lg bg-card border border-border">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-medium text-sm text-foreground">{meal.name}</h4>
-                      <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{meal.description}</p>
-                      <div className="flex items-center gap-2 mt-2 flex-wrap">
-                        <Badge variant="secondary" className="text-xs">~{meal.estimatedCalories} kcal</Badge>
-                        {meal.tags?.slice(0, 2).map((tag, i) => (
-                          <Badge key={i} variant="outline" className="text-xs">{tag}</Badge>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Nutritional Analysis */}
-                  {meal.analysis && (
-                    <div className="mt-2 p-2 rounded-md bg-secondary/50">
-                      <div className="flex items-start gap-1.5">
-                        <TrendingUp className="w-3 h-3 text-primary mt-0.5 shrink-0" />
-                        <p className="text-[11px] text-muted-foreground">{meal.analysis}</p>
-                      </div>
-                      {meal.macros && (
-                        <div className="flex items-center gap-3 mt-1.5">
-                          <span className="text-[10px] font-medium text-primary">P: {meal.macros.protein}g</span>
-                          <span className="text-[10px] font-medium text-warning">C: {meal.macros.carbs}g</span>
-                          <span className="text-[10px] font-medium text-destructive">F: {meal.macros.fat}g</span>
+          <ScrollArea className="flex-1 max-h-[calc(85vh-80px)]">
+            <div className="p-4 space-y-4">
+              {loading && recommendations.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary mb-3" />
+                  <p className="text-sm text-muted-foreground">Getting personalized recommendations...</p>
+                </div>
+              ) : recommendations.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <Utensils className="w-8 h-8 text-muted-foreground mb-3" />
+                  <p className="text-sm text-muted-foreground">Click "Get Ideas" to get started</p>
+                </div>
+              ) : (
+                <>
+                  {/* Overall Analysis */}
+                  {overallAnalysis && (
+                    <div className="p-4 rounded-xl bg-info/10 border border-info/20">
+                      <div className="flex items-start gap-2.5">
+                        <BarChart3 className="w-5 h-5 text-info mt-0.5 shrink-0" />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-info mb-1">Daily Analysis</p>
+                          <p className="text-sm text-muted-foreground leading-relaxed">{overallAnalysis}</p>
                         </div>
-                      )}
+                      </div>
+                      <div className="mt-3 space-y-1.5">
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span>{calorieData.consumed} kcal consumed</span>
+                          <span>{remaining} kcal remaining</span>
+                        </div>
+                        <Progress value={consumedPercent} className="h-2.5" />
+                      </div>
                     </div>
                   )}
 
-                  {/* Vendor matches section */}
-                  <div className="mt-3 pt-2 border-t border-border">
-                    {meal.searching ? (
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                        Searching nearby vendors...
-                      </div>
-                    ) : meal.vendorMatches && meal.vendorMatches.length > 0 ? (
-                      <div className="space-y-2">
-                        <p className="text-xs font-medium text-primary flex items-center gap-1">
-                          <Store className="w-3 h-3" />
-                          Available nearby
-                        </p>
-                        {meal.vendorMatches.map((match) => (
-                          <div
-                            key={match.productId}
-                            className="flex items-center justify-between p-2 rounded-md bg-primary/5 border border-primary/10 cursor-pointer hover:bg-primary/10 transition-colors"
-                            onClick={() => handleVendorClick(match.vendorId)}
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              {match.imageUrl ? (
-                                <img src={match.imageUrl} alt={match.productName} className="w-8 h-8 rounded-md object-cover" />
-                              ) : (
-                                <div className="w-8 h-8 rounded-md bg-muted flex items-center justify-center">
-                                  <Utensils className="w-4 h-4 text-muted-foreground" />
-                                </div>
-                              )}
-                              <div className="min-w-0">
-                                <p className="text-xs font-medium text-foreground truncate">{match.productName}</p>
-                                <p className="text-[10px] text-muted-foreground truncate flex items-center gap-1">
-                                  <MapPin className="w-2.5 h-2.5" />
-                                  {match.vendorName}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <div className="text-right">
-                                <p className="text-xs font-semibold text-foreground">₦{match.price.toLocaleString()}</p>
-                                {match.calories && (
-                                  <p className="text-[10px] text-muted-foreground">{match.calories} kcal</p>
-                                )}
-                              </div>
-                              <ChevronRight className="w-3 h-3 text-muted-foreground" />
+                  {/* Meal Cards */}
+                  <div className="space-y-4">
+                    {recommendations.map((meal, index) => (
+                      <div key={index} className="p-4 rounded-xl bg-card border border-border shadow-sm">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-semibold text-sm text-foreground">{meal.name}</h4>
+                            <p className="text-sm text-muted-foreground mt-1">{meal.description}</p>
+                            <div className="flex items-center gap-2 mt-2.5 flex-wrap">
+                              <Badge variant="secondary" className="text-xs">~{meal.estimatedCalories} kcal</Badge>
+                              {meal.tags?.slice(0, 3).map((tag, i) => (
+                                <Badge key={i} variant="outline" className="text-xs">{tag}</Badge>
+                              ))}
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <p className="text-xs text-muted-foreground flex items-center gap-1">
-                          <AlertCircle className="w-3 h-3" />
-                          Not available from nearby vendors
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 text-xs px-2"
-                            onClick={() => handleExplore(meal.category)}
-                          >
-                            Browse similar
-                            <ChevronRight className="w-3 h-3 ml-1" />
-                          </Button>
-                          {meal.recipeQuery && (
-                            <a
-                              href={getRecipeLink(meal.recipeQuery)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 h-6 text-xs px-2 text-primary hover:underline"
-                            >
-                              <ExternalLink className="w-3 h-3" />
-                              How to prepare
-                            </a>
+                        </div>
+
+                        {/* Nutritional Analysis */}
+                        {meal.analysis && (
+                          <div className="mt-3 p-3 rounded-lg bg-secondary/50">
+                            <div className="flex items-start gap-2">
+                              <TrendingUp className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                              <p className="text-xs text-muted-foreground leading-relaxed">{meal.analysis}</p>
+                            </div>
+                            {meal.macros && (
+                              <div className="flex items-center gap-4 mt-2">
+                                <span className="text-xs font-medium text-primary">P: {meal.macros.protein}g</span>
+                                <span className="text-xs font-medium text-warning">C: {meal.macros.carbs}g</span>
+                                <span className="text-xs font-medium text-destructive">F: {meal.macros.fat}g</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Vendor matches */}
+                        <div className="mt-3 pt-3 border-t border-border">
+                          {meal.searching ? (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Searching nearby vendors...
+                            </div>
+                          ) : meal.vendorMatches && meal.vendorMatches.length > 0 ? (
+                            <div className="space-y-2">
+                              <p className="text-xs font-medium text-primary flex items-center gap-1">
+                                <Store className="w-3.5 h-3.5" />
+                                Available nearby
+                              </p>
+                              {meal.vendorMatches.map((match) => (
+                                <div
+                                  key={match.productId}
+                                  className="flex items-center justify-between p-3 rounded-lg bg-primary/5 border border-primary/10 cursor-pointer hover:bg-primary/10 transition-colors"
+                                  onClick={() => handleVendorClick(match.vendorId)}
+                                >
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    {match.imageUrl ? (
+                                      <img src={match.imageUrl} alt={match.productName} className="w-10 h-10 rounded-lg object-cover" />
+                                    ) : (
+                                      <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
+                                        <Utensils className="w-5 h-5 text-muted-foreground" />
+                                      </div>
+                                    )}
+                                    <div className="min-w-0">
+                                      <p className="text-sm font-medium text-foreground truncate">{match.productName}</p>
+                                      <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
+                                        <MapPin className="w-3 h-3" />
+                                        {match.vendorName}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <div className="text-right">
+                                      <p className="text-sm font-semibold text-foreground">₦{match.price.toLocaleString()}</p>
+                                      {match.calories && (
+                                        <p className="text-xs text-muted-foreground">{match.calories} kcal</p>
+                                      )}
+                                    </div>
+                                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                <AlertCircle className="w-3.5 h-3.5" />
+                                Not available from nearby vendors
+                              </p>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 text-xs px-3"
+                                  onClick={() => handleExplore(meal.category)}
+                                >
+                                  Browse similar
+                                  <ChevronRight className="w-3 h-3 ml-1" />
+                                </Button>
+                                {meal.recipeQuery && (
+                                  <a
+                                    href={getRecipeLink(meal.recipeQuery)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 h-7 text-xs px-3 text-primary hover:underline"
+                                  >
+                                    <ExternalLink className="w-3 h-3" />
+                                    How to prepare
+                                  </a>
+                                )}
+                              </div>
+                            </div>
                           )}
                         </div>
                       </div>
-                    )}
+                    ))}
                   </div>
-                </div>
-              ))}
+
+                  {/* Tip */}
+                  {tip && (
+                    <div className="p-4 rounded-xl bg-primary/5 border border-primary/20">
+                      <p className="text-sm text-muted-foreground">
+                        <span className="font-medium text-primary">💡 Tip:</span> {tip}
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
-            
-            {tip && (
-              <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
-                <p className="text-xs text-muted-foreground">
-                  <span className="font-medium text-primary">💡 Tip:</span> {tip}
-                </p>
-              </div>
-            )}
-          </>
-        )}
-      </CardContent>
-    </Card>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
