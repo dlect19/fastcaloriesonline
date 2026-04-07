@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bell, MapPin, Search, Camera } from 'lucide-react';
+import { Bell, MapPin, Search, Camera, Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { QRScanner } from './QRScanner';
@@ -79,6 +79,15 @@ export function Header({ userName = 'Guest', address = 'Set your location', onSe
               className="h-12 w-12 rounded-xl shrink-0"
             >
               <Camera className="w-5 h-5" />
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="icon"
+              onClick={() => navigate('/favorites')}
+              className="h-12 w-12 rounded-xl shrink-0"
+            >
+              <Heart className="w-5 h-5" />
             </Button>
           </form>
         </div>
