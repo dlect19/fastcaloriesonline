@@ -29,6 +29,9 @@ interface CalorieLog {
   meal_type: string | null;
   log_date: string;
   created_at: string;
+  source?: string;
+  food_items?: string[];
+  confidence?: string;
 }
 
 const COLORS = ['hsl(var(--primary))', 'hsl(var(--destructive))', 'hsl(142, 76%, 36%)', 'hsl(45, 93%, 47%)'];
