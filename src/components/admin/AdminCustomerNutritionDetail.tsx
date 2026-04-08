@@ -261,8 +261,14 @@ export function AdminCustomerNutritionDetail({ open, onOpenChange, userId, userN
                   {logs.slice(0, 50).map(log => (
                     <div key={log.id} className="flex items-center justify-between p-2 bg-secondary/30 rounded-lg text-sm">
                       <div>
-                        <span className="capitalize font-medium text-foreground">{log.meal_type || 'Meal'}</span>
+                        <span className="capitalize font-medium text-foreground">{log.source === 'camera' ? '📸' : '🛵'} {log.meal_type || 'Meal'}</span>
                         <span className="text-muted-foreground text-xs ml-2">{format(new Date(log.created_at), 'MMM dd, HH:mm')}</span>
+                        {log.source === 'camera' && (
+                          <span className="ml-1 text-xs text-primary font-medium">Camera</span>
+                        )}
+                        {log.food_items && log.food_items.length > 0 && (
+                          <p className="text-[10px] text-muted-foreground mt-0.5">{log.food_items.join(', ')}</p>
+                        )}
                       </div>
                       <div className="text-right">
                         <span className="font-semibold text-foreground">{log.calories} kcal</span>
