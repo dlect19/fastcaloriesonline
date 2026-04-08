@@ -89,8 +89,8 @@ export function CalorieGoalCard({ profile, onUpdate }: CalorieGoalCardProps) {
   const [healthGoal, setHealthGoal] = useState(extendedProfile?.health_goal || 'maintain');
   const [age, setAge] = useState<number>(extendedProfile?.age || 25);
   const [gender, setGender] = useState<string>(extendedProfile?.gender || 'female');
-  const [heightCm, setHeightCm] = useState<number>(extendedProfile?.height_cm) || 170);
-  const [weightKg, setWeightKg] = useState<number>(extendedProfile?.weight_kg) || 70);
+  const [heightCm, setHeightCm] = useState<number>(extendedProfile?.height_cm || 170);
+  const [weightKg, setWeightKg] = useState<number>(extendedProfile?.weight_kg || 70);
   const [activityLevel, setActivityLevel] = useState<string>(extendedProfile?.activity_level || 'sedentary');
 
   const computedPlan = calculatePlan({ age, gender, heightCm, weightKg, activityLevel, goal: healthGoal });
