@@ -20,6 +20,7 @@ interface CalorieLog {
   carbs_grams: number | null;
   protein_grams: number | null;
   fats_grams: number | null;
+  source?: string;
 }
 
 interface CalorieWidgetProps {
@@ -282,13 +283,16 @@ export function CalorieWidget({
                       className="flex items-center justify-between p-3 bg-secondary/30 rounded-xl"
                     >
                       <div className="flex items-center gap-3">
-                        <span className="text-xl">{getMealIcon(log.meal_type)}</span>
+                        <span className="text-xl">{log.source === 'camera' ? '📸' : getMealIcon(log.meal_type)}</span>
                         <div>
                           <p className="font-medium text-foreground capitalize">
                             {log.meal_type || 'Meal'}
                           </p>
                           <p className="text-xs text-muted-foreground">
                             {formatTime(log.created_at)}
+                            {log.source === 'camera' && (
+                              <span className="ml-1 text-primary font-medium">• Camera</span>
+                            )}
                           </p>
                         </div>
                       </div>
