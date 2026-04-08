@@ -1058,37 +1058,58 @@ export type Database = {
         Row: {
           calories: number
           carbs_grams: number | null
+          confidence: string | null
           created_at: string
           fats_grams: number | null
+          fiber_grams: number | null
+          food_classes: string[] | null
+          food_items: string[] | null
           id: string
+          image_url: string | null
           log_date: string
           meal_type: string | null
+          nutrient_tags: string[] | null
           order_id: string | null
           protein_grams: number | null
+          source: string
           user_id: string
         }
         Insert: {
           calories?: number
           carbs_grams?: number | null
+          confidence?: string | null
           created_at?: string
           fats_grams?: number | null
+          fiber_grams?: number | null
+          food_classes?: string[] | null
+          food_items?: string[] | null
           id?: string
+          image_url?: string | null
           log_date?: string
           meal_type?: string | null
+          nutrient_tags?: string[] | null
           order_id?: string | null
           protein_grams?: number | null
+          source?: string
           user_id: string
         }
         Update: {
           calories?: number
           carbs_grams?: number | null
+          confidence?: string | null
           created_at?: string
           fats_grams?: number | null
+          fiber_grams?: number | null
+          food_classes?: string[] | null
+          food_items?: string[] | null
           id?: string
+          image_url?: string | null
           log_date?: string
           meal_type?: string | null
+          nutrient_tags?: string[] | null
           order_id?: string | null
           protein_grams?: number | null
+          source?: string
           user_id?: string
         }
         Relationships: [

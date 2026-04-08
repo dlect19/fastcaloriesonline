@@ -89,8 +89,8 @@ export function CalorieGoalCard({ profile, onUpdate }: CalorieGoalCardProps) {
   const [healthGoal, setHealthGoal] = useState(extendedProfile?.health_goal || 'maintain');
   const [age, setAge] = useState<number>(extendedProfile?.age || 25);
   const [gender, setGender] = useState<string>(extendedProfile?.gender || 'female');
-  const [heightCm, setHeightCm] = useState<number>(extendedProfile?.height_cm) || 170);
-  const [weightKg, setWeightKg] = useState<number>(extendedProfile?.weight_kg) || 70);
+  const [heightCm, setHeightCm] = useState<number>(extendedProfile?.height_cm || 170);
+  const [weightKg, setWeightKg] = useState<number>(extendedProfile?.weight_kg || 70);
   const [activityLevel, setActivityLevel] = useState<string>(extendedProfile?.activity_level || 'sedentary');
 
   const computedPlan = calculatePlan({ age, gender, heightCm, weightKg, activityLevel, goal: healthGoal });
@@ -207,7 +207,7 @@ export function CalorieGoalCard({ profile, onUpdate }: CalorieGoalCardProps) {
           <div className="space-y-2">
             <Label>Height (cm)</Label>
             {isEditing ? (
-              <Input type="number" min={120} max={230} value={heightCm} onChange={(e) => setHeightCm(Math.max(120, Math.min(230, Number(e.target.value) || 120)))} />
+              <Input type="number" inputMode="numeric" pattern="[0-9]*" min={120} max={230} value={heightCm} onChange={(e) => setHeightCm(Number(e.target.value) || 0)} onBlur={() => setHeightCm(prev => Math.max(120, Math.min(230, prev)))} />
             ) : (
               <p className="text-sm text-foreground py-2">{Number(extendedProfile?.height_cm || heightCm)} cm</p>
             )}
@@ -215,7 +215,7 @@ export function CalorieGoalCard({ profile, onUpdate }: CalorieGoalCardProps) {
           <div className="space-y-2">
             <Label>Weight (kg)</Label>
             {isEditing ? (
-              <Input type="number" min={30} max={250} value={weightKg} onChange={(e) => setWeightKg(Math.max(30, Math.min(250, Number(e.target.value) || 30)))} />
+              <Input type="number" inputMode="numeric" pattern="[0-9]*" min={30} max={250} value={weightKg} onChange={(e) => setWeightKg(Number(e.target.value) || 0)} onBlur={() => setWeightKg(prev => Math.max(30, Math.min(250, prev)))} />
             ) : (
               <p className="text-sm text-foreground py-2">{Number(extendedProfile?.weight_kg || weightKg)} kg</p>
             )}

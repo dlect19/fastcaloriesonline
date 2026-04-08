@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Bell, MapPin, Search, Camera, Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
-import { QRScanner } from './QRScanner';
+import { CameraActionSheet } from './CameraActionSheet';
 
 interface HeaderProps {
   userName?: string;
@@ -13,7 +13,7 @@ interface HeaderProps {
 
 export function Header({ userName = 'Guest', address = 'Set your location', onSearch, onLocationClick }: HeaderProps) {
   const navigate = useNavigate();
-  const [showQRDialog, setShowQRDialog] = useState(false);
+  const [showCameraSheet, setShowCameraSheet] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -58,7 +58,7 @@ export function Header({ userName = 'Guest', address = 'Set your location', onSe
             </Button>
           </div>
 
-          {/* Search bar with QR scanner */}
+          {/* Search bar with Camera & Favorites */}
           <form onSubmit={handleSearchSubmit} className="relative flex items-center gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
@@ -75,7 +75,7 @@ export function Header({ userName = 'Guest', address = 'Set your location', onSe
               type="button"
               variant="secondary"
               size="icon"
-              onClick={() => setShowQRDialog(true)}
+              onClick={() => setShowCameraSheet(true)}
               className="h-12 w-12 rounded-xl shrink-0"
             >
               <Camera className="w-5 h-5" />
@@ -93,8 +93,7 @@ export function Header({ userName = 'Guest', address = 'Set your location', onSe
         </div>
       </header>
 
-      {/* QR Scanner Dialog */}
-      <QRScanner open={showQRDialog} onOpenChange={setShowQRDialog} />
+      <CameraActionSheet open={showCameraSheet} onOpenChange={setShowCameraSheet} />
     </>
   );
 }
