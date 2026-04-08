@@ -50,15 +50,20 @@ export function CameraActionSheet({ open, onOpenChange }: CameraActionSheetProps
             </Button>
             <Button
               variant="outline"
-              className="w-full h-auto py-4 flex items-start gap-3 justify-start"
+              className="w-full h-auto py-4 flex items-start gap-3 justify-start relative overflow-hidden"
               onClick={handleCalorie}
             >
+              <div className="absolute top-1 right-1">
+                <span className="text-[10px] font-bold bg-accent text-accent-foreground px-1.5 py-0.5 rounded-full">
+                  NEW
+                </span>
+              </div>
               <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center shrink-0">
                 <Utensils className="w-5 h-5 text-green-600" />
               </div>
               <div className="text-left">
-                <p className="font-medium text-sm">Track Meal Calories</p>
-                <p className="text-xs text-muted-foreground">Snap homemade food to log nutrition</p>
+                <p className="font-medium text-sm">Track Meal Calories 📸</p>
+                <p className="text-xs text-muted-foreground">Snap homemade food to log nutrition instantly</p>
               </div>
             </Button>
           </div>
