@@ -192,6 +192,16 @@ export default function Auth() {
                 localStorage.setItem('fc_referral_code', referralCode.trim());
                 localStorage.setItem('fc_referral_type', 'ambassador');
                 localStorage.setItem('fc_ambassador_id', ambassador.id);
+
+                // Record ambassador registration for tracking
+                const { data: { user: currentUser } } = await supabase.auth.getUser();
+                if (currentUser) {
+                  await supabase.from('ambassador_registrations').insert({
+                    ambassador_id: ambassador.id,
+                    user_id: currentUser.id,
+                    promo_code_used: referralCode.trim(),
+                  });
+                }
               }
             }
           } catch {
