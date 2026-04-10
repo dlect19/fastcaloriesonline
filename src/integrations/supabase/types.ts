@@ -811,6 +811,38 @@ export type Database = {
           },
         ]
       }
+      ambassador_registrations: {
+        Row: {
+          ambassador_id: string
+          id: string
+          promo_code_used: string
+          registered_at: string
+          user_id: string
+        }
+        Insert: {
+          ambassador_id: string
+          id?: string
+          promo_code_used: string
+          registered_at?: string
+          user_id: string
+        }
+        Update: {
+          ambassador_id?: string
+          id?: string
+          promo_code_used?: string
+          registered_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ambassador_registrations_ambassador_id_fkey"
+            columns: ["ambassador_id"]
+            isOneToOne: false
+            referencedRelation: "ambassadors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ambassador_tiers: {
         Row: {
           created_at: string
