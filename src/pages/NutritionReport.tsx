@@ -160,6 +160,7 @@ export default function NutritionReport() {
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
+          <img src={fastCaloriesLogo} alt="Fast Calories" className="h-8 w-auto" />
           <div>
             <h1 className="text-lg font-bold text-foreground">Nutrition Report</h1>
             <p className="text-xs text-muted-foreground">Track your calorie & food class intake</p>
@@ -399,6 +400,9 @@ export default function NutritionReport() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Bottom Navigation */}
+      <BottomNav />
     </div>
   );
 }
