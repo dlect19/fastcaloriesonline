@@ -10,6 +10,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { ArrowLeft, Flame, TrendingUp, Apple, CalendarIcon, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, eachDayOfInterval, eachMonthOfInterval, eachHourOfInterval, subDays } from 'date-fns';
+import { BottomNav } from '@/components/home/BottomNav';
+import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar } from 'recharts';
 
 type TimePeriod = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
