@@ -391,14 +391,14 @@ export default function Auth() {
             {!isLogin && (
               <div className="space-y-2">
                 <Label htmlFor="referralCode" className="text-sm font-medium">
-                  Referral Code (Optional)
+                  Referral / Promo Code (Optional)
                 </Label>
                 <div className="relative">
                   <Gift className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <Input
                     id="referralCode"
                     type="text"
-                    placeholder="e.g. FC-john1234"
+                    placeholder="e.g. FC-john1234 or ambassador code"
                     value={referralCode}
                     onChange={(e) => setReferralCode(e.target.value)}
                     className="pl-10 h-12 bg-card border-border"
