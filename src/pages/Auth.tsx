@@ -166,9 +166,10 @@ export default function Auth() {
           });
         }
       } else {
-        // Store referral code linkage if provided
+        // Store referral code linkage if provided (check both customer referrals AND ambassador promo codes)
         if (referralCode.trim()) {
           try {
+            // First check customer referral codes
             const { data: referrerProfile } = await supabase
               .from('profiles')
               .select('id')
@@ -177,9 +178,24 @@ export default function Auth() {
 
             if (referrerProfile) {
               localStorage.setItem('fc_referral_code', referralCode.trim());
+              localStorage.setItem('fc_referral_type', 'customer');
+            } else {
+              // Check ambassador promo codes
+              const { data: ambassador } = await supabase
+                .from('ambassadors')
+                .select('id, promo_code')
+                .ilike('promo_code', referralCode.trim())
+                .eq('is_active', true)
+                .single();
+
+              if (ambassador) {
+                localStorage.setItem('fc_referral_code', referralCode.trim());
+                localStorage.setItem('fc_referral_type', 'ambassador');
+                localStorage.setItem('fc_ambassador_id', ambassador.id);
+              }
             }
           } catch {
-            // Ignore invalid referral codes silently
+            // Ignore invalid referral/promo codes silently
           }
         }
 
