@@ -166,9 +166,10 @@ export default function Auth() {
           });
         }
       } else {
-        // Store referral code linkage if provided
+        // Store referral code linkage if provided (check both customer referrals AND ambassador promo codes)
         if (referralCode.trim()) {
           try {
+            // First check customer referral codes
             const { data: referrerProfile } = await supabase
               .from('profiles')
               .select('id')
@@ -177,9 +178,34 @@ export default function Auth() {
 
             if (referrerProfile) {
               localStorage.setItem('fc_referral_code', referralCode.trim());
+              localStorage.setItem('fc_referral_type', 'customer');
+            } else {
+              // Check ambassador promo codes
+              const { data: ambassador } = await supabase
+                .from('ambassadors')
+                .select('id, promo_code')
+                .ilike('promo_code', referralCode.trim())
+                .eq('is_active', true)
+                .single();
+
+              if (ambassador) {
+                localStorage.setItem('fc_referral_code', referralCode.trim());
+                localStorage.setItem('fc_referral_type', 'ambassador');
+                localStorage.setItem('fc_ambassador_id', ambassador.id);
+
+                // Record ambassador registration for tracking
+                const { data: { user: currentUser } } = await supabase.auth.getUser();
+                if (currentUser) {
+                  await supabase.from('ambassador_registrations').insert({
+                    ambassador_id: ambassador.id,
+                    user_id: currentUser.id,
+                    promo_code_used: referralCode.trim(),
+                  });
+                }
+              }
             }
           } catch {
-            // Ignore invalid referral codes silently
+            // Ignore invalid referral/promo codes silently
           }
         }
 
@@ -375,14 +401,14 @@ export default function Auth() {
             {!isLogin && (
               <div className="space-y-2">
                 <Label htmlFor="referralCode" className="text-sm font-medium">
-                  Referral Code (Optional)
+                  Referral / Promo Code (Optional)
                 </Label>
                 <div className="relative">
                   <Gift className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <Input
                     id="referralCode"
                     type="text"
-                    placeholder="e.g. FC-john1234"
+                    placeholder="e.g. FC-john1234 or ambassador code"
                     value={referralCode}
                     onChange={(e) => setReferralCode(e.target.value)}
                     className="pl-10 h-12 bg-card border-border"
