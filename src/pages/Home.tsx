@@ -20,6 +20,7 @@ import { ApkUpdateBanner } from '@/components/shared/ApkUpdateBanner';
 import { AppDownloadBanner } from '@/components/shared/AppDownloadBanner';
 import { AIMealRecommendation } from '@/components/home/AIMealRecommendation';
 import { SpinWheelWidget } from '@/components/home/SpinWheelWidget';
+import { ScanFoodBanner } from '@/components/home/ScanFoodBanner';
 import { FreeMealBanner } from '@/components/home/FreeMealBanner';
 import { LocationSearch } from '@/components/home/LocationSearch';
 import { Button } from '@/components/ui/button';
@@ -440,6 +441,9 @@ export default function Home() {
           <CalorieWidget className="!p-3" />
           <AIMealRecommendation />
         </div>
+
+        {/* Scan Food CTA Banner */}
+        <ScanFoodBanner />
 
         {/* Spin Wheel Widget */}
         <SpinWheelWidget />
