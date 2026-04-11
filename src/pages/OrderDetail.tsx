@@ -99,8 +99,12 @@ export default function OrderDetail() {
           console.log('Order update received:', payload.new);
           setOrder((prev: any) => ({ ...prev, ...payload.new }));
           
-          // Refresh order items if status changed to delivered
+          // Log calories and refresh when status changed to delivered
           if (payload.new.status === 'delivered' && payload.old?.status !== 'delivered') {
+            // Fallback calorie logging from customer side
+            supabase.functions.invoke('log-order-calories', {
+              body: { orderId: id }
+            }).catch(err => console.error('Fallback calorie log failed:', err));
             fetchOrder();
           }
         }
