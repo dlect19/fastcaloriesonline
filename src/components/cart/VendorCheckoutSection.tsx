@@ -158,9 +158,6 @@ export function VendorCheckoutSection({
       return;
     }
 
-    if (deliveryType === 'delivery' && !riderAvailability.deliveryAllowed) {
-      toast({ title: 'Limited Rider Availability', description: 'No riders are currently available. Your order will be placed and a rider will be assigned shortly. You can also switch to Carryout.', variant: 'default' });
-    }
     if (deliveryType === 'delivery' && !hasDeliveryLocation) {
       toast({ title: 'No delivery location', description: 'Please set your delivery location from the home screen header.', variant: 'destructive' });
       return;
@@ -453,16 +450,6 @@ export function VendorCheckoutSection({
             />
           </div>
 
-          {/* Rider availability warning */}
-          {deliveryType === 'delivery' && !riderAvailability.loading && !riderAvailability.deliveryAllowed && (
-            <div className="flex items-center gap-2 p-3 bg-warning/10 rounded-lg border border-warning/20">
-              <AlertTriangle className="w-5 h-5 text-warning shrink-0" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-warning">No riders available right now</p>
-                <p className="text-xs text-muted-foreground mt-0.5">You can still place your order — a rider will be assigned shortly. Or switch to Carryout.</p>
-              </div>
-            </div>
-          )}
 
           {/* Supply surge notice */}
           {deliveryType === 'delivery' && !riderAvailability.loading && riderAvailability.deliveryAllowed && riderAvailability.supplyBasedSurge.isActive && (
