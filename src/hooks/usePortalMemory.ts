@@ -39,9 +39,9 @@ export function usePortalMemory() {
 
   useEffect(() => {
     const path = location.pathname;
-    for (const { prefix, portal } of portalPrefixes) {
-      if (path.startsWith(prefix)) {
-        localStorage.setItem(PORTAL_KEY, portal);
+    for (const entry of portalDashboardPaths) {
+      if (entry.match(path)) {
+        localStorage.setItem(PORTAL_KEY, entry.portal);
         return;
       }
     }
@@ -58,6 +58,6 @@ export function usePortalMemory() {
 export function getPortalRedirect(): string | null {
   const portal = localStorage.getItem(PORTAL_KEY) as Portal | null;
   if (!portal || portal === 'customer') return null;
-  const match = portalPrefixes.find(p => p.portal === portal);
+  const match = portalDashboardPaths.find(p => p.portal === portal);
   return match?.redirectTo || null;
 }
