@@ -5,11 +5,29 @@ const PORTAL_KEY = 'fc_last_portal';
 
 type Portal = 'customer' | 'vendor' | 'rider' | 'admin' | 'delivery';
 
-const portalPrefixes: { prefix: string; portal: Portal; redirectTo: string }[] = [
-  { prefix: '/vendor/', portal: 'vendor', redirectTo: '/vendor/dashboard' },
-  { prefix: '/rider/', portal: 'rider', redirectTo: '/rider/dashboard' },
-  { prefix: '/admin/', portal: 'admin', redirectTo: '/admin/dashboard' },
-  { prefix: '/delivery/', portal: 'delivery', redirectTo: '/delivery/dashboard' },
+// Only track portal memory for authenticated dashboard routes, NOT public-facing pages.
+// e.g. /vendor/dashboard, /vendor/menu etc. — but NOT /vendor/:slug (customer browsing a restaurant).
+const portalDashboardPaths: { match: (path: string) => boolean; portal: Portal; redirectTo: string }[] = [
+  {
+    match: (path) => path.startsWith('/vendor/dashboard') || path.startsWith('/vendor/menu') || path.startsWith('/vendor/orders') || path.startsWith('/vendor/settings') || path.startsWith('/vendor/staff') || path.startsWith('/vendor/analytics') || path.startsWith('/vendor/outlets') || path.startsWith('/vendor/wallet') || path.startsWith('/vendor/ads') || path.startsWith('/vendor/combos') || path.startsWith('/vendor/addons') || path.startsWith('/vendor/products') || path.startsWith('/vendor/profile'),
+    portal: 'vendor',
+    redirectTo: '/vendor/dashboard',
+  },
+  {
+    match: (path) => path.startsWith('/rider/dashboard') || path.startsWith('/rider/'),
+    portal: 'rider',
+    redirectTo: '/rider/dashboard',
+  },
+  {
+    match: (path) => path.startsWith('/admin/dashboard') || path.startsWith('/admin/'),
+    portal: 'admin',
+    redirectTo: '/admin/dashboard',
+  },
+  {
+    match: (path) => path.startsWith('/delivery/dashboard') || path.startsWith('/delivery/'),
+    portal: 'delivery',
+    redirectTo: '/delivery/dashboard',
+  },
 ];
 
 /**
@@ -21,9 +39,9 @@ export function usePortalMemory() {
 
   useEffect(() => {
     const path = location.pathname;
-    for (const { prefix, portal } of portalPrefixes) {
-      if (path.startsWith(prefix)) {
-        localStorage.setItem(PORTAL_KEY, portal);
+    for (const entry of portalDashboardPaths) {
+      if (entry.match(path)) {
+        localStorage.setItem(PORTAL_KEY, entry.portal);
         return;
       }
     }
@@ -40,6 +58,6 @@ export function usePortalMemory() {
 export function getPortalRedirect(): string | null {
   const portal = localStorage.getItem(PORTAL_KEY) as Portal | null;
   if (!portal || portal === 'customer') return null;
-  const match = portalPrefixes.find(p => p.portal === portal);
+  const match = portalDashboardPaths.find(p => p.portal === portal);
   return match?.redirectTo || null;
 }
