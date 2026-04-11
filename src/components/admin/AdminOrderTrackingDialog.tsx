@@ -354,9 +354,17 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
     try {
       const { error } = await supabase
         .from('orders')
-        .update({ status: 'delivered' as any })
+        .update({ status: 'delivered' as any, delivered_at: new Date().toISOString() })
         .eq('id', activeOrder.id);
       if (error) throw error;
+      // Log calories for the customer
+      try {
+        await supabase.functions.invoke('log-order-calories', {
+          body: { orderId: activeOrder.id }
+        });
+      } catch (calorieError) {
+        console.error('Failed to log calories:', calorieError);
+      }
       toast({ title: '✅ Order marked as delivered' });
       onUpdated();
     } catch (e: any) {
@@ -683,6 +691,16 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
                           .update(updateData)
                           .eq('id', activeOrder.id);
                         if (error) throw error;
+                        // Log calories when delivered
+                        if (newStatus === 'delivered') {
+                          try {
+                            await supabase.functions.invoke('log-order-calories', {
+                              body: { orderId: activeOrder.id }
+                            });
+                          } catch (calorieError) {
+                            console.error('Failed to log calories:', calorieError);
+                          }
+                        }
                         // Restore free meal if cancelled
                         if (newStatus === 'cancelled') {
                           await restoreFreeMealOnCancel(activeOrder.id);

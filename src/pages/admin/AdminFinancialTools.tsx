@@ -522,6 +522,17 @@ function UpdateOrderStatusTool() {
 
       if (error) throw error;
 
+      // Log calories when delivered
+      if (newStatus === 'delivered') {
+        try {
+          await supabase.functions.invoke('log-order-calories', {
+            body: { orderId: order.id }
+          });
+        } catch (calorieError) {
+          console.error('Failed to log calories:', calorieError);
+        }
+      }
+
       toast({
         title: 'Status Updated',
         description: `Order #${order.order_number} changed from "${order.status}" to "${newStatus}"`,
