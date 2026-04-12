@@ -106,7 +106,9 @@ import AdminNotifications from "./pages/admin/AdminNotifications";
 import AdminCoverageAreas from "./pages/admin/AdminCoverageAreas";
 import AdminFinancialTools from "./pages/admin/AdminFinancialTools";
 import AdminAmbassadors from "./pages/admin/AdminAmbassadors";
+import AdminDrugDatabase from "./pages/admin/AdminDrugDatabase";
 import NutritionReport from "./pages/NutritionReport";
+import DrugTracker from "./pages/DrugTracker";
 import DeleteAccount from "./pages/DeleteAccount";
 import CoverageMap from "./pages/CoverageMap";
 import WorkspaceLogin from "./pages/WorkspaceLogin";
@@ -170,6 +172,7 @@ const App = () => {
               <Route path="/support" element={<CustomerSupport />} />
               <Route path="/coverage" element={<CoverageMap />} />
               <Route path="/nutrition-report" element={<NutritionReport />} />
+              <Route path="/drug-tracker" element={<DrugTracker />} />
               {/* Landing Pages */}
               <Route path="/become-vendor" element={<VendorLanding />} />
               <Route path="/become-rider" element={<RiderLanding />} />
@@ -241,6 +244,7 @@ const App = () => {
               <Route path="/admin/coverage-areas" element={<AdminCoverageAreas />} />
               <Route path="/admin/financial-tools" element={<AdminFinancialTools />} />
               <Route path="/admin/ambassadors" element={<AdminAmbassadors />} />
+              <Route path="/admin/drug-database" element={<AdminDrugDatabase />} />
               {/* Public Pages */}
               <Route path="/delete-account" element={<DeleteAccount />} />
               {/* Legal Pages (public) */}
