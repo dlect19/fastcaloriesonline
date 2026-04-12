@@ -370,6 +370,41 @@ export function VendorCheckoutSection({
         }
       }
 
+      // Create prescription orders for pharmacy items
+      const pharmacyItems = group.items.filter(item => (item as any).requiresPrescription !== undefined || (item as any).pharmacistInstructions);
+      if (pharmacyItems.length > 0 || group.vendorCategory === 'pharmacy') {
+        const prescriptionInserts = group.items
+          .filter(item => item.productId)
+          .map(item => ({
+            order_id: order.id,
+            product_id: item.productId,
+            user_id: userId,
+            vendor_id: group.vendorId,
+            is_prescription: false,
+            pharmacist_instructions: (item as any).pharmacistInstructions || '',
+            dosage_frequency: (item as any).defaultFrequency || 'twice_daily',
+            dosage_duration_days: (item as any).defaultDuration || 7,
+            quantity_per_dose: (item as any).defaultQtyPerDose || 1,
+            total_quantity: item.quantity,
+            requires_approval: false,
+            approval_status: 'approved',
+          }));
+
+        if (prescriptionInserts.length > 0) {
+          // Only insert for pharmacy vendors
+          const { data: vendorCheck } = await supabase.from('vendors').select('category').eq('id', group.vendorId).single();
+          if (vendorCheck?.category === 'pharmacy') {
+            await supabase.from('prescription_orders').insert(prescriptionInserts);
+            // Auto-create drug usage tracking and reminders
+            try {
+              await supabase.functions.invoke('setup-drug-reminders', { body: { orderId: order.id } });
+            } catch (e) {
+              console.error('Drug reminder setup failed:', e);
+            }
+          }
+        }
+      }
+
       // Handle promo usage
       if (selectedDiscountType === 'spin' && selectedSpinDiscountId) {
         await useDiscount(selectedSpinDiscountId, order.id);
