@@ -132,19 +132,26 @@ export default function ProfileSetup() {
               });
             }
 
-            // Update ambassador performance
-            await supabase.rpc('increment_ambassador_registrations', { p_ambassador_id: storedAmbassadorId }).catch(() => {
-              // If RPC doesn't exist, update directly
-              supabase
+            // Update ambassador performance count
+            const { data: existingPerf } = await supabase
+              .from('ambassador_performance')
+              .select('id, total_registrations')
+              .eq('ambassador_id', storedAmbassadorId)
+              .maybeSingle();
+
+            if (existingPerf) {
+              await supabase
                 .from('ambassador_performance')
-                .upsert({
-                  ambassador_id: storedAmbassadorId,
-                  total_registrations: 1,
-                  total_orders: 0,
-                  total_revenue: 0,
-                }, { onConflict: 'ambassador_id' })
-                .then(() => {});
-            });
+                .update({ total_registrations: (existingPerf.total_registrations || 0) + 1, updated_at: new Date().toISOString() })
+                .eq('id', existingPerf.id);
+            } else {
+              await supabase.from('ambassador_performance').insert({
+                ambassador_id: storedAmbassadorId,
+                total_registrations: 1,
+                total_orders: 0,
+                total_revenue: 0,
+              });
+            }
           } else {
             // Customer referral code
             const { data: referrerProfile } = await supabase
