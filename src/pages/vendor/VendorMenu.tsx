@@ -121,6 +121,9 @@ export default function VendorMenu() {
   // Add-on dialog state
   const [addonDialogProductId, setAddonDialogProductId] = useState<string | null>(null);
 
+  // Pharmacy drug search dialog
+  const [drugSearchOpen, setDrugSearchOpen] = useState(false);
+
   // Form state
   const [formData, setFormData] = useState({
     name: '',
@@ -139,6 +142,13 @@ export default function VendorMenu() {
     nutrient_tags: [] as NutrientTag[],
     image_url: '' as string,
     cuisine_category_id: '' as string,
+    // Pharmacy fields
+    drug_database_id: '' as string,
+    requires_prescription: false,
+    pharmacist_dosage_instructions: '',
+    default_dosage_frequency: 'twice_daily',
+    default_dosage_duration_days: '',
+    default_quantity_per_dose: '1',
   });
 
   // Auto-calculate calories from macros (fiber ~2 kcal/g)
