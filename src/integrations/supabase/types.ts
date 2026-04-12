@@ -2011,15 +2011,118 @@ export type Database = {
           },
         ]
       }
+      drug_categories: {
+        Row: {
+          created_at: string
+          description: string | null
+          icon: string | null
+          id: string
+          name: string
+          sort_order: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          icon?: string | null
+          id?: string
+          name: string
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          icon?: string | null
+          id?: string
+          name?: string
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      drug_database: {
+        Row: {
+          category_id: string | null
+          common_dosage_instructions: string | null
+          contraindications: string[] | null
+          created_at: string
+          default_dosage_duration_days: number | null
+          default_dosage_frequency: string | null
+          default_quantity_per_dose: number | null
+          description: string | null
+          dosage_form: string
+          generic_name: string | null
+          id: string
+          is_active: boolean
+          manufacturer: string | null
+          name: string
+          requires_prescription: boolean
+          side_effects: string[] | null
+          strength: string | null
+          updated_at: string
+        }
+        Insert: {
+          category_id?: string | null
+          common_dosage_instructions?: string | null
+          contraindications?: string[] | null
+          created_at?: string
+          default_dosage_duration_days?: number | null
+          default_dosage_frequency?: string | null
+          default_quantity_per_dose?: number | null
+          description?: string | null
+          dosage_form?: string
+          generic_name?: string | null
+          id?: string
+          is_active?: boolean
+          manufacturer?: string | null
+          name: string
+          requires_prescription?: boolean
+          side_effects?: string[] | null
+          strength?: string | null
+          updated_at?: string
+        }
+        Update: {
+          category_id?: string | null
+          common_dosage_instructions?: string | null
+          contraindications?: string[] | null
+          created_at?: string
+          default_dosage_duration_days?: number | null
+          default_dosage_frequency?: string | null
+          default_quantity_per_dose?: number | null
+          description?: string | null
+          dosage_form?: string
+          generic_name?: string | null
+          id?: string
+          is_active?: boolean
+          manufacturer?: string | null
+          name?: string
+          requires_prescription?: boolean
+          side_effects?: string[] | null
+          strength?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "drug_database_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "drug_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       drug_reminders: {
         Row: {
           created_at: string
           dosage: string | null
           drug_name: string
+          drug_usage_tracking_id: string | null
           end_date: string | null
           frequency: string
           id: string
           is_active: boolean | null
+          prescription_order_id: string | null
           reminder_times: string[]
           start_date: string | null
           updated_at: string
@@ -2029,10 +2132,12 @@ export type Database = {
           created_at?: string
           dosage?: string | null
           drug_name: string
+          drug_usage_tracking_id?: string | null
           end_date?: string | null
           frequency: string
           id?: string
           is_active?: boolean | null
+          prescription_order_id?: string | null
           reminder_times: string[]
           start_date?: string | null
           updated_at?: string
@@ -2042,16 +2147,92 @@ export type Database = {
           created_at?: string
           dosage?: string | null
           drug_name?: string
+          drug_usage_tracking_id?: string | null
           end_date?: string | null
           frequency?: string
           id?: string
           is_active?: boolean | null
+          prescription_order_id?: string | null
           reminder_times?: string[]
           start_date?: string | null
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "drug_reminders_drug_usage_tracking_id_fkey"
+            columns: ["drug_usage_tracking_id"]
+            isOneToOne: false
+            referencedRelation: "drug_usage_tracking"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "drug_reminders_prescription_order_id_fkey"
+            columns: ["prescription_order_id"]
+            isOneToOne: false
+            referencedRelation: "prescription_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      drug_usage_tracking: {
+        Row: {
+          completion_percentage: number | null
+          created_at: string
+          doses_remaining: number | null
+          doses_taken: number
+          drug_name: string
+          id: string
+          is_completed: boolean
+          last_taken_at: string | null
+          next_dose_at: string | null
+          prescription_order_id: string
+          started_at: string | null
+          total_doses: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completion_percentage?: number | null
+          created_at?: string
+          doses_remaining?: number | null
+          doses_taken?: number
+          drug_name: string
+          id?: string
+          is_completed?: boolean
+          last_taken_at?: string | null
+          next_dose_at?: string | null
+          prescription_order_id: string
+          started_at?: string | null
+          total_doses?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completion_percentage?: number | null
+          created_at?: string
+          doses_remaining?: number | null
+          doses_taken?: number
+          drug_name?: string
+          id?: string
+          is_completed?: boolean
+          last_taken_at?: string | null
+          next_dose_at?: string | null
+          prescription_order_id?: string
+          started_at?: string | null
+          total_doses?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "drug_usage_tracking_prescription_order_id_fkey"
+            columns: ["prescription_order_id"]
+            isOneToOne: false
+            referencedRelation: "prescription_orders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       email_verification_otps: {
         Row: {
@@ -3775,6 +3956,97 @@ export type Database = {
         }
         Relationships: []
       }
+      prescription_orders: {
+        Row: {
+          approval_status: string
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          doctor_instructions: string | null
+          dosage_duration_days: number
+          dosage_frequency: string
+          id: string
+          is_prescription: boolean
+          order_id: string
+          pharmacist_instructions: string | null
+          prescription_image_url: string | null
+          product_id: string
+          quantity_per_dose: number
+          rejection_reason: string | null
+          requires_approval: boolean
+          total_quantity: number
+          updated_at: string
+          user_id: string
+          vendor_id: string
+        }
+        Insert: {
+          approval_status?: string
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          doctor_instructions?: string | null
+          dosage_duration_days?: number
+          dosage_frequency?: string
+          id?: string
+          is_prescription?: boolean
+          order_id: string
+          pharmacist_instructions?: string | null
+          prescription_image_url?: string | null
+          product_id: string
+          quantity_per_dose?: number
+          rejection_reason?: string | null
+          requires_approval?: boolean
+          total_quantity?: number
+          updated_at?: string
+          user_id: string
+          vendor_id: string
+        }
+        Update: {
+          approval_status?: string
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          doctor_instructions?: string | null
+          dosage_duration_days?: number
+          dosage_frequency?: string
+          id?: string
+          is_prescription?: boolean
+          order_id?: string
+          pharmacist_instructions?: string | null
+          prescription_image_url?: string | null
+          product_id?: string
+          quantity_per_dose?: number
+          rejection_reason?: string | null
+          requires_approval?: boolean
+          total_quantity?: number
+          updated_at?: string
+          user_id?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prescription_orders_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prescription_orders_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prescription_orders_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       prescriptions: {
         Row: {
           created_at: string
@@ -3902,8 +4174,12 @@ export type Database = {
           category_id: string | null
           created_at: string
           cuisine_category_id: string | null
+          default_dosage_duration_days: number | null
+          default_dosage_frequency: string | null
+          default_quantity_per_dose: number | null
           description: string | null
           discount_price: number | null
+          drug_database_id: string | null
           fats_grams: number | null
           fiber_grams: number | null
           id: string
@@ -3915,6 +4191,7 @@ export type Database = {
           nutrient_tags: string[] | null
           nutrition_source: string | null
           outlet_id: string | null
+          pharmacist_dosage_instructions: string | null
           price: number
           protein_grams: number | null
           requires_prescription: boolean | null
@@ -3932,8 +4209,12 @@ export type Database = {
           category_id?: string | null
           created_at?: string
           cuisine_category_id?: string | null
+          default_dosage_duration_days?: number | null
+          default_dosage_frequency?: string | null
+          default_quantity_per_dose?: number | null
           description?: string | null
           discount_price?: number | null
+          drug_database_id?: string | null
           fats_grams?: number | null
           fiber_grams?: number | null
           id?: string
@@ -3945,6 +4226,7 @@ export type Database = {
           nutrient_tags?: string[] | null
           nutrition_source?: string | null
           outlet_id?: string | null
+          pharmacist_dosage_instructions?: string | null
           price: number
           protein_grams?: number | null
           requires_prescription?: boolean | null
@@ -3962,8 +4244,12 @@ export type Database = {
           category_id?: string | null
           created_at?: string
           cuisine_category_id?: string | null
+          default_dosage_duration_days?: number | null
+          default_dosage_frequency?: string | null
+          default_quantity_per_dose?: number | null
           description?: string | null
           discount_price?: number | null
+          drug_database_id?: string | null
           fats_grams?: number | null
           fiber_grams?: number | null
           id?: string
@@ -3975,6 +4261,7 @@ export type Database = {
           nutrient_tags?: string[] | null
           nutrition_source?: string | null
           outlet_id?: string | null
+          pharmacist_dosage_instructions?: string | null
           price?: number
           protein_grams?: number | null
           requires_prescription?: boolean | null
@@ -3996,6 +4283,13 @@ export type Database = {
             columns: ["cuisine_category_id"]
             isOneToOne: false
             referencedRelation: "cuisine_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_drug_database_id_fkey"
+            columns: ["drug_database_id"]
+            isOneToOne: false
+            referencedRelation: "drug_database"
             referencedColumns: ["id"]
           },
           {

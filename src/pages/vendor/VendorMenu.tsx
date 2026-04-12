@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit2, Trash2, Search, Flame, Wheat, Drumstick, Droplets, Leaf, Droplet, Apple, Gem, ImagePlus, X, Loader2, Sparkles, Settings2, ChefHat, EyeOff, Eye } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, Flame, Wheat, Drumstick, Droplets, Leaf, Droplet, Apple, Gem, ImagePlus, X, Loader2, Sparkles, Settings2, ChefHat, EyeOff, Eye, Pill } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -29,6 +29,7 @@ import { usePersistedOutletId } from '@/hooks/usePersistedOutletId';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables, Database } from '@/integrations/supabase/types';
+import { DrugSearchDialog } from '@/components/pharmacy/DrugSearchDialog';
 
 type Product = Tables<'products'>;
 type Vendor = Tables<'vendors'>;
@@ -120,6 +121,9 @@ export default function VendorMenu() {
   // Add-on dialog state
   const [addonDialogProductId, setAddonDialogProductId] = useState<string | null>(null);
 
+  // Pharmacy drug search dialog
+  const [drugSearchOpen, setDrugSearchOpen] = useState(false);
+
   // Form state
   const [formData, setFormData] = useState({
     name: '',
@@ -138,6 +142,13 @@ export default function VendorMenu() {
     nutrient_tags: [] as NutrientTag[],
     image_url: '' as string,
     cuisine_category_id: '' as string,
+    // Pharmacy fields
+    drug_database_id: '' as string,
+    requires_prescription: false,
+    pharmacist_dosage_instructions: '',
+    default_dosage_frequency: 'twice_daily',
+    default_dosage_duration_days: '',
+    default_quantity_per_dose: '1',
   });
 
   // Auto-calculate calories from macros (fiber ~2 kcal/g)
@@ -369,7 +380,7 @@ export default function VendorMenu() {
 
       const discountPrice = formData.discount_price ? parseFloat(formData.discount_price) : null;
 
-      const productData = {
+      const productData: any = {
         vendor_id: vendor.id,
         name: formData.name,
         description: formData.description || null,
@@ -389,6 +400,16 @@ export default function VendorMenu() {
         image_url: imageUrl,
         cuisine_category_id: formData.cuisine_category_id || null,
       };
+
+      // Add pharmacy-specific fields
+      if (vendor.category === 'pharmacy') {
+        productData.drug_database_id = formData.drug_database_id || null;
+        productData.requires_prescription = formData.requires_prescription;
+        productData.pharmacist_dosage_instructions = formData.pharmacist_dosage_instructions || null;
+        productData.default_dosage_frequency = formData.default_dosage_frequency || null;
+        productData.default_dosage_duration_days = formData.default_dosage_duration_days ? parseInt(formData.default_dosage_duration_days) : null;
+        productData.default_quantity_per_dose = parseInt(formData.default_quantity_per_dose) || 1;
+      }
 
       if (editingProduct) {
         const { error } = await supabase
@@ -438,6 +459,12 @@ export default function VendorMenu() {
       nutrient_tags: (product.nutrient_tags as NutrientTag[]) || [],
       image_url: product.image_url || '',
       cuisine_category_id: (product as any).cuisine_category_id || '',
+      drug_database_id: (product as any).drug_database_id || '',
+      requires_prescription: (product as any).requires_prescription || false,
+      pharmacist_dosage_instructions: (product as any).pharmacist_dosage_instructions || '',
+      default_dosage_frequency: (product as any).default_dosage_frequency || 'twice_daily',
+      default_dosage_duration_days: (product as any).default_dosage_duration_days?.toString() || '',
+      default_quantity_per_dose: (product as any).default_quantity_per_dose?.toString() || '1',
     });
     // Set image preview from existing URL
     if (product.image_url) {
@@ -629,6 +656,12 @@ export default function VendorMenu() {
       nutrient_tags: [],
       image_url: '',
       cuisine_category_id: '',
+      drug_database_id: '',
+      requires_prescription: false,
+      pharmacist_dosage_instructions: '',
+      default_dosage_frequency: 'twice_daily',
+      default_dosage_duration_days: '',
+      default_quantity_per_dose: '1',
     });
   };
 
@@ -867,6 +900,64 @@ export default function VendorMenu() {
                       )}
                     </div>
                   </div>
+
+                  {/* Pharmacy-specific fields */}
+                  {vendor?.category === 'pharmacy' && (
+                    <div className="border-t pt-4 space-y-3">
+                      <p className="text-sm font-medium flex items-center gap-2">
+                        <Pill className="w-4 h-4 text-primary" /> Pharmacy Settings
+                      </p>
+                      
+                      <Button type="button" variant="outline" className="w-full gap-2" onClick={() => setDrugSearchOpen(true)}>
+                        <Search className="w-4 h-4" />
+                        {formData.drug_database_id ? 'Change Drug from Database' : 'Search Drug Database'}
+                      </Button>
+                      {formData.drug_database_id && (
+                        <p className="text-xs text-calorie-low">✅ Linked to central drug database</p>
+                      )}
+                      
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm">Requires Prescription (Rx)</Label>
+                        <Switch checked={formData.requires_prescription} onCheckedChange={v => setFormData({ ...formData, requires_prescription: v })} />
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <Label className="text-sm">Pharmacist Dosage Instructions</Label>
+                        <Textarea 
+                          value={formData.pharmacist_dosage_instructions}
+                          onChange={e => setFormData({ ...formData, pharmacist_dosage_instructions: e.target.value })}
+                          placeholder="e.g. Take 1 tablet twice daily after meals"
+                          rows={2}
+                        />
+                      </div>
+                      
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Frequency</Label>
+                          <Select value={formData.default_dosage_frequency} onValueChange={v => setFormData({ ...formData, default_dosage_frequency: v })}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="once_daily">Once Daily</SelectItem>
+                              <SelectItem value="twice_daily">Twice Daily</SelectItem>
+                              <SelectItem value="three_times_daily">3x Daily</SelectItem>
+                              <SelectItem value="four_times_daily">4x Daily</SelectItem>
+                              <SelectItem value="every_6_hours">Every 6hrs</SelectItem>
+                              <SelectItem value="every_8_hours">Every 8hrs</SelectItem>
+                              <SelectItem value="as_needed">As Needed</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Duration (days)</Label>
+                          <Input type="number" value={formData.default_dosage_duration_days} onChange={e => setFormData({ ...formData, default_dosage_duration_days: e.target.value })} placeholder="7" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Qty/dose</Label>
+                          <Input type="number" value={formData.default_quantity_per_dose} onChange={e => setFormData({ ...formData, default_quantity_per_dose: e.target.value })} placeholder="1" />
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Serving Unit - Only show for restaurants */}
                   {vendor?.category === 'restaurant' && (
@@ -1384,6 +1475,24 @@ export default function VendorMenu() {
               </DialogContent>
             </Dialog>
           )}
+
+          {/* Drug Search Dialog for Pharmacy vendors */}
+          <DrugSearchDialog
+            open={drugSearchOpen}
+            onClose={() => setDrugSearchOpen(false)}
+            onSelect={(drug) => {
+              setFormData(prev => ({
+                ...prev,
+                name: drug.name + (drug.strength ? ` ${drug.strength}` : ''),
+                drug_database_id: drug.id,
+                requires_prescription: drug.requires_prescription,
+                pharmacist_dosage_instructions: drug.common_dosage_instructions || prev.pharmacist_dosage_instructions,
+                default_dosage_frequency: drug.default_dosage_frequency || prev.default_dosage_frequency,
+                default_dosage_duration_days: drug.default_dosage_duration_days?.toString() || prev.default_dosage_duration_days,
+                default_quantity_per_dose: drug.default_quantity_per_dose?.toString() || prev.default_quantity_per_dose,
+              }));
+            }}
+          />
       </div>
     </VendorLayout>
   );
