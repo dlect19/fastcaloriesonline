@@ -901,6 +901,64 @@ export default function VendorMenu() {
                     </div>
                   </div>
 
+                  {/* Pharmacy-specific fields */}
+                  {vendor?.category === 'pharmacy' && (
+                    <div className="border-t pt-4 space-y-3">
+                      <p className="text-sm font-medium flex items-center gap-2">
+                        <Pill className="w-4 h-4 text-primary" /> Pharmacy Settings
+                      </p>
+                      
+                      <Button type="button" variant="outline" className="w-full gap-2" onClick={() => setDrugSearchOpen(true)}>
+                        <Search className="w-4 h-4" />
+                        {formData.drug_database_id ? 'Change Drug from Database' : 'Search Drug Database'}
+                      </Button>
+                      {formData.drug_database_id && (
+                        <p className="text-xs text-calorie-low">✅ Linked to central drug database</p>
+                      )}
+                      
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm">Requires Prescription (Rx)</Label>
+                        <Switch checked={formData.requires_prescription} onCheckedChange={v => setFormData({ ...formData, requires_prescription: v })} />
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <Label className="text-sm">Pharmacist Dosage Instructions</Label>
+                        <Textarea 
+                          value={formData.pharmacist_dosage_instructions}
+                          onChange={e => setFormData({ ...formData, pharmacist_dosage_instructions: e.target.value })}
+                          placeholder="e.g. Take 1 tablet twice daily after meals"
+                          rows={2}
+                        />
+                      </div>
+                      
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Frequency</Label>
+                          <Select value={formData.default_dosage_frequency} onValueChange={v => setFormData({ ...formData, default_dosage_frequency: v })}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="once_daily">Once Daily</SelectItem>
+                              <SelectItem value="twice_daily">Twice Daily</SelectItem>
+                              <SelectItem value="three_times_daily">3x Daily</SelectItem>
+                              <SelectItem value="four_times_daily">4x Daily</SelectItem>
+                              <SelectItem value="every_6_hours">Every 6hrs</SelectItem>
+                              <SelectItem value="every_8_hours">Every 8hrs</SelectItem>
+                              <SelectItem value="as_needed">As Needed</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Duration (days)</Label>
+                          <Input type="number" value={formData.default_dosage_duration_days} onChange={e => setFormData({ ...formData, default_dosage_duration_days: e.target.value })} placeholder="7" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Qty/dose</Label>
+                          <Input type="number" value={formData.default_quantity_per_dose} onChange={e => setFormData({ ...formData, default_quantity_per_dose: e.target.value })} placeholder="1" />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Serving Unit - Only show for restaurants */}
                   {vendor?.category === 'restaurant' && (
                     <div className="space-y-2">
