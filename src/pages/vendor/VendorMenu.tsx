@@ -380,7 +380,7 @@ export default function VendorMenu() {
 
       const discountPrice = formData.discount_price ? parseFloat(formData.discount_price) : null;
 
-      const productData = {
+      const productData: any = {
         vendor_id: vendor.id,
         name: formData.name,
         description: formData.description || null,
@@ -400,6 +400,16 @@ export default function VendorMenu() {
         image_url: imageUrl,
         cuisine_category_id: formData.cuisine_category_id || null,
       };
+
+      // Add pharmacy-specific fields
+      if (vendor.category === 'pharmacy') {
+        productData.drug_database_id = formData.drug_database_id || null;
+        productData.requires_prescription = formData.requires_prescription;
+        productData.pharmacist_dosage_instructions = formData.pharmacist_dosage_instructions || null;
+        productData.default_dosage_frequency = formData.default_dosage_frequency || null;
+        productData.default_dosage_duration_days = formData.default_dosage_duration_days ? parseInt(formData.default_dosage_duration_days) : null;
+        productData.default_quantity_per_dose = parseInt(formData.default_quantity_per_dose) || 1;
+      }
 
       if (editingProduct) {
         const { error } = await supabase
