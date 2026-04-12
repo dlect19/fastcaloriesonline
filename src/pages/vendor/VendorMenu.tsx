@@ -1475,6 +1475,24 @@ export default function VendorMenu() {
               </DialogContent>
             </Dialog>
           )}
+
+          {/* Drug Search Dialog for Pharmacy vendors */}
+          <DrugSearchDialog
+            open={drugSearchOpen}
+            onClose={() => setDrugSearchOpen(false)}
+            onSelect={(drug) => {
+              setFormData(prev => ({
+                ...prev,
+                name: drug.name + (drug.strength ? ` ${drug.strength}` : ''),
+                drug_database_id: drug.id,
+                requires_prescription: drug.requires_prescription,
+                pharmacist_dosage_instructions: drug.common_dosage_instructions || prev.pharmacist_dosage_instructions,
+                default_dosage_frequency: drug.default_dosage_frequency || prev.default_dosage_frequency,
+                default_dosage_duration_days: drug.default_dosage_duration_days?.toString() || prev.default_dosage_duration_days,
+                default_quantity_per_dose: drug.default_quantity_per_dose?.toString() || prev.default_quantity_per_dose,
+              }));
+            }}
+          />
       </div>
     </VendorLayout>
   );
