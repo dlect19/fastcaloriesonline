@@ -449,6 +449,12 @@ export default function VendorMenu() {
       nutrient_tags: (product.nutrient_tags as NutrientTag[]) || [],
       image_url: product.image_url || '',
       cuisine_category_id: (product as any).cuisine_category_id || '',
+      drug_database_id: (product as any).drug_database_id || '',
+      requires_prescription: (product as any).requires_prescription || false,
+      pharmacist_dosage_instructions: (product as any).pharmacist_dosage_instructions || '',
+      default_dosage_frequency: (product as any).default_dosage_frequency || 'twice_daily',
+      default_dosage_duration_days: (product as any).default_dosage_duration_days?.toString() || '',
+      default_quantity_per_dose: (product as any).default_quantity_per_dose?.toString() || '1',
     });
     // Set image preview from existing URL
     if (product.image_url) {
@@ -640,6 +646,12 @@ export default function VendorMenu() {
       nutrient_tags: [],
       image_url: '',
       cuisine_category_id: '',
+      drug_database_id: '',
+      requires_prescription: false,
+      pharmacist_dosage_instructions: '',
+      default_dosage_frequency: 'twice_daily',
+      default_dosage_duration_days: '',
+      default_quantity_per_dose: '1',
     });
   };
 
