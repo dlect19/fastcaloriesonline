@@ -372,7 +372,7 @@ export function VendorCheckoutSection({
 
       // Create prescription orders for pharmacy items
       const pharmacyItems = group.items.filter(item => (item as any).requiresPrescription !== undefined || (item as any).pharmacistInstructions);
-      if (pharmacyItems.length > 0 || group.vendorCategory === 'pharmacy') {
+      if (pharmacyItems.length > 0) {
         const prescriptionInserts = group.items
           .filter(item => item.productId)
           .map(item => ({
