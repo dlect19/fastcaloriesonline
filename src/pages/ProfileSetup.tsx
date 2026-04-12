@@ -103,29 +103,73 @@ export default function ProfileSetup() {
 
       // Link referral if stored
       const storedReferralCode = localStorage.getItem('fc_referral_code');
+      const storedReferralType = localStorage.getItem('fc_referral_type');
+      const storedAmbassadorId = localStorage.getItem('fc_ambassador_id');
+      
       if (storedReferralCode) {
         try {
-          const { data: referrerProfile } = await supabase
-            .from('profiles')
-            .select('id')
-            .ilike('referral_code', storedReferralCode)
-            .single();
-
-          if (referrerProfile && referrerProfile.id !== savedProfile.id) {
-            // Update referred_by
+          if (storedReferralType === 'ambassador' && storedAmbassadorId) {
+            // Ambassador/influencer referral — link to ambassador
+            // Update profile with ambassador reference
             await supabase
               .from('profiles')
-              .update({ referred_by: referrerProfile.id })
+              .update({ referred_by: savedProfile.id }) // self-ref placeholder; ambassador tracked separately
               .eq('id', savedProfile.id);
 
-            // Create referral record
-            await supabase.from('referrals').insert({
-              referrer_id: referrerProfile.id,
-              referred_id: savedProfile.id,
-              status: 'pending',
+            // Ensure ambassador registration exists
+            const { data: existingReg } = await supabase
+              .from('ambassador_registrations')
+              .select('id')
+              .eq('ambassador_id', storedAmbassadorId)
+              .eq('user_id', user.id)
+              .maybeSingle();
+
+            if (!existingReg) {
+              await supabase.from('ambassador_registrations').insert({
+                ambassador_id: storedAmbassadorId,
+                user_id: user.id,
+                promo_code_used: storedReferralCode,
+              });
+            }
+
+            // Update ambassador performance
+            await supabase.rpc('increment_ambassador_registrations', { p_ambassador_id: storedAmbassadorId }).catch(() => {
+              // If RPC doesn't exist, update directly
+              supabase
+                .from('ambassador_performance')
+                .upsert({
+                  ambassador_id: storedAmbassadorId,
+                  total_registrations: 1,
+                  total_orders: 0,
+                  total_revenue: 0,
+                }, { onConflict: 'ambassador_id' })
+                .then(() => {});
             });
+          } else {
+            // Customer referral code
+            const { data: referrerProfile } = await supabase
+              .from('profiles')
+              .select('id')
+              .ilike('referral_code', storedReferralCode)
+              .single();
+
+            if (referrerProfile && referrerProfile.id !== savedProfile.id) {
+              await supabase
+                .from('profiles')
+                .update({ referred_by: referrerProfile.id })
+                .eq('id', savedProfile.id);
+
+              await supabase.from('referrals').insert({
+                referrer_id: referrerProfile.id,
+                referred_id: savedProfile.id,
+                status: 'pending',
+              });
+            }
           }
+          
           localStorage.removeItem('fc_referral_code');
+          localStorage.removeItem('fc_referral_type');
+          localStorage.removeItem('fc_ambassador_id');
         } catch (refErr) {
           console.error('Failed to link referral:', refErr);
         }
