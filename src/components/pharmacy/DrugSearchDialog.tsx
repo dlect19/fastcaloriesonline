@@ -71,14 +71,23 @@ export function DrugSearchDialog({ open, onClose, onSelect }: DrugSearchDialogPr
             </div>
           )}
           {drugs.map(drug => (
-            <button key={drug.id} className="w-full text-left p-3 hover:bg-secondary/50 transition-colors" onClick={() => { onSelect(drug); onClose(); }}>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-medium text-foreground">{drug.name}</span>
-                {drug.strength && <Badge variant="outline" className="text-xs">{drug.strength}</Badge>}
-                <Badge variant="secondary" className="text-xs">{drug.dosage_form}</Badge>
-                {drug.requires_prescription && <Badge variant="destructive" className="text-xs">Rx</Badge>}
+            <button key={drug.id} className="w-full text-left p-3 hover:bg-secondary/50 transition-colors flex items-center gap-3" onClick={() => { onSelect(drug); onClose(); }}>
+              <div className="w-12 h-12 rounded-lg bg-secondary overflow-hidden shrink-0">
+                {(drug as any).image_url ? (
+                  <img src={(drug as any).image_url} alt={drug.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center"><Pill className="w-5 h-5 text-muted-foreground" /></div>
+                )}
               </div>
-              {drug.generic_name && <p className="text-xs text-muted-foreground">{drug.generic_name}</p>}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-medium text-foreground">{drug.name}</span>
+                  {drug.strength && <Badge variant="outline" className="text-xs">{drug.strength}</Badge>}
+                  <Badge variant="secondary" className="text-xs">{drug.dosage_form}</Badge>
+                  {drug.requires_prescription && <Badge variant="destructive" className="text-xs">Rx</Badge>}
+                </div>
+                {drug.generic_name && <p className="text-xs text-muted-foreground">{drug.generic_name}</p>}
+              </div>
             </button>
           ))}
         </div>
