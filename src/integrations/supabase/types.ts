@@ -2054,6 +2054,7 @@ export type Database = {
           dosage_form: string
           generic_name: string | null
           id: string
+          image_url: string | null
           is_active: boolean
           manufacturer: string | null
           name: string
@@ -2074,6 +2075,7 @@ export type Database = {
           dosage_form?: string
           generic_name?: string | null
           id?: string
+          image_url?: string | null
           is_active?: boolean
           manufacturer?: string | null
           name: string
@@ -2094,6 +2096,7 @@ export type Database = {
           dosage_form?: string
           generic_name?: string | null
           id?: string
+          image_url?: string | null
           is_active?: boolean
           manufacturer?: string | null
           name?: string

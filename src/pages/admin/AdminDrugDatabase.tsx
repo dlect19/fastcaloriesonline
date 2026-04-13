@@ -12,7 +12,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Search, Plus, Edit2, Trash2, Pill, FolderTree } from 'lucide-react';
+import { Loader2, Search, Plus, Edit2, Trash2, Pill, FolderTree, ImagePlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface DrugCategory {
@@ -40,6 +40,7 @@ interface Drug {
   default_dosage_duration_days: number | null;
   default_quantity_per_dose: number | null;
   is_active: boolean;
+  image_url: string | null;
 }
 
 const DOSAGE_FORMS = ['tablet', 'capsule', 'syrup', 'suspension', 'cream', 'ointment', 'gel', 'eye drops', 'ear drops', 'inhaler', 'injection', 'sachet', 'solution', 'suppository', 'patch'];
@@ -74,8 +75,9 @@ export default function AdminDrugDatabase() {
     description: '', requires_prescription: false, manufacturer: '',
     side_effects: '', contraindications: '', common_dosage_instructions: '',
     default_dosage_frequency: 'twice_daily', default_dosage_duration_days: '',
-    default_quantity_per_dose: '1', is_active: true,
+    default_quantity_per_dose: '1', is_active: true, image_url: '',
   });
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   // Category dialog
   const [catDialogOpen, setCatDialogOpen] = useState(false);
@@ -117,7 +119,7 @@ export default function AdminDrugDatabase() {
         default_dosage_frequency: drug.default_dosage_frequency || 'twice_daily',
         default_dosage_duration_days: drug.default_dosage_duration_days?.toString() || '',
         default_quantity_per_dose: drug.default_quantity_per_dose?.toString() || '1',
-        is_active: drug.is_active,
+        is_active: drug.is_active, image_url: drug.image_url || '',
       });
     } else {
       setEditingDrug(null);
@@ -125,7 +127,7 @@ export default function AdminDrugDatabase() {
         name: '', generic_name: '', category_id: '', dosage_form: 'tablet', strength: '',
         description: '', requires_prescription: false, manufacturer: '',
         side_effects: '', contraindications: '', common_dosage_instructions: '',
-        default_dosage_frequency: 'twice_daily', default_dosage_duration_days: '', default_quantity_per_dose: '1', is_active: true,
+        default_dosage_frequency: 'twice_daily', default_dosage_duration_days: '', default_quantity_per_dose: '1', is_active: true, image_url: '',
       });
     }
     setDrugDialogOpen(true);
@@ -144,6 +146,7 @@ export default function AdminDrugDatabase() {
       default_dosage_duration_days: drugForm.default_dosage_duration_days ? parseInt(drugForm.default_dosage_duration_days) : null,
       default_quantity_per_dose: parseInt(drugForm.default_quantity_per_dose) || 1,
       is_active: drugForm.is_active,
+      image_url: drugForm.image_url || null,
     };
 
     if (editingDrug) {
@@ -157,6 +160,25 @@ export default function AdminDrugDatabase() {
     }
     setDrugDialogOpen(false);
     fetchData();
+  };
+
+  const handleDrugImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingImage(true);
+    try {
+      const ext = file.name.split('.').pop();
+      const path = `drug-images/${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from('product-images').upload(path, file);
+      if (uploadError) throw uploadError;
+      const { data: { publicUrl } } = supabase.storage.from('product-images').getPublicUrl(path);
+      setDrugForm(f => ({ ...f, image_url: publicUrl }));
+      toast({ title: 'Image uploaded' });
+    } catch (err: any) {
+      toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setUploadingImage(false);
+    }
   };
 
   const deleteDrug = async (id: string) => {
@@ -251,6 +273,14 @@ export default function AdminDrugDatabase() {
                 <div className="divide-y divide-border">
                   {filtered.map(drug => (
                     <div key={drug.id} className="p-4 flex items-start justify-between gap-4 hover:bg-secondary/30 transition-colors">
+                      {(drug as any).image_url && (
+                        <img src={(drug as any).image_url} alt={drug.name} className="w-12 h-12 rounded-lg object-cover shrink-0" />
+                      )}
+                      {!(drug as any).image_url && (
+                        <div className="w-12 h-12 rounded-lg bg-secondary flex items-center justify-center shrink-0">
+                          <Pill className="w-6 h-6 text-muted-foreground" />
+                        </div>
+                      )}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-semibold text-foreground">{drug.name}</span>
@@ -354,6 +384,23 @@ export default function AdminDrugDatabase() {
               <div className="space-y-1">
                 <Label>Description</Label>
                 <Textarea value={drugForm.description} onChange={e => setDrugForm({ ...drugForm, description: e.target.value })} rows={2} />
+              </div>
+
+              <div className="space-y-1">
+                <Label>Drug Image</Label>
+                <div className="flex items-center gap-3">
+                  {drugForm.image_url && (
+                    <img src={drugForm.image_url} alt="Drug" className="w-16 h-16 rounded-lg object-cover border" />
+                  )}
+                  <label className="flex items-center gap-2 px-3 py-2 border rounded-lg cursor-pointer hover:bg-secondary/50 transition-colors text-sm">
+                    {uploadingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImagePlus className="w-4 h-4" />}
+                    {uploadingImage ? 'Uploading...' : 'Upload Image'}
+                    <input type="file" accept="image/*" className="hidden" onChange={handleDrugImageUpload} disabled={uploadingImage} />
+                  </label>
+                  {drugForm.image_url && (
+                    <Button variant="ghost" size="sm" onClick={() => setDrugForm(f => ({ ...f, image_url: '' }))}>Remove</Button>
+                  )}
+                </div>
               </div>
 
               <div className="space-y-1">
