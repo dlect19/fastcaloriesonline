@@ -387,7 +387,22 @@ export default function AdminDrugDatabase() {
               </div>
 
               <div className="space-y-1">
-                <Label>Default Dosage Instructions</Label>
+                <Label>Drug Image</Label>
+                <div className="flex items-center gap-3">
+                  {drugForm.image_url && (
+                    <img src={drugForm.image_url} alt="Drug" className="w-16 h-16 rounded-lg object-cover border" />
+                  )}
+                  <label className="flex items-center gap-2 px-3 py-2 border rounded-lg cursor-pointer hover:bg-secondary/50 transition-colors text-sm">
+                    {uploadingImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImagePlus className="w-4 h-4" />}
+                    {uploadingImage ? 'Uploading...' : 'Upload Image'}
+                    <input type="file" accept="image/*" className="hidden" onChange={handleDrugImageUpload} disabled={uploadingImage} />
+                  </label>
+                  {drugForm.image_url && (
+                    <Button variant="ghost" size="sm" onClick={() => setDrugForm(f => ({ ...f, image_url: '' }))}>Remove</Button>
+                  )}
+                </div>
+              </div>
+
                 <Textarea value={drugForm.common_dosage_instructions} onChange={e => setDrugForm({ ...drugForm, common_dosage_instructions: e.target.value })} rows={2} placeholder="e.g. Take 1 tablet twice daily after meals" />
               </div>
 
