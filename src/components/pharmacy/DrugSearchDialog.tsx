@@ -45,7 +45,7 @@ export function DrugSearchDialog({ open, onClose, onSelect }: DrugSearchDialogPr
 
   const fetchDrugs = async () => {
     setLoading(true);
-    let query = supabase.from('drug_database').select('id, name, generic_name, dosage_form, strength, requires_prescription, common_dosage_instructions, default_dosage_frequency, default_dosage_duration_days, default_quantity_per_dose, category_id').eq('is_active', true).order('name').limit(50);
+    let query = supabase.from('drug_database').select('id, name, generic_name, dosage_form, strength, requires_prescription, common_dosage_instructions, default_dosage_frequency, default_dosage_duration_days, default_quantity_per_dose, category_id, image_url').eq('is_active', true).order('name').limit(50);
     if (search) {
       query = query.or(`name.ilike.%${search}%,generic_name.ilike.%${search}%`);
     }
