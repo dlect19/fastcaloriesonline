@@ -273,6 +273,14 @@ export default function AdminDrugDatabase() {
                 <div className="divide-y divide-border">
                   {filtered.map(drug => (
                     <div key={drug.id} className="p-4 flex items-start justify-between gap-4 hover:bg-secondary/30 transition-colors">
+                      {(drug as any).image_url && (
+                        <img src={(drug as any).image_url} alt={drug.name} className="w-12 h-12 rounded-lg object-cover shrink-0" />
+                      )}
+                      {!(drug as any).image_url && (
+                        <div className="w-12 h-12 rounded-lg bg-secondary flex items-center justify-center shrink-0">
+                          <Pill className="w-6 h-6 text-muted-foreground" />
+                        </div>
+                      )}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-semibold text-foreground">{drug.name}</span>
