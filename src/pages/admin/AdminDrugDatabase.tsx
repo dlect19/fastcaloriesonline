@@ -162,6 +162,25 @@ export default function AdminDrugDatabase() {
     fetchData();
   };
 
+  const handleDrugImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingImage(true);
+    try {
+      const ext = file.name.split('.').pop();
+      const path = `drug-images/${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from('product-images').upload(path, file);
+      if (uploadError) throw uploadError;
+      const { data: { publicUrl } } = supabase.storage.from('product-images').getPublicUrl(path);
+      setDrugForm(f => ({ ...f, image_url: publicUrl }));
+      toast({ title: 'Image uploaded' });
+    } catch (err: any) {
+      toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   const deleteDrug = async (id: string) => {
     if (!confirm('Delete this drug from the database?')) return;
     await supabase.from('drug_database').delete().eq('id', id);
