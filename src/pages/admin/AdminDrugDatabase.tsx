@@ -12,7 +12,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Search, Plus, Edit2, Trash2, Pill, FolderTree } from 'lucide-react';
+import { Loader2, Search, Plus, Edit2, Trash2, Pill, FolderTree, ImagePlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface DrugCategory {
@@ -40,6 +40,7 @@ interface Drug {
   default_dosage_duration_days: number | null;
   default_quantity_per_dose: number | null;
   is_active: boolean;
+  image_url: string | null;
 }
 
 const DOSAGE_FORMS = ['tablet', 'capsule', 'syrup', 'suspension', 'cream', 'ointment', 'gel', 'eye drops', 'ear drops', 'inhaler', 'injection', 'sachet', 'solution', 'suppository', 'patch'];
@@ -74,8 +75,9 @@ export default function AdminDrugDatabase() {
     description: '', requires_prescription: false, manufacturer: '',
     side_effects: '', contraindications: '', common_dosage_instructions: '',
     default_dosage_frequency: 'twice_daily', default_dosage_duration_days: '',
-    default_quantity_per_dose: '1', is_active: true,
+    default_quantity_per_dose: '1', is_active: true, image_url: '',
   });
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   // Category dialog
   const [catDialogOpen, setCatDialogOpen] = useState(false);
@@ -117,7 +119,7 @@ export default function AdminDrugDatabase() {
         default_dosage_frequency: drug.default_dosage_frequency || 'twice_daily',
         default_dosage_duration_days: drug.default_dosage_duration_days?.toString() || '',
         default_quantity_per_dose: drug.default_quantity_per_dose?.toString() || '1',
-        is_active: drug.is_active,
+        is_active: drug.is_active, image_url: drug.image_url || '',
       });
     } else {
       setEditingDrug(null);
@@ -125,7 +127,7 @@ export default function AdminDrugDatabase() {
         name: '', generic_name: '', category_id: '', dosage_form: 'tablet', strength: '',
         description: '', requires_prescription: false, manufacturer: '',
         side_effects: '', contraindications: '', common_dosage_instructions: '',
-        default_dosage_frequency: 'twice_daily', default_dosage_duration_days: '', default_quantity_per_dose: '1', is_active: true,
+        default_dosage_frequency: 'twice_daily', default_dosage_duration_days: '', default_quantity_per_dose: '1', is_active: true, image_url: '',
       });
     }
     setDrugDialogOpen(true);
@@ -144,6 +146,7 @@ export default function AdminDrugDatabase() {
       default_dosage_duration_days: drugForm.default_dosage_duration_days ? parseInt(drugForm.default_dosage_duration_days) : null,
       default_quantity_per_dose: parseInt(drugForm.default_quantity_per_dose) || 1,
       is_active: drugForm.is_active,
+      image_url: drugForm.image_url || null,
     };
 
     if (editingDrug) {
