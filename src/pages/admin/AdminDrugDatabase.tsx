@@ -403,6 +403,8 @@ export default function AdminDrugDatabase() {
                 </div>
               </div>
 
+              <div className="space-y-1">
+                <Label>Default Dosage Instructions</Label>
                 <Textarea value={drugForm.common_dosage_instructions} onChange={e => setDrugForm({ ...drugForm, common_dosage_instructions: e.target.value })} rows={2} placeholder="e.g. Take 1 tablet twice daily after meals" />
               </div>
 
