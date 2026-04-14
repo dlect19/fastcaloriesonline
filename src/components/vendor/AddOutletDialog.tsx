@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Copy, FileText, Loader2, MapPin } from 'lucide-react';
+import { Copy, FileText, Loader2, MapPin, UtensilsCrossed, Pill } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -20,14 +20,16 @@ interface AddOutletDialogProps {
   vendorId: string;
 }
 
-type Step = 'choose' | 'form';
+type Step = 'type' | 'choose' | 'form';
 type Mode = 'copy' | 'scratch';
+type OutletType = 'restaurant' | 'pharmacy';
 
 export function AddOutletDialog({ open, onOpenChange, vendorId }: AddOutletDialogProps) {
   const { toast } = useToast();
   const { outlets, refreshOutlets } = useOutletContext();
-  const [step, setStep] = useState<Step>('choose');
+  const [step, setStep] = useState<Step>('type');
   const [mode, setMode] = useState<Mode>('scratch');
+  const [outletType, setOutletType] = useState<OutletType>('restaurant');
   const [saving, setSaving] = useState(false);
 
   const defaultOutlet = outlets.find(o => o.is_default);
@@ -43,6 +45,11 @@ export function AddOutletDialog({ open, onOpenChange, vendorId }: AddOutletDialo
     city: '',
     state: '',
   });
+
+  const handleTypeSelect = (type: OutletType) => {
+    setOutletType(type);
+    setStep('choose');
+  };
 
   const handleChoose = (m: Mode) => {
     setMode(m);
@@ -88,6 +95,7 @@ export function AddOutletDialog({ open, onOpenChange, vendorId }: AddOutletDialo
         description: (mode === 'copy' && defaultOutlet?.description) ? defaultOutlet.description : undefined,
         store_type: storeType,
         social_media_handles: Object.keys(socialHandles).length > 0 ? socialHandles : undefined,
+        outlet_type: outletType,
       };
 
       const { data: newOutlet, error } = await supabase
@@ -98,8 +106,8 @@ export function AddOutletDialog({ open, onOpenChange, vendorId }: AddOutletDialo
 
       if (error) throw error;
 
-      // If copying, duplicate products/menu
-      if (mode === 'copy' && defaultOutlet && newOutlet) {
+      // If copying, duplicate products/menu (only for same type - restaurant copies food, pharmacy would need different logic)
+      if (mode === 'copy' && defaultOutlet && newOutlet && outletType === 'restaurant') {
         const { data: products } = await supabase
           .from('products')
           .select('*')
@@ -118,7 +126,7 @@ export function AddOutletDialog({ open, onOpenChange, vendorId }: AddOutletDialo
       toast({ title: 'Outlet created! Pending admin approval.' });
       await refreshOutlets();
       onOpenChange(false);
-      setStep('choose');
+      setStep('type');
     } catch (error: any) {
       toast({ title: 'Error creating outlet', description: error.message, variant: 'destructive' });
     } finally {
@@ -126,29 +134,67 @@ export function AddOutletDialog({ open, onOpenChange, vendorId }: AddOutletDialo
     }
   };
 
+  const resetDialog = () => {
+    setStep('type');
+    setOutletType('restaurant');
+    setMode('scratch');
+    setFormData({ outlet_name: '', outlet_surname: '', address: '', city: '', state: '' });
+  };
+
   return (
-    <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) setStep('choose'); }}>
+    <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) resetDialog(); }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {step === 'choose' ? 'Add New Outlet' : mode === 'copy' ? 'Copy Main Outlet' : 'New Outlet'}
+            {step === 'type' && 'What type of outlet?'}
+            {step === 'choose' && `Add ${outletType === 'pharmacy' ? 'Pharmacy' : 'Restaurant'} Outlet`}
+            {step === 'form' && (mode === 'copy' ? 'Copy Main Outlet' : `New ${outletType === 'pharmacy' ? 'Pharmacy' : 'Restaurant'}`)}
           </DialogTitle>
         </DialogHeader>
 
-        {step === 'choose' ? (
+        {step === 'type' ? (
           <div className="space-y-3 py-2">
             <button
-              onClick={() => handleChoose('copy')}
+              onClick={() => handleTypeSelect('restaurant')}
               className="w-full p-4 rounded-xl border border-border hover:border-primary hover:bg-primary/5 transition-colors text-left space-y-1"
             >
               <div className="flex items-center gap-2 font-semibold">
-                <Copy className="w-5 h-5 text-primary" />
-                Copy Main Outlet Data
+                <UtensilsCrossed className="w-5 h-5 text-primary" />
+                Restaurant / Food
               </div>
               <p className="text-sm text-muted-foreground">
-                Duplicate your main outlet's menu, settings, and configuration to a new branch.
+                Add a new food outlet — restaurant, kitchen, bakery, etc.
               </p>
             </button>
+            <button
+              onClick={() => handleTypeSelect('pharmacy')}
+              className="w-full p-4 rounded-xl border border-border hover:border-primary hover:bg-primary/5 transition-colors text-left space-y-1"
+            >
+              <div className="flex items-center gap-2 font-semibold">
+                <Pill className="w-5 h-5 text-green-600" />
+                Pharmacy / Drugstore
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Add a pharmacy outlet to sell medicines and health products.
+              </p>
+            </button>
+          </div>
+        ) : step === 'choose' ? (
+          <div className="space-y-3 py-2">
+            {outletType === 'restaurant' && (
+              <button
+                onClick={() => handleChoose('copy')}
+                className="w-full p-4 rounded-xl border border-border hover:border-primary hover:bg-primary/5 transition-colors text-left space-y-1"
+              >
+                <div className="flex items-center gap-2 font-semibold">
+                  <Copy className="w-5 h-5 text-primary" />
+                  Copy Main Outlet Data
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Duplicate your main outlet's menu, settings, and configuration to a new branch.
+                </p>
+              </button>
+            )}
             <button
               onClick={() => handleChoose('scratch')}
               className="w-full p-4 rounded-xl border border-border hover:border-primary hover:bg-primary/5 transition-colors text-left space-y-1"
@@ -158,9 +204,14 @@ export function AddOutletDialog({ open, onOpenChange, vendorId }: AddOutletDialo
                 Create from Scratch
               </div>
               <p className="text-sm text-muted-foreground">
-                Start with a blank outlet and configure everything fresh.
+                {outletType === 'pharmacy'
+                  ? 'Start a fresh pharmacy outlet and add medicines from the drug database.'
+                  : 'Start with a blank outlet and configure everything fresh.'}
               </p>
             </button>
+            <Button variant="ghost" size="sm" onClick={() => setStep('type')} className="w-full mt-1">
+              ← Change outlet type
+            </Button>
           </div>
         ) : (
           <div className="space-y-4 py-2">
@@ -169,7 +220,7 @@ export function AddOutletDialog({ open, onOpenChange, vendorId }: AddOutletDialo
               <Input
                 value={formData.outlet_name}
                 onChange={e => setFormData({ ...formData, outlet_name: e.target.value })}
-                placeholder="e.g. Main Branch"
+                placeholder={outletType === 'pharmacy' ? 'e.g. HealthPlus Pharmacy' : 'e.g. Main Branch'}
               />
             </div>
             <div className="space-y-2">
@@ -217,6 +268,11 @@ export function AddOutletDialog({ open, onOpenChange, vendorId }: AddOutletDialo
             {storeType === 'online' && (
               <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded-lg">
                 📍 A physical address is required for all vendors for verification and safety purposes.
+              </p>
+            )}
+            {outletType === 'pharmacy' && (
+              <p className="text-xs text-muted-foreground bg-green-50 dark:bg-green-950/30 p-3 rounded-lg border border-green-200 dark:border-green-900">
+                💊 This pharmacy outlet will have access to the drug database. You can add medicines after approval.
               </p>
             )}
             <p className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg">
