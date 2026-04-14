@@ -18,6 +18,7 @@ interface DrugEntry {
   default_dosage_duration_days: number | null;
   default_quantity_per_dose: number | null;
   category_id: string | null;
+  image_url: string | null;
 }
 
 interface DrugSearchDialogProps {
@@ -73,8 +74,8 @@ export function DrugSearchDialog({ open, onClose, onSelect }: DrugSearchDialogPr
           {drugs.map(drug => (
             <button key={drug.id} className="w-full text-left p-3 hover:bg-secondary/50 transition-colors flex items-center gap-3" onClick={() => { onSelect(drug); onClose(); }}>
               <div className="w-12 h-12 rounded-lg bg-secondary overflow-hidden shrink-0">
-                {(drug as any).image_url ? (
-                  <img src={(drug as any).image_url} alt={drug.name} className="w-full h-full object-cover" />
+                {drug.image_url ? (
+                  <img src={drug.image_url} alt={drug.name} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center"><Pill className="w-5 h-5 text-muted-foreground" /></div>
                 )}
