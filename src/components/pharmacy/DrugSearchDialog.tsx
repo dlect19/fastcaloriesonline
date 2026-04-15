@@ -92,7 +92,10 @@ export function DrugSearchDialog({ open, onClose, onSelect }: DrugSearchDialogPr
             </button>
           ))}
         </div>
-        <Button variant="outline" onClick={onClose} className="mt-2">Add Manually Instead</Button>
+        <Button variant="outline" onClick={onClose} className="mt-2">
+          <Pill className="w-4 h-4 mr-2" />
+          Drug not listed? Add Manually
+        </Button>
       </DialogContent>
     </Dialog>
   );
