@@ -1509,6 +1509,7 @@ export default function VendorMenu() {
               }
               setDialogOpen(true);
             }}
+            onManualAdd={() => setDialogOpen(true)}
           />
       </div>
     </VendorLayout>
