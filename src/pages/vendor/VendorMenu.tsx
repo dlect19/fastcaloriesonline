@@ -716,7 +716,13 @@ export default function VendorMenu() {
               <h1 className="text-2xl font-bold text-foreground">{labels.pageTitle}</h1>
               <p className="text-muted-foreground">{products.length} {labels.itemPlural}</p>
             </div>
-            <Button className="gap-2" onClick={() => setDialogOpen(true)}>
+            <Button className="gap-2" onClick={() => {
+              if (vendor?.category === 'pharmacy') {
+                setDrugSearchOpen(true);
+              } else {
+                setDialogOpen(true);
+              }
+            }}>
               <Plus className="w-4 h-4" />
               {labels.addButton}
             </Button>
@@ -908,13 +914,14 @@ export default function VendorMenu() {
                         <Pill className="w-4 h-4 text-primary" /> Pharmacy Settings
                       </p>
                       
-                      <Button type="button" variant="outline" className="w-full gap-2" onClick={() => setDrugSearchOpen(true)}>
-                        <Search className="w-4 h-4" />
-                        {formData.drug_database_id ? 'Change Drug from Database' : 'Search Drug Database'}
-                      </Button>
                       {formData.drug_database_id && (
                         <p className="text-xs text-calorie-low">✅ Linked to central drug database</p>
                       )}
+                      
+                      <Button type="button" variant="outline" size="sm" className="w-full gap-2" onClick={() => setDrugSearchOpen(true)}>
+                        <Search className="w-4 h-4" />
+                        Change Drug from Database
+                      </Button>
                       
                       <div className="flex items-center justify-between">
                         <Label className="text-sm">Requires Prescription (Rx)</Label>
@@ -1309,7 +1316,13 @@ export default function VendorMenu() {
                 {searchQuery ? `No ${labels.itemPlural} found` : labels.emptyState}
               </p>
               {!searchQuery && (
-                <Button onClick={() => setDialogOpen(true)}>{labels.addFirstButton}</Button>
+                <Button onClick={() => {
+                  if (vendor?.category === 'pharmacy') {
+                    setDrugSearchOpen(true);
+                  } else {
+                    setDialogOpen(true);
+                  }
+                }}>{labels.addFirstButton}</Button>
               )}
             </div>
           ) : (
@@ -1490,8 +1503,14 @@ export default function VendorMenu() {
                 default_dosage_frequency: drug.default_dosage_frequency || prev.default_dosage_frequency,
                 default_dosage_duration_days: drug.default_dosage_duration_days?.toString() || prev.default_dosage_duration_days,
                 default_quantity_per_dose: drug.default_quantity_per_dose?.toString() || prev.default_quantity_per_dose,
+                image_url: drug.image_url || prev.image_url,
               }));
+              if (drug.image_url) {
+                setImagePreview(drug.image_url);
+              }
+              setDialogOpen(true);
             }}
+            onManualAdd={() => setDialogOpen(true)}
           />
       </div>
     </VendorLayout>
