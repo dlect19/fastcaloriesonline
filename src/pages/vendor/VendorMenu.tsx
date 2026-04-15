@@ -914,13 +914,14 @@ export default function VendorMenu() {
                         <Pill className="w-4 h-4 text-primary" /> Pharmacy Settings
                       </p>
                       
-                      <Button type="button" variant="outline" className="w-full gap-2" onClick={() => setDrugSearchOpen(true)}>
-                        <Search className="w-4 h-4" />
-                        {formData.drug_database_id ? 'Change Drug from Database' : 'Search Drug Database'}
-                      </Button>
                       {formData.drug_database_id && (
                         <p className="text-xs text-calorie-low">✅ Linked to central drug database</p>
                       )}
+                      
+                      <Button type="button" variant="outline" size="sm" className="w-full gap-2" onClick={() => setDrugSearchOpen(true)}>
+                        <Search className="w-4 h-4" />
+                        Change Drug from Database
+                      </Button>
                       
                       <div className="flex items-center justify-between">
                         <Label className="text-sm">Requires Prescription (Rx)</Label>
