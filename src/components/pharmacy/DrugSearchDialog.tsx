@@ -25,6 +25,7 @@ interface DrugSearchDialogProps {
   open: boolean;
   onClose: () => void;
   onSelect: (drug: DrugEntry) => void;
+  onManualAdd?: () => void;
 }
 
 export function DrugSearchDialog({ open, onClose, onSelect }: DrugSearchDialogProps) {
