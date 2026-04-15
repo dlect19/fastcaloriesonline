@@ -28,7 +28,7 @@ interface DrugSearchDialogProps {
   onManualAdd?: () => void;
 }
 
-export function DrugSearchDialog({ open, onClose, onSelect }: DrugSearchDialogProps) {
+export function DrugSearchDialog({ open, onClose, onSelect, onManualAdd }: DrugSearchDialogProps) {
   const [search, setSearch] = useState('');
   const [drugs, setDrugs] = useState<DrugEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -93,7 +93,7 @@ export function DrugSearchDialog({ open, onClose, onSelect }: DrugSearchDialogPr
             </button>
           ))}
         </div>
-        <Button variant="outline" onClick={onClose} className="mt-2">
+        <Button variant="outline" onClick={() => { onClose(); onManualAdd?.(); }} className="mt-2">
           <Pill className="w-4 h-4 mr-2" />
           Drug not listed? Add Manually
         </Button>
