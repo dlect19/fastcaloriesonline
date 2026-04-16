@@ -149,6 +149,7 @@ export default function VendorMenu() {
     default_dosage_frequency: 'twice_daily',
     default_dosage_duration_days: '',
     default_quantity_per_dose: '1',
+    target_age_group: 'all' as string,
   });
 
   // Auto-calculate calories from macros (fiber ~2 kcal/g)
@@ -409,6 +410,7 @@ export default function VendorMenu() {
         productData.default_dosage_frequency = formData.default_dosage_frequency || null;
         productData.default_dosage_duration_days = formData.default_dosage_duration_days ? parseInt(formData.default_dosage_duration_days) : null;
         productData.default_quantity_per_dose = parseInt(formData.default_quantity_per_dose) || 1;
+        productData.target_age_group = formData.target_age_group || 'all';
       }
 
       if (editingProduct) {
@@ -465,6 +467,7 @@ export default function VendorMenu() {
       default_dosage_frequency: (product as any).default_dosage_frequency || 'twice_daily',
       default_dosage_duration_days: (product as any).default_dosage_duration_days?.toString() || '',
       default_quantity_per_dose: (product as any).default_quantity_per_dose?.toString() || '1',
+      target_age_group: (product as any).target_age_group || 'all',
     });
     // Set image preview from existing URL
     if (product.image_url) {
@@ -662,6 +665,7 @@ export default function VendorMenu() {
       default_dosage_frequency: 'twice_daily',
       default_dosage_duration_days: '',
       default_quantity_per_dose: '1',
+      target_age_group: 'all',
     });
   };
 
@@ -926,6 +930,18 @@ export default function VendorMenu() {
                       <div className="flex items-center justify-between">
                         <Label className="text-sm">Requires Prescription (Rx)</Label>
                         <Switch checked={formData.requires_prescription} onCheckedChange={v => setFormData({ ...formData, requires_prescription: v })} />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-sm">Target Age Group</Label>
+                        <Select value={formData.target_age_group} onValueChange={v => setFormData({ ...formData, target_age_group: v })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Ages</SelectItem>
+                            <SelectItem value="adult">Adult Only</SelectItem>
+                            <SelectItem value="children">Children Only</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                       
                       <div className="space-y-1">

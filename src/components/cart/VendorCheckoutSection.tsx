@@ -6,6 +6,7 @@ import { OrderSummary } from '@/components/cart/OrderSummary';
 import { ActiveDiscountSelector } from '@/components/cart/ActiveDiscountSelector';
 import { FundWalletDialog } from '@/components/profile/FundWalletDialog';
 import { DeliveryAddressConfirmDialog } from '@/components/cart/DeliveryAddressConfirmDialog';
+import { PrescriptionCheckoutDialog, PrescriptionData } from '@/components/pharmacy/PrescriptionCheckoutDialog';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
@@ -91,6 +92,9 @@ export function VendorCheckoutSection({
   const [feeCalculating, setFeeCalculating] = useState(false);
   const [showFundDialog, setShowFundDialog] = useState(false);
   const [showAddressConfirm, setShowAddressConfirm] = useState(false);
+  const [showPrescriptionDialog, setShowPrescriptionDialog] = useState(false);
+  const [prescriptionData, setPrescriptionData] = useState<PrescriptionData[] | null>(null);
+  const [vendorCategory, setVendorCategory] = useState<string | null>(null);
   const autoAppliedRef = useRef(false);
 
   const { calculateServiceFee, loading: serviceFeeLoading } = useServiceFee();
@@ -120,6 +124,14 @@ export function VendorCheckoutSection({
       return { deliveryFee: df, packagingFee: pf, distanceKm: dk, surgeFee: sf };
     });
   }, []);
+
+  // Fetch vendor category to detect pharmacy
+  useEffect(() => {
+    supabase.from('vendors').select('category').eq('id', group.vendorId).single()
+      .then(({ data }) => setVendorCategory(data?.category || null));
+  }, [group.vendorId]);
+
+  const isPharmacy = vendorCategory === 'pharmacy';
 
   // Auto-apply the best platform promo (welcome 10% or loyalty) on mount
   useEffect(() => {
@@ -168,6 +180,12 @@ export function VendorCheckoutSection({
     }
     if (insufficientBalance) {
       setShowFundDialog(true);
+      return;
+    }
+
+    // For pharmacy vendors, show prescription dialog first if not already filled
+    if (isPharmacy && !prescriptionData) {
+      setShowPrescriptionDialog(true);
       return;
     }
 
@@ -371,36 +389,41 @@ export function VendorCheckoutSection({
       }
 
       // Create prescription orders for pharmacy items
-      const pharmacyItems = group.items.filter(item => (item as any).requiresPrescription !== undefined || (item as any).pharmacistInstructions);
-      if (pharmacyItems.length > 0) {
+      if (isPharmacy) {
         const prescriptionInserts = group.items
           .filter(item => item.productId)
-          .map(item => ({
-            order_id: order.id,
-            product_id: item.productId,
-            user_id: userId,
-            vendor_id: group.vendorId,
-            is_prescription: false,
-            pharmacist_instructions: (item as any).pharmacistInstructions || '',
-            dosage_frequency: (item as any).defaultFrequency || 'twice_daily',
-            dosage_duration_days: (item as any).defaultDuration || 7,
-            quantity_per_dose: (item as any).defaultQtyPerDose || 1,
-            total_quantity: item.quantity,
-            requires_approval: false,
-            approval_status: 'approved',
-          }));
+          .map(item => {
+            const rxData = prescriptionData?.find(p => p.productId === item.productId);
+            return {
+              order_id: order.id,
+              product_id: item.productId,
+              user_id: userId,
+              vendor_id: group.vendorId,
+              is_prescription: rxData?.prescriptionType === 'doctor',
+              prescription_type: rxData?.prescriptionType || 'pharmacist',
+              dose_unit: rxData?.doseUnit || 'tablet',
+              morning_dose: rxData?.morningDose || 0,
+              afternoon_dose: rxData?.afternoonDose || 0,
+              night_dose: rxData?.nightDose || 0,
+              doctor_name: rxData?.doctorName || null,
+              hospital_name: rxData?.hospitalName || null,
+              doctor_instructions: rxData?.doctorInstructions || '',
+              pharmacist_instructions: rxData?.pharmacistInstructions || (item as any).pharmacistInstructions || '',
+              dosage_frequency: rxData?.dosageFrequency || 'twice_daily',
+              dosage_duration_days: rxData?.dosageDurationDays || 7,
+              quantity_per_dose: rxData?.quantityPerDose || 1,
+              total_quantity: item.quantity,
+              requires_approval: rxData?.requiresApproval || false,
+              approval_status: rxData?.requiresApproval ? 'pending' : 'approved',
+            };
+          });
 
         if (prescriptionInserts.length > 0) {
-          // Only insert for pharmacy vendors
-          const { data: vendorCheck } = await supabase.from('vendors').select('category').eq('id', group.vendorId).single();
-          if (vendorCheck?.category === 'pharmacy') {
-            await supabase.from('prescription_orders').insert(prescriptionInserts);
-            // Auto-create drug usage tracking and reminders
-            try {
-              await supabase.functions.invoke('setup-drug-reminders', { body: { orderId: order.id } });
-            } catch (e) {
-              console.error('Drug reminder setup failed:', e);
-            }
+          await supabase.from('prescription_orders').insert(prescriptionInserts);
+          try {
+            await supabase.functions.invoke('setup-drug-reminders', { body: { orderId: order.id } });
+          } catch (e) {
+            console.error('Drug reminder setup failed:', e);
           }
         }
       }
@@ -712,6 +735,37 @@ export function VendorCheckoutSection({
         onConfirm={proceedWithOrder}
         onCancel={() => setShowAddressConfirm(false)}
       />
+
+      {/* Pharmacy Prescription Dialog */}
+      {showPrescriptionDialog && isPharmacy && (
+        <PrescriptionCheckoutDialog
+          open={showPrescriptionDialog}
+          onClose={() => setShowPrescriptionDialog(false)}
+          vendorId={group.vendorId}
+          pharmacyItems={group.items.filter(i => i.productId).map(item => ({
+            productId: item.productId,
+            productName: item.productName,
+            quantity: item.quantity,
+            requiresPrescription: (item as any).requiresPrescription || false,
+            pharmacistInstructions: (item as any).pharmacistInstructions || null,
+            defaultFrequency: (item as any).defaultFrequency || null,
+            defaultDuration: (item as any).defaultDuration || null,
+            defaultQtyPerDose: (item as any).defaultQtyPerDose || null,
+            dosageForm: (item as any).dosageForm || null,
+            targetAgeGroup: (item as any).targetAgeGroup || null,
+          }))}
+          onComplete={(rxData) => {
+            setPrescriptionData(rxData);
+            setShowPrescriptionDialog(false);
+            // Continue checkout flow
+            if (deliveryType === 'delivery' && deliveryLocation && deliveryLocation.lat !== null) {
+              setShowAddressConfirm(true);
+            } else {
+              proceedWithOrder();
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

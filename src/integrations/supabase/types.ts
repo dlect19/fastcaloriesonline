@@ -2061,6 +2061,7 @@ export type Database = {
           requires_prescription: boolean
           side_effects: string[] | null
           strength: string | null
+          target_age_group: string
           updated_at: string
         }
         Insert: {
@@ -2082,6 +2083,7 @@ export type Database = {
           requires_prescription?: boolean
           side_effects?: string[] | null
           strength?: string | null
+          target_age_group?: string
           updated_at?: string
         }
         Update: {
@@ -2103,6 +2105,7 @@ export type Database = {
           requires_prescription?: boolean
           side_effects?: string[] | null
           strength?: string | null
+          target_age_group?: string
           updated_at?: string
         }
         Relationships: [
@@ -3961,18 +3964,25 @@ export type Database = {
       }
       prescription_orders: {
         Row: {
+          afternoon_dose: number | null
           approval_status: string
           approved_at: string | null
           approved_by: string | null
           created_at: string
           doctor_instructions: string | null
+          doctor_name: string | null
           dosage_duration_days: number
           dosage_frequency: string
+          dose_unit: string
+          hospital_name: string | null
           id: string
           is_prescription: boolean
+          morning_dose: number | null
+          night_dose: number | null
           order_id: string
           pharmacist_instructions: string | null
           prescription_image_url: string | null
+          prescription_type: string
           product_id: string
           quantity_per_dose: number
           rejection_reason: string | null
@@ -3983,18 +3993,25 @@ export type Database = {
           vendor_id: string
         }
         Insert: {
+          afternoon_dose?: number | null
           approval_status?: string
           approved_at?: string | null
           approved_by?: string | null
           created_at?: string
           doctor_instructions?: string | null
+          doctor_name?: string | null
           dosage_duration_days?: number
           dosage_frequency?: string
+          dose_unit?: string
+          hospital_name?: string | null
           id?: string
           is_prescription?: boolean
+          morning_dose?: number | null
+          night_dose?: number | null
           order_id: string
           pharmacist_instructions?: string | null
           prescription_image_url?: string | null
+          prescription_type?: string
           product_id: string
           quantity_per_dose?: number
           rejection_reason?: string | null
@@ -4005,18 +4022,25 @@ export type Database = {
           vendor_id: string
         }
         Update: {
+          afternoon_dose?: number | null
           approval_status?: string
           approved_at?: string | null
           approved_by?: string | null
           created_at?: string
           doctor_instructions?: string | null
+          doctor_name?: string | null
           dosage_duration_days?: number
           dosage_frequency?: string
+          dose_unit?: string
+          hospital_name?: string | null
           id?: string
           is_prescription?: boolean
+          morning_dose?: number | null
+          night_dose?: number | null
           order_id?: string
           pharmacist_instructions?: string | null
           prescription_image_url?: string | null
+          prescription_type?: string
           product_id?: string
           quantity_per_dose?: number
           rejection_reason?: string | null
@@ -4200,6 +4224,7 @@ export type Database = {
           requires_prescription: boolean | null
           serving_size_grams: number | null
           serving_unit: string | null
+          target_age_group: string | null
           updated_at: string
           vendor_id: string
         }
@@ -4235,6 +4260,7 @@ export type Database = {
           requires_prescription?: boolean | null
           serving_size_grams?: number | null
           serving_unit?: string | null
+          target_age_group?: string | null
           updated_at?: string
           vendor_id: string
         }
@@ -4270,6 +4296,7 @@ export type Database = {
           requires_prescription?: boolean | null
           serving_size_grams?: number | null
           serving_unit?: string | null
+          target_age_group?: string | null
           updated_at?: string
           vendor_id?: string
         }
