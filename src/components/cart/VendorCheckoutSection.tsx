@@ -125,6 +125,14 @@ export function VendorCheckoutSection({
     });
   }, []);
 
+  // Fetch vendor category to detect pharmacy
+  useEffect(() => {
+    supabase.from('vendors').select('category').eq('id', group.vendorId).single()
+      .then(({ data }) => setVendorCategory(data?.category || null));
+  }, [group.vendorId]);
+
+  const isPharmacy = vendorCategory === 'pharmacy';
+
   // Auto-apply the best platform promo (welcome 10% or loyalty) on mount
   useEffect(() => {
     if (autoAppliedRef.current) return;
