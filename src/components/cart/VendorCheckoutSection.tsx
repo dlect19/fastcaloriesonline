@@ -735,6 +735,37 @@ export function VendorCheckoutSection({
         onConfirm={proceedWithOrder}
         onCancel={() => setShowAddressConfirm(false)}
       />
+
+      {/* Pharmacy Prescription Dialog */}
+      {showPrescriptionDialog && isPharmacy && (
+        <PrescriptionCheckoutDialog
+          open={showPrescriptionDialog}
+          onClose={() => setShowPrescriptionDialog(false)}
+          vendorId={group.vendorId}
+          pharmacyItems={group.items.filter(i => i.productId).map(item => ({
+            productId: item.productId,
+            productName: item.productName,
+            quantity: item.quantity,
+            requiresPrescription: (item as any).requiresPrescription || false,
+            pharmacistInstructions: (item as any).pharmacistInstructions || null,
+            defaultFrequency: (item as any).defaultFrequency || null,
+            defaultDuration: (item as any).defaultDuration || null,
+            defaultQtyPerDose: (item as any).defaultQtyPerDose || null,
+            dosageForm: (item as any).dosageForm || null,
+            targetAgeGroup: (item as any).targetAgeGroup || null,
+          }))}
+          onComplete={(rxData) => {
+            setPrescriptionData(rxData);
+            setShowPrescriptionDialog(false);
+            // Continue checkout flow
+            if (deliveryType === 'delivery' && deliveryLocation && deliveryLocation.lat !== null) {
+              setShowAddressConfirm(true);
+            } else {
+              proceedWithOrder();
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
