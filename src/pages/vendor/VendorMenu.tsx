@@ -931,6 +931,18 @@ export default function VendorMenu() {
                         <Label className="text-sm">Requires Prescription (Rx)</Label>
                         <Switch checked={formData.requires_prescription} onCheckedChange={v => setFormData({ ...formData, requires_prescription: v })} />
                       </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-sm">Target Age Group</Label>
+                        <Select value={formData.target_age_group} onValueChange={v => setFormData({ ...formData, target_age_group: v })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Ages</SelectItem>
+                            <SelectItem value="adult">Adult Only</SelectItem>
+                            <SelectItem value="children">Children Only</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                       
                       <div className="space-y-1">
                         <Label className="text-sm">Pharmacist Dosage Instructions</Label>
