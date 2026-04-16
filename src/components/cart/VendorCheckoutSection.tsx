@@ -183,6 +183,12 @@ export function VendorCheckoutSection({
       return;
     }
 
+    // For pharmacy vendors, show prescription dialog first if not already filled
+    if (isPharmacy && !prescriptionData) {
+      setShowPrescriptionDialog(true);
+      return;
+    }
+
     if (deliveryType === 'delivery' && hasDeliveryLocation) {
       setShowAddressConfirm(true);
       return;
