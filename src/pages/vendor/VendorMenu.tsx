@@ -410,6 +410,7 @@ export default function VendorMenu() {
         productData.default_dosage_frequency = formData.default_dosage_frequency || null;
         productData.default_dosage_duration_days = formData.default_dosage_duration_days ? parseInt(formData.default_dosage_duration_days) : null;
         productData.default_quantity_per_dose = parseInt(formData.default_quantity_per_dose) || 1;
+        productData.target_age_group = formData.target_age_group || 'all';
       }
 
       if (editingProduct) {
