@@ -149,6 +149,7 @@ export default function VendorMenu() {
     default_dosage_frequency: 'twice_daily',
     default_dosage_duration_days: '',
     default_quantity_per_dose: '1',
+    target_age_group: 'all' as string,
   });
 
   // Auto-calculate calories from macros (fiber ~2 kcal/g)
