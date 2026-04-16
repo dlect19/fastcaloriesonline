@@ -466,6 +466,7 @@ export default function VendorMenu() {
       default_dosage_frequency: (product as any).default_dosage_frequency || 'twice_daily',
       default_dosage_duration_days: (product as any).default_dosage_duration_days?.toString() || '',
       default_quantity_per_dose: (product as any).default_quantity_per_dose?.toString() || '1',
+      target_age_group: (product as any).target_age_group || 'all',
     });
     // Set image preview from existing URL
     if (product.image_url) {
@@ -663,6 +664,7 @@ export default function VendorMenu() {
       default_dosage_frequency: 'twice_daily',
       default_dosage_duration_days: '',
       default_quantity_per_dose: '1',
+      target_age_group: 'all',
     });
   };
 
