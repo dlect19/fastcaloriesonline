@@ -1059,7 +1059,7 @@ export default function VendorMenu() {
                                     const pct = Math.round((diff / fullSachetCost) * 100);
                                     if (diff > 0) {
                                       return (
-                                        <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+                                        <p className="text-[11px] text-primary font-medium">
                                           ✓ Customers save ₦{diff.toLocaleString()} ({pct}%) by buying a pack vs {perPack} {formData.sachet_unit_label}s.
                                         </p>
                                       );
