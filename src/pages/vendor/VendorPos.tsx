@@ -19,6 +19,9 @@ import {
   Receipt,
   Wallet,
   AlertCircle,
+  PauseCircle,
+  PlayCircle,
+  Pause,
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -27,6 +30,8 @@ import { PosOpenSessionDialog } from '@/components/pos/PosOpenSessionDialog';
 import { PosCloseSessionDialog } from '@/components/pos/PosCloseSessionDialog';
 import { PosPaymentDialog, type PaymentMethod } from '@/components/pos/PosPaymentDialog';
 import { EscPosPrinter, type PosReceiptData } from '@/lib/escpos-printer';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 
 type Product = {
   id: string;
@@ -48,7 +53,16 @@ type CartLine = {
   stockMax: number | null;
 };
 
+type HeldSale = {
+  id: string;
+  label: string;
+  cart: CartLine[];
+  heldAt: string;
+  note?: string;
+};
+
 const PRINTER_KEY = 'fc_pos_printer_name';
+const HOLD_KEY_PREFIX = 'fc_pos_held_sales_';
 
 export default function VendorPos() {
   const { selectedOutlet } = useOutletContext();
@@ -77,8 +91,73 @@ export default function VendorPos() {
   const [printer, setPrinter] = useState<EscPosPrinter | null>(null);
   const [printerName, setPrinterName] = useState<string | null>(localStorage.getItem(PRINTER_KEY));
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
+  const [heldSales, setHeldSales] = useState<HeldSale[]>([]);
+  const [heldSheetOpen, setHeldSheetOpen] = useState(false);
+  const [holdDialogOpen, setHoldDialogOpen] = useState(false);
+  const [holdLabel, setHoldLabel] = useState('');
+  const [holdNote, setHoldNote] = useState('');
 
   const { session, openSession, closeSession, recordSale } = usePosSession(vendorId, outletId);
+
+  const holdStorageKey = vendorId ? `${HOLD_KEY_PREFIX}${vendorId}` : null;
+
+  // Load held sales from localStorage when vendor resolved
+  useEffect(() => {
+    if (!holdStorageKey) return;
+    try {
+      const raw = localStorage.getItem(holdStorageKey);
+      if (raw) setHeldSales(JSON.parse(raw));
+    } catch {/* ignore */}
+  }, [holdStorageKey]);
+
+  // Persist held sales
+  useEffect(() => {
+    if (!holdStorageKey) return;
+    localStorage.setItem(holdStorageKey, JSON.stringify(heldSales));
+  }, [heldSales, holdStorageKey]);
+
+  const handleHoldSale = () => {
+    if (cart.length === 0) return;
+    setHoldLabel(`Sale #${heldSales.length + 1}`);
+    setHoldNote('');
+    setHoldDialogOpen(true);
+  };
+
+  const confirmHoldSale = () => {
+    if (cart.length === 0) return;
+    const newHold: HeldSale = {
+      id: `hold-${Date.now()}`,
+      label: holdLabel.trim() || `Sale #${heldSales.length + 1}`,
+      cart: [...cart],
+      heldAt: new Date().toISOString(),
+      note: holdNote.trim() || undefined,
+    };
+    setHeldSales(prev => [newHold, ...prev]);
+    setCart([]);
+    setHoldDialogOpen(false);
+    setMobileCartOpen(false);
+    toast({ title: 'Sale held', description: `${newHold.label} parked. Resume anytime from Held Sales.` });
+  };
+
+  const resumeHeldSale = (hold: HeldSale) => {
+    if (cart.length > 0) {
+      toast({
+        title: 'Cart not empty',
+        description: 'Hold or clear the current sale before resuming another.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setCart(hold.cart);
+    setHeldSales(prev => prev.filter(h => h.id !== hold.id));
+    setHeldSheetOpen(false);
+    setMobileCartOpen(true);
+    toast({ title: 'Sale resumed', description: hold.label });
+  };
+
+  const deleteHeldSale = (id: string) => {
+    setHeldSales(prev => prev.filter(h => h.id !== id));
+  };
 
   // Fetch vendor + products
   useEffect(() => {
@@ -330,6 +409,18 @@ export default function VendorPos() {
               </h1>
               <div className="flex items-center gap-2 flex-wrap">
                 <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setHeldSheetOpen(true)}
+                  className="gap-1.5 relative"
+                >
+                  <PauseCircle className="w-4 h-4" />
+                  <span className="hidden sm:inline">Held Sales</span>
+                  {heldSales.length > 0 && (
+                    <Badge className="ml-0.5 h-5 min-w-5 px-1.5 text-[10px]">{heldSales.length}</Badge>
+                  )}
+                </Button>
+                <Button
                   variant={printer ? 'default' : 'outline'}
                   size="sm"
                   onClick={handleConnectPrinter}
@@ -428,7 +519,12 @@ export default function VendorPos() {
             </h2>
             <div className="flex items-center gap-1">
               {cart.length > 0 && (
-                <Button variant="ghost" size="sm" onClick={clearCart}>Clear</Button>
+                <>
+                  <Button variant="outline" size="sm" onClick={handleHoldSale} className="gap-1.5">
+                    <Pause className="w-3.5 h-3.5" /> Hold
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={clearCart}>Clear</Button>
+                </>
               )}
               <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileCartOpen(false)}>
                 <X className="w-4 h-4" />
@@ -533,6 +629,104 @@ export default function VendorPos() {
         total={subtotal}
         onConfirm={handlePaymentConfirm}
       />
+
+      {/* Name & hold current sale */}
+      <Dialog open={holdDialogOpen} onOpenChange={setHoldDialogOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pause className="w-5 h-5" /> Hold Sale
+            </DialogTitle>
+            <DialogDescription>
+              Park this cart so you can attend to another customer. Resume it anytime.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="hold-label">Label</Label>
+              <Input
+                id="hold-label"
+                value={holdLabel}
+                onChange={e => setHoldLabel(e.target.value)}
+                placeholder="e.g. Mr Bola - waiting on transfer"
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="hold-note">Note (optional)</Label>
+              <Input
+                id="hold-note"
+                value={holdNote}
+                onChange={e => setHoldNote(e.target.value)}
+                placeholder="e.g. Check if card works"
+              />
+            </div>
+            <div className="rounded-lg bg-muted p-2.5 text-xs text-muted-foreground">
+              {cart.length} items • ₦{subtotal.toLocaleString()}
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setHoldDialogOpen(false)} className="flex-1">Cancel</Button>
+            <Button onClick={confirmHoldSale} className="flex-1">Hold Sale</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Held sales list */}
+      <Dialog open={heldSheetOpen} onOpenChange={setHeldSheetOpen}>
+        <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <PauseCircle className="w-5 h-5" /> Held Sales ({heldSales.length})
+            </DialogTitle>
+            <DialogDescription>
+              Resume a parked sale. Resuming replaces your current empty cart.
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="flex-1 -mx-6 px-6">
+            {heldSales.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground text-sm">
+                <PauseCircle className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                No held sales. Park one anytime by tapping <strong>Hold</strong> in the cart.
+              </div>
+            ) : (
+              <div className="space-y-2 py-1">
+                {heldSales.map(h => {
+                  const totalH = h.cart.reduce((s, c) => s + c.unitPrice * c.qty, 0);
+                  const itemsH = h.cart.reduce((s, c) => s + c.qty, 0);
+                  return (
+                    <Card key={h.id} className="p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-sm truncate">{h.label}</p>
+                          {h.note && <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{h.note}</p>}
+                          <p className="text-[11px] text-muted-foreground mt-1">
+                            {itemsH} items • ₦{totalH.toLocaleString()} • {new Date(h.heldAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => deleteHeldSale(h.id)}
+                          className="text-muted-foreground hover:text-destructive p-1"
+                          aria-label="Delete held sale"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <Button
+                        size="sm"
+                        className="w-full mt-2 gap-1.5"
+                        onClick={() => resumeHeldSale(h)}
+                      >
+                        <PlayCircle className="w-4 h-4" /> Resume Sale
+                      </Button>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
     </VendorLayout>
   );
 }
