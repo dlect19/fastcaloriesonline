@@ -43,6 +43,8 @@ interface Order {
   service_fee: number;
   discount: number;
   delivery_address: string;
+  delivery_address_text: string | null;
+  delivery_instructions: string | null;
   created_at: string;
   updated_at: string;
   payment_status: string;
@@ -778,7 +780,10 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
             </CardHeader>
             <CardContent className="px-4 pb-3 space-y-1">
               <p className="font-medium text-sm">{customer?.name || '—'}</p>
-              <p className="text-xs text-muted-foreground">{activeOrder.delivery_address || '—'}</p>
+              <p className="text-xs text-muted-foreground">{activeOrder.delivery_address_text || activeOrder.delivery_address || '—'}</p>
+              {activeOrder.delivery_instructions && (
+                <p className="text-[11px] text-muted-foreground mt-0.5 italic">📝 {activeOrder.delivery_instructions}</p>
+              )}
               {customer?.phone && (
                 <a href={`tel:${customer.phone}`} className="text-xs text-primary flex items-center gap-1">
                   <Phone className="w-3 h-3" /> {customer.phone}
