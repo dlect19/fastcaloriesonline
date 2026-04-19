@@ -101,12 +101,16 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
         if (editItem) {
           // Pre-populate from existing cart item
           setQuantity(editItem.quantity);
+          // Restore purchase unit from edit item if present
+          if ((editItem as any).purchaseUnit === 'sachet') setPurchaseUnit('sachet');
+          else setPurchaseUnit('pack');
           // Addon selections will be restored after addon groups are loaded
         } else {
           setQuantity(1);
           setSelectedAddons({});
           setAddonQuantities({});
           setSelectedChoices({});
+          setPurchaseUnit('pack');
         }
       });
       if (!editItem) {
@@ -114,6 +118,7 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
         setSelectedAddons({});
         setAddonQuantities({});
         setSelectedChoices({});
+        setPurchaseUnit('pack');
       }
     }
   }, [open, product.id]);
