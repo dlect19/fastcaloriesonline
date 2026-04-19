@@ -51,8 +51,20 @@ type CartLine = {
 const PRINTER_KEY = 'fc_pos_printer_name';
 
 export default function VendorPos() {
-  const { selectedOutlet, vendorId } = useOutletContext();
+  const { selectedOutlet } = useOutletContext();
   const outletId = selectedOutlet?.id ?? null;
+  const [vendorId, setVendorId] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: v } = await supabase.from('vendors').select('id').eq('user_id', user.id).maybeSingle();
+      if (v) { setVendorId(v.id); return; }
+      const { data: s } = await supabase.from('vendor_staff').select('vendor_id').eq('user_id', user.id).eq('is_active', true).maybeSingle();
+      if (s) setVendorId(s.vendor_id);
+    })();
+  }, []);
 
   const [vendor, setVendor] = useState<{ id: string; name: string; address: string | null; phone: string | null; category: string } | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
