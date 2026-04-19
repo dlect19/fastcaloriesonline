@@ -1544,6 +1544,7 @@ export default function VendorMenu() {
                 default_dosage_duration_days: drug.default_dosage_duration_days?.toString() || prev.default_dosage_duration_days,
                 default_quantity_per_dose: drug.default_quantity_per_dose?.toString() || prev.default_quantity_per_dose,
                 image_url: drug.image_url || prev.image_url,
+                dosage_form: (drug as any).dosage_form || prev.dosage_form,
               }));
               if (drug.image_url) {
                 setImagePreview(drug.image_url);
