@@ -15,6 +15,7 @@ interface ActiveDiscount {
 interface PlatformPromo {
   type: string;
   discount: number;
+  discountKind?: 'percent' | 'fixed';
   label: string;
 }
 
@@ -42,6 +43,17 @@ export function ActiveDiscountSelector({
   const calculateDiscount = (percentage: number) => {
     return Math.round((subtotal * percentage) / 100);
   };
+
+  const platformPromoAmount = platformPromo
+    ? platformPromo.discountKind === 'fixed'
+      ? Math.min(platformPromo.discount, subtotal)
+      : calculateDiscount(platformPromo.discount)
+    : 0;
+  const platformBadgeText = platformPromo
+    ? platformPromo.discountKind === 'fixed'
+      ? `₦${platformPromo.discount.toLocaleString()} OFF`
+      : `${platformPromo.discount}% OFF`
+    : '';
 
   return (
     <Card>
@@ -85,11 +97,11 @@ export function ActiveDiscountSelector({
                   <span className="font-medium text-foreground">{platformPromo.label}</span>
                 </div>
                 <p className="text-sm text-accent font-semibold mt-1">
-                  -₦{calculateDiscount(platformPromo.discount).toLocaleString()}
+                  -₦{platformPromoAmount.toLocaleString()}
                 </p>
               </Label>
               <Badge className="bg-accent text-accent-foreground">
-                {platformPromo.discount}% OFF
+                {platformBadgeText}
               </Badge>
             </div>
           )}
