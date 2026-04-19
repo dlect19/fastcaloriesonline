@@ -789,6 +789,16 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
                   <Phone className="w-3 h-3" /> {customer.phone}
                 </a>
               )}
+              {(activeOrder.delivery_address_text || activeOrder.delivery_address) && activeOrder.delivery_type !== 'self_pickup' && (
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activeOrder.delivery_address_text || activeOrder.delivery_address || '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-1"
+                >
+                  <MapPin className="w-3 h-3" /> View on Google Maps
+                </a>
+              )}
             </CardContent>
           </Card>
         </div>
