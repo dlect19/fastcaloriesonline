@@ -13,18 +13,21 @@ export type VendorPermission =
   | 'manage_staff'
   | 'edit_settings'
   | 'manage_promos'
-  | 'manage_riders';
+  | 'manage_riders'
+  | 'use_pos'
+  | 'view_pos_reports';
 
 const ROLE_PERMISSIONS: Record<VendorStaffRole, VendorPermission[]> = {
   owner: [
     'view_dashboard', 'manage_menu', 'process_orders', 'view_earnings',
-    'request_withdrawal', 'manage_staff', 'edit_settings', 'manage_promos', 'manage_riders'
+    'request_withdrawal', 'manage_staff', 'edit_settings', 'manage_promos', 'manage_riders',
+    'use_pos', 'view_pos_reports'
   ],
   manager: [
     'view_dashboard', 'manage_menu', 'process_orders', 'view_earnings',
-    'manage_promos', 'manage_riders'
+    'manage_promos', 'manage_riders', 'use_pos', 'view_pos_reports'
   ],
-  cashier: ['view_dashboard', 'process_orders'],
+  cashier: ['view_dashboard', 'process_orders', 'use_pos'],
   viewer: ['view_dashboard']
 };
 
