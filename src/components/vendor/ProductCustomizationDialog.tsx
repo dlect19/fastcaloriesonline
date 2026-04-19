@@ -675,6 +675,27 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
                   <div className="font-semibold text-foreground">₦{sachetBasePrice.toLocaleString()}</div>
                 </button>
               </div>
+              {(() => {
+                const perPack = Number((product as any).sachets_per_pack) || 0;
+                if (perPack > 0 && sachetBasePrice > 0 && packBasePrice > 0) {
+                  const fullSachetCost = sachetBasePrice * perPack;
+                  const diff = fullSachetCost - packBasePrice;
+                  if (diff > 0) {
+                    const pct = Math.round((diff / fullSachetCost) * 100);
+                    return (
+                      <p className="text-xs text-primary font-medium">
+                        💡 1 {packLabel} = {perPack} {sachetLabel}s — save ₦{diff.toLocaleString()} ({pct}%) buying the {packLabel}.
+                      </p>
+                    );
+                  }
+                  return (
+                    <p className="text-xs text-muted-foreground">
+                      1 {packLabel} contains {perPack} {sachetLabel}s.
+                    </p>
+                  );
+                }
+                return null;
+              })()}
             </div>
           )}
 
