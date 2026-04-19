@@ -1117,45 +1117,104 @@ export default function VendorMenu() {
                         </div>
                         {formData.allows_sachet && (
                           <p className="text-[11px] text-muted-foreground -mt-1">
-                            Track stock by single sachets. Selling 1 pack deducts{' '}
+                            Enter stock as <span className="font-semibold text-foreground">packs + loose {formData.sachet_unit_label}s</span>. Selling 1 pack deducts{' '}
                             <span className="font-semibold text-foreground">
                               {parseInt(formData.sachets_per_pack, 10) || '?'}
                             </span>{' '}
-                            sachets automatically.
+                            {formData.sachet_unit_label}s automatically; selling 1 {formData.sachet_unit_label} deducts 1.
                           </p>
                         )}
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="space-y-1">
-                            <Label className="text-xs">
-                              {formData.allows_sachet ? 'Sachets in stock *' : 'Quantity in stock *'}
-                            </Label>
-                            <Input
-                              type="number"
-                              min="0"
-                              value={formData.stock_quantity}
-                              onChange={e => setFormData({ ...formData, stock_quantity: e.target.value })}
-                              placeholder={formData.allows_sachet ? 'e.g. 240 sachets' : 'e.g. 100'}
-                            />
-                            {formData.allows_sachet && parseInt(formData.sachets_per_pack, 10) > 0 && parseInt(formData.stock_quantity, 10) > 0 && (
-                              <p className="text-[10px] text-muted-foreground">
-                                ≈ {Math.floor(parseInt(formData.stock_quantity, 10) / parseInt(formData.sachets_per_pack, 10))} full pack
-                                {Math.floor(parseInt(formData.stock_quantity, 10) / parseInt(formData.sachets_per_pack, 10)) === 1 ? '' : 's'}
-                                {parseInt(formData.stock_quantity, 10) % parseInt(formData.sachets_per_pack, 10) > 0 &&
-                                  ` + ${parseInt(formData.stock_quantity, 10) % parseInt(formData.sachets_per_pack, 10)} sachet${parseInt(formData.stock_quantity, 10) % parseInt(formData.sachets_per_pack, 10) === 1 ? '' : 's'}`}
-                              </p>
-                            )}
+                        {formData.allows_sachet && parseInt(formData.sachets_per_pack, 10) > 0 ? (
+                          (() => {
+                            const perPack = parseInt(formData.sachets_per_pack, 10);
+                            const totalSachets = parseInt(formData.stock_quantity, 10) || 0;
+                            const fullPacks = Math.floor(totalSachets / perPack);
+                            const looseSachets = totalSachets % perPack;
+                            return (
+                              <div className="space-y-2">
+                                {/* Pack + loose sachet inputs */}
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div className="space-y-1">
+                                    <Label className="text-xs">Full packs in stock</Label>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      value={fullPacks}
+                                      onChange={e => {
+                                        const packs = Math.max(0, parseInt(e.target.value, 10) || 0);
+                                        setFormData({ ...formData, stock_quantity: String(packs * perPack + looseSachets) });
+                                      }}
+                                      placeholder="e.g. 4"
+                                    />
+                                    <p className="text-[10px] text-muted-foreground">1 pack = {perPack} {formData.sachet_unit_label}s</p>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-xs">Loose {formData.sachet_unit_label}s</Label>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      max={perPack - 1}
+                                      value={looseSachets}
+                                      onChange={e => {
+                                        let loose = Math.max(0, parseInt(e.target.value, 10) || 0);
+                                        if (loose >= perPack) loose = perPack - 1;
+                                        setFormData({ ...formData, stock_quantity: String(fullPacks * perPack + loose) });
+                                      }}
+                                      placeholder="e.g. 5"
+                                    />
+                                    <p className="text-[10px] text-muted-foreground">From an opened pack</p>
+                                  </div>
+                                </div>
+                                {/* Total + low-stock */}
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div className="rounded-md border border-border bg-background px-2 py-1.5">
+                                    <p className="text-[10px] text-muted-foreground">Total {formData.sachet_unit_label}s</p>
+                                    <p className="text-sm font-semibold text-foreground">
+                                      {totalSachets} {formData.sachet_unit_label}{totalSachets === 1 ? '' : 's'}
+                                    </p>
+                                    <p className="text-[10px] text-primary">
+                                      = {fullPacks} pack{fullPacks === 1 ? '' : 's'}
+                                      {looseSachets > 0 ? ` + ${looseSachets} ${formData.sachet_unit_label}${looseSachets === 1 ? '' : 's'}` : ''}
+                                    </p>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-xs">Low-stock alert at ({formData.sachet_unit_label}s)</Label>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      value={formData.low_stock_threshold}
+                                      onChange={e => setFormData({ ...formData, low_stock_threshold: e.target.value })}
+                                      placeholder="5"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })()
+                        ) : (
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <Label className="text-xs">Quantity in stock *</Label>
+                              <Input
+                                type="number"
+                                min="0"
+                                value={formData.stock_quantity}
+                                onChange={e => setFormData({ ...formData, stock_quantity: e.target.value })}
+                                placeholder="e.g. 100"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Low-stock alert at</Label>
+                              <Input
+                                type="number"
+                                min="0"
+                                value={formData.low_stock_threshold}
+                                onChange={e => setFormData({ ...formData, low_stock_threshold: e.target.value })}
+                                placeholder="5"
+                              />
+                            </div>
                           </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs">Low-stock alert at</Label>
-                            <Input
-                              type="number"
-                              min="0"
-                              value={formData.low_stock_threshold}
-                              onChange={e => setFormData({ ...formData, low_stock_threshold: e.target.value })}
-                              placeholder="5"
-                            />
-                          </div>
-                        </div>
+                        )}
                         <p className="text-[11px] text-muted-foreground">
                           When stock hits 0, the drug is automatically marked unavailable. Customers see live stock levels.
                         </p>
