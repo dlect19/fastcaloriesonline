@@ -243,45 +243,74 @@ export default function VendorPos() {
     return products.filter(p => p.name.toLowerCase().includes(q));
   }, [products, search]);
 
-  const addToCart = useCallback((p: Product) => {
+  const addToCart = useCallback((p: Product, unit: 'pack' | 'sachet' = 'pack') => {
     if (p.is_available === false) return;
-    if (p.track_stock && (p.stock_quantity ?? 0) <= 0) {
-      toast({ title: 'Out of stock', variant: 'destructive' });
+    const sachetEligible = !!p.allows_sachet && Number(p.sachet_price) > 0 && Number(p.sachets_per_pack) > 0;
+    const finalUnit: 'pack' | 'sachet' = sachetEligible && unit === 'sachet' ? 'sachet' : 'pack';
+    const sachetsPerPack = Number(p.sachets_per_pack) || 1;
+    const unitMultiplier = finalUnit === 'sachet' ? 1 : (sachetEligible ? sachetsPerPack : 1);
+    const stockUnitsAvailable = p.stock_quantity ?? 0;
+    if (p.track_stock && stockUnitsAvailable < unitMultiplier) {
+      toast({ title: finalUnit === 'sachet' ? 'Out of sachets' : 'Out of stock', variant: 'destructive' });
       return;
     }
+    const packPrice = p.discount_price && p.discount_price < p.price ? p.discount_price : p.price;
+    const unitPrice = finalUnit === 'sachet' ? Number(p.sachet_price) : packPrice;
+    const sachetLabel = p.sachet_unit_label || 'sachet';
+    const unitLabel = finalUnit === 'sachet' ? sachetLabel : 'pack';
+
     setCart(prev => {
-      const existing = prev.find(c => c.productId === p.id);
+      const lineKey = `${p.id}__${finalUnit}`;
+      const existing = prev.find(c => `${c.productId}__${c.purchaseUnit}` === lineKey);
       if (existing) {
-        if (p.track_stock && existing.qty + 1 > (p.stock_quantity ?? 0)) {
-          toast({ title: `Only ${p.stock_quantity} in stock`, variant: 'destructive' });
+        const nextStockUsed = (existing.qty + 1) * existing.unitMultiplier;
+        if (p.track_stock && nextStockUsed > stockUnitsAvailable) {
+          toast({ title: `Only ${stockUnitsAvailable} ${unitLabel === 'pack' ? 'in stock' : sachetLabel + 's left'}`, variant: 'destructive' });
           return prev;
         }
-        return prev.map(c => (c.productId === p.id ? { ...c, qty: c.qty + 1 } : c));
+        return prev.map(c => (`${c.productId}__${c.purchaseUnit}` === lineKey ? { ...c, qty: c.qty + 1 } : c));
       }
       return [
         ...prev,
         {
           productId: p.id,
           name: p.name,
-          unitPrice: p.discount_price && p.discount_price < p.price ? p.discount_price : p.price,
+          unitPrice,
           qty: 1,
-          stockMax: p.track_stock ? p.stock_quantity ?? 0 : null,
+          stockMax: p.track_stock ? Math.floor(stockUnitsAvailable / unitMultiplier) : null,
           caloriesPerUnit: p.calories ?? null,
+          purchaseUnit: finalUnit,
+          unitMultiplier,
+          unitLabel,
         },
       ];
     });
     setMobileCartOpen(true);
   }, []);
 
-  const updateQty = (productId: string, delta: number) => {
+  const handleProductTap = useCallback((p: Product) => {
+    if (p.is_available === false) return;
+    if (p.track_stock && (p.stock_quantity ?? 0) <= 0) {
+      toast({ title: 'Out of stock', variant: 'destructive' });
+      return;
+    }
+    const sachetEligible = !!p.allows_sachet && Number(p.sachet_price) > 0 && Number(p.sachets_per_pack) > 0;
+    if (sachetEligible) {
+      setUnitPickerProduct(p);
+    } else {
+      addToCart(p, 'pack');
+    }
+  }, [addToCart]);
+
+  const updateQty = (lineKey: string, delta: number) => {
     setCart(prev =>
       prev
         .map(c => {
-          if (c.productId !== productId) return c;
+          if (`${c.productId}__${c.purchaseUnit}` !== lineKey) return c;
           const next = c.qty + delta;
           if (next <= 0) return null;
           if (c.stockMax !== null && next > c.stockMax) {
-            toast({ title: `Only ${c.stockMax} in stock`, variant: 'destructive' });
+            toast({ title: `Only ${c.stockMax} ${c.unitLabel}${c.stockMax === 1 ? '' : 's'} available`, variant: 'destructive' });
             return c;
           }
           return { ...c, qty: next };
@@ -290,7 +319,8 @@ export default function VendorPos() {
     );
   };
 
-  const removeLine = (id: string) => setCart(c => c.filter(x => x.productId !== id));
+  const removeLine = (lineKey: string) =>
+    setCart(c => c.filter(x => `${x.productId}__${x.purchaseUnit}` !== lineKey));
   const clearCart = () => setCart([]);
 
   const subtotal = useMemo(() => cart.reduce((s, c) => s + c.unitPrice * c.qty, 0), [cart]);
