@@ -55,6 +55,7 @@ export default function AdminPharmacyAnalytics() {
   const [selectedDrug, setSelectedDrug] = useState<string | null>(null);
   const [customerHistory, setCustomerHistory] = useState<CustomerHistoryRow[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>('drugs');
 
   useEffect(() => {
     checkAuth();
@@ -227,6 +228,7 @@ export default function AdminPharmacyAnalytics() {
   const fetchCustomerHistory = async (drugKey: string, productName: string) => {
     setLoadingHistory(true);
     setSelectedDrug(productName);
+    setActiveTab('customers');
     try {
       const fromDate = dateRange.from || subDays(new Date(), 30);
       const toDate = dateRange.to || new Date();
@@ -414,7 +416,7 @@ export default function AdminPharmacyAnalytics() {
         </Card>
       </div>
 
-      <Tabs defaultValue="drugs" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="drugs"><Pill className="w-4 h-4 mr-1" />Top Drugs</TabsTrigger>
           <TabsTrigger value="pharmacies"><Store className="w-4 h-4 mr-1" />Pharmacies</TabsTrigger>
