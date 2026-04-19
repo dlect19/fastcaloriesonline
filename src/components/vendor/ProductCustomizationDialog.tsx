@@ -640,6 +640,44 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
             </div>
           </div>
 
+          {/* Pharmacy: Pack vs Sachet selector */}
+          {sachetEnabled && (
+            <div className="bg-secondary/60 rounded-xl p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Settings2 className="w-4 h-4 text-primary" />
+                <span className="font-semibold text-foreground">Buy by</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPurchaseUnit('pack')}
+                  className={cn(
+                    'rounded-lg border p-3 text-left transition-colors',
+                    purchaseUnit === 'pack'
+                      ? 'border-primary bg-primary/10'
+                      : 'border-border bg-background hover:border-primary/30'
+                  )}
+                >
+                  <div className="text-xs text-muted-foreground capitalize">Per {packLabel}</div>
+                  <div className="font-semibold text-foreground">₦{packBasePrice.toLocaleString()}</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPurchaseUnit('sachet')}
+                  className={cn(
+                    'rounded-lg border p-3 text-left transition-colors',
+                    purchaseUnit === 'sachet'
+                      ? 'border-primary bg-primary/10'
+                      : 'border-border bg-background hover:border-primary/30'
+                  )}
+                >
+                  <div className="text-xs text-muted-foreground capitalize">Per {sachetLabel}</div>
+                  <div className="font-semibold text-foreground">₦{sachetBasePrice.toLocaleString()}</div>
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Add-On Groups */}
           {loadingAddons ? (
             <div className="flex items-center justify-center py-4">
