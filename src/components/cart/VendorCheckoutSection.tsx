@@ -353,6 +353,25 @@ export function VendorCheckoutSection({
 
       if (pkgError) throw pkgError;
 
+      // Look up sachets_per_pack so the stock-decrement trigger deducts the right number of sachet-units
+      const packLookupIds = Array.from(new Set(
+        normalizedGroupItems
+          .filter(it => (it as any).purchaseUnit !== 'sachet' && it.productId && !it.addonsDescription)
+          .map(it => it.productId!)
+      ));
+      const packMultiplierMap: Record<string, number> = {};
+      if (packLookupIds.length > 0) {
+        const { data: prodRows } = await supabase
+          .from('products')
+          .select('id, sachets_per_pack, allows_sachet')
+          .in('id', packLookupIds);
+        (prodRows || []).forEach((r: any) => {
+          if (r.allows_sachet && Number(r.sachets_per_pack) > 0) {
+            packMultiplierMap[r.id] = Number(r.sachets_per_pack);
+          }
+        });
+      }
+
       // Create order items with package_id linking
       const orderItems = normalizedGroupItems.map(item => {
         const pkg = createdPackages?.find(p => p.sort_order === item.packageIndex);
@@ -360,6 +379,10 @@ export function VendorCheckoutSection({
         const actualTotalPrice = item.isFreeMeal 
           ? getResolvedOriginalPrice(item) * item.quantity 
           : item.price * item.quantity;
+        const purchaseUnit = (item as any).purchaseUnit === 'sachet' ? 'sachet' : 'pack';
+        const unitMultiplier = purchaseUnit === 'sachet'
+          ? 1
+          : (item.productId && packMultiplierMap[item.productId]) || 1;
         return {
           order_id: order.id,
           package_id: pkg?.id || null,
@@ -373,12 +396,14 @@ export function VendorCheckoutSection({
           free_qty: item.isFreeMeal ? (item._adminFreeQty ?? item.quantity) : null,
           calories: item.calories * item.quantity,
           special_instructions: item.addonsDescription || null,
+          purchase_unit: purchaseUnit,
+          unit_multiplier: unitMultiplier,
         };
       });
 
       const { data: insertedItems, error: itemsError } = await supabase
         .from('order_items')
-        .insert(orderItems)
+        .insert(orderItems as any)
         .select();
       if (itemsError) throw itemsError;
 

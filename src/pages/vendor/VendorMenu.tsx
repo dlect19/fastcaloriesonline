@@ -1106,22 +1106,44 @@ export default function VendorMenu() {
 
                       {/* Stock Tracking - Pharmacy only */}
                       <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-2">
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between flex-wrap gap-1">
                           <Label className="text-sm font-semibold flex items-center gap-1.5">
                             📦 Stock on Hand
+                            {formData.allows_sachet && (
+                              <span className="text-[10px] font-normal px-1.5 py-0.5 rounded bg-primary/15 text-primary">in sachets</span>
+                            )}
                           </Label>
                           <span className="text-[11px] text-muted-foreground">Auto-decrements on every sale</span>
                         </div>
+                        {formData.allows_sachet && (
+                          <p className="text-[11px] text-muted-foreground -mt-1">
+                            Track stock by single sachets. Selling 1 pack deducts{' '}
+                            <span className="font-semibold text-foreground">
+                              {parseInt(formData.sachets_per_pack, 10) || '?'}
+                            </span>{' '}
+                            sachets automatically.
+                          </p>
+                        )}
                         <div className="grid grid-cols-2 gap-2">
                           <div className="space-y-1">
-                            <Label className="text-xs">Quantity in stock *</Label>
+                            <Label className="text-xs">
+                              {formData.allows_sachet ? 'Sachets in stock *' : 'Quantity in stock *'}
+                            </Label>
                             <Input
                               type="number"
                               min="0"
                               value={formData.stock_quantity}
                               onChange={e => setFormData({ ...formData, stock_quantity: e.target.value })}
-                              placeholder="e.g. 100"
+                              placeholder={formData.allows_sachet ? 'e.g. 240 sachets' : 'e.g. 100'}
                             />
+                            {formData.allows_sachet && parseInt(formData.sachets_per_pack, 10) > 0 && parseInt(formData.stock_quantity, 10) > 0 && (
+                              <p className="text-[10px] text-muted-foreground">
+                                ≈ {Math.floor(parseInt(formData.stock_quantity, 10) / parseInt(formData.sachets_per_pack, 10))} full pack
+                                {Math.floor(parseInt(formData.stock_quantity, 10) / parseInt(formData.sachets_per_pack, 10)) === 1 ? '' : 's'}
+                                {parseInt(formData.stock_quantity, 10) % parseInt(formData.sachets_per_pack, 10) > 0 &&
+                                  ` + ${parseInt(formData.stock_quantity, 10) % parseInt(formData.sachets_per_pack, 10)} sachet${parseInt(formData.stock_quantity, 10) % parseInt(formData.sachets_per_pack, 10) === 1 ? '' : 's'}`}
+                              </p>
+                            )}
                           </div>
                           <div className="space-y-1">
                             <Label className="text-xs">Low-stock alert at</Label>
