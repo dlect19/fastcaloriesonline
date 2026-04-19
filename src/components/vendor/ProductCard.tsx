@@ -99,6 +99,11 @@ export function ProductCard({ product, vendor, outletId }: ProductCardProps) {
                     ₦{product.price.toLocaleString()}
                   </span>
                 )}
+                {(product as any).allows_sachet && Number((product as any).sachet_price) > 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    ₦{Number((product as any).sachet_price).toLocaleString()} / {(product as any).sachet_unit_label || 'sachet'}
+                  </span>
+                )}
                 {product.serving_unit && (
                   <span className="text-xs text-muted-foreground">
                     {product.serving_unit}
