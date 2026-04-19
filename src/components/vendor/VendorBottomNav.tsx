@@ -1,12 +1,15 @@
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import {
   LayoutDashboard,
   UtensilsCrossed,
   ShoppingBag,
   MessageSquare,
   Wallet,
+  Pill,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
 
 const navItems = [
   { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', path: '/vendor/dashboard' },
@@ -23,13 +26,44 @@ interface VendorBottomNavProps {
 export function VendorBottomNav({ orderCount = 0 }: VendorBottomNavProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const [vendorCategory, setVendorCategory] = useState<string | null>(null);
 
-  const currentTab = navItems.find(item => location.pathname.startsWith(item.path))?.id || 'dashboard';
+  useEffect(() => {
+    const fetchCategory = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: vendor } = await supabase
+        .from('vendors')
+        .select('category')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (vendor) {
+        setVendorCategory(vendor.category);
+        return;
+      }
+      const { data: staff } = await supabase
+        .from('vendor_staff')
+        .select('vendors(category)')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .maybeSingle();
+      setVendorCategory((staff as any)?.vendors?.category ?? null);
+    };
+    fetchCategory();
+  }, []);
+
+  const items = navItems.map(item =>
+    item.id === 'menu' && vendorCategory === 'pharmacy'
+      ? { ...item, label: 'Drugs', icon: Pill }
+      : item
+  );
+
+  const currentTab = items.find(item => location.pathname.startsWith(item.path))?.id || 'dashboard';
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm border-t border-border safe-bottom z-50 lg:hidden">
       <div className="flex items-center justify-around py-2">
-        {navItems.map((item) => {
+        {items.map((item) => {
           const Icon = item.icon;
           const isActive = currentTab === item.id;
 
