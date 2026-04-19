@@ -1552,6 +1552,29 @@ export default function VendorMenu() {
                             ₦{product.price.toLocaleString()}
                           </span>
                         )}
+                        {(product as any).allows_sachet && Number((product as any).sachet_price) > 0 && (() => {
+                          const sp = Number((product as any).sachet_price);
+                          const label = (product as any).sachet_unit_label || 'sachet';
+                          const perPack = Number((product as any).sachets_per_pack) || 0;
+                          const packPrice = (product as any).discount_price && (product as any).discount_price < product.price
+                            ? (product as any).discount_price
+                            : product.price;
+                          let savingsPct = 0;
+                          if (perPack > 0 && sp > 0 && packPrice > 0) {
+                            const fullSachetCost = sp * perPack;
+                            if (fullSachetCost > packPrice) {
+                              savingsPct = Math.round(((fullSachetCost - packPrice) / fullSachetCost) * 100);
+                            }
+                          }
+                          return (
+                            <span className="text-xs text-muted-foreground">
+                              ₦{sp.toLocaleString()} / {label}
+                              {savingsPct > 0 && (
+                                <span className="ml-1 text-primary font-medium">• Save {savingsPct}% per pack</span>
+                              )}
+                            </span>
+                          );
+                        })()}
                         {product.calories && (
                           <span className="text-xs text-muted-foreground flex items-center gap-1">
                             <Flame className="w-3 h-3" />
