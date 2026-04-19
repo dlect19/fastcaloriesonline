@@ -376,16 +376,27 @@ export default function VendorPos() {
 
       // 6. Print receipt if printer connected
       if (printer) {
+        const totalCalories = cart.reduce(
+          (s, c) => s + (c.caloriesPerUnit ? c.caloriesPerUnit * c.qty : 0),
+          0,
+        );
         await printReceipt({
           storeName: vendor.name,
           storeAddress: vendor.address ?? undefined,
           storePhone: vendor.phone ?? undefined,
+          storeLogoUrl: vendor.logo_url ?? undefined,
           receiptNumber: orderNumber,
           cashierName: session.cashier_name ?? undefined,
           date: new Date(),
-          items: cart.map(c => ({ name: c.name, qty: c.qty, price: c.unitPrice * c.qty })),
+          items: cart.map(c => ({
+            name: c.name,
+            qty: c.qty,
+            price: c.unitPrice * c.qty,
+            calories: c.caloriesPerUnit,
+          })),
           subtotal,
           total: subtotal,
+          totalCalories: totalCalories > 0 ? totalCalories : null,
           paymentMethod: data.paymentMethod.toUpperCase(),
           amountPaid: data.amountPaid,
           change: data.change,
