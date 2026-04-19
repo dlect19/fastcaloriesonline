@@ -6,6 +6,20 @@ interface PromoEligibility {
   firstOrderDiscount: number | null;
   loyaltyDiscount: number | null;
   nextLoyaltyAt: number | null; // orders until next loyalty
+  // Pharmacy-specific (funded by service charge, not vendor margin)
+  pharmacyWelcomeType: 'percent' | 'fixed' | null;
+  pharmacyWelcomeValue: number | null;
+}
+
+interface PlatformPromoSettings {
+  firstOrderEnabled: boolean;
+  firstOrderPercent: number;
+  loyaltyEnabled: boolean;
+  loyaltyPercent: number;
+  pharmacyWelcomeEnabled: boolean;
+  pharmacyWelcomeType: 'percent' | 'fixed';
+  pharmacyWelcomePercent: number;
+  pharmacyWelcomeFixed: number;
 }
 
 export function usePlatformPromos() {
@@ -15,12 +29,18 @@ export function usePlatformPromos() {
     firstOrderDiscount: null,
     loyaltyDiscount: null,
     nextLoyaltyAt: null,
+    pharmacyWelcomeType: null,
+    pharmacyWelcomeValue: null,
   });
-  const [settings, setSettings] = useState({
+  const [settings, setSettings] = useState<PlatformPromoSettings>({
     firstOrderEnabled: true,
     firstOrderPercent: 5,
     loyaltyEnabled: true,
     loyaltyPercent: 10,
+    pharmacyWelcomeEnabled: true,
+    pharmacyWelcomeType: 'percent',
+    pharmacyWelcomePercent: 5,
+    pharmacyWelcomeFixed: 200,
   });
 
   // Fetch promo settings
@@ -31,6 +51,10 @@ export function usePlatformPromos() {
         'promo_first_order_percent',
         'promo_loyalty_enabled',
         'promo_loyalty_percent',
+        'pharmacy_welcome_enabled',
+        'pharmacy_welcome_type',
+        'pharmacy_welcome_percent',
+        'pharmacy_welcome_fixed',
       ];
 
       const { data, error } = await supabase
@@ -48,6 +72,10 @@ export function usePlatformPromos() {
         firstOrderPercent: parseInt(settingsMap['promo_first_order_percent'] || '5'),
         loyaltyEnabled: settingsMap['promo_loyalty_enabled'] === 'true',
         loyaltyPercent: parseInt(settingsMap['promo_loyalty_percent'] || '10'),
+        pharmacyWelcomeEnabled: settingsMap['pharmacy_welcome_enabled'] === 'true',
+        pharmacyWelcomeType: (settingsMap['pharmacy_welcome_type'] as 'percent' | 'fixed') || 'percent',
+        pharmacyWelcomePercent: parseInt(settingsMap['pharmacy_welcome_percent'] || '5'),
+        pharmacyWelcomeFixed: parseInt(settingsMap['pharmacy_welcome_fixed'] || '200'),
       });
     } catch (error) {
       console.error('Error fetching promo settings:', error);
@@ -57,7 +85,13 @@ export function usePlatformPromos() {
   // Check user's eligibility for promos
   const checkEligibility = useCallback(async () => {
     if (!user) {
-      setEligibility({ firstOrderDiscount: null, loyaltyDiscount: null, nextLoyaltyAt: null });
+      setEligibility({
+        firstOrderDiscount: null,
+        loyaltyDiscount: null,
+        nextLoyaltyAt: null,
+        pharmacyWelcomeType: null,
+        pharmacyWelcomeValue: null,
+      });
       setLoading(false);
       return;
     }
@@ -74,36 +108,37 @@ export function usePlatformPromos() {
       // If error or no stats, treat as new user
       const completedOrders = stats?.completed_orders ?? 0;
       const firstOrderUsed = stats?.first_order_promo_used ?? false;
+      const firstPharmacyUsed = (stats as any)?.first_pharmacy_order_promo_used ?? false;
 
       let firstOrderDiscount: number | null = null;
       let loyaltyDiscount: number | null = null;
       let nextLoyaltyAt: number | null = null;
+      let pharmacyWelcomeType: 'percent' | 'fixed' | null = null;
+      let pharmacyWelcomeValue: number | null = null;
 
-      // First order discount eligibility
-      // Only eligible if: setting enabled, no completed orders, and promo not already used
+      // First order discount eligibility (for non-pharmacy)
       if (settings.firstOrderEnabled && completedOrders === 0 && !firstOrderUsed) {
         firstOrderDiscount = settings.firstOrderPercent;
       }
-      // Debug logging for troubleshooting
-      console.log('[PlatformPromos] Eligibility check:', {
-        completedOrders,
-        firstOrderUsed,
-        firstOrderEnabled: settings.firstOrderEnabled,
-        firstOrderDiscount,
-      });
+
+      // Pharmacy welcome eligibility (any customer's first pharmacy order)
+      if (settings.pharmacyWelcomeEnabled && !firstPharmacyUsed) {
+        pharmacyWelcomeType = settings.pharmacyWelcomeType;
+        pharmacyWelcomeValue =
+          settings.pharmacyWelcomeType === 'percent'
+            ? settings.pharmacyWelcomePercent
+            : settings.pharmacyWelcomeFixed;
+      }
 
       // Loyalty discount eligibility (every 10th order)
       if (settings.loyaltyEnabled) {
-        // User gets discount on their 10th, 20th, 30th, etc. order
-        // Since completedOrders is AFTER delivery, we check if next order would be 10th
         const nextOrderNumber = completedOrders + 1;
         if (nextOrderNumber % 10 === 0 && nextOrderNumber > 0) {
           loyaltyDiscount = settings.loyaltyPercent;
         }
-        // Calculate orders until next loyalty reward
         nextLoyaltyAt = 10 - (completedOrders % 10);
         if (nextLoyaltyAt === 10 && completedOrders > 0) {
-          nextLoyaltyAt = 0; // They're eligible now
+          nextLoyaltyAt = 0;
         }
       }
 
@@ -111,6 +146,8 @@ export function usePlatformPromos() {
         firstOrderDiscount,
         loyaltyDiscount,
         nextLoyaltyAt,
+        pharmacyWelcomeType,
+        pharmacyWelcomeValue,
       });
     } catch (error) {
       console.error('Error checking promo eligibility:', error);
@@ -120,12 +157,30 @@ export function usePlatformPromos() {
   }, [user, settings]);
 
   // Get the best available platform promo for checkout
-  const getBestPlatformPromo = useCallback(() => {
-    // Priority: loyalty (higher %) > first order
+  // isPharmacy=true returns ONLY the pharmacy welcome bonus (existing welcome/loyalty are blocked).
+  // isPharmacy=false returns loyalty/first-order promos (pharmacy bonus is excluded).
+  const getBestPlatformPromo = useCallback((isPharmacy: boolean = false) => {
+    if (isPharmacy) {
+      if (eligibility.pharmacyWelcomeValue && eligibility.pharmacyWelcomeType) {
+        return {
+          type: 'pharmacy_welcome',
+          discount: eligibility.pharmacyWelcomeValue,
+          discountKind: eligibility.pharmacyWelcomeType, // 'percent' | 'fixed'
+          label:
+            eligibility.pharmacyWelcomeType === 'percent'
+              ? `${eligibility.pharmacyWelcomeValue}% Pharmacy Welcome Bonus`
+              : `₦${eligibility.pharmacyWelcomeValue} Pharmacy Welcome Bonus`,
+        };
+      }
+      return null;
+    }
+
+    // Non-pharmacy carts: loyalty > first order
     if (eligibility.loyaltyDiscount) {
       return {
         type: 'loyalty_10th',
         discount: eligibility.loyaltyDiscount,
+        discountKind: 'percent' as const,
         label: `${eligibility.loyaltyDiscount}% Loyalty Reward`,
       };
     }
@@ -133,6 +188,7 @@ export function usePlatformPromos() {
       return {
         type: 'first_order',
         discount: eligibility.firstOrderDiscount,
+        discountKind: 'percent' as const,
         label: `${eligibility.firstOrderDiscount}% First Order Discount`,
       };
     }
@@ -156,6 +212,23 @@ export function usePlatformPromos() {
     }
   }, [user]);
 
+  // Mark first pharmacy order promo as used
+  const markFirstPharmacyOrderUsed = useCallback(async () => {
+    if (!user) return;
+
+    try {
+      await supabase
+        .from('user_order_stats')
+        .upsert({
+          user_id: user.id,
+          first_pharmacy_order_promo_used: true,
+          updated_at: new Date().toISOString(),
+        } as any, { onConflict: 'user_id' });
+    } catch (error) {
+      console.error('Error marking first pharmacy order promo used:', error);
+    }
+  }, [user]);
+
   useEffect(() => {
     fetchSettings();
   }, [fetchSettings]);
@@ -172,6 +245,7 @@ export function usePlatformPromos() {
     settings,
     getBestPlatformPromo,
     markFirstOrderUsed,
+    markFirstPharmacyOrderUsed,
     refreshEligibility: checkEligibility,
   };
 }

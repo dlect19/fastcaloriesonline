@@ -91,6 +91,11 @@ export default function AdminRewards() {
     tier1Spins: '1',
     tier2Spins: '3',
     tier3Spins: '6',
+    // Pharmacy welcome bonus (funded by service charge — never reduces drug margin)
+    pharmacyWelcomeEnabled: true,
+    pharmacyWelcomeType: 'percent' as 'percent' | 'fixed',
+    pharmacyWelcomePercent: '5',
+    pharmacyWelcomeFixed: '200',
   });
 
   // Fetch wheel configurations
@@ -200,6 +205,10 @@ export default function AdminRewards() {
         tier1Spins: settings.spin_tier1_spins || '1',
         tier2Spins: settings.spin_tier2_spins || '3',
         tier3Spins: settings.spin_tier3_spins || '6',
+        pharmacyWelcomeEnabled: settings.pharmacy_welcome_enabled === 'true',
+        pharmacyWelcomeType: ((settings.pharmacy_welcome_type as 'percent' | 'fixed') || 'percent'),
+        pharmacyWelcomePercent: settings.pharmacy_welcome_percent || '5',
+        pharmacyWelcomeFixed: settings.pharmacy_welcome_fixed || '200',
       });
     }
   }, [settings]);
@@ -232,6 +241,11 @@ export default function AdminRewards() {
         updateSetting('spin_tier1_spins', localSettings.tier1Spins),
         updateSetting('spin_tier2_spins', localSettings.tier2Spins),
         updateSetting('spin_tier3_spins', localSettings.tier3Spins),
+        // Pharmacy welcome bonus
+        updateSetting('pharmacy_welcome_enabled', String(localSettings.pharmacyWelcomeEnabled)),
+        updateSetting('pharmacy_welcome_type', localSettings.pharmacyWelcomeType),
+        updateSetting('pharmacy_welcome_percent', localSettings.pharmacyWelcomePercent),
+        updateSetting('pharmacy_welcome_fixed', localSettings.pharmacyWelcomeFixed),
       ]);
 
       toast({ title: 'Settings saved successfully' });
@@ -429,6 +443,88 @@ export default function AdminRewards() {
                         <span className="text-muted-foreground">% discount</span>
                       </div>
                     </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Pharmacy Welcome Bonus (funded by service charge) */}
+              <Card className="border-info/30">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <ShoppingBag className="w-5 h-5 text-info" />
+                    Pharmacy Welcome Bonus
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    A separate welcome bonus for any customer's first pharmacy order. Funded from
+                    the platform service charge — drug prices stay exactly as the pharmacy listed
+                    them. WELCOME10, loyalty rewards, and spin-wheel discounts are automatically
+                    blocked on pharmacy carts.
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <Label className="font-semibold">Enable Pharmacy Welcome Bonus</Label>
+                    <Switch
+                      checked={localSettings.pharmacyWelcomeEnabled}
+                      onCheckedChange={(v) => setLocalSettings(s => ({ ...s, pharmacyWelcomeEnabled: v }))}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2 p-4 border rounded-lg">
+                      <Label className="font-semibold">Bonus Type</Label>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant={localSettings.pharmacyWelcomeType === 'percent' ? 'default' : 'outline'}
+                          size="sm"
+                          disabled={!localSettings.pharmacyWelcomeEnabled}
+                          onClick={() => setLocalSettings(s => ({ ...s, pharmacyWelcomeType: 'percent' }))}
+                        >
+                          Percentage (%)
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={localSettings.pharmacyWelcomeType === 'fixed' ? 'default' : 'outline'}
+                          size="sm"
+                          disabled={!localSettings.pharmacyWelcomeEnabled}
+                          onClick={() => setLocalSettings(s => ({ ...s, pharmacyWelcomeType: 'fixed' }))}
+                        >
+                          Fixed amount (₦)
+                        </Button>
+                      </div>
+                    </div>
+
+                    {localSettings.pharmacyWelcomeType === 'percent' ? (
+                      <div className="space-y-2 p-4 border rounded-lg">
+                        <Label className="font-semibold">Percentage Off First Pharmacy Order</Label>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            value={localSettings.pharmacyWelcomePercent}
+                            onChange={(e) => setLocalSettings(s => ({ ...s, pharmacyWelcomePercent: e.target.value }))}
+                            className="w-24"
+                            disabled={!localSettings.pharmacyWelcomeEnabled}
+                          />
+                          <span className="text-muted-foreground">% off</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 p-4 border rounded-lg">
+                        <Label className="font-semibold">Fixed Amount Off First Pharmacy Order</Label>
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground">₦</span>
+                          <Input
+                            type="number"
+                            value={localSettings.pharmacyWelcomeFixed}
+                            onChange={(e) => setLocalSettings(s => ({ ...s, pharmacyWelcomeFixed: e.target.value }))}
+                            className="w-32"
+                            disabled={!localSettings.pharmacyWelcomeEnabled}
+                          />
+                          <span className="text-muted-foreground">naira off</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
