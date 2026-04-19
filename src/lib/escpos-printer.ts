@@ -49,12 +49,14 @@ export interface ReceiptItem {
   qty: number;
   price: number;
   note?: string;
+  calories?: number | null; // per-unit kcal; null/undefined => "N/A"
 }
 
 export interface ReceiptData {
   storeName: string;
   storeAddress?: string;
   storePhone?: string;
+  storeLogoUrl?: string; // optional vendor logo printed as monochrome bitmap
   receiptNumber: string;
   cashierName?: string;
   date: Date;
@@ -63,6 +65,7 @@ export interface ReceiptData {
   discount?: number;
   tax?: number;
   total: number;
+  totalCalories?: number | null;
   paymentMethod: string;
   amountPaid?: number;
   change?: number;
@@ -216,19 +219,24 @@ export class EscPosPrinter {
 
   async printReceipt(data: ReceiptData): Promise<void> {
     const width = data.paperWidth ?? 32;
+    const pixelWidth = width === 48 ? 576 : 384; // 80mm vs 58mm
 
-    const parts: Uint8Array[] = [
-      CMD.INIT,
-      CMD.ALIGN_CENTER,
-      CMD.BOLD_ON,
-      CMD.DOUBLE_SIZE,
-      this.text(data.storeName + '\n'),
-      CMD.NORMAL_SIZE,
-      CMD.BOLD_OFF,
-    ];
+    const parts: Uint8Array[] = [CMD.INIT, CMD.ALIGN_CENTER];
+
+    // Optional logo bitmap (best-effort; falls back silently to bold name)
+    if (data.storeLogoUrl) {
+      try {
+        const logo = await rasterizeLogo(data.storeLogoUrl, pixelWidth);
+        if (logo) parts.push(logo);
+      } catch {
+        // ignore logo failure
+      }
+    }
+
+    parts.push(CMD.BOLD_ON, CMD.DOUBLE_SIZE, this.text(data.storeName + '\n'), CMD.NORMAL_SIZE, CMD.BOLD_OFF);
 
     if (data.storeAddress) parts.push(this.text(data.storeAddress + '\n'));
-    if (data.storePhone) parts.push(this.text(data.storePhone + '\n'));
+    if (data.storePhone) parts.push(this.text('Tel: ' + data.storePhone + '\n'));
     parts.push(this.text('-'.repeat(width) + '\n'));
 
     parts.push(CMD.ALIGN_LEFT);
@@ -247,6 +255,10 @@ export class EscPosPrinter {
       const lineRight = `N${item.price.toFixed(2)}`;
       const lineLeft = `  ${item.qty} x N${(item.price / Math.max(item.qty, 1)).toFixed(2)}`;
       parts.push(this.text(this.padLine(lineLeft, lineRight, width) + '\n'));
+      const calLabel = item.calories === undefined || item.calories === null
+        ? 'Cal: N/A'
+        : `Cal: ${(Number(item.calories) * Math.max(item.qty, 1)).toFixed(0)} kcal`;
+      parts.push(this.text(`  ${calLabel}\n`));
       if (item.note) parts.push(this.text(`  ${item.note}\n`));
     }
 
@@ -262,6 +274,9 @@ export class EscPosPrinter {
     parts.push(CMD.BOLD_ON);
     parts.push(this.text(this.padLine('TOTAL', `N${data.total.toFixed(2)}`, width) + '\n'));
     parts.push(CMD.BOLD_OFF);
+    if (data.totalCalories !== undefined && data.totalCalories !== null) {
+      parts.push(this.text(this.padLine('Total Calories', `${data.totalCalories.toFixed(0)} kcal`, width) + '\n'));
+    }
     parts.push(this.text(this.padLine('Paid via', data.paymentMethod, width) + '\n'));
     if (data.amountPaid !== undefined) {
       parts.push(this.text(this.padLine('Amount Paid', `N${data.amountPaid.toFixed(2)}`, width) + '\n'));
@@ -286,3 +301,65 @@ export class EscPosPrinter {
 }
 
 export type { ReceiptData as PosReceiptData };
+
+/**
+ * Load a logo image, fit it to the printer width, threshold to monochrome
+ * and emit ESC/POS GS v 0 raster bitmap bytes. Returns null if it cannot
+ * be rasterized (CORS, decode failure, no canvas, etc).
+ */
+async function rasterizeLogo(url: string, maxPixelWidth: number): Promise<Uint8Array | null> {
+  if (typeof document === 'undefined') return null;
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image();
+      i.crossOrigin = 'anonymous';
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error('logo load failed'));
+      i.src = url;
+    });
+
+    const targetW = Math.min(maxPixelWidth, Math.floor(img.width));
+    // Snap width to multiple of 8 (ESC/POS raster requires byte-aligned width)
+    const w = Math.max(8, targetW - (targetW % 8));
+    const h = Math.min(180, Math.round((img.height / img.width) * w));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
+    const { data } = ctx.getImageData(0, 0, w, h);
+
+    // Threshold to 1bpp (MSB-first per ESC/POS spec). Transparent => white.
+    const bytesPerRow = w / 8;
+    const bitmap = new Uint8Array(bytesPerRow * h);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const idx = (y * w + x) * 4;
+        const r = data[idx], g = data[idx + 1], b = data[idx + 2], a = data[idx + 3];
+        const lum = a === 0 ? 255 : 0.299 * r + 0.587 * g + 0.114 * b;
+        if (lum < 160) {
+          const byteIdx = y * bytesPerRow + (x >> 3);
+          bitmap[byteIdx] |= 0x80 >> (x & 7);
+        }
+      }
+    }
+
+    // GS v 0 m xL xH yL yH d1..dk
+    const xL = bytesPerRow & 0xff;
+    const xH = (bytesPerRow >> 8) & 0xff;
+    const yL = h & 0xff;
+    const yH = (h >> 8) & 0xff;
+    const header = new Uint8Array([0x1d, 0x76, 0x30, 0x00, xL, xH, yL, yH]);
+    const out = new Uint8Array(header.length + bitmap.length + 1);
+    out.set(header, 0);
+    out.set(bitmap, header.length);
+    out[out.length - 1] = 0x0a;
+    return out;
+  } catch {
+    return null;
+  }
+}

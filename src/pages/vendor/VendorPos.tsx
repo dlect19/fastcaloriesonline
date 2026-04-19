@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { VendorLayout } from '@/components/vendor/VendorLayout';
 import { useOutletContext } from '@/hooks/useOutletContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -22,6 +23,8 @@ import {
   PauseCircle,
   PlayCircle,
   Pause,
+  BarChart3,
+  TrendingUp,
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -42,6 +45,7 @@ type Product = {
   stock_quantity: number | null;
   track_stock: boolean | null;
   is_available: boolean | null;
+  calories: number | null;
   category_label?: string | null;
 };
 
@@ -51,6 +55,7 @@ type CartLine = {
   unitPrice: number;
   qty: number;
   stockMax: number | null;
+  caloriesPerUnit: number | null;
 };
 
 type HeldSale = {
@@ -65,6 +70,7 @@ const PRINTER_KEY = 'fc_pos_printer_name';
 const HOLD_KEY_PREFIX = 'fc_pos_held_sales_';
 
 export default function VendorPos() {
+  const navigate = useNavigate();
   const { selectedOutlet } = useOutletContext();
   const outletId = selectedOutlet?.id ?? null;
   const [vendorId, setVendorId] = useState<string | null>(null);
@@ -80,7 +86,7 @@ export default function VendorPos() {
     })();
   }, []);
 
-  const [vendor, setVendor] = useState<{ id: string; name: string; address: string | null; phone: string | null; category: string } | null>(null);
+  const [vendor, setVendor] = useState<{ id: string; name: string; address: string | null; phone: string | null; category: string; logo_url: string | null } | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState('');
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -96,6 +102,7 @@ export default function VendorPos() {
   const [holdDialogOpen, setHoldDialogOpen] = useState(false);
   const [holdLabel, setHoldLabel] = useState('');
   const [holdNote, setHoldNote] = useState('');
+  const [todayStats, setTodayStats] = useState<{ count: number; revenue: number }>({ count: 0, revenue: 0 });
 
   const { session, openSession, closeSession, recordSale } = usePosSession(vendorId, outletId);
 
@@ -166,10 +173,10 @@ export default function VendorPos() {
     (async () => {
       setLoading(true);
       const [{ data: v }, { data: p }] = await Promise.all([
-        supabase.from('vendors').select('id, name, address, phone, category').eq('id', vendorId).maybeSingle(),
+        supabase.from('vendors').select('id, name, address, phone, category, logo_url').eq('id', vendorId).maybeSingle(),
         supabase
           .from('products')
-          .select('id, name, price, discount_price, image_url, stock_quantity, track_stock, is_available, outlet_id')
+          .select('id, name, price, discount_price, image_url, stock_quantity, track_stock, is_available, calories, outlet_id')
           .eq('vendor_id', vendorId)
           .order('name'),
       ]);
@@ -183,7 +190,30 @@ export default function VendorPos() {
     return () => { cancelled = true; };
   }, [vendorId, outletId]);
 
-  // Realtime stock updates
+  // Today's POS stats (auto-refreshes when sales recorded)
+  useEffect(() => {
+    if (!vendorId) return;
+    let cancelled = false;
+    const fetchStats = async () => {
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      let q = supabase
+        .from('orders')
+        .select('id, total', { count: 'exact' })
+        .eq('vendor_id', vendorId)
+        .eq('channel', 'pos')
+        .gte('created_at', start.toISOString());
+      if (outletId) q = q.eq('outlet_id', outletId);
+      const { data, count } = await q;
+      if (cancelled) return;
+      const revenue = (data || []).reduce((s: number, r: any) => s + Number(r.total || 0), 0);
+      setTodayStats({ count: count ?? (data?.length ?? 0), revenue });
+    };
+    fetchStats();
+    // Refresh after each new sale via cart change
+  }, [vendorId, outletId, cart.length === 0]);
+
+
   useEffect(() => {
     if (!vendorId) return;
     const channel = supabase
@@ -224,6 +254,7 @@ export default function VendorPos() {
           unitPrice: p.discount_price && p.discount_price < p.price ? p.discount_price : p.price,
           qty: 1,
           stockMax: p.track_stock ? p.stock_quantity ?? 0 : null,
+          caloriesPerUnit: p.calories ?? null,
         },
       ];
     });
@@ -369,16 +400,27 @@ export default function VendorPos() {
 
       // 6. Print receipt if printer connected
       if (printer) {
+        const totalCalories = cart.reduce(
+          (s, c) => s + (c.caloriesPerUnit ? c.caloriesPerUnit * c.qty : 0),
+          0,
+        );
         await printReceipt({
           storeName: vendor.name,
           storeAddress: vendor.address ?? undefined,
           storePhone: vendor.phone ?? undefined,
+          storeLogoUrl: vendor.logo_url ?? undefined,
           receiptNumber: orderNumber,
           cashierName: session.cashier_name ?? undefined,
           date: new Date(),
-          items: cart.map(c => ({ name: c.name, qty: c.qty, price: c.unitPrice * c.qty })),
+          items: cart.map(c => ({
+            name: c.name,
+            qty: c.qty,
+            price: c.unitPrice * c.qty,
+            calories: c.caloriesPerUnit,
+          })),
           subtotal,
           total: subtotal,
+          totalCalories: totalCalories > 0 ? totalCalories : null,
           paymentMethod: data.paymentMethod.toUpperCase(),
           amountPaid: data.amountPaid,
           change: data.change,
@@ -411,6 +453,16 @@ export default function VendorPos() {
                 <Button
                   variant="outline"
                   size="sm"
+                  onClick={() => navigate('/vendor/pos/reports')}
+                  className="gap-1.5"
+                  title="Sales reports & inventory"
+                >
+                  <BarChart3 className="w-4 h-4" />
+                  <span className="hidden sm:inline">Reports</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => setHeldSheetOpen(true)}
                   className="gap-1.5 relative"
                 >
@@ -439,6 +491,20 @@ export default function VendorPos() {
                   </Button>
                 )}
               </div>
+            </div>
+            <div className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg bg-primary/5 border border-primary/10 text-xs">
+              <span className="flex items-center gap-1.5 text-muted-foreground">
+                <TrendingUp className="w-3.5 h-3.5 text-primary" /> Today
+              </span>
+              <span className="font-semibold">
+                {todayStats.count} sales · <span className="text-primary">₦{todayStats.revenue.toLocaleString()}</span>
+              </span>
+              <button
+                onClick={() => navigate('/vendor/pos/reports')}
+                className="text-primary text-[11px] font-medium hover:underline"
+              >
+                View reports →
+              </button>
             </div>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
