@@ -519,7 +519,12 @@ export default function VendorPos() {
             </h2>
             <div className="flex items-center gap-1">
               {cart.length > 0 && (
-                <Button variant="ghost" size="sm" onClick={clearCart}>Clear</Button>
+                <>
+                  <Button variant="outline" size="sm" onClick={handleHoldSale} className="gap-1.5">
+                    <Pause className="w-3.5 h-3.5" /> Hold
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={clearCart}>Clear</Button>
+                </>
               )}
               <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileCartOpen(false)}>
                 <X className="w-4 h-4" />
