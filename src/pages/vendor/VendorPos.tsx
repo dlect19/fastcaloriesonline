@@ -35,6 +35,7 @@ import { PosPaymentDialog, type PaymentMethod } from '@/components/pos/PosPaymen
 import { EscPosPrinter, type PosReceiptData } from '@/lib/escpos-printer';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { useVendorPermissions } from '@/hooks/useVendorPermissions';
 
 type Product = {
   id: string;
@@ -85,6 +86,10 @@ export default function VendorPos() {
       if (s) setVendorId(s.vendor_id);
     })();
   }, []);
+
+  const { hasPermission, loading: permLoading } = useVendorPermissions(vendorId);
+  const canUsePos = hasPermission('use_pos');
+  const canViewReports = hasPermission('view_pos_reports');
 
   const [vendor, setVendor] = useState<{ id: string; name: string; address: string | null; phone: string | null; category: string; logo_url: string | null } | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
