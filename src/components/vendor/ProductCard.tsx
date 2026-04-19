@@ -26,7 +26,14 @@ export function ProductCard({ product, vendor, outletId }: ProductCardProps) {
 
   const calorieLevel = getCalorieLevel(product.calories);
 
-  const isUnavailable = product.is_available === false;
+  // Stock awareness (pharmacy / tracked products)
+  const trackStock = (product as any).track_stock === true;
+  const stockQty = (product as any).stock_quantity as number | null;
+  const lowThreshold = (product as any).low_stock_threshold ?? 5;
+  const outOfStock = trackStock && (stockQty ?? 0) <= 0;
+  const lowStock = trackStock && stockQty !== null && stockQty > 0 && stockQty <= lowThreshold;
+
+  const isUnavailable = product.is_available === false || outOfStock;
 
   return (
     <>
