@@ -18,6 +18,7 @@ import {
   Download,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useVendorPermissions } from '@/hooks/useVendorPermissions';
 
 type Range = 'today' | '7d' | '30d';
 

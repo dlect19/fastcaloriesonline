@@ -524,12 +524,16 @@ export default function VendorPos() {
               <span className="font-semibold">
                 {todayStats.count} sales · <span className="text-primary">₦{todayStats.revenue.toLocaleString()}</span>
               </span>
-              <button
-                onClick={() => navigate('/vendor/pos/reports')}
-                className="text-primary text-[11px] font-medium hover:underline"
-              >
-                View reports →
-              </button>
+              {canViewReports ? (
+                <button
+                  onClick={() => navigate('/vendor/pos/reports')}
+                  className="text-primary text-[11px] font-medium hover:underline"
+                >
+                  View reports →
+                </button>
+              ) : (
+                <span className="w-px" />
+              )}
             </div>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
