@@ -19,6 +19,7 @@ import {
   ExternalLink,
   Megaphone,
   Receipt,
+  Pill,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -71,6 +72,7 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
   const [collapsed, setCollapsed] = useState(false);
   const [newOrderCount, setNewOrderCount] = useState(0);
   const [resolvedVendorId, setResolvedVendorId] = useState<string | null>(vendorId || null);
+  const [vendorCategory, setVendorCategory] = useState<string | null>(null);
   const [addOutletOpen, setAddOutletOpen] = useState(false);
   
   // Use persisted outlet as fallback when the prop isn't provided
@@ -89,25 +91,34 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
       // Check if owner
       const { data: vendor } = await supabase
         .from('vendors')
-        .select('id')
+        .select('id, category')
         .eq('user_id', user.id)
         .maybeSingle();
       if (vendor) {
         setResolvedVendorId(vendor.id);
+        setVendorCategory(vendor.category);
         return;
       }
       // Check if staff
       const { data: staff } = await supabase
         .from('vendor_staff')
-        .select('vendor_id')
+        .select('vendor_id, vendors(category)')
         .eq('user_id', user.id)
         .eq('is_active', true)
         .maybeSingle();
       if (staff) {
         setResolvedVendorId(staff.vendor_id);
+        setVendorCategory((staff as any).vendors?.category ?? null);
       }
     };
     resolve();
+  }, [vendorId]);
+
+  // If vendorId was passed as prop, fetch its category separately
+  useEffect(() => {
+    if (!vendorId) return;
+    supabase.from('vendors').select('category').eq('id', vendorId).maybeSingle()
+      .then(({ data }) => setVendorCategory(data?.category ?? null));
   }, [vendorId]);
 
   // Fetch pending/confirmed order count and subscribe to realtime updates
@@ -168,9 +179,16 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
 
   // Filter nav items based on user permissions
   // If no permissions are passed (owner/loading), show all items
-  const visibleItems = permissions.length > 0 
+  const baseItems = permissions.length > 0 
     ? navItems.filter(item => !item.permission || permissions.includes(item.permission))
     : navItems;
+
+  // Pharmacy vendors see "Drugs" instead of "Menu" with a Pill icon
+  const visibleItems = baseItems.map(item =>
+    item.id === 'menu' && vendorCategory === 'pharmacy'
+      ? { ...item, label: 'Drugs', icon: Pill }
+      : item
+  );
 
   return (
     <>
