@@ -5301,6 +5301,7 @@ export type Database = {
           completed_orders: number | null
           created_at: string | null
           first_order_promo_used: boolean | null
+          first_pharmacy_order_promo_used: boolean
           id: string
           last_loyalty_promo_at: string | null
           total_spent: number | null
@@ -5311,6 +5312,7 @@ export type Database = {
           completed_orders?: number | null
           created_at?: string | null
           first_order_promo_used?: boolean | null
+          first_pharmacy_order_promo_used?: boolean
           id?: string
           last_loyalty_promo_at?: string | null
           total_spent?: number | null
@@ -5321,6 +5323,7 @@ export type Database = {
           completed_orders?: number | null
           created_at?: string | null
           first_order_promo_used?: boolean | null
+          first_pharmacy_order_promo_used?: boolean
           id?: string
           last_loyalty_promo_at?: string | null
           total_spent?: number | null
