@@ -492,6 +492,20 @@ export default function VendorPos() {
                 )}
               </div>
             </div>
+            <div className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg bg-primary/5 border border-primary/10 text-xs">
+              <span className="flex items-center gap-1.5 text-muted-foreground">
+                <TrendingUp className="w-3.5 h-3.5 text-primary" /> Today
+              </span>
+              <span className="font-semibold">
+                {todayStats.count} sales · <span className="text-primary">₦{todayStats.revenue.toLocaleString()}</span>
+              </span>
+              <button
+                onClick={() => navigate('/vendor/pos/reports')}
+                className="text-primary text-[11px] font-medium hover:underline"
+              >
+                View reports →
+              </button>
+            </div>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
