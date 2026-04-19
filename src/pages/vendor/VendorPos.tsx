@@ -19,6 +19,9 @@ import {
   Receipt,
   Wallet,
   AlertCircle,
+  PauseCircle,
+  PlayCircle,
+  Pause,
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -27,6 +30,8 @@ import { PosOpenSessionDialog } from '@/components/pos/PosOpenSessionDialog';
 import { PosCloseSessionDialog } from '@/components/pos/PosCloseSessionDialog';
 import { PosPaymentDialog, type PaymentMethod } from '@/components/pos/PosPaymentDialog';
 import { EscPosPrinter, type PosReceiptData } from '@/lib/escpos-printer';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 
 type Product = {
   id: string;
