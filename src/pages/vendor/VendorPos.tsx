@@ -53,7 +53,16 @@ type CartLine = {
   stockMax: number | null;
 };
 
+type HeldSale = {
+  id: string;
+  label: string;
+  cart: CartLine[];
+  heldAt: string;
+  note?: string;
+};
+
 const PRINTER_KEY = 'fc_pos_printer_name';
+const HOLD_KEY_PREFIX = 'fc_pos_held_sales_';
 
 export default function VendorPos() {
   const { selectedOutlet } = useOutletContext();
