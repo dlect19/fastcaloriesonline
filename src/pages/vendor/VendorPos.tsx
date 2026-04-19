@@ -629,6 +629,104 @@ export default function VendorPos() {
         total={subtotal}
         onConfirm={handlePaymentConfirm}
       />
+
+      {/* Name & hold current sale */}
+      <Dialog open={holdDialogOpen} onOpenChange={setHoldDialogOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pause className="w-5 h-5" /> Hold Sale
+            </DialogTitle>
+            <DialogDescription>
+              Park this cart so you can attend to another customer. Resume it anytime.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="hold-label">Label</Label>
+              <Input
+                id="hold-label"
+                value={holdLabel}
+                onChange={e => setHoldLabel(e.target.value)}
+                placeholder="e.g. Mr Bola - waiting on transfer"
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="hold-note">Note (optional)</Label>
+              <Input
+                id="hold-note"
+                value={holdNote}
+                onChange={e => setHoldNote(e.target.value)}
+                placeholder="e.g. Check if card works"
+              />
+            </div>
+            <div className="rounded-lg bg-muted p-2.5 text-xs text-muted-foreground">
+              {cart.length} items • ₦{subtotal.toLocaleString()}
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setHoldDialogOpen(false)} className="flex-1">Cancel</Button>
+            <Button onClick={confirmHoldSale} className="flex-1">Hold Sale</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Held sales list */}
+      <Dialog open={heldSheetOpen} onOpenChange={setHeldSheetOpen}>
+        <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <PauseCircle className="w-5 h-5" /> Held Sales ({heldSales.length})
+            </DialogTitle>
+            <DialogDescription>
+              Resume a parked sale. Resuming replaces your current empty cart.
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="flex-1 -mx-6 px-6">
+            {heldSales.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground text-sm">
+                <PauseCircle className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                No held sales. Park one anytime by tapping <strong>Hold</strong> in the cart.
+              </div>
+            ) : (
+              <div className="space-y-2 py-1">
+                {heldSales.map(h => {
+                  const totalH = h.cart.reduce((s, c) => s + c.unitPrice * c.qty, 0);
+                  const itemsH = h.cart.reduce((s, c) => s + c.qty, 0);
+                  return (
+                    <Card key={h.id} className="p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-sm truncate">{h.label}</p>
+                          {h.note && <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{h.note}</p>}
+                          <p className="text-[11px] text-muted-foreground mt-1">
+                            {itemsH} items • ₦{totalH.toLocaleString()} • {new Date(h.heldAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => deleteHeldSale(h.id)}
+                          className="text-muted-foreground hover:text-destructive p-1"
+                          aria-label="Delete held sale"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <Button
+                        size="sm"
+                        className="w-full mt-2 gap-1.5"
+                        onClick={() => resumeHeldSale(h)}
+                      >
+                        <PlayCircle className="w-4 h-4" /> Resume Sale
+                      </Button>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
     </VendorLayout>
   );
 }
