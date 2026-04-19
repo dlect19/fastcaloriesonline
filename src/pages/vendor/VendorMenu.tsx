@@ -1117,11 +1117,11 @@ export default function VendorMenu() {
                         </div>
                         {formData.allows_sachet && (
                           <p className="text-[11px] text-muted-foreground -mt-1">
-                            Track stock by single sachets. Selling 1 pack deducts{' '}
+                            Enter stock as <span className="font-semibold text-foreground">packs + loose {formData.sachet_unit_label}s</span>. Selling 1 pack deducts{' '}
                             <span className="font-semibold text-foreground">
                               {parseInt(formData.sachets_per_pack, 10) || '?'}
                             </span>{' '}
-                            sachets automatically.
+                            {formData.sachet_unit_label}s automatically; selling 1 {formData.sachet_unit_label} deducts 1.
                           </p>
                         )}
                         {formData.allows_sachet && parseInt(formData.sachets_per_pack, 10) > 0 ? (
