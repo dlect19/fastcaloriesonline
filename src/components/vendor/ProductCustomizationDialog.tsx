@@ -89,6 +89,11 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
   const [addonQuantities, setAddonQuantities] = useState<Record<string, number>>({});
   // Track selected choices per addon item: { [addonItemId]: choiceId[] }
   const [selectedChoices, setSelectedChoices] = useState<Record<string, string[]>>({});
+  // Pharmacy: pack vs sachet purchase unit
+  const sachetEnabled = !!(product as any).allows_sachet && !!(product as any).sachet_price;
+  const sachetLabel = (product as any).sachet_unit_label || 'sachet';
+  const packLabel = (product as any).pack_unit_label || 'pack';
+  const [purchaseUnit, setPurchaseUnit] = useState<'pack' | 'sachet'>('pack');
 
   useEffect(() => {
     if (open && product.id) {
