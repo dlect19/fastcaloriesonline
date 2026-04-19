@@ -54,6 +54,7 @@ const menuItems: MenuItem[] = [
   { icon: DollarSign, label: 'Financial Tools', path: '/admin/financial-tools', requiredPermission: 'process_withdrawals' },
   { icon: UserPlus, label: 'Ambassadors', path: '/admin/ambassadors', requiredPermission: 'manage_promos' },
   { icon: Pill, label: 'Drug Database', path: '/admin/drug-database', requiredPermission: 'manage_vendors' },
+  { icon: Pill, label: 'Pharmacy Analytics', path: '/admin/pharmacy-analytics', requiredPermission: 'view_reports' },
   { icon: Settings, label: 'Settings', path: '/admin/settings', requiredPermission: 'platform_settings' },
 ];
 
