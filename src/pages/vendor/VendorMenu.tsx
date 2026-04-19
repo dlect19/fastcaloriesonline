@@ -956,17 +956,90 @@ export default function VendorMenu() {
                         <Switch checked={formData.requires_prescription} onCheckedChange={v => setFormData({ ...formData, requires_prescription: v })} />
                       </div>
 
-                      <div className="space-y-1">
-                        <Label className="text-sm">Target Age Group</Label>
-                        <Select value={formData.target_age_group} onValueChange={v => setFormData({ ...formData, target_age_group: v })}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Ages</SelectItem>
-                            <SelectItem value="adult">Adult Only</SelectItem>
-                            <SelectItem value="children">Children Only</SelectItem>
-                          </SelectContent>
-                        </Select>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-sm">Target Age Group</Label>
+                          <Select value={formData.target_age_group} onValueChange={v => setFormData({ ...formData, target_age_group: v })}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">All Ages</SelectItem>
+                              <SelectItem value="adult">Adult Only</SelectItem>
+                              <SelectItem value="children">Children Only</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-sm">Drug Form</Label>
+                          <Select
+                            value={formData.dosage_form}
+                            onValueChange={v => setFormData({
+                              ...formData,
+                              dosage_form: v,
+                              // Sachet only valid for tablet/capsule
+                              allows_sachet: (v === 'tablet' || v === 'capsule') ? formData.allows_sachet : false,
+                            })}
+                          >
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="tablet">Tablet</SelectItem>
+                              <SelectItem value="capsule">Capsule</SelectItem>
+                              <SelectItem value="syrup">Syrup</SelectItem>
+                              <SelectItem value="drops">Drops</SelectItem>
+                              <SelectItem value="cream">Cream / Ointment</SelectItem>
+                              <SelectItem value="injection">Injection</SelectItem>
+                              <SelectItem value="other">Other</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
+
+                      {/* Sachet pricing — only for tablets/capsules */}
+                      {(formData.dosage_form === 'tablet' || formData.dosage_form === 'capsule') && (
+                        <div className="rounded-lg border border-border/60 bg-muted/30 p-3 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <Label className="text-sm font-medium">Also sell per sachet/strip?</Label>
+                              <p className="text-xs text-muted-foreground">
+                                Lets customers buy a single {formData.dosage_form === 'capsule' ? 'strip' : 'sachet'} instead of the full pack.
+                              </p>
+                            </div>
+                            <Switch
+                              checked={formData.allows_sachet}
+                              onCheckedChange={v => setFormData({ ...formData, allows_sachet: v })}
+                            />
+                          </div>
+                          {formData.allows_sachet && (
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="space-y-1">
+                                <Label className="text-xs">Price per Sachet (₦)</Label>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={formData.sachet_price}
+                                  onChange={e => setFormData({ ...formData, sachet_price: e.target.value })}
+                                  placeholder="e.g. 200"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">Sachet Label</Label>
+                                <Select value={formData.sachet_unit_label} onValueChange={v => setFormData({ ...formData, sachet_unit_label: v })}>
+                                  <SelectTrigger><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="sachet">Sachet</SelectItem>
+                                    <SelectItem value="strip">Strip</SelectItem>
+                                    <SelectItem value="card">Card</SelectItem>
+                                    <SelectItem value="blister">Blister</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <p className="col-span-2 text-[11px] text-muted-foreground">
+                                The pack price (above) stays as the default. Customers will see a toggle to switch to per-{formData.sachet_unit_label} pricing at checkout.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
                       
                       <div className="space-y-1">
                         <Label className="text-sm">Pharmacist Dosage Instructions</Label>
