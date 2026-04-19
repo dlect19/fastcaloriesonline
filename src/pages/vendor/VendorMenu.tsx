@@ -155,6 +155,7 @@ export default function VendorMenu() {
     sachet_price: '',
     sachet_unit_label: 'sachet',
     pack_unit_label: 'pack',
+    sachets_per_pack: '',
   });
 
   // Auto-calculate calories from macros (fiber ~2 kcal/g)
