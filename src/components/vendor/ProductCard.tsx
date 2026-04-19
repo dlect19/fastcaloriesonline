@@ -26,7 +26,14 @@ export function ProductCard({ product, vendor, outletId }: ProductCardProps) {
 
   const calorieLevel = getCalorieLevel(product.calories);
 
-  const isUnavailable = product.is_available === false;
+  // Stock awareness (pharmacy / tracked products)
+  const trackStock = (product as any).track_stock === true;
+  const stockQty = (product as any).stock_quantity as number | null;
+  const lowThreshold = (product as any).low_stock_threshold ?? 5;
+  const outOfStock = trackStock && (stockQty ?? 0) <= 0;
+  const lowStock = trackStock && stockQty !== null && stockQty > 0 && stockQty <= lowThreshold;
+
+  const isUnavailable = product.is_available === false || outOfStock;
 
   return (
     <>
@@ -67,13 +74,17 @@ export function ProductCard({ product, vendor, outletId }: ProductCardProps) {
 
           {/* Content */}
           <div className="flex-1 min-w-0 flex flex-col">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h3 className="font-semibold text-foreground truncate">{product.name}</h3>
-              {isUnavailable && (
-                <Badge variant="destructive" className="text-[10px] shrink-0">
-                  Unavailable
+              {outOfStock ? (
+                <Badge variant="destructive" className="text-[10px] shrink-0">Out of stock</Badge>
+              ) : product.is_available === false ? (
+                <Badge variant="destructive" className="text-[10px] shrink-0">Unavailable</Badge>
+              ) : lowStock ? (
+                <Badge className="text-[10px] shrink-0 bg-amber-500 hover:bg-amber-500 text-white">
+                  Only {stockQty} left
                 </Badge>
-              )}
+              ) : null}
             </div>
             
             {product.description && (

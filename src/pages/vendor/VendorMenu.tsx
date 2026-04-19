@@ -156,6 +156,9 @@ export default function VendorMenu() {
     sachet_unit_label: 'sachet',
     pack_unit_label: 'pack',
     sachets_per_pack: '',
+    // Stock tracking
+    stock_quantity: '',
+    low_stock_threshold: '5',
   });
 
   // Auto-calculate calories from macros (fiber ~2 kcal/g)
@@ -429,6 +432,10 @@ export default function VendorMenu() {
         productData.sachets_per_pack = (sachetEligible && formData.allows_sachet && formData.sachets_per_pack)
           ? parseInt(formData.sachets_per_pack, 10)
           : null;
+        // Stock tracking for pharmacy
+        productData.track_stock = true;
+        productData.stock_quantity = formData.stock_quantity !== '' ? parseInt(formData.stock_quantity, 10) : 0;
+        productData.low_stock_threshold = formData.low_stock_threshold !== '' ? parseInt(formData.low_stock_threshold, 10) : 5;
       }
 
       if (editingProduct) {
@@ -492,6 +499,8 @@ export default function VendorMenu() {
       sachet_unit_label: (product as any).sachet_unit_label || 'sachet',
       pack_unit_label: (product as any).pack_unit_label || 'pack',
       sachets_per_pack: (product as any).sachets_per_pack?.toString() || '',
+      stock_quantity: (product as any).stock_quantity?.toString() ?? '',
+      low_stock_threshold: (product as any).low_stock_threshold?.toString() ?? '5',
     });
     // Set image preview from existing URL
     if (product.image_url) {
@@ -696,6 +705,8 @@ export default function VendorMenu() {
       sachet_unit_label: 'sachet',
       pack_unit_label: 'pack',
       sachets_per_pack: '',
+      stock_quantity: '',
+      low_stock_threshold: '5',
     });
   };
 
@@ -1091,6 +1102,41 @@ export default function VendorMenu() {
                           placeholder="e.g. Take 1 tablet twice daily after meals"
                           rows={2}
                         />
+                      </div>
+
+                      {/* Stock Tracking - Pharmacy only */}
+                      <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm font-semibold flex items-center gap-1.5">
+                            📦 Stock on Hand
+                          </Label>
+                          <span className="text-[11px] text-muted-foreground">Auto-decrements on every sale</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Quantity in stock *</Label>
+                            <Input
+                              type="number"
+                              min="0"
+                              value={formData.stock_quantity}
+                              onChange={e => setFormData({ ...formData, stock_quantity: e.target.value })}
+                              placeholder="e.g. 100"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Low-stock alert at</Label>
+                            <Input
+                              type="number"
+                              min="0"
+                              value={formData.low_stock_threshold}
+                              onChange={e => setFormData({ ...formData, low_stock_threshold: e.target.value })}
+                              placeholder="5"
+                            />
+                          </div>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          When stock hits 0, the drug is automatically marked unavailable. Customers see live stock levels.
+                        </p>
                       </div>
                       
                       <div className="grid grid-cols-3 gap-2">
