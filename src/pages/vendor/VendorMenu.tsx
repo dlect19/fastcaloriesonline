@@ -1401,8 +1401,8 @@ export default function VendorMenu() {
             />
           </div>
 
-          {/* Add-On Meals Management Section */}
-          {vendor && (
+          {/* Add-On Meals Management Section - hidden for pharmacy */}
+          {vendor && vendor.category !== 'pharmacy' && (
             <div className="bg-card rounded-xl border border-border p-4">
               <AddonMealsList vendor={vendor} addonProducts={addonProducts} onRefresh={fetchData} getEffectiveAvailability={getEffectiveAvailability} onToggleAvailability={toggleAvailability} />
             </div>
