@@ -115,6 +115,7 @@ export default function VendorPos() {
   const [holdLabel, setHoldLabel] = useState('');
   const [holdNote, setHoldNote] = useState('');
   const [todayStats, setTodayStats] = useState<{ count: number; revenue: number }>({ count: 0, revenue: 0 });
+  const [unitPickerProduct, setUnitPickerProduct] = useState<Product | null>(null);
 
   const { session, openSession, closeSession, recordSale } = usePosSession(vendorId, outletId);
 
