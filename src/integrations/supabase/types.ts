@@ -3059,9 +3059,11 @@ export type Database = {
           package_id: string | null
           product_id: string | null
           product_name: string
+          purchase_unit: string
           quantity: number
           special_instructions: string | null
           total_price: number
+          unit_multiplier: number
           unit_price: number
         }
         Insert: {
@@ -3075,9 +3077,11 @@ export type Database = {
           package_id?: string | null
           product_id?: string | null
           product_name: string
+          purchase_unit?: string
           quantity?: number
           special_instructions?: string | null
           total_price: number
+          unit_multiplier?: number
           unit_price: number
         }
         Update: {
@@ -3091,9 +3095,11 @@ export type Database = {
           package_id?: string | null
           product_id?: string | null
           product_name?: string
+          purchase_unit?: string
           quantity?: number
           special_instructions?: string | null
           total_price?: number
+          unit_multiplier?: number
           unit_price?: number
         }
         Relationships: [

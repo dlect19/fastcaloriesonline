@@ -1,7 +1,6 @@
 ---
 name: Pharmacy Adherence System
-description: Prescription gates, doctor/pharmacist prescription flow, morning/afternoon/night dosage, age groups, drug usage tracking with auto-start on delivery and manual start
-type: feature
+description: Prescription gates, doctor/pharmacist prescription flow, morning/afternoon/night dosage, age groups, drug usage tracking with auto-start on delivery and manual start, sachet-aware inventory
 ---
 
 The integrated Pharmacy system enables vendors to manage 'Medicines/Drugs' using a central seeded catalog (`drug_database` table with 48+ entries and images).
@@ -29,6 +28,21 @@ The integrated Pharmacy system enables vendors to manage 'Medicines/Drugs' using
 - Default selection is Pack; switching to Sachet uses `sachet_price` as the effective price
 - Selected unit is stored on the cart item as `purchaseUnit` and shown in the description as "Per pack" / "Per sachet"
 
+## Inventory Tracking (Sachet-Aware)
+- **Stock unit policy**: When `allows_sachet=true`, vendors enter `stock_quantity` **in sachets** (e.g. 240 sachets). When `allows_sachet=false`, stock is in packs/units.
+- The vendor menu form auto-relabels the stock field to "Sachets in stock" and shows a live preview "≈ X full packs + Y sachets" when sachets-per-pack is set.
+- `order_items` carries two new columns to drive correct stock deduction:
+  - `purchase_unit` (`pack` | `sachet`)
+  - `unit_multiplier` (integer): stock units consumed per qty. `1` for sachet sales, `sachets_per_pack` for pack sales of sachet-tracked drugs, `1` otherwise.
+- The `handle_order_stock_decrement` trigger multiplies `quantity * unit_multiplier` when calling `adjust_product_stock`. Cancelled orders restock by the same amount.
+- Both customer checkout (`VendorCheckoutSection`) and the in-store POS (`VendorPos`) populate these columns.
+
+## POS Pack/Sachet Selling
+- In `/vendor/pos`, drugs that allow sachet sales show a "Pack / Sachet" badge on the tile.
+- Tapping such a drug opens a unit-picker dialog: choose Full Pack (₦pack price, deducts `sachets_per_pack` units) or Single Sachet (₦sachet price, deducts 1 unit).
+- Pack vs sachet lines are kept separate in the cart (key = `productId__purchaseUnit`).
+- The thermal receipt prefixes sachet items with the unit label (e.g. "Paracetamol (sachet)").
+
 ## Drug Usage Tracking
 - `drug_usage_tracking` table tracks doses_taken, total_doses, completion_percentage
 - **Auto-start**: Tracking created on delivery via `setup-drug-reminders` edge function
@@ -41,6 +55,7 @@ The integrated Pharmacy system enables vendors to manage 'Medicines/Drugs' using
 - `drug_database.target_age_group` (all/children/adult)
 - `products.target_age_group` (inherited from drug_database)
 - `prescription_orders`: prescription_type (doctor/pharmacist), dose_unit, morning_dose, afternoon_dose, night_dose, doctor_name, hospital_name
+- `order_items.purchase_unit`, `order_items.unit_multiplier` (stock decrement)
 
 ## Reminders
 - Cron-driven `process-drug-reminders` edge function sends notifications

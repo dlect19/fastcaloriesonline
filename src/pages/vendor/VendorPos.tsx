@@ -48,6 +48,10 @@ type Product = {
   is_available: boolean | null;
   calories: number | null;
   category_label?: string | null;
+  allows_sachet?: boolean | null;
+  sachet_price?: number | null;
+  sachet_unit_label?: string | null;
+  sachets_per_pack?: number | null;
 };
 
 type CartLine = {
@@ -57,6 +61,9 @@ type CartLine = {
   qty: number;
   stockMax: number | null;
   caloriesPerUnit: number | null;
+  purchaseUnit: 'pack' | 'sachet';
+  unitMultiplier: number; // stock units consumed per qty
+  unitLabel: string; // shown on receipt / cart row
 };
 
 type HeldSale = {
@@ -108,6 +115,7 @@ export default function VendorPos() {
   const [holdLabel, setHoldLabel] = useState('');
   const [holdNote, setHoldNote] = useState('');
   const [todayStats, setTodayStats] = useState<{ count: number; revenue: number }>({ count: 0, revenue: 0 });
+  const [unitPickerProduct, setUnitPickerProduct] = useState<Product | null>(null);
 
   const { session, openSession, closeSession, recordSale } = usePosSession(vendorId, outletId);
 
@@ -181,7 +189,7 @@ export default function VendorPos() {
         supabase.from('vendors').select('id, name, address, phone, category, logo_url').eq('id', vendorId).maybeSingle(),
         supabase
           .from('products')
-          .select('id, name, price, discount_price, image_url, stock_quantity, track_stock, is_available, calories, outlet_id')
+          .select('id, name, price, discount_price, image_url, stock_quantity, track_stock, is_available, calories, outlet_id, allows_sachet, sachet_price, sachet_unit_label, sachets_per_pack')
           .eq('vendor_id', vendorId)
           .order('name'),
       ]);
@@ -236,45 +244,74 @@ export default function VendorPos() {
     return products.filter(p => p.name.toLowerCase().includes(q));
   }, [products, search]);
 
-  const addToCart = useCallback((p: Product) => {
+  const addToCart = useCallback((p: Product, unit: 'pack' | 'sachet' = 'pack') => {
     if (p.is_available === false) return;
-    if (p.track_stock && (p.stock_quantity ?? 0) <= 0) {
-      toast({ title: 'Out of stock', variant: 'destructive' });
+    const sachetEligible = !!p.allows_sachet && Number(p.sachet_price) > 0 && Number(p.sachets_per_pack) > 0;
+    const finalUnit: 'pack' | 'sachet' = sachetEligible && unit === 'sachet' ? 'sachet' : 'pack';
+    const sachetsPerPack = Number(p.sachets_per_pack) || 1;
+    const unitMultiplier = finalUnit === 'sachet' ? 1 : (sachetEligible ? sachetsPerPack : 1);
+    const stockUnitsAvailable = p.stock_quantity ?? 0;
+    if (p.track_stock && stockUnitsAvailable < unitMultiplier) {
+      toast({ title: finalUnit === 'sachet' ? 'Out of sachets' : 'Out of stock', variant: 'destructive' });
       return;
     }
+    const packPrice = p.discount_price && p.discount_price < p.price ? p.discount_price : p.price;
+    const unitPrice = finalUnit === 'sachet' ? Number(p.sachet_price) : packPrice;
+    const sachetLabel = p.sachet_unit_label || 'sachet';
+    const unitLabel = finalUnit === 'sachet' ? sachetLabel : 'pack';
+
     setCart(prev => {
-      const existing = prev.find(c => c.productId === p.id);
+      const lineKey = `${p.id}__${finalUnit}`;
+      const existing = prev.find(c => `${c.productId}__${c.purchaseUnit}` === lineKey);
       if (existing) {
-        if (p.track_stock && existing.qty + 1 > (p.stock_quantity ?? 0)) {
-          toast({ title: `Only ${p.stock_quantity} in stock`, variant: 'destructive' });
+        const nextStockUsed = (existing.qty + 1) * existing.unitMultiplier;
+        if (p.track_stock && nextStockUsed > stockUnitsAvailable) {
+          toast({ title: `Only ${stockUnitsAvailable} ${unitLabel === 'pack' ? 'in stock' : sachetLabel + 's left'}`, variant: 'destructive' });
           return prev;
         }
-        return prev.map(c => (c.productId === p.id ? { ...c, qty: c.qty + 1 } : c));
+        return prev.map(c => (`${c.productId}__${c.purchaseUnit}` === lineKey ? { ...c, qty: c.qty + 1 } : c));
       }
       return [
         ...prev,
         {
           productId: p.id,
           name: p.name,
-          unitPrice: p.discount_price && p.discount_price < p.price ? p.discount_price : p.price,
+          unitPrice,
           qty: 1,
-          stockMax: p.track_stock ? p.stock_quantity ?? 0 : null,
+          stockMax: p.track_stock ? Math.floor(stockUnitsAvailable / unitMultiplier) : null,
           caloriesPerUnit: p.calories ?? null,
+          purchaseUnit: finalUnit,
+          unitMultiplier,
+          unitLabel,
         },
       ];
     });
     setMobileCartOpen(true);
   }, []);
 
-  const updateQty = (productId: string, delta: number) => {
+  const handleProductTap = useCallback((p: Product) => {
+    if (p.is_available === false) return;
+    if (p.track_stock && (p.stock_quantity ?? 0) <= 0) {
+      toast({ title: 'Out of stock', variant: 'destructive' });
+      return;
+    }
+    const sachetEligible = !!p.allows_sachet && Number(p.sachet_price) > 0 && Number(p.sachets_per_pack) > 0;
+    if (sachetEligible) {
+      setUnitPickerProduct(p);
+    } else {
+      addToCart(p, 'pack');
+    }
+  }, [addToCart]);
+
+  const updateQty = (lineKey: string, delta: number) => {
     setCart(prev =>
       prev
         .map(c => {
-          if (c.productId !== productId) return c;
+          if (`${c.productId}__${c.purchaseUnit}` !== lineKey) return c;
           const next = c.qty + delta;
           if (next <= 0) return null;
           if (c.stockMax !== null && next > c.stockMax) {
-            toast({ title: `Only ${c.stockMax} in stock`, variant: 'destructive' });
+            toast({ title: `Only ${c.stockMax} ${c.unitLabel}${c.stockMax === 1 ? '' : 's'} available`, variant: 'destructive' });
             return c;
           }
           return { ...c, qty: next };
@@ -283,7 +320,8 @@ export default function VendorPos() {
     );
   };
 
-  const removeLine = (id: string) => setCart(c => c.filter(x => x.productId !== id));
+  const removeLine = (lineKey: string) =>
+    setCart(c => c.filter(x => `${x.productId}__${x.purchaseUnit}` !== lineKey));
   const clearCart = () => setCart([]);
 
   const subtotal = useMemo(() => cart.reduce((s, c) => s + c.unitPrice * c.qty, 0), [cart]);
@@ -375,14 +413,17 @@ export default function VendorPos() {
 
       if (orderErr) throw orderErr;
 
-      // 3. Insert order_items
+      // 3. Insert order_items (with purchase_unit + unit_multiplier so the stock trigger deducts correctly)
       const itemRows = cart.map(c => ({
         order_id: orderRow.id,
         product_id: c.productId,
         quantity: c.qty,
         unit_price: c.unitPrice,
         subtotal: c.unitPrice * c.qty,
+        total_price: c.unitPrice * c.qty,
         product_name: c.name,
+        purchase_unit: c.purchaseUnit,
+        unit_multiplier: c.unitMultiplier,
       }));
       const { error: itemsErr } = await supabase.from('order_items').insert(itemRows as any);
       if (itemsErr) throw itemsErr;
@@ -418,7 +459,7 @@ export default function VendorPos() {
           cashierName: session.cashier_name ?? undefined,
           date: new Date(),
           items: cart.map(c => ({
-            name: c.name,
+            name: c.purchaseUnit === 'sachet' ? `${c.name} (${c.unitLabel})` : c.name,
             qty: c.qty,
             price: c.unitPrice * c.qty,
             calories: c.caloriesPerUnit,
@@ -562,12 +603,17 @@ export default function VendorPos() {
               )}
               {filtered.map(p => {
                 const outOfStock = p.track_stock && (p.stock_quantity ?? 0) <= 0;
-                const lowStock = p.track_stock && (p.stock_quantity ?? 0) > 0 && (p.stock_quantity ?? 0) <= 5;
+                const sachetEligible = !!p.allows_sachet && Number(p.sachet_price) > 0 && Number(p.sachets_per_pack) > 0;
+                const stockUnits = p.stock_quantity ?? 0;
+                const lowStock = p.track_stock && stockUnits > 0 && stockUnits <= 5;
+                const stockLabel = sachetEligible
+                  ? `${stockUnits} ${(p.sachet_unit_label || 'sachet')}${stockUnits === 1 ? '' : 's'} left`
+                  : `${stockUnits} left`;
                 const price = p.discount_price && p.discount_price < p.price ? p.discount_price : p.price;
                 return (
                   <button
                     key={p.id}
-                    onClick={() => addToCart(p)}
+                    onClick={() => handleProductTap(p)}
                     disabled={outOfStock}
                     className={cn(
                       'relative aspect-square rounded-xl border bg-card overflow-hidden text-left transition-all flex flex-col',
@@ -587,7 +633,12 @@ export default function VendorPos() {
                       )}
                       {!outOfStock && lowStock && (
                         <Badge className="absolute top-1 right-1 text-[10px] bg-amber-500 hover:bg-amber-500">
-                          {p.stock_quantity} left
+                          {stockLabel}
+                        </Badge>
+                      )}
+                      {sachetEligible && !outOfStock && (
+                        <Badge className="absolute bottom-1 left-1 text-[9px] bg-primary/90 hover:bg-primary/90">
+                          Pack / Sachet
                         </Badge>
                       )}
                     </div>
@@ -635,31 +686,39 @@ export default function VendorPos() {
               </div>
             ) : (
               <div className="p-3 space-y-2">
-                {cart.map(c => (
-                  <Card key={c.productId} className="p-2.5">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium line-clamp-1">{c.name}</p>
-                        <p className="text-xs text-muted-foreground">₦{c.unitPrice.toLocaleString()} each</p>
+                {cart.map(c => {
+                  const lineKey = `${c.productId}__${c.purchaseUnit}`;
+                  return (
+                    <Card key={lineKey} className="p-2.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium line-clamp-1">{c.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            ₦{c.unitPrice.toLocaleString()} / {c.unitLabel}
+                            {c.purchaseUnit === 'sachet' && (
+                              <span className="ml-1 px-1 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-medium">sachet</span>
+                            )}
+                          </p>
+                        </div>
+                        <button onClick={() => removeLine(lineKey)} className="text-muted-foreground hover:text-destructive">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
-                      <button onClick={() => removeLine(c.productId)} className="text-muted-foreground hover:text-destructive">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                    <div className="mt-2 flex items-center justify-between">
-                      <div className="flex items-center gap-1">
-                        <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQty(c.productId, -1)}>
-                          <Minus className="w-3 h-3" />
-                        </Button>
-                        <span className="w-8 text-center text-sm font-semibold">{c.qty}</span>
-                        <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQty(c.productId, 1)}>
-                          <Plus className="w-3 h-3" />
-                        </Button>
+                      <div className="mt-2 flex items-center justify-between">
+                        <div className="flex items-center gap-1">
+                          <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQty(lineKey, -1)}>
+                            <Minus className="w-3 h-3" />
+                          </Button>
+                          <span className="w-8 text-center text-sm font-semibold">{c.qty}</span>
+                          <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQty(lineKey, 1)}>
+                            <Plus className="w-3 h-3" />
+                          </Button>
+                        </div>
+                        <p className="font-bold text-sm">₦{(c.unitPrice * c.qty).toLocaleString()}</p>
                       </div>
-                      <p className="font-bold text-sm">₦{(c.unitPrice * c.qty).toLocaleString()}</p>
-                    </div>
-                  </Card>
-                ))}
+                    </Card>
+                  );
+                })}
               </div>
             )}
           </ScrollArea>
@@ -820,6 +879,67 @@ export default function VendorPos() {
               </div>
             )}
           </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      {/* Pack vs Sachet picker (pharmacy items that allow sachet sales) */}
+      <Dialog open={!!unitPickerProduct} onOpenChange={(o) => !o && setUnitPickerProduct(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{unitPickerProduct?.name}</DialogTitle>
+            <DialogDescription>Sell as a full pack or single sachet?</DialogDescription>
+          </DialogHeader>
+          {unitPickerProduct && (() => {
+            const p = unitPickerProduct;
+            const packPrice = p.discount_price && p.discount_price < p.price ? p.discount_price : p.price;
+            const sachetPrice = Number(p.sachet_price) || 0;
+            const sachetLabel = p.sachet_unit_label || 'sachet';
+            const perPack = Number(p.sachets_per_pack) || 1;
+            const stockUnits = p.stock_quantity ?? 0;
+            const packsAvailable = Math.floor(stockUnits / perPack);
+            const noPack = !!p.track_stock && packsAvailable < 1;
+            const noSachet = !!p.track_stock && stockUnits < 1;
+            return (
+              <div className="grid grid-cols-2 gap-2.5">
+                <button
+                  onClick={() => { addToCart(p, 'pack'); setUnitPickerProduct(null); }}
+                  disabled={noPack}
+                  className={cn(
+                    'rounded-xl border-2 p-3 text-left transition-all',
+                    noPack ? 'opacity-40 cursor-not-allowed border-border' : 'border-border hover:border-primary hover:shadow-card active:scale-95'
+                  )}
+                >
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Full pack</p>
+                  <p className="text-lg font-bold mt-1">₦{packPrice.toLocaleString()}</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    = {perPack} {sachetLabel}{perPack === 1 ? '' : 's'}
+                  </p>
+                  {p.track_stock && (
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      {packsAvailable} pack{packsAvailable === 1 ? '' : 's'} left
+                    </p>
+                  )}
+                </button>
+                <button
+                  onClick={() => { addToCart(p, 'sachet'); setUnitPickerProduct(null); }}
+                  disabled={noSachet}
+                  className={cn(
+                    'rounded-xl border-2 p-3 text-left transition-all',
+                    noSachet ? 'opacity-40 cursor-not-allowed border-border' : 'border-primary/30 bg-primary/5 hover:border-primary hover:shadow-card active:scale-95'
+                  )}
+                >
+                  <p className="text-xs uppercase tracking-wide text-primary">Single {sachetLabel}</p>
+                  <p className="text-lg font-bold mt-1">₦{sachetPrice.toLocaleString()}</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Per {sachetLabel}</p>
+                  {p.track_stock && (
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      {stockUnits} {sachetLabel}{stockUnits === 1 ? '' : 's'} left
+                    </p>
+                  )}
+                </button>
+              </div>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </VendorLayout>
