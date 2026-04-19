@@ -179,12 +179,12 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed top-0 left-0 z-40 h-screen overflow-y-auto bg-card border-r border-border transition-all duration-300 hidden lg:block',
+          'fixed top-0 left-0 z-40 h-screen flex flex-col bg-card border-r border-border transition-all duration-300 hidden lg:flex',
           collapsed ? 'w-16' : 'w-64',
         )}
       >
-        {/* Logo */}
-        <div className="h-16 flex items-center justify-between px-4 border-b border-border">
+        {/* Logo (fixed) */}
+        <div className="h-16 flex-shrink-0 flex items-center justify-between px-4 border-b border-border">
           {!collapsed && (
             <div className="flex items-center gap-2">
               <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center">
@@ -206,9 +206,9 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
           </Button>
         </div>
 
-        {/* Outlet Switcher - wrapped in own provider for pages that don't use VendorLayout */}
+        {/* Outlet Switcher (fixed) */}
         <OutletProvider vendorId={resolvedVendorId} onOutletChange={onOutletChange}>
-          <div className="px-3 pt-3 pb-1">
+          <div className="flex-shrink-0 px-3 pt-3 pb-1">
             <OutletSwitcher
               collapsed={collapsed}
               onAddOutlet={() => setAddOutletOpen(true)}
@@ -216,8 +216,8 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
           </div>
         </OutletProvider>
 
-        {/* Navigation */}
-        <nav className="p-3 space-y-1">
+        {/* Navigation (independently scrollable) */}
+        <nav className="flex-1 min-h-0 overflow-y-auto p-3 space-y-1">
           {visibleItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
@@ -248,8 +248,8 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
           })}
         </nav>
 
-        {/* Switch to Customer App */}
-        <div className="absolute bottom-14 left-0 right-0 px-3 pb-1">
+        {/* Switch to Customer App (fixed) */}
+        <div className="flex-shrink-0 px-3 pb-1">
           <button
             onClick={() => {
               localStorage.removeItem('fc_last_portal');
@@ -265,8 +265,8 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
           </button>
         </div>
 
-        {/* Logout */}
-        <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-border">
+        {/* Logout (fixed) */}
+        <div className="flex-shrink-0 p-3 border-t border-border">
           <button
             onClick={handleSignOut}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
