@@ -426,6 +426,9 @@ export default function VendorMenu() {
           : null;
         productData.sachet_unit_label = formData.sachet_unit_label || 'sachet';
         productData.pack_unit_label = formData.pack_unit_label || 'pack';
+        productData.sachets_per_pack = (sachetEligible && formData.allows_sachet && formData.sachets_per_pack)
+          ? parseInt(formData.sachets_per_pack, 10)
+          : null;
       }
 
       if (editingProduct) {
