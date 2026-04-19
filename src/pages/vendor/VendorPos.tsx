@@ -190,7 +190,30 @@ export default function VendorPos() {
     return () => { cancelled = true; };
   }, [vendorId, outletId]);
 
-  // Realtime stock updates
+  // Today's POS stats (auto-refreshes when sales recorded)
+  useEffect(() => {
+    if (!vendorId) return;
+    let cancelled = false;
+    const fetchStats = async () => {
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      let q = supabase
+        .from('orders')
+        .select('id, total', { count: 'exact' })
+        .eq('vendor_id', vendorId)
+        .eq('channel', 'pos')
+        .gte('created_at', start.toISOString());
+      if (outletId) q = q.eq('outlet_id', outletId);
+      const { data, count } = await q;
+      if (cancelled) return;
+      const revenue = (data || []).reduce((s: number, r: any) => s + Number(r.total || 0), 0);
+      setTodayStats({ count: count ?? (data?.length ?? 0), revenue });
+    };
+    fetchStats();
+    // Refresh after each new sale via cart change
+  }, [vendorId, outletId, cart.length === 0]);
+
+
   useEffect(() => {
     if (!vendorId) return;
     const channel = supabase
@@ -427,6 +450,16 @@ export default function VendorPos() {
                 <Receipt className="w-5 h-5 text-primary" /> POS
               </h1>
               <div className="flex items-center gap-2 flex-wrap">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate('/vendor/pos/reports')}
+                  className="gap-1.5"
+                  title="Sales reports & inventory"
+                >
+                  <BarChart3 className="w-4 h-4" />
+                  <span className="hidden sm:inline">Reports</span>
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"
