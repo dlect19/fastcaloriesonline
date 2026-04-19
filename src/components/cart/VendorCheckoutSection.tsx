@@ -460,8 +460,12 @@ export function VendorCheckoutSection({
       if (selectedDiscountType === 'spin' && selectedSpinDiscountId) {
         await useDiscount(selectedSpinDiscountId, order.id);
       }
-      if (selectedDiscountType === 'platform' && eligibility.firstOrderDiscount) {
-        await markFirstOrderUsed();
+      if (selectedDiscountType === 'platform') {
+        if (isPharmacy && eligibility.pharmacyWelcomeValue) {
+          await markFirstPharmacyOrderUsed();
+        } else if (!isPharmacy && eligibility.firstOrderDiscount) {
+          await markFirstOrderUsed();
+        }
       }
 
       // Pay via wallet
@@ -610,10 +614,19 @@ export function VendorCheckoutSection({
         </div>
       </section>
 
+      {/* Pharmacy notice — explain why other promos aren't available */}
+      {isPharmacy && (activeDiscounts.length > 0 || eligibility.firstOrderDiscount || eligibility.loyaltyDiscount) && (
+        <div className="p-3 rounded-lg border border-info/30 bg-info/5 text-xs text-muted-foreground">
+          💊 Pharmacy orders use a separate welcome bonus funded from the platform service charge.
+          Spin-wheel discounts, the WELCOME10 bonus, and loyalty rewards do not apply here so drug
+          prices stay exactly as the pharmacy listed them.
+        </div>
+      )}
+
       {/* Active Discount Selector (spin wheel & platform promos only) */}
       <ActiveDiscountSelector
-        activeSpinDiscounts={activeDiscounts}
-        platformPromo={getBestPlatformPromo()}
+        activeSpinDiscounts={visibleSpinDiscounts}
+        platformPromo={activePlatformPromo}
         subtotal={group.subtotal}
         selectedType={selectedDiscountType}
         selectedSpinId={selectedSpinDiscountId}
@@ -624,8 +637,7 @@ export function VendorCheckoutSection({
             const spinDiscount = activeDiscounts.find(d => d.id === spinId);
             if (spinDiscount) setPromoDiscount(Math.round((group.subtotal * spinDiscount.discount_percentage) / 100));
           } else if (type === 'platform') {
-            const platformPromo = getBestPlatformPromo();
-            if (platformPromo) setPromoDiscount(Math.round((group.subtotal * platformPromo.discount) / 100));
+            if (activePlatformPromo) setPromoDiscount(computePromoAmount(activePlatformPromo));
             setSelectedSpinDiscountId(null);
           } else {
             setPromoDiscount(0);
