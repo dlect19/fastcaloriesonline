@@ -91,6 +91,11 @@ export default function AdminRewards() {
     tier1Spins: '1',
     tier2Spins: '3',
     tier3Spins: '6',
+    // Pharmacy welcome bonus (funded by service charge — never reduces drug margin)
+    pharmacyWelcomeEnabled: true,
+    pharmacyWelcomeType: 'percent' as 'percent' | 'fixed',
+    pharmacyWelcomePercent: '5',
+    pharmacyWelcomeFixed: '200',
   });
 
   // Fetch wheel configurations
@@ -200,6 +205,10 @@ export default function AdminRewards() {
         tier1Spins: settings.spin_tier1_spins || '1',
         tier2Spins: settings.spin_tier2_spins || '3',
         tier3Spins: settings.spin_tier3_spins || '6',
+        pharmacyWelcomeEnabled: settings.pharmacy_welcome_enabled === 'true',
+        pharmacyWelcomeType: ((settings.pharmacy_welcome_type as 'percent' | 'fixed') || 'percent'),
+        pharmacyWelcomePercent: settings.pharmacy_welcome_percent || '5',
+        pharmacyWelcomeFixed: settings.pharmacy_welcome_fixed || '200',
       });
     }
   }, [settings]);
@@ -232,6 +241,11 @@ export default function AdminRewards() {
         updateSetting('spin_tier1_spins', localSettings.tier1Spins),
         updateSetting('spin_tier2_spins', localSettings.tier2Spins),
         updateSetting('spin_tier3_spins', localSettings.tier3Spins),
+        // Pharmacy welcome bonus
+        updateSetting('pharmacy_welcome_enabled', String(localSettings.pharmacyWelcomeEnabled)),
+        updateSetting('pharmacy_welcome_type', localSettings.pharmacyWelcomeType),
+        updateSetting('pharmacy_welcome_percent', localSettings.pharmacyWelcomePercent),
+        updateSetting('pharmacy_welcome_fixed', localSettings.pharmacyWelcomeFixed),
       ]);
 
       toast({ title: 'Settings saved successfully' });
