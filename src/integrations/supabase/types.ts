@@ -3251,6 +3251,7 @@ export type Database = {
         Row: {
           cancellation_reason: string | null
           cancelled_at: string | null
+          channel: string
           confirmation_code: string | null
           created_at: string
           delivered_at: string | null
@@ -3275,6 +3276,9 @@ export type Database = {
           payment_method: string | null
           payment_reference: string | null
           payment_status: string | null
+          pos_cashier_id: string | null
+          pos_payment_method: string | null
+          pos_session_id: string | null
           prep_minutes: number | null
           promo_code: string | null
           rider_id: string | null
@@ -3290,6 +3294,7 @@ export type Database = {
         Insert: {
           cancellation_reason?: string | null
           cancelled_at?: string | null
+          channel?: string
           confirmation_code?: string | null
           created_at?: string
           delivered_at?: string | null
@@ -3314,6 +3319,9 @@ export type Database = {
           payment_method?: string | null
           payment_reference?: string | null
           payment_status?: string | null
+          pos_cashier_id?: string | null
+          pos_payment_method?: string | null
+          pos_session_id?: string | null
           prep_minutes?: number | null
           promo_code?: string | null
           rider_id?: string | null
@@ -3329,6 +3337,7 @@ export type Database = {
         Update: {
           cancellation_reason?: string | null
           cancelled_at?: string | null
+          channel?: string
           confirmation_code?: string | null
           created_at?: string
           delivered_at?: string | null
@@ -3353,6 +3362,9 @@ export type Database = {
           payment_method?: string | null
           payment_reference?: string | null
           payment_status?: string | null
+          pos_cashier_id?: string | null
+          pos_payment_method?: string | null
+          pos_session_id?: string | null
           prep_minutes?: number | null
           promo_code?: string | null
           rider_id?: string | null
@@ -3962,6 +3974,144 @@ export type Database = {
         }
         Relationships: []
       }
+      pos_devices: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          device_id: string | null
+          device_name: string
+          id: string
+          is_default: boolean
+          outlet_id: string | null
+          paper_width_mm: number
+          vendor_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          device_id?: string | null
+          device_name: string
+          id?: string
+          is_default?: boolean
+          outlet_id?: string | null
+          paper_width_mm?: number
+          vendor_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          device_id?: string | null
+          device_name?: string
+          id?: string
+          is_default?: boolean
+          outlet_id?: string | null
+          paper_width_mm?: number
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_devices_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_outlets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_devices_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pos_sessions: {
+        Row: {
+          card_sales: number
+          cash_difference: number | null
+          cash_sales: number
+          cashier_id: string
+          cashier_name: string | null
+          closed_at: string | null
+          closing_cash: number | null
+          created_at: string
+          expected_cash: number | null
+          id: string
+          notes: string | null
+          opened_at: string
+          opening_cash: number
+          outlet_id: string | null
+          status: string
+          total_orders: number
+          total_sales: number
+          transfer_sales: number
+          updated_at: string
+          vendor_id: string
+          wallet_sales: number
+        }
+        Insert: {
+          card_sales?: number
+          cash_difference?: number | null
+          cash_sales?: number
+          cashier_id: string
+          cashier_name?: string | null
+          closed_at?: string | null
+          closing_cash?: number | null
+          created_at?: string
+          expected_cash?: number | null
+          id?: string
+          notes?: string | null
+          opened_at?: string
+          opening_cash?: number
+          outlet_id?: string | null
+          status?: string
+          total_orders?: number
+          total_sales?: number
+          transfer_sales?: number
+          updated_at?: string
+          vendor_id: string
+          wallet_sales?: number
+        }
+        Update: {
+          card_sales?: number
+          cash_difference?: number | null
+          cash_sales?: number
+          cashier_id?: string
+          cashier_name?: string | null
+          closed_at?: string | null
+          closing_cash?: number | null
+          created_at?: string
+          expected_cash?: number | null
+          id?: string
+          notes?: string | null
+          opened_at?: string
+          opening_cash?: number
+          outlet_id?: string | null
+          status?: string
+          total_orders?: number
+          total_sales?: number
+          transfer_sales?: number
+          updated_at?: string
+          vendor_id?: string
+          wallet_sales?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_sessions_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_outlets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_sessions_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       prescription_orders: {
         Row: {
           afternoon_dose: number | null
@@ -4215,6 +4365,7 @@ export type Database = {
           image_url: string | null
           is_available: boolean | null
           is_hidden: boolean
+          low_stock_threshold: number | null
           meal_type: string
           name: string
           nutrient_tags: string[] | null
@@ -4230,7 +4381,9 @@ export type Database = {
           sachets_per_pack: number | null
           serving_size_grams: number | null
           serving_unit: string | null
+          stock_quantity: number | null
           target_age_group: string | null
+          track_stock: boolean | null
           updated_at: string
           vendor_id: string
         }
@@ -4257,6 +4410,7 @@ export type Database = {
           image_url?: string | null
           is_available?: boolean | null
           is_hidden?: boolean
+          low_stock_threshold?: number | null
           meal_type?: string
           name: string
           nutrient_tags?: string[] | null
@@ -4272,7 +4426,9 @@ export type Database = {
           sachets_per_pack?: number | null
           serving_size_grams?: number | null
           serving_unit?: string | null
+          stock_quantity?: number | null
           target_age_group?: string | null
+          track_stock?: boolean | null
           updated_at?: string
           vendor_id: string
         }
@@ -4299,6 +4455,7 @@ export type Database = {
           image_url?: string | null
           is_available?: boolean | null
           is_hidden?: boolean
+          low_stock_threshold?: number | null
           meal_type?: string
           name?: string
           nutrient_tags?: string[] | null
@@ -4314,7 +4471,9 @@ export type Database = {
           sachets_per_pack?: number | null
           serving_size_grams?: number | null
           serving_unit?: string | null
+          stock_quantity?: number | null
           target_age_group?: string | null
+          track_stock?: boolean | null
           updated_at?: string
           vendor_id?: string
         }
@@ -5092,6 +5251,76 @@ export type Database = {
             columns: ["wheel_config_id"]
             isOneToOne: false
             referencedRelation: "spin_wheel_config"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_movements: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          movement_type: string
+          outlet_id: string | null
+          product_id: string
+          quantity_after: number | null
+          quantity_before: number | null
+          quantity_change: number
+          reason: string | null
+          reference_id: string | null
+          reference_type: string | null
+          vendor_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          movement_type: string
+          outlet_id?: string | null
+          product_id: string
+          quantity_after?: number | null
+          quantity_before?: number | null
+          quantity_change: number
+          reason?: string | null
+          reference_id?: string | null
+          reference_type?: string | null
+          vendor_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          movement_type?: string
+          outlet_id?: string | null
+          product_id?: string
+          quantity_after?: number | null
+          quantity_before?: number | null
+          quantity_change?: number
+          reason?: string | null
+          reference_id?: string | null
+          reference_type?: string | null
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_movements_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_outlets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_movements_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_movements_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
             referencedColumns: ["id"]
           },
         ]
@@ -6561,6 +6790,17 @@ export type Database = {
     }
     Functions: {
       add_vendor_role: { Args: never; Returns: undefined }
+      adjust_product_stock: {
+        Args: {
+          p_movement_type: string
+          p_product_id: string
+          p_quantity_change: number
+          p_reason?: string
+          p_reference_id?: string
+          p_reference_type?: string
+        }
+        Returns: Json
+      }
       admin_adjust_wallet_balance: {
         Args: {
           p_adjust_type: string
