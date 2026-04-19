@@ -413,14 +413,17 @@ export default function VendorPos() {
 
       if (orderErr) throw orderErr;
 
-      // 3. Insert order_items
+      // 3. Insert order_items (with purchase_unit + unit_multiplier so the stock trigger deducts correctly)
       const itemRows = cart.map(c => ({
         order_id: orderRow.id,
         product_id: c.productId,
         quantity: c.qty,
         unit_price: c.unitPrice,
         subtotal: c.unitPrice * c.qty,
+        total_price: c.unitPrice * c.qty,
         product_name: c.name,
+        purchase_unit: c.purchaseUnit,
+        unit_multiplier: c.unitMultiplier,
       }));
       const { error: itemsErr } = await supabase.from('order_items').insert(itemRows as any);
       if (itemsErr) throw itemsErr;
@@ -456,7 +459,7 @@ export default function VendorPos() {
           cashierName: session.cashier_name ?? undefined,
           date: new Date(),
           items: cart.map(c => ({
-            name: c.name,
+            name: c.purchaseUnit === 'sachet' ? `${c.name} (${c.unitLabel})` : c.name,
             qty: c.qty,
             price: c.unitPrice * c.qty,
             calories: c.caloriesPerUnit,
@@ -600,12 +603,17 @@ export default function VendorPos() {
               )}
               {filtered.map(p => {
                 const outOfStock = p.track_stock && (p.stock_quantity ?? 0) <= 0;
-                const lowStock = p.track_stock && (p.stock_quantity ?? 0) > 0 && (p.stock_quantity ?? 0) <= 5;
+                const sachetEligible = !!p.allows_sachet && Number(p.sachet_price) > 0 && Number(p.sachets_per_pack) > 0;
+                const stockUnits = p.stock_quantity ?? 0;
+                const lowStock = p.track_stock && stockUnits > 0 && stockUnits <= 5;
+                const stockLabel = sachetEligible
+                  ? `${stockUnits} ${(p.sachet_unit_label || 'sachet')}${stockUnits === 1 ? '' : 's'} left`
+                  : `${stockUnits} left`;
                 const price = p.discount_price && p.discount_price < p.price ? p.discount_price : p.price;
                 return (
                   <button
                     key={p.id}
-                    onClick={() => addToCart(p)}
+                    onClick={() => handleProductTap(p)}
                     disabled={outOfStock}
                     className={cn(
                       'relative aspect-square rounded-xl border bg-card overflow-hidden text-left transition-all flex flex-col',
@@ -625,7 +633,12 @@ export default function VendorPos() {
                       )}
                       {!outOfStock && lowStock && (
                         <Badge className="absolute top-1 right-1 text-[10px] bg-amber-500 hover:bg-amber-500">
-                          {p.stock_quantity} left
+                          {stockLabel}
+                        </Badge>
+                      )}
+                      {sachetEligible && !outOfStock && (
+                        <Badge className="absolute bottom-1 left-1 text-[9px] bg-primary/90 hover:bg-primary/90">
+                          Pack / Sachet
                         </Badge>
                       )}
                     </div>
@@ -673,31 +686,39 @@ export default function VendorPos() {
               </div>
             ) : (
               <div className="p-3 space-y-2">
-                {cart.map(c => (
-                  <Card key={c.productId} className="p-2.5">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium line-clamp-1">{c.name}</p>
-                        <p className="text-xs text-muted-foreground">₦{c.unitPrice.toLocaleString()} each</p>
+                {cart.map(c => {
+                  const lineKey = `${c.productId}__${c.purchaseUnit}`;
+                  return (
+                    <Card key={lineKey} className="p-2.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium line-clamp-1">{c.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            ₦{c.unitPrice.toLocaleString()} / {c.unitLabel}
+                            {c.purchaseUnit === 'sachet' && (
+                              <span className="ml-1 px-1 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-medium">sachet</span>
+                            )}
+                          </p>
+                        </div>
+                        <button onClick={() => removeLine(lineKey)} className="text-muted-foreground hover:text-destructive">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
-                      <button onClick={() => removeLine(c.productId)} className="text-muted-foreground hover:text-destructive">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                    <div className="mt-2 flex items-center justify-between">
-                      <div className="flex items-center gap-1">
-                        <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQty(c.productId, -1)}>
-                          <Minus className="w-3 h-3" />
-                        </Button>
-                        <span className="w-8 text-center text-sm font-semibold">{c.qty}</span>
-                        <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQty(c.productId, 1)}>
-                          <Plus className="w-3 h-3" />
-                        </Button>
+                      <div className="mt-2 flex items-center justify-between">
+                        <div className="flex items-center gap-1">
+                          <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQty(lineKey, -1)}>
+                            <Minus className="w-3 h-3" />
+                          </Button>
+                          <span className="w-8 text-center text-sm font-semibold">{c.qty}</span>
+                          <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQty(lineKey, 1)}>
+                            <Plus className="w-3 h-3" />
+                          </Button>
+                        </div>
+                        <p className="font-bold text-sm">₦{(c.unitPrice * c.qty).toLocaleString()}</p>
                       </div>
-                      <p className="font-bold text-sm">₦{(c.unitPrice * c.qty).toLocaleString()}</p>
-                    </div>
-                  </Card>
-                ))}
+                    </Card>
+                  );
+                })}
               </div>
             )}
           </ScrollArea>
