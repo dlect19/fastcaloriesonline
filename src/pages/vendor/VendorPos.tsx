@@ -409,6 +409,18 @@ export default function VendorPos() {
               </h1>
               <div className="flex items-center gap-2 flex-wrap">
                 <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setHeldSheetOpen(true)}
+                  className="gap-1.5 relative"
+                >
+                  <PauseCircle className="w-4 h-4" />
+                  <span className="hidden sm:inline">Held Sales</span>
+                  {heldSales.length > 0 && (
+                    <Badge className="ml-0.5 h-5 min-w-5 px-1.5 text-[10px]">{heldSales.length}</Badge>
+                  )}
+                </Button>
+                <Button
                   variant={printer ? 'default' : 'outline'}
                   size="sm"
                   onClick={handleConnectPrinter}
