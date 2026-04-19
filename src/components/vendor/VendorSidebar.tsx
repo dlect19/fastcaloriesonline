@@ -43,7 +43,7 @@ const navItems: {
   { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', path: '/vendor/dashboard', permission: 'view_dashboard' },
   { id: 'menu', icon: UtensilsCrossed, label: 'Menu', path: '/vendor/menu', permission: 'manage_menu' },
   { id: 'orders', icon: ShoppingBag, label: 'Orders', path: '/vendor/orders', permission: 'process_orders' },
-  { id: 'pos', icon: Receipt, label: 'POS', path: '/vendor/pos', permission: 'process_orders' },
+  { id: 'pos', icon: Receipt, label: 'POS', path: '/vendor/pos', permission: 'use_pos' },
   { id: 'promos', icon: Ticket, label: 'Promos', path: '/vendor/promos', permission: 'manage_promos' },
   { id: 'riders', icon: Users, label: 'My Riders', path: '/vendor/riders', permission: 'manage_riders' },
   { id: 'staff', icon: Users, label: 'Staff', path: '/vendor/staff', permission: 'manage_staff' },

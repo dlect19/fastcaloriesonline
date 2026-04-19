@@ -18,6 +18,7 @@ import {
   Download,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useVendorPermissions } from '@/hooks/useVendorPermissions';
 
 type Range = 'today' | '7d' | '30d';
 
@@ -89,9 +90,12 @@ export default function VendorPosReports() {
     })();
   }, []);
 
+  const { hasPermission, loading: permLoading } = useVendorPermissions(vendorId);
+  const canViewReports = hasPermission('view_pos_reports');
+
   // Fetch data when vendor / range / outlet changes
   useEffect(() => {
-    if (!vendorId) return;
+    if (!vendorId || !canViewReports) return;
     let cancelled = false;
     (async () => {
       setLoading(true);
@@ -255,6 +259,26 @@ export default function VendorPosReports() {
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  if (vendorId && !permLoading && !canViewReports) {
+    return (
+      <VendorLayout>
+        <div className="p-6 flex items-center justify-center min-h-[60vh]">
+          <div className="text-center max-w-md">
+            <h2 className="text-xl font-semibold mb-2">Access Denied</h2>
+            <p className="text-muted-foreground text-sm mb-4">
+              You don't have permission to view POS reports. Ask your manager to grant the
+              <span className="font-medium"> View POS Reports </span>
+              permission from Staff settings.
+            </p>
+            <Button variant="outline" onClick={() => navigate('/vendor/pos')}>
+              <ArrowLeft className="w-4 h-4 mr-2" /> Back to POS
+            </Button>
+          </div>
+        </div>
+      </VendorLayout>
+    );
+  }
 
   return (
     <VendorLayout>

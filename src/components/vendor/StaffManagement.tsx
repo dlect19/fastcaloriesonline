@@ -19,6 +19,8 @@ const VENDOR_PERMISSION_DEFS: { key: string; label: string; description: string 
   { key: 'view_dashboard', label: 'View Dashboard', description: 'Access the vendor dashboard' },
   { key: 'manage_menu', label: 'Manage Menu', description: 'Add, edit, and remove menu items' },
   { key: 'process_orders', label: 'Process Orders', description: 'View and manage customer orders' },
+  { key: 'use_pos', label: 'Use POS', description: 'Operate the in-store Point of Sale (ring up sales, take payments, print receipts)' },
+  { key: 'view_pos_reports', label: 'View POS Reports', description: 'Access POS sales reports, stock health, top movers and time-of-day analytics' },
   { key: 'view_earnings', label: 'View Earnings', description: 'See revenue and financial reports' },
   { key: 'request_withdrawal', label: 'Request Withdrawal', description: 'Withdraw funds to bank account' },
   { key: 'manage_staff', label: 'Manage Staff', description: 'Invite and manage team members' },
@@ -28,9 +30,9 @@ const VENDOR_PERMISSION_DEFS: { key: string; label: string; description: string 
 ];
 
 const VENDOR_ROLE_PERMISSIONS: Record<VendorStaffRole, string[]> = {
-  owner: ['view_dashboard', 'manage_menu', 'process_orders', 'view_earnings', 'request_withdrawal', 'manage_staff', 'edit_settings', 'manage_promos', 'manage_riders'],
-  manager: ['view_dashboard', 'manage_menu', 'process_orders', 'view_earnings', 'manage_promos', 'manage_riders'],
-  cashier: ['view_dashboard', 'process_orders'],
+  owner: ['view_dashboard', 'manage_menu', 'process_orders', 'use_pos', 'view_pos_reports', 'view_earnings', 'request_withdrawal', 'manage_staff', 'edit_settings', 'manage_promos', 'manage_riders'],
+  manager: ['view_dashboard', 'manage_menu', 'process_orders', 'use_pos', 'view_pos_reports', 'view_earnings', 'manage_promos', 'manage_riders'],
+  cashier: ['view_dashboard', 'process_orders', 'use_pos'],
   viewer: ['view_dashboard'],
 };
 
