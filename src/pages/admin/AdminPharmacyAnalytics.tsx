@@ -371,7 +371,7 @@ export default function AdminPharmacyAnalytics() {
           </h1>
           <p className="text-sm text-muted-foreground">Drug sales, pharmacy performance, and customer purchase insights</p>
         </div>
-        <DateRangeFilter value={dateRange} onChange={setDateRange} />
+        <DateRangeFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
       </div>
 
       {/* KPIs */}
