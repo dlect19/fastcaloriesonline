@@ -67,13 +67,17 @@ export function ProductCard({ product, vendor, outletId }: ProductCardProps) {
 
           {/* Content */}
           <div className="flex-1 min-w-0 flex flex-col">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h3 className="font-semibold text-foreground truncate">{product.name}</h3>
-              {isUnavailable && (
-                <Badge variant="destructive" className="text-[10px] shrink-0">
-                  Unavailable
+              {outOfStock ? (
+                <Badge variant="destructive" className="text-[10px] shrink-0">Out of stock</Badge>
+              ) : product.is_available === false ? (
+                <Badge variant="destructive" className="text-[10px] shrink-0">Unavailable</Badge>
+              ) : lowStock ? (
+                <Badge className="text-[10px] shrink-0 bg-amber-500 hover:bg-amber-500 text-white">
+                  Only {stockQty} left
                 </Badge>
-              )}
+              ) : null}
             </div>
             
             {product.description && (
