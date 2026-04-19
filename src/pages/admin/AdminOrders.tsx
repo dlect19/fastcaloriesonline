@@ -440,7 +440,17 @@ export default function AdminOrders() {
                             )}
                           </div>
                         </td>
-                        <td className="py-3 px-4">{order.customer_name}</td>
+                        <td className="py-3 px-4">
+                          <div>
+                            <div>{order.customer_name}</div>
+                            {order.delivery_type !== 'self_pickup' && (
+                              <div className="text-[11px] text-muted-foreground line-clamp-2 max-w-[220px] mt-0.5 flex items-start gap-0.5">
+                                <span>📍</span>
+                                <span>{order.delivery_address_text || '—'}</span>
+                              </div>
+                            )}
+                          </div>
+                        </td>
                         <td className="py-3 px-4 text-muted-foreground">{order.customer_phone}</td>
                         <td className="py-3 px-4">{order.vendors?.name}</td>
                         <td className="py-3 px-4">
