@@ -49,12 +49,14 @@ export interface ReceiptItem {
   qty: number;
   price: number;
   note?: string;
+  calories?: number | null; // per-unit kcal; null/undefined => "N/A"
 }
 
 export interface ReceiptData {
   storeName: string;
   storeAddress?: string;
   storePhone?: string;
+  storeLogoUrl?: string; // optional vendor logo printed as monochrome bitmap
   receiptNumber: string;
   cashierName?: string;
   date: Date;
@@ -63,6 +65,7 @@ export interface ReceiptData {
   discount?: number;
   tax?: number;
   total: number;
+  totalCalories?: number | null;
   paymentMethod: string;
   amountPaid?: number;
   change?: number;
@@ -216,19 +219,24 @@ export class EscPosPrinter {
 
   async printReceipt(data: ReceiptData): Promise<void> {
     const width = data.paperWidth ?? 32;
+    const pixelWidth = width === 48 ? 576 : 384; // 80mm vs 58mm
 
-    const parts: Uint8Array[] = [
-      CMD.INIT,
-      CMD.ALIGN_CENTER,
-      CMD.BOLD_ON,
-      CMD.DOUBLE_SIZE,
-      this.text(data.storeName + '\n'),
-      CMD.NORMAL_SIZE,
-      CMD.BOLD_OFF,
-    ];
+    const parts: Uint8Array[] = [CMD.INIT, CMD.ALIGN_CENTER];
+
+    // Optional logo bitmap (best-effort; falls back silently to bold name)
+    if (data.storeLogoUrl) {
+      try {
+        const logo = await rasterizeLogo(data.storeLogoUrl, pixelWidth);
+        if (logo) parts.push(logo);
+      } catch {
+        // ignore logo failure
+      }
+    }
+
+    parts.push(CMD.BOLD_ON, CMD.DOUBLE_SIZE, this.text(data.storeName + '\n'), CMD.NORMAL_SIZE, CMD.BOLD_OFF);
 
     if (data.storeAddress) parts.push(this.text(data.storeAddress + '\n'));
-    if (data.storePhone) parts.push(this.text(data.storePhone + '\n'));
+    if (data.storePhone) parts.push(this.text('Tel: ' + data.storePhone + '\n'));
     parts.push(this.text('-'.repeat(width) + '\n'));
 
     parts.push(CMD.ALIGN_LEFT);
@@ -247,6 +255,10 @@ export class EscPosPrinter {
       const lineRight = `N${item.price.toFixed(2)}`;
       const lineLeft = `  ${item.qty} x N${(item.price / Math.max(item.qty, 1)).toFixed(2)}`;
       parts.push(this.text(this.padLine(lineLeft, lineRight, width) + '\n'));
+      const calLabel = item.calories === undefined || item.calories === null
+        ? 'Cal: N/A'
+        : `Cal: ${(Number(item.calories) * Math.max(item.qty, 1)).toFixed(0)} kcal`;
+      parts.push(this.text(`  ${calLabel}\n`));
       if (item.note) parts.push(this.text(`  ${item.note}\n`));
     }
 
@@ -262,6 +274,9 @@ export class EscPosPrinter {
     parts.push(CMD.BOLD_ON);
     parts.push(this.text(this.padLine('TOTAL', `N${data.total.toFixed(2)}`, width) + '\n'));
     parts.push(CMD.BOLD_OFF);
+    if (data.totalCalories !== undefined && data.totalCalories !== null) {
+      parts.push(this.text(this.padLine('Total Calories', `${data.totalCalories.toFixed(0)} kcal`, width) + '\n'));
+    }
     parts.push(this.text(this.padLine('Paid via', data.paymentMethod, width) + '\n'));
     if (data.amountPaid !== undefined) {
       parts.push(this.text(this.padLine('Amount Paid', `N${data.amountPaid.toFixed(2)}`, width) + '\n'));
