@@ -879,6 +879,8 @@ export default function VendorPos() {
               </div>
             )}
           </ScrollArea>
+        </DialogContent>
+      </Dialog>
 
       {/* Pack vs Sachet picker (pharmacy items that allow sachet sales) */}
       <Dialog open={!!unitPickerProduct} onOpenChange={(o) => !o && setUnitPickerProduct(null)}>
