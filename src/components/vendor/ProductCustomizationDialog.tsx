@@ -296,9 +296,11 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
     return total;
   }, [selectedAddons, addonGroups, addonQuantities]);
 
-  const effectivePrice = (product as any).discount_price && (product as any).discount_price < product.price
+  const packBasePrice = (product as any).discount_price && (product as any).discount_price < product.price
     ? (product as any).discount_price
     : product.price;
+  const sachetBasePrice = Number((product as any).sachet_price) || 0;
+  const effectivePrice = (sachetEnabled && purchaseUnit === 'sachet') ? sachetBasePrice : packBasePrice;
   const menuTotal = effectivePrice * quantity;
   const totalPrice = menuTotal + totalAddonPrice;
   const totalCalories = ((product.calories || 0) * quantity) + totalAddonCalories;
