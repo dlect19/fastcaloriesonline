@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { VendorLayout } from '@/components/vendor/VendorLayout';
 import { useOutletContext } from '@/hooks/useOutletContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -22,6 +23,8 @@ import {
   PauseCircle,
   PlayCircle,
   Pause,
+  BarChart3,
+  TrendingUp,
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -42,6 +45,7 @@ type Product = {
   stock_quantity: number | null;
   track_stock: boolean | null;
   is_available: boolean | null;
+  calories: number | null;
   category_label?: string | null;
 };
 
@@ -51,6 +55,7 @@ type CartLine = {
   unitPrice: number;
   qty: number;
   stockMax: number | null;
+  caloriesPerUnit: number | null;
 };
 
 type HeldSale = {
@@ -65,6 +70,7 @@ const PRINTER_KEY = 'fc_pos_printer_name';
 const HOLD_KEY_PREFIX = 'fc_pos_held_sales_';
 
 export default function VendorPos() {
+  const navigate = useNavigate();
   const { selectedOutlet } = useOutletContext();
   const outletId = selectedOutlet?.id ?? null;
   const [vendorId, setVendorId] = useState<string | null>(null);
@@ -80,7 +86,7 @@ export default function VendorPos() {
     })();
   }, []);
 
-  const [vendor, setVendor] = useState<{ id: string; name: string; address: string | null; phone: string | null; category: string } | null>(null);
+  const [vendor, setVendor] = useState<{ id: string; name: string; address: string | null; phone: string | null; category: string; logo_url: string | null } | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState('');
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -166,10 +172,10 @@ export default function VendorPos() {
     (async () => {
       setLoading(true);
       const [{ data: v }, { data: p }] = await Promise.all([
-        supabase.from('vendors').select('id, name, address, phone, category').eq('id', vendorId).maybeSingle(),
+        supabase.from('vendors').select('id, name, address, phone, category, logo_url').eq('id', vendorId).maybeSingle(),
         supabase
           .from('products')
-          .select('id, name, price, discount_price, image_url, stock_quantity, track_stock, is_available, outlet_id')
+          .select('id, name, price, discount_price, image_url, stock_quantity, track_stock, is_available, calories, outlet_id')
           .eq('vendor_id', vendorId)
           .order('name'),
       ]);
@@ -224,6 +230,7 @@ export default function VendorPos() {
           unitPrice: p.discount_price && p.discount_price < p.price ? p.discount_price : p.price,
           qty: 1,
           stockMax: p.track_stock ? p.stock_quantity ?? 0 : null,
+          caloriesPerUnit: p.calories ?? null,
         },
       ];
     });
