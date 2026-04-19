@@ -48,6 +48,10 @@ type Product = {
   is_available: boolean | null;
   calories: number | null;
   category_label?: string | null;
+  allows_sachet?: boolean | null;
+  sachet_price?: number | null;
+  sachet_unit_label?: string | null;
+  sachets_per_pack?: number | null;
 };
 
 type CartLine = {
@@ -57,6 +61,9 @@ type CartLine = {
   qty: number;
   stockMax: number | null;
   caloriesPerUnit: number | null;
+  purchaseUnit: 'pack' | 'sachet';
+  unitMultiplier: number; // stock units consumed per qty
+  unitLabel: string; // shown on receipt / cart row
 };
 
 type HeldSale = {
@@ -181,7 +188,7 @@ export default function VendorPos() {
         supabase.from('vendors').select('id, name, address, phone, category, logo_url').eq('id', vendorId).maybeSingle(),
         supabase
           .from('products')
-          .select('id, name, price, discount_price, image_url, stock_quantity, track_stock, is_available, calories, outlet_id')
+          .select('id, name, price, discount_price, image_url, stock_quantity, track_stock, is_available, calories, outlet_id, allows_sachet, sachet_price, sachet_unit_label, sachets_per_pack')
           .eq('vendor_id', vendorId)
           .order('name'),
       ]);
