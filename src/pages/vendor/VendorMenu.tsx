@@ -150,6 +150,11 @@ export default function VendorMenu() {
     default_dosage_duration_days: '',
     default_quantity_per_dose: '1',
     target_age_group: 'all' as string,
+    dosage_form: 'tablet' as string,
+    allows_sachet: false,
+    sachet_price: '',
+    sachet_unit_label: 'sachet',
+    pack_unit_label: 'pack',
   });
 
   // Auto-calculate calories from macros (fiber ~2 kcal/g)
@@ -411,6 +416,15 @@ export default function VendorMenu() {
         productData.default_dosage_duration_days = formData.default_dosage_duration_days ? parseInt(formData.default_dosage_duration_days) : null;
         productData.default_quantity_per_dose = parseInt(formData.default_quantity_per_dose) || 1;
         productData.target_age_group = formData.target_age_group || 'all';
+        productData.dosage_form = formData.dosage_form || null;
+        // Sachet pricing only applies to tablet/capsule forms
+        const sachetEligible = formData.dosage_form === 'tablet' || formData.dosage_form === 'capsule';
+        productData.allows_sachet = sachetEligible && formData.allows_sachet;
+        productData.sachet_price = (sachetEligible && formData.allows_sachet && formData.sachet_price)
+          ? parseFloat(formData.sachet_price)
+          : null;
+        productData.sachet_unit_label = formData.sachet_unit_label || 'sachet';
+        productData.pack_unit_label = formData.pack_unit_label || 'pack';
       }
 
       if (editingProduct) {
@@ -468,6 +482,11 @@ export default function VendorMenu() {
       default_dosage_duration_days: (product as any).default_dosage_duration_days?.toString() || '',
       default_quantity_per_dose: (product as any).default_quantity_per_dose?.toString() || '1',
       target_age_group: (product as any).target_age_group || 'all',
+      dosage_form: (product as any).dosage_form || 'tablet',
+      allows_sachet: (product as any).allows_sachet || false,
+      sachet_price: (product as any).sachet_price?.toString() || '',
+      sachet_unit_label: (product as any).sachet_unit_label || 'sachet',
+      pack_unit_label: (product as any).pack_unit_label || 'pack',
     });
     // Set image preview from existing URL
     if (product.image_url) {
@@ -666,6 +685,11 @@ export default function VendorMenu() {
       default_dosage_duration_days: '',
       default_quantity_per_dose: '1',
       target_age_group: 'all',
+      dosage_form: 'tablet',
+      allows_sachet: false,
+      sachet_price: '',
+      sachet_unit_label: 'sachet',
+      pack_unit_label: 'pack',
     });
   };
 
@@ -932,17 +956,90 @@ export default function VendorMenu() {
                         <Switch checked={formData.requires_prescription} onCheckedChange={v => setFormData({ ...formData, requires_prescription: v })} />
                       </div>
 
-                      <div className="space-y-1">
-                        <Label className="text-sm">Target Age Group</Label>
-                        <Select value={formData.target_age_group} onValueChange={v => setFormData({ ...formData, target_age_group: v })}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Ages</SelectItem>
-                            <SelectItem value="adult">Adult Only</SelectItem>
-                            <SelectItem value="children">Children Only</SelectItem>
-                          </SelectContent>
-                        </Select>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-sm">Target Age Group</Label>
+                          <Select value={formData.target_age_group} onValueChange={v => setFormData({ ...formData, target_age_group: v })}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">All Ages</SelectItem>
+                              <SelectItem value="adult">Adult Only</SelectItem>
+                              <SelectItem value="children">Children Only</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-sm">Drug Form</Label>
+                          <Select
+                            value={formData.dosage_form}
+                            onValueChange={v => setFormData({
+                              ...formData,
+                              dosage_form: v,
+                              // Sachet only valid for tablet/capsule
+                              allows_sachet: (v === 'tablet' || v === 'capsule') ? formData.allows_sachet : false,
+                            })}
+                          >
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="tablet">Tablet</SelectItem>
+                              <SelectItem value="capsule">Capsule</SelectItem>
+                              <SelectItem value="syrup">Syrup</SelectItem>
+                              <SelectItem value="drops">Drops</SelectItem>
+                              <SelectItem value="cream">Cream / Ointment</SelectItem>
+                              <SelectItem value="injection">Injection</SelectItem>
+                              <SelectItem value="other">Other</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
+
+                      {/* Sachet pricing — only for tablets/capsules */}
+                      {(formData.dosage_form === 'tablet' || formData.dosage_form === 'capsule') && (
+                        <div className="rounded-lg border border-border/60 bg-muted/30 p-3 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <Label className="text-sm font-medium">Also sell per sachet/strip?</Label>
+                              <p className="text-xs text-muted-foreground">
+                                Lets customers buy a single {formData.dosage_form === 'capsule' ? 'strip' : 'sachet'} instead of the full pack.
+                              </p>
+                            </div>
+                            <Switch
+                              checked={formData.allows_sachet}
+                              onCheckedChange={v => setFormData({ ...formData, allows_sachet: v })}
+                            />
+                          </div>
+                          {formData.allows_sachet && (
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="space-y-1">
+                                <Label className="text-xs">Price per Sachet (₦)</Label>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={formData.sachet_price}
+                                  onChange={e => setFormData({ ...formData, sachet_price: e.target.value })}
+                                  placeholder="e.g. 200"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">Sachet Label</Label>
+                                <Select value={formData.sachet_unit_label} onValueChange={v => setFormData({ ...formData, sachet_unit_label: v })}>
+                                  <SelectTrigger><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="sachet">Sachet</SelectItem>
+                                    <SelectItem value="strip">Strip</SelectItem>
+                                    <SelectItem value="card">Card</SelectItem>
+                                    <SelectItem value="blister">Blister</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <p className="col-span-2 text-[11px] text-muted-foreground">
+                                The pack price (above) stays as the default. Customers will see a toggle to switch to per-{formData.sachet_unit_label} pricing at checkout.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
                       
                       <div className="space-y-1">
                         <Label className="text-sm">Pharmacist Dosage Instructions</Label>
@@ -1520,6 +1617,7 @@ export default function VendorMenu() {
                 default_dosage_duration_days: drug.default_dosage_duration_days?.toString() || prev.default_dosage_duration_days,
                 default_quantity_per_dose: drug.default_quantity_per_dose?.toString() || prev.default_quantity_per_dose,
                 image_url: drug.image_url || prev.image_url,
+                dosage_form: (drug as any).dosage_form || prev.dosage_form,
               }));
               if (drug.image_url) {
                 setImagePreview(drug.image_url);

@@ -18,9 +18,16 @@ The integrated Pharmacy system enables vendors to manage 'Medicines/Drugs' using
 
 ## Vendor Drug Management
 - Vendors can set **target_age_group** (all/adult/children) when adding drugs
+- Vendors set **dosage_form** (tablet/capsule/syrup/drops/cream/injection/other)
+- For tablet/capsule forms: vendors can enable **allows_sachet** with a separate **sachet_price** and **sachet_unit_label** (sachet/strip/card/blister). Pack price stays as the default.
 - Children vs Adult prescription info displayed to customers at checkout
 - Drug database ID linked, requires_prescription toggle, pharmacist dosage instructions
 - Frequency, duration, qty per dose defaults
+
+## Customer Purchase Unit Toggle
+- When `allows_sachet` is true and `sachet_price` is set, the ProductCustomizationDialog shows a Pack vs Sachet selector
+- Default selection is Pack; switching to Sachet uses `sachet_price` as the effective price
+- Selected unit is stored on the cart item as `purchaseUnit` and shown in the description as "Per pack" / "Per sachet"
 
 ## Drug Usage Tracking
 - `drug_usage_tracking` table tracks doses_taken, total_doses, completion_percentage

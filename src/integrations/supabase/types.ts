@@ -4195,6 +4195,7 @@ export type Database = {
       }
       products: {
         Row: {
+          allows_sachet: boolean
           calorie_classes: Database["public"]["Enums"]["calorie_class"][] | null
           calories: number | null
           carbs_grams: number | null
@@ -4206,6 +4207,7 @@ export type Database = {
           default_quantity_per_dose: number | null
           description: string | null
           discount_price: number | null
+          dosage_form: string | null
           drug_database_id: string | null
           fats_grams: number | null
           fiber_grams: number | null
@@ -4218,10 +4220,13 @@ export type Database = {
           nutrient_tags: string[] | null
           nutrition_source: string | null
           outlet_id: string | null
+          pack_unit_label: string | null
           pharmacist_dosage_instructions: string | null
           price: number
           protein_grams: number | null
           requires_prescription: boolean | null
+          sachet_price: number | null
+          sachet_unit_label: string | null
           serving_size_grams: number | null
           serving_unit: string | null
           target_age_group: string | null
@@ -4229,6 +4234,7 @@ export type Database = {
           vendor_id: string
         }
         Insert: {
+          allows_sachet?: boolean
           calorie_classes?:
             | Database["public"]["Enums"]["calorie_class"][]
             | null
@@ -4242,6 +4248,7 @@ export type Database = {
           default_quantity_per_dose?: number | null
           description?: string | null
           discount_price?: number | null
+          dosage_form?: string | null
           drug_database_id?: string | null
           fats_grams?: number | null
           fiber_grams?: number | null
@@ -4254,10 +4261,13 @@ export type Database = {
           nutrient_tags?: string[] | null
           nutrition_source?: string | null
           outlet_id?: string | null
+          pack_unit_label?: string | null
           pharmacist_dosage_instructions?: string | null
           price: number
           protein_grams?: number | null
           requires_prescription?: boolean | null
+          sachet_price?: number | null
+          sachet_unit_label?: string | null
           serving_size_grams?: number | null
           serving_unit?: string | null
           target_age_group?: string | null
@@ -4265,6 +4275,7 @@ export type Database = {
           vendor_id: string
         }
         Update: {
+          allows_sachet?: boolean
           calorie_classes?:
             | Database["public"]["Enums"]["calorie_class"][]
             | null
@@ -4278,6 +4289,7 @@ export type Database = {
           default_quantity_per_dose?: number | null
           description?: string | null
           discount_price?: number | null
+          dosage_form?: string | null
           drug_database_id?: string | null
           fats_grams?: number | null
           fiber_grams?: number | null
@@ -4290,10 +4302,13 @@ export type Database = {
           nutrient_tags?: string[] | null
           nutrition_source?: string | null
           outlet_id?: string | null
+          pack_unit_label?: string | null
           pharmacist_dosage_instructions?: string | null
           price?: number
           protein_grams?: number | null
           requires_prescription?: boolean | null
+          sachet_price?: number | null
+          sachet_unit_label?: string | null
           serving_size_grams?: number | null
           serving_unit?: string | null
           target_age_group?: string | null

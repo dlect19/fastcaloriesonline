@@ -89,6 +89,11 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
   const [addonQuantities, setAddonQuantities] = useState<Record<string, number>>({});
   // Track selected choices per addon item: { [addonItemId]: choiceId[] }
   const [selectedChoices, setSelectedChoices] = useState<Record<string, string[]>>({});
+  // Pharmacy: pack vs sachet purchase unit
+  const sachetEnabled = !!(product as any).allows_sachet && !!(product as any).sachet_price;
+  const sachetLabel = (product as any).sachet_unit_label || 'sachet';
+  const packLabel = (product as any).pack_unit_label || 'pack';
+  const [purchaseUnit, setPurchaseUnit] = useState<'pack' | 'sachet'>('pack');
 
   useEffect(() => {
     if (open && product.id) {
@@ -96,12 +101,16 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
         if (editItem) {
           // Pre-populate from existing cart item
           setQuantity(editItem.quantity);
+          // Restore purchase unit from edit item if present
+          if ((editItem as any).purchaseUnit === 'sachet') setPurchaseUnit('sachet');
+          else setPurchaseUnit('pack');
           // Addon selections will be restored after addon groups are loaded
         } else {
           setQuantity(1);
           setSelectedAddons({});
           setAddonQuantities({});
           setSelectedChoices({});
+          setPurchaseUnit('pack');
         }
       });
       if (!editItem) {
@@ -109,6 +118,7 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
         setSelectedAddons({});
         setAddonQuantities({});
         setSelectedChoices({});
+        setPurchaseUnit('pack');
       }
     }
   }, [open, product.id]);
@@ -286,9 +296,11 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
     return total;
   }, [selectedAddons, addonGroups, addonQuantities]);
 
-  const effectivePrice = (product as any).discount_price && (product as any).discount_price < product.price
+  const packBasePrice = (product as any).discount_price && (product as any).discount_price < product.price
     ? (product as any).discount_price
     : product.price;
+  const sachetBasePrice = Number((product as any).sachet_price) || 0;
+  const effectivePrice = (sachetEnabled && purchaseUnit === 'sachet') ? sachetBasePrice : packBasePrice;
   const menuTotal = effectivePrice * quantity;
   const totalPrice = menuTotal + totalAddonPrice;
   const totalCalories = ((product.calories || 0) * quantity) + totalAddonCalories;
@@ -424,7 +436,7 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
     setAdding(true);
 
     const addonsList = getSelectedAddonsList();
-    const addonsDescription = addonsList.length > 0
+    const baseAddonsDesc = addonsList.length > 0
       ? addonsList.map(a => {
           let desc = a.itemName;
           if (a.selectedChoices?.length) {
@@ -435,7 +447,13 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
         }).join(', ')
       : undefined;
 
-    const itemData = {
+    // Prefix the unit (Per Sachet / Per Pack) for pharmacy sachet products
+    const unitPrefix = sachetEnabled
+      ? `Per ${purchaseUnit === 'sachet' ? sachetLabel : packLabel}`
+      : undefined;
+    const addonsDescription = [unitPrefix, baseAddonsDesc].filter(Boolean).join(' • ') || undefined;
+
+    const itemData: any = {
       productId: product.id,
       productName: product.name,
       vendorId: vendor.id,
@@ -455,6 +473,7 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
         pricingType: a.pricingType,
       })) : undefined,
       addonsDescription,
+      purchaseUnit: sachetEnabled ? purchaseUnit : undefined,
     };
 
     if (editItem) {
@@ -620,6 +639,44 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
               </Badge>
             </div>
           </div>
+
+          {/* Pharmacy: Pack vs Sachet selector */}
+          {sachetEnabled && (
+            <div className="bg-secondary/60 rounded-xl p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Settings2 className="w-4 h-4 text-primary" />
+                <span className="font-semibold text-foreground">Buy by</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPurchaseUnit('pack')}
+                  className={cn(
+                    'rounded-lg border p-3 text-left transition-colors',
+                    purchaseUnit === 'pack'
+                      ? 'border-primary bg-primary/10'
+                      : 'border-border bg-background hover:border-primary/30'
+                  )}
+                >
+                  <div className="text-xs text-muted-foreground capitalize">Per {packLabel}</div>
+                  <div className="font-semibold text-foreground">₦{packBasePrice.toLocaleString()}</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPurchaseUnit('sachet')}
+                  className={cn(
+                    'rounded-lg border p-3 text-left transition-colors',
+                    purchaseUnit === 'sachet'
+                      ? 'border-primary bg-primary/10'
+                      : 'border-border bg-background hover:border-primary/30'
+                  )}
+                >
+                  <div className="text-xs text-muted-foreground capitalize">Per {sachetLabel}</div>
+                  <div className="font-semibold text-foreground">₦{sachetBasePrice.toLocaleString()}</div>
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Add-On Groups */}
           {loadingAddons ? (
