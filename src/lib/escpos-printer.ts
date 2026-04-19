@@ -9,6 +9,22 @@
  *   await printer.printReceipt({...});
  */
 
+// Minimal Web Bluetooth typings (avoid pulling in @types/web-bluetooth)
+type BluetoothDevice = { id: string; name?: string | null; gatt?: { connected: boolean; connect: () => Promise<BluetoothRemoteGATTServer>; disconnect: () => void } };
+type BluetoothRemoteGATTServer = {
+  getPrimaryService: (uuid: string | number) => Promise<BluetoothRemoteGATTService>;
+  getPrimaryServices: () => Promise<BluetoothRemoteGATTService[]>;
+};
+type BluetoothRemoteGATTService = {
+  getCharacteristic: (uuid: string | number) => Promise<BluetoothRemoteGATTCharacteristic>;
+  getCharacteristics: () => Promise<BluetoothRemoteGATTCharacteristic[]>;
+};
+type BluetoothRemoteGATTCharacteristic = {
+  properties: { write: boolean; writeWithoutResponse: boolean };
+  writeValue: (data: BufferSource) => Promise<void>;
+  writeValueWithoutResponse: (data: BufferSource) => Promise<void>;
+};
+
 // ESC/POS commands
 const ESC = 0x1b;
 const GS = 0x1d;
