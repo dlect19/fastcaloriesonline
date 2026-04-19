@@ -4227,6 +4227,7 @@ export type Database = {
           requires_prescription: boolean | null
           sachet_price: number | null
           sachet_unit_label: string | null
+          sachets_per_pack: number | null
           serving_size_grams: number | null
           serving_unit: string | null
           target_age_group: string | null
@@ -4268,6 +4269,7 @@ export type Database = {
           requires_prescription?: boolean | null
           sachet_price?: number | null
           sachet_unit_label?: string | null
+          sachets_per_pack?: number | null
           serving_size_grams?: number | null
           serving_unit?: string | null
           target_age_group?: string | null
@@ -4309,6 +4311,7 @@ export type Database = {
           requires_prescription?: boolean | null
           sachet_price?: number | null
           sachet_unit_label?: string | null
+          sachets_per_pack?: number | null
           serving_size_grams?: number | null
           serving_unit?: string | null
           target_age_group?: string | null
