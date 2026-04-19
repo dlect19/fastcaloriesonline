@@ -436,7 +436,7 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
     setAdding(true);
 
     const addonsList = getSelectedAddonsList();
-    const addonsDescription = addonsList.length > 0
+    const baseAddonsDesc = addonsList.length > 0
       ? addonsList.map(a => {
           let desc = a.itemName;
           if (a.selectedChoices?.length) {
@@ -447,7 +447,13 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
         }).join(', ')
       : undefined;
 
-    const itemData = {
+    // Prefix the unit (Per Sachet / Per Pack) for pharmacy sachet products
+    const unitPrefix = sachetEnabled
+      ? `Per ${purchaseUnit === 'sachet' ? sachetLabel : packLabel}`
+      : undefined;
+    const addonsDescription = [unitPrefix, baseAddonsDesc].filter(Boolean).join(' • ') || undefined;
+
+    const itemData: any = {
       productId: product.id,
       productName: product.name,
       vendorId: vendor.id,
@@ -467,6 +473,7 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
         pricingType: a.pricingType,
       })) : undefined,
       addonsDescription,
+      purchaseUnit: sachetEnabled ? purchaseUnit : undefined,
     };
 
     if (editItem) {
