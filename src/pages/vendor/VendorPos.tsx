@@ -879,6 +879,65 @@ export default function VendorPos() {
               </div>
             )}
           </ScrollArea>
+
+      {/* Pack vs Sachet picker (pharmacy items that allow sachet sales) */}
+      <Dialog open={!!unitPickerProduct} onOpenChange={(o) => !o && setUnitPickerProduct(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{unitPickerProduct?.name}</DialogTitle>
+            <DialogDescription>Sell as a full pack or single sachet?</DialogDescription>
+          </DialogHeader>
+          {unitPickerProduct && (() => {
+            const p = unitPickerProduct;
+            const packPrice = p.discount_price && p.discount_price < p.price ? p.discount_price : p.price;
+            const sachetPrice = Number(p.sachet_price) || 0;
+            const sachetLabel = p.sachet_unit_label || 'sachet';
+            const perPack = Number(p.sachets_per_pack) || 1;
+            const stockUnits = p.stock_quantity ?? 0;
+            const packsAvailable = Math.floor(stockUnits / perPack);
+            const noPack = !!p.track_stock && packsAvailable < 1;
+            const noSachet = !!p.track_stock && stockUnits < 1;
+            return (
+              <div className="grid grid-cols-2 gap-2.5">
+                <button
+                  onClick={() => { addToCart(p, 'pack'); setUnitPickerProduct(null); }}
+                  disabled={noPack}
+                  className={cn(
+                    'rounded-xl border-2 p-3 text-left transition-all',
+                    noPack ? 'opacity-40 cursor-not-allowed border-border' : 'border-border hover:border-primary hover:shadow-card active:scale-95'
+                  )}
+                >
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Full pack</p>
+                  <p className="text-lg font-bold mt-1">₦{packPrice.toLocaleString()}</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    = {perPack} {sachetLabel}{perPack === 1 ? '' : 's'}
+                  </p>
+                  {p.track_stock && (
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      {packsAvailable} pack{packsAvailable === 1 ? '' : 's'} left
+                    </p>
+                  )}
+                </button>
+                <button
+                  onClick={() => { addToCart(p, 'sachet'); setUnitPickerProduct(null); }}
+                  disabled={noSachet}
+                  className={cn(
+                    'rounded-xl border-2 p-3 text-left transition-all',
+                    noSachet ? 'opacity-40 cursor-not-allowed border-border' : 'border-primary/30 bg-primary/5 hover:border-primary hover:shadow-card active:scale-95'
+                  )}
+                >
+                  <p className="text-xs uppercase tracking-wide text-primary">Single {sachetLabel}</p>
+                  <p className="text-lg font-bold mt-1">₦{sachetPrice.toLocaleString()}</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Per {sachetLabel}</p>
+                  {p.track_stock && (
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      {stockUnits} {sachetLabel}{stockUnits === 1 ? '' : 's'} left
+                    </p>
+                  )}
+                </button>
+              </div>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </VendorLayout>
