@@ -90,6 +90,9 @@ export default function VendorPosReports() {
     })();
   }, []);
 
+  const { hasPermission, loading: permLoading } = useVendorPermissions(vendorId);
+  const canViewReports = hasPermission('view_pos_reports');
+
   // Fetch data when vendor / range / outlet changes
   useEffect(() => {
     if (!vendorId) return;
