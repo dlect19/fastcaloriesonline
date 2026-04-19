@@ -156,6 +156,9 @@ export default function VendorMenu() {
     sachet_unit_label: 'sachet',
     pack_unit_label: 'pack',
     sachets_per_pack: '',
+    // Stock tracking
+    stock_quantity: '',
+    low_stock_threshold: '5',
   });
 
   // Auto-calculate calories from macros (fiber ~2 kcal/g)
@@ -429,6 +432,10 @@ export default function VendorMenu() {
         productData.sachets_per_pack = (sachetEligible && formData.allows_sachet && formData.sachets_per_pack)
           ? parseInt(formData.sachets_per_pack, 10)
           : null;
+        // Stock tracking for pharmacy
+        productData.track_stock = true;
+        productData.stock_quantity = formData.stock_quantity !== '' ? parseInt(formData.stock_quantity, 10) : 0;
+        productData.low_stock_threshold = formData.low_stock_threshold !== '' ? parseInt(formData.low_stock_threshold, 10) : 5;
       }
 
       if (editingProduct) {
@@ -492,6 +499,8 @@ export default function VendorMenu() {
       sachet_unit_label: (product as any).sachet_unit_label || 'sachet',
       pack_unit_label: (product as any).pack_unit_label || 'pack',
       sachets_per_pack: (product as any).sachets_per_pack?.toString() || '',
+      stock_quantity: (product as any).stock_quantity?.toString() ?? '',
+      low_stock_threshold: (product as any).low_stock_threshold?.toString() ?? '5',
     });
     // Set image preview from existing URL
     if (product.image_url) {
@@ -696,6 +705,8 @@ export default function VendorMenu() {
       sachet_unit_label: 'sachet',
       pack_unit_label: 'pack',
       sachets_per_pack: '',
+      stock_quantity: '',
+      low_stock_threshold: '5',
     });
   };
 
