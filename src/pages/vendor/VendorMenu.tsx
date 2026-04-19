@@ -1103,6 +1103,41 @@ export default function VendorMenu() {
                           rows={2}
                         />
                       </div>
+
+                      {/* Stock Tracking - Pharmacy only */}
+                      <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm font-semibold flex items-center gap-1.5">
+                            📦 Stock on Hand
+                          </Label>
+                          <span className="text-[11px] text-muted-foreground">Auto-decrements on every sale</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Quantity in stock *</Label>
+                            <Input
+                              type="number"
+                              min="0"
+                              value={formData.stock_quantity}
+                              onChange={e => setFormData({ ...formData, stock_quantity: e.target.value })}
+                              placeholder="e.g. 100"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Low-stock alert at</Label>
+                            <Input
+                              type="number"
+                              min="0"
+                              value={formData.low_stock_threshold}
+                              onChange={e => setFormData({ ...formData, low_stock_threshold: e.target.value })}
+                              placeholder="5"
+                            />
+                          </div>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          When stock hits 0, the drug is automatically marked unavailable. Customers see live stock levels.
+                        </p>
+                      </div>
                       
                       <div className="grid grid-cols-3 gap-2">
                         <div className="space-y-1">
