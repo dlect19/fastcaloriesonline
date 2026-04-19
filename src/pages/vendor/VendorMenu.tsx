@@ -150,6 +150,11 @@ export default function VendorMenu() {
     default_dosage_duration_days: '',
     default_quantity_per_dose: '1',
     target_age_group: 'all' as string,
+    dosage_form: 'tablet' as string,
+    allows_sachet: false,
+    sachet_price: '',
+    sachet_unit_label: 'sachet',
+    pack_unit_label: 'pack',
   });
 
   // Auto-calculate calories from macros (fiber ~2 kcal/g)
@@ -411,6 +416,15 @@ export default function VendorMenu() {
         productData.default_dosage_duration_days = formData.default_dosage_duration_days ? parseInt(formData.default_dosage_duration_days) : null;
         productData.default_quantity_per_dose = parseInt(formData.default_quantity_per_dose) || 1;
         productData.target_age_group = formData.target_age_group || 'all';
+        productData.dosage_form = formData.dosage_form || null;
+        // Sachet pricing only applies to tablet/capsule forms
+        const sachetEligible = formData.dosage_form === 'tablet' || formData.dosage_form === 'capsule';
+        productData.allows_sachet = sachetEligible && formData.allows_sachet;
+        productData.sachet_price = (sachetEligible && formData.allows_sachet && formData.sachet_price)
+          ? parseFloat(formData.sachet_price)
+          : null;
+        productData.sachet_unit_label = formData.sachet_unit_label || 'sachet';
+        productData.pack_unit_label = formData.pack_unit_label || 'pack';
       }
 
       if (editingProduct) {
@@ -468,6 +482,11 @@ export default function VendorMenu() {
       default_dosage_duration_days: (product as any).default_dosage_duration_days?.toString() || '',
       default_quantity_per_dose: (product as any).default_quantity_per_dose?.toString() || '1',
       target_age_group: (product as any).target_age_group || 'all',
+      dosage_form: (product as any).dosage_form || 'tablet',
+      allows_sachet: (product as any).allows_sachet || false,
+      sachet_price: (product as any).sachet_price?.toString() || '',
+      sachet_unit_label: (product as any).sachet_unit_label || 'sachet',
+      pack_unit_label: (product as any).pack_unit_label || 'pack',
     });
     // Set image preview from existing URL
     if (product.image_url) {
@@ -666,6 +685,11 @@ export default function VendorMenu() {
       default_dosage_duration_days: '',
       default_quantity_per_dose: '1',
       target_age_group: 'all',
+      dosage_form: 'tablet',
+      allows_sachet: false,
+      sachet_price: '',
+      sachet_unit_label: 'sachet',
+      pack_unit_label: 'pack',
     });
   };
 
