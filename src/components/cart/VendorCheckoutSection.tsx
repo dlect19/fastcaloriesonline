@@ -79,7 +79,7 @@ export function VendorCheckoutSection({
   const { toast } = useToast();
   const navigate = useNavigate();
   const { activeDiscounts, getBestDiscount, useDiscount } = useSpinWheel();
-  const { eligibility, getBestPlatformPromo, markFirstOrderUsed } = usePlatformPromos();
+  const { eligibility, getBestPlatformPromo, markFirstOrderUsed, markFirstPharmacyOrderUsed } = usePlatformPromos();
   const { latitude: gpsLat, longitude: gpsLon, getCurrentPosition, loading: gpsLoading } = useGeolocation();
 
   const [deliveryType, setDeliveryType] = useState<DeliveryType>('delivery');
@@ -133,22 +133,50 @@ export function VendorCheckoutSection({
 
   const isPharmacy = vendorCategory === 'pharmacy';
 
-  // Auto-apply the best platform promo (welcome 10% or loyalty) on mount
+  // Compute the platform promo specific to this vendor (pharmacy vs non-pharmacy)
+  const activePlatformPromo = useMemo(
+    () => getBestPlatformPromo(isPharmacy),
+    [getBestPlatformPromo, isPharmacy]
+  );
+
+  // Spin-wheel & loyalty/welcome are not allowed on pharmacy carts
+  const allowSpinDiscounts = !isPharmacy;
+  const visibleSpinDiscounts = allowSpinDiscounts ? activeDiscounts : [];
+
+  // Helper: compute discount amount from a promo (handles % vs fixed)
+  const computePromoAmount = useCallback(
+    (promo: { discount: number; discountKind?: 'percent' | 'fixed' } | null) => {
+      if (!promo) return 0;
+      if (promo.discountKind === 'fixed') {
+        return Math.min(promo.discount, group.subtotal);
+      }
+      return Math.round((group.subtotal * promo.discount) / 100);
+    },
+    [group.subtotal]
+  );
+
+  // Auto-apply the best platform promo (welcome / loyalty / pharmacy welcome) on mount
   useEffect(() => {
     if (autoAppliedRef.current) return;
-    const platformPromo = getBestPlatformPromo();
-    if (platformPromo && selectedDiscountType === 'none') {
+    if (vendorCategory === null) return; // wait until we know if vendor is pharmacy
+    if (activePlatformPromo && selectedDiscountType === 'none') {
       autoAppliedRef.current = true;
       setSelectedDiscountType('platform');
-      const discount = Math.round((group.subtotal * platformPromo.discount) / 100);
+      const discount = computePromoAmount(activePlatformPromo);
       setPromoDiscount(discount);
-      setAppliedPromoCode(platformPromo.type === 'first_order' ? 'WELCOME10' : 'LOYALTY');
-      toast({ 
-        title: `🎉 ${platformPromo.label} applied!`, 
-        description: `You're saving ₦${discount.toLocaleString()} on this order` 
+      const codeLabel =
+        activePlatformPromo.type === 'first_order'
+          ? 'WELCOME10'
+          : activePlatformPromo.type === 'pharmacy_welcome'
+            ? 'PHARMACY-WELCOME'
+            : 'LOYALTY';
+      setAppliedPromoCode(codeLabel);
+      toast({
+        title: `🎉 ${activePlatformPromo.label} applied!`,
+        description: `You're saving ₦${discount.toLocaleString()} on this order`,
       });
     }
-  }, [getBestPlatformPromo, group.subtotal, selectedDiscountType]);
+  }, [activePlatformPromo, computePromoAmount, selectedDiscountType, vendorCategory, toast]);
 
   // Handle GPS prompt for customers who haven't set location
   const handlePromptGps = () => {
