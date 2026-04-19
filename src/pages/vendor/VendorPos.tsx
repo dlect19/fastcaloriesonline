@@ -444,6 +444,24 @@ export default function VendorPos() {
     }
   };
 
+  // Access guard: staff without use_pos cannot use the POS
+  if (vendorId && !permLoading && !canUsePos) {
+    return (
+      <VendorLayout>
+        <div className="p-6 flex items-center justify-center min-h-[60vh]">
+          <div className="text-center max-w-md">
+            <h2 className="text-xl font-semibold mb-2">Access Denied</h2>
+            <p className="text-muted-foreground text-sm">
+              You don't have permission to use the POS. Ask your manager to grant the
+              <span className="font-medium"> Use POS </span>
+              permission from Staff settings.
+            </p>
+          </div>
+        </div>
+      </VendorLayout>
+    );
+  }
+
   return (
     <VendorLayout>
       <div className="h-[calc(100vh-4rem)] flex flex-col lg:flex-row bg-background">
@@ -455,16 +473,18 @@ export default function VendorPos() {
                 <Receipt className="w-5 h-5 text-primary" /> POS
               </h1>
               <div className="flex items-center gap-2 flex-wrap">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigate('/vendor/pos/reports')}
-                  className="gap-1.5"
-                  title="Sales reports & inventory"
-                >
-                  <BarChart3 className="w-4 h-4" />
-                  <span className="hidden sm:inline">Reports</span>
-                </Button>
+                {canViewReports && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate('/vendor/pos/reports')}
+                    className="gap-1.5"
+                    title="Sales reports & inventory"
+                  >
+                    <BarChart3 className="w-4 h-4" />
+                    <span className="hidden sm:inline">Reports</span>
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
