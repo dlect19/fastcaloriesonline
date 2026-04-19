@@ -155,6 +155,7 @@ export default function VendorMenu() {
     sachet_price: '',
     sachet_unit_label: 'sachet',
     pack_unit_label: 'pack',
+    sachets_per_pack: '',
   });
 
   // Auto-calculate calories from macros (fiber ~2 kcal/g)
@@ -425,6 +426,9 @@ export default function VendorMenu() {
           : null;
         productData.sachet_unit_label = formData.sachet_unit_label || 'sachet';
         productData.pack_unit_label = formData.pack_unit_label || 'pack';
+        productData.sachets_per_pack = (sachetEligible && formData.allows_sachet && formData.sachets_per_pack)
+          ? parseInt(formData.sachets_per_pack, 10)
+          : null;
       }
 
       if (editingProduct) {
@@ -487,6 +491,7 @@ export default function VendorMenu() {
       sachet_price: (product as any).sachet_price?.toString() || '',
       sachet_unit_label: (product as any).sachet_unit_label || 'sachet',
       pack_unit_label: (product as any).pack_unit_label || 'pack',
+      sachets_per_pack: (product as any).sachets_per_pack?.toString() || '',
     });
     // Set image preview from existing URL
     if (product.image_url) {
@@ -690,6 +695,7 @@ export default function VendorMenu() {
       sachet_price: '',
       sachet_unit_label: 'sachet',
       pack_unit_label: 'pack',
+      sachets_per_pack: '',
     });
   };
 
@@ -1032,6 +1038,42 @@ export default function VendorMenu() {
                                     <SelectItem value="blister">Blister</SelectItem>
                                   </SelectContent>
                                 </Select>
+                              </div>
+                              <div className="space-y-1 col-span-2">
+                                <Label className="text-xs">{formData.sachet_unit_label.charAt(0).toUpperCase() + formData.sachet_unit_label.slice(1)}s per Pack</Label>
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  step="1"
+                                  value={formData.sachets_per_pack}
+                                  onChange={e => setFormData({ ...formData, sachets_per_pack: e.target.value })}
+                                  placeholder={`How many ${formData.sachet_unit_label}s in 1 pack? e.g. 10`}
+                                />
+                                {(() => {
+                                  const packPrice = parseFloat(formData.price) || 0;
+                                  const sachetPrice = parseFloat(formData.sachet_price) || 0;
+                                  const perPack = parseInt(formData.sachets_per_pack, 10) || 0;
+                                  if (packPrice > 0 && sachetPrice > 0 && perPack > 0) {
+                                    const fullSachetCost = sachetPrice * perPack;
+                                    const diff = fullSachetCost - packPrice;
+                                    const pct = Math.round((diff / fullSachetCost) * 100);
+                                    if (diff > 0) {
+                                      return (
+                                        <p className="text-[11px] text-primary font-medium">
+                                          ✓ Customers save ₦{diff.toLocaleString()} ({pct}%) by buying a pack vs {perPack} {formData.sachet_unit_label}s.
+                                        </p>
+                                      );
+                                    } else if (diff < 0) {
+                                      return (
+                                        <p className="text-[11px] text-destructive font-medium">
+                                          ⚠ Pack costs ₦{Math.abs(diff).toLocaleString()} more than {perPack} {formData.sachet_unit_label}s. Consider lowering the pack price.
+                                        </p>
+                                      );
+                                    }
+                                    return <p className="text-[11px] text-muted-foreground">Pack price equals {perPack} × sachet price.</p>;
+                                  }
+                                  return null;
+                                })()}
                               </div>
                               <p className="col-span-2 text-[11px] text-muted-foreground">
                                 The pack price (above) stays as the default. Customers will see a toggle to switch to per-{formData.sachet_unit_label} pricing at checkout.
