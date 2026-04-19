@@ -91,8 +91,73 @@ export default function VendorPos() {
   const [printer, setPrinter] = useState<EscPosPrinter | null>(null);
   const [printerName, setPrinterName] = useState<string | null>(localStorage.getItem(PRINTER_KEY));
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
+  const [heldSales, setHeldSales] = useState<HeldSale[]>([]);
+  const [heldSheetOpen, setHeldSheetOpen] = useState(false);
+  const [holdDialogOpen, setHoldDialogOpen] = useState(false);
+  const [holdLabel, setHoldLabel] = useState('');
+  const [holdNote, setHoldNote] = useState('');
 
   const { session, openSession, closeSession, recordSale } = usePosSession(vendorId, outletId);
+
+  const holdStorageKey = vendorId ? `${HOLD_KEY_PREFIX}${vendorId}` : null;
+
+  // Load held sales from localStorage when vendor resolved
+  useEffect(() => {
+    if (!holdStorageKey) return;
+    try {
+      const raw = localStorage.getItem(holdStorageKey);
+      if (raw) setHeldSales(JSON.parse(raw));
+    } catch {/* ignore */}
+  }, [holdStorageKey]);
+
+  // Persist held sales
+  useEffect(() => {
+    if (!holdStorageKey) return;
+    localStorage.setItem(holdStorageKey, JSON.stringify(heldSales));
+  }, [heldSales, holdStorageKey]);
+
+  const handleHoldSale = () => {
+    if (cart.length === 0) return;
+    setHoldLabel(`Sale #${heldSales.length + 1}`);
+    setHoldNote('');
+    setHoldDialogOpen(true);
+  };
+
+  const confirmHoldSale = () => {
+    if (cart.length === 0) return;
+    const newHold: HeldSale = {
+      id: `hold-${Date.now()}`,
+      label: holdLabel.trim() || `Sale #${heldSales.length + 1}`,
+      cart: [...cart],
+      heldAt: new Date().toISOString(),
+      note: holdNote.trim() || undefined,
+    };
+    setHeldSales(prev => [newHold, ...prev]);
+    setCart([]);
+    setHoldDialogOpen(false);
+    setMobileCartOpen(false);
+    toast({ title: 'Sale held', description: `${newHold.label} parked. Resume anytime from Held Sales.` });
+  };
+
+  const resumeHeldSale = (hold: HeldSale) => {
+    if (cart.length > 0) {
+      toast({
+        title: 'Cart not empty',
+        description: 'Hold or clear the current sale before resuming another.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setCart(hold.cart);
+    setHeldSales(prev => prev.filter(h => h.id !== hold.id));
+    setHeldSheetOpen(false);
+    setMobileCartOpen(true);
+    toast({ title: 'Sale resumed', description: hold.label });
+  };
+
+  const deleteHeldSale = (id: string) => {
+    setHeldSales(prev => prev.filter(h => h.id !== id));
+  };
 
   // Fetch vendor + products
   useEffect(() => {
