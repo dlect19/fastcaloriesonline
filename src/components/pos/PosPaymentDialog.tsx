@@ -41,20 +41,29 @@ export function PosPaymentDialog({ open, onOpenChange, total, onConfirm }: Props
   const handleSearchCustomer = async () => {
     if (!phoneSearch.trim()) return;
     setSearching(true);
-    const phone = phoneSearch.trim();
+    const raw = phoneSearch.trim().replace(/\s+/g, '');
+    // Build all possible variants of the phone number
+    const digits = raw.replace(/\D/g, '');
+    const local = digits.startsWith('234') ? '0' + digits.slice(3) : digits.startsWith('0') ? digits : '0' + digits;
+    const intl = '+234' + local.replace(/^0/, '');
+    const intlNoPlus = '234' + local.replace(/^0/, '');
+    const variants = Array.from(new Set([raw, local, intl, intlNoPlus, digits]));
 
-    const { data: profile } = await supabase
+    const { data: profiles, error } = await supabase
       .from('profiles')
       .select('user_id, full_name, phone')
-      .or(`phone.eq.${phone},phone.eq.+${phone},phone.eq.234${phone.replace(/^0/, '')}`)
-      .maybeSingle();
+      .in('phone', variants)
+      .limit(5);
 
-    if (!profile) {
+    if (error || !profiles || profiles.length === 0) {
       toast({ title: 'Customer not found', description: 'No registered customer with that phone.', variant: 'destructive' });
       setFoundCustomer(null);
       setSearching(false);
       return;
     }
+
+    // Pick the most recently active profile (first match)
+    const profile = profiles[0];
 
     const { data: wallet } = await supabase
       .from('wallets')
