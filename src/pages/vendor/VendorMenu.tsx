@@ -488,6 +488,7 @@ export default function VendorMenu() {
       sachet_price: (product as any).sachet_price?.toString() || '',
       sachet_unit_label: (product as any).sachet_unit_label || 'sachet',
       pack_unit_label: (product as any).pack_unit_label || 'pack',
+      sachets_per_pack: (product as any).sachets_per_pack?.toString() || '',
     });
     // Set image preview from existing URL
     if (product.image_url) {
