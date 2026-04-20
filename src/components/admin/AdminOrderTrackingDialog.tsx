@@ -224,23 +224,44 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
       longitude: oLng,
     });
 
-    // Customer
+    // Customer profile
     const { data: cp } = await supabase
       .from('profiles')
       .select('full_name, phone')
       .eq('user_id', o.user_id)
       .maybeSingle();
 
-    const { data: authUser } = await supabase
-      .from('profiles')
-      .select('user_id')
-      .eq('user_id', o.user_id)
-      .maybeSingle();
+    // Customer delivery address (full lookup with coords)
+    let addrLine: string | null = null;
+    let addrCity: string | null = null;
+    let addrState: string | null = null;
+    let addrLat: number | null = null;
+    let addrLng: number | null = null;
+
+    if ((o as any).delivery_address_id) {
+      const { data: addr } = await supabase
+        .from('addresses')
+        .select('address_line, city, state, latitude, longitude')
+        .eq('id', (o as any).delivery_address_id)
+        .maybeSingle();
+      if (addr) {
+        addrLine = addr.address_line;
+        addrCity = addr.city;
+        addrState = addr.state;
+        addrLat = addr.latitude;
+        addrLng = addr.longitude;
+      }
+    }
 
     setCustomer({
       name: cp?.full_name || 'Customer',
       phone: cp?.phone || null,
       email: null,
+      addressLine: addrLine,
+      city: addrCity,
+      state: addrState,
+      latitude: addrLat,
+      longitude: addrLng,
     });
 
     // Rider (if assigned)
