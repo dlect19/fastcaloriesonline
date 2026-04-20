@@ -25,10 +25,21 @@ import {
   Pause,
   BarChart3,
   TrendingUp,
+  Wifi,
+  WifiOff,
+  RefreshCw,
+  CloudOff,
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { usePosSession } from '@/hooks/usePosSession';
+import {
+  usePosOfflineQueue,
+  cacheProducts,
+  readCachedProducts,
+  cacheVendor,
+  readCachedVendor,
+} from '@/hooks/usePosOfflineQueue';
 import { PosOpenSessionDialog } from '@/components/pos/PosOpenSessionDialog';
 import { PosCloseSessionDialog } from '@/components/pos/PosCloseSessionDialog';
 import { PosPaymentDialog, type PaymentMethod } from '@/components/pos/PosPaymentDialog';
