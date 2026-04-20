@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables } from '@/integrations/supabase/types';
+import { toast } from 'sonner';
 
 type SupportTicket = Tables<'support_tickets'>;
 type SupportMessage = Tables<'support_messages'>;
