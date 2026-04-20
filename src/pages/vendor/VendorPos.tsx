@@ -389,7 +389,7 @@ export default function VendorPos() {
           order_number: orderNumber,
           vendor_id: vendorId,
           outlet_id: outletId,
-          customer_id: data.customerUserId || user.id,
+          user_id: data.customerUserId || user.id,
           subtotal,
           delivery_fee: 0,
           service_fee: 0,
