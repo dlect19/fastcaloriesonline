@@ -186,7 +186,7 @@ export default function AdminSupport() {
     fetchMessages();
   }, [fetchMessages]);
 
-  // Realtime messages
+  // Realtime messages on active ticket
   useEffect(() => {
     if (!activeTicket) return;
 
@@ -212,6 +212,32 @@ export default function AdminSupport() {
 
     return () => { supabase.removeChannel(channel); };
   }, [activeTicket]);
+
+  // Global notification: toast on new user messages across all tickets
+  useEffect(() => {
+    if (!adminUserId) return;
+
+    const channel = supabase
+      .channel(`admin-support-notify-${adminUserId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'support_messages' },
+        (payload) => {
+          const msg = payload.new as SupportMessage;
+          if (msg.sender_type !== 'user') return;
+          if (activeTicket?.id === msg.ticket_id) return;
+          const ticket = tickets.find(t => t.id === msg.ticket_id);
+          const senderName = ticket ? (userProfiles[ticket.user_id] || 'User') : 'User';
+          sonnerToast.message(`💬 New message from ${senderName}`, {
+            description: msg.message.slice(0, 100),
+          });
+          fetchTickets();
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [adminUserId, activeTicket, tickets, userProfiles, fetchTickets]);
 
   const handleSendMessage = async () => {
     if (!activeTicket || !adminUserId || !messageInput.trim()) return;
