@@ -807,7 +807,20 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
             </CardHeader>
             <CardContent className="px-4 pb-3 space-y-1">
               <p className="font-medium text-sm">{customer?.name || '—'}</p>
-              <p className="text-xs text-muted-foreground">{activeOrder.delivery_address_text || activeOrder.delivery_address || '—'}</p>
+              {(() => {
+                const fullAddress = [
+                  customer?.addressLine,
+                  customer?.city,
+                  customer?.state,
+                ].filter(Boolean).join(', ');
+                const displayAddress = fullAddress
+                  || activeOrder.delivery_address_text
+                  || activeOrder.delivery_address
+                  || (activeOrder.delivery_type === 'self_pickup' ? 'Carryout — no delivery address' : '—');
+                return (
+                  <p className="text-xs text-muted-foreground">{displayAddress}</p>
+                );
+              })()}
               {activeOrder.delivery_instructions && (
                 <p className="text-[11px] text-muted-foreground mt-0.5 italic">📝 {activeOrder.delivery_instructions}</p>
               )}
@@ -816,16 +829,43 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
                   <Phone className="w-3 h-3" /> {customer.phone}
                 </a>
               )}
-              {(activeOrder.delivery_address_text || activeOrder.delivery_address) && activeOrder.delivery_type !== 'self_pickup' && (
-                <a
-                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activeOrder.delivery_address_text || activeOrder.delivery_address || '')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-1"
-                >
-                  <MapPin className="w-3 h-3" /> View on Google Maps
-                </a>
-              )}
+              {activeOrder.delivery_type !== 'self_pickup' && (() => {
+                // Build best-available Google Maps URL (directions if we have both endpoints, else search)
+                const hasCustomerCoords = customer?.latitude != null && customer?.longitude != null;
+                const hasVendorCoords = vendor?.latitude != null && vendor?.longitude != null;
+                const customerAddressText = [customer?.addressLine, customer?.city, customer?.state]
+                  .filter(Boolean).join(', ')
+                  || activeOrder.delivery_address_text
+                  || activeOrder.delivery_address
+                  || '';
+
+                let mapHref: string | null = null;
+                let mapLabel = 'View on Google Maps';
+
+                if (hasVendorCoords && hasCustomerCoords) {
+                  // Directions from vendor → customer
+                  mapHref = `https://www.google.com/maps/dir/?api=1&origin=${vendor!.latitude},${vendor!.longitude}&destination=${customer!.latitude},${customer!.longitude}&travelmode=driving`;
+                  mapLabel = 'Vendor → Customer (Directions)';
+                } else if (hasCustomerCoords) {
+                  mapHref = `https://www.google.com/maps/search/?api=1&query=${customer!.latitude},${customer!.longitude}`;
+                  mapLabel = 'Customer location on Maps';
+                } else if (customerAddressText) {
+                  mapHref = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customerAddressText)}`;
+                  mapLabel = 'Search address on Maps';
+                }
+
+                if (!mapHref) return null;
+                return (
+                  <a
+                    href={mapHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-1"
+                  >
+                    <MapPin className="w-3 h-3" /> {mapLabel}
+                  </a>
+                );
+              })()}
             </CardContent>
           </Card>
         </div>
