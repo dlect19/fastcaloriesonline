@@ -6,6 +6,7 @@ import { RiderLayout } from '@/components/rider/RiderLayout';
 import { RiderFloatingWidget } from '@/components/rider/RiderFloatingWidget';
 import { ConfirmationCodeDialog } from '@/components/rider/ConfirmationCodeDialog';
 import { ReassignOrderDialog } from '@/components/rider/ReassignOrderDialog';
+import { RiderOrderChat } from '@/components/rider/RiderOrderChat';
 import { MapOptionsMenu } from '@/components/shared/MapOptionsMenu';
 import { SoundEnableBanner } from '@/components/shared/SoundEnableBanner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -525,6 +526,9 @@ export default function RiderOrders() {
                         </Button>
                       </div>
                     )}
+                  </div>
+                  <div className="mt-3">
+                    <RiderOrderChat orderId={order.id} orderNumber={order.order_number} />
                   </div>
                 </CardContent>
               </Card>
