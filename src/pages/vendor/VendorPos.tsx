@@ -418,7 +418,6 @@ export default function VendorPos() {
         product_id: c.productId,
         quantity: c.qty,
         unit_price: c.unitPrice,
-        subtotal: c.unitPrice * c.qty,
         total_price: c.unitPrice * c.qty,
         product_name: c.name,
         purchase_unit: c.purchaseUnit,
@@ -427,17 +426,26 @@ export default function VendorPos() {
       const { error: itemsErr } = await supabase.from('order_items').insert(itemRows as any);
       if (itemsErr) throw itemsErr;
 
-      // 4. Wallet debit (if wallet payment)
+      // 4. Wallet debit (if wallet payment) — look up wallet_id first
       if (data.paymentMethod === 'wallet' && data.customerUserId) {
-        // Best-effort wallet debit via edge function or direct ledger insert
-        await supabase.from('wallet_transactions').insert({
-          user_id: data.customerUserId,
-          amount: -subtotal,
-          transaction_type: 'debit',
-          category: 'pos_purchase',
-          reference: orderRow.id,
-          notes: `POS purchase at ${vendor.name}`,
-        } as any);
+        const { data: wallet } = await supabase
+          .from('wallets')
+          .select('id')
+          .eq('user_id', data.customerUserId)
+          .maybeSingle();
+        if (wallet?.id) {
+          await supabase.from('wallet_transactions').insert({
+            wallet_id: wallet.id,
+            wallet_type: 'customer',
+            amount: -subtotal,
+            transaction_type: 'debit',
+            category: 'pos_purchase',
+            reference: orderRow.id,
+            order_id: orderRow.id,
+            notes: `POS purchase at ${vendor.name}`,
+            status: 'completed',
+          } as any);
+        }
       }
 
       // 5. Update session totals
