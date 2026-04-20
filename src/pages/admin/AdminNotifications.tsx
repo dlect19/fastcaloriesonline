@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Send, Loader2, Bell, Megaphone, Download, Users, Zap } from 'lucide-react';
 import { EmojiPicker } from '@/components/admin/EmojiPicker';
 import { ApkUploadCard } from '@/components/admin/ApkUploadCard';
+import { AppDownloadUrlsCard } from '@/components/admin/AppDownloadUrlsCard';
 import { AutoNotificationManager } from '@/components/admin/AutoNotificationManager';
 
 export default function AdminNotifications() {
@@ -172,6 +173,7 @@ export default function AdminNotifications() {
           </TabsContent>
 
           <TabsContent value="apk" className="space-y-6 mt-4">
+            <AppDownloadUrlsCard />
             <ApkUploadCard />
             <Card>
               <CardHeader>

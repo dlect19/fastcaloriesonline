@@ -3,8 +3,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
   Download,
-  Smartphone,
-  Apple,
   Share,
   Plus,
   ShieldCheck,
@@ -18,6 +16,7 @@ import {
   Copy,
   Check,
 } from 'lucide-react';
+import { AndroidIcon, AppleIcon } from '@/components/icons/BrandIcons';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -155,7 +154,7 @@ export default function GetApp() {
                 {downloading ? (
                   <Loader2 className="w-6 h-6 animate-spin" />
                 ) : (
-                  <Smartphone className="w-6 h-6" />
+                  <AndroidIcon className="w-6 h-6" />
                 )}
                 <div className="flex flex-col items-start leading-tight">
                   <span className="text-[10px] opacity-90 font-normal">
@@ -173,7 +172,7 @@ export default function GetApp() {
                 }}
                 className="h-14 px-6 gap-3 text-base"
               >
-                <Apple className="w-6 h-6" />
+                <AppleIcon className="w-6 h-6" />
                 <div className="flex flex-col items-start leading-tight">
                   <span className="text-[10px] opacity-70 font-normal">Available on</span>
                   <span className="font-bold">iPhone</span>
@@ -226,10 +225,10 @@ export default function GetApp() {
         <Tabs value={defaultTab} onValueChange={(v) => setDefaultTab(v as 'android' | 'ios')}>
           <TabsList className="grid w-full grid-cols-2 h-12 p-1">
             <TabsTrigger value="android" className="gap-2 h-10">
-              <Smartphone className="w-4 h-4" /> Android
+              <AndroidIcon className="w-4 h-4" /> Android
             </TabsTrigger>
             <TabsTrigger value="ios" className="gap-2 h-10">
-              <Apple className="w-4 h-4" /> iPhone
+              <AppleIcon className="w-4 h-4" /> iPhone
             </TabsTrigger>
           </TabsList>
 
@@ -239,7 +238,7 @@ export default function GetApp() {
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div>
                   <h3 className="text-xl font-bold flex items-center gap-2">
-                    <Smartphone className="w-5 h-5 text-primary" />
+                    <AndroidIcon className="w-5 h-5 text-primary" />
                     Android APK
                   </h3>
                   <p className="text-sm text-muted-foreground mt-1">
@@ -285,7 +284,7 @@ export default function GetApp() {
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div>
                   <h3 className="text-xl font-bold flex items-center gap-2">
-                    <Apple className="w-5 h-5" />
+                    <AppleIcon className="w-5 h-5" />
                     Install on iPhone
                   </h3>
                   <p className="text-sm text-muted-foreground mt-1">
@@ -299,7 +298,7 @@ export default function GetApp() {
               {iosUrl && (
                 <Button asChild size="lg" className="w-full h-14 text-base gap-2 shadow-md">
                   <a href={iosUrl} target="_blank" rel="noopener noreferrer">
-                    <Apple className="w-5 h-5" /> Open in App Store
+                    <AppleIcon className="w-5 h-5" /> Open in App Store
                   </a>
                 </Button>
               )}
