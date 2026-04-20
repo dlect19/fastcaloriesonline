@@ -17,6 +17,7 @@ import {
   Check,
 } from 'lucide-react';
 import { AndroidIcon, AppleIcon } from '@/components/icons/BrandIcons';
+import { AppStoreBadge, GooglePlayBadge } from '@/components/icons/StoreBadges';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -143,41 +144,25 @@ export default function GetApp() {
               </p>
             </div>
 
-            {/* Primary CTAs */}
+            {/* Primary CTAs — Store badges */}
             <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
-              <Button
-                size="lg"
+              <GooglePlayBadge
                 onClick={handleAndroidDownload}
-                disabled={downloading}
-                className="h-14 px-6 gap-3 text-base shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all"
-              >
-                {downloading ? (
-                  <Loader2 className="w-6 h-6 animate-spin" />
-                ) : (
-                  <AndroidIcon className="w-6 h-6" />
-                )}
-                <div className="flex flex-col items-start leading-tight">
-                  <span className="text-[10px] opacity-90 font-normal">
-                    {downloading ? 'Opening' : 'Download for'}
-                  </span>
-                  <span className="font-bold">Android</span>
-                </div>
-              </Button>
-
-              <Button
-                size="lg"
-                variant="outline"
-                onClick={() => {
-                  document.getElementById('ios-instructions')?.scrollIntoView({ behavior: 'smooth' });
-                }}
-                className="h-14 px-6 gap-3 text-base"
-              >
-                <AppleIcon className="w-6 h-6" />
-                <div className="flex flex-col items-start leading-tight">
-                  <span className="text-[10px] opacity-70 font-normal">Available on</span>
-                  <span className="font-bold">iPhone</span>
-                </div>
-              </Button>
+                loading={downloading}
+                aria-label="Download on Google Play / Android"
+              />
+              {iosUrl ? (
+                <AppStoreBadge href={iosUrl} target="_blank" rel="noopener noreferrer" aria-label="Download on the App Store" />
+              ) : (
+                <AppStoreBadge
+                  href="#ios-instructions"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    document.getElementById('ios-instructions')?.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                  aria-label="View iPhone install instructions"
+                />
+              )}
             </div>
 
             {/* Trust line */}
