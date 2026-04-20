@@ -34,6 +34,7 @@ import { PosCloseSessionDialog } from '@/components/pos/PosCloseSessionDialog';
 import { PosPaymentDialog, type PaymentMethod } from '@/components/pos/PosPaymentDialog';
 import { EscPosPrinter, type PosReceiptData } from '@/lib/escpos-printer';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { PosReceiptPreviewDialog } from '@/components/pos/PosReceiptPreviewDialog';
 import { Label } from '@/components/ui/label';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
 
