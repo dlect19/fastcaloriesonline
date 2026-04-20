@@ -799,6 +799,16 @@ export default function VendorPos() {
         onConfirm={handlePaymentConfirm}
       />
 
+      <PosReceiptPreviewDialog
+        open={receiptPreviewOpen}
+        onOpenChange={setReceiptPreviewOpen}
+        receipt={lastReceipt}
+        hasPrinter={!!printer}
+        onPrint={async () => {
+          if (lastReceipt) await printReceipt(lastReceipt);
+        }}
+      />
+
       {/* Name & hold current sale */}
       <Dialog open={holdDialogOpen} onOpenChange={setHoldDialogOpen}>
         <DialogContent className="sm:max-w-sm">
