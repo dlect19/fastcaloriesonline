@@ -25,7 +25,6 @@ import {
   Pause,
   BarChart3,
   TrendingUp,
-  Wifi,
   WifiOff,
   RefreshCw,
   CloudOff,
