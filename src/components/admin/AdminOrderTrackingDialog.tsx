@@ -42,7 +42,8 @@ interface Order {
   delivery_fee: number;
   service_fee: number;
   discount: number;
-  delivery_address: string;
+  delivery_address?: string | null;
+  delivery_address_id?: string | null;
   delivery_address_text: string | null;
   delivery_instructions: string | null;
   created_at: string;
