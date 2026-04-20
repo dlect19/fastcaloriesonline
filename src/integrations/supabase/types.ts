@@ -6843,6 +6843,7 @@ export type Database = {
         Returns: number
       }
       get_platform_environment: { Args: never; Returns: string }
+      get_rider_delivery_count: { Args: { _rider_id: string }; Returns: number }
       get_rider_profile_id: { Args: { _user_id: string }; Returns: string }
       get_vendor_staff_role: {
         Args: { _user_id: string; _vendor_id: string }

@@ -42,17 +42,14 @@ export function OrderRiderInfo({ riderId, orderStatus }: OrderRiderInfoProps) {
         .eq('user_id', riderId)
         .maybeSingle();
 
-      const { count: deliveredCount } = await supabase
-        .from('orders')
-        .select('id', { count: 'exact', head: true })
-        .eq('rider_id', riderId)
-        .eq('status', 'delivered');
+      const { data: deliveredCount } = await supabase
+        .rpc('get_rider_delivery_count', { _rider_id: riderId });
 
       setRiderInfo({
         name: profile?.full_name || 'Rider',
         phone: profile?.phone || null,
         rating: riderProfile.rating || 0,
-        totalDeliveries: deliveredCount ?? riderProfile.total_deliveries ?? 0
+        totalDeliveries: (deliveredCount as number) ?? riderProfile.total_deliveries ?? 0
       });
     } catch (error) {
       console.error('Error fetching rider info:', error);
