@@ -397,16 +397,15 @@ export default function VendorPos() {
           status: 'delivered',
           payment_status: 'paid',
           payment_method: data.paymentMethod,
-          order_type: 'carryout',
-          delivery_address: 'In-store POS',
+          delivery_type: 'carryout',
           delivery_address_text: 'In-store POS',
           channel: 'pos',
           pos_cashier_id: user.id,
           pos_payment_method: data.paymentMethod,
           pos_session_id: session.id,
-          customer_phone: data.customerPhone || null,
-          customer_name: data.customerName || 'Walk-in',
-          notes: data.customerName ? `POS sale to ${data.customerName}` : 'POS walk-in sale',
+          delivery_instructions: data.customerName
+            ? `POS sale to ${data.customerName}${data.customerPhone ? ` (${data.customerPhone})` : ''}`
+            : 'POS walk-in sale',
         } as any)
         .select()
         .single();
