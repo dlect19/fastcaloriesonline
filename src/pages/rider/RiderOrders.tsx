@@ -527,6 +527,9 @@ export default function RiderOrders() {
                       </div>
                     )}
                   </div>
+                  <div className="mt-3">
+                    <RiderOrderChat orderId={order.id} orderNumber={order.order_number} />
+                  </div>
                 </CardContent>
               </Card>
             ))
