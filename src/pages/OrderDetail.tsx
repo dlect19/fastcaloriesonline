@@ -22,6 +22,8 @@ const DELIVERY_ORDER_STATUSES = [
   { key: 'confirmed', label: 'Confirmed', icon: Check },
   { key: 'preparing', label: 'Preparing', icon: Store },
   { key: 'ready_for_pickup', label: 'Ready for Rider', icon: Clock },
+  { key: 'searching_for_rider', label: 'Finding Rider', icon: Bike },
+  { key: 'assigned', label: 'Rider Assigned', icon: Bike },
   { key: 'picked_up', label: 'Picked Up', icon: Bike },
   { key: 'on_the_way', label: 'On the Way', icon: Truck },
   { key: 'delivered', label: 'Delivered', icon: MapPin },

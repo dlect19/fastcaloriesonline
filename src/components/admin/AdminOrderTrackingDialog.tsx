@@ -314,13 +314,18 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
       .select('full_name, phone')
       .eq('user_id', riderId)
       .maybeSingle();
+    const { count: deliveredCount } = await supabase
+      .from('orders')
+      .select('id', { count: 'exact', head: true })
+      .eq('rider_id', riderId)
+      .eq('status', 'delivered');
 
     setRider({
       userId: riderId,
       name: prof?.full_name || 'Rider',
       phone: prof?.phone || null,
       rating: rp?.rating || 0,
-      totalDeliveries: rp?.total_deliveries || 0,
+      totalDeliveries: deliveredCount ?? rp?.total_deliveries ?? 0,
     });
   };
 

@@ -18,6 +18,8 @@ const statusConfig: Record<string, { label: string; color: string; icon: typeof 
   confirmed: { label: 'Confirmed', color: 'bg-info/10 text-info', icon: CheckCircle },
   preparing: { label: 'Preparing', color: 'bg-primary/10 text-primary', icon: RefreshCw },
   ready_for_pickup: { label: 'Ready', color: 'bg-accent/10 text-accent', icon: Package },
+  searching_for_rider: { label: 'Finding Rider', color: 'bg-warning/10 text-warning', icon: RefreshCw },
+  assigned: { label: 'Rider Assigned', color: 'bg-info/10 text-info', icon: Truck },
   picked_up: { label: 'Picked Up', color: 'bg-info/10 text-info', icon: Package },
   on_the_way: { label: 'On the Way', color: 'bg-primary/10 text-primary', icon: Package },
   delivered: { label: 'Delivered', color: 'bg-success/10 text-success', icon: CheckCircle },
