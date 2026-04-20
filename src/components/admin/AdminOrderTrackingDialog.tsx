@@ -68,6 +68,11 @@ interface CustomerInfo {
   name: string;
   phone: string | null;
   email: string | null;
+  addressLine: string | null;
+  city: string | null;
+  state: string | null;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 interface RiderInfo {
