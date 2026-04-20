@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables } from '@/integrations/supabase/types';
+import { toast } from 'sonner';
 
 type SupportTicket = Tables<'support_tickets'>;
 type SupportMessage = Tables<'support_messages'>;
@@ -72,7 +73,7 @@ export function useSupportChat(userId: string | undefined, userType: SupportUser
     fetchMessages();
   }, [fetchMessages]);
 
-  // Subscribe to realtime updates for messages
+  // Subscribe to realtime updates for messages on the active ticket
   useEffect(() => {
     if (!activeTicket) return;
 
@@ -93,7 +94,6 @@ export function useSupportChat(userId: string | undefined, userType: SupportUser
             return [...prev, newMessage];
           });
 
-          // Mark as read if from admin
           if (newMessage.sender_type === 'admin') {
             supabase
               .from('support_messages')
@@ -109,6 +109,35 @@ export function useSupportChat(userId: string | undefined, userType: SupportUser
       supabase.removeChannel(channel);
     };
   }, [activeTicket]);
+
+  // Global notification: toast on new admin replies for any of the user's tickets
+  useEffect(() => {
+    if (!userId || tickets.length === 0) return;
+    const ticketIds = new Set(tickets.map(t => t.id));
+
+    const channel = supabase
+      .channel(`support-notify-${userId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'support_messages' },
+        (payload) => {
+          const msg = payload.new as SupportMessage;
+          if (!ticketIds.has(msg.ticket_id)) return;
+          if (msg.sender_type !== 'admin') return;
+          if (activeTicket?.id === msg.ticket_id) return;
+          const ticket = tickets.find(t => t.id === msg.ticket_id);
+          toast.message('💬 New support reply', {
+            description: ticket?.subject
+              ? `${ticket.subject}: ${msg.message.slice(0, 80)}`
+              : msg.message.slice(0, 100),
+          });
+          fetchTickets();
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [userId, tickets, activeTicket, fetchTickets]);
 
   // Subscribe to ticket updates
   useEffect(() => {
