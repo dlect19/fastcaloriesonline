@@ -47,11 +47,17 @@ export function RiderInfoCard({ riderId }: RiderInfoCardProps) {
         .eq('user_id', riderId)
         .maybeSingle();
 
+      const { count: deliveredCount } = await supabase
+        .from('orders')
+        .select('id', { count: 'exact', head: true })
+        .eq('rider_id', riderId)
+        .eq('status', 'delivered');
+
       setRiderDetails({
         name: profile?.full_name || 'Your Rider',
         phone: profile?.phone || null,
         rating: riderProfile.rating || 0,
-        totalDeliveries: riderProfile.total_deliveries || 0,
+        totalDeliveries: deliveredCount ?? riderProfile.total_deliveries ?? 0,
         avatarUrl: profile?.avatar_url || null,
         vehicleType: riderProfile.vehicle_type || null,
         vehiclePlate: riderProfile.vehicle_plate || null,

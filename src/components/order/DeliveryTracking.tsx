@@ -21,6 +21,8 @@ const statusSteps = [
   { status: 'confirmed', label: 'Confirmed', icon: CheckCircle2 },
   { status: 'preparing', label: 'Preparing', icon: Package },
   { status: 'ready_for_pickup', label: 'Ready', icon: Package },
+  { status: 'searching_for_rider', label: 'Finding Rider', icon: Bike },
+  { status: 'assigned', label: 'Rider Assigned', icon: Bike },
   { status: 'picked_up', label: 'Picked Up', icon: Bike },
   { status: 'on_the_way', label: 'On the Way', icon: Navigation },
   { status: 'delivered', label: 'Delivered', icon: CheckCircle2 },
@@ -230,7 +232,7 @@ export function DeliveryTracking({ orderId, customerLat, customerLon }: Delivery
         )}
 
         {/* Waiting for rider */}
-        {!order.rider_id && order.status === 'ready_for_pickup' && (
+        {!order.rider_id && ['ready_for_pickup', 'searching_for_rider'].includes(order.status) && (
           <div className="p-4 bg-secondary rounded-lg text-center">
             <Bike className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
             <p className="text-sm text-muted-foreground">Finding a rider for your order...</p>

@@ -142,15 +142,9 @@ export function ManualRiderAssignment({
       const selectedRider = availableRiders.find(r => r.id === selectedRiderId);
       if (!selectedRider) throw new Error('Rider not found');
 
-      // Update order with assigned rider directly
-      const { error } = await supabase
-        .from('orders')
-        .update({
-          rider_id: selectedRider.user_id,
-          status: 'assigned',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', orderId);
+      const { error } = await supabase.functions.invoke('assign-rider', {
+        body: { orderId, riderId: selectedRider.user_id }
+      });
 
       if (error) throw error;
 
