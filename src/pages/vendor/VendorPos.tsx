@@ -644,6 +644,39 @@ export default function VendorPos() {
                 )}
               </div>
             </div>
+            {(!isOnline || offlineQueue.length > 0) && (
+              <div className={cn(
+                'flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg border text-xs',
+                !isOnline
+                  ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200'
+                  : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200'
+              )}>
+                <span className="flex items-center gap-1.5 font-medium">
+                  {!isOnline ? <WifiOff className="w-3.5 h-3.5" /> : <CloudOff className="w-3.5 h-3.5" />}
+                  {!isOnline ? 'Offline mode' : 'Pending sync'}
+                  {offlineQueue.length > 0 && (
+                    <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+                      {offlineQueue.length} sale{offlineQueue.length === 1 ? '' : 's'}
+                    </Badge>
+                  )}
+                </span>
+                {isOnline && offlineQueue.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-6 px-2 text-[11px] gap-1"
+                    onClick={() => syncQueue()}
+                    disabled={syncing}
+                  >
+                    <RefreshCw className={cn('w-3 h-3', syncing && 'animate-spin')} />
+                    {syncing ? 'Syncing…' : 'Sync now'}
+                  </Button>
+                )}
+                {!isOnline && (
+                  <span className="text-[10px] opacity-80 hidden sm:inline">Sales saved locally · auto-sync when back online</span>
+                )}
+              </div>
+            )}
             <div className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg bg-primary/5 border border-primary/10 text-xs">
               <span className="flex items-center gap-1.5 text-muted-foreground">
                 <TrendingUp className="w-3.5 h-3.5 text-primary" /> Today
