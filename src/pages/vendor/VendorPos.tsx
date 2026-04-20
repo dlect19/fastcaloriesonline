@@ -25,10 +25,20 @@ import {
   Pause,
   BarChart3,
   TrendingUp,
+  WifiOff,
+  RefreshCw,
+  CloudOff,
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { usePosSession } from '@/hooks/usePosSession';
+import {
+  usePosOfflineQueue,
+  cacheProducts,
+  readCachedProducts,
+  cacheVendor,
+  readCachedVendor,
+} from '@/hooks/usePosOfflineQueue';
 import { PosOpenSessionDialog } from '@/components/pos/PosOpenSessionDialog';
 import { PosCloseSessionDialog } from '@/components/pos/PosCloseSessionDialog';
 import { PosPaymentDialog, type PaymentMethod } from '@/components/pos/PosPaymentDialog';
@@ -121,6 +131,7 @@ export default function VendorPos() {
   const [unitPickerProduct, setUnitPickerProduct] = useState<Product | null>(null);
 
   const { session, openSession, closeSession, recordSale } = usePosSession(vendorId, outletId);
+  const { isOnline, queue: offlineQueue, syncing, enqueue: enqueueOfflineSale, syncQueue } = usePosOfflineQueue(vendorId);
 
   const holdStorageKey = vendorId ? `${HOLD_KEY_PREFIX}${vendorId}` : null;
 
@@ -182,26 +193,48 @@ export default function VendorPos() {
     setHeldSales(prev => prev.filter(h => h.id !== id));
   };
 
-  // Fetch vendor + products
+  // Fetch vendor + products (with offline cache fallback)
   useEffect(() => {
     if (!vendorId) return;
     let cancelled = false;
-    (async () => {
-      setLoading(true);
-      const [{ data: v }, { data: p }] = await Promise.all([
-        supabase.from('vendors').select('id, name, address, phone, category, logo_url').eq('id', vendorId).maybeSingle(),
-        supabase
-          .from('products')
-          .select('id, name, price, discount_price, image_url, stock_quantity, track_stock, is_available, calories, outlet_id, allows_sachet, sachet_price, sachet_unit_label, sachets_per_pack')
-          .eq('vendor_id', vendorId)
-          .order('name'),
-      ]);
 
-      if (cancelled) return;
-      if (v) setVendor(v as any);
-      const filtered = (p || []).filter(x => !outletId || (x as any).outlet_id === outletId || !(x as any).outlet_id);
-      setProducts(filtered as any);
+    // Hydrate from cache instantly so the grid works offline / on slow networks
+    const cachedV = readCachedVendor(vendorId);
+    if (cachedV) setVendor(cachedV);
+    const cachedP = readCachedProducts(vendorId);
+    if (cachedP?.products) {
+      const filteredCached = cachedP.products.filter((x: any) => !outletId || x.outlet_id === outletId || !x.outlet_id);
+      setProducts(filteredCached);
       setLoading(false);
+    }
+
+    (async () => {
+      if (!navigator.onLine) {
+        if (!cachedP) setLoading(false);
+        return;
+      }
+      try {
+        const [{ data: v }, { data: p }] = await Promise.all([
+          supabase.from('vendors').select('id, name, address, phone, category, logo_url').eq('id', vendorId).maybeSingle(),
+          supabase
+            .from('products')
+            .select('id, name, price, discount_price, image_url, stock_quantity, track_stock, is_available, calories, outlet_id, allows_sachet, sachet_price, sachet_unit_label, sachets_per_pack')
+            .eq('vendor_id', vendorId)
+            .order('name'),
+        ]);
+
+        if (cancelled) return;
+        if (v) { setVendor(v as any); cacheVendor(vendorId, v); }
+        if (p) {
+          cacheProducts(vendorId, p);
+          const filtered = p.filter((x: any) => !outletId || x.outlet_id === outletId || !x.outlet_id);
+          setProducts(filtered as any);
+        }
+      } catch {
+        // Network failed mid-fetch — keep cached data
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
     return () => { cancelled = true; };
   }, [vendorId, outletId]);
@@ -378,58 +411,131 @@ export default function VendorPos() {
   }) => {
     if (!session || !vendor || !vendorId) return;
 
+    const { data: { user } } = await supabase.auth.getUser().catch(() => ({ data: { user: null } } as any));
+    // user may be null if offline AND no cached session. Fall back to session.cashier_id.
+    const cashierId = user?.id ?? session.cashier_id;
+
+    // 1. Generate order_number
+    const orderNumber = `POS-${Date.now().toString(36).toUpperCase()}`;
+
+    // Build payloads up-front so we can reuse for both online + offline paths
+    const orderPayload = {
+      order_number: orderNumber,
+      vendor_id: vendorId,
+      outlet_id: outletId,
+      user_id: data.customerUserId || cashierId,
+      subtotal,
+      delivery_fee: 0,
+      service_fee: 0,
+      total: subtotal,
+      status: 'delivered',
+      payment_status: 'paid',
+      payment_method: data.paymentMethod,
+      delivery_type: 'self_pickup',
+      delivery_address_text: 'In-store POS',
+      channel: 'pos',
+      pos_cashier_id: cashierId,
+      pos_payment_method: data.paymentMethod,
+      pos_session_id: session.id,
+      delivery_instructions: data.customerName
+        ? `POS sale to ${data.customerName}${data.customerPhone ? ` (${data.customerPhone})` : ''}`
+        : 'POS walk-in sale',
+    };
+    const itemPayloads = cart.map(c => ({
+      // order_id will be filled in once the order row exists
+      product_id: c.productId,
+      quantity: c.qty,
+      unit_price: c.unitPrice,
+      total_price: c.unitPrice * c.qty,
+      product_name: c.name,
+      purchase_unit: c.purchaseUnit,
+      unit_multiplier: c.unitMultiplier,
+    }));
+
+    const totalCalories = cart.reduce(
+      (s, c) => s + (c.caloriesPerUnit ? c.caloriesPerUnit * c.qty : 0),
+      0,
+    );
+    const receiptData: PosReceiptData = {
+      storeName: vendor.name,
+      storeAddress: vendor.address ?? undefined,
+      storePhone: vendor.phone ?? undefined,
+      storeLogoUrl: vendor.logo_url ?? undefined,
+      receiptNumber: orderNumber,
+      cashierName: session.cashier_name ?? undefined,
+      date: new Date(),
+      items: cart.map(c => ({
+        name: c.purchaseUnit === 'sachet' ? `${c.name} (${c.unitLabel})` : c.name,
+        qty: c.qty,
+        price: c.unitPrice * c.qty,
+        calories: c.caloriesPerUnit,
+      })),
+      subtotal,
+      total: subtotal,
+      totalCalories: totalCalories > 0 ? totalCalories : null,
+      paymentMethod: data.paymentMethod.toUpperCase(),
+      amountPaid: data.amountPaid,
+      change: data.change,
+      customerName: data.customerName,
+      customerPhone: data.customerPhone,
+      paperWidth: 32,
+    };
+
+    const finishLocal = (offline: boolean) => {
+      setLastReceipt(receiptData);
+      setReceiptPreviewOpen(true);
+      if (printer) printReceipt(receiptData).catch(() => {});
+      toast({
+        title: offline ? '🟡 Offline sale saved' : 'Sale completed',
+        description: offline
+          ? `${orderNumber} • ₦${subtotal.toLocaleString()} — will sync when online.`
+          : `${orderNumber} • ₦${subtotal.toLocaleString()}`,
+      });
+      clearCart();
+      setPaymentDialog(false);
+      setMobileCartOpen(false);
+    };
+
+    const queueOffline = (reason?: string) => {
+      enqueueOfflineSale({
+        payload: {
+          order: orderPayload,
+          items: itemPayloads,
+          walletDebit: data.paymentMethod === 'wallet' && data.customerUserId
+            ? { customerUserId: data.customerUserId, amount: subtotal, vendorName: vendor.name }
+            : undefined,
+          sessionUpdate: {
+            sessionId: session.id,
+            amount: subtotal,
+            paymentMethod: data.paymentMethod,
+          },
+        },
+      });
+      // Optimistically reflect in the open shift totals so cashier sees them
+      recordSale(subtotal, data.paymentMethod).catch(() => {});
+      finishLocal(true);
+      if (reason) console.warn('[POS] queued offline:', reason);
+    };
+
+    // If offline, queue immediately
+    if (!navigator.onLine) {
+      queueOffline('navigator offline');
+      return;
+    }
+
+    // Online path — try Supabase, fall back to queue on network failure
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not signed in');
-
-      // 1. Generate order_number
-      const orderNumber = `POS-${Date.now().toString(36).toUpperCase()}`;
-
-      // 2. Insert order
       const { data: orderRow, error: orderErr } = await supabase
         .from('orders')
-        .insert({
-          order_number: orderNumber,
-          vendor_id: vendorId,
-          outlet_id: outletId,
-          user_id: data.customerUserId || user.id,
-          subtotal,
-          delivery_fee: 0,
-          service_fee: 0,
-          total: subtotal,
-          status: 'delivered',
-          payment_status: 'paid',
-          payment_method: data.paymentMethod,
-          delivery_type: 'self_pickup',
-          delivery_address_text: 'In-store POS',
-          channel: 'pos',
-          pos_cashier_id: user.id,
-          pos_payment_method: data.paymentMethod,
-          pos_session_id: session.id,
-          delivery_instructions: data.customerName
-            ? `POS sale to ${data.customerName}${data.customerPhone ? ` (${data.customerPhone})` : ''}`
-            : 'POS walk-in sale',
-        } as any)
+        .insert(orderPayload as any)
         .select()
         .single();
-
       if (orderErr) throw orderErr;
 
-      // 3. Insert order_items (with purchase_unit + unit_multiplier so the stock trigger deducts correctly)
-      const itemRows = cart.map(c => ({
-        order_id: orderRow.id,
-        product_id: c.productId,
-        quantity: c.qty,
-        unit_price: c.unitPrice,
-        total_price: c.unitPrice * c.qty,
-        product_name: c.name,
-        purchase_unit: c.purchaseUnit,
-        unit_multiplier: c.unitMultiplier,
-      }));
+      const itemRows = itemPayloads.map(i => ({ ...i, order_id: orderRow.id }));
       const { error: itemsErr } = await supabase.from('order_items').insert(itemRows as any);
       if (itemsErr) throw itemsErr;
 
-      // 4. Wallet debit (if wallet payment) — look up wallet_id first
       if (data.paymentMethod === 'wallet' && data.customerUserId) {
         const { data: wallet } = await supabase
           .from('wallets')
@@ -451,52 +557,16 @@ export default function VendorPos() {
         }
       }
 
-      // 5. Update session totals
       await recordSale(subtotal, data.paymentMethod);
-
-      // 6. Build receipt data and show preview (always)
-      const totalCalories = cart.reduce(
-        (s, c) => s + (c.caloriesPerUnit ? c.caloriesPerUnit * c.qty : 0),
-        0,
-      );
-      const receiptData: PosReceiptData = {
-        storeName: vendor.name,
-        storeAddress: vendor.address ?? undefined,
-        storePhone: vendor.phone ?? undefined,
-        storeLogoUrl: vendor.logo_url ?? undefined,
-        receiptNumber: orderNumber,
-        cashierName: session.cashier_name ?? undefined,
-        date: new Date(),
-        items: cart.map(c => ({
-          name: c.purchaseUnit === 'sachet' ? `${c.name} (${c.unitLabel})` : c.name,
-          qty: c.qty,
-          price: c.unitPrice * c.qty,
-          calories: c.caloriesPerUnit,
-        })),
-        subtotal,
-        total: subtotal,
-        totalCalories: totalCalories > 0 ? totalCalories : null,
-        paymentMethod: data.paymentMethod.toUpperCase(),
-        amountPaid: data.amountPaid,
-        change: data.change,
-        customerName: data.customerName,
-        customerPhone: data.customerPhone,
-        paperWidth: 32,
-      };
-      setLastReceipt(receiptData);
-      setReceiptPreviewOpen(true);
-
-      // 7. Auto-print to thermal if connected
-      if (printer) {
-        printReceipt(receiptData).catch(() => {});
-      }
-
-      toast({ title: 'Sale completed', description: `${orderNumber} • ₦${subtotal.toLocaleString()}` });
-      clearCart();
-      setPaymentDialog(false);
-      setMobileCartOpen(false);
+      finishLocal(false);
     } catch (err: any) {
-      toast({ title: 'Sale failed', description: err.message, variant: 'destructive' });
+      const msg = String(err?.message || '');
+      const isNetworkErr = /network|fetch|failed to fetch|timeout|connection/i.test(msg);
+      if (isNetworkErr) {
+        queueOffline(msg);
+      } else {
+        toast({ title: 'Sale failed', description: msg, variant: 'destructive' });
+      }
     }
   };
 
@@ -573,6 +643,39 @@ export default function VendorPos() {
                 )}
               </div>
             </div>
+            {(!isOnline || offlineQueue.length > 0) && (
+              <div className={cn(
+                'flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg border text-xs',
+                !isOnline
+                  ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200'
+                  : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200'
+              )}>
+                <span className="flex items-center gap-1.5 font-medium">
+                  {!isOnline ? <WifiOff className="w-3.5 h-3.5" /> : <CloudOff className="w-3.5 h-3.5" />}
+                  {!isOnline ? 'Offline mode' : 'Pending sync'}
+                  {offlineQueue.length > 0 && (
+                    <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+                      {offlineQueue.length} sale{offlineQueue.length === 1 ? '' : 's'}
+                    </Badge>
+                  )}
+                </span>
+                {isOnline && offlineQueue.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-6 px-2 text-[11px] gap-1"
+                    onClick={() => syncQueue()}
+                    disabled={syncing}
+                  >
+                    <RefreshCw className={cn('w-3 h-3', syncing && 'animate-spin')} />
+                    {syncing ? 'Syncing…' : 'Sync now'}
+                  </Button>
+                )}
+                {!isOnline && (
+                  <span className="text-[10px] opacity-80 hidden sm:inline">Sales saved locally · auto-sync when back online</span>
+                )}
+              </div>
+            )}
             <div className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg bg-primary/5 border border-primary/10 text-xs">
               <span className="flex items-center gap-1.5 text-muted-foreground">
                 <TrendingUp className="w-3.5 h-3.5 text-primary" /> Today
