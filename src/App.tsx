@@ -81,6 +81,7 @@ import AdminLegal from "./pages/admin/AdminLegal";
 import AdminFAQ from "./pages/admin/AdminFAQ";
 import LegalPage from "./pages/legal/LegalPage";
 import Install from "./pages/Install";
+import GetApp from "./pages/GetApp";
 import Rewards from "./pages/Rewards";
 import FreeMeals from "./pages/FreeMeals";
 import AdminFreeMeals from "./pages/admin/AdminFreeMeals";
@@ -271,6 +272,9 @@ const App = () => {
               <Route path="/workspace/:slug" element={<WorkspaceLogin />} />
               {/* Install Page */}
               <Route path="/install" element={<Install />} />
+              {/* Customer App Download Page */}
+              <Route path="/get-app" element={<GetApp />} />
+              <Route path="/download" element={<GetApp />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
