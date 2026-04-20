@@ -33,10 +33,12 @@ type OrderRow = {
 };
 
 type OrderItemRow = {
+  order_id: string;
   product_id: string | null;
   product_name: string;
   quantity: number;
-  subtotal: number;
+  unit_price: number;
+  total_price: number;
   created_at: string;
   orders: { created_at: string; vendor_id: string; outlet_id: string | null; channel: string | null } | null;
 };
@@ -132,7 +134,7 @@ export default function VendorPosReports() {
         const orderIds = orderRows.map(o => o.id);
         const { data: it } = await supabase
           .from('order_items')
-          .select('product_id, product_name, quantity, subtotal, created_at, orders!inner(created_at, vendor_id, outlet_id, channel)')
+          .select('order_id, product_id, product_name, quantity, unit_price, total_price, created_at, orders!inner(created_at, vendor_id, outlet_id, channel)')
           .in('order_id', orderIds);
         if (!cancelled) setItems((it || []) as any);
       } else {
@@ -196,9 +198,20 @@ export default function VendorPosReports() {
       const key = it.product_id || it.product_name;
       if (!map[key]) map[key] = { name: it.product_name, qty: 0, revenue: 0 };
       map[key].qty += Number(it.quantity || 0);
-      map[key].revenue += Number(it.subtotal || 0);
+      map[key].revenue += Number(it.total_price || 0);
     }
     return Object.values(map).sort((a, b) => b.qty - a.qty).slice(0, 20);
+  }, [items]);
+
+  // Items grouped by order id, for the per-sale breakdown
+  const itemsByOrder = useMemo(() => {
+    const map: Record<string, OrderItemRow[]> = {};
+    for (const it of items) {
+      if (!it.order_id) continue;
+      if (!map[it.order_id]) map[it.order_id] = [];
+      map[it.order_id].push(it);
+    }
+    return map;
   }, [items]);
 
   // Hourly heatmap (24 columns x N rows of top items)
@@ -372,6 +385,58 @@ export default function VendorPosReports() {
                     </div>
                   ))}
                 </div>
+              )}
+            </Card>
+
+            {/* Per-sale breakdown — what each customer bought */}
+            <Card className="p-4">
+              <h3 className="font-semibold mb-3 flex items-center justify-between">
+                Sales — Items per Receipt
+                <Badge variant="outline" className="text-[10px]">{orders.length}</Badge>
+              </h3>
+              {orders.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No POS sales in this range.</p>
+              ) : (
+                <ScrollArea className="max-h-[480px] pr-2">
+                  <div className="space-y-2">
+                    {orders.map(o => {
+                      const its = itemsByOrder[o.id] || [];
+                      const method = (o.pos_payment_method || o.payment_method || '').toLowerCase();
+                      return (
+                        <details key={o.id} className="rounded-lg border bg-card overflow-hidden group">
+                          <summary className="flex items-center justify-between gap-2 px-3 py-2 cursor-pointer hover:bg-muted/50 list-none">
+                            <div className="min-w-0">
+                              <p className="text-xs font-mono text-muted-foreground truncate">
+                                {new Date(o.created_at).toLocaleString()}
+                              </p>
+                              <p className="text-sm font-medium">
+                                {its.length} item{its.length !== 1 ? 's' : ''}
+                                {method && <span className="ml-2 text-[10px] uppercase text-muted-foreground">· {method}</span>}
+                              </p>
+                            </div>
+                            <span className="font-semibold text-sm shrink-0">₦{Number(o.total).toLocaleString()}</span>
+                          </summary>
+                          <div className="border-t px-3 py-2 bg-muted/20 space-y-1">
+                            {its.length === 0 ? (
+                              <p className="text-xs text-muted-foreground">No item details.</p>
+                            ) : (
+                              its.map((it, i) => (
+                                <div key={i} className="flex items-center justify-between text-xs">
+                                  <span className="truncate pr-2">
+                                    <span className="font-medium">{it.quantity}×</span> {it.product_name}
+                                  </span>
+                                  <span className="text-muted-foreground shrink-0">
+                                    ₦{Number(it.unit_price).toLocaleString()} → <span className="text-foreground font-medium">₦{Number(it.total_price).toLocaleString()}</span>
+                                  </span>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </details>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
               )}
             </Card>
           </TabsContent>
