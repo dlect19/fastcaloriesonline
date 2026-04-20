@@ -181,6 +181,48 @@ export function CartProvider({ children }: { children: ReactNode }) {
       });
   }, []);
 
+  // Auto-clean stale outlet references from persisted carts before checkout
+  useEffect(() => {
+    const validateOutletReferences = async () => {
+      const outletIds = Array.from(new Set(items.map(item => item.outletId).filter(Boolean) as string[]));
+      if (outletIds.length === 0) return;
+
+      const { data, error } = await supabase
+        .from('vendor_outlets')
+        .select('id, is_active, is_approved')
+        .in('id', outletIds);
+
+      if (error) {
+        console.error('Failed to validate cart outlets:', error);
+        return;
+      }
+
+      const validOutletIds = new Set(
+        (data || [])
+          .filter(outlet => outlet.is_active && outlet.is_approved)
+          .map(outlet => outlet.id)
+      );
+
+      const invalidOutletIds = outletIds.filter(outletId => !validOutletIds.has(outletId));
+      if (invalidOutletIds.length === 0) return;
+
+      setItems(prevItems => prevItems.filter(item => !item.outletId || validOutletIds.has(item.outletId)));
+      setPackageMetas(prev => {
+        const next = { ...prev };
+        Object.keys(next).forEach(key => {
+          const [, outletId = ''] = key.split('|');
+          if (outletId && invalidOutletIds.includes(outletId)) {
+            delete next[key];
+          }
+        });
+        return next;
+      });
+      setActivePackageIndex(0);
+    };
+
+    void validateOutletReferences();
+  }, [items]);
+
   // Save cart to localStorage whenever it changes
   useEffect(() => {
     localStorage.setItem(CART_STORAGE_KEY, JSON.stringify({ items, packageMetas }));
@@ -283,7 +325,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   };
 
   const updateItem = (itemId: string, updates: Partial<Omit<CartItem, 'id'>>) => {
-    setItems(items.map(i => 
+    setItems(prevItems => prevItems.map(i => 
       i.id === itemId ? { ...i, ...updates } : i
     ));
   };
@@ -295,7 +337,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   };
 
   const clearVendorGroup = (vendorId: string, outletId?: string) => {
-    setItems(items.filter(i => !(i.vendorId === vendorId && i.outletId === outletId)));
+    setItems(prevItems => prevItems.filter(i => !(i.vendorId === vendorId && i.outletId === outletId)));
     const key = getGroupKey(vendorId, outletId);
     setPackageMetas(prev => {
       const next = { ...prev };
