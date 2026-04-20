@@ -15,6 +15,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { toast as sonnerToast } from 'sonner';
 import { format } from 'date-fns';
 import type { Tables } from '@/integrations/supabase/types';
 
