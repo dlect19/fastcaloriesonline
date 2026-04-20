@@ -394,7 +394,7 @@ export default function VendorPos() {
           delivery_fee: 0,
           service_fee: 0,
           total: subtotal,
-          status: 'completed',
+          status: 'delivered',
           payment_status: 'paid',
           payment_method: data.paymentMethod,
           order_type: 'carryout',
