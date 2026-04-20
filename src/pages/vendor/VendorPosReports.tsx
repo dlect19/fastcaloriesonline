@@ -33,10 +33,12 @@ type OrderRow = {
 };
 
 type OrderItemRow = {
+  order_id: string;
   product_id: string | null;
   product_name: string;
   quantity: number;
-  subtotal: number;
+  unit_price: number;
+  total_price: number;
   created_at: string;
   orders: { created_at: string; vendor_id: string; outlet_id: string | null; channel: string | null } | null;
 };
@@ -132,7 +134,7 @@ export default function VendorPosReports() {
         const orderIds = orderRows.map(o => o.id);
         const { data: it } = await supabase
           .from('order_items')
-          .select('product_id, product_name, quantity, subtotal, created_at, orders!inner(created_at, vendor_id, outlet_id, channel)')
+          .select('order_id, product_id, product_name, quantity, unit_price, total_price, created_at, orders!inner(created_at, vendor_id, outlet_id, channel)')
           .in('order_id', orderIds);
         if (!cancelled) setItems((it || []) as any);
       } else {
@@ -196,9 +198,20 @@ export default function VendorPosReports() {
       const key = it.product_id || it.product_name;
       if (!map[key]) map[key] = { name: it.product_name, qty: 0, revenue: 0 };
       map[key].qty += Number(it.quantity || 0);
-      map[key].revenue += Number(it.subtotal || 0);
+      map[key].revenue += Number(it.total_price || 0);
     }
     return Object.values(map).sort((a, b) => b.qty - a.qty).slice(0, 20);
+  }, [items]);
+
+  // Items grouped by order id, for the per-sale breakdown
+  const itemsByOrder = useMemo(() => {
+    const map: Record<string, OrderItemRow[]> = {};
+    for (const it of items) {
+      if (!it.order_id) continue;
+      if (!map[it.order_id]) map[it.order_id] = [];
+      map[it.order_id].push(it);
+    }
+    return map;
   }, [items]);
 
   // Hourly heatmap (24 columns x N rows of top items)
