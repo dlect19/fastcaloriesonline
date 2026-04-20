@@ -194,26 +194,48 @@ export default function VendorPos() {
     setHeldSales(prev => prev.filter(h => h.id !== id));
   };
 
-  // Fetch vendor + products
+  // Fetch vendor + products (with offline cache fallback)
   useEffect(() => {
     if (!vendorId) return;
     let cancelled = false;
-    (async () => {
-      setLoading(true);
-      const [{ data: v }, { data: p }] = await Promise.all([
-        supabase.from('vendors').select('id, name, address, phone, category, logo_url').eq('id', vendorId).maybeSingle(),
-        supabase
-          .from('products')
-          .select('id, name, price, discount_price, image_url, stock_quantity, track_stock, is_available, calories, outlet_id, allows_sachet, sachet_price, sachet_unit_label, sachets_per_pack')
-          .eq('vendor_id', vendorId)
-          .order('name'),
-      ]);
 
-      if (cancelled) return;
-      if (v) setVendor(v as any);
-      const filtered = (p || []).filter(x => !outletId || (x as any).outlet_id === outletId || !(x as any).outlet_id);
-      setProducts(filtered as any);
+    // Hydrate from cache instantly so the grid works offline / on slow networks
+    const cachedV = readCachedVendor(vendorId);
+    if (cachedV) setVendor(cachedV);
+    const cachedP = readCachedProducts(vendorId);
+    if (cachedP?.products) {
+      const filteredCached = cachedP.products.filter((x: any) => !outletId || x.outlet_id === outletId || !x.outlet_id);
+      setProducts(filteredCached);
       setLoading(false);
+    }
+
+    (async () => {
+      if (!navigator.onLine) {
+        if (!cachedP) setLoading(false);
+        return;
+      }
+      try {
+        const [{ data: v }, { data: p }] = await Promise.all([
+          supabase.from('vendors').select('id, name, address, phone, category, logo_url').eq('id', vendorId).maybeSingle(),
+          supabase
+            .from('products')
+            .select('id, name, price, discount_price, image_url, stock_quantity, track_stock, is_available, calories, outlet_id, allows_sachet, sachet_price, sachet_unit_label, sachets_per_pack')
+            .eq('vendor_id', vendorId)
+            .order('name'),
+        ]);
+
+        if (cancelled) return;
+        if (v) { setVendor(v as any); cacheVendor(vendorId, v); }
+        if (p) {
+          cacheProducts(vendorId, p);
+          const filtered = p.filter((x: any) => !outletId || x.outlet_id === outletId || !x.outlet_id);
+          setProducts(filtered as any);
+        }
+      } catch {
+        // Network failed mid-fetch — keep cached data
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
     return () => { cancelled = true; };
   }, [vendorId, outletId]);
