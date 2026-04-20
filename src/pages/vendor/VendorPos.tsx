@@ -397,7 +397,7 @@ export default function VendorPos() {
           status: 'delivered',
           payment_status: 'paid',
           payment_method: data.paymentMethod,
-          delivery_type: 'carryout',
+          delivery_type: 'self_pickup',
           delivery_address_text: 'In-store POS',
           channel: 'pos',
           pos_cashier_id: user.id,
