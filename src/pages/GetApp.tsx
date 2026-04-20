@@ -3,8 +3,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
   Download,
-  Smartphone,
-  Apple,
   Share,
   Plus,
   ShieldCheck,
@@ -18,6 +16,7 @@ import {
   Copy,
   Check,
 } from 'lucide-react';
+import { AndroidIcon, AppleIcon } from '@/components/icons/BrandIcons';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
