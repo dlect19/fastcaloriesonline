@@ -6398,6 +6398,7 @@ export type Database = {
           related_wallet_id: string | null
           status: string | null
           transaction_type: string
+          updated_at: string
           wallet_id: string | null
           wallet_type: string
         }
@@ -6418,6 +6419,7 @@ export type Database = {
           related_wallet_id?: string | null
           status?: string | null
           transaction_type: string
+          updated_at?: string
           wallet_id?: string | null
           wallet_type: string
         }
@@ -6438,6 +6440,7 @@ export type Database = {
           related_wallet_id?: string | null
           status?: string | null
           transaction_type?: string
+          updated_at?: string
           wallet_id?: string | null
           wallet_type?: string
         }
