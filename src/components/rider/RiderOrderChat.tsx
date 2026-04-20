@@ -195,21 +195,21 @@ export function RiderOrderChat({ orderId, orderNumber }: RiderOrderChatProps) {
   };
 
   return (
-    <div className="border border-border rounded-lg overflow-hidden">
+    <div className="border-2 border-primary/40 rounded-lg overflow-hidden shadow-md">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between p-3 bg-muted/30 hover:bg-muted/50 transition-colors"
+        className="w-full flex items-center justify-between p-3 bg-primary/10 hover:bg-primary/20 transition-colors"
       >
-        <span className="flex items-center gap-2 text-sm font-medium">
-          <MessageSquare className="w-4 h-4 text-primary" />
-          Chat with Customer & Vendor
+        <span className="flex items-center gap-2 text-sm font-semibold text-primary">
+          <MessageSquare className="w-4 h-4" />
+          💬 Chat with Customer & Vendor
           {unreadCount > 0 && (
-            <span className="bg-destructive text-destructive-foreground text-xs px-1.5 py-0.5 rounded-full">
+            <span className="bg-destructive text-destructive-foreground text-xs px-1.5 py-0.5 rounded-full animate-pulse">
               {unreadCount}
             </span>
           )}
         </span>
-        {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        {isOpen ? <ChevronUp className="w-4 h-4 text-primary" /> : <ChevronDown className="w-4 h-4 text-primary" />}
       </button>
 
       {isOpen && (
