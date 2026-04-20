@@ -107,6 +107,8 @@ export default function VendorPos() {
   const [openSessionDialog, setOpenSessionDialog] = useState(false);
   const [closeSessionDialog, setCloseSessionDialog] = useState(false);
   const [paymentDialog, setPaymentDialog] = useState(false);
+  const [lastReceipt, setLastReceipt] = useState<PosReceiptData | null>(null);
+  const [receiptPreviewOpen, setReceiptPreviewOpen] = useState(false);
   const [printer, setPrinter] = useState<EscPosPrinter | null>(null);
   const [printerName, setPrinterName] = useState<string | null>(localStorage.getItem(PRINTER_KEY));
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
@@ -452,36 +454,41 @@ export default function VendorPos() {
       // 5. Update session totals
       await recordSale(subtotal, data.paymentMethod);
 
-      // 6. Print receipt if printer connected
+      // 6. Build receipt data and show preview (always)
+      const totalCalories = cart.reduce(
+        (s, c) => s + (c.caloriesPerUnit ? c.caloriesPerUnit * c.qty : 0),
+        0,
+      );
+      const receiptData: PosReceiptData = {
+        storeName: vendor.name,
+        storeAddress: vendor.address ?? undefined,
+        storePhone: vendor.phone ?? undefined,
+        storeLogoUrl: vendor.logo_url ?? undefined,
+        receiptNumber: orderNumber,
+        cashierName: session.cashier_name ?? undefined,
+        date: new Date(),
+        items: cart.map(c => ({
+          name: c.purchaseUnit === 'sachet' ? `${c.name} (${c.unitLabel})` : c.name,
+          qty: c.qty,
+          price: c.unitPrice * c.qty,
+          calories: c.caloriesPerUnit,
+        })),
+        subtotal,
+        total: subtotal,
+        totalCalories: totalCalories > 0 ? totalCalories : null,
+        paymentMethod: data.paymentMethod.toUpperCase(),
+        amountPaid: data.amountPaid,
+        change: data.change,
+        customerName: data.customerName,
+        customerPhone: data.customerPhone,
+        paperWidth: 32,
+      };
+      setLastReceipt(receiptData);
+      setReceiptPreviewOpen(true);
+
+      // 7. Auto-print to thermal if connected
       if (printer) {
-        const totalCalories = cart.reduce(
-          (s, c) => s + (c.caloriesPerUnit ? c.caloriesPerUnit * c.qty : 0),
-          0,
-        );
-        await printReceipt({
-          storeName: vendor.name,
-          storeAddress: vendor.address ?? undefined,
-          storePhone: vendor.phone ?? undefined,
-          storeLogoUrl: vendor.logo_url ?? undefined,
-          receiptNumber: orderNumber,
-          cashierName: session.cashier_name ?? undefined,
-          date: new Date(),
-          items: cart.map(c => ({
-            name: c.purchaseUnit === 'sachet' ? `${c.name} (${c.unitLabel})` : c.name,
-            qty: c.qty,
-            price: c.unitPrice * c.qty,
-            calories: c.caloriesPerUnit,
-          })),
-          subtotal,
-          total: subtotal,
-          totalCalories: totalCalories > 0 ? totalCalories : null,
-          paymentMethod: data.paymentMethod.toUpperCase(),
-          amountPaid: data.amountPaid,
-          change: data.change,
-          customerName: data.customerName,
-          customerPhone: data.customerPhone,
-          paperWidth: 32,
-        });
+        printReceipt(receiptData).catch(() => {});
       }
 
       toast({ title: 'Sale completed', description: `${orderNumber} • ₦${subtotal.toLocaleString()}` });
