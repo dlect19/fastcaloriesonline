@@ -247,6 +247,35 @@ export function VendorCheckoutSection({
         return;
       }
 
+      // Validate outlet still exists & is active (prevents stale-cart FK violation)
+      if (group.outletId) {
+        const { data: outletCheck, error: outletErr } = await supabase
+          .from('vendor_outlets')
+          .select('id, is_active, is_approved, outlet_name')
+          .eq('id', group.outletId)
+          .maybeSingle();
+
+        if (outletErr || !outletCheck) {
+          toast({
+            title: 'Outlet Unavailable',
+            description: `This branch is no longer available. Removing it from your cart — please re-add items from an active branch.`,
+            variant: 'destructive',
+          });
+          clearVendorGroup(group.vendorId, group.outletId);
+          onPlacingChange(null);
+          return;
+        }
+        if (!outletCheck.is_active || !outletCheck.is_approved) {
+          toast({
+            title: 'Branch Closed',
+            description: `${outletCheck.outlet_name} is no longer accepting orders. Please choose another branch.`,
+            variant: 'destructive',
+          });
+          onPlacingChange(null);
+          return;
+        }
+      }
+
       const promoType = selectedDiscountType === 'spin' ? 'spin'
         : selectedDiscountType === 'platform' ? 'platform_promo'
         : null;
