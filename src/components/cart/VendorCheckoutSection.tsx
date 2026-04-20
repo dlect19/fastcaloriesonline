@@ -546,13 +546,20 @@ export function VendorCheckoutSection({
       }
 
       onOrderPlaced(group.vendorId, order.id);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error placing order:', error);
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to place order. Please try again.',
-        variant: 'destructive',
-      });
+      // Surface a friendly message for known constraint violations, otherwise show real error
+      const raw = error?.message || error?.error_description || '';
+      let friendly = raw || 'Failed to place order. Please try again.';
+      if (raw.includes('orders_outlet_id_fkey') || raw.toLowerCase().includes('outlet')) {
+        friendly = 'This outlet is no longer available. Clearing it from your cart — please re-add items from an active branch.';
+        clearVendorGroup(group.vendorId, group.outletId);
+      } else if (raw.includes('orders_vendor_id_fkey')) {
+        friendly = 'This vendor is no longer available. Please clear your cart and choose another vendor.';
+      } else if (raw.toLowerCase().includes('insufficient')) {
+        friendly = 'Insufficient wallet balance. Please top up and try again.';
+      }
+      toast({ title: 'Error', description: friendly, variant: 'destructive' });
     } finally {
       onPlacingChange(null);
     }
