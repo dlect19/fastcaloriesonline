@@ -17,6 +17,7 @@ import {
   Check,
 } from 'lucide-react';
 import { AndroidIcon, AppleIcon } from '@/components/icons/BrandIcons';
+import { AppStoreBadge, GooglePlayBadge } from '@/components/icons/StoreBadges';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
