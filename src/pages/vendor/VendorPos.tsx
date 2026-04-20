@@ -132,6 +132,7 @@ export default function VendorPos() {
   const [unitPickerProduct, setUnitPickerProduct] = useState<Product | null>(null);
 
   const { session, openSession, closeSession, recordSale } = usePosSession(vendorId, outletId);
+  const { isOnline, queue: offlineQueue, syncing, enqueue: enqueueOfflineSale, syncQueue } = usePosOfflineQueue(vendorId);
 
   const holdStorageKey = vendorId ? `${HOLD_KEY_PREFIX}${vendorId}` : null;
 
