@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { ChevronRight, Store, TrendingUp, Users, Clock, Shield, Sparkles } from 'lucide-react';
+import { ChevronRight, Store, TrendingUp, Users, Clock, Shield, Sparkles, Monitor, Printer, CreditCard, Package } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import fastCaloriesLogo from '@/assets/fast-calories-text-logo.png';
 import vendorRestaurantImg from '@/assets/landing-vendor-restaurant.png';
@@ -133,6 +133,128 @@ export default function VendorLanding() {
                 <p className="text-sm text-muted-foreground">
                   Our network of verified riders ensures your orders reach customers fast and safely.
                 </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* NEW: In-Store POS Section */}
+        <section className="relative z-10 px-6 pb-16">
+          <div className="max-w-5xl mx-auto">
+            <div className="relative overflow-hidden rounded-3xl border border-border bg-card shadow-card">
+              <div className="absolute inset-0 gradient-primary opacity-5" />
+              <div className="relative grid grid-cols-1 lg:grid-cols-2 gap-8 p-8 sm:p-10">
+                {/* Left: copy */}
+                <div className="flex flex-col justify-center">
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 mb-4 w-fit">
+                    <Sparkles className="w-4 h-4 text-primary" />
+                    <span className="text-xs font-semibold text-primary uppercase tracking-wide">New • In-Store POS</span>
+                  </div>
+                  <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-3 leading-tight">
+                    Sell in-store with our<br />
+                    <span className="text-gradient">built-in POS</span>
+                  </h2>
+                  <p className="text-muted-foreground mb-6">
+                    One system for online <em>and</em> walk-in sales. Run your counter, accept any payment, print receipts on Bluetooth printers, and keep inventory in perfect sync — automatically.
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-3 mb-6">
+                    <div className="flex items-start gap-2">
+                      <CreditCard className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">All payments</p>
+                        <p className="text-xs text-muted-foreground">Cash, transfer, card, wallet</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Printer className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">Bluetooth receipts</p>
+                        <p className="text-xs text-muted-foreground">ESC/POS thermal printers</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Package className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">Live inventory</p>
+                        <p className="text-xs text-muted-foreground">Pack & sachet auto-sync</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Monitor className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">Hold & resume</p>
+                        <p className="text-xs text-muted-foreground">Park carts, never lose a sale</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Button
+                    onClick={() => navigate('/vendor/auth')}
+                    className="w-fit h-12 px-6 font-semibold shadow-button group"
+                  >
+                    Try the POS Free
+                    <ChevronRight className="w-5 h-5 ml-1 group-hover:translate-x-1 transition-transform" />
+                  </Button>
+                </div>
+
+                {/* Right: mock POS device */}
+                <div className="relative flex items-center justify-center">
+                  <div className="relative w-full max-w-sm">
+                    {/* Tablet frame */}
+                    <div className="relative bg-foreground rounded-3xl p-3 shadow-2xl rotate-2 hover:rotate-0 transition-transform duration-500">
+                      <div className="bg-background rounded-2xl overflow-hidden aspect-[3/4]">
+                        {/* POS header */}
+                        <div className="gradient-primary p-3 text-primary-foreground">
+                          <p className="text-xs opacity-80">Point of Sale</p>
+                          <p className="text-sm font-bold">My Store · Counter 1</p>
+                        </div>
+                        {/* Items */}
+                        <div className="p-3 space-y-2">
+                          <div className="flex items-center justify-between p-2 rounded-lg bg-secondary">
+                            <div>
+                              <p className="text-xs font-semibold text-foreground">Jollof Rice</p>
+                              <p className="text-[10px] text-muted-foreground">x2</p>
+                            </div>
+                            <p className="text-xs font-bold text-foreground">₦5,000</p>
+                          </div>
+                          <div className="flex items-center justify-between p-2 rounded-lg bg-secondary">
+                            <div>
+                              <p className="text-xs font-semibold text-foreground">Paracetamol</p>
+                              <p className="text-[10px] text-muted-foreground">3 sachets</p>
+                            </div>
+                            <p className="text-xs font-bold text-foreground">₦450</p>
+                          </div>
+                          <div className="flex items-center justify-between p-2 rounded-lg bg-secondary">
+                            <div>
+                              <p className="text-xs font-semibold text-foreground">Coke 50cl</p>
+                              <p className="text-[10px] text-muted-foreground">x1</p>
+                            </div>
+                            <p className="text-xs font-bold text-foreground">₦500</p>
+                          </div>
+                          <div className="border-t border-border pt-2 flex items-center justify-between">
+                            <p className="text-sm font-bold text-foreground">Total</p>
+                            <p className="text-sm font-bold text-primary">₦5,950</p>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 pt-1">
+                            <div className="bg-primary text-primary-foreground text-center text-[10px] font-semibold py-2 rounded-lg">Cash</div>
+                            <div className="bg-secondary text-foreground text-center text-[10px] font-semibold py-2 rounded-lg border border-border">Transfer</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    {/* Floating receipt */}
+                    <div className="absolute -bottom-6 -left-6 bg-card border border-border rounded-lg p-3 shadow-card rotate-[-8deg] hidden sm:block">
+                      <Printer className="w-4 h-4 text-primary mb-1" />
+                      <p className="text-[10px] font-semibold text-foreground">Receipt printed</p>
+                      <p className="text-[9px] text-muted-foreground">via Bluetooth</p>
+                    </div>
+                    {/* Floating badge */}
+                    <div className="absolute -top-4 -right-4 bg-primary text-primary-foreground rounded-full px-3 py-1.5 shadow-button text-xs font-bold rotate-12">
+                      ✨ NEW
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
