@@ -314,7 +314,7 @@ export default function VendorPos() {
       toast({ title: finalUnit === 'sachet' ? 'Out of sachets' : 'Out of stock', variant: 'destructive' });
       return;
     }
-    const packPrice = p.discount_price && p.discount_price < p.price ? p.discount_price : p.price;
+    const packPrice = computePosPrice(p, posPricing);
     const unitPrice = finalUnit === 'sachet' ? Number(p.sachet_price) : packPrice;
     const sachetLabel = p.sachet_unit_label || 'sachet';
     const unitLabel = finalUnit === 'sachet' ? sachetLabel : 'pack';
@@ -750,7 +750,9 @@ export default function VendorPos() {
                 const stockLabel = sachetEligible
                   ? `${stockUnits} ${(p.sachet_unit_label || 'sachet')}${stockUnits === 1 ? '' : 's'} left`
                   : `${stockUnits} left`;
-                const price = p.discount_price && p.discount_price < p.price ? p.discount_price : p.price;
+                const price = computePosPrice(p, posPricing);
+                const onlinePrice = p.discount_price && p.discount_price < p.price ? p.discount_price : p.price;
+                const showsPosBadge = price !== onlinePrice;
                 return (
                   <button
                     key={p.id}
@@ -1042,7 +1044,7 @@ export default function VendorPos() {
           </DialogHeader>
           {unitPickerProduct && (() => {
             const p = unitPickerProduct;
-            const packPrice = p.discount_price && p.discount_price < p.price ? p.discount_price : p.price;
+            const packPrice = computePosPrice(p, posPricing);
             const sachetPrice = Number(p.sachet_price) || 0;
             const sachetLabel = p.sachet_unit_label || 'sachet';
             const perPack = Number(p.sachets_per_pack) || 1;
