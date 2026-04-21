@@ -3,7 +3,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 
 const QUEUE_KEY_PREFIX = 'fc_pos_offline_queue_';
-const PRODUCTS_CACHE_PREFIX = 'fc_pos_products_cache_';
+// Bumped to v2 when in_store_price + outlet override fields were added so
+// vendors don't see stale cached products that lack the new pricing columns.
+const PRODUCTS_CACHE_PREFIX = 'fc_pos_products_cache_v2_';
 const VENDOR_CACHE_PREFIX = 'fc_pos_vendor_cache_';
 
 export type OfflineSale = {
