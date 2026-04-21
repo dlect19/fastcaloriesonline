@@ -26,9 +26,37 @@ interface ProductRow {
 
 export default function VendorPosPricing() {
   const navigate = useNavigate();
-  const { selectedOutlet } = useOutletContext();
-  const outletId = selectedOutlet?.id ?? null;
+  const { selectedOutlet: ctxOutlet } = useOutletContext();
   const [vendorId, setVendorId] = useState<string | null>(null);
+  const [fallbackOutlet, setFallbackOutlet] = useState<{ id: string; outlet_name?: string | null; outlet_surname?: string | null } | null>(null);
+  const selectedOutlet = ctxOutlet || fallbackOutlet;
+  const outletId = selectedOutlet?.id ?? null;
+
+  // Fallback: the page may render before/outside the OutletProvider that the
+  // sidebar uses, so the context can be empty even when an outlet IS selected
+  // (the sidebar's OutletSwitcher persists it to localStorage). Resolve it
+  // directly from localStorage + the vendor's outlets so the pricing-mode
+  // buttons don't appear permanently disabled.
+  useEffect(() => {
+    if (ctxOutlet || !vendorId) return;
+    let cancelled = false;
+    (async () => {
+      const storedId = (() => {
+        try { return localStorage.getItem(`selected_outlet_${vendorId}`); } catch { return null; }
+      })();
+      const { data } = await supabase
+        .from('vendor_outlets')
+        .select('id, outlet_name, outlet_surname, is_default')
+        .eq('vendor_id', vendorId)
+        .order('is_default', { ascending: false })
+        .order('created_at', { ascending: true });
+      if (cancelled || !data || data.length === 0) return;
+      const match = (storedId && data.find((o) => o.id === storedId)) || data.find((o: any) => o.is_default) || data[0];
+      if (match) setFallbackOutlet(match as any);
+    })();
+    return () => { cancelled = true; };
+  }, [ctxOutlet, vendorId]);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [products, setProducts] = useState<ProductRow[]>([]);
