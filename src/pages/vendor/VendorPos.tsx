@@ -47,12 +47,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { PosReceiptPreviewDialog } from '@/components/pos/PosReceiptPreviewDialog';
 import { Label } from '@/components/ui/label';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
+import { computePosPrice, type PosOutletPricingConfig } from '@/lib/posPricing';
 
 type Product = {
   id: string;
   name: string;
   price: number;
   discount_price: number | null;
+  in_store_price: number | null;
+  outlet_in_store_price?: number | null;
   image_url: string | null;
   stock_quantity: number | null;
   track_stock: boolean | null;
