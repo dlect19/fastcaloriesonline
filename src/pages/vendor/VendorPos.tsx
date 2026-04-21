@@ -132,6 +132,7 @@ export default function VendorPos() {
   const [holdNote, setHoldNote] = useState('');
   const [todayStats, setTodayStats] = useState<{ count: number; revenue: number }>({ count: 0, revenue: 0 });
   const [unitPickerProduct, setUnitPickerProduct] = useState<Product | null>(null);
+  const [posPricing, setPosPricing] = useState<PosOutletPricingConfig>({ pos_pricing_mode: 'same', pos_global_discount_pct: 0 });
 
   const { session, openSession, closeSession, recordSale } = usePosSession(vendorId, outletId);
   const { isOnline, queue: offlineQueue, syncing, enqueue: enqueueOfflineSale, syncQueue } = usePosOfflineQueue(vendorId);
