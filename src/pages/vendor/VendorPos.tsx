@@ -93,9 +93,11 @@ const HOLD_KEY_PREFIX = 'fc_pos_held_sales_';
 
 export default function VendorPos() {
   const navigate = useNavigate();
-  const { selectedOutlet } = useOutletContext();
-  const outletId = selectedOutlet?.id ?? null;
+  const { selectedOutlet: ctxOutlet } = useOutletContext();
   const [vendorId, setVendorId] = useState<string | null>(null);
+  const [fallbackOutlet, setFallbackOutlet] = useState<{ id: string; outlet_name?: string | null; outlet_surname?: string | null } | null>(null);
+  const selectedOutlet = ctxOutlet || fallbackOutlet;
+  const outletId = selectedOutlet?.id ?? null;
 
   useEffect(() => {
     (async () => {
@@ -107,6 +109,26 @@ export default function VendorPos() {
       if (s) setVendorId(s.vendor_id);
     })();
   }, []);
+
+  useEffect(() => {
+    if (ctxOutlet || !vendorId) return;
+    let cancelled = false;
+    (async () => {
+      const storedId = (() => {
+        try { return localStorage.getItem(`selected_outlet_${vendorId}`); } catch { return null; }
+      })();
+      const { data } = await supabase
+        .from('vendor_outlets')
+        .select('id, outlet_name, outlet_surname, is_default')
+        .eq('vendor_id', vendorId)
+        .order('is_default', { ascending: false })
+        .order('created_at', { ascending: true });
+      if (cancelled || !data || data.length === 0) return;
+      const match = (storedId && data.find((o) => o.id === storedId)) || data.find((o: any) => o.is_default) || data[0];
+      if (match) setFallbackOutlet(match as any);
+    })();
+    return () => { cancelled = true; };
+  }, [ctxOutlet, vendorId]);
 
   const { hasPermission, loading: permLoading } = useVendorPermissions(vendorId);
   const canUsePos = hasPermission('use_pos');
