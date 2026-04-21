@@ -957,7 +957,22 @@ export default function VendorMenu() {
                     </div>
                   </div>
 
-                  {/* Pharmacy-specific fields */}
+                  <div className="space-y-2 rounded-lg border border-dashed border-primary/30 bg-primary/5 p-3">
+                    <Label htmlFor="in_store_price" className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-primary">
+                      🏪 In-Store (POS) Price (₦)
+                    </Label>
+                    <Input
+                      id="in_store_price"
+                      type="number"
+                      value={formData.in_store_price}
+                      onChange={(e) => setFormData({ ...formData, in_store_price: e.target.value })}
+                      placeholder="Leave blank to use online price"
+                      min="0"
+                    />
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      Optional. If your counter price differs from your online price (e.g. online includes commission), set it here. Used by the POS when the outlet's pricing mode is set to <strong>Per-item</strong>.
+                    </p>
+                  </div>
                   {vendor?.category === 'pharmacy' && (
                     <div className="border-t pt-4 space-y-3">
                       <p className="text-sm font-medium flex items-center gap-2">
