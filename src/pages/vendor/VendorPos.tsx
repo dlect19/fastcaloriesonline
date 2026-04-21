@@ -787,7 +787,14 @@ export default function VendorPos() {
                     </div>
                     <div className="p-2 space-y-0.5">
                       <p className="text-xs font-medium line-clamp-1">{p.name}</p>
-                      <p className="text-sm font-bold text-primary">₦{price.toLocaleString()}</p>
+                      <div className="flex items-baseline gap-1.5">
+                        <p className="text-sm font-bold text-primary">₦{price.toLocaleString()}</p>
+                        {showsPosBadge && (
+                          <span className="text-[10px] text-muted-foreground line-through">
+                            ₦{onlinePrice.toLocaleString()}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </button>
                 );
