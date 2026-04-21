@@ -218,20 +218,39 @@ export default function VendorPos() {
         return;
       }
       try {
-        const [{ data: v }, { data: p }] = await Promise.all([
+        const [{ data: v }, { data: p }, outletRes, overridesRes] = await Promise.all([
           supabase.from('vendors').select('id, name, address, phone, category, logo_url').eq('id', vendorId).maybeSingle(),
           supabase
             .from('products')
-            .select('id, name, price, discount_price, image_url, stock_quantity, track_stock, is_available, calories, outlet_id, allows_sachet, sachet_price, sachet_unit_label, sachets_per_pack')
+            .select('id, name, price, discount_price, in_store_price, image_url, stock_quantity, track_stock, is_available, calories, outlet_id, allows_sachet, sachet_price, sachet_unit_label, sachets_per_pack')
             .eq('vendor_id', vendorId)
             .order('name'),
+          outletId
+            ? supabase.from('vendor_outlets').select('pos_pricing_mode, pos_global_discount_pct').eq('id', outletId).maybeSingle()
+            : Promise.resolve({ data: null } as any),
+          outletId
+            ? supabase.from('outlet_product_overrides').select('product_id, in_store_price').eq('outlet_id', outletId)
+            : Promise.resolve({ data: null } as any),
         ]);
 
         if (cancelled) return;
         if (v) { setVendor(v as any); cacheVendor(vendorId, v); }
+        if (outletRes?.data) {
+          setPosPricing({
+            pos_pricing_mode: (outletRes.data as any).pos_pricing_mode ?? 'same',
+            pos_global_discount_pct: Number((outletRes.data as any).pos_global_discount_pct ?? 0),
+          });
+        } else if (!outletId) {
+          setPosPricing({ pos_pricing_mode: 'same', pos_global_discount_pct: 0 });
+        }
+        const overrideMap: Record<string, number | null> = {};
+        ((overridesRes?.data as any[]) || []).forEach((o: any) => {
+          if (o.in_store_price != null) overrideMap[o.product_id] = Number(o.in_store_price);
+        });
         if (p) {
-          cacheProducts(vendorId, p);
-          const filtered = p.filter((x: any) => !outletId || x.outlet_id === outletId || !x.outlet_id);
+          const merged = (p as any[]).map(x => ({ ...x, outlet_in_store_price: overrideMap[x.id] ?? null }));
+          cacheProducts(vendorId, merged);
+          const filtered = merged.filter((x: any) => !outletId || x.outlet_id === outletId || !x.outlet_id);
           setProducts(filtered as any);
         }
       } catch {
