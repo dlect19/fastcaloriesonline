@@ -637,6 +637,16 @@ export default function VendorPos() {
                 <Button
                   variant="outline"
                   size="sm"
+                  onClick={() => navigate('/vendor/pos/pricing')}
+                  className="gap-1.5"
+                  title="Set in-store prices"
+                >
+                  <Wallet className="w-4 h-4" />
+                  <span className="hidden sm:inline">In-Store Pricing</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => setHeldSheetOpen(true)}
                   className="gap-1.5 relative"
                 >
