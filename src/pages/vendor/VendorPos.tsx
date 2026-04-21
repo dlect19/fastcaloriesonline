@@ -297,6 +297,41 @@ export default function VendorPos() {
     return () => { supabase.removeChannel(channel); };
   }, [vendorId]);
 
+  // Live-sync POS pricing config + per-outlet overrides so changes from the
+  // pricing dashboard reflect immediately without needing to refresh.
+  useEffect(() => {
+    if (!outletId) return;
+    const channel = supabase
+      .channel(`pos-pricing-${outletId}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'vendor_outlets', filter: `id=eq.${outletId}` }, payload => {
+        const row: any = payload.new;
+        setPosPricing({
+          pos_pricing_mode: row.pos_pricing_mode ?? 'same',
+          pos_global_discount_pct: Number(row.pos_global_discount_pct ?? 0),
+        });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'outlet_product_overrides', filter: `outlet_id=eq.${outletId}` }, payload => {
+        const row: any = payload.new ?? payload.old;
+        if (!row?.product_id) return;
+        const newPrice = (payload.eventType === 'DELETE') ? null : (row.in_store_price != null ? Number(row.in_store_price) : null);
+        setProducts(prev => prev.map(p => p.id === row.product_id ? { ...p, outlet_in_store_price: newPrice } : p));
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [outletId]);
+
+  // When pricing mode/overrides change, recompute existing cart line prices so
+  // the vendor's open cart instantly reflects the new in-store price.
+  useEffect(() => {
+    setCart(prev => prev.map(line => {
+      const prod = products.find(p => p.id === line.productId);
+      if (!prod) return line;
+      const packPrice = computePosPrice(prod, posPricing);
+      const newUnitPrice = line.purchaseUnit === 'sachet' ? Number(prod.sachet_price ?? line.unitPrice) : packPrice;
+      return newUnitPrice === line.unitPrice ? line : { ...line, unitPrice: newUnitPrice };
+    }));
+  }, [posPricing, products]);
+
   const filtered = useMemo(() => {
     if (!search.trim()) return products.filter(p => p.is_available !== false);
     const q = search.toLowerCase();
