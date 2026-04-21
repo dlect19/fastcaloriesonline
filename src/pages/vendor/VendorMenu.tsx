@@ -130,6 +130,7 @@ export default function VendorMenu() {
     description: '',
     price: '',
     discount_price: '',
+    in_store_price: '',
     serving_unit: 'per plate' as ServingUnit,
     serving_size_grams: '',
     calories: '',
@@ -389,6 +390,7 @@ export default function VendorMenu() {
         : (calculatedCalories > 0 ? calculatedCalories : null);
 
       const discountPrice = formData.discount_price ? parseFloat(formData.discount_price) : null;
+      const inStorePrice = formData.in_store_price ? parseFloat(formData.in_store_price) : null;
 
       const productData: any = {
         vendor_id: vendor.id,
@@ -396,6 +398,7 @@ export default function VendorMenu() {
         description: formData.description || null,
         price: parseFloat(formData.price),
         discount_price: discountPrice && discountPrice < parseFloat(formData.price) ? discountPrice : null,
+        in_store_price: inStorePrice && inStorePrice > 0 ? inStorePrice : null,
         serving_unit: vendor.category === 'restaurant' ? formData.serving_unit : null,
         serving_size_grams: formData.serving_size_grams ? parseFloat(formData.serving_size_grams) : null,
         calories: finalCalories,
@@ -474,6 +477,7 @@ export default function VendorMenu() {
       description: product.description || '',
       price: product.price.toString(),
       discount_price: (product as any).discount_price?.toString() || '',
+      in_store_price: (product as any).in_store_price?.toString() || '',
       serving_unit: (product.serving_unit as ServingUnit) || 'per plate',
       serving_size_grams: (product as any).serving_size_grams?.toString() || '',
       calories: product.calories?.toString() || '',
@@ -680,6 +684,7 @@ export default function VendorMenu() {
       description: '',
       price: '',
       discount_price: '',
+      in_store_price: '',
       serving_unit: 'per plate',
       serving_size_grams: '',
       calories: '',
