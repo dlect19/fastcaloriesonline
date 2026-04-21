@@ -47,12 +47,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { PosReceiptPreviewDialog } from '@/components/pos/PosReceiptPreviewDialog';
 import { Label } from '@/components/ui/label';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
+import { computePosPrice, type PosOutletPricingConfig } from '@/lib/posPricing';
 
 type Product = {
   id: string;
   name: string;
   price: number;
   discount_price: number | null;
+  in_store_price: number | null;
+  outlet_in_store_price?: number | null;
   image_url: string | null;
   stock_quantity: number | null;
   track_stock: boolean | null;
@@ -129,6 +132,7 @@ export default function VendorPos() {
   const [holdNote, setHoldNote] = useState('');
   const [todayStats, setTodayStats] = useState<{ count: number; revenue: number }>({ count: 0, revenue: 0 });
   const [unitPickerProduct, setUnitPickerProduct] = useState<Product | null>(null);
+  const [posPricing, setPosPricing] = useState<PosOutletPricingConfig>({ pos_pricing_mode: 'same', pos_global_discount_pct: 0 });
 
   const { session, openSession, closeSession, recordSale } = usePosSession(vendorId, outletId);
   const { isOnline, queue: offlineQueue, syncing, enqueue: enqueueOfflineSale, syncQueue } = usePosOfflineQueue(vendorId);
@@ -214,20 +218,39 @@ export default function VendorPos() {
         return;
       }
       try {
-        const [{ data: v }, { data: p }] = await Promise.all([
+        const [{ data: v }, { data: p }, outletRes, overridesRes] = await Promise.all([
           supabase.from('vendors').select('id, name, address, phone, category, logo_url').eq('id', vendorId).maybeSingle(),
           supabase
             .from('products')
-            .select('id, name, price, discount_price, image_url, stock_quantity, track_stock, is_available, calories, outlet_id, allows_sachet, sachet_price, sachet_unit_label, sachets_per_pack')
+            .select('id, name, price, discount_price, in_store_price, image_url, stock_quantity, track_stock, is_available, calories, outlet_id, allows_sachet, sachet_price, sachet_unit_label, sachets_per_pack')
             .eq('vendor_id', vendorId)
             .order('name'),
+          outletId
+            ? supabase.from('vendor_outlets').select('pos_pricing_mode, pos_global_discount_pct').eq('id', outletId).maybeSingle()
+            : Promise.resolve({ data: null } as any),
+          outletId
+            ? supabase.from('outlet_product_overrides').select('product_id, in_store_price').eq('outlet_id', outletId)
+            : Promise.resolve({ data: null } as any),
         ]);
 
         if (cancelled) return;
         if (v) { setVendor(v as any); cacheVendor(vendorId, v); }
+        if (outletRes?.data) {
+          setPosPricing({
+            pos_pricing_mode: (outletRes.data as any).pos_pricing_mode ?? 'same',
+            pos_global_discount_pct: Number((outletRes.data as any).pos_global_discount_pct ?? 0),
+          });
+        } else if (!outletId) {
+          setPosPricing({ pos_pricing_mode: 'same', pos_global_discount_pct: 0 });
+        }
+        const overrideMap: Record<string, number | null> = {};
+        ((overridesRes?.data as any[]) || []).forEach((o: any) => {
+          if (o.in_store_price != null) overrideMap[o.product_id] = Number(o.in_store_price);
+        });
         if (p) {
-          cacheProducts(vendorId, p);
-          const filtered = p.filter((x: any) => !outletId || x.outlet_id === outletId || !x.outlet_id);
+          const merged = (p as any[]).map(x => ({ ...x, outlet_in_store_price: overrideMap[x.id] ?? null }));
+          cacheProducts(vendorId, merged);
+          const filtered = merged.filter((x: any) => !outletId || x.outlet_id === outletId || !x.outlet_id);
           setProducts(filtered as any);
         }
       } catch {
@@ -291,7 +314,7 @@ export default function VendorPos() {
       toast({ title: finalUnit === 'sachet' ? 'Out of sachets' : 'Out of stock', variant: 'destructive' });
       return;
     }
-    const packPrice = p.discount_price && p.discount_price < p.price ? p.discount_price : p.price;
+    const packPrice = computePosPrice(p, posPricing);
     const unitPrice = finalUnit === 'sachet' ? Number(p.sachet_price) : packPrice;
     const sachetLabel = p.sachet_unit_label || 'sachet';
     const unitLabel = finalUnit === 'sachet' ? sachetLabel : 'pack';
@@ -614,6 +637,16 @@ export default function VendorPos() {
                 <Button
                   variant="outline"
                   size="sm"
+                  onClick={() => navigate('/vendor/pos/pricing')}
+                  className="gap-1.5"
+                  title="Set in-store prices"
+                >
+                  <Wallet className="w-4 h-4" />
+                  <span className="hidden sm:inline">In-Store Pricing</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => setHeldSheetOpen(true)}
                   className="gap-1.5 relative"
                 >
@@ -727,7 +760,9 @@ export default function VendorPos() {
                 const stockLabel = sachetEligible
                   ? `${stockUnits} ${(p.sachet_unit_label || 'sachet')}${stockUnits === 1 ? '' : 's'} left`
                   : `${stockUnits} left`;
-                const price = p.discount_price && p.discount_price < p.price ? p.discount_price : p.price;
+                const price = computePosPrice(p, posPricing);
+                const onlinePrice = p.discount_price && p.discount_price < p.price ? p.discount_price : p.price;
+                const showsPosBadge = price !== onlinePrice;
                 return (
                   <button
                     key={p.id}
@@ -762,7 +797,14 @@ export default function VendorPos() {
                     </div>
                     <div className="p-2 space-y-0.5">
                       <p className="text-xs font-medium line-clamp-1">{p.name}</p>
-                      <p className="text-sm font-bold text-primary">₦{price.toLocaleString()}</p>
+                      <div className="flex items-baseline gap-1.5">
+                        <p className="text-sm font-bold text-primary">₦{price.toLocaleString()}</p>
+                        {showsPosBadge && (
+                          <span className="text-[10px] text-muted-foreground line-through">
+                            ₦{onlinePrice.toLocaleString()}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </button>
                 );
@@ -1019,7 +1061,7 @@ export default function VendorPos() {
           </DialogHeader>
           {unitPickerProduct && (() => {
             const p = unitPickerProduct;
-            const packPrice = p.discount_price && p.discount_price < p.price ? p.discount_price : p.price;
+            const packPrice = computePosPrice(p, posPricing);
             const sachetPrice = Number(p.sachet_price) || 0;
             const sachetLabel = p.sachet_unit_label || 'sachet';
             const perPack = Number(p.sachets_per_pack) || 1;

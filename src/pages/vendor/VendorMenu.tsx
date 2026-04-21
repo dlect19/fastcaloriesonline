@@ -130,6 +130,7 @@ export default function VendorMenu() {
     description: '',
     price: '',
     discount_price: '',
+    in_store_price: '',
     serving_unit: 'per plate' as ServingUnit,
     serving_size_grams: '',
     calories: '',
@@ -389,6 +390,7 @@ export default function VendorMenu() {
         : (calculatedCalories > 0 ? calculatedCalories : null);
 
       const discountPrice = formData.discount_price ? parseFloat(formData.discount_price) : null;
+      const inStorePrice = formData.in_store_price ? parseFloat(formData.in_store_price) : null;
 
       const productData: any = {
         vendor_id: vendor.id,
@@ -396,6 +398,7 @@ export default function VendorMenu() {
         description: formData.description || null,
         price: parseFloat(formData.price),
         discount_price: discountPrice && discountPrice < parseFloat(formData.price) ? discountPrice : null,
+        in_store_price: inStorePrice && inStorePrice > 0 ? inStorePrice : null,
         serving_unit: vendor.category === 'restaurant' ? formData.serving_unit : null,
         serving_size_grams: formData.serving_size_grams ? parseFloat(formData.serving_size_grams) : null,
         calories: finalCalories,
@@ -474,6 +477,7 @@ export default function VendorMenu() {
       description: product.description || '',
       price: product.price.toString(),
       discount_price: (product as any).discount_price?.toString() || '',
+      in_store_price: (product as any).in_store_price?.toString() || '',
       serving_unit: (product.serving_unit as ServingUnit) || 'per plate',
       serving_size_grams: (product as any).serving_size_grams?.toString() || '',
       calories: product.calories?.toString() || '',
@@ -680,6 +684,7 @@ export default function VendorMenu() {
       description: '',
       price: '',
       discount_price: '',
+      in_store_price: '',
       serving_unit: 'per plate',
       serving_size_grams: '',
       calories: '',
@@ -952,7 +957,22 @@ export default function VendorMenu() {
                     </div>
                   </div>
 
-                  {/* Pharmacy-specific fields */}
+                  <div className="space-y-2 rounded-lg border border-dashed border-primary/30 bg-primary/5 p-3">
+                    <Label htmlFor="in_store_price" className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-primary">
+                      🏪 In-Store (POS) Price (₦)
+                    </Label>
+                    <Input
+                      id="in_store_price"
+                      type="number"
+                      value={formData.in_store_price}
+                      onChange={(e) => setFormData({ ...formData, in_store_price: e.target.value })}
+                      placeholder="Leave blank to use online price"
+                      min="0"
+                    />
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      Optional. If your counter price differs from your online price (e.g. online includes commission), set it here. Used by the POS when the outlet's pricing mode is set to <strong>Per-item</strong>.
+                    </p>
+                  </div>
                   {vendor?.category === 'pharmacy' && (
                     <div className="border-t pt-4 space-y-3">
                       <p className="text-sm font-medium flex items-center gap-2">

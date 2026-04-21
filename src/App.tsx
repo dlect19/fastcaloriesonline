@@ -104,6 +104,7 @@ import VendorSupport from "./pages/vendor/VendorSupport";
 import VendorAdvertising from "./pages/vendor/VendorAdvertising";
 import VendorPos from "./pages/vendor/VendorPos";
 import VendorPosReports from "./pages/vendor/VendorPosReports";
+import VendorPosPricing from "./pages/vendor/VendorPosPricing";
 import RiderSupport from "./pages/rider/RiderSupport";
 import AdminSupport from "./pages/admin/AdminSupport";
 import AdminNotifications from "./pages/admin/AdminNotifications";
@@ -201,6 +202,7 @@ const App = () => {
               <Route path="/vendor/advertising" element={<VendorAdvertising />} />
               <Route path="/vendor/pos" element={<VendorPos />} />
               <Route path="/vendor/pos/reports" element={<VendorPosReports />} />
+              <Route path="/vendor/pos/pricing" element={<VendorPosPricing />} />
               {/* Rider Portal Routes */}
               <Route path="/rider/auth" element={<RiderAuth />} />
               <Route path="/rider/dashboard" element={<RiderDashboard />} />

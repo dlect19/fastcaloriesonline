@@ -3418,6 +3418,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          in_store_price: number | null
           is_available: boolean
           outlet_id: string
           product_id: string
@@ -3426,6 +3427,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          in_store_price?: number | null
           is_available?: boolean
           outlet_id: string
           product_id: string
@@ -3434,6 +3436,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          in_store_price?: number | null
           is_available?: boolean
           outlet_id?: string
           product_id?: string
@@ -4369,6 +4372,7 @@ export type Database = {
           fiber_grams: number | null
           id: string
           image_url: string | null
+          in_store_price: number | null
           is_available: boolean | null
           is_hidden: boolean
           low_stock_threshold: number | null
@@ -4414,6 +4418,7 @@ export type Database = {
           fiber_grams?: number | null
           id?: string
           image_url?: string | null
+          in_store_price?: number | null
           is_available?: boolean | null
           is_hidden?: boolean
           low_stock_threshold?: number | null
@@ -4459,6 +4464,7 @@ export type Database = {
           fiber_grams?: number | null
           id?: string
           image_url?: string | null
+          in_store_price?: number | null
           is_available?: boolean | null
           is_hidden?: boolean
           low_stock_threshold?: number | null
@@ -5808,6 +5814,8 @@ export type Database = {
           outlet_code: string
           outlet_name: string
           outlet_surname: string | null
+          pos_global_discount_pct: number
+          pos_pricing_mode: string
           rating: number | null
           sales_radius: number | null
           social_media_handles: Json | null
@@ -5843,6 +5851,8 @@ export type Database = {
           outlet_code?: string
           outlet_name?: string
           outlet_surname?: string | null
+          pos_global_discount_pct?: number
+          pos_pricing_mode?: string
           rating?: number | null
           sales_radius?: number | null
           social_media_handles?: Json | null
@@ -5878,6 +5888,8 @@ export type Database = {
           outlet_code?: string
           outlet_name?: string
           outlet_surname?: string | null
+          pos_global_discount_pct?: number
+          pos_pricing_mode?: string
           rating?: number | null
           sales_radius?: number | null
           social_media_handles?: Json | null
