@@ -227,6 +227,18 @@ export default function AdminVendors() {
                           variant="ghost"
                           size="sm"
                           onClick={() => {
+                            setWalletUserId(vendor.user_id);
+                            setWalletEntityName(vendor.name);
+                            setWalletDialogOpen(true);
+                          }}
+                        >
+                          <Wallet className="w-4 h-4 text-primary mr-1" />
+                          Transactions
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
                             setSelectedVendorUserId(vendor.user_id);
                             setSelectedVendorName(vendor.name);
                             setEmailDialogOpen(true);
@@ -331,6 +343,13 @@ export default function AdminVendors() {
         onOpenChange={setEmailDialogOpen}
         userId={selectedVendorUserId}
         userName={selectedVendorName}
+      />
+      <AdminEntityWalletDialog
+        open={walletDialogOpen}
+        onOpenChange={setWalletDialogOpen}
+        userId={walletUserId}
+        walletType="vendor"
+        entityName={walletEntityName}
       />
     </AdminLayout>
   );
