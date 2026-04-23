@@ -27,30 +27,30 @@ export function PosReceiptPreviewDialog({ open, onOpenChange, receipt, hasPrinte
   html, body { margin: 0; padding: 0; background: #fff; }
   body {
     font-family: 'Courier New', 'Consolas', monospace;
-    font-size: 14px;
-    font-weight: 700;            /* bolder for readability on thermal */
+    font-size: 18px;
+    font-weight: 800;            /* bolder for readability on thermal */
     width: 76mm;
     margin: 0 auto;
     padding: 2mm 2mm 0 2mm;       /* no bottom padding => no extra blank */
     color: #000;
-    line-height: 1.25;
+    line-height: 1.3;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  .store { text-align: center; font-size: 22px; font-weight: 900; margin: 2px 0; letter-spacing: 0.5px; }
-  .meta-line { text-align: center; font-size: 13px; }
+  .store { text-align: center; font-size: 30px; font-weight: 900; margin: 4px 0; letter-spacing: 0.5px; }
+  .meta-line { text-align: center; font-size: 17px; font-weight: 700; }
   .center { text-align: center; }
-  .row { display: flex; justify-content: space-between; gap: 6px; }
+  .row { display: flex; justify-content: space-between; gap: 6px; font-size: 17px; font-weight: 800; }
   .row > span:last-child { text-align: right; white-space: nowrap; }
-  .sep { border-top: 2px dashed #000; margin: 4px 0; }
-  .item-name { font-size: 15px; font-weight: 800; word-break: break-word; }
-  .item-line { font-size: 13px; }
-  .cal { font-size: 11px; color: #333; }
-  .total { font-size: 22px; font-weight: 900; margin-top: 4px; }
-  .paid { font-size: 14px; font-weight: 800; }
-  .footer { text-align: center; font-size: 13px; font-weight: 800; margin-top: 4px; }
-  .powered { text-align: center; font-size: 10px; font-weight: 600; margin-top: 2px; }
-  img.logo { max-width: 60mm; max-height: 20mm; display: block; margin: 0 auto 2px; }
+  .sep { border-top: 3px dashed #000; margin: 6px 0; }
+  .item-name { font-size: 20px; font-weight: 900; word-break: break-word; margin-top: 4px; }
+  .item-line { font-size: 17px; font-weight: 800; }
+  .cal { font-size: 14px; font-weight: 700; color: #222; }
+  .total { font-size: 30px; font-weight: 900; margin-top: 6px; }
+  .paid { font-size: 19px; font-weight: 900; }
+  .footer { text-align: center; font-size: 18px; font-weight: 900; margin-top: 6px; }
+  .powered { text-align: center; font-size: 12px; font-weight: 700; margin-top: 2px; }
+  img.logo { max-width: 60mm; max-height: 24mm; display: block; margin: 0 auto 4px; }
   /* Kill page-breaks AFTER content so the browser doesn't add a blank page */
   body > :last-child { page-break-after: avoid; }
 </style></head><body>
