@@ -15,42 +15,70 @@ export function PosReceiptPreviewDialog({ open, onOpenChange, receipt, hasPrinte
   if (!receipt) return null;
 
   const handleBrowserPrint = () => {
+    // Use 80mm POS paper (most common). 58mm devices will scale down.
+    // We omit page margins and trim trailing whitespace so the printer
+    // does NOT eject a second blank page.
     const w = window.open('', '_blank', 'width=400,height=700');
     if (!w) return;
     const html = `
 <!doctype html><html><head><meta charset="utf-8"><title>${receipt.receiptNumber}</title>
 <style>
-  body{font-family:'Courier New',monospace;font-size:12px;width:280px;margin:0 auto;padding:10px;color:#000}
-  h2{text-align:center;margin:4px 0;font-size:14px}
-  .center{text-align:center}
-  .row{display:flex;justify-content:space-between}
-  .sep{border-top:1px dashed #000;margin:6px 0}
-  .b{font-weight:bold}
+  @page { size: 80mm auto; margin: 0; }
+  html, body { margin: 0; padding: 0; background: #fff; }
+  body {
+    font-family: 'Courier New', 'Consolas', monospace;
+    font-size: 14px;
+    font-weight: 700;            /* bolder for readability on thermal */
+    width: 76mm;
+    margin: 0 auto;
+    padding: 2mm 2mm 0 2mm;       /* no bottom padding => no extra blank */
+    color: #000;
+    line-height: 1.25;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .store { text-align: center; font-size: 22px; font-weight: 900; margin: 2px 0; letter-spacing: 0.5px; }
+  .meta-line { text-align: center; font-size: 13px; }
+  .center { text-align: center; }
+  .row { display: flex; justify-content: space-between; gap: 6px; }
+  .row > span:last-child { text-align: right; white-space: nowrap; }
+  .sep { border-top: 2px dashed #000; margin: 4px 0; }
+  .item-name { font-size: 15px; font-weight: 800; word-break: break-word; }
+  .item-line { font-size: 13px; }
+  .cal { font-size: 11px; color: #333; }
+  .total { font-size: 22px; font-weight: 900; margin-top: 4px; }
+  .paid { font-size: 14px; font-weight: 800; }
+  .footer { text-align: center; font-size: 13px; font-weight: 800; margin-top: 4px; }
+  .powered { text-align: center; font-size: 10px; font-weight: 600; margin-top: 2px; }
+  img.logo { max-width: 60mm; max-height: 20mm; display: block; margin: 0 auto 2px; }
+  /* Kill page-breaks AFTER content so the browser doesn't add a blank page */
+  body > :last-child { page-break-after: avoid; }
 </style></head><body>
-  ${receipt.storeLogoUrl ? `<div class="center"><img src="${receipt.storeLogoUrl}" style="max-width:80px;max-height:60px"/></div>` : ''}
-  <h2>${receipt.storeName}</h2>
-  ${receipt.storeAddress ? `<div class="center">${receipt.storeAddress}</div>` : ''}
-  ${receipt.storePhone ? `<div class="center">Tel: ${receipt.storePhone}</div>` : ''}
+  ${receipt.storeLogoUrl ? `<img class="logo" src="${receipt.storeLogoUrl}"/>` : ''}
+  <div class="store">${receipt.storeName}</div>
+  ${receipt.storeAddress ? `<div class="meta-line">${receipt.storeAddress}</div>` : ''}
+  ${receipt.storePhone ? `<div class="meta-line">Tel: ${receipt.storePhone}</div>` : ''}
   <div class="sep"></div>
-  <div class="row"><span>Receipt:</span><span class="b">${receipt.receiptNumber}</span></div>
-  <div class="row"><span>Date:</span><span>${receipt.date.toLocaleString()}</span></div>
-  ${receipt.cashierName ? `<div class="row"><span>Cashier:</span><span>${receipt.cashierName}</span></div>` : ''}
-  ${receipt.customerName ? `<div class="row"><span>Customer:</span><span>${receipt.customerName}</span></div>` : ''}
-  ${receipt.customerPhone ? `<div class="row"><span>Phone:</span><span>${receipt.customerPhone}</span></div>` : ''}
+  <div class="row"><span>Receipt#</span><span>${receipt.receiptNumber}</span></div>
+  <div class="row"><span>Date</span><span>${receipt.date.toLocaleString()}</span></div>
+  ${receipt.cashierName ? `<div class="row"><span>Cashier</span><span>${receipt.cashierName}</span></div>` : ''}
+  ${receipt.customerName ? `<div class="row"><span>Customer</span><span>${receipt.customerName}</span></div>` : ''}
+  ${receipt.customerPhone ? `<div class="row"><span>Phone</span><span>${receipt.customerPhone}</span></div>` : ''}
   <div class="sep"></div>
   ${receipt.items.map(it => `
-    <div class="row"><span>${it.qty} x ${it.name}</span><span>NGN ${it.price.toLocaleString()}</span></div>
-    ${it.calories ? `<div style="font-size:10px;color:#555">${it.calories * it.qty} kcal</div>` : ''}
+    <div class="item-name">${it.qty} × ${it.name}</div>
+    <div class="row item-line"><span>&nbsp;&nbsp;@ ₦${(it.price / Math.max(it.qty, 1)).toFixed(2)}</span><span>₦${it.price.toLocaleString()}</span></div>
+    ${it.calories ? `<div class="cal">&nbsp;&nbsp;${(it.calories * it.qty).toFixed(0)} kcal</div>` : ''}
   `).join('')}
   <div class="sep"></div>
-  <div class="row b"><span>TOTAL</span><span>NGN ${receipt.total.toLocaleString()}</span></div>
-  <div class="row"><span>Paid (${receipt.paymentMethod}):</span><span>NGN ${receipt.amountPaid.toLocaleString()}</span></div>
-  ${receipt.change > 0 ? `<div class="row"><span>Change:</span><span>NGN ${receipt.change.toLocaleString()}</span></div>` : ''}
+  <div class="row total"><span>TOTAL</span><span>₦${receipt.total.toLocaleString()}</span></div>
+  <div class="row paid"><span>Paid (${receipt.paymentMethod})</span><span>₦${(receipt.amountPaid ?? receipt.total).toLocaleString()}</span></div>
+  ${receipt.change && receipt.change > 0 ? `<div class="row paid"><span>Change</span><span>₦${receipt.change.toLocaleString()}</span></div>` : ''}
   ${receipt.totalCalories ? `<div class="sep"></div><div class="center">Total: ${receipt.totalCalories} kcal</div>` : ''}
   <div class="sep"></div>
-  <div class="center">Thank you for your purchase!</div>
-  <div class="center" style="font-size:10px;margin-top:8px">Powered by Fast Calories</div>
-  <script>window.onload=()=>{window.print();setTimeout(()=>window.close(),500)}</script>
+  <div class="footer">Thank you for your purchase!</div>
+  <div class="powered">Powered by Fast Calories</div>
+  <script>window.onload=()=>{window.print();setTimeout(()=>window.close(),300)}</script>
 </body></html>`;
     w.document.write(html);
     w.document.close();
@@ -65,56 +93,64 @@ export function PosReceiptPreviewDialog({ open, onOpenChange, receipt, hasPrinte
 
         {/* Receipt preview */}
         <div className="flex-1 overflow-y-auto -mx-6 px-6">
-          <div className="mx-auto bg-card border rounded-lg p-4 font-mono text-xs leading-relaxed" style={{ maxWidth: 280 }}>
+          <div
+            className="mx-auto bg-white text-black border rounded-lg p-3 font-mono leading-tight"
+            style={{ maxWidth: 300, fontWeight: 700 }}
+          >
             {receipt.storeLogoUrl && (
-              <div className="flex justify-center mb-2">
-                <img src={receipt.storeLogoUrl} alt="" className="max-h-12" />
+              <div className="flex justify-center mb-1">
+                <img src={receipt.storeLogoUrl} alt="" className="max-h-14" />
               </div>
             )}
-            <p className="text-center font-bold text-sm">{receipt.storeName}</p>
-            {receipt.storeAddress && <p className="text-center text-[10px]">{receipt.storeAddress}</p>}
-            {receipt.storePhone && <p className="text-center text-[10px]">Tel: {receipt.storePhone}</p>}
+            <p className="text-center font-extrabold text-lg tracking-wide">{receipt.storeName}</p>
+            {receipt.storeAddress && <p className="text-center text-xs">{receipt.storeAddress}</p>}
+            {receipt.storePhone && <p className="text-center text-xs">Tel: {receipt.storePhone}</p>}
 
-            <div className="border-t border-dashed my-2" />
+            <div className="border-t-2 border-dashed border-black my-2" />
 
-            <div className="flex justify-between"><span>Receipt:</span><span className="font-bold">{receipt.receiptNumber}</span></div>
-            <div className="flex justify-between"><span>Date:</span><span>{receipt.date.toLocaleString()}</span></div>
-            {receipt.cashierName && <div className="flex justify-between"><span>Cashier:</span><span>{receipt.cashierName}</span></div>}
-            {receipt.customerName && <div className="flex justify-between"><span>Customer:</span><span>{receipt.customerName}</span></div>}
-            {receipt.customerPhone && <div className="flex justify-between"><span>Phone:</span><span>{receipt.customerPhone}</span></div>}
+            <div className="flex justify-between text-xs"><span>Receipt#</span><span className="font-bold">{receipt.receiptNumber}</span></div>
+            <div className="flex justify-between text-xs"><span>Date</span><span>{receipt.date.toLocaleString()}</span></div>
+            {receipt.cashierName && <div className="flex justify-between text-xs"><span>Cashier</span><span>{receipt.cashierName}</span></div>}
+            {receipt.customerName && <div className="flex justify-between text-xs"><span>Customer</span><span>{receipt.customerName}</span></div>}
+            {receipt.customerPhone && <div className="flex justify-between text-xs"><span>Phone</span><span>{receipt.customerPhone}</span></div>}
 
-            <div className="border-t border-dashed my-2" />
+            <div className="border-t-2 border-dashed border-black my-2" />
 
             {receipt.items.map((it, i) => (
-              <div key={i} className="mb-1">
-                <div className="flex justify-between">
-                  <span className="truncate pr-2">{it.qty} × {it.name}</span>
-                  <span>₦{it.price.toLocaleString()}</span>
+              <div key={i} className="mb-1.5">
+                <div className="text-sm font-extrabold break-words">{it.qty} × {it.name}</div>
+                <div className="flex justify-between text-xs">
+                  <span>&nbsp;&nbsp;@ ₦{(it.price / Math.max(it.qty, 1)).toFixed(2)}</span>
+                  <span className="font-bold">₦{it.price.toLocaleString()}</span>
                 </div>
-                {it.calories ? <p className="text-[10px] text-muted-foreground">{it.calories * it.qty} kcal</p> : null}
+                {it.calories ? <p className="text-[10px] text-neutral-600">&nbsp;&nbsp;{(it.calories * it.qty).toFixed(0)} kcal</p> : null}
               </div>
             ))}
 
-            <div className="border-t border-dashed my-2" />
+            <div className="border-t-2 border-dashed border-black my-2" />
 
-            <div className="flex justify-between font-bold text-sm">
+            <div className="flex justify-between font-extrabold text-lg">
               <span>TOTAL</span><span>₦{receipt.total.toLocaleString()}</span>
             </div>
-            <div className="flex justify-between"><span>Paid ({receipt.paymentMethod}):</span><span>₦{receipt.amountPaid.toLocaleString()}</span></div>
+            <div className="flex justify-between text-sm font-bold mt-0.5">
+              <span>Paid ({receipt.paymentMethod})</span><span>₦{(receipt.amountPaid ?? receipt.total).toLocaleString()}</span>
+            </div>
             {receipt.change > 0 && (
-              <div className="flex justify-between"><span>Change:</span><span>₦{receipt.change.toLocaleString()}</span></div>
+              <div className="flex justify-between text-sm font-bold">
+                <span>Change</span><span>₦{receipt.change.toLocaleString()}</span>
+              </div>
             )}
 
             {receipt.totalCalories ? (
               <>
-                <div className="border-t border-dashed my-2" />
-                <p className="text-center">Total: {receipt.totalCalories} kcal</p>
+                <div className="border-t-2 border-dashed border-black my-2" />
+                <p className="text-center text-xs">Total: {receipt.totalCalories} kcal</p>
               </>
             ) : null}
 
-            <div className="border-t border-dashed my-2" />
-            <p className="text-center">Thank you for your purchase!</p>
-            <p className="text-center text-[10px] text-muted-foreground mt-2">Powered by Fast Calories</p>
+            <div className="border-t-2 border-dashed border-black my-2" />
+            <p className="text-center text-xs font-bold">Thank you for your purchase!</p>
+            <p className="text-center text-[10px] text-neutral-500 mt-1">Powered by Fast Calories</p>
           </div>
         </div>
 
