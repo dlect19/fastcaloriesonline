@@ -27,30 +27,30 @@ export function PosReceiptPreviewDialog({ open, onOpenChange, receipt, hasPrinte
   html, body { margin: 0; padding: 0; background: #fff; }
   body {
     font-family: 'Courier New', 'Consolas', monospace;
-    font-size: 14px;
-    font-weight: 700;            /* bolder for readability on thermal */
+    font-size: 18px;
+    font-weight: 800;            /* bolder for readability on thermal */
     width: 76mm;
     margin: 0 auto;
     padding: 2mm 2mm 0 2mm;       /* no bottom padding => no extra blank */
     color: #000;
-    line-height: 1.25;
+    line-height: 1.3;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  .store { text-align: center; font-size: 22px; font-weight: 900; margin: 2px 0; letter-spacing: 0.5px; }
-  .meta-line { text-align: center; font-size: 13px; }
+  .store { text-align: center; font-size: 30px; font-weight: 900; margin: 4px 0; letter-spacing: 0.5px; }
+  .meta-line { text-align: center; font-size: 17px; font-weight: 700; }
   .center { text-align: center; }
-  .row { display: flex; justify-content: space-between; gap: 6px; }
+  .row { display: flex; justify-content: space-between; gap: 6px; font-size: 17px; font-weight: 800; }
   .row > span:last-child { text-align: right; white-space: nowrap; }
-  .sep { border-top: 2px dashed #000; margin: 4px 0; }
-  .item-name { font-size: 15px; font-weight: 800; word-break: break-word; }
-  .item-line { font-size: 13px; }
-  .cal { font-size: 11px; color: #333; }
-  .total { font-size: 22px; font-weight: 900; margin-top: 4px; }
-  .paid { font-size: 14px; font-weight: 800; }
-  .footer { text-align: center; font-size: 13px; font-weight: 800; margin-top: 4px; }
-  .powered { text-align: center; font-size: 10px; font-weight: 600; margin-top: 2px; }
-  img.logo { max-width: 60mm; max-height: 20mm; display: block; margin: 0 auto 2px; }
+  .sep { border-top: 3px dashed #000; margin: 6px 0; }
+  .item-name { font-size: 20px; font-weight: 900; word-break: break-word; margin-top: 4px; }
+  .item-line { font-size: 17px; font-weight: 800; }
+  .cal { font-size: 14px; font-weight: 700; color: #222; }
+  .total { font-size: 30px; font-weight: 900; margin-top: 6px; }
+  .paid { font-size: 19px; font-weight: 900; }
+  .footer { text-align: center; font-size: 18px; font-weight: 900; margin-top: 6px; }
+  .powered { text-align: center; font-size: 12px; font-weight: 700; margin-top: 2px; }
+  img.logo { max-width: 60mm; max-height: 24mm; display: block; margin: 0 auto 4px; }
   /* Kill page-breaks AFTER content so the browser doesn't add a blank page */
   body > :last-child { page-break-after: avoid; }
 </style></head><body>
@@ -94,63 +94,63 @@ export function PosReceiptPreviewDialog({ open, onOpenChange, receipt, hasPrinte
         {/* Receipt preview */}
         <div className="flex-1 overflow-y-auto -mx-6 px-6">
           <div
-            className="mx-auto bg-white text-black border rounded-lg p-3 font-mono leading-tight"
-            style={{ maxWidth: 300, fontWeight: 700 }}
+            className="mx-auto bg-white text-black border-2 rounded-lg p-4 font-mono leading-snug"
+            style={{ maxWidth: 360, fontWeight: 800 }}
           >
             {receipt.storeLogoUrl && (
-              <div className="flex justify-center mb-1">
-                <img src={receipt.storeLogoUrl} alt="" className="max-h-14" />
+              <div className="flex justify-center mb-2">
+                <img src={receipt.storeLogoUrl} alt="" className="max-h-20" />
               </div>
             )}
-            <p className="text-center font-extrabold text-lg tracking-wide">{receipt.storeName}</p>
-            {receipt.storeAddress && <p className="text-center text-xs">{receipt.storeAddress}</p>}
-            {receipt.storePhone && <p className="text-center text-xs">Tel: {receipt.storePhone}</p>}
+            <p className="text-center font-black text-2xl tracking-wide">{receipt.storeName}</p>
+            {receipt.storeAddress && <p className="text-center text-sm font-bold">{receipt.storeAddress}</p>}
+            {receipt.storePhone && <p className="text-center text-sm font-bold">Tel: {receipt.storePhone}</p>}
 
-            <div className="border-t-2 border-dashed border-black my-2" />
+            <div className="border-t-2 border-dashed border-black my-2.5" />
 
-            <div className="flex justify-between text-xs"><span>Receipt#</span><span className="font-bold">{receipt.receiptNumber}</span></div>
-            <div className="flex justify-between text-xs"><span>Date</span><span>{receipt.date.toLocaleString()}</span></div>
-            {receipt.cashierName && <div className="flex justify-between text-xs"><span>Cashier</span><span>{receipt.cashierName}</span></div>}
-            {receipt.customerName && <div className="flex justify-between text-xs"><span>Customer</span><span>{receipt.customerName}</span></div>}
-            {receipt.customerPhone && <div className="flex justify-between text-xs"><span>Phone</span><span>{receipt.customerPhone}</span></div>}
+            <div className="flex justify-between text-sm font-bold"><span>Receipt#</span><span>{receipt.receiptNumber}</span></div>
+            <div className="flex justify-between text-sm font-bold"><span>Date</span><span>{receipt.date.toLocaleString()}</span></div>
+            {receipt.cashierName && <div className="flex justify-between text-sm font-bold"><span>Cashier</span><span>{receipt.cashierName}</span></div>}
+            {receipt.customerName && <div className="flex justify-between text-sm font-bold"><span>Customer</span><span>{receipt.customerName}</span></div>}
+            {receipt.customerPhone && <div className="flex justify-between text-sm font-bold"><span>Phone</span><span>{receipt.customerPhone}</span></div>}
 
-            <div className="border-t-2 border-dashed border-black my-2" />
+            <div className="border-t-2 border-dashed border-black my-2.5" />
 
             {receipt.items.map((it, i) => (
-              <div key={i} className="mb-1.5">
-                <div className="text-sm font-extrabold break-words">{it.qty} × {it.name}</div>
-                <div className="flex justify-between text-xs">
+              <div key={i} className="mb-2">
+                <div className="text-base font-black break-words">{it.qty} × {it.name}</div>
+                <div className="flex justify-between text-sm font-bold">
                   <span>&nbsp;&nbsp;@ ₦{(it.price / Math.max(it.qty, 1)).toFixed(2)}</span>
-                  <span className="font-bold">₦{it.price.toLocaleString()}</span>
+                  <span className="font-black">₦{it.price.toLocaleString()}</span>
                 </div>
-                {it.calories ? <p className="text-[10px] text-neutral-600">&nbsp;&nbsp;{(it.calories * it.qty).toFixed(0)} kcal</p> : null}
+                {it.calories ? <p className="text-xs font-bold text-neutral-700">&nbsp;&nbsp;{(it.calories * it.qty).toFixed(0)} kcal</p> : null}
               </div>
             ))}
 
-            <div className="border-t-2 border-dashed border-black my-2" />
+            <div className="border-t-2 border-dashed border-black my-2.5" />
 
-            <div className="flex justify-between font-extrabold text-lg">
+            <div className="flex justify-between font-black text-2xl">
               <span>TOTAL</span><span>₦{receipt.total.toLocaleString()}</span>
             </div>
-            <div className="flex justify-between text-sm font-bold mt-0.5">
+            <div className="flex justify-between text-base font-black mt-1">
               <span>Paid ({receipt.paymentMethod})</span><span>₦{(receipt.amountPaid ?? receipt.total).toLocaleString()}</span>
             </div>
             {receipt.change > 0 && (
-              <div className="flex justify-between text-sm font-bold">
+              <div className="flex justify-between text-base font-black">
                 <span>Change</span><span>₦{receipt.change.toLocaleString()}</span>
               </div>
             )}
 
             {receipt.totalCalories ? (
               <>
-                <div className="border-t-2 border-dashed border-black my-2" />
-                <p className="text-center text-xs">Total: {receipt.totalCalories} kcal</p>
+                <div className="border-t-2 border-dashed border-black my-2.5" />
+                <p className="text-center text-sm font-bold">Total: {receipt.totalCalories} kcal</p>
               </>
             ) : null}
 
-            <div className="border-t-2 border-dashed border-black my-2" />
-            <p className="text-center text-xs font-bold">Thank you for your purchase!</p>
-            <p className="text-center text-[10px] text-neutral-500 mt-1">Powered by Fast Calories</p>
+            <div className="border-t-2 border-dashed border-black my-2.5" />
+            <p className="text-center text-base font-black">Thank you for your purchase!</p>
+            <p className="text-center text-[11px] text-neutral-500 mt-1">Powered by Fast Calories</p>
           </div>
         </div>
 
