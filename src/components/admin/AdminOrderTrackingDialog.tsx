@@ -34,6 +34,7 @@ interface Order {
   order_number: string;
   status: string;
   delivery_type: string;
+  channel?: string | null;
   rider_id: string | null;
   vendor_id: string;
   user_id: string;
@@ -821,7 +822,9 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
                 const displayAddress = fullAddress
                   || activeOrder.delivery_address_text
                   || activeOrder.delivery_address
-                  || (activeOrder.delivery_type === 'self_pickup' ? 'Carryout — no delivery address' : '—');
+                  || (activeOrder.channel === 'pos'
+                    ? 'In-store POS sale'
+                    : (activeOrder.delivery_type === 'self_pickup' ? 'Carryout — no delivery address' : '—'));
                 return (
                   <p className="text-xs text-muted-foreground">{displayAddress}</p>
                 );
@@ -918,6 +921,10 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
                     disabled={recalculating}
                     onClick={async () => {
                       if (!activeOrder) return;
+                      if (activeOrder.channel === 'pos') {
+                        toast({ title: 'POS sale', description: 'Customer paid the vendor directly in-store. No commission or platform revenue applies.' });
+                        return;
+                      }
                       if (!window.confirm('Recalculate financials for this order? This will recompute vendor payout, commission, and platform revenue using current rules (platform absorbs promo discounts).')) return;
                       setRecalculating(true);
                       try {
@@ -1358,7 +1365,7 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
           <span>Created: {format(new Date(activeOrder.created_at), 'PP p')}</span>
           <span>Updated: {format(new Date(activeOrder.updated_at), 'PP p')}</span>
           <span>Payment: {activeOrder.payment_status}</span>
-          <span>Type: {activeOrder.delivery_type?.replace(/_/g, ' ') || 'delivery'}</span>
+          <span>Type: {activeOrder.channel === 'pos' ? 'POS in-store sale' : (activeOrder.delivery_type?.replace(/_/g, ' ') || 'delivery')}</span>
         </div>
       </DialogContent>
     </Dialog>

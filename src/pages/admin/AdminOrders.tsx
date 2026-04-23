@@ -454,7 +454,9 @@ export default function AdminOrders() {
                         <td className="py-3 px-4 text-muted-foreground">{order.customer_phone}</td>
                         <td className="py-3 px-4">{order.vendors?.name}</td>
                         <td className="py-3 px-4">
-                          {order.delivery_type === 'self_pickup' ? (
+                          {order.channel === 'pos' ? (
+                            <Badge className="bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/20 text-xs">🧾 POS</Badge>
+                          ) : order.delivery_type === 'self_pickup' ? (
                             <Badge className="bg-primary/10 text-primary border-primary/20 text-xs">🏪 Carryout</Badge>
                           ) : (
                             <Badge variant="outline" className="text-xs">🚚 Delivery</Badge>
