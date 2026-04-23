@@ -232,6 +232,17 @@ export default function AdminDeliveryCompanies() {
                           variant="outline"
                           size="sm"
                           onClick={() => {
+                            setWalletCompany(company);
+                            setWalletDialogOpen(true);
+                          }}
+                        >
+                          <Wallet className="w-4 h-4 mr-1" />
+                          Transactions
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
                             setSelectedCompany(company);
                             setNewCommission(String(company.commission_rate));
                             setCommissionDialogOpen(true);
@@ -289,6 +300,15 @@ export default function AdminDeliveryCompanies() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AdminEntityWalletDialog
+        open={walletDialogOpen}
+        onOpenChange={setWalletDialogOpen}
+        userId={walletCompany?.user_id || null}
+        walletType="delivery_company"
+        entityName={walletCompany?.name || 'Delivery Company'}
+        subLabel="Logistics Partner"
+      />
     </AdminLayout>
   );
 }
