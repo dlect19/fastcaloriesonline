@@ -340,6 +340,18 @@ export default function AdminRiders() {
                             variant="ghost"
                             size="sm"
                             onClick={() => {
+                              setWalletUserId(rider.user_id);
+                              setWalletEntityName(rider.profile?.full_name || 'Rider');
+                              setWalletDialogOpen(true);
+                            }}
+                          >
+                            <Wallet className="w-4 h-4 text-primary mr-1" />
+                            Transactions
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
                               setSelectedRiderUserId(rider.user_id);
                               setSelectedRiderName(rider.profile?.full_name || 'Rider');
                               setEmailDialogOpen(true);
@@ -409,6 +421,13 @@ export default function AdminRiders() {
           onOpenChange={setEmailDialogOpen}
           userId={selectedRiderUserId}
           userName={selectedRiderName}
+        />
+        <AdminEntityWalletDialog
+          open={walletDialogOpen}
+          onOpenChange={setWalletDialogOpen}
+          userId={walletUserId}
+          walletType="rider"
+          entityName={walletEntityName}
         />
     </AdminLayout>
   );
