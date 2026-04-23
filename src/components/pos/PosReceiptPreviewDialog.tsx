@@ -15,42 +15,70 @@ export function PosReceiptPreviewDialog({ open, onOpenChange, receipt, hasPrinte
   if (!receipt) return null;
 
   const handleBrowserPrint = () => {
+    // Use 80mm POS paper (most common). 58mm devices will scale down.
+    // We omit page margins and trim trailing whitespace so the printer
+    // does NOT eject a second blank page.
     const w = window.open('', '_blank', 'width=400,height=700');
     if (!w) return;
     const html = `
 <!doctype html><html><head><meta charset="utf-8"><title>${receipt.receiptNumber}</title>
 <style>
-  body{font-family:'Courier New',monospace;font-size:12px;width:280px;margin:0 auto;padding:10px;color:#000}
-  h2{text-align:center;margin:4px 0;font-size:14px}
-  .center{text-align:center}
-  .row{display:flex;justify-content:space-between}
-  .sep{border-top:1px dashed #000;margin:6px 0}
-  .b{font-weight:bold}
+  @page { size: 80mm auto; margin: 0; }
+  html, body { margin: 0; padding: 0; background: #fff; }
+  body {
+    font-family: 'Courier New', 'Consolas', monospace;
+    font-size: 14px;
+    font-weight: 700;            /* bolder for readability on thermal */
+    width: 76mm;
+    margin: 0 auto;
+    padding: 2mm 2mm 0 2mm;       /* no bottom padding => no extra blank */
+    color: #000;
+    line-height: 1.25;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .store { text-align: center; font-size: 22px; font-weight: 900; margin: 2px 0; letter-spacing: 0.5px; }
+  .meta-line { text-align: center; font-size: 13px; }
+  .center { text-align: center; }
+  .row { display: flex; justify-content: space-between; gap: 6px; }
+  .row > span:last-child { text-align: right; white-space: nowrap; }
+  .sep { border-top: 2px dashed #000; margin: 4px 0; }
+  .item-name { font-size: 15px; font-weight: 800; word-break: break-word; }
+  .item-line { font-size: 13px; }
+  .cal { font-size: 11px; color: #333; }
+  .total { font-size: 22px; font-weight: 900; margin-top: 4px; }
+  .paid { font-size: 14px; font-weight: 800; }
+  .footer { text-align: center; font-size: 13px; font-weight: 800; margin-top: 4px; }
+  .powered { text-align: center; font-size: 10px; font-weight: 600; margin-top: 2px; }
+  img.logo { max-width: 60mm; max-height: 20mm; display: block; margin: 0 auto 2px; }
+  /* Kill page-breaks AFTER content so the browser doesn't add a blank page */
+  body > :last-child { page-break-after: avoid; }
 </style></head><body>
-  ${receipt.storeLogoUrl ? `<div class="center"><img src="${receipt.storeLogoUrl}" style="max-width:80px;max-height:60px"/></div>` : ''}
-  <h2>${receipt.storeName}</h2>
-  ${receipt.storeAddress ? `<div class="center">${receipt.storeAddress}</div>` : ''}
-  ${receipt.storePhone ? `<div class="center">Tel: ${receipt.storePhone}</div>` : ''}
+  ${receipt.storeLogoUrl ? `<img class="logo" src="${receipt.storeLogoUrl}"/>` : ''}
+  <div class="store">${receipt.storeName}</div>
+  ${receipt.storeAddress ? `<div class="meta-line">${receipt.storeAddress}</div>` : ''}
+  ${receipt.storePhone ? `<div class="meta-line">Tel: ${receipt.storePhone}</div>` : ''}
   <div class="sep"></div>
-  <div class="row"><span>Receipt:</span><span class="b">${receipt.receiptNumber}</span></div>
-  <div class="row"><span>Date:</span><span>${receipt.date.toLocaleString()}</span></div>
-  ${receipt.cashierName ? `<div class="row"><span>Cashier:</span><span>${receipt.cashierName}</span></div>` : ''}
-  ${receipt.customerName ? `<div class="row"><span>Customer:</span><span>${receipt.customerName}</span></div>` : ''}
-  ${receipt.customerPhone ? `<div class="row"><span>Phone:</span><span>${receipt.customerPhone}</span></div>` : ''}
+  <div class="row"><span>Receipt#</span><span>${receipt.receiptNumber}</span></div>
+  <div class="row"><span>Date</span><span>${receipt.date.toLocaleString()}</span></div>
+  ${receipt.cashierName ? `<div class="row"><span>Cashier</span><span>${receipt.cashierName}</span></div>` : ''}
+  ${receipt.customerName ? `<div class="row"><span>Customer</span><span>${receipt.customerName}</span></div>` : ''}
+  ${receipt.customerPhone ? `<div class="row"><span>Phone</span><span>${receipt.customerPhone}</span></div>` : ''}
   <div class="sep"></div>
   ${receipt.items.map(it => `
-    <div class="row"><span>${it.qty} x ${it.name}</span><span>NGN ${it.price.toLocaleString()}</span></div>
-    ${it.calories ? `<div style="font-size:10px;color:#555">${it.calories * it.qty} kcal</div>` : ''}
+    <div class="item-name">${it.qty} × ${it.name}</div>
+    <div class="row item-line"><span>&nbsp;&nbsp;@ ₦${(it.price / Math.max(it.qty, 1)).toFixed(2)}</span><span>₦${it.price.toLocaleString()}</span></div>
+    ${it.calories ? `<div class="cal">&nbsp;&nbsp;${(it.calories * it.qty).toFixed(0)} kcal</div>` : ''}
   `).join('')}
   <div class="sep"></div>
-  <div class="row b"><span>TOTAL</span><span>NGN ${receipt.total.toLocaleString()}</span></div>
-  <div class="row"><span>Paid (${receipt.paymentMethod}):</span><span>NGN ${receipt.amountPaid.toLocaleString()}</span></div>
-  ${receipt.change > 0 ? `<div class="row"><span>Change:</span><span>NGN ${receipt.change.toLocaleString()}</span></div>` : ''}
+  <div class="row total"><span>TOTAL</span><span>₦${receipt.total.toLocaleString()}</span></div>
+  <div class="row paid"><span>Paid (${receipt.paymentMethod})</span><span>₦${(receipt.amountPaid ?? receipt.total).toLocaleString()}</span></div>
+  ${receipt.change && receipt.change > 0 ? `<div class="row paid"><span>Change</span><span>₦${receipt.change.toLocaleString()}</span></div>` : ''}
   ${receipt.totalCalories ? `<div class="sep"></div><div class="center">Total: ${receipt.totalCalories} kcal</div>` : ''}
   <div class="sep"></div>
-  <div class="center">Thank you for your purchase!</div>
-  <div class="center" style="font-size:10px;margin-top:8px">Powered by Fast Calories</div>
-  <script>window.onload=()=>{window.print();setTimeout(()=>window.close(),500)}</script>
+  <div class="footer">Thank you for your purchase!</div>
+  <div class="powered">Powered by Fast Calories</div>
+  <script>window.onload=()=>{window.print();setTimeout(()=>window.close(),300)}</script>
 </body></html>`;
     w.document.write(html);
     w.document.close();
