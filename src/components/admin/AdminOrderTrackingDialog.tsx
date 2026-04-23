@@ -921,6 +921,10 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
                     disabled={recalculating}
                     onClick={async () => {
                       if (!activeOrder) return;
+                      if (activeOrder.channel === 'pos') {
+                        toast({ title: 'POS sale', description: 'Customer paid the vendor directly in-store. No commission or platform revenue applies.' });
+                        return;
+                      }
                       if (!window.confirm('Recalculate financials for this order? This will recompute vendor payout, commission, and platform revenue using current rules (platform absorbs promo discounts).')) return;
                       setRecalculating(true);
                       try {
