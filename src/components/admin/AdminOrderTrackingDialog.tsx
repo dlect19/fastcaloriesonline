@@ -822,7 +822,9 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
                 const displayAddress = fullAddress
                   || activeOrder.delivery_address_text
                   || activeOrder.delivery_address
-                  || (activeOrder.delivery_type === 'self_pickup' ? 'Carryout — no delivery address' : '—');
+                  || (activeOrder.channel === 'pos'
+                    ? 'In-store POS sale'
+                    : (activeOrder.delivery_type === 'self_pickup' ? 'Carryout — no delivery address' : '—'));
                 return (
                   <p className="text-xs text-muted-foreground">{displayAddress}</p>
                 );
