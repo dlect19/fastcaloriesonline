@@ -9,10 +9,11 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Check, X, Loader2, ShieldCheck, Mail, AlertCircle, FlaskConical, FileImage, Eye } from 'lucide-react';
+import { Check, X, Loader2, ShieldCheck, Mail, AlertCircle, FlaskConical, FileImage, Eye, Wallet } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 import { AdminChangeEmailDialog } from '@/components/admin/AdminChangeEmailDialog';
+import { AdminEntityWalletDialog } from '@/components/admin/AdminEntityWalletDialog';
 
 export default function AdminRiders() {
   const navigate = useNavigate();
@@ -25,6 +26,9 @@ export default function AdminRiders() {
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [selectedRiderUserId, setSelectedRiderUserId] = useState<string | null>(null);
   const [selectedRiderName, setSelectedRiderName] = useState('');
+  const [walletDialogOpen, setWalletDialogOpen] = useState(false);
+  const [walletUserId, setWalletUserId] = useState<string | null>(null);
+  const [walletEntityName, setWalletEntityName] = useState('');
 
   useEffect(() => {
     checkAuth();
