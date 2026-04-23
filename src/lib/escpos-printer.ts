@@ -37,11 +37,24 @@ const CMD = {
   ALIGN_RIGHT: new Uint8Array([ESC, 0x61, 2]),
   BOLD_ON: new Uint8Array([ESC, 0x45, 1]),
   BOLD_OFF: new Uint8Array([ESC, 0x45, 0]),
-  DOUBLE_SIZE: new Uint8Array([GS, 0x21, 0x11]),
-  NORMAL_SIZE: new Uint8Array([GS, 0x21, 0x00]),
+  // Double-strike makes ink darker (each dot printed twice)
+  DOUBLE_STRIKE_ON: new Uint8Array([ESC, 0x47, 1]),
+  DOUBLE_STRIKE_OFF: new Uint8Array([ESC, 0x47, 0]),
+  // Size variants via GS ! n  (n = w<<4 | h ; 0..7 each)
+  SIZE_NORMAL: new Uint8Array([GS, 0x21, 0x00]),     // 1x1
+  SIZE_TALL: new Uint8Array([GS, 0x21, 0x01]),       // 1x2 (taller)
+  SIZE_WIDE: new Uint8Array([GS, 0x21, 0x10]),       // 2x1 (wider)
+  SIZE_DOUBLE: new Uint8Array([GS, 0x21, 0x11]),     // 2x2
+  SIZE_TRIPLE: new Uint8Array([GS, 0x21, 0x22]),     // 3x3
+  // Maximum print density (darker)
+  PRINT_DENSITY_MAX: new Uint8Array([GS, 0x7c, 0x08]),
   CUT: new Uint8Array([GS, 0x56, 1]),
+  CUT_FULL: new Uint8Array([GS, 0x56, 0]),
   FEED: (n: number) => new Uint8Array([ESC, 0x64, n]),
   LF: new Uint8Array([LF]),
+  // Backwards-compat aliases (kept so any other callers don't break)
+  DOUBLE_SIZE: new Uint8Array([GS, 0x21, 0x11]),
+  NORMAL_SIZE: new Uint8Array([GS, 0x21, 0x00]),
 };
 
 export interface ReceiptItem {
@@ -221,9 +234,16 @@ export class EscPosPrinter {
     const width = data.paperWidth ?? 32;
     const pixelWidth = width === 48 ? 576 : 384; // 80mm vs 58mm
 
-    const parts: Uint8Array[] = [CMD.INIT, CMD.ALIGN_CENTER];
+    // Bold + double-strike everywhere = dark, easy to read.
+    const parts: Uint8Array[] = [
+      CMD.INIT,
+      CMD.PRINT_DENSITY_MAX,
+      CMD.DOUBLE_STRIKE_ON,
+      CMD.BOLD_ON,
+      CMD.ALIGN_CENTER,
+    ];
 
-    // Optional logo bitmap (best-effort; falls back silently to bold name)
+    // Optional logo bitmap
     if (data.storeLogoUrl) {
       try {
         const logo = await rasterizeLogo(data.storeLogoUrl, pixelWidth);
@@ -233,28 +253,44 @@ export class EscPosPrinter {
       }
     }
 
-    parts.push(CMD.BOLD_ON, CMD.DOUBLE_SIZE, this.text(data.storeName + '\n'), CMD.NORMAL_SIZE, CMD.BOLD_OFF);
+    // Store name — TRIPLE size for maximum visibility
+    parts.push(CMD.SIZE_TRIPLE, this.text(data.storeName + '\n'), CMD.SIZE_NORMAL);
 
-    if (data.storeAddress) parts.push(this.text(data.storeAddress + '\n'));
-    if (data.storePhone) parts.push(this.text('Tel: ' + data.storePhone + '\n'));
-    parts.push(this.text('-'.repeat(width) + '\n'));
+    if (data.storeAddress) {
+      parts.push(CMD.SIZE_TALL, this.text(data.storeAddress + '\n'), CMD.SIZE_NORMAL);
+    }
+    if (data.storePhone) {
+      parts.push(CMD.SIZE_TALL, this.text('Tel: ' + data.storePhone + '\n'), CMD.SIZE_NORMAL);
+    }
+    parts.push(this.text('='.repeat(width) + '\n'));
 
-    parts.push(CMD.ALIGN_LEFT);
-    parts.push(this.text(`Receipt: ${data.receiptNumber}\n`));
+    // Meta block — left aligned, tall (more readable)
+    parts.push(CMD.ALIGN_LEFT, CMD.SIZE_TALL);
+    parts.push(this.text(`Receipt#: ${data.receiptNumber}\n`));
     parts.push(this.text(`Date: ${data.date.toLocaleString()}\n`));
     if (data.cashierName) parts.push(this.text(`Cashier: ${data.cashierName}\n`));
     if (data.customerName) parts.push(this.text(`Customer: ${data.customerName}\n`));
     if (data.customerPhone) parts.push(this.text(`Phone: ${data.customerPhone}\n`));
+    parts.push(CMD.SIZE_NORMAL);
+    parts.push(this.text('='.repeat(width) + '\n'));
+
+    // Items header
+    parts.push(CMD.SIZE_TALL);
+    parts.push(this.text('ITEMS\n'));
+    parts.push(CMD.SIZE_NORMAL);
     parts.push(this.text('-'.repeat(width) + '\n'));
 
-    // Items
+    // Items — name in tall, then qty x price line
     for (const item of data.items) {
+      parts.push(CMD.SIZE_TALL);
       const nameLines = this.wrapName(item.name, width);
-      parts.push(this.text(nameLines[0] + '\n'));
-      for (let i = 1; i < nameLines.length; i++) parts.push(this.text(nameLines[i] + '\n'));
-      const lineRight = `N${item.price.toFixed(2)}`;
+      for (const nl of nameLines) parts.push(this.text(nl + '\n'));
+      parts.push(CMD.SIZE_NORMAL);
+
       const lineLeft = `  ${item.qty} x N${(item.price / Math.max(item.qty, 1)).toFixed(2)}`;
+      const lineRight = `N${item.price.toFixed(2)}`;
       parts.push(this.text(this.padLine(lineLeft, lineRight, width) + '\n'));
+
       const calLabel = item.calories === undefined || item.calories === null
         ? 'Cal: N/A'
         : `Cal: ${(Number(item.calories) * Math.max(item.qty, 1)).toFixed(0)} kcal`;
@@ -262,7 +298,10 @@ export class EscPosPrinter {
       if (item.note) parts.push(this.text(`  ${item.note}\n`));
     }
 
-    parts.push(this.text('-'.repeat(width) + '\n'));
+    parts.push(this.text('='.repeat(width) + '\n'));
+
+    // Totals — tall
+    parts.push(CMD.SIZE_TALL);
     parts.push(this.text(this.padLine('Subtotal', `N${data.subtotal.toFixed(2)}`, width) + '\n'));
     if (data.discount && data.discount > 0) {
       parts.push(this.text(this.padLine('Discount', `-N${data.discount.toFixed(2)}`, width) + '\n'));
@@ -270,13 +309,22 @@ export class EscPosPrinter {
     if (data.tax && data.tax > 0) {
       parts.push(this.text(this.padLine('Tax', `N${data.tax.toFixed(2)}`, width) + '\n'));
     }
+    parts.push(CMD.SIZE_NORMAL);
 
-    parts.push(CMD.BOLD_ON);
-    parts.push(this.text(this.padLine('TOTAL', `N${data.total.toFixed(2)}`, width) + '\n'));
-    parts.push(CMD.BOLD_OFF);
+    // TOTAL — DOUBLE size, biggest line on receipt
+    parts.push(CMD.SIZE_DOUBLE);
+    // Each "char" prints double-wide so reduce the padding column count by half
+    const totalText = `TOTAL  N${data.total.toFixed(2)}`;
+    parts.push(this.text(totalText + '\n'));
+    parts.push(CMD.SIZE_NORMAL);
+
     if (data.totalCalories !== undefined && data.totalCalories !== null) {
+      parts.push(CMD.SIZE_TALL);
       parts.push(this.text(this.padLine('Total Calories', `${data.totalCalories.toFixed(0)} kcal`, width) + '\n'));
+      parts.push(CMD.SIZE_NORMAL);
     }
+
+    parts.push(CMD.SIZE_TALL);
     parts.push(this.text(this.padLine('Paid via', data.paymentMethod, width) + '\n'));
     if (data.amountPaid !== undefined) {
       parts.push(this.text(this.padLine('Amount Paid', `N${data.amountPaid.toFixed(2)}`, width) + '\n'));
@@ -284,12 +332,19 @@ export class EscPosPrinter {
     if (data.change !== undefined && data.change > 0) {
       parts.push(this.text(this.padLine('Change', `N${data.change.toFixed(2)}`, width) + '\n'));
     }
+    parts.push(CMD.SIZE_NORMAL);
 
-    parts.push(this.text('-'.repeat(width) + '\n'));
-    parts.push(CMD.ALIGN_CENTER);
+    parts.push(this.text('='.repeat(width) + '\n'));
+
+    // Footer — centered, tall
+    parts.push(CMD.ALIGN_CENTER, CMD.SIZE_TALL);
     parts.push(this.text((data.footer ?? 'Thank you for your purchase!') + '\n'));
+    parts.push(CMD.SIZE_NORMAL);
     parts.push(this.text('Powered by Fast Calories\n'));
-    parts.push(CMD.FEED(3));
+
+    // Reset styles, then minimal feed before cut to save paper
+    parts.push(CMD.BOLD_OFF, CMD.DOUBLE_STRIKE_OFF, CMD.SIZE_NORMAL);
+    parts.push(CMD.FEED(1)); // just enough to clear the cutter — was 3
     parts.push(CMD.CUT);
 
     await this.write(this.concat(...parts));
