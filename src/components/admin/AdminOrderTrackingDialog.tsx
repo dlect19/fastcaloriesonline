@@ -34,6 +34,7 @@ interface Order {
   order_number: string;
   status: string;
   delivery_type: string;
+  channel?: string | null;
   rider_id: string | null;
   vendor_id: string;
   user_id: string;
@@ -1358,7 +1359,7 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
           <span>Created: {format(new Date(activeOrder.created_at), 'PP p')}</span>
           <span>Updated: {format(new Date(activeOrder.updated_at), 'PP p')}</span>
           <span>Payment: {activeOrder.payment_status}</span>
-          <span>Type: {activeOrder.delivery_type?.replace(/_/g, ' ') || 'delivery'}</span>
+          <span>Type: {activeOrder.channel === 'pos' ? 'POS in-store sale' : (activeOrder.delivery_type?.replace(/_/g, ' ') || 'delivery')}</span>
         </div>
       </DialogContent>
     </Dialog>
