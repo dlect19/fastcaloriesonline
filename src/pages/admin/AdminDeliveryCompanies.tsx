@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Truck, CheckCircle2, XCircle, Search, Percent, Loader2 } from 'lucide-react';
+import { Truck, CheckCircle2, XCircle, Search, Percent, Loader2, Wallet } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,12 +8,14 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { AdminLayout } from '@/components/admin/AdminLayout';
+import { AdminEntityWalletDialog } from '@/components/admin/AdminEntityWalletDialog';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 
 interface DeliveryCompany {
   id: string;
+  user_id: string | null;
   name: string;
   email: string | null;
   phone: string | null;
@@ -38,6 +40,8 @@ export default function AdminDeliveryCompanies() {
   const [commissionDialogOpen, setCommissionDialogOpen] = useState(false);
   const [newCommission, setNewCommission] = useState('');
   const [saving, setSaving] = useState(false);
+  const [walletDialogOpen, setWalletDialogOpen] = useState(false);
+  const [walletCompany, setWalletCompany] = useState<DeliveryCompany | null>(null);
 
   useEffect(() => {
     fetchCompanies();
@@ -228,6 +232,17 @@ export default function AdminDeliveryCompanies() {
                           variant="outline"
                           size="sm"
                           onClick={() => {
+                            setWalletCompany(company);
+                            setWalletDialogOpen(true);
+                          }}
+                        >
+                          <Wallet className="w-4 h-4 mr-1" />
+                          Transactions
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
                             setSelectedCompany(company);
                             setNewCommission(String(company.commission_rate));
                             setCommissionDialogOpen(true);
@@ -285,6 +300,15 @@ export default function AdminDeliveryCompanies() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AdminEntityWalletDialog
+        open={walletDialogOpen}
+        onOpenChange={setWalletDialogOpen}
+        userId={walletCompany?.user_id || null}
+        walletType="delivery_company"
+        entityName={walletCompany?.name || 'Delivery Company'}
+        subLabel="Logistics Partner"
+      />
     </AdminLayout>
   );
 }

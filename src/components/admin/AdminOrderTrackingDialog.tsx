@@ -891,27 +891,57 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
             {orderFinancials && (
               <>
                 <Separator />
-                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">After Platform Commission</p>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                  <div>
-                    <span className="text-muted-foreground">Vendor Payout</span>
-                    <p className="font-semibold text-green-600">₦{Number(orderFinancials.vendor_payout).toLocaleString()}</p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Vendor Commission</span>
-                    <p className="font-medium text-destructive">₦{Number(orderFinancials.vendor_commission_amount).toLocaleString()}</p>
-                  </div>
-                  {orderFinancials.rider_share !== null && (
-                    <div>
-                      <span className="text-muted-foreground">Rider Share</span>
-                      <p className="font-semibold text-green-600">₦{Number(orderFinancials.rider_share).toLocaleString()}</p>
+                {activeOrder.channel === 'pos' ? (
+                  <>
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">POS In-Store Sale</p>
+                    <div className="rounded-lg border border-purple-200 bg-purple-50/40 p-2 text-xs space-y-1">
+                      <p className="text-purple-700 font-medium">
+                        Customer paid the vendor directly in-store. No funds passed through the platform.
+                      </p>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+                        <div>
+                          <span className="text-muted-foreground">Cash Collected by Vendor</span>
+                          <p className="font-semibold">₦{Number(orderFinancials.vendor_payout).toLocaleString()}</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Platform Commission</span>
+                          <p className="font-semibold text-muted-foreground">₦0 (waived)</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Platform Revenue</span>
+                          <p className="font-semibold text-muted-foreground">₦0</p>
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-purple-700/80 pt-1">
+                        Not added to vendor's withdrawable wallet balance.
+                      </p>
                     </div>
-                  )}
-                  <div>
-                    <span className="text-muted-foreground">Platform Revenue</span>
-                    <p className="font-semibold text-primary">₦{Number(orderFinancials.company_revenue).toLocaleString()}</p>
-                  </div>
-                </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">After Platform Commission</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                      <div>
+                        <span className="text-muted-foreground">Vendor Payout</span>
+                        <p className="font-semibold text-green-600">₦{Number(orderFinancials.vendor_payout).toLocaleString()}</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Vendor Commission</span>
+                        <p className="font-medium text-destructive">₦{Number(orderFinancials.vendor_commission_amount).toLocaleString()}</p>
+                      </div>
+                      {orderFinancials.rider_share !== null && (
+                        <div>
+                          <span className="text-muted-foreground">Rider Share</span>
+                          <p className="font-semibold text-green-600">₦{Number(orderFinancials.rider_share).toLocaleString()}</p>
+                        </div>
+                      )}
+                      <div>
+                        <span className="text-muted-foreground">Platform Revenue</span>
+                        <p className="font-semibold text-primary">₦{Number(orderFinancials.company_revenue).toLocaleString()}</p>
+                      </div>
+                    </div>
+                  </>
+                )}
                 {/* Recalculate Button */}
                 <div className="flex justify-end pt-1">
                   <Button
