@@ -93,56 +93,64 @@ export function PosReceiptPreviewDialog({ open, onOpenChange, receipt, hasPrinte
 
         {/* Receipt preview */}
         <div className="flex-1 overflow-y-auto -mx-6 px-6">
-          <div className="mx-auto bg-card border rounded-lg p-4 font-mono text-xs leading-relaxed" style={{ maxWidth: 280 }}>
+          <div
+            className="mx-auto bg-white text-black border rounded-lg p-3 font-mono leading-tight"
+            style={{ maxWidth: 300, fontWeight: 700 }}
+          >
             {receipt.storeLogoUrl && (
-              <div className="flex justify-center mb-2">
-                <img src={receipt.storeLogoUrl} alt="" className="max-h-12" />
+              <div className="flex justify-center mb-1">
+                <img src={receipt.storeLogoUrl} alt="" className="max-h-14" />
               </div>
             )}
-            <p className="text-center font-bold text-sm">{receipt.storeName}</p>
-            {receipt.storeAddress && <p className="text-center text-[10px]">{receipt.storeAddress}</p>}
-            {receipt.storePhone && <p className="text-center text-[10px]">Tel: {receipt.storePhone}</p>}
+            <p className="text-center font-extrabold text-lg tracking-wide">{receipt.storeName}</p>
+            {receipt.storeAddress && <p className="text-center text-xs">{receipt.storeAddress}</p>}
+            {receipt.storePhone && <p className="text-center text-xs">Tel: {receipt.storePhone}</p>}
 
-            <div className="border-t border-dashed my-2" />
+            <div className="border-t-2 border-dashed border-black my-2" />
 
-            <div className="flex justify-between"><span>Receipt:</span><span className="font-bold">{receipt.receiptNumber}</span></div>
-            <div className="flex justify-between"><span>Date:</span><span>{receipt.date.toLocaleString()}</span></div>
-            {receipt.cashierName && <div className="flex justify-between"><span>Cashier:</span><span>{receipt.cashierName}</span></div>}
-            {receipt.customerName && <div className="flex justify-between"><span>Customer:</span><span>{receipt.customerName}</span></div>}
-            {receipt.customerPhone && <div className="flex justify-between"><span>Phone:</span><span>{receipt.customerPhone}</span></div>}
+            <div className="flex justify-between text-xs"><span>Receipt#</span><span className="font-bold">{receipt.receiptNumber}</span></div>
+            <div className="flex justify-between text-xs"><span>Date</span><span>{receipt.date.toLocaleString()}</span></div>
+            {receipt.cashierName && <div className="flex justify-between text-xs"><span>Cashier</span><span>{receipt.cashierName}</span></div>}
+            {receipt.customerName && <div className="flex justify-between text-xs"><span>Customer</span><span>{receipt.customerName}</span></div>}
+            {receipt.customerPhone && <div className="flex justify-between text-xs"><span>Phone</span><span>{receipt.customerPhone}</span></div>}
 
-            <div className="border-t border-dashed my-2" />
+            <div className="border-t-2 border-dashed border-black my-2" />
 
             {receipt.items.map((it, i) => (
-              <div key={i} className="mb-1">
-                <div className="flex justify-between">
-                  <span className="truncate pr-2">{it.qty} × {it.name}</span>
-                  <span>₦{it.price.toLocaleString()}</span>
+              <div key={i} className="mb-1.5">
+                <div className="text-sm font-extrabold break-words">{it.qty} × {it.name}</div>
+                <div className="flex justify-between text-xs">
+                  <span>&nbsp;&nbsp;@ ₦{(it.price / Math.max(it.qty, 1)).toFixed(2)}</span>
+                  <span className="font-bold">₦{it.price.toLocaleString()}</span>
                 </div>
-                {it.calories ? <p className="text-[10px] text-muted-foreground">{it.calories * it.qty} kcal</p> : null}
+                {it.calories ? <p className="text-[10px] text-neutral-600">&nbsp;&nbsp;{(it.calories * it.qty).toFixed(0)} kcal</p> : null}
               </div>
             ))}
 
-            <div className="border-t border-dashed my-2" />
+            <div className="border-t-2 border-dashed border-black my-2" />
 
-            <div className="flex justify-between font-bold text-sm">
+            <div className="flex justify-between font-extrabold text-lg">
               <span>TOTAL</span><span>₦{receipt.total.toLocaleString()}</span>
             </div>
-            <div className="flex justify-between"><span>Paid ({receipt.paymentMethod}):</span><span>₦{receipt.amountPaid.toLocaleString()}</span></div>
+            <div className="flex justify-between text-sm font-bold mt-0.5">
+              <span>Paid ({receipt.paymentMethod})</span><span>₦{(receipt.amountPaid ?? receipt.total).toLocaleString()}</span>
+            </div>
             {receipt.change > 0 && (
-              <div className="flex justify-between"><span>Change:</span><span>₦{receipt.change.toLocaleString()}</span></div>
+              <div className="flex justify-between text-sm font-bold">
+                <span>Change</span><span>₦{receipt.change.toLocaleString()}</span>
+              </div>
             )}
 
             {receipt.totalCalories ? (
               <>
-                <div className="border-t border-dashed my-2" />
-                <p className="text-center">Total: {receipt.totalCalories} kcal</p>
+                <div className="border-t-2 border-dashed border-black my-2" />
+                <p className="text-center text-xs">Total: {receipt.totalCalories} kcal</p>
               </>
             ) : null}
 
-            <div className="border-t border-dashed my-2" />
-            <p className="text-center">Thank you for your purchase!</p>
-            <p className="text-center text-[10px] text-muted-foreground mt-2">Powered by Fast Calories</p>
+            <div className="border-t-2 border-dashed border-black my-2" />
+            <p className="text-center text-xs font-bold">Thank you for your purchase!</p>
+            <p className="text-center text-[10px] text-neutral-500 mt-1">Powered by Fast Calories</p>
           </div>
         </div>
 
