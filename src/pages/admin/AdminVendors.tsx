@@ -7,12 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
-import { Check, X, Loader2, FlaskConical, ShieldCheck, Mail } from 'lucide-react';
+import { Check, X, Loader2, FlaskConical, ShieldCheck, Mail, Wallet } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { VendorCoordinateEditor } from '@/components/admin/VendorCoordinateEditor';
 import { AdminVendorNameEditor } from '@/components/admin/AdminVendorNameEditor';
 import { AdminOutletList } from '@/components/admin/AdminOutletList';
 import { AdminChangeEmailDialog } from '@/components/admin/AdminChangeEmailDialog';
+import { AdminEntityWalletDialog } from '@/components/admin/AdminEntityWalletDialog';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 
 export default function AdminVendors() {
@@ -25,6 +26,9 @@ export default function AdminVendors() {
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [selectedVendorUserId, setSelectedVendorUserId] = useState<string | null>(null);
   const [selectedVendorName, setSelectedVendorName] = useState('');
+  const [walletDialogOpen, setWalletDialogOpen] = useState(false);
+  const [walletUserId, setWalletUserId] = useState<string | null>(null);
+  const [walletEntityName, setWalletEntityName] = useState('');
 
 
   useEffect(() => {
