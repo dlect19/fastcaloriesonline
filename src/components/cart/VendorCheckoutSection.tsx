@@ -331,6 +331,27 @@ export function VendorCheckoutSection({
           }, 0)
         : group.subtotal;
 
+      // Resolve outlet_id: prefer the group's outlet, otherwise fall back to the
+      // vendor's default (or first active) outlet so the order is never orphaned.
+      let resolvedOutletId: string | null = group.outletId || null;
+      if (!resolvedOutletId) {
+        const { data: fallbackOutlets } = await supabase
+          .from('vendor_outlets')
+          .select('id, is_default, is_active, is_approved, created_at')
+          .eq('vendor_id', group.vendorId)
+          .eq('is_active', true)
+          .eq('is_approved', true)
+          .order('is_default', { ascending: false })
+          .order('created_at', { ascending: true })
+          .limit(1);
+        resolvedOutletId = fallbackOutlets?.[0]?.id ?? null;
+        if (!resolvedOutletId) {
+          console.warn(
+            `[checkout] No active outlet found for vendor ${group.vendorId}; order will have no outlet_id`
+          );
+        }
+      }
+
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert({
@@ -355,7 +376,7 @@ export function VendorCheckoutSection({
           status: 'pending',
           payment_status: 'pending',
           payment_method: 'wallet',
-          outlet_id: group.outletId || null,
+          outlet_id: resolvedOutletId,
           package_count: packageCount,
           extra_package_fee: extraPackageFee,
           is_free_meal: hasFreeMealItems,
