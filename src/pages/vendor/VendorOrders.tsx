@@ -472,10 +472,10 @@ export default function VendorOrders() {
   };
 
   const activeOrders = orders.filter((o) =>
-    ['pending', 'confirmed', 'preparing', 'ready_for_pickup', 'searching_for_rider', 'assigned'].includes(o.status)
+    ['pending', 'confirmed', 'preparing', 'ready_for_pickup', 'searching_for_rider', 'assigned', 'picked_up', 'on_the_way'].includes(o.status)
   );
   const completedOrders = orders.filter((o) =>
-    ['delivered', 'cancelled', 'picked_up', 'on_the_way'].includes(o.status)
+    ['delivered', 'cancelled'].includes(o.status)
   );
 
   const completedTotalPages = Math.ceil(completedOrders.length / ITEMS_PER_PAGE);
