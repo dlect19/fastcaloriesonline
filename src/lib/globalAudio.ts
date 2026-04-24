@@ -79,6 +79,32 @@ async function unlockAudio() {
   if (!isUnlocked) {
     isUnlocked = true;
     console.log('[GlobalAudio] Audio unlocked via user interaction');
+    startKeepAlive();
+  }
+}
+
+// ----- Keep-alive: a near-silent looping Web Audio source keeps the tab
+// considered "playing audio", which prevents Chrome from suspending the
+// AudioContext and from throttling our timers in background tabs. -----
+let keepAliveStarted = false;
+function startKeepAlive() {
+  if (keepAliveStarted) return;
+  const ctx = ensureAudioContext();
+  if (!ctx) return;
+  try {
+    // 1-second silent buffer, looped forever
+    const buffer = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.loop = true;
+    const gain = ctx.createGain();
+    gain.gain.value = 0.0001; // effectively silent
+    src.connect(gain).connect(ctx.destination);
+    src.start(0);
+    keepAliveStarted = true;
+    console.log('[GlobalAudio] Keep-alive silent track started');
+  } catch (e) {
+    console.warn('[GlobalAudio] Keep-alive failed:', e);
   }
 }
 
