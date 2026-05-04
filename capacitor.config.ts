@@ -3,7 +3,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const serverUrl = process.env.CAP_SERVER_URL;
 
 const config: CapacitorConfig = {
-  appId: 'com.fastcalories.customer',
+  appId: 'com.fastcalories.app',
   appName: 'Fast Calories',
   webDir: 'dist',
   ...(serverUrl
