@@ -310,10 +310,11 @@ serve(async (req) => {
       const items = cart.map((c) => ({
         order_id: order.id,
         product_id: c.id,
+        product_name: c.name,
         quantity: c.qty,
-        unit_price: c.price,
-        subtotal: Number(c.price) * c.qty,
-        calories: c.calories ?? null,
+        unit_price: Number(c.price) || 0,
+        total_price: (Number(c.price) || 0) * Number(c.qty),
+        calories: c.calories ?? 0,
       }));
       await supabase.from("order_items").insert(items);
 
