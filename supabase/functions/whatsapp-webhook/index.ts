@@ -361,10 +361,16 @@ function renderCart(cart: any[]): string {
   return `🛒 *Your Cart*\n\n${lines.join("\n")}\n\n*Total: ₦${total.toLocaleString()}*`;
 }
 
-async function fetchVendors(supabase: any, userId: string | null) {
-  // Try to use customer's last delivery address coords if available, else fall back to top vendors
-  let lat: number | null = null, lon: number | null = null;
-  if (userId) {
+async function fetchVendors(
+  supabase: any,
+  userId: string | null,
+  overrideLat: number | null = null,
+  overrideLon: number | null = null,
+) {
+  let lat: number | null = overrideLat;
+  let lon: number | null = overrideLon;
+  // If no shared coords, try saved customer address
+  if ((lat === null || lon === null) && userId) {
     const { data: addr } = await supabase
       .from("delivery_addresses").select("latitude, longitude")
       .eq("user_id", userId).order("is_default", { ascending: false }).limit(1).maybeSingle();
