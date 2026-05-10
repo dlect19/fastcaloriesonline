@@ -52,9 +52,28 @@ export default function Orders() {
     }
     if (user) {
       fetchOrders();
+      fetchCancelSettings();
       subscribeToOrders();
     }
   }, [user, authLoading, navigate]);
+
+  const fetchCancelSettings = async () => {
+    try {
+      const { data } = await supabase
+        .from('platform_settings')
+        .select('key, value')
+        .in('key', ['customer_cancel_enabled', 'customer_cancel_countdown_minutes']);
+      if (data) {
+        const map = Object.fromEntries(data.map((s: any) => [s.key, s.value]));
+        setCancelSettings({
+          enabled: map['customer_cancel_enabled'] !== 'false',
+          countdownMinutes: parseInt(map['customer_cancel_countdown_minutes'] || '3') || 3,
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching cancel settings:', err);
+    }
+  };
 
   const subscribeToOrders = () => {
     if (!user) return;
