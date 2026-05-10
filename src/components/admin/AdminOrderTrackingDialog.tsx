@@ -926,7 +926,18 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
                   )}
                 </p>
               </div>
-              <div><span className="text-muted-foreground">Delivery Fee</span><p className="font-medium">₦{Number(activeOrder.delivery_fee || 0).toLocaleString()}</p></div>
+              <div>
+                <span className="text-muted-foreground">Delivery Fee</span>
+                <p className="font-medium">
+                  ₦{Number(activeOrder.delivery_fee || 0).toLocaleString()}
+                  {Number(surgeInfo?.total_surge_bonus || 0) > 0 && (
+                    <span className="text-orange-600 text-[10px] ml-1">(incl. ₦{Number(surgeInfo!.total_surge_bonus).toLocaleString()} surge)</span>
+                  )}
+                </p>
+              </div>
+              {Number(surgeInfo?.total_surge_bonus || 0) > 0 && (
+                <div><span className="text-muted-foreground">Surge Fee</span><p className="font-medium text-orange-600">+₦{Number(surgeInfo!.total_surge_bonus).toLocaleString()}</p></div>
+              )}
               <div><span className="text-muted-foreground">Service Fee</span><p className="font-medium">₦{Number(activeOrder.service_fee || 0).toLocaleString()}</p></div>
               {Number(activeOrder.discount || 0) > 0 && (
                 <div><span className="text-muted-foreground">Discount</span><p className="font-medium text-green-600">-₦{Number(activeOrder.discount || 0).toLocaleString()}</p></div>
