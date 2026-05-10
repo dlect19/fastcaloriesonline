@@ -161,6 +161,15 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
     company_revenue: number;
     service_fee_amount: number | null;
   } | null>(null);
+  const [surgeInfo, setSurgeInfo] = useState<{
+    time_period: string | null;
+    weather_condition: string | null;
+    time_surge_bonus: number | null;
+    weather_surge_bonus: number | null;
+    total_surge_bonus: number | null;
+    distance_km: number | null;
+    delivery_fee: number | null;
+  } | null>(null);
 
   // Vendor countdown
   const [vendorElapsed, setVendorElapsed] = useState(0);
@@ -304,6 +313,27 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
       });
     } else {
       setOrderFinancials(null);
+    }
+
+    // Surge / dispatch offer info (latest)
+    const { data: dr } = await supabase
+      .from('dispatch_requests')
+      .select('id')
+      .eq('order_id', o.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (dr) {
+      const { data: off } = await supabase
+        .from('dispatch_offers')
+        .select('time_period, weather_condition, time_surge_bonus, weather_surge_bonus, total_surge_bonus, distance_km, delivery_fee')
+        .eq('dispatch_request_id', dr.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      setSurgeInfo(off ?? null);
+    } else {
+      setSurgeInfo(null);
     }
   }, []);
 
@@ -906,6 +936,33 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
               )}
               <div><span className="text-muted-foreground">Total</span><p className="font-semibold text-primary">₦{Number(activeOrder.total).toLocaleString()}</p></div>
             </div>
+
+            {surgeInfo && (Number(surgeInfo.total_surge_bonus || 0) > 0 || surgeInfo.weather_condition || surgeInfo.time_period) && (
+              <>
+                <Separator />
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Surge & Dispatch</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  {surgeInfo.distance_km != null && (
+                    <div><span className="text-muted-foreground">Distance</span><p className="font-medium">{Number(surgeInfo.distance_km).toFixed(2)} km</p></div>
+                  )}
+                  {surgeInfo.time_period && (
+                    <div><span className="text-muted-foreground">Time Period</span><p className="font-medium capitalize">{surgeInfo.time_period}</p></div>
+                  )}
+                  {surgeInfo.weather_condition && (
+                    <div><span className="text-muted-foreground">Weather</span><p className="font-medium capitalize">{surgeInfo.weather_condition}</p></div>
+                  )}
+                  {Number(surgeInfo.time_surge_bonus || 0) > 0 && (
+                    <div><span className="text-muted-foreground">Time Surge</span><p className="font-medium text-orange-600">+₦{Number(surgeInfo.time_surge_bonus).toLocaleString()}</p></div>
+                  )}
+                  {Number(surgeInfo.weather_surge_bonus || 0) > 0 && (
+                    <div><span className="text-muted-foreground">Weather Surge</span><p className="font-medium text-orange-600">+₦{Number(surgeInfo.weather_surge_bonus).toLocaleString()}</p></div>
+                  )}
+                  {Number(surgeInfo.total_surge_bonus || 0) > 0 && (
+                    <div><span className="text-muted-foreground">Total Surge</span><p className="font-semibold text-orange-600">+₦{Number(surgeInfo.total_surge_bonus).toLocaleString()}</p></div>
+                  )}
+                </div>
+              </>
+            )}
 
             {orderFinancials && (
               <>
