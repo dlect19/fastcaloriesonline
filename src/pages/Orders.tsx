@@ -10,8 +10,11 @@ import { PaginationControls } from '@/components/shared/PaginationControls';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables } from '@/integrations/supabase/types';
+import { CustomerCancelOrderDialog } from '@/components/order/CustomerCancelOrderDialog';
 
 type Order = Tables<'orders'>;
+
+const CANCELABLE_STATUSES = ['pending', 'confirmed'];
 
 const statusConfig: Record<string, { label: string; color: string; icon: typeof Clock }> = {
   pending: { label: 'Pending', color: 'bg-warning/10 text-warning', icon: Clock },
