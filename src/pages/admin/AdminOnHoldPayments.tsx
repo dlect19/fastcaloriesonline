@@ -191,17 +191,58 @@ export default function AdminOnHoldPayments() {
         </Card>
       </div>
 
+      <Card className="mb-4">
+        <CardContent className="p-4 grid grid-cols-1 md:grid-cols-6 gap-3">
+          <div className="md:col-span-2 relative">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search party, order #, reason..."
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              className="pl-9"
+            />
+          </div>
+          <Select value={partyFilter} onValueChange={(v) => { setPartyFilter(v); setPage(1); }}>
+            <SelectTrigger><SelectValue placeholder="Party type" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Parties</SelectItem>
+              <SelectItem value="vendor">Vendor</SelectItem>
+              <SelectItem value="rider">Rider</SelectItem>
+              <SelectItem value="delivery_company">Logistics Co.</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={sourceFilter} onValueChange={(v) => { setSourceFilter(v); setPage(1); }}>
+            <SelectTrigger><SelectValue placeholder="Source" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Sources</SelectItem>
+              <SelectItem value="settlement_period">Settlement Period</SelectItem>
+              <SelectItem value="suspension">Suspended</SelectItem>
+              <SelectItem value="failed_payout">Payout Failed</SelectItem>
+            </SelectContent>
+          </Select>
+          <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }} />
+          <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1); }} />
+          <div className="md:col-span-6 flex items-center gap-2 justify-end">
+            <Button variant="outline" size="sm" onClick={resetFilters}>Reset</Button>
+            <Button variant="outline" size="sm" onClick={exportCsv} disabled={filtered.length === 0}>
+              <Download className="w-4 h-4 mr-1" /> Export CSV
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
-          <CardTitle>Holds Queue ({rows.length})</CardTitle>
+          <CardTitle>Holds Queue ({filtered.length})</CardTitle>
         </CardHeader>
         <CardContent>
-          {rows.length === 0 ? (
+          {filtered.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <ShieldCheck className="w-10 h-10 mx-auto mb-3 text-green-500" />
-              No payments are currently on hold.
+              {rows.length === 0 ? 'No payments are currently on hold.' : 'No holds match your filters.'}
             </div>
           ) : (
+            <>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
@@ -211,12 +252,12 @@ export default function AdminOnHoldPayments() {
                     <th className="text-left py-3 px-3 font-medium text-sm">Source</th>
                     <th className="text-left py-3 px-3 font-medium text-sm">Reason</th>
                     <th className="text-right py-3 px-3 font-medium text-sm">Amount</th>
-                    <th className="text-left py-3 px-3 font-medium text-sm">Held</th>
+                    <th className="text-left py-3 px-3 font-medium text-sm">Held Since</th>
                     <th className="text-right py-3 px-3 font-medium text-sm">Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((r) => (
+                  {paginated.map((r) => (
                     <tr key={r.hold_key} className="border-b hover:bg-secondary/40">
                       <td className="py-3 px-3 font-medium">{r.party_name || '—'}</td>
                       <td className="py-3 px-3">
@@ -230,7 +271,8 @@ export default function AdminOnHoldPayments() {
                       <td className="py-3 px-3 text-sm text-muted-foreground max-w-[280px]">{r.reason}</td>
                       <td className="py-3 px-3 text-right font-semibold">₦{Number(r.amount).toLocaleString()}</td>
                       <td className="py-3 px-3 text-xs text-muted-foreground">
-                        {r.held_since ? formatDistanceToNow(new Date(r.held_since), { addSuffix: true }) : '—'}
+                        <div>{r.held_since ? format(new Date(r.held_since), 'MMM d, yyyy') : '—'}</div>
+                        <div className="opacity-70">{r.held_since ? format(new Date(r.held_since), 'HH:mm') : ''} · {r.held_since ? formatDistanceToNow(new Date(r.held_since), { addSuffix: true }) : ''}</div>
                       </td>
                       <td className="py-3 px-3 text-right">
                         <Button size="sm" onClick={() => openResolve(r)}>Resolve</Button>
@@ -240,9 +282,25 @@ export default function AdminOnHoldPayments() {
                 </tbody>
               </table>
             </div>
+            <div className="flex items-center justify-between mt-4 text-sm">
+              <p className="text-muted-foreground">
+                Showing {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, filtered.length)} of {filtered.length}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" disabled={currentPage <= 1} onClick={() => setPage(p => p - 1)}>
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <span>Page {currentPage} / {totalPages}</span>
+                <Button variant="outline" size="sm" disabled={currentPage >= totalPages} onClick={() => setPage(p => p + 1)}>
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+            </>
           )}
         </CardContent>
       </Card>
+
 
       <Dialog open={!!active} onOpenChange={(o) => !o && setActive(null)}>
         <DialogContent className="max-w-lg">
