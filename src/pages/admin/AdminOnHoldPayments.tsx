@@ -51,6 +51,15 @@ export default function AdminOnHoldPayments() {
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // Filters
+  const [search, setSearch] = useState('');
+  const [partyFilter, setPartyFilter] = useState<string>('all');
+  const [sourceFilter, setSourceFilter] = useState<string>('all');
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
+
   useEffect(() => {
     checkAuth();
     fetchHolds();
