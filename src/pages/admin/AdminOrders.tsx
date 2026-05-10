@@ -59,6 +59,10 @@ export default function AdminOrders() {
   const filteredOrders = useMemo(() => {
     let result = orders;
 
+    // Channel tab (POS vs Online)
+    if (channelTab === 'pos') result = result.filter(o => o.channel === 'pos');
+    else result = result.filter(o => o.channel !== 'pos');
+
     // Tab filter
     if (orderTab === 'ongoing') result = result.filter(o => ONGOING_STATUSES.includes(o.status));
     if (orderTab === 'past') result = result.filter(o => PAST_STATUSES.includes(o.status));
