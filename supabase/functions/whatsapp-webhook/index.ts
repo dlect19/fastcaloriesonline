@@ -50,6 +50,9 @@ async function verifyTwilioSignature(req: Request, params: Record<string, string
 
 const HELP_HINT = "\n\nReply *menu* anytime to restart, or *cart* to see your basket.";
 
+const APP_BASE = "https://app.fastcalories.online";
+const miniAppUrl = (sessionId: string) => `${APP_BASE}/wa/${sessionId}`;
+
 const MENU_OPTIONS =
   `Reply with a number:\n` +
   `1️⃣ Order food (nearby vendors)\n` +
@@ -336,12 +339,16 @@ serve(async (req) => {
       expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
     }).eq("id", session.id);
 
+    // Append a friendly link to the polished mini-app for any text reply
+    const finalReply = (reply || MAIN_MENU) +
+      `\n\n✨ _Prefer tapping over typing?_\n👉 ${miniAppUrl(session.id)}`;
+
     // Log outbound
     await supabase.from("whatsapp_messages").insert({
-      session_id: session.id, phone, direction: "out", body: reply,
+      session_id: session.id, phone, direction: "out", body: finalReply,
     });
 
-    return twiml(reply || MAIN_MENU);
+    return twiml(finalReply);
   } catch (e) {
     console.error("whatsapp-webhook error:", e);
     return twiml("Sorry, something went wrong. Please try again in a moment.");

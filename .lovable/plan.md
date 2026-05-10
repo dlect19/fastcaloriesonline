@@ -1,78 +1,84 @@
-# WhatsApp Ordering System via Twilio
+# WhatsApp Ordering — Nice UI (Both Tracks)
 
-A conversational ordering channel that lets customers browse vendors, build a cart, checkout, and receive live order updates entirely from WhatsApp — reusing the existing FastCalories order, payment, dispatch, and notification infrastructure.
+Add a polished experience in two layers: tappable interactive messages **inside WhatsApp** for quick actions, plus a mobile-first **web mini-app** for the rich browse → cart → checkout flow. WhatsApp messages always include a fallback link so it works even when interactive buttons aren't supported.
 
-## Scope (Phase 1 — shipped now)
+## 1. Web mini-app (primary UI)
 
-This is a large surface area. To deliver something working and avoid a half-built system, Phase 1 ships the core end-to-end flow. Phase 2 items are listed but not built yet.
+New public route: `/wa/:sessionId`
 
-### Phase 1 — Core flow
-1. Twilio connector wiring (WhatsApp send/receive via Twilio Messages API through the Lovable connector gateway).
-2. Inbound webhook edge function `whatsapp-webhook` (public, signature-verified) that:
-   - Parses Twilio webhook payloads.
-   - Resolves/creates a `whatsapp_session` keyed by phone number.
-   - Routes messages through a state machine (menu → vendor list → menu items → cart → checkout).
-3. Outbound sender edge function `whatsapp-send` (internal, used by triggers and admin) that posts to Twilio.
-4. Conversation state machine supporting:
-   - `Hi` → main menu (Order / Track / Nearby vendors / Healthy suggestions / Support).
-   - Nearby vendors (reuses existing nearby-outlet logic, top 5 by distance).
-   - Vendor menu listing (numbered, price + calories).
-   - Cart add / remove / qty / view.
-   - Checkout → generates a Paystack payment link reusing the existing wallet/order flow, replies with URL.
-5. Order linkage: on successful payment webhook, mark the WhatsApp order as paid and reply with confirmation. Subscribe to `orders` status changes (DB trigger → `whatsapp-send`) for: confirmed, preparing, rider assigned, nearby, delivered.
-6. AI meal suggestions: free-text like "low calorie breakfast" routed to Lovable AI (`google/gemini-2.5-flash`) with vendor menu context, returns top 3 picks with add-to-cart shortcuts.
-7. Admin page `/admin/whatsapp` with tabs:
-   - Active sessions (phone, last activity, current state, cart items).
-   - Order logs (WhatsApp-originated orders).
-   - Twilio status (uses connector verify endpoint).
-   - Toggle: enable/disable WhatsApp ordering globally (platform setting).
-   - Basic conversion stats (sessions started → orders placed → paid).
-8. Security: Twilio request signature validation, per-phone rate limit, session TTL (30 min idle), duplicate-submission guard via idempotency key on order creation.
+Mobile-first single-page flow (uses existing design tokens, shadcn components):
 
-### Phase 2 — Not in this build (call out to user)
-- Multi-package orders inside WhatsApp (complex UX — needs separate pass).
-- Rider/vendor receiving WhatsApp notifications (currently they get in-app + push; can extend later).
-- Voice ordering, multi-language, marketing broadcasts.
-- Twilio Business API onboarding (sandbox works for dev; production requires Meta-approved templates and a verified WhatsApp sender — user-side setup).
+```
+┌──────────────────────────────┐
+│  FastCalories  •  WhatsApp    │  ← branded header with phone masked
+├──────────────────────────────┤
+│  📍 Use my location  [btn]    │
+│  Or pick on map / saved addr  │
+├──────────────────────────────┤
+│  🏪 Nearby Vendors            │
+│  ┌──────┐ ┌──────┐ ┌──────┐  │  ← horizontal vendor cards w/ logo,
+│  │ Img  │ │ Img  │ │ Img  │  │    distance, rating
+│  └──────┘ └──────┘ └──────┘  │
+├──────────────────────────────┤
+│  📋 Vendor menu (on tap)      │
+│  • Item card: image, price,   │
+│    calories, qty stepper      │
+├──────────────────────────────┤
+│  🛒 Sticky cart bar           │
+│  "3 items • ₦4,500 — Checkout"│
+└──────────────────────────────┘
+```
 
-## Database changes
+Key features:
+- Reads/writes the same `whatsapp_sessions.cart` row as the bot (so chat + web stay in sync)
+- Pulls vendors via existing `get-nearby-vendors` edge function
+- Pulls menu items from `products` table (filters by vendor + `is_available`)
+- "Continue in app" CTA at checkout → existing `/cart?wa=:sessionId` handoff (already wired)
+- Real-time order status block once an order exists for the session
 
-New tables (all RLS-enabled, admin-only via `has_role`):
+### Routing & access
+- Public route, no auth required (sessionId acts as the bearer)
+- Add basic rate limiting: 60 requests/min per session via in-memory map in a new edge function `wa-session` that proxies reads/writes
 
-- `whatsapp_sessions` — `phone`, `customer_user_id` (nullable, linked when matched), `state` (enum-ish text: `idle|menu|browsing_vendors|browsing_menu|cart|checkout`), `context` (jsonb: selected_vendor_id, last_menu_page, etc.), `cart` (jsonb array), `last_message_at`, `expires_at`.
-- `whatsapp_messages` — `session_id`, `direction` (`in|out`), `body`, `twilio_sid`, `created_at`. (Logging + admin view.)
-- `whatsapp_orders` — `session_id`, `order_id` (FK to existing `orders`), `payment_link`, `status`, timestamps. Bridge so existing orders stay untouched.
-- `platform_settings` row: `whatsapp_ordering_enabled` boolean (or extend existing settings table if present).
+### New edge function: `wa-session`
+- `GET ?sid=...` → returns `{ phone (masked), cart, customer_user_id, vendors?, ... }`
+- `POST { sid, action }` where action is one of:
+  - `set_location { lat, lon, label }`
+  - `add_item { vendor_id, product_id }`
+  - `update_qty { product_id, qty }`
+  - `remove_item { product_id }`
+  - `clear_cart`
+- All writes update the same `whatsapp_sessions` row using service-role key
+- Validates session exists & not expired (extends `expires_at` on each call)
 
-Trigger: on `orders` status change, if `orders.id` exists in `whatsapp_orders`, enqueue an outbound message via `pg_net` → `whatsapp-send`.
+## 2. Interactive WhatsApp messages
 
-## Edge functions
+Upgrade `whatsapp-webhook/index.ts` to return Twilio **Quick Reply** and **List Picker** content where the channel supports it:
 
-- `whatsapp-webhook` (verify_jwt=false, public): receives Twilio inbound, validates signature using `TWILIO_AUTH_TOKEN`, dispatches to state machine, replies via TwiML or async send.
-- `whatsapp-send` (verify_jwt=true, internal): posts message via Twilio connector gateway. Used by triggers and admin actions.
-- `whatsapp-checkout` (verify_jwt=false, called from state machine): creates a pending order + Paystack init, returns hosted payment URL. Reuses existing payment-init helpers.
+- Greeting/menu → 3 Quick Reply buttons: `Order food`, `Track order`, `Support` + a "🌐 Open mini-app" link
+- Vendor list (>3 items) → List Picker with up to 10 vendors (name + distance subtitle)
+- Menu items → List Picker grouped by category
+- Every interactive message also sends the existing numbered text as fallback (so sandbox / unsupported clients keep working today)
 
-All Twilio calls go through the connector gateway pattern (`https://connector-gateway.lovable.dev/twilio/Messages.json`) using `TWILIO_API_KEY` + `LOVABLE_API_KEY`.
+Implementation detail: Twilio's TwiML `<Message>` doesn't carry interactive payloads — we'll send interactive replies via the **Twilio Content API** (`/Content` + `/Messages` with `ContentSid`) through the existing Twilio connector gateway. The webhook still returns an empty TwiML `<Response/>` and pushes the rich reply via the API.
 
-## Frontend
+For the sandbox (development), the bot detects sandbox numbers and falls back to plain text + the mini-app link, since interactive content templates require approval in production WhatsApp Business.
 
-- `src/pages/admin/AdminWhatsApp.tsx` — sessions table, message log drawer, stats cards, enable/disable toggle, Twilio status pill.
-- Sidebar entry under Admin → "WhatsApp" (icon: MessageCircle).
+### Webhook changes
+- New helper `sendInteractive(to, type, payload)` calls Twilio Content API via gateway
+- Every reply path can now include `webLink: \`https://app.fastcalories.online/wa/\${session.id}\``
+- "Open in app" appended to greeting/menu/cart/vendor messages
 
-## Technical details
+## Technical notes
 
-- Session TTL: 30 min sliding; cron-free approach using `expires_at` checked on each inbound message.
-- Idempotency: WhatsApp message `MessageSid` deduped via unique index on `whatsapp_messages.twilio_sid`.
-- Phone normalization: E.164 stripping `whatsapp:` prefix before matching to `profiles.phone`.
-- Distance/nearby vendors: reuses existing `nearby_outlets` logic via RPC, capped to 5 results.
-- Payment link: uses existing Paystack init flow, callback URL marks the bridged order paid and triggers WhatsApp confirmation.
+- New file: `supabase/functions/wa-session/index.ts` (public, service-role, with input validation via simple TS guards — no new deps)
+- New page: `src/pages/WhatsAppMiniApp.tsx` mounted at `/wa/:sessionId` in `src/App.tsx`
+- New components: `src/components/wa/VendorCard.tsx`, `MenuItemCard.tsx`, `StickyCartBar.tsx`, `LocationPrompt.tsx`
+- No DB schema changes — reuses `whatsapp_sessions` (already has `cart`, `context`, `customer_user_id`)
+- No new secrets — uses existing `TWILIO_API_KEY` and `LOVABLE_API_KEY` (already configured)
 
-## Required setup from user
+## Out of scope
 
-1. **Twilio connector** — connect via the Twilio integration so `TWILIO_API_KEY` is injected. We'll prompt during build.
-2. **TWILIO_AUTH_TOKEN secret** — needed for inbound webhook signature verification (separate from the connector API key). Will request via secrets tool.
-3. **Webhook URL** — after deploy, paste the `whatsapp-webhook` URL into Twilio Console → WhatsApp Sandbox → "When a message comes in".
-
-## Out of scope confirmation
-
-Phase 2 items above will not be built in this pass. If you want any of them now (especially multi-package WhatsApp orders), say which and I'll fold them in.
+- WhatsApp Business template approval workflow (will document for production later)
+- Persisting cart per-vendor history (mini-app uses single active cart, same as bot today)
+- Payment inside the mini-app (still hands off to existing `/cart` flow for wallet/Paystack)

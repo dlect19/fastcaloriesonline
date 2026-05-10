@@ -119,6 +119,7 @@ import DrugTracker from "./pages/DrugTracker";
 import DeleteAccount from "./pages/DeleteAccount";
 import CoverageMap from "./pages/CoverageMap";
 import WorkspaceLogin from "./pages/WorkspaceLogin";
+import WhatsAppMiniApp from "./pages/WhatsAppMiniApp";
 import { playGlobalNotificationSound } from '@/lib/globalAudio';
 import { useFcmNotifications } from '@/hooks/useFcmNotifications';
 import { usePortalMemory } from '@/hooks/usePortalMemory';
@@ -281,6 +282,8 @@ const App = () => {
               {/* Customer App Download Page */}
               <Route path="/get-app" element={<GetApp />} />
               <Route path="/download" element={<GetApp />} />
+              {/* WhatsApp Mini-App */}
+              <Route path="/wa/:sessionId" element={<WhatsAppMiniApp />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
