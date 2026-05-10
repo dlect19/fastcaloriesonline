@@ -715,9 +715,11 @@ async function doCheckout(
     return await replyText("⚠️ Please reply *menu* and follow the setup to create your account first.");
   }
 
+  const { data: envSetting } = await supabase.from("platform_settings").select("value").eq("key", "platform_environment").maybeSingle();
+  const isTestMode = (envSetting?.value || "development") === "development";
   const { data: wallet } = await supabase
-    .from("customer_wallets").select("balance").eq("user_id", session.customer_user_id).maybeSingle();
-  const bal = Number(wallet?.balance || 0);
+    .from("wallets").select("balance, test_balance").eq("user_id", session.customer_user_id).eq("wallet_type", "customer").maybeSingle();
+  const bal = Number((isTestMode ? wallet?.test_balance : wallet?.balance) || 0);
   const subtotal = cartTotal(cart);
   const serviceFee = Math.round(subtotal * 0.08);
   const deliveryFee = 500; // default — actual is computed at order placement
