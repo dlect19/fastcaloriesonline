@@ -624,19 +624,19 @@ async function renderRecentOrders(supabase: any, phone: string, userId: string |
 async function renderWallet(supabase: any, userId: string | null, phone?: string, suggestedAmount = 2000) {
   if (!userId) return "💼 Reply *menu* to set up your account first.";
   const { data: wallet } = await supabase
-    .from("wallets").select("balance, test_balance, is_disabled").eq("user_id", userId).eq("wallet_type", "customer").maybeSingle();
+    .from("wallets").select("id, balance, test_balance, is_disabled").eq("user_id", userId).eq("wallet_type", "customer").maybeSingle();
   if (wallet?.is_disabled) return "💼 Your wallet is disabled. Please contact support.";
   const { data: envSetting } = await supabase.from("platform_settings").select("value").eq("key", "platform_environment").maybeSingle();
   const isTestMode = (envSetting?.value || "development") === "development";
-  const bal = Number(isTestMode ? wallet?.test_balance : wallet?.balance || 0);
-  const { data: txs } = await supabase
-    .from("wallet_transactions").select("type, amount, description, created_at")
-    .eq("user_id", userId).order("created_at", { ascending: false }).limit(5);
+  const bal = Number((isTestMode ? wallet?.test_balance : wallet?.balance) || 0);
+  const { data: txs } = wallet?.id ? await supabase
+    .from("wallet_transactions").select("transaction_type, amount, notes, category, created_at")
+    .eq("wallet_id", wallet.id).order("created_at", { ascending: false }).limit(5) : { data: [] };
   let text = `💼 *Your Wallet*\n\nBalance: *₦${bal.toLocaleString()}*`;
   if (txs?.length) {
     text += `\n\n_Recent transactions:_\n` + txs.map((t: any) => {
-      const sign = t.type === "credit" ? "+" : "-";
-      return `${sign}₦${Number(t.amount).toLocaleString()} — ${t.description || t.type}`;
+      const sign = t.transaction_type === "credit" ? "+" : "-";
+      return `${sign}₦${Number(t.amount).toLocaleString()} — ${t.notes || t.category || t.transaction_type}`;
     }).join("\n");
   }
   const fundingLink = await createWalletFundingLink(supabase, userId, suggestedAmount, phone);
