@@ -21,17 +21,21 @@ export default function AdminWhatsApp() {
   const [loading, setLoading] = useState(true);
   const [testTo, setTestTo] = useState("");
   const [testBody, setTestBody] = useState("Hello from FastCalories 👋");
+  const [templates, setTemplates] = useState<Array<{ template_key: string; content_sid: string; description: string | null }>>([]);
+  const [savingTpl, setSavingTpl] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
-    const [setting, ses, ord] = await Promise.all([
+    const [setting, ses, ord, tpl] = await Promise.all([
       supabase.from("platform_settings").select("value").eq("key", "whatsapp_ordering_enabled").maybeSingle(),
       supabase.from("whatsapp_sessions").select("*").order("last_message_at", { ascending: false }).limit(50),
       supabase.from("whatsapp_orders").select("*, orders(order_number, status, total_amount)").order("created_at", { ascending: false }).limit(50),
+      supabase.from("whatsapp_templates").select("template_key, content_sid, description").order("template_key"),
     ]);
     setEnabled(setting.data?.value === "true");
     setSessions(ses.data || []);
     setOrders(ord.data || []);
+    setTemplates(tpl.data || []);
     const paid = (ord.data || []).filter((o: any) => o.orders?.status && o.orders.status !== "pending").length;
     setStats({
       sessions: (ses.data || []).length,
@@ -42,6 +46,20 @@ export default function AdminWhatsApp() {
   };
 
   useEffect(() => { load(); }, []);
+
+  const saveTemplate = async (key: string, sid: string) => {
+    setSavingTpl(key);
+    const { error } = await supabase
+      .from("whatsapp_templates")
+      .update({ content_sid: sid.trim() })
+      .eq("template_key", key);
+    setSavingTpl(null);
+    if (error) {
+      toast({ title: "Save failed", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Saved", description: `${key} updated.` });
+    }
+  };
 
   const toggleEnabled = async (v: boolean) => {
     setEnabled(v);
@@ -104,6 +122,7 @@ export default function AdminWhatsApp() {
         <TabsList>
           <TabsTrigger value="sessions">Sessions</TabsTrigger>
           <TabsTrigger value="orders">Orders</TabsTrigger>
+          <TabsTrigger value="templates">Tap Templates</TabsTrigger>
           <TabsTrigger value="setup">Setup & Test</TabsTrigger>
         </TabsList>
 
@@ -154,6 +173,49 @@ export default function AdminWhatsApp() {
               </TableBody>
             </Table>
           </CardContent></Card>
+        </TabsContent>
+
+        <TabsContent value="templates">
+          <Card>
+            <CardHeader>
+              <CardTitle>Twilio Content Template SIDs</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm">
+              <div className="rounded-md bg-muted/50 p-3 text-xs space-y-2">
+                <p>To make WhatsApp fully tap-driven, create these <strong>Content Templates</strong> in <a className="underline" target="_blank" rel="noreferrer" href="https://console.twilio.com/us1/develop/sms/content-template-builder">Twilio Console → Content Template Builder</a>, then paste each <code>HX...</code> ContentSid below.</p>
+                <p>Until a SID is saved here, the bot falls back to plain text for that step (still works, just no buttons).</p>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li><code>wa_main_menu</code> / <code>wa_secondary_menu</code> / <code>wa_cart_actions</code> / <code>wa_delivery_choice</code> / <code>wa_confirm_order</code> / <code>wa_account_setup</code> / <code>wa_request_location</code> → <strong>Quick Reply</strong> (twilio/quick-reply)</li>
+                  <li><code>wa_vendor_list</code> / <code>wa_menu_list</code> → <strong>List Picker</strong> (twilio/list-picker), with rows <code>v1..v10</code> / <code>i1..i10</code> bound to <code>{`{{1}}..{{10}}`}</code></li>
+                  <li>Quick-reply button payloads must be: <code>BTN_ORDER</code>, <code>BTN_TRACK</code>, <code>BTN_WALLET</code>, <code>BTN_HEALTHY</code>, <code>BTN_SUPPORT</code>, <code>BTN_CART</code>, <code>BTN_MAIN_MENU</code>, <code>BTN_CHECKOUT</code>, <code>BTN_ADD_MORE</code>, <code>BTN_CLEAR</code>, <code>BTN_SKIP_LOC</code>, <code>BTN_USE_SAVED_ADDR</code></li>
+                  <li>List item IDs must be: <code>{`LIST_VENDOR_{{idN}}`}</code> for vendors, <code>{`LIST_ITEM_{{idN}}`}</code> for menu items</li>
+                </ul>
+              </div>
+              <div className="space-y-3">
+                {templates.map(t => (
+                  <div key={t.template_key} className="grid grid-cols-1 md:grid-cols-[1fr_2fr_auto] gap-2 items-center border rounded-md p-3">
+                    <div>
+                      <div className="font-mono text-xs">{t.template_key}</div>
+                      <div className="text-xs text-muted-foreground">{t.description}</div>
+                    </div>
+                    <Input
+                      defaultValue={t.content_sid || ""}
+                      placeholder="HX..."
+                      onBlur={(e) => {
+                        if (e.target.value !== (t.content_sid || "")) saveTemplate(t.template_key, e.target.value);
+                      }}
+                    />
+                    <Badge variant={t.content_sid ? "default" : "outline"}>
+                      {t.content_sid ? "Active" : "Not set"}
+                    </Badge>
+                  </div>
+                ))}
+                {!templates.length && !loading && (
+                  <p className="text-muted-foreground text-center py-4">No templates configured. Refresh after running the migration.</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="setup">
