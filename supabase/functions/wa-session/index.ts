@@ -183,3 +183,19 @@ async function fetchVendors(
     .eq("is_active", true).limit(20);
   return data || [];
 }
+
+function phoneVariants(phone: string): string[] {
+  const set = new Set<string>();
+  const raw = phone.trim();
+  set.add(raw);
+  const digits = raw.replace(/\D/g, "");
+  set.add(digits);
+  if (digits.startsWith("234") && digits.length === 13) {
+    set.add("0" + digits.slice(3));
+    set.add("+" + digits);
+  } else if (digits.startsWith("0") && digits.length === 11) {
+    set.add("234" + digits.slice(1));
+    set.add("+234" + digits.slice(1));
+  }
+  return Array.from(set);
+}
