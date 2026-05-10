@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { format, formatDistanceToNow } from "date-fns";
-import { MessageCircle, Send, RefreshCw } from "lucide-react";
+import { MessageCircle, Send, RefreshCw, Wand2 } from "lucide-react";
 
 export default function AdminWhatsApp() {
   const { toast } = useToast();
