@@ -621,11 +621,14 @@ async function renderRecentOrders(supabase: any, phone: string, userId: string |
   return "📦 No recent orders found.";
 }
 
-async function renderWallet(supabase: any, userId: string | null) {
+async function renderWallet(supabase: any, userId: string | null, phone?: string, suggestedAmount = 2000) {
   if (!userId) return "💼 Reply *menu* to set up your account first.";
   const { data: wallet } = await supabase
-    .from("customer_wallets").select("balance").eq("user_id", userId).maybeSingle();
-  const bal = Number(wallet?.balance || 0);
+    .from("wallets").select("balance, test_balance, is_disabled").eq("user_id", userId).eq("wallet_type", "customer").maybeSingle();
+  if (wallet?.is_disabled) return "💼 Your wallet is disabled. Please contact support.";
+  const { data: envSetting } = await supabase.from("platform_settings").select("value").eq("key", "platform_environment").maybeSingle();
+  const isTestMode = (envSetting?.value || "development") === "development";
+  const bal = Number(isTestMode ? wallet?.test_balance : wallet?.balance || 0);
   const { data: txs } = await supabase
     .from("wallet_transactions").select("type, amount, description, created_at")
     .eq("user_id", userId).order("created_at", { ascending: false }).limit(5);
@@ -636,7 +639,46 @@ async function renderWallet(supabase: any, userId: string | null) {
       return `${sign}₦${Number(t.amount).toLocaleString()} — ${t.description || t.type}`;
     }).join("\n");
   }
+  const fundingLink = await createWalletFundingLink(supabase, userId, suggestedAmount, phone);
+  if (fundingLink) {
+    text += `\n\nTop up here: ${fundingLink}`;
+  }
   return text;
+}
+
+async function createWalletFundingLink(supabase: any, userId: string, amount: number, phone?: string): Promise<string | null> {
+  try {
+    const { data: profile } = await supabase.from("profiles").select("full_name, phone").eq("user_id", userId).maybeSingle();
+    const { data: userData } = await supabase.auth.admin.getUserById(userId);
+    const { data: envSetting } = await supabase.from("platform_settings").select("value").eq("key", "platform_environment").maybeSingle();
+    const environment = envSetting?.value || "development";
+    const paystackSecretKey = environment === "production"
+      ? Deno.env.get("PAYSTACK_LIVE_SECRET_KEY") || Deno.env.get("PAYSTACK_SECRET_KEY")
+      : Deno.env.get("PAYSTACK_TEST_SECRET_KEY") || Deno.env.get("PAYSTACK_SECRET_KEY");
+    if (!paystackSecretKey) return null;
+    const reference = `WF-WA-${userId.slice(0, 8)}-${Date.now()}`;
+    const email = userData?.user?.email || `wa${(phone || profile?.phone || userId).replace(/\D/g, "")}@wa.fastcalories.online`;
+    const res = await fetch("https://api.paystack.co/transaction/initialize", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${paystackSecretKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email,
+        amount: Math.round(Math.max(100, amount) * 100),
+        reference,
+        callback_url: "https://app.fastcalories.online/profile/wallet?funding=success",
+        metadata: { type: "wallet_funding", user_id: userId, environment, source: "whatsapp", phone: phone || profile?.phone || null },
+      }),
+    });
+    const json = await res.json();
+    if (!json?.status) {
+      console.error("WhatsApp wallet funding init failed", json);
+      return null;
+    }
+    return json.data.authorization_url || null;
+  } catch (e) {
+    console.error("WhatsApp wallet funding link error", e);
+    return null;
+  }
 }
 
 async function aiSuggest(query: string): Promise<string> {
