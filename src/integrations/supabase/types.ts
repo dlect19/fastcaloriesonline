@@ -3950,6 +3950,36 @@ export type Database = {
         }
         Relationships: []
       }
+      platform_settings_audit: {
+        Row: {
+          action: string
+          changed_at: string
+          changed_by: string | null
+          id: string
+          new_value: string
+          old_value: string | null
+          setting_key: string
+        }
+        Insert: {
+          action: string
+          changed_at?: string
+          changed_by?: string | null
+          id?: string
+          new_value: string
+          old_value?: string | null
+          setting_key: string
+        }
+        Update: {
+          action?: string
+          changed_at?: string
+          changed_by?: string | null
+          id?: string
+          new_value?: string
+          old_value?: string | null
+          setting_key?: string
+        }
+        Relationships: []
+      }
       platform_wallet: {
         Row: {
           balance: number | null
