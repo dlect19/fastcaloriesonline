@@ -492,6 +492,26 @@ serve(async (req) => {
         renderCart(nextCart) + "\n\nReply *checkout* to pay, *clear* to empty, or *menu* to restart.");
     }
 
+    if (session.state === "confirming_order") {
+      if (tap === "BTN_WALLET" || lower === "3" || lower === "fund" || lower === "top up" || lower === "topup") {
+        const pendingTotal = Number(nextContext?.pending_total || cartTotal(nextCart) || 1000);
+        const text = await renderWallet(supabase, session.customer_user_id, phone, Math.max(1000, pendingTotal));
+        await persistSession(supabase, session.id, "confirming_order", nextContext, nextCart);
+        return await replyText(text + "\n\nAfter funding, reply *checkout* again to continue.");
+      }
+      if (tap === "BTN_CONFIRM" || lower === "yes" || lower === "confirm") {
+        return await replyText("Order confirmation is being finalized. For now, please reply *checkout* after funding your wallet.");
+      }
+      if (tap === "BTN_CANCEL" || lower === "cancel") {
+        await persistSession(supabase, session.id, "menu", nextContext, nextCart);
+        return await sendToUser("wa_main_menu", {}, "Order cancelled.\n\n" + MENU_OPTIONS);
+      }
+      if (lower === "checkout") {
+        return await doCheckout(supabase, session, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
+      }
+      return await replyText("Reply *3* to top up, *checkout* to recheck your wallet, or *cancel* to stop this order.");
+    }
+
     if (session.state === "ai_suggest") {
       const text = await aiSuggest(body);
       await persistSession(supabase, session.id, "menu", nextContext, nextCart);
