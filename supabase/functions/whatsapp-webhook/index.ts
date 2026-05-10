@@ -468,3 +468,23 @@ async function doCheckout(supabase: any, session: any, cart: any[], phone: strin
     `You'll get WhatsApp updates here when your order is confirmed, prepared, picked up, and delivered.`
   );
 }
+
+// Returns common Nigerian phone formats so we can match the user's profile
+// regardless of whether they saved it as +234..., 234..., or 0...
+function phoneVariants(phone: string): string[] {
+  const set = new Set<string>();
+  const raw = phone.trim();
+  set.add(raw);
+  // strip non-digits
+  const digits = raw.replace(/\D/g, "");
+  set.add(digits);
+  if (digits.startsWith("234") && digits.length === 13) {
+    const local = "0" + digits.slice(3);
+    set.add(local);
+    set.add("+" + digits);
+  } else if (digits.startsWith("0") && digits.length === 11) {
+    set.add("234" + digits.slice(1));
+    set.add("+234" + digits.slice(1));
+  }
+  return Array.from(set);
+}
