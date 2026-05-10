@@ -45,6 +45,18 @@ serve(async (req) => {
       .from("whatsapp_sessions").select("*").eq("id", sid).maybeSingle();
     if (!session) return json({ error: "session_not_found" }, 404);
 
+    // Backfill customer_user_id by matching phone in common Nigerian formats
+    if (!session.customer_user_id && session.phone) {
+      const variants = phoneVariants(session.phone);
+      const { data: profs } = await supabase
+        .from("profiles").select("user_id").in("phone", variants).limit(1);
+      if (profs?.[0]?.user_id) {
+        await supabase.from("whatsapp_sessions")
+          .update({ customer_user_id: profs[0].user_id }).eq("id", sid);
+        session.customer_user_id = profs[0].user_id;
+      }
+    }
+
     // Extend expiry on every interaction
     const newExpiry = new Date(Date.now() + 30 * 60 * 1000).toISOString();
 
