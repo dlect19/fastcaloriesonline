@@ -184,7 +184,7 @@ serve(async (req) => {
       }
       nextContext.vendors = vendors.map((v: any) => ({
         id: v.id,
-        name: v.business_name,
+        name: v.name,
         distance_km: v.distance_km ?? v.distance ?? null,
       }));
       nextState = "browsing_vendors";
@@ -195,7 +195,7 @@ serve(async (req) => {
         vendors.map((v: any, i: number) => {
           const d = v.distance_km ?? v.distance;
           const dTxt = typeof d === "number" ? ` — ${d.toFixed(1)} km` : "";
-          return `${i + 1}. ${v.business_name}${dTxt}`;
+          return `${i + 1}. ${v.name}${dTxt}`;
         }).join("\n") +
         "\n\nReply with a number to view the menu." + HELP_HINT;
     };
@@ -222,13 +222,13 @@ serve(async (req) => {
           const vendors = await fetchVendors(supabase, session.customer_user_id, null, null);
           const hasSavedAddr = vendors.some((v: any) => v.distance_km != null || v.distance != null);
           if (hasSavedAddr && vendors.length) {
-            nextContext.vendors = vendors.map((v: any) => ({ id: v.id, name: v.business_name, distance_km: v.distance_km ?? v.distance ?? null }));
+            nextContext.vendors = vendors.map((v: any) => ({ id: v.id, name: v.name, distance_km: v.distance_km ?? v.distance ?? null }));
             nextState = "browsing_vendors";
             reply = `🏪 *Nearby vendors* _(based on your saved address)_:\n\n` +
               vendors.map((v: any, i: number) => {
                 const d = v.distance_km ?? v.distance;
                 const dTxt = typeof d === "number" ? ` — ${d.toFixed(1)} km` : "";
-                return `${i + 1}. ${v.business_name}${dTxt}`;
+                return `${i + 1}. ${v.name}${dTxt}`;
               }).join("\n") +
               "\n\nReply with a number to view the menu." + HELP_HINT;
           } else {
@@ -254,7 +254,7 @@ serve(async (req) => {
         reply =
           `💬 *Customer Support*\n\n` +
           `We're here to help!\n\n` +
-          `📧 Email: support@fastcalories.online\n` +
+          `📧 Email: care@fastcalories.online\n` +
           `📱 WhatsApp: +234 800 000 0000\n` +
           `🌐 Help Center: https://app.fastcalories.online/support\n\n` +
           `Reply *menu* to go back to the main menu.`;
@@ -386,14 +386,14 @@ async function fetchVendors(
   }
   // Fallback: any 5 active vendors
   const { data } = await supabase
-    .from("vendors").select("id, business_name")
+    .from("vendors").select("id, name")
     .eq("is_active", true).limit(5);
   return data || [];
 }
 
 async function fetchMenuItems(supabase: any, vendorId: string) {
   const { data } = await supabase
-    .from("menu_items").select("id, name, price, calories")
+    .from("products").select("id, name, price, calories")
     .eq("vendor_id", vendorId).eq("is_available", true).limit(20);
   return data || [];
 }
