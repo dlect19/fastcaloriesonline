@@ -156,13 +156,58 @@ serve(async (req) => {
     let nextContext: any = session.context || {};
     let nextCart: any[] = Array.isArray(session.cart) ? session.cart : [];
 
+    // Capture WhatsApp shared location (Twilio sends Latitude/Longitude)
+    const latStr = params["Latitude"];
+    const lonStr = params["Longitude"];
+    const sharedLat = latStr ? parseFloat(latStr) : NaN;
+    const sharedLon = lonStr ? parseFloat(lonStr) : NaN;
+    const hasSharedLocation = Number.isFinite(sharedLat) && Number.isFinite(sharedLon);
+    if (hasSharedLocation) {
+      nextContext.lat = sharedLat;
+      nextContext.lon = sharedLon;
+      nextContext.location_label = params["Address"] || params["Label"] || null;
+    }
+
     const goMenu = () => { nextState = "menu"; reply = MAIN_MENU; };
+
+    const showNearbyVendors = async () => {
+      const vendors = await fetchVendors(
+        supabase,
+        session.customer_user_id,
+        nextContext.lat ?? null,
+        nextContext.lon ?? null,
+      );
+      if (!vendors.length) {
+        reply = "😕 No vendors are available near you right now. Please try again later.\n\n" + MENU_OPTIONS;
+        nextState = "menu";
+        return;
+      }
+      nextContext.vendors = vendors.map((v: any) => ({
+        id: v.id,
+        name: v.business_name,
+        distance_km: v.distance_km ?? v.distance ?? null,
+      }));
+      nextState = "browsing_vendors";
+      const locNote = nextContext.location_label
+        ? `\n📍 _Near: ${nextContext.location_label}_\n`
+        : (nextContext.lat ? `\n📍 _Using your shared location_\n` : "");
+      reply = `🏪 *Nearby vendors:*${locNote}\n` +
+        vendors.map((v: any, i: number) => {
+          const d = v.distance_km ?? v.distance;
+          const dTxt = typeof d === "number" ? ` — ${d.toFixed(1)} km` : "";
+          return `${i + 1}. ${v.business_name}${dTxt}`;
+        }).join("\n") +
+        "\n\nReply with a number to view the menu." + HELP_HINT;
+    };
 
     // Show full intro the first time we greet this phone (or on explicit hi/hello/start)
     const isGreeting = lower === "menu" || lower === "hi" || lower === "hello" || lower === "start" || lower === "";
     const isFirstGreeting = isGreeting && !existing;
 
-    if (isGreeting) {
+    if (hasSharedLocation && (session.state === "awaiting_location" || session.state === "menu" || session.state === "idle" || !lower)) {
+      // User shared a pin → jump straight to nearby vendors
+      await showNearbyVendors();
+    } else if (isGreeting) {
       nextState = "menu";
       reply = isFirstGreeting ? WELCOME_INTRO : MAIN_MENU;
     } else if (lower === "cart") {
@@ -170,17 +215,31 @@ serve(async (req) => {
       nextState = nextCart.length ? "cart" : session.state;
     } else if (session.state === "menu" || session.state === "idle") {
       if (lower === "1") {
-        // List nearby vendors using existing function (no coords → fallback: top vendors by city)
-        const vendors = await fetchVendors(supabase, session.customer_user_id);
-        if (!vendors.length) {
-          reply = "😕 No vendors are available right now. Please try again later.\n\n" + MENU_OPTIONS;
-          nextState = "menu";
+        if (nextContext.lat && nextContext.lon) {
+          await showNearbyVendors();
         } else {
-          nextContext.vendors = vendors.map((v: any) => ({ id: v.id, name: v.business_name }));
-          nextState = "browsing_vendors";
-          reply = "🏪 *Nearby vendors:*\n\n" +
-            vendors.map((v: any, i: number) => `${i + 1}. ${v.business_name}`).join("\n") +
-            "\n\nReply with a number to view the menu." + HELP_HINT;
+          // Try saved customer address; if none, ask user to share location
+          const vendors = await fetchVendors(supabase, session.customer_user_id, null, null);
+          const hasSavedAddr = vendors.some((v: any) => v.distance_km != null || v.distance != null);
+          if (hasSavedAddr && vendors.length) {
+            nextContext.vendors = vendors.map((v: any) => ({ id: v.id, name: v.business_name, distance_km: v.distance_km ?? v.distance ?? null }));
+            nextState = "browsing_vendors";
+            reply = `🏪 *Nearby vendors* _(based on your saved address)_:\n\n` +
+              vendors.map((v: any, i: number) => {
+                const d = v.distance_km ?? v.distance;
+                const dTxt = typeof d === "number" ? ` — ${d.toFixed(1)} km` : "";
+                return `${i + 1}. ${v.business_name}${dTxt}`;
+              }).join("\n") +
+              "\n\nReply with a number to view the menu." + HELP_HINT;
+          } else {
+            nextState = "awaiting_location";
+            reply =
+              `📍 *Share your location* to see vendors closest to you.\n\n` +
+              `On WhatsApp:\n` +
+              `1. Tap the *➕* (or *📎*) icon\n` +
+              `2. Choose *Location* → *Send your current location*\n\n` +
+              `Or reply *skip* to see top vendors instead.`;
+          }
         }
       } else if (lower === "2") {
         reply = await renderRecentOrders(supabase, phone, session.customer_user_id) + HELP_HINT;
@@ -255,6 +314,15 @@ serve(async (req) => {
     } else if (session.state === "ai_suggest") {
       reply = await aiSuggest(body);
       goMenu();
+    } else if (session.state === "awaiting_location") {
+      if (lower === "skip") {
+        await showNearbyVendors(); // falls back to top vendors
+      } else {
+        reply =
+          `📍 Please share your location to see nearby vendors.\n\n` +
+          `Tap *➕* (or *📎*) → *Location* → *Send your current location*.\n\n` +
+          `Or reply *skip* to see top vendors, or *menu* to restart.`;
+      }
     } else {
       goMenu();
     }
@@ -293,10 +361,16 @@ function renderCart(cart: any[]): string {
   return `🛒 *Your Cart*\n\n${lines.join("\n")}\n\n*Total: ₦${total.toLocaleString()}*`;
 }
 
-async function fetchVendors(supabase: any, userId: string | null) {
-  // Try to use customer's last delivery address coords if available, else fall back to top vendors
-  let lat: number | null = null, lon: number | null = null;
-  if (userId) {
+async function fetchVendors(
+  supabase: any,
+  userId: string | null,
+  overrideLat: number | null = null,
+  overrideLon: number | null = null,
+) {
+  let lat: number | null = overrideLat;
+  let lon: number | null = overrideLon;
+  // If no shared coords, try saved customer address
+  if ((lat === null || lon === null) && userId) {
     const { data: addr } = await supabase
       .from("delivery_addresses").select("latitude, longitude")
       .eq("user_id", userId).order("is_default", { ascending: false }).limit(1).maybeSingle();
