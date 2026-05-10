@@ -156,9 +156,7 @@ serve(async (req) => {
     }
 
     // ---- Parse Twilio inbound ----
-    const form = await req.formData();
-    const params: Record<string, string> = {};
-    for (const [k, v] of form.entries()) params[k] = String(v);
+    const params = await parseInboundParams(req);
 
     const ok = await verifyTwilioSignature(req, params, platformEnvironment);
     if (!ok) return new Response("forbidden", { status: 403, headers: corsHeaders });
@@ -394,7 +392,7 @@ serve(async (req) => {
     }
 
     if (tap === "BTN_WALLET" || (session.state === "menu" && lower === "3")) {
-      const text = await renderWallet(supabase, session.customer_user_id);
+      const text = await renderWallet(supabase, session.customer_user_id, phone);
       await persistSession(supabase, session.id, "menu", nextContext, nextCart);
       return await replyText(text + HELP_HINT);
     }
@@ -494,6 +492,26 @@ serve(async (req) => {
         renderCart(nextCart) + "\n\nReply *checkout* to pay, *clear* to empty, or *menu* to restart.");
     }
 
+    if (session.state === "confirming_order") {
+      if (tap === "BTN_WALLET" || lower === "3" || lower === "fund" || lower === "top up" || lower === "topup") {
+        const pendingTotal = Number(nextContext?.pending_total || cartTotal(nextCart) || 1000);
+        const text = await renderWallet(supabase, session.customer_user_id, phone, Math.max(1000, pendingTotal));
+        await persistSession(supabase, session.id, "confirming_order", nextContext, nextCart);
+        return await replyText(text + "\n\nAfter funding, reply *checkout* again to continue.");
+      }
+      if (tap === "BTN_CONFIRM" || lower === "yes" || lower === "confirm") {
+        return await replyText("Order confirmation is being finalized. For now, please reply *checkout* after funding your wallet.");
+      }
+      if (tap === "BTN_CANCEL" || lower === "cancel") {
+        await persistSession(supabase, session.id, "menu", nextContext, nextCart);
+        return await sendToUser("wa_main_menu", {}, "Order cancelled.\n\n" + MENU_OPTIONS);
+      }
+      if (lower === "checkout") {
+        return await doCheckout(supabase, session, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
+      }
+      return await replyText("Reply *3* to top up, *checkout* to recheck your wallet, or *cancel* to stop this order.");
+    }
+
     if (session.state === "ai_suggest") {
       const text = await aiSuggest(body);
       await persistSession(supabase, session.id, "menu", nextContext, nextCart);
@@ -529,6 +547,24 @@ serve(async (req) => {
 // ============================================================
 // Helpers
 // ============================================================
+async function parseInboundParams(req: Request): Promise<Record<string, string>> {
+  const contentType = req.headers.get("content-type") || "";
+  const params: Record<string, string> = {};
+  if (contentType.includes("application/json")) {
+    const json = await req.json();
+    for (const [k, v] of Object.entries(json || {})) params[k] = String(v ?? "");
+    return params;
+  }
+  if (contentType.includes("application/x-www-form-urlencoded") || contentType.includes("multipart/form-data")) {
+    const form = await req.formData();
+    for (const [k, v] of form.entries()) params[k] = String(v);
+    return params;
+  }
+  const raw = await req.text();
+  for (const [k, v] of new URLSearchParams(raw).entries()) params[k] = v;
+  return params;
+}
+
 async function persistSession(supabase: any, id: string, state: string, context: any, cart: any[]) {
   await supabase.from("whatsapp_sessions").update({
     state, context, cart,
@@ -585,22 +621,64 @@ async function renderRecentOrders(supabase: any, phone: string, userId: string |
   return "📦 No recent orders found.";
 }
 
-async function renderWallet(supabase: any, userId: string | null) {
+async function renderWallet(supabase: any, userId: string | null, phone?: string, suggestedAmount = 2000) {
   if (!userId) return "💼 Reply *menu* to set up your account first.";
   const { data: wallet } = await supabase
-    .from("customer_wallets").select("balance").eq("user_id", userId).maybeSingle();
-  const bal = Number(wallet?.balance || 0);
-  const { data: txs } = await supabase
-    .from("wallet_transactions").select("type, amount, description, created_at")
-    .eq("user_id", userId).order("created_at", { ascending: false }).limit(5);
+    .from("wallets").select("id, balance, test_balance, is_disabled").eq("user_id", userId).eq("wallet_type", "customer").maybeSingle();
+  if (wallet?.is_disabled) return "💼 Your wallet is disabled. Please contact support.";
+  const { data: envSetting } = await supabase.from("platform_settings").select("value").eq("key", "platform_environment").maybeSingle();
+  const isTestMode = (envSetting?.value || "development") === "development";
+  const bal = Number((isTestMode ? wallet?.test_balance : wallet?.balance) || 0);
+  const { data: txs } = wallet?.id ? await supabase
+    .from("wallet_transactions").select("transaction_type, amount, notes, category, created_at")
+    .eq("wallet_id", wallet.id).order("created_at", { ascending: false }).limit(5) : { data: [] };
   let text = `💼 *Your Wallet*\n\nBalance: *₦${bal.toLocaleString()}*`;
   if (txs?.length) {
     text += `\n\n_Recent transactions:_\n` + txs.map((t: any) => {
-      const sign = t.type === "credit" ? "+" : "-";
-      return `${sign}₦${Number(t.amount).toLocaleString()} — ${t.description || t.type}`;
+      const sign = t.transaction_type === "credit" ? "+" : "-";
+      return `${sign}₦${Number(t.amount).toLocaleString()} — ${t.notes || t.category || t.transaction_type}`;
     }).join("\n");
   }
+  const fundingLink = await createWalletFundingLink(supabase, userId, suggestedAmount, phone);
+  if (fundingLink) {
+    text += `\n\nTop up here: ${fundingLink}`;
+  }
   return text;
+}
+
+async function createWalletFundingLink(supabase: any, userId: string, amount: number, phone?: string): Promise<string | null> {
+  try {
+    const { data: profile } = await supabase.from("profiles").select("full_name, phone").eq("user_id", userId).maybeSingle();
+    const { data: userData } = await supabase.auth.admin.getUserById(userId);
+    const { data: envSetting } = await supabase.from("platform_settings").select("value").eq("key", "platform_environment").maybeSingle();
+    const environment = envSetting?.value || "development";
+    const paystackSecretKey = environment === "production"
+      ? Deno.env.get("PAYSTACK_LIVE_SECRET_KEY") || Deno.env.get("PAYSTACK_SECRET_KEY")
+      : Deno.env.get("PAYSTACK_TEST_SECRET_KEY") || Deno.env.get("PAYSTACK_SECRET_KEY");
+    if (!paystackSecretKey) return null;
+    const reference = `WF-WA-${userId.slice(0, 8)}-${Date.now()}`;
+    const email = userData?.user?.email || `wa${(phone || profile?.phone || userId).replace(/\D/g, "")}@wa.fastcalories.online`;
+    const res = await fetch("https://api.paystack.co/transaction/initialize", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${paystackSecretKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email,
+        amount: Math.round(Math.max(100, amount) * 100),
+        reference,
+        callback_url: "https://app.fastcalories.online/profile/wallet?funding=success",
+        metadata: { type: "wallet_funding", user_id: userId, environment, source: "whatsapp", phone: phone || profile?.phone || null },
+      }),
+    });
+    const json = await res.json();
+    if (!json?.status) {
+      console.error("WhatsApp wallet funding init failed", json);
+      return null;
+    }
+    return json.data.authorization_url || null;
+  } catch (e) {
+    console.error("WhatsApp wallet funding link error", e);
+    return null;
+  }
 }
 
 async function aiSuggest(query: string): Promise<string> {
@@ -637,9 +715,11 @@ async function doCheckout(
     return await replyText("⚠️ Please reply *menu* and follow the setup to create your account first.");
   }
 
+  const { data: envSetting } = await supabase.from("platform_settings").select("value").eq("key", "platform_environment").maybeSingle();
+  const isTestMode = (envSetting?.value || "development") === "development";
   const { data: wallet } = await supabase
-    .from("customer_wallets").select("balance").eq("user_id", session.customer_user_id).maybeSingle();
-  const bal = Number(wallet?.balance || 0);
+    .from("wallets").select("balance, test_balance").eq("user_id", session.customer_user_id).eq("wallet_type", "customer").maybeSingle();
+  const bal = Number((isTestMode ? wallet?.test_balance : wallet?.balance) || 0);
   const subtotal = cartTotal(cart);
   const serviceFee = Math.round(subtotal * 0.08);
   const deliveryFee = 500; // default — actual is computed at order placement
