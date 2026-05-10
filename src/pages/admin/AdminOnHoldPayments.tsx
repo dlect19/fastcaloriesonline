@@ -119,7 +119,52 @@ export default function AdminOnHoldPayments() {
     fetchHolds();
   };
 
-  const totalHeld = rows.reduce((s, r) => s + Number(r.amount || 0), 0);
+  const filtered = rows.filter((r) => {
+    if (partyFilter !== 'all' && r.party_type !== partyFilter) return false;
+    if (sourceFilter !== 'all' && r.source !== sourceFilter) return false;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      const hay = `${r.party_name || ''} ${r.order_number || ''} ${r.reason || ''}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    if (dateFrom && r.held_since && new Date(r.held_since) < new Date(dateFrom)) return false;
+    if (dateTo && r.held_since && new Date(r.held_since) > new Date(dateTo + 'T23:59:59')) return false;
+    return true;
+  });
+
+  const totalHeld = filtered.reduce((s, r) => s + Number(r.amount || 0), 0);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  const exportCsv = () => {
+    const header = ['Party', 'Type', 'Source', 'Reason', 'Amount', 'Order #', 'Held Since'];
+    const lines = [header.join(',')];
+    filtered.forEach(r => {
+      lines.push([
+        `"${(r.party_name || '').replace(/"/g, '""')}"`,
+        partyLabel[r.party_type] || r.party_type,
+        sourceLabel[r.source] || r.source,
+        `"${(r.reason || '').replace(/"/g, '""')}"`,
+        r.amount,
+        r.order_number || '',
+        r.held_since ? format(new Date(r.held_since), 'yyyy-MM-dd HH:mm') : '',
+      ].join(','));
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `on-hold-payments-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const resetFilters = () => {
+    setSearch(''); setPartyFilter('all'); setSourceFilter('all');
+    setDateFrom(''); setDateTo(''); setPage(1);
+  };
+
 
   if (loading) {
     return (
