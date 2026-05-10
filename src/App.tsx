@@ -66,6 +66,7 @@ import AdminAdPlacements from "./pages/admin/AdminAdPlacements";
 import AdminNutrition from "./pages/admin/AdminNutrition";
 import AdminPayouts from "./pages/admin/AdminPayouts";
 import AdminOnHoldPayments from "./pages/admin/AdminOnHoldPayments";
+import AdminWhatsApp from "./pages/admin/AdminWhatsApp";
 import AdminCustomerWallets from "./pages/admin/AdminCustomerWallets";
 import AdminWalletFunding from "./pages/admin/AdminWalletFunding";
 import AdminChargebacks from "./pages/admin/AdminChargebacks";
@@ -236,6 +237,7 @@ const App = () => {
               <Route path="/admin/nutrition" element={<AdminNutrition />} />
               <Route path="/admin/payouts" element={<AdminPayouts />} />
               <Route path="/admin/on-hold-payments" element={<AdminOnHoldPayments />} />
+              <Route path="/admin/whatsapp" element={<AdminWhatsApp />} />
               <Route path="/admin/customer-wallets" element={<AdminCustomerWallets />} />
               <Route path="/admin/wallet-funding" element={<AdminWalletFunding />} />
               <Route path="/admin/chargebacks" element={<AdminChargebacks />} />

@@ -1,6 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { Home, Package, Store, Bike, Ticket, Users, Settings, LogOut, Image, Activity, Banknote, Wallet, ArrowDownLeft, Gift, Truck, UserCheck, Star, MessageSquare, DollarSign, UserPlus, Receipt, ClipboardList, Scale, HelpCircle, Percent, ShieldAlert, Megaphone, Gavel, UtensilsCrossed, Map, ExternalLink, Sparkles, Pill, PauseCircle } from 'lucide-react';
+import { Home, Package, Store, Bike, Ticket, Users, Settings, LogOut, Image, Activity, Banknote, Wallet, ArrowDownLeft, Gift, Truck, UserCheck, Star, MessageSquare, DollarSign, UserPlus, Receipt, ClipboardList, Scale, HelpCircle, Percent, ShieldAlert, Megaphone, Gavel, UtensilsCrossed, Map, ExternalLink, Sparkles, Pill, PauseCircle, MessageCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -50,6 +50,7 @@ const menuItems: MenuItem[] = [
   { icon: Scale, label: 'Legal', path: '/admin/legal', requiredPermission: 'platform_settings' },
   { icon: HelpCircle, label: 'FAQ', path: '/admin/faq', requiredPermission: 'platform_settings' },
   { icon: MessageSquare, label: 'Support', path: '/admin/support', requiredPermission: 'handle_support' },
+  { icon: MessageCircle, label: 'WhatsApp', path: '/admin/whatsapp', requiredPermission: 'platform_settings' },
   { icon: Megaphone, label: 'Notifications', path: '/admin/notifications', requiredPermission: 'platform_settings' },
   { icon: Map, label: 'Coverage Areas', path: '/admin/coverage-areas', requiredPermission: 'platform_settings' },
   { icon: DollarSign, label: 'Financial Tools', path: '/admin/financial-tools', requiredPermission: 'process_withdrawals' },
