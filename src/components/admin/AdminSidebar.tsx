@@ -1,6 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { Home, Package, Store, Bike, Ticket, Users, Settings, LogOut, Image, Activity, Banknote, Wallet, ArrowDownLeft, Gift, Truck, UserCheck, Star, MessageSquare, DollarSign, UserPlus, Receipt, ClipboardList, Scale, HelpCircle, Percent, ShieldAlert, Megaphone, Gavel, UtensilsCrossed, Map, ExternalLink, Sparkles, Pill } from 'lucide-react';
+import { Home, Package, Store, Bike, Ticket, Users, Settings, LogOut, Image, Activity, Banknote, Wallet, ArrowDownLeft, Gift, Truck, UserCheck, Star, MessageSquare, DollarSign, UserPlus, Receipt, ClipboardList, Scale, HelpCircle, Percent, ShieldAlert, Megaphone, Gavel, UtensilsCrossed, Map, ExternalLink, Sparkles, Pill, PauseCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
