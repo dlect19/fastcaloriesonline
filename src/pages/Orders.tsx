@@ -265,6 +265,23 @@ export default function Orders() {
 
       <CartButton />
       <BottomNav />
+
+      {cancelTarget && (
+        <CustomerCancelOrderDialog
+          open={!!cancelTarget}
+          onOpenChange={(open) => !open && setCancelTarget(null)}
+          orderId={cancelTarget.id}
+          orderNumber={cancelTarget.order_number}
+          orderTotal={Number(cancelTarget.total)}
+          paymentStatus={cancelTarget.payment_status || undefined}
+          orderCreatedAt={cancelTarget.created_at}
+          countdownMinutes={cancelSettings.countdownMinutes}
+          onCancelled={() => {
+            setCancelTarget(null);
+            fetchOrders();
+          }}
+        />
+      )}
     </div>
   );
 }
