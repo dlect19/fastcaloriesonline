@@ -93,7 +93,7 @@ export default function AdminOrders() {
     }
 
     return result;
-  }, [orders, orderTab, dateRange, searchQuery, freeMealOnly]);
+  }, [orders, orderTab, channelTab, dateRange, searchQuery, freeMealOnly]);
 
   const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
   const paginatedOrders = useMemo(() => {
