@@ -10,8 +10,11 @@ import { PaginationControls } from '@/components/shared/PaginationControls';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables } from '@/integrations/supabase/types';
+import { CustomerCancelOrderDialog } from '@/components/order/CustomerCancelOrderDialog';
 
 type Order = Tables<'orders'>;
+
+const CANCELABLE_STATUSES = ['pending', 'confirmed'];
 
 const statusConfig: Record<string, { label: string; color: string; icon: typeof Clock }> = {
   pending: { label: 'Pending', color: 'bg-warning/10 text-warning', icon: Clock },
@@ -32,6 +35,8 @@ export default function Orders() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
+  const [cancelTarget, setCancelTarget] = useState<Order | null>(null);
+  const [cancelSettings, setCancelSettings] = useState({ enabled: true, countdownMinutes: 3 });
   const ITEMS_PER_PAGE = 10;
 
   const totalPages = Math.ceil(orders.length / ITEMS_PER_PAGE);
@@ -47,9 +52,28 @@ export default function Orders() {
     }
     if (user) {
       fetchOrders();
+      fetchCancelSettings();
       subscribeToOrders();
     }
   }, [user, authLoading, navigate]);
+
+  const fetchCancelSettings = async () => {
+    try {
+      const { data } = await supabase
+        .from('platform_settings')
+        .select('key, value')
+        .in('key', ['customer_cancel_enabled', 'customer_cancel_countdown_minutes']);
+      if (data) {
+        const map = Object.fromEntries(data.map((s: any) => [s.key, s.value]));
+        setCancelSettings({
+          enabled: map['customer_cancel_enabled'] !== 'false',
+          countdownMinutes: parseInt(map['customer_cancel_countdown_minutes'] || '3') || 3,
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching cancel settings:', err);
+    }
+  };
 
   const subscribeToOrders = () => {
     if (!user) return;
@@ -208,6 +232,23 @@ export default function Orders() {
                     </div>
                     <ChevronRight className="w-5 h-5 text-muted-foreground" />
                   </div>
+
+                  {cancelSettings.enabled && CANCELABLE_STATUSES.includes(order.status) && (
+                    <div className="mt-3 pt-3 border-t border-border flex justify-end">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCancelTarget(order);
+                        }}
+                      >
+                        <XCircle className="w-4 h-4 mr-1.5" />
+                        Cancel Order
+                      </Button>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -224,6 +265,23 @@ export default function Orders() {
 
       <CartButton />
       <BottomNav />
+
+      {cancelTarget && (
+        <CustomerCancelOrderDialog
+          open={!!cancelTarget}
+          onOpenChange={(open) => !open && setCancelTarget(null)}
+          orderId={cancelTarget.id}
+          orderNumber={cancelTarget.order_number}
+          orderTotal={Number(cancelTarget.total)}
+          paymentStatus={cancelTarget.payment_status || undefined}
+          orderCreatedAt={cancelTarget.created_at}
+          countdownMinutes={cancelSettings.countdownMinutes}
+          onCancelled={() => {
+            setCancelTarget(null);
+            fetchOrders();
+          }}
+        />
+      )}
     </div>
   );
 }
