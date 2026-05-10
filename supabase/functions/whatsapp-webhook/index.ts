@@ -50,6 +50,9 @@ async function verifyTwilioSignature(req: Request, params: Record<string, string
 
 const HELP_HINT = "\n\nReply *menu* anytime to restart, or *cart* to see your basket.";
 
+const APP_BASE = "https://app.fastcalories.online";
+const miniAppUrl = (sessionId: string) => `${APP_BASE}/wa/${sessionId}`;
+
 const MENU_OPTIONS =
   `Reply with a number:\n` +
   `1️⃣ Order food (nearby vendors)\n` +
