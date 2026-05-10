@@ -65,6 +65,7 @@ import AdminCampaigns from "./pages/admin/AdminCampaigns";
 import AdminAdPlacements from "./pages/admin/AdminAdPlacements";
 import AdminNutrition from "./pages/admin/AdminNutrition";
 import AdminPayouts from "./pages/admin/AdminPayouts";
+import AdminOnHoldPayments from "./pages/admin/AdminOnHoldPayments";
 import AdminCustomerWallets from "./pages/admin/AdminCustomerWallets";
 import AdminWalletFunding from "./pages/admin/AdminWalletFunding";
 import AdminChargebacks from "./pages/admin/AdminChargebacks";
