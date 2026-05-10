@@ -45,6 +45,18 @@ serve(async (req) => {
       .from("whatsapp_sessions").select("*").eq("id", sid).maybeSingle();
     if (!session) return json({ error: "session_not_found" }, 404);
 
+    // Backfill customer_user_id by matching phone in common Nigerian formats
+    if (!session.customer_user_id && session.phone) {
+      const variants = phoneVariants(session.phone);
+      const { data: profs } = await supabase
+        .from("profiles").select("user_id").in("phone", variants).limit(1);
+      if (profs?.[0]?.user_id) {
+        await supabase.from("whatsapp_sessions")
+          .update({ customer_user_id: profs[0].user_id }).eq("id", sid);
+        session.customer_user_id = profs[0].user_id;
+      }
+    }
+
     // Extend expiry on every interaction
     const newExpiry = new Date(Date.now() + 30 * 60 * 1000).toISOString();
 
@@ -170,4 +182,20 @@ async function fetchVendors(
     .from("vendors").select("id, name, logo_url, banner_url, rating, category")
     .eq("is_active", true).limit(20);
   return data || [];
+}
+
+function phoneVariants(phone: string): string[] {
+  const set = new Set<string>();
+  const raw = phone.trim();
+  set.add(raw);
+  const digits = raw.replace(/\D/g, "");
+  set.add(digits);
+  if (digits.startsWith("234") && digits.length === 13) {
+    set.add("0" + digits.slice(3));
+    set.add("+" + digits);
+  } else if (digits.startsWith("0") && digits.length === 11) {
+    set.add("234" + digits.slice(1));
+    set.add("+234" + digits.slice(1));
+  }
+  return Array.from(set);
 }

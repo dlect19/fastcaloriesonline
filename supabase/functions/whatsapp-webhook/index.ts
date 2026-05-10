@@ -137,10 +137,12 @@ serve(async (req) => {
       session = { ...session, state: "menu", context: {}, cart: [] };
     }
 
-    // Try to link to a customer profile by phone
+    // Try to link to a customer profile by phone (try multiple Nigerian formats)
     if (!session.customer_user_id) {
-      const { data: prof } = await supabase
-        .from("profiles").select("user_id").eq("phone", phone).maybeSingle();
+      const variants = phoneVariants(phone);
+      const { data: profs } = await supabase
+        .from("profiles").select("user_id, phone").in("phone", variants).limit(1);
+      const prof = profs?.[0];
       if (prof?.user_id) {
         await supabase.from("whatsapp_sessions").update({ customer_user_id: prof.user_id }).eq("id", session.id);
         session.customer_user_id = prof.user_id;
@@ -465,4 +467,24 @@ async function doCheckout(supabase: any, session: any, cart: any[], phone: strin
     `✅ Cart ready! Tap to complete payment & delivery details:\n${handoff}\n\n` +
     `You'll get WhatsApp updates here when your order is confirmed, prepared, picked up, and delivered.`
   );
+}
+
+// Returns common Nigerian phone formats so we can match the user's profile
+// regardless of whether they saved it as +234..., 234..., or 0...
+function phoneVariants(phone: string): string[] {
+  const set = new Set<string>();
+  const raw = phone.trim();
+  set.add(raw);
+  // strip non-digits
+  const digits = raw.replace(/\D/g, "");
+  set.add(digits);
+  if (digits.startsWith("234") && digits.length === 13) {
+    const local = "0" + digits.slice(3);
+    set.add(local);
+    set.add("+" + digits);
+  } else if (digits.startsWith("0") && digits.length === 11) {
+    set.add("234" + digits.slice(1));
+    set.add("+234" + digits.slice(1));
+  }
+  return Array.from(set);
 }
