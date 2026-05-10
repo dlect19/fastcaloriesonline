@@ -339,12 +339,16 @@ serve(async (req) => {
       expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
     }).eq("id", session.id);
 
+    // Append a friendly link to the polished mini-app for any text reply
+    const finalReply = (reply || MAIN_MENU) +
+      `\n\n✨ _Prefer tapping over typing?_\n👉 ${miniAppUrl(session.id)}`;
+
     // Log outbound
     await supabase.from("whatsapp_messages").insert({
-      session_id: session.id, phone, direction: "out", body: reply,
+      session_id: session.id, phone, direction: "out", body: finalReply,
     });
 
-    return twiml(reply || MAIN_MENU);
+    return twiml(finalReply);
   } catch (e) {
     console.error("whatsapp-webhook error:", e);
     return twiml("Sorry, something went wrong. Please try again in a moment.");
