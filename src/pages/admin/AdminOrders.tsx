@@ -356,12 +356,20 @@ export default function AdminOrders() {
           </div>
         )}
 
+        {/* Channel switcher: Online vs POS */}
+        <Tabs value={channelTab} onValueChange={(v) => setChannelTab(v as any)} className="mb-3">
+          <TabsList>
+            <TabsTrigger value="online">🌐 Online Orders ({onlineOrders.length})</TabsTrigger>
+            <TabsTrigger value="pos">🧾 POS Orders ({posOrders.length})</TabsTrigger>
+          </TabsList>
+        </Tabs>
+
         {/* Tabs + Date filter + Per-page selector */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-3">
             <Tabs value={orderTab} onValueChange={(v) => setOrderTab(v as any)}>
               <TabsList>
-                <TabsTrigger value="all">All ({orders.length})</TabsTrigger>
+                <TabsTrigger value="all">All ({channelOrders.length})</TabsTrigger>
                 <TabsTrigger value="ongoing">Ongoing ({ongoingCount})</TabsTrigger>
                 <TabsTrigger value="past">Past ({pastCount})</TabsTrigger>
               </TabsList>
