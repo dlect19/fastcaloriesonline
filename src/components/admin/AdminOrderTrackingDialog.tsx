@@ -314,6 +314,27 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
     } else {
       setOrderFinancials(null);
     }
+
+    // Surge / dispatch offer info (latest)
+    const { data: dr } = await supabase
+      .from('dispatch_requests')
+      .select('id')
+      .eq('order_id', o.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (dr) {
+      const { data: off } = await supabase
+        .from('dispatch_offers')
+        .select('time_period, weather_condition, time_surge_bonus, weather_surge_bonus, total_surge_bonus, distance_km, delivery_fee')
+        .eq('dispatch_request_id', dr.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      setSurgeInfo(off ?? null);
+    } else {
+      setSurgeInfo(null);
+    }
   }, []);
 
   const fetchRider = async (riderId: string) => {
