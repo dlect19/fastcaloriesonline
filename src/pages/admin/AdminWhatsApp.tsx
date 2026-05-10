@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { format, formatDistanceToNow } from "date-fns";
-import { MessageCircle, Send, RefreshCw } from "lucide-react";
+import { MessageCircle, Send, RefreshCw, Wand2 } from "lucide-react";
 
 export default function AdminWhatsApp() {
   const { toast } = useToast();
@@ -84,6 +84,28 @@ export default function AdminWhatsApp() {
     } else {
       toast({ title: "Message sent ✅" });
     }
+  };
+
+  const [provisioning, setProvisioning] = useState(false);
+  const provisionTemplates = async () => {
+    setProvisioning(true);
+    const { data, error } = await supabase.functions.invoke("whatsapp-provision-templates", { body: {} });
+    setProvisioning(false);
+    if (error || (data as any)?.ok === false) {
+      toast({ title: "Provisioning failed", description: error?.message || (data as any)?.error || "Unknown error", variant: "destructive" });
+      return;
+    }
+    const results = (data as any)?.results || [];
+    const created = results.filter((r: any) => r.status === "created").length;
+    const existing = results.filter((r: any) => r.status === "already_exists").length;
+    const failed = results.filter((r: any) => r.status === "failed");
+    toast({
+      title: `Templates: ${created} created, ${existing} already existed`,
+      description: failed.length ? `${failed.length} failed — see console` : "All set ✅",
+      variant: failed.length ? "destructive" : "default",
+    });
+    if (failed.length) console.error("Template provisioning failures:", failed);
+    load();
   };
 
   return (
@@ -177,12 +199,18 @@ export default function AdminWhatsApp() {
 
         <TabsContent value="templates">
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Twilio Content Template SIDs</CardTitle>
+              <Button size="sm" onClick={provisionTemplates} disabled={provisioning}>
+                <Wand2 className="h-4 w-4 mr-2" />
+                {provisioning ? "Creating in Twilio..." : "Auto-create all in Twilio"}
+              </Button>
             </CardHeader>
             <CardContent className="space-y-4 text-sm">
               <div className="rounded-md bg-muted/50 p-3 text-xs space-y-2">
-                <p>To make WhatsApp fully tap-driven, create these <strong>Content Templates</strong> in <a className="underline" target="_blank" rel="noreferrer" href="https://console.twilio.com/us1/develop/sms/content-template-builder">Twilio Console → Content Template Builder</a>, then paste each <code>HX...</code> ContentSid below.</p>
+                <p>Click <strong>Auto-create all in Twilio</strong> to provision the 9 templates and save their <code>HX...</code> SIDs automatically. (Sandbox auto-approves; production requires Meta approval ~24h.)</p>
+                <p>You can still paste a <code>HX...</code> ContentSid manually below, e.g. if you created a template by hand in <a className="underline" target="_blank" rel="noreferrer" href="https://console.twilio.com/us1/develop/sms/content-template-builder">Twilio Console</a>.</p>
+                <p>Until a SID is saved here, the bot falls back to plain text for that step (still works, just no buttons).</p>
                 <p>Until a SID is saved here, the bot falls back to plain text for that step (still works, just no buttons).</p>
                 <ul className="list-disc pl-5 space-y-1">
                   <li><code>wa_main_menu</code> / <code>wa_secondary_menu</code> / <code>wa_cart_actions</code> / <code>wa_delivery_choice</code> / <code>wa_confirm_order</code> / <code>wa_account_setup</code> / <code>wa_request_location</code> → <strong>Quick Reply</strong> (twilio/quick-reply)</li>
