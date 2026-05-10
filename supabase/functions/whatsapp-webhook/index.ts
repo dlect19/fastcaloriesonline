@@ -547,6 +547,24 @@ serve(async (req) => {
 // ============================================================
 // Helpers
 // ============================================================
+async function parseInboundParams(req: Request): Promise<Record<string, string>> {
+  const contentType = req.headers.get("content-type") || "";
+  const params: Record<string, string> = {};
+  if (contentType.includes("application/json")) {
+    const json = await req.json();
+    for (const [k, v] of Object.entries(json || {})) params[k] = String(v ?? "");
+    return params;
+  }
+  if (contentType.includes("application/x-www-form-urlencoded") || contentType.includes("multipart/form-data")) {
+    const form = await req.formData();
+    for (const [k, v] of form.entries()) params[k] = String(v);
+    return params;
+  }
+  const raw = await req.text();
+  for (const [k, v] of new URLSearchParams(raw).entries()) params[k] = v;
+  return params;
+}
+
 async function persistSession(supabase: any, id: string, state: string, context: any, cart: any[]) {
   await supabase.from("whatsapp_sessions").update({
     state, context, cart,
