@@ -26,14 +26,16 @@ export default function AdminWhatsApp() {
 
   const load = async () => {
     setLoading(true);
-    const [setting, ses, ord] = await Promise.all([
+    const [setting, ses, ord, tpl] = await Promise.all([
       supabase.from("platform_settings").select("value").eq("key", "whatsapp_ordering_enabled").maybeSingle(),
       supabase.from("whatsapp_sessions").select("*").order("last_message_at", { ascending: false }).limit(50),
       supabase.from("whatsapp_orders").select("*, orders(order_number, status, total_amount)").order("created_at", { ascending: false }).limit(50),
+      supabase.from("whatsapp_templates").select("template_key, content_sid, description").order("template_key"),
     ]);
     setEnabled(setting.data?.value === "true");
     setSessions(ses.data || []);
     setOrders(ord.data || []);
+    setTemplates(tpl.data || []);
     const paid = (ord.data || []).filter((o: any) => o.orders?.status && o.orders.status !== "pending").length;
     setStats({
       sessions: (ses.data || []).length,
@@ -44,6 +46,20 @@ export default function AdminWhatsApp() {
   };
 
   useEffect(() => { load(); }, []);
+
+  const saveTemplate = async (key: string, sid: string) => {
+    setSavingTpl(key);
+    const { error } = await supabase
+      .from("whatsapp_templates")
+      .update({ content_sid: sid.trim() })
+      .eq("template_key", key);
+    setSavingTpl(null);
+    if (error) {
+      toast({ title: "Save failed", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Saved", description: `${key} updated.` });
+    }
+  };
 
   const toggleEnabled = async (v: boolean) => {
     setEnabled(v);
