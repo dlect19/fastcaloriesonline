@@ -158,8 +158,13 @@ serve(async (req) => {
 
     const goMenu = () => { nextState = "menu"; reply = MAIN_MENU; };
 
-    if (lower === "menu" || lower === "hi" || lower === "hello" || lower === "start") {
-      goMenu();
+    // Show full intro the first time we greet this phone (or on explicit hi/hello/start)
+    const isGreeting = lower === "menu" || lower === "hi" || lower === "hello" || lower === "start" || lower === "";
+    const isFirstGreeting = isGreeting && !existing;
+
+    if (isGreeting) {
+      nextState = "menu";
+      reply = isFirstGreeting ? WELCOME_INTRO : MAIN_MENU;
     } else if (lower === "cart") {
       reply = renderCart(nextCart);
       nextState = nextCart.length ? "cart" : session.state;
@@ -168,8 +173,8 @@ serve(async (req) => {
         // List nearby vendors using existing function (no coords → fallback: top vendors by city)
         const vendors = await fetchVendors(supabase, session.customer_user_id);
         if (!vendors.length) {
-          reply = "No vendors are available right now. Please try again later.";
-          goMenu();
+          reply = "😕 No vendors are available right now. Please try again later.\n\n" + MENU_OPTIONS;
+          nextState = "menu";
         } else {
           nextContext.vendors = vendors.map((v: any) => ({ id: v.id, name: v.business_name }));
           nextState = "browsing_vendors";
@@ -178,7 +183,8 @@ serve(async (req) => {
             "\n\nReply with a number to view the menu." + HELP_HINT;
         }
       } else if (lower === "2") {
-        reply = await renderRecentOrders(supabase, phone, session.customer_user_id);
+        reply = await renderRecentOrders(supabase, phone, session.customer_user_id) + HELP_HINT;
+        nextState = "menu";
       } else if (lower === "3") {
         nextState = "ai_suggest";
         reply = "🥗 Tell me what you're looking for (e.g. *low calorie breakfast*, *high protein lunch*).";
@@ -186,8 +192,14 @@ serve(async (req) => {
         reply = renderCart(nextCart);
         nextState = nextCart.length ? "cart" : "menu";
       } else if (lower === "5") {
-        reply = "💬 Reach our team on WhatsApp at +234 800 000 0000 or email support@fastcalories.online.";
-        goMenu();
+        reply =
+          `💬 *Customer Support*\n\n` +
+          `We're here to help!\n\n` +
+          `📧 Email: support@fastcalories.online\n` +
+          `📱 WhatsApp: +234 800 000 0000\n` +
+          `🌐 Help Center: https://app.fastcalories.online/support\n\n` +
+          `Reply *menu* to go back to the main menu.`;
+        nextState = "menu";
       } else {
         goMenu();
       }
@@ -202,8 +214,8 @@ serve(async (req) => {
         nextContext.items = items.map((m: any) => ({ id: m.id, name: m.name, price: m.price, calories: m.calories }));
         nextState = "browsing_menu";
         if (!items.length) {
-          reply = `${list[idx].name} has no items available right now.`;
-          goMenu();
+          reply = `${list[idx].name} has no items available right now.\n\n` + MENU_OPTIONS;
+          nextState = "menu";
         } else {
           reply = `📋 *${list[idx].name}*\n\n` +
             items.slice(0, 20).map((m: any, i: number) =>
