@@ -232,6 +232,23 @@ export default function Orders() {
                     </div>
                     <ChevronRight className="w-5 h-5 text-muted-foreground" />
                   </div>
+
+                  {cancelSettings.enabled && CANCELABLE_STATUSES.includes(order.status) && (
+                    <div className="mt-3 pt-3 border-t border-border flex justify-end">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCancelTarget(order);
+                        }}
+                      >
+                        <XCircle className="w-4 h-4 mr-1.5" />
+                        Cancel Order
+                      </Button>
+                    </div>
+                  )}
                 </div>
               );
             })}
