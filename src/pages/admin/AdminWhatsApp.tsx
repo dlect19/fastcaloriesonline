@@ -86,6 +86,28 @@ export default function AdminWhatsApp() {
     }
   };
 
+  const [provisioning, setProvisioning] = useState(false);
+  const provisionTemplates = async () => {
+    setProvisioning(true);
+    const { data, error } = await supabase.functions.invoke("whatsapp-provision-templates", { body: {} });
+    setProvisioning(false);
+    if (error || (data as any)?.ok === false) {
+      toast({ title: "Provisioning failed", description: error?.message || (data as any)?.error || "Unknown error", variant: "destructive" });
+      return;
+    }
+    const results = (data as any)?.results || [];
+    const created = results.filter((r: any) => r.status === "created").length;
+    const existing = results.filter((r: any) => r.status === "already_exists").length;
+    const failed = results.filter((r: any) => r.status === "failed");
+    toast({
+      title: `Templates: ${created} created, ${existing} already existed`,
+      description: failed.length ? `${failed.length} failed — see console` : "All set ✅",
+      variant: failed.length ? "destructive" : "default",
+    });
+    if (failed.length) console.error("Template provisioning failures:", failed);
+    load();
+  };
+
   return (
     <div className="container max-w-7xl py-6 space-y-6">
       <div className="flex items-center justify-between">
