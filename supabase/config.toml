@@ -1,13 +1,4 @@
 project_id = "bruyccrjymmpzulqhotw"
 
-[functions.generate-campaign-image]
-verify_jwt = false
-
-[functions.paystack-initialize-ad-funding]
-verify_jwt = false
-
-[functions.generate-vendor-ad-image]
-verify_jwt = false
-
-[functions.verify-ad-wallet-funding]
+[functions.whatsapp-webhook]
 verify_jwt = false
