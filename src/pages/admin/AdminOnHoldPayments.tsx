@@ -9,9 +9,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { Loader2, ShieldCheck, AlertTriangle, Search, Download, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, format } from 'date-fns';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface HoldRow {
   hold_key: string;
@@ -48,6 +50,15 @@ export default function AdminOnHoldPayments() {
   const [decision, setDecision] = useState<'absorbed' | 'released'>('released');
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Filters
+  const [search, setSearch] = useState('');
+  const [partyFilter, setPartyFilter] = useState<string>('all');
+  const [sourceFilter, setSourceFilter] = useState<string>('all');
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
 
   useEffect(() => {
     checkAuth();
@@ -108,7 +119,52 @@ export default function AdminOnHoldPayments() {
     fetchHolds();
   };
 
-  const totalHeld = rows.reduce((s, r) => s + Number(r.amount || 0), 0);
+  const filtered = rows.filter((r) => {
+    if (partyFilter !== 'all' && r.party_type !== partyFilter) return false;
+    if (sourceFilter !== 'all' && r.source !== sourceFilter) return false;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      const hay = `${r.party_name || ''} ${r.order_number || ''} ${r.reason || ''}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    if (dateFrom && r.held_since && new Date(r.held_since) < new Date(dateFrom)) return false;
+    if (dateTo && r.held_since && new Date(r.held_since) > new Date(dateTo + 'T23:59:59')) return false;
+    return true;
+  });
+
+  const totalHeld = filtered.reduce((s, r) => s + Number(r.amount || 0), 0);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  const exportCsv = () => {
+    const header = ['Party', 'Type', 'Source', 'Reason', 'Amount', 'Order #', 'Held Since'];
+    const lines = [header.join(',')];
+    filtered.forEach(r => {
+      lines.push([
+        `"${(r.party_name || '').replace(/"/g, '""')}"`,
+        partyLabel[r.party_type] || r.party_type,
+        sourceLabel[r.source] || r.source,
+        `"${(r.reason || '').replace(/"/g, '""')}"`,
+        r.amount,
+        r.order_number || '',
+        r.held_since ? format(new Date(r.held_since), 'yyyy-MM-dd HH:mm') : '',
+      ].join(','));
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `on-hold-payments-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const resetFilters = () => {
+    setSearch(''); setPartyFilter('all'); setSourceFilter('all');
+    setDateFrom(''); setDateTo(''); setPage(1);
+  };
+
 
   if (loading) {
     return (
@@ -135,17 +191,58 @@ export default function AdminOnHoldPayments() {
         </Card>
       </div>
 
+      <Card className="mb-4">
+        <CardContent className="p-4 grid grid-cols-1 md:grid-cols-6 gap-3">
+          <div className="md:col-span-2 relative">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search party, order #, reason..."
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              className="pl-9"
+            />
+          </div>
+          <Select value={partyFilter} onValueChange={(v) => { setPartyFilter(v); setPage(1); }}>
+            <SelectTrigger><SelectValue placeholder="Party type" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Parties</SelectItem>
+              <SelectItem value="vendor">Vendor</SelectItem>
+              <SelectItem value="rider">Rider</SelectItem>
+              <SelectItem value="delivery_company">Logistics Co.</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={sourceFilter} onValueChange={(v) => { setSourceFilter(v); setPage(1); }}>
+            <SelectTrigger><SelectValue placeholder="Source" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Sources</SelectItem>
+              <SelectItem value="settlement_period">Settlement Period</SelectItem>
+              <SelectItem value="suspension">Suspended</SelectItem>
+              <SelectItem value="failed_payout">Payout Failed</SelectItem>
+            </SelectContent>
+          </Select>
+          <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }} />
+          <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1); }} />
+          <div className="md:col-span-6 flex items-center gap-2 justify-end">
+            <Button variant="outline" size="sm" onClick={resetFilters}>Reset</Button>
+            <Button variant="outline" size="sm" onClick={exportCsv} disabled={filtered.length === 0}>
+              <Download className="w-4 h-4 mr-1" /> Export CSV
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
-          <CardTitle>Holds Queue ({rows.length})</CardTitle>
+          <CardTitle>Holds Queue ({filtered.length})</CardTitle>
         </CardHeader>
         <CardContent>
-          {rows.length === 0 ? (
+          {filtered.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <ShieldCheck className="w-10 h-10 mx-auto mb-3 text-green-500" />
-              No payments are currently on hold.
+              {rows.length === 0 ? 'No payments are currently on hold.' : 'No holds match your filters.'}
             </div>
           ) : (
+            <>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
@@ -155,12 +252,12 @@ export default function AdminOnHoldPayments() {
                     <th className="text-left py-3 px-3 font-medium text-sm">Source</th>
                     <th className="text-left py-3 px-3 font-medium text-sm">Reason</th>
                     <th className="text-right py-3 px-3 font-medium text-sm">Amount</th>
-                    <th className="text-left py-3 px-3 font-medium text-sm">Held</th>
+                    <th className="text-left py-3 px-3 font-medium text-sm">Held Since</th>
                     <th className="text-right py-3 px-3 font-medium text-sm">Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((r) => (
+                  {paginated.map((r) => (
                     <tr key={r.hold_key} className="border-b hover:bg-secondary/40">
                       <td className="py-3 px-3 font-medium">{r.party_name || '—'}</td>
                       <td className="py-3 px-3">
@@ -174,7 +271,8 @@ export default function AdminOnHoldPayments() {
                       <td className="py-3 px-3 text-sm text-muted-foreground max-w-[280px]">{r.reason}</td>
                       <td className="py-3 px-3 text-right font-semibold">₦{Number(r.amount).toLocaleString()}</td>
                       <td className="py-3 px-3 text-xs text-muted-foreground">
-                        {r.held_since ? formatDistanceToNow(new Date(r.held_since), { addSuffix: true }) : '—'}
+                        <div>{r.held_since ? format(new Date(r.held_since), 'MMM d, yyyy') : '—'}</div>
+                        <div className="opacity-70">{r.held_since ? format(new Date(r.held_since), 'HH:mm') : ''} · {r.held_since ? formatDistanceToNow(new Date(r.held_since), { addSuffix: true }) : ''}</div>
                       </td>
                       <td className="py-3 px-3 text-right">
                         <Button size="sm" onClick={() => openResolve(r)}>Resolve</Button>
@@ -184,9 +282,25 @@ export default function AdminOnHoldPayments() {
                 </tbody>
               </table>
             </div>
+            <div className="flex items-center justify-between mt-4 text-sm">
+              <p className="text-muted-foreground">
+                Showing {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, filtered.length)} of {filtered.length}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" disabled={currentPage <= 1} onClick={() => setPage(p => p - 1)}>
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <span>Page {currentPage} / {totalPages}</span>
+                <Button variant="outline" size="sm" disabled={currentPage >= totalPages} onClick={() => setPage(p => p + 1)}>
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+            </>
           )}
         </CardContent>
       </Card>
+
 
       <Dialog open={!!active} onOpenChange={(o) => !o && setActive(null)}>
         <DialogContent className="max-w-lg">
