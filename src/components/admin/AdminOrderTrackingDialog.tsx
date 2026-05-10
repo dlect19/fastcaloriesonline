@@ -52,6 +52,9 @@ interface Order {
   payment_status: string;
   outlet_id: string | null;
   packaging_fee: number;
+  package_count?: number | null;
+  extra_package_fee?: number | null;
+  menu_subtotal?: number | null;
   environment: string;
 }
 
