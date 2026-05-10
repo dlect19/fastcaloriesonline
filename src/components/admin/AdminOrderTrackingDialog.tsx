@@ -161,6 +161,15 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
     company_revenue: number;
     service_fee_amount: number | null;
   } | null>(null);
+  const [surgeInfo, setSurgeInfo] = useState<{
+    time_period: string | null;
+    weather_condition: string | null;
+    time_surge_bonus: number | null;
+    weather_surge_bonus: number | null;
+    total_surge_bonus: number | null;
+    distance_km: number | null;
+    delivery_fee: number | null;
+  } | null>(null);
 
   // Vendor countdown
   const [vendorElapsed, setVendorElapsed] = useState(0);
