@@ -1,5 +1,5 @@
-// WhatsApp webhook (Twilio) — handles inbound messages and drives the
-// conversation state machine. Public endpoint (no JWT), signature-verified.
+// WhatsApp webhook (Twilio) — fully tap-driven, in-WhatsApp account creation.
+// Public endpoint (no JWT). Twilio signature is verified in production.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -11,13 +11,15 @@ const corsHeaders = {
 const TWILIO_GATEWAY = "https://connector-gateway.lovable.dev/twilio";
 const SANDBOX_FROM = "whatsapp:+14155238886";
 
+// ============================================================
+// TwiML helpers
+// ============================================================
 function twiml(message: string) {
   const body = `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${
     message.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
   }</Message></Response>`;
   return new Response(body, { headers: { ...corsHeaders, "Content-Type": "text/xml" }, status: 200 });
 }
-
 function emptyTwiml() {
   return new Response('<?xml version="1.0" encoding="UTF-8"?><Response/>', {
     headers: { ...corsHeaders, "Content-Type": "text/xml" },
@@ -25,11 +27,58 @@ function emptyTwiml() {
   });
 }
 
-// --- Twilio signature verification (HMAC-SHA1) ---
+// ============================================================
+// Twilio outbound — interactive (Content Templates) + plain text
+// ============================================================
+async function sendViaTwilio(params: Record<string, string>): Promise<boolean> {
+  const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+  const twilioKey = Deno.env.get("TWILIO_API_KEY");
+  if (!lovableKey || !twilioKey) {
+    console.warn("Twilio gateway secrets missing — cannot send outbound");
+    return false;
+  }
+  try {
+    const r = await fetch(`${TWILIO_GATEWAY}/Messages.json`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${lovableKey}`,
+        "X-Connection-Api-Key": twilioKey,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams(params),
+    });
+    if (!r.ok) {
+      const t = await r.text();
+      console.error("Twilio send failed", r.status, t);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error("Twilio send error", e);
+    return false;
+  }
+}
+
+async function sendInteractive(from: string, to: string, contentSid: string, variables: Record<string, string>) {
+  return await sendViaTwilio({
+    From: from,
+    To: to,
+    ContentSid: contentSid,
+    ContentVariables: JSON.stringify(variables),
+  });
+}
+
+async function sendText(from: string, to: string, body: string) {
+  return await sendViaTwilio({ From: from, To: to, Body: body });
+}
+
+// ============================================================
+// Twilio signature verification
+// ============================================================
 async function verifyTwilioSignature(req: Request, params: Record<string, string>, platformEnvironment: string): Promise<boolean> {
-  if (platformEnvironment !== "production") return true; // Twilio Sandbox/dev testing fallback
+  if (platformEnvironment !== "production") return true;
   const authToken = Deno.env.get("TWILIO_AUTH_TOKEN");
-  if (!authToken) return true; // skip if not configured (dev fallback)
+  if (!authToken) return true;
   const signature = req.headers.get("x-twilio-signature");
   if (!signature) return false;
   const url = req.url;
@@ -48,31 +97,35 @@ async function verifyTwilioSignature(req: Request, params: Record<string, string
   return expected === signature;
 }
 
+// ============================================================
+// Static text (fallback when no template SID configured)
+// ============================================================
 const HELP_HINT = "\n\nReply *menu* anytime to restart, or *cart* to see your basket.";
-
-const APP_BASE = "https://app.fastcalories.online";
-const miniAppUrl = (sessionId: string) => `${APP_BASE}/wa/${sessionId}`;
 
 const MENU_OPTIONS =
   `Reply with a number:\n` +
   `1️⃣ Order food (nearby vendors)\n` +
   `2️⃣ Track an order\n` +
-  `3️⃣ Healthy meal suggestions\n` +
-  `4️⃣ View cart\n` +
-  `5️⃣ Customer support`;
+  `3️⃣ My wallet\n` +
+  `4️⃣ Healthy meal suggestions\n` +
+  `5️⃣ View cart\n` +
+  `6️⃣ Customer support`;
 
 const MAIN_MENU = `🍔 *FastCalories Menu*\n\n${MENU_OPTIONS}`;
 
 const WELCOME_INTRO =
   `🍔 *Welcome to FastCalories!* 🇳🇬\n\n` +
-  `FastCalories is Nigeria's 3-in-1 marketplace for *food, groceries & pharmacy* — with built-in *nutrition intelligence* so you can track calories and eat smarter.\n\n` +
-  `✨ What you can do here:\n` +
-  `• Order from nearby vendors with fast delivery or carryout\n` +
-  `• Get AI-powered healthy meal suggestions\n` +
-  `• Track your orders in real time\n` +
-  `• Pay securely from your FastCalories wallet\n\n` +
+  `Order food, groceries & medicine — all here in WhatsApp. We track calories so you can eat smarter.\n\n` +
   MENU_OPTIONS;
 
+const ACCOUNT_PROMPT_TEXT =
+  `👋 Welcome! It looks like you're new here.\n\n` +
+  `To order, I just need your *first name*.\n\n` +
+  `Reply with your name to create your FastCalories account (we'll use this WhatsApp number — no password needed).`;
+
+// ============================================================
+// Server
+// ============================================================
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -82,42 +135,54 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // Check global enable flag and current environment
+    // ---- Settings ----
     const { data: settingRows } = await supabase
       .from("platform_settings")
       .select("key,value")
-      .in("key", ["whatsapp_ordering_enabled", "platform_environment"]);
+      .in("key", ["whatsapp_ordering_enabled", "platform_environment", "whatsapp_from_number"]);
     const settings = Object.fromEntries((settingRows || []).map((row: any) => [row.key, row.value]));
     const platformEnvironment = settings.platform_environment || "development";
+    const fromNumber = settings.whatsapp_from_number || SANDBOX_FROM;
     if (settings.whatsapp_ordering_enabled !== "true") {
-      return twiml("WhatsApp ordering is currently disabled. Please use our app: https://app.fastcalories.online");
+      return twiml("WhatsApp ordering is currently disabled.");
     }
 
-    // Parse Twilio form payload
+    // ---- Templates ----
+    const { data: templateRows } = await supabase
+      .from("whatsapp_templates").select("template_key,content_sid");
+    const templates: Record<string, string> = {};
+    for (const r of (templateRows || [])) {
+      if (r.content_sid) templates[r.template_key] = r.content_sid;
+    }
+
+    // ---- Parse Twilio inbound ----
     const form = await req.formData();
     const params: Record<string, string> = {};
     for (const [k, v] of form.entries()) params[k] = String(v);
 
     const ok = await verifyTwilioSignature(req, params, platformEnvironment);
-    if (!ok) {
-      console.warn("Invalid Twilio signature");
-      return new Response("forbidden", { status: 403, headers: corsHeaders });
-    }
+    if (!ok) return new Response("forbidden", { status: 403, headers: corsHeaders });
 
-    const fromRaw = params["From"] || ""; // e.g. whatsapp:+234...
+    const fromRaw = params["From"] || ""; // whatsapp:+234...
     const phone = fromRaw.replace("whatsapp:", "").trim();
     const body = (params["Body"] || "").trim();
     const messageSid = params["MessageSid"];
     if (!phone) return emptyTwiml();
 
-    // Dedupe inbound by SID
+    // Twilio interactive replies come as ButtonPayload (Quick Reply) or
+    // ListId (List Picker). Fall back to plain Body otherwise.
+    const buttonPayload = (params["ButtonPayload"] || params["ListId"] || "").trim();
+    const lower = body.toLowerCase();
+    const tap = buttonPayload || ""; // e.g. "BTN_ORDER", "LIST_VENDOR_<uuid>"
+
+    // ---- Dedupe ----
     if (messageSid) {
       const { data: dupe } = await supabase
         .from("whatsapp_messages").select("id").eq("twilio_sid", messageSid).maybeSingle();
       if (dupe) return emptyTwiml();
     }
 
-    // Load or create session
+    // ---- Session ----
     const { data: existing } = await supabase
       .from("whatsapp_sessions").select("*").eq("phone", phone).maybeSingle();
 
@@ -128,7 +193,6 @@ serve(async (req) => {
       }).select().single();
       session = created;
     } else if (new Date(session.expires_at) < new Date()) {
-      // expired — reset
       await supabase.from("whatsapp_sessions").update({
         state: "menu", context: {}, cart: [],
         last_message_at: new Date().toISOString(),
@@ -137,7 +201,7 @@ serve(async (req) => {
       session = { ...session, state: "menu", context: {}, cart: [] };
     }
 
-    // Try to link to a customer profile by phone (try multiple Nigerian formats)
+    // ---- Link to existing profile by phone ----
     if (!session.customer_user_id) {
       const variants = phoneVariants(phone);
       const { data: profs } = await supabase
@@ -149,19 +213,129 @@ serve(async (req) => {
       }
     }
 
-    // Log inbound
+    // ---- Log inbound ----
     await supabase.from("whatsapp_messages").insert({
-      session_id: session.id, phone, direction: "in", body, twilio_sid: messageSid ?? null,
+      session_id: session.id, phone, direction: "in",
+      body: tap ? `[tap:${tap}] ${body}` : body,
+      twilio_sid: messageSid ?? null,
     });
 
-    // ---- State machine ----
-    const lower = body.toLowerCase();
-    let reply = "";
+    // ============================================================
+    // Outbound dispatcher — try interactive template, fall back to text
+    // ============================================================
+    const sendToUser = async (templateKey: string, vars: Record<string, string>, fallbackText: string) => {
+      const sid = templates[templateKey];
+      if (sid) {
+        const okSent = await sendInteractive(fromNumber, fromRaw, sid, vars);
+        if (okSent) {
+          await supabase.from("whatsapp_messages").insert({
+            session_id: session.id, phone, direction: "out",
+            body: `[template:${templateKey}] ${fallbackText.slice(0, 200)}`,
+          });
+          return emptyTwiml();
+        }
+      }
+      // Fallback: TwiML text reply
+      await supabase.from("whatsapp_messages").insert({
+        session_id: session.id, phone, direction: "out", body: fallbackText,
+      });
+      return twiml(fallbackText);
+    };
+
+    // Just persist + reply with text (no template option for this branch)
+    const replyText = async (text: string) => {
+      await supabase.from("whatsapp_messages").insert({
+        session_id: session.id, phone, direction: "out", body: text,
+      });
+      return twiml(text);
+    };
+
+    // ============================================================
+    // Account creation flow — runs FIRST when user has no profile linked
+    // ============================================================
+    const isGreeting = !tap && (lower === "menu" || lower === "hi" || lower === "hello" || lower === "start" || lower === "");
+
+    if (!session.customer_user_id && session.state !== "awaiting_name") {
+      // First-time user: ask for name
+      await supabase.from("whatsapp_sessions").update({
+        state: "awaiting_name",
+        last_message_at: new Date().toISOString(),
+        expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      }).eq("id", session.id);
+      return await sendToUser("wa_account_setup", {}, ACCOUNT_PROMPT_TEXT);
+    }
+
+    if (session.state === "awaiting_name") {
+      // Validate name (free text). Accept 1–60 chars, letters/spaces/-/'
+      const name = body.trim().replace(/\s+/g, " ");
+      if (!name || name.length < 2 || name.length > 60 || !/^[A-Za-z][A-Za-z\s'\-]{1,59}$/.test(name)) {
+        return await replyText("👋 Please reply with your *first name* (letters only, 2–60 characters).");
+      }
+      // Create auth user (phone-based)
+      try {
+        const digits = phone.replace(/\D/g, "");
+        const e164 = phone.startsWith("+") ? phone : (digits.startsWith("234") ? "+" + digits : (digits.startsWith("0") ? "+234" + digits.slice(1) : "+" + digits));
+        const synthEmail = `wa${digits}@wa.fastcalories.online`;
+        const password = crypto.randomUUID() + crypto.randomUUID();
+        const { data: created, error: createErr } = await supabase.auth.admin.createUser({
+          email: synthEmail,
+          phone: e164,
+          password,
+          email_confirm: true,
+          phone_confirm: true,
+          user_metadata: { full_name: name, source: "whatsapp" },
+        });
+        if (createErr || !created?.user) {
+          console.error("createUser error", createErr);
+          return await replyText("Sorry, I couldn't create your account right now. Please try again in a moment.");
+        }
+        const userId = created.user.id;
+        // Upsert profile
+        await supabase.from("profiles").upsert({
+          user_id: userId,
+          full_name: name,
+          phone: e164,
+        }, { onConflict: "user_id" });
+
+        await supabase.from("whatsapp_sessions").update({
+          customer_user_id: userId,
+          state: "menu",
+          last_message_at: new Date().toISOString(),
+          expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+        }).eq("id", session.id);
+        session.customer_user_id = userId;
+        session.state = "menu";
+
+        const welcome = `🎉 Welcome, *${name}*! Your FastCalories account is ready.\n\n${MENU_OPTIONS}`;
+        return await sendToUser("wa_main_menu", { name }, welcome);
+      } catch (e) {
+        console.error("account creation crash", e);
+        return await replyText("Hmm, something went wrong creating your account. Reply *menu* to try again.");
+      }
+    }
+
+    // ============================================================
+    // Normal state machine — accepts BOTH tap payloads and typed numbers
+    // ============================================================
     let nextState = session.state;
     let nextContext: any = session.context || {};
     let nextCart: any[] = Array.isArray(session.cart) ? session.cart : [];
 
-    // Capture WhatsApp shared location (Twilio sends Latitude/Longitude)
+    // Shared shortcuts (work from any state)
+    if (tap === "BTN_MAIN_MENU" || lower === "menu" || isGreeting) {
+      await persistSession(supabase, session.id, "menu", nextContext, nextCart);
+      return await sendToUser("wa_main_menu", {}, existing ? MAIN_MENU : WELCOME_INTRO);
+    }
+    if (tap === "BTN_CART" || lower === "cart") {
+      const txt = renderCart(nextCart);
+      await persistSession(supabase, session.id, nextCart.length ? "cart" : session.state, nextContext, nextCart);
+      if (nextCart.length) {
+        return await sendToUser("wa_cart_actions", { total: cartTotal(nextCart).toLocaleString() }, txt + "\n\nReply *checkout* to pay, *clear* to empty, or *menu*.");
+      }
+      return await replyText(txt + HELP_HINT);
+    }
+
+    // Capture shared location pin
     const latStr = params["Latitude"];
     const lonStr = params["Longitude"];
     const sharedLat = latStr ? parseFloat(latStr) : NaN;
@@ -173,212 +347,208 @@ serve(async (req) => {
       nextContext.location_label = params["Address"] || params["Label"] || null;
     }
 
-    const goMenu = () => { nextState = "menu"; reply = MAIN_MENU; };
-
-    const showNearbyVendors = async () => {
-      const vendors = await fetchVendors(
-        supabase,
-        session.customer_user_id,
-        nextContext.lat ?? null,
-        nextContext.lon ?? null,
-      );
+    const showVendors = async () => {
+      const vendors = await fetchVendors(supabase, session.customer_user_id, nextContext.lat ?? null, nextContext.lon ?? null);
       if (!vendors.length) {
-        reply = "😕 No vendors are available near you right now. Please try again later.\n\n" + MENU_OPTIONS;
-        nextState = "menu";
-        return;
+        await persistSession(supabase, session.id, "menu", nextContext, nextCart);
+        return await sendToUser("wa_main_menu", {}, "😕 No vendors near you right now.\n\n" + MENU_OPTIONS);
       }
-      nextContext.vendors = vendors.map((v: any) => ({
-        id: v.id,
-        name: v.name,
-        distance_km: v.distance_km ?? v.distance ?? null,
-      }));
-      nextState = "browsing_vendors";
-      const locNote = nextContext.location_label
-        ? `\n📍 _Near: ${nextContext.location_label}_\n`
-        : (nextContext.lat ? `\n📍 _Using your shared location_\n` : "");
-      reply = `🏪 *Nearby vendors:*${locNote}\n` +
+      nextContext.vendors = vendors.map((v: any) => ({ id: v.id, name: v.name, distance_km: v.distance_km ?? v.distance ?? null }));
+      await persistSession(supabase, session.id, "browsing_vendors", nextContext, nextCart);
+      const text = `🏪 *Nearby vendors:*\n\n` +
         vendors.map((v: any, i: number) => {
           const d = v.distance_km ?? v.distance;
           const dTxt = typeof d === "number" ? ` — ${d.toFixed(1)} km` : "";
           return `${i + 1}. ${v.name}${dTxt}`;
-        }).join("\n") +
-        "\n\nReply with a number to view the menu." + HELP_HINT;
+        }).join("\n") + "\n\nReply with a number to view the menu." + HELP_HINT;
+      // Variables: v1..v10 names for list picker
+      const vars: Record<string, string> = {};
+      vendors.slice(0, 10).forEach((v: any, i: number) => { vars[`v${i + 1}`] = v.name; vars[`id${i + 1}`] = v.id; });
+      return await sendToUser("wa_vendor_list", vars, text);
     };
 
-    // Show full intro the first time we greet this phone (or on explicit hi/hello/start)
-    const isGreeting = lower === "menu" || lower === "hi" || lower === "hello" || lower === "start" || lower === "";
-    const isFirstGreeting = isGreeting && !existing;
-
-    if (hasSharedLocation && (session.state === "awaiting_location" || session.state === "menu" || session.state === "idle" || !lower)) {
-      // User shared a pin → jump straight to nearby vendors
-      await showNearbyVendors();
-    } else if (isGreeting) {
-      nextState = "menu";
-      reply = isFirstGreeting ? WELCOME_INTRO : MAIN_MENU;
-    } else if (lower === "cart") {
-      reply = renderCart(nextCart);
-      nextState = nextCart.length ? "cart" : session.state;
-    } else if (session.state === "menu" || session.state === "idle") {
-      if (lower === "1") {
-        if (nextContext.lat && nextContext.lon) {
-          await showNearbyVendors();
-        } else {
-          // Try saved customer address; if none, ask user to share location
-          const vendors = await fetchVendors(supabase, session.customer_user_id, null, null);
-          const hasSavedAddr = vendors.some((v: any) => v.distance_km != null || v.distance != null);
-          if (hasSavedAddr && vendors.length) {
-            nextContext.vendors = vendors.map((v: any) => ({ id: v.id, name: v.name, distance_km: v.distance_km ?? v.distance ?? null }));
-            nextState = "browsing_vendors";
-            reply = `🏪 *Nearby vendors* _(based on your saved address)_:\n\n` +
-              vendors.map((v: any, i: number) => {
-                const d = v.distance_km ?? v.distance;
-                const dTxt = typeof d === "number" ? ` — ${d.toFixed(1)} km` : "";
-                return `${i + 1}. ${v.name}${dTxt}`;
-              }).join("\n") +
-              "\n\nReply with a number to view the menu." + HELP_HINT;
-          } else {
-            nextState = "awaiting_location";
-            reply =
-              `📍 *Share your location* to see vendors closest to you.\n\n` +
-              `On WhatsApp:\n` +
-              `1. Tap the *➕* (or *📎*) icon\n` +
-              `2. Choose *Location* → *Send your current location*\n\n` +
-              `Or reply *skip* to see top vendors instead.`;
-          }
-        }
-      } else if (lower === "2") {
-        reply = await renderRecentOrders(supabase, phone, session.customer_user_id) + HELP_HINT;
-        nextState = "menu";
-      } else if (lower === "3") {
-        nextState = "ai_suggest";
-        reply = "🥗 Tell me what you're looking for (e.g. *low calorie breakfast*, *high protein lunch*).";
-      } else if (lower === "4") {
-        reply = renderCart(nextCart);
-        nextState = nextCart.length ? "cart" : "menu";
-      } else if (lower === "5") {
-        reply =
-          `💬 *Customer Support*\n\n` +
-          `We're here to help!\n\n` +
-          `📧 Email: care@fastcalories.online\n` +
-          `📱 WhatsApp: +234 800 000 0000\n` +
-          `🌐 Help Center: https://app.fastcalories.online/support\n\n` +
-          `Reply *menu* to go back to the main menu.`;
-        nextState = "menu";
-      } else {
-        goMenu();
+    // Tap routing
+    if (tap === "BTN_ORDER" || (session.state === "menu" && lower === "1")) {
+      if (nextContext.lat && nextContext.lon) return await showVendors();
+      // Try saved address
+      const vendors = await fetchVendors(supabase, session.customer_user_id, null, null);
+      if (vendors.length) {
+        nextContext.vendors = vendors.map((v: any) => ({ id: v.id, name: v.name, distance_km: v.distance_km ?? v.distance ?? null }));
+        await persistSession(supabase, session.id, "browsing_vendors", nextContext, nextCart);
+        const text = `🏪 *Nearby vendors* _(based on your saved address)_:\n\n` +
+          vendors.map((v: any, i: number) => `${i + 1}. ${v.name}`).join("\n") +
+          "\n\nReply with a number." + HELP_HINT;
+        const vars: Record<string, string> = {};
+        vendors.slice(0, 10).forEach((v: any, i: number) => { vars[`v${i + 1}`] = v.name; vars[`id${i + 1}`] = v.id; });
+        return await sendToUser("wa_vendor_list", vars, text);
       }
-    } else if (session.state === "browsing_vendors") {
-      const idx = parseInt(lower, 10) - 1;
-      const list = nextContext.vendors || [];
-      if (Number.isFinite(idx) && idx >= 0 && idx < list.length) {
-        const vendorId = list[idx].id;
-        const items = await fetchMenuItems(supabase, vendorId);
-        nextContext.vendor_id = vendorId;
-        nextContext.vendor_name = list[idx].name;
-        nextContext.items = items.map((m: any) => ({ id: m.id, name: m.name, price: m.price, calories: m.calories }));
-        nextState = "browsing_menu";
-        if (!items.length) {
-          reply = `${list[idx].name} has no items available right now.\n\n` + MENU_OPTIONS;
-          nextState = "menu";
-        } else {
-          reply = `📋 *${list[idx].name}*\n\n` +
-            items.slice(0, 20).map((m: any, i: number) =>
-              `${i + 1}. ${m.name} — ₦${Number(m.price).toLocaleString()}${m.calories ? ` (${m.calories} cal)` : ""}`
-            ).join("\n") +
-            "\n\nReply with item number to add to cart, or *menu* to go back." + HELP_HINT;
-        }
-      } else {
-        reply = "Please reply with a vendor number from the list, or *menu* to restart.";
-      }
-    } else if (session.state === "browsing_menu") {
-      const idx = parseInt(lower, 10) - 1;
-      const items = nextContext.items || [];
-      if (Number.isFinite(idx) && idx >= 0 && idx < items.length) {
-        const it = items[idx];
-        const existing = nextCart.find((c: any) => c.id === it.id);
-        if (existing) existing.qty += 1;
-        else nextCart.push({ ...it, qty: 1, vendor_id: nextContext.vendor_id, vendor_name: nextContext.vendor_name });
-        reply = `✅ Added *${it.name}* to cart.\n\n` + renderCart(nextCart) +
-          `\n\nReply with another item number to add more, *checkout* to pay, or *menu* to restart.`;
-        nextState = "browsing_menu";
-      } else if (lower === "checkout") {
-        return await doCheckout(supabase, session, nextCart, phone);
-      } else {
-        reply = "Reply with a menu item number, *checkout* to pay, or *menu* to restart.";
-      }
-    } else if (session.state === "cart") {
-      if (lower === "checkout") {
-        return await doCheckout(supabase, session, nextCart, phone);
-      } else if (lower === "clear") {
-        nextCart = [];
-        reply = "🗑️ Cart cleared.";
-        goMenu();
-      } else {
-        reply = renderCart(nextCart) + "\n\nReply *checkout* to pay, *clear* to empty, or *menu* to restart.";
-      }
-    } else if (session.state === "ai_suggest") {
-      reply = await aiSuggest(body);
-      goMenu();
-    } else if (session.state === "awaiting_location") {
-      if (lower === "skip") {
-        await showNearbyVendors(); // falls back to top vendors
-      } else {
-        reply =
-          `📍 Please share your location to see nearby vendors.\n\n` +
-          `Tap *➕* (or *📎*) → *Location* → *Send your current location*.\n\n` +
-          `Or reply *skip* to see top vendors, or *menu* to restart.`;
-      }
-    } else {
-      goMenu();
+      await persistSession(supabase, session.id, "awaiting_location", nextContext, nextCart);
+      return await sendToUser("wa_request_location", {},
+        `📍 *Share your location* to see vendors near you.\n\nTap *📎* → *Location* → *Send your current location*.\n\nOr reply *skip* to see top vendors.`);
     }
 
-    // Persist
-    await supabase.from("whatsapp_sessions").update({
-      state: nextState,
-      context: nextContext,
-      cart: nextCart,
-      last_message_at: new Date().toISOString(),
-      expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-    }).eq("id", session.id);
+    if (tap === "BTN_TRACK" || (session.state === "menu" && lower === "2")) {
+      const text = await renderRecentOrders(supabase, phone, session.customer_user_id) + HELP_HINT;
+      await persistSession(supabase, session.id, "menu", nextContext, nextCart);
+      return await replyText(text);
+    }
 
-    // Append a friendly link to the polished mini-app for any text reply
-    const finalReply = (reply || MAIN_MENU) +
-      `\n\n✨ _Prefer tapping over typing?_\n👉 ${miniAppUrl(session.id)}`;
+    if (tap === "BTN_WALLET" || (session.state === "menu" && lower === "3")) {
+      const text = await renderWallet(supabase, session.customer_user_id);
+      await persistSession(supabase, session.id, "menu", nextContext, nextCart);
+      return await replyText(text + HELP_HINT);
+    }
 
-    // Log outbound
-    await supabase.from("whatsapp_messages").insert({
-      session_id: session.id, phone, direction: "out", body: finalReply,
-    });
+    if (tap === "BTN_HEALTHY" || (session.state === "menu" && lower === "4")) {
+      await persistSession(supabase, session.id, "ai_suggest", nextContext, nextCart);
+      return await replyText("🥗 Tell me what you're looking for (e.g. *low calorie breakfast*, *high protein lunch*).");
+    }
 
-    return twiml(finalReply);
+    if ((session.state === "menu" && lower === "5")) {
+      const txt = renderCart(nextCart);
+      await persistSession(supabase, session.id, nextCart.length ? "cart" : "menu", nextContext, nextCart);
+      if (nextCart.length) return await sendToUser("wa_cart_actions", { total: cartTotal(nextCart).toLocaleString() }, txt);
+      return await replyText(txt + HELP_HINT);
+    }
+
+    if (tap === "BTN_SUPPORT" || (session.state === "menu" && lower === "6")) {
+      await persistSession(supabase, session.id, "menu", nextContext, nextCart);
+      return await replyText(
+        `💬 *Customer Support*\n\n📧 care@fastcalories.online\n📱 +234 800 000 0000\n🌐 https://app.fastcalories.online/support` + HELP_HINT
+      );
+    }
+
+    // Vendor list — tap on a list item OR typed number
+    if (session.state === "browsing_vendors") {
+      let vendorId: string | null = null;
+      if (tap.startsWith("LIST_VENDOR_")) vendorId = tap.replace("LIST_VENDOR_", "");
+      else {
+        const idx = parseInt(lower, 10) - 1;
+        const list = nextContext.vendors || [];
+        if (Number.isFinite(idx) && list[idx]) vendorId = list[idx].id;
+      }
+      if (!vendorId) return await replyText("Please reply with a vendor number from the list, or *menu* to restart.");
+      const vendor = (nextContext.vendors || []).find((v: any) => v.id === vendorId);
+      const items = await fetchMenuItems(supabase, vendorId);
+      nextContext.vendor_id = vendorId;
+      nextContext.vendor_name = vendor?.name || "";
+      nextContext.items = items.map((m: any) => ({ id: m.id, name: m.name, price: m.price, calories: m.calories }));
+      if (!items.length) {
+        await persistSession(supabase, session.id, "menu", nextContext, nextCart);
+        return await sendToUser("wa_main_menu", {}, `${vendor?.name || "This vendor"} has no items right now.\n\n${MENU_OPTIONS}`);
+      }
+      await persistSession(supabase, session.id, "browsing_menu", nextContext, nextCart);
+      const text = `📋 *${vendor?.name || ""}*\n\n` +
+        items.slice(0, 10).map((m: any, i: number) =>
+          `${i + 1}. ${m.name} — ₦${Number(m.price).toLocaleString()}${m.calories ? ` (${m.calories} cal)` : ""}`
+        ).join("\n") + "\n\nReply with item number to add to cart, or *menu* to go back.";
+      const vars: Record<string, string> = { vendor: vendor?.name || "" };
+      items.slice(0, 10).forEach((m: any, i: number) => {
+        vars[`i${i + 1}`] = m.name;
+        vars[`p${i + 1}`] = `₦${Number(m.price).toLocaleString()}`;
+        vars[`id${i + 1}`] = m.id;
+      });
+      return await sendToUser("wa_menu_list", vars, text);
+    }
+
+    // Menu item — add to cart
+    if (session.state === "browsing_menu") {
+      let itemId: string | null = null;
+      if (tap.startsWith("LIST_ITEM_")) itemId = tap.replace("LIST_ITEM_", "");
+      else if (tap === "BTN_CHECKOUT" || lower === "checkout") {
+        return await doCheckout(supabase, session, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
+      } else {
+        const idx = parseInt(lower, 10) - 1;
+        const items = nextContext.items || [];
+        if (Number.isFinite(idx) && items[idx]) itemId = items[idx].id;
+      }
+      if (!itemId) return await replyText("Reply with a menu item number, *checkout* to pay, or *menu* to restart.");
+      const it = (nextContext.items || []).find((x: any) => x.id === itemId);
+      if (!it) return await replyText("That item is no longer available.");
+      const inCart = nextCart.find((c: any) => c.id === it.id);
+      if (inCart) inCart.qty += 1;
+      else nextCart.push({ ...it, qty: 1, vendor_id: nextContext.vendor_id, vendor_name: nextContext.vendor_name });
+      await persistSession(supabase, session.id, "browsing_menu", nextContext, nextCart);
+      const txt = `✅ Added *${it.name}* to cart.\n\n` + renderCart(nextCart);
+      return await sendToUser("wa_cart_actions", { total: cartTotal(nextCart).toLocaleString() }, txt + "\n\nReply *checkout* to pay or another item number to add more.");
+    }
+
+    if (session.state === "cart") {
+      if (tap === "BTN_CHECKOUT" || lower === "checkout") {
+        return await doCheckout(supabase, session, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
+      }
+      if (tap === "BTN_CLEAR" || lower === "clear") {
+        nextCart = [];
+        await persistSession(supabase, session.id, "menu", nextContext, nextCart);
+        return await sendToUser("wa_main_menu", {}, "🗑️ Cart cleared.\n\n" + MENU_OPTIONS);
+      }
+      if (tap === "BTN_ADD_MORE") {
+        if (nextContext.vendor_id) {
+          await persistSession(supabase, session.id, "browsing_menu", nextContext, nextCart);
+          return await replyText("Reply with another item number from the menu.");
+        }
+        await persistSession(supabase, session.id, "menu", nextContext, nextCart);
+        return await sendToUser("wa_main_menu", {}, MENU_OPTIONS);
+      }
+      return await sendToUser("wa_cart_actions", { total: cartTotal(nextCart).toLocaleString() },
+        renderCart(nextCart) + "\n\nReply *checkout* to pay, *clear* to empty, or *menu* to restart.");
+    }
+
+    if (session.state === "ai_suggest") {
+      const text = await aiSuggest(body);
+      await persistSession(supabase, session.id, "menu", nextContext, nextCart);
+      return await sendToUser("wa_main_menu", {}, text + "\n\n" + MENU_OPTIONS);
+    }
+
+    if (session.state === "awaiting_location") {
+      if (lower === "skip" || tap === "BTN_SKIP_LOC") return await showVendors();
+      if (tap === "BTN_USE_SAVED_ADDR") {
+        const vendors = await fetchVendors(supabase, session.customer_user_id, null, null);
+        if (vendors.length) {
+          nextContext.vendors = vendors.map((v: any) => ({ id: v.id, name: v.name }));
+          await persistSession(supabase, session.id, "browsing_vendors", nextContext, nextCart);
+          const text = `🏪 *Nearby vendors:*\n\n` + vendors.map((v: any, i: number) => `${i + 1}. ${v.name}`).join("\n") + HELP_HINT;
+          const vars: Record<string, string> = {};
+          vendors.slice(0, 10).forEach((v: any, i: number) => { vars[`v${i + 1}`] = v.name; vars[`id${i + 1}`] = v.id; });
+          return await sendToUser("wa_vendor_list", vars, text);
+        }
+      }
+      return await sendToUser("wa_request_location", {},
+        `📍 Please share your location: tap *📎* → *Location* → *Send your current location*.\n\nOr reply *skip* to see top vendors.`);
+    }
+
+    // Default: bounce to main menu
+    await persistSession(supabase, session.id, "menu", nextContext, nextCart);
+    return await sendToUser("wa_main_menu", {}, MAIN_MENU);
   } catch (e) {
     console.error("whatsapp-webhook error:", e);
     return twiml("Sorry, something went wrong. Please try again in a moment.");
   }
 });
 
-// ---- Helpers ----
+// ============================================================
+// Helpers
+// ============================================================
+async function persistSession(supabase: any, id: string, state: string, context: any, cart: any[]) {
+  await supabase.from("whatsapp_sessions").update({
+    state, context, cart,
+    last_message_at: new Date().toISOString(),
+    expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+  }).eq("id", id);
+}
+
+function cartTotal(cart: any[]): number {
+  return cart.reduce((s, c) => s + Number(c.price) * c.qty, 0);
+}
 
 function renderCart(cart: any[]): string {
   if (!cart.length) return "🛒 Your cart is empty.";
-  let total = 0;
-  const lines = cart.map((c, i) => {
-    const sub = Number(c.price) * c.qty;
-    total += sub;
-    return `${i + 1}. ${c.name} × ${c.qty} — ₦${sub.toLocaleString()}`;
-  });
-  return `🛒 *Your Cart*\n\n${lines.join("\n")}\n\n*Total: ₦${total.toLocaleString()}*`;
+  const lines = cart.map((c, i) => `${i + 1}. ${c.name} × ${c.qty} — ₦${(Number(c.price) * c.qty).toLocaleString()}`);
+  return `🛒 *Your Cart*\n\n${lines.join("\n")}\n\n*Total: ₦${cartTotal(cart).toLocaleString()}*`;
 }
 
-async function fetchVendors(
-  supabase: any,
-  userId: string | null,
-  overrideLat: number | null = null,
-  overrideLon: number | null = null,
-) {
-  let lat: number | null = overrideLat;
-  let lon: number | null = overrideLon;
-  // If no shared coords, try saved customer address
+async function fetchVendors(supabase: any, userId: string | null, overrideLat: number | null, overrideLon: number | null) {
+  let lat = overrideLat, lon = overrideLon;
   if ((lat === null || lon === null) && userId) {
     const { data: addr } = await supabase
       .from("delivery_addresses").select("latitude, longitude")
@@ -387,16 +557,11 @@ async function fetchVendors(
   }
   if (lat !== null && lon !== null) {
     try {
-      const { data } = await supabase.functions.invoke("get-nearby-vendors", {
-        body: { customer_lat: lat, customer_lon: lon },
-      });
-      if (data?.vendors?.length) return data.vendors.slice(0, 5);
-    } catch (_) { /* fallthrough */ }
+      const { data } = await supabase.functions.invoke("get-nearby-vendors", { body: { customer_lat: lat, customer_lon: lon } });
+      if (data?.vendors?.length) return data.vendors.slice(0, 10);
+    } catch (_) {}
   }
-  // Fallback: any 5 active vendors
-  const { data } = await supabase
-    .from("vendors").select("id, name")
-    .eq("is_active", true).limit(5);
+  const { data } = await supabase.from("vendors").select("id, name").eq("is_active", true).limit(10);
   return data || [];
 }
 
@@ -408,19 +573,40 @@ async function fetchMenuItems(supabase: any, vendorId: string) {
 }
 
 async function renderRecentOrders(supabase: any, phone: string, userId: string | null) {
-  const { data } = await supabase
-    .from("whatsapp_orders").select("order_id, status, created_at, orders(order_number, status)")
-    .eq("phone", phone).order("created_at", { ascending: false }).limit(3);
-  if (!data?.length) return "📦 No recent WhatsApp orders found.";
-  return "📦 *Your recent orders:*\n\n" + data.map((o: any) =>
-    `#${o.orders?.order_number ?? "—"} — ${o.orders?.status ?? o.status}`
-  ).join("\n");
+  if (userId) {
+    const { data } = await supabase
+      .from("orders").select("order_number, status, total, created_at")
+      .eq("user_id", userId).order("created_at", { ascending: false }).limit(5);
+    if (data?.length) {
+      return "📦 *Your recent orders:*\n\n" + data.map((o: any) =>
+        `#${o.order_number} — ${o.status} — ₦${Number(o.total).toLocaleString()}`).join("\n");
+    }
+  }
+  return "📦 No recent orders found.";
+}
+
+async function renderWallet(supabase: any, userId: string | null) {
+  if (!userId) return "💼 Reply *menu* to set up your account first.";
+  const { data: wallet } = await supabase
+    .from("customer_wallets").select("balance").eq("user_id", userId).maybeSingle();
+  const bal = Number(wallet?.balance || 0);
+  const { data: txs } = await supabase
+    .from("wallet_transactions").select("type, amount, description, created_at")
+    .eq("user_id", userId).order("created_at", { ascending: false }).limit(5);
+  let text = `💼 *Your Wallet*\n\nBalance: *₦${bal.toLocaleString()}*`;
+  if (txs?.length) {
+    text += `\n\n_Recent transactions:_\n` + txs.map((t: any) => {
+      const sign = t.type === "credit" ? "+" : "-";
+      return `${sign}₦${Number(t.amount).toLocaleString()} — ${t.description || t.type}`;
+    }).join("\n");
+  }
+  return text;
 }
 
 async function aiSuggest(query: string): Promise<string> {
   try {
     const apiKey = Deno.env.get("LOVABLE_API_KEY");
-    if (!apiKey) return "AI suggestions are unavailable right now.";
+    if (!apiKey) return "AI suggestions unavailable right now.";
     const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
@@ -434,48 +620,49 @@ async function aiSuggest(query: string): Promise<string> {
     });
     const j = await r.json();
     return "🥗 *Healthy picks:*\n\n" + (j.choices?.[0]?.message?.content || "No suggestions.");
-  } catch (e) {
+  } catch {
     return "Couldn't fetch suggestions right now.";
   }
 }
 
-async function doCheckout(supabase: any, session: any, cart: any[], phone: string) {
-  if (!cart.length) {
-    return twiml("Your cart is empty. Reply *1* to browse vendors.");
-  }
+async function doCheckout(
+  supabase: any, session: any, cart: any[], phone: string,
+  fromNumber: string, fromRaw: string,
+  templates: Record<string, string>,
+  sendToUser: (k: string, v: Record<string, string>, fb: string) => Promise<Response>,
+  replyText: (t: string) => Promise<Response>,
+) {
+  if (!cart.length) return await replyText("Your cart is empty. Reply *menu* to browse vendors.");
   if (!session.customer_user_id) {
-    return twiml(
-      `📱 To complete checkout, please sign up or link this WhatsApp number on the app:\n` +
-      `https://app.fastcalories.online/auth?phone=${encodeURIComponent(phone)}\n\n` +
-      `Once your phone is on your profile, come back here and reply *checkout* again.`
-    );
+    return await replyText("⚠️ Please reply *menu* and follow the setup to create your account first.");
   }
-  // Simplest reliable handoff: create a deep link that loads the WhatsApp cart in the app
-  // and lets the existing checkout flow run (wallet, Paystack, address, etc.).
-  const handoff = `https://app.fastcalories.online/cart?wa=${session.id}`;
 
-  // Persist a pending bridge row (no order yet — created on app-side checkout)
-  await supabase.from("whatsapp_orders").insert({
-    session_id: session.id, phone, payment_link: handoff, status: "awaiting_checkout",
-  });
-  await supabase.from("whatsapp_messages").insert({
-    session_id: session.id, phone, direction: "out",
-    body: `Checkout link sent: ${handoff}`,
-  });
+  const { data: wallet } = await supabase
+    .from("customer_wallets").select("balance").eq("user_id", session.customer_user_id).maybeSingle();
+  const bal = Number(wallet?.balance || 0);
+  const subtotal = cartTotal(cart);
+  const serviceFee = Math.round(subtotal * 0.08);
+  const deliveryFee = 500; // default — actual is computed at order placement
+  const total = subtotal + serviceFee + deliveryFee;
 
-  return twiml(
-    `✅ Cart ready! Tap to complete payment & delivery details:\n${handoff}\n\n` +
-    `You'll get WhatsApp updates here when your order is confirmed, prepared, picked up, and delivered.`
-  );
+  const text =
+    `🧾 *Order Summary*\n\n` +
+    cart.map(c => `• ${c.name} × ${c.qty} — ₦${(Number(c.price) * c.qty).toLocaleString()}`).join("\n") +
+    `\n\nSubtotal: ₦${subtotal.toLocaleString()}` +
+    `\nService fee (8%): ₦${serviceFee.toLocaleString()}` +
+    `\nDelivery: ₦${deliveryFee.toLocaleString()}` +
+    `\n*Total: ₦${total.toLocaleString()}*` +
+    `\n\nWallet balance: ₦${bal.toLocaleString()}` +
+    (bal < total ? `\n\n⚠️ _Insufficient balance — reply *3* to fund your wallet first._` : `\n\nReply *yes* to confirm & pay.`);
+
+  await persistSession(supabase, session.id, "confirming_order", { ...(session.context || {}), pending_total: total }, cart);
+  return await sendToUser("wa_confirm_order", { total: total.toLocaleString() }, text);
 }
 
-// Returns common Nigerian phone formats so we can match the user's profile
-// regardless of whether they saved it as +234..., 234..., or 0...
 function phoneVariants(phone: string): string[] {
   const set = new Set<string>();
   const raw = phone.trim();
   set.add(raw);
-  // strip non-digits
   const digits = raw.replace(/\D/g, "");
   set.add(digits);
   if (digits.startsWith("234") && digits.length === 13) {
