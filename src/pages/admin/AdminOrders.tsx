@@ -54,7 +54,7 @@ export default function AdminOrders() {
   }, [statusFilter]);
 
   // Reset page when filters change
-  useEffect(() => { setCurrentPage(1); }, [orderTab, dateRange, searchQuery, statusFilter, itemsPerPage, freeMealOnly]);
+  useEffect(() => { setCurrentPage(1); }, [orderTab, channelTab, dateRange, searchQuery, statusFilter, itemsPerPage, freeMealOnly]);
 
   const filteredOrders = useMemo(() => {
     let result = orders;
