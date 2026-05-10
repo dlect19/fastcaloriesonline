@@ -209,8 +209,8 @@ export default function AdminWhatsApp() {
             <CardContent className="space-y-4 text-sm">
               <div className="rounded-md bg-muted/50 p-3 text-xs space-y-2">
                 <p>Click <strong>Auto-create all in Twilio</strong> to provision the 9 templates and save their <code>HX...</code> SIDs automatically. (Sandbox auto-approves; production requires Meta approval ~24h.)</p>
-              <div className="rounded-md bg-muted/50 p-3 text-xs space-y-2">
-                <p>To make WhatsApp fully tap-driven, create these <strong>Content Templates</strong> in <a className="underline" target="_blank" rel="noreferrer" href="https://console.twilio.com/us1/develop/sms/content-template-builder">Twilio Console → Content Template Builder</a>, then paste each <code>HX...</code> ContentSid below.</p>
+                <p>You can still paste a <code>HX...</code> ContentSid manually below, e.g. if you created a template by hand in <a className="underline" target="_blank" rel="noreferrer" href="https://console.twilio.com/us1/develop/sms/content-template-builder">Twilio Console</a>.</p>
+                <p>Until a SID is saved here, the bot falls back to plain text for that step (still works, just no buttons).</p>
                 <p>Until a SID is saved here, the bot falls back to plain text for that step (still works, just no buttons).</p>
                 <ul className="list-disc pl-5 space-y-1">
                   <li><code>wa_main_menu</code> / <code>wa_secondary_menu</code> / <code>wa_cart_actions</code> / <code>wa_delivery_choice</code> / <code>wa_confirm_order</code> / <code>wa_account_setup</code> / <code>wa_request_location</code> → <strong>Quick Reply</strong> (twilio/quick-reply)</li>
