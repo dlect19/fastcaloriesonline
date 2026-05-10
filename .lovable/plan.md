@@ -1,70 +1,78 @@
-# Admin: Separate POS Orders + On-Hold Payments Review
+# WhatsApp Ordering System via Twilio
 
-## 1. Split Orders Page (POS vs Online)
+A conversational ordering channel that lets customers browse vendors, build a cart, checkout, and receive live order updates entirely from WhatsApp — reusing the existing FastCalories order, payment, dispatch, and notification infrastructure.
 
-In **Admin → Orders**, add a tab switcher at the top of the existing Orders table:
+## Scope (Phase 1 — shipped now)
 
-- **Online Orders** — current default view (Delivery + Carryout web/app orders)
-- **POS Orders** — only orders where `order_type = 'pos'` (in-store sales rung up via `/vendor/pos`)
+This is a large surface area. To deliver something working and avoid a half-built system, Phase 1 ships the core end-to-end flow. Phase 2 items are listed but not built yet.
 
-Each tab shows the **same column layout** already in use, plus a count badge (e.g. "POS Orders (47)"). The Track dialog stays the same — both tabs reuse `AdminOrderTrackingDialog`. Filtering, search, date range, and CSV export work per tab.
+### Phase 1 — Core flow
+1. Twilio connector wiring (WhatsApp send/receive via Twilio Messages API through the Lovable connector gateway).
+2. Inbound webhook edge function `whatsapp-webhook` (public, signature-verified) that:
+   - Parses Twilio webhook payloads.
+   - Resolves/creates a `whatsapp_session` keyed by phone number.
+   - Routes messages through a state machine (menu → vendor list → menu items → cart → checkout).
+3. Outbound sender edge function `whatsapp-send` (internal, used by triggers and admin) that posts to Twilio.
+4. Conversation state machine supporting:
+   - `Hi` → main menu (Order / Track / Nearby vendors / Healthy suggestions / Support).
+   - Nearby vendors (reuses existing nearby-outlet logic, top 5 by distance).
+   - Vendor menu listing (numbered, price + calories).
+   - Cart add / remove / qty / view.
+   - Checkout → generates a Paystack payment link reusing the existing wallet/order flow, replies with URL.
+5. Order linkage: on successful payment webhook, mark the WhatsApp order as paid and reply with confirmation. Subscribe to `orders` status changes (DB trigger → `whatsapp-send`) for: confirmed, preparing, rider assigned, nearby, delivered.
+6. AI meal suggestions: free-text like "low calorie breakfast" routed to Lovable AI (`google/gemini-2.5-flash`) with vendor menu context, returns top 3 picks with add-to-cart shortcuts.
+7. Admin page `/admin/whatsapp` with tabs:
+   - Active sessions (phone, last activity, current state, cart items).
+   - Order logs (WhatsApp-originated orders).
+   - Twilio status (uses connector verify endpoint).
+   - Toggle: enable/disable WhatsApp ordering globally (platform setting).
+   - Basic conversion stats (sessions started → orders placed → paid).
+8. Security: Twilio request signature validation, per-phone rate limit, session TTL (30 min idle), duplicate-submission guard via idempotency key on order creation.
 
-Why split: POS rows clutter the online operations view (no rider, no promo, no delivery type) and admins audit them separately.
+### Phase 2 — Not in this build (call out to user)
+- Multi-package orders inside WhatsApp (complex UX — needs separate pass).
+- Rider/vendor receiving WhatsApp notifications (currently they get in-app + push; can extend later).
+- Voice ordering, multi-language, marketing broadcasts.
+- Twilio Business API onboarding (sandbox works for dev; production requires Meta-approved templates and a verified WhatsApp sender — user-side setup).
 
-## 2. New Screen: "On-Hold Payments"
+## Database changes
 
-Add a new sidebar item in the Admin Portal between **Payouts** and **Customer Wallets**, called **On-Hold Payments**. This is the single review queue for any money the platform is currently holding back from a Vendor, Rider, or Logistics Company.
+New tables (all RLS-enabled, admin-only via `has_role`):
 
-### What appears in the queue
-A row is shown when any of these conditions apply:
-- An order is in **dispute** and the vendor/rider share is frozen
-- A vendor/rider/company is **suspended** with unpaid earnings
-- A withdrawal was **flagged** for manual review (e.g. mismatched bank name)
-- A **fault** was logged against the party (e.g. missing item, late delivery) and the share has not yet been released or deducted
-- Earnings sitting beyond the normal **settlement period** for an unusual reason
+- `whatsapp_sessions` — `phone`, `customer_user_id` (nullable, linked when matched), `state` (enum-ish text: `idle|menu|browsing_vendors|browsing_menu|cart|checkout`), `context` (jsonb: selected_vendor_id, last_menu_page, etc.), `cart` (jsonb array), `last_message_at`, `expires_at`.
+- `whatsapp_messages` — `session_id`, `direction` (`in|out`), `body`, `twilio_sid`, `created_at`. (Logging + admin view.)
+- `whatsapp_orders` — `session_id`, `order_id` (FK to existing `orders`), `payment_link`, `status`, timestamps. Bridge so existing orders stay untouched.
+- `platform_settings` row: `whatsapp_ordering_enabled` boolean (or extend existing settings table if present).
 
-### Each row shows
-- Party type (Vendor / Rider / Logistics Company) + name
-- Related order # (if applicable) — clickable, opens the existing tracking dialog
-- Amount on hold (₦)
-- Reason hold was placed (auto-filled from the source: dispute, fault, suspension, etc.)
-- Days held
-- Action button: **Resolve**
+Trigger: on `orders` status change, if `orders.id` exists in `whatsapp_orders`, enqueue an outbound message via `pg_net` → `whatsapp-send`.
 
-### Resolve dialog (per row)
-The admin picks one of two outcomes and **must enter a reason** (free text, min 10 chars):
+## Edge functions
 
-1. **Platform absorbs** — money is written off the party's pending balance; platform takes the loss. A `wallet_transactions` adjustment removes it from the held bucket; nothing credits the party.
-2. **Release to party** — money moves from held → eligible balance for the party, so it pays out on their next withdrawal cycle.
+- `whatsapp-webhook` (verify_jwt=false, public): receives Twilio inbound, validates signature using `TWILIO_AUTH_TOKEN`, dispatches to state machine, replies via TwiML or async send.
+- `whatsapp-send` (verify_jwt=true, internal): posts message via Twilio connector gateway. Used by triggers and admin actions.
+- `whatsapp-checkout` (verify_jwt=false, called from state machine): creates a pending order + Paystack init, returns hosted payment URL. Reuses existing payment-init helpers.
 
-The reason is stored on the resolution record so it appears in the Refund Audit log and in the party's payout history.
+All Twilio calls go through the connector gateway pattern (`https://connector-gateway.lovable.dev/twilio/Messages.json`) using `TWILIO_API_KEY` + `LOVABLE_API_KEY`.
 
-## 3. Audit Trail
+## Frontend
 
-Every resolve action writes to a new `payment_hold_resolutions` table:
-- party type / id, order id (nullable), amount, decision (`absorbed` / `released`), reason, admin id, timestamp
-
-This row feeds the existing **Refund Audit** screen with a new "Hold Resolution" filter so the team can later trace any decision.
+- `src/pages/admin/AdminWhatsApp.tsx` — sessions table, message log drawer, stats cards, enable/disable toggle, Twilio status pill.
+- Sidebar entry under Admin → "WhatsApp" (icon: MessageCircle).
 
 ## Technical details
 
-- New table `payment_hold_resolutions` (party_type enum, party_id uuid, order_id uuid nullable, amount numeric, decision text, reason text, resolved_by uuid, resolved_at timestamptz). RLS: admins only.
-- New view `admin_on_hold_payments` that unions:
-  - `wallet_transactions` rows where `status = 'held'` or category in (`hold_dispute`, `hold_fault`, `hold_suspension`)
-  - Disputes flagged `frozen` not yet resolved
-  - Withdrawal requests with `status = 'flagged'`
-  Excludes any party_id+order_id already in `payment_hold_resolutions`.
-- Edge function `resolve-payment-hold` (verify_jwt + admin role check):
-  - Input: `party_type`, `party_id`, `order_id?`, `amount`, `decision`, `reason`
-  - Inserts `payment_hold_resolutions` row, then writes the matching `wallet_transactions` adjustment (insert-first idempotency keyed on resolution id) — never touches wallet table directly (respects `prevent_balance_manipulation`).
-- Frontend:
-  - `src/pages/admin/AdminOrders.tsx` — wrap table in `<Tabs>` (online | pos), filter by `order_type`.
-  - New page `src/pages/admin/AdminOnHoldPayments.tsx` + route + sidebar entry.
-  - New component `ResolveHoldDialog.tsx` (shadcn Dialog + RadioGroup + Textarea, 10-char min validation).
-  - Hook `useOnHoldPayments` querying the view; mutation `useResolvePaymentHold` calling the edge function.
-- Refund Audit screen: add a "Source" filter chip including "Hold Resolution".
+- Session TTL: 30 min sliding; cron-free approach using `expires_at` checked on each inbound message.
+- Idempotency: WhatsApp message `MessageSid` deduped via unique index on `whatsapp_messages.twilio_sid`.
+- Phone normalization: E.164 stripping `whatsapp:` prefix before matching to `profiles.phone`.
+- Distance/nearby vendors: reuses existing `nearby_outlets` logic via RPC, capped to 5 results.
+- Payment link: uses existing Paystack init flow, callback URL marks the bridged order paid and triggers WhatsApp confirmation.
 
-## Out of scope (for this batch)
-- Bulk resolve (multi-select)
-- Notifications to the affected party — can be added in a follow-up
-- Editing a resolution after the fact (audit-immutable for now)
+## Required setup from user
+
+1. **Twilio connector** — connect via the Twilio integration so `TWILIO_API_KEY` is injected. We'll prompt during build.
+2. **TWILIO_AUTH_TOKEN secret** — needed for inbound webhook signature verification (separate from the connector API key). Will request via secrets tool.
+3. **Webhook URL** — after deploy, paste the `whatsapp-webhook` URL into Twilio Console → WhatsApp Sandbox → "When a message comes in".
+
+## Out of scope confirmation
+
+Phase 2 items above will not be built in this pass. If you want any of them now (especially multi-package WhatsApp orders), say which and I'll fold them in.
