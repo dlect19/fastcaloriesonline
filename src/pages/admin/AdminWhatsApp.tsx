@@ -175,6 +175,49 @@ export default function AdminWhatsApp() {
           </CardContent></Card>
         </TabsContent>
 
+        <TabsContent value="templates">
+          <Card>
+            <CardHeader>
+              <CardTitle>Twilio Content Template SIDs</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm">
+              <div className="rounded-md bg-muted/50 p-3 text-xs space-y-2">
+                <p>To make WhatsApp fully tap-driven, create these <strong>Content Templates</strong> in <a className="underline" target="_blank" rel="noreferrer" href="https://console.twilio.com/us1/develop/sms/content-template-builder">Twilio Console → Content Template Builder</a>, then paste each <code>HX...</code> ContentSid below.</p>
+                <p>Until a SID is saved here, the bot falls back to plain text for that step (still works, just no buttons).</p>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li><code>wa_main_menu</code> / <code>wa_secondary_menu</code> / <code>wa_cart_actions</code> / <code>wa_delivery_choice</code> / <code>wa_confirm_order</code> / <code>wa_account_setup</code> / <code>wa_request_location</code> → <strong>Quick Reply</strong> (twilio/quick-reply)</li>
+                  <li><code>wa_vendor_list</code> / <code>wa_menu_list</code> → <strong>List Picker</strong> (twilio/list-picker), with rows <code>v1..v10</code> / <code>i1..i10</code> bound to <code>{`{{1}}..{{10}}`}</code></li>
+                  <li>Quick-reply button payloads must be: <code>BTN_ORDER</code>, <code>BTN_TRACK</code>, <code>BTN_WALLET</code>, <code>BTN_HEALTHY</code>, <code>BTN_SUPPORT</code>, <code>BTN_CART</code>, <code>BTN_MAIN_MENU</code>, <code>BTN_CHECKOUT</code>, <code>BTN_ADD_MORE</code>, <code>BTN_CLEAR</code>, <code>BTN_SKIP_LOC</code>, <code>BTN_USE_SAVED_ADDR</code></li>
+                  <li>List item IDs must be: <code>{`LIST_VENDOR_{{idN}}`}</code> for vendors, <code>{`LIST_ITEM_{{idN}}`}</code> for menu items</li>
+                </ul>
+              </div>
+              <div className="space-y-3">
+                {templates.map(t => (
+                  <div key={t.template_key} className="grid grid-cols-1 md:grid-cols-[1fr_2fr_auto] gap-2 items-center border rounded-md p-3">
+                    <div>
+                      <div className="font-mono text-xs">{t.template_key}</div>
+                      <div className="text-xs text-muted-foreground">{t.description}</div>
+                    </div>
+                    <Input
+                      defaultValue={t.content_sid || ""}
+                      placeholder="HX..."
+                      onBlur={(e) => {
+                        if (e.target.value !== (t.content_sid || "")) saveTemplate(t.template_key, e.target.value);
+                      }}
+                    />
+                    <Badge variant={t.content_sid ? "default" : "outline"}>
+                      {t.content_sid ? "Active" : "Not set"}
+                    </Badge>
+                  </div>
+                ))}
+                {!templates.length && !loading && (
+                  <p className="text-muted-foreground text-center py-4">No templates configured. Refresh after running the migration.</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="setup">
           <Card>
             <CardHeader><CardTitle>Twilio Sandbox Setup</CardTitle></CardHeader>
