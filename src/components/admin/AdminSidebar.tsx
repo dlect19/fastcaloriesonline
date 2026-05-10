@@ -27,6 +27,7 @@ const menuItems: MenuItem[] = [
   { icon: Truck, label: 'Delivery Companies', path: '/admin/delivery-companies', requiredPermission: 'manage_vendors' },
   { icon: UserCheck, label: 'Customers', path: '/admin/customers', requiredPermission: 'manage_users' },
   { icon: Banknote, label: 'Payouts', path: '/admin/payouts', badgeKey: 'payouts', requiredPermission: 'process_withdrawals' },
+  { icon: PauseCircle, label: 'On-Hold Payments', path: '/admin/on-hold-payments', requiredPermission: 'process_withdrawals' },
   { icon: Wallet, label: 'Customer Wallets', path: '/admin/customer-wallets', requiredPermission: 'manage_users' },
   { icon: ArrowDownLeft, label: 'Wallet Funding', path: '/admin/wallet-funding', requiredPermission: 'manage_users' },
   { icon: ShieldAlert, label: 'Chargebacks', path: '/admin/chargebacks', requiredPermission: 'process_withdrawals' },
