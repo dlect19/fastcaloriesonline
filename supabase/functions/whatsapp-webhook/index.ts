@@ -50,14 +50,25 @@ async function verifyTwilioSignature(req: Request, params: Record<string, string
 
 const HELP_HINT = "\n\nReply *menu* anytime to restart, or *cart* to see your basket.";
 
-const MAIN_MENU =
-  `🍔 *Welcome to FastCalories!*\n\n` +
+const MENU_OPTIONS =
   `Reply with a number:\n` +
   `1️⃣ Order food (nearby vendors)\n` +
   `2️⃣ Track an order\n` +
   `3️⃣ Healthy meal suggestions\n` +
   `4️⃣ View cart\n` +
   `5️⃣ Customer support`;
+
+const MAIN_MENU = `🍔 *FastCalories Menu*\n\n${MENU_OPTIONS}`;
+
+const WELCOME_INTRO =
+  `🍔 *Welcome to FastCalories!* 🇳🇬\n\n` +
+  `FastCalories is Nigeria's 3-in-1 marketplace for *food, groceries & pharmacy* — with built-in *nutrition intelligence* so you can track calories and eat smarter.\n\n` +
+  `✨ What you can do here:\n` +
+  `• Order from nearby vendors with fast delivery or carryout\n` +
+  `• Get AI-powered healthy meal suggestions\n` +
+  `• Track your orders in real time\n` +
+  `• Pay securely from your FastCalories wallet\n\n` +
+  MENU_OPTIONS;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
