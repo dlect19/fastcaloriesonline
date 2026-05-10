@@ -26,7 +26,8 @@ function emptyTwiml() {
 }
 
 // --- Twilio signature verification (HMAC-SHA1) ---
-async function verifyTwilioSignature(req: Request, params: Record<string, string>): Promise<boolean> {
+async function verifyTwilioSignature(req: Request, params: Record<string, string>, platformEnvironment: string): Promise<boolean> {
+  if (platformEnvironment !== "production") return true; // Twilio Sandbox/dev testing fallback
   const authToken = Deno.env.get("TWILIO_AUTH_TOKEN");
   if (!authToken) return true; // skip if not configured (dev fallback)
   const signature = req.headers.get("x-twilio-signature");
@@ -67,10 +68,14 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // Check global enable flag
-    const { data: enabledRow } = await supabase
-      .from("platform_settings").select("value").eq("key", "whatsapp_ordering_enabled").maybeSingle();
-    if (enabledRow?.value !== "true") {
+    // Check global enable flag and current environment
+    const { data: settingRows } = await supabase
+      .from("platform_settings")
+      .select("key,value")
+      .in("key", ["whatsapp_ordering_enabled", "platform_environment"]);
+    const settings = Object.fromEntries((settingRows || []).map((row: any) => [row.key, row.value]));
+    const platformEnvironment = settings.platform_environment || "development";
+    if (settings.whatsapp_ordering_enabled !== "true") {
       return twiml("WhatsApp ordering is currently disabled. Please use our app: https://app.fastcalories.online");
     }
 
@@ -79,7 +84,7 @@ serve(async (req) => {
     const params: Record<string, string> = {};
     for (const [k, v] of form.entries()) params[k] = String(v);
 
-    const ok = await verifyTwilioSignature(req, params);
+    const ok = await verifyTwilioSignature(req, params, platformEnvironment);
     if (!ok) {
       console.warn("Invalid Twilio signature");
       return new Response("forbidden", { status: 403, headers: corsHeaders });
