@@ -3489,6 +3489,54 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_hold_resolutions: {
+        Row: {
+          amount: number
+          decision: string
+          hold_key: string
+          id: string
+          metadata: Json | null
+          order_id: string | null
+          party_id: string
+          party_type: string
+          reason: string
+          resolved_at: string
+          resolved_by: string | null
+          source: string
+          wallet_id: string | null
+        }
+        Insert: {
+          amount: number
+          decision: string
+          hold_key: string
+          id?: string
+          metadata?: Json | null
+          order_id?: string | null
+          party_id: string
+          party_type: string
+          reason: string
+          resolved_at?: string
+          resolved_by?: string | null
+          source: string
+          wallet_id?: string | null
+        }
+        Update: {
+          amount?: number
+          decision?: string
+          hold_key?: string
+          id?: string
+          metadata?: Json | null
+          order_id?: string | null
+          party_id?: string
+          party_type?: string
+          reason?: string
+          resolved_at?: string
+          resolved_by?: string | null
+          source?: string
+          wallet_id?: string | null
+        }
+        Relationships: []
+      }
       payout_pending_releases: {
         Row: {
           amount: number
@@ -6745,6 +6793,22 @@ export type Database = {
       }
     }
     Views: {
+      admin_on_hold_payments: {
+        Row: {
+          amount: number | null
+          held_since: string | null
+          hold_key: string | null
+          order_id: string | null
+          order_number: string | null
+          party_id: string | null
+          party_name: string | null
+          party_type: string | null
+          reason: string | null
+          source: string | null
+          wallet_id: string | null
+        }
+        Relationships: []
+      }
       rider_profiles_safe: {
         Row: {
           affiliated_vendor_id: string | null
@@ -6859,6 +6923,20 @@ export type Database = {
           p_environment?: string
           p_notes?: string
           p_reference?: string
+          p_wallet_id: string
+        }
+        Returns: Json
+      }
+      admin_resolve_payment_hold: {
+        Args: {
+          p_amount: number
+          p_decision: string
+          p_hold_key: string
+          p_order_id: string
+          p_party_id: string
+          p_party_type: string
+          p_reason: string
+          p_source: string
           p_wallet_id: string
         }
         Returns: Json
