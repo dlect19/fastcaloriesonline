@@ -122,6 +122,7 @@ export default function AdminWhatsApp() {
         <TabsList>
           <TabsTrigger value="sessions">Sessions</TabsTrigger>
           <TabsTrigger value="orders">Orders</TabsTrigger>
+          <TabsTrigger value="templates">Tap Templates</TabsTrigger>
           <TabsTrigger value="setup">Setup & Test</TabsTrigger>
         </TabsList>
 
