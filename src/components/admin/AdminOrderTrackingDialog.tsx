@@ -885,9 +885,25 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
         <Card>
           <CardContent className="py-3 px-4 space-y-2">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-              <div><span className="text-muted-foreground">{isFreeMealOrder ? 'Food Subtotal' : 'Subtotal'}</span><p className="font-medium">₦{effectiveFoodSubtotal.toLocaleString()}</p></div>
+              <div><span className="text-muted-foreground">{isFreeMealOrder ? 'Food Subtotal' : 'Food Total'}</span><p className="font-medium">₦{effectiveFoodSubtotal.toLocaleString()}</p></div>
+              <div><span className="text-muted-foreground">Items</span><p className="font-medium">{orderItems.reduce((s, it) => s + (it.quantity || 0), 0)} ({orderItems.length} {orderItems.length === 1 ? 'line' : 'lines'})</p></div>
+              <div>
+                <span className="text-muted-foreground">Takeaway Packs</span>
+                <p className="font-medium">
+                  {Number(activeOrder.package_count || 1)} pack{Number(activeOrder.package_count || 1) > 1 ? 's' : ''}
+                  {Number(activeOrder.packaging_fee || 0) > 0 && (
+                    <span className="text-muted-foreground"> · ₦{Number(activeOrder.packaging_fee || 0).toLocaleString()}</span>
+                  )}
+                </p>
+              </div>
               <div><span className="text-muted-foreground">Delivery Fee</span><p className="font-medium">₦{Number(activeOrder.delivery_fee || 0).toLocaleString()}</p></div>
               <div><span className="text-muted-foreground">Service Fee</span><p className="font-medium">₦{Number(activeOrder.service_fee || 0).toLocaleString()}</p></div>
+              {Number(activeOrder.discount || 0) > 0 && (
+                <div><span className="text-muted-foreground">Discount</span><p className="font-medium text-green-600">-₦{Number(activeOrder.discount || 0).toLocaleString()}</p></div>
+              )}
+              {Number(activeOrder.extra_package_fee || 0) > 0 && (
+                <div><span className="text-muted-foreground">Extra Pack Fee</span><p className="font-medium">₦{Number(activeOrder.extra_package_fee || 0).toLocaleString()}</p></div>
+              )}
               <div><span className="text-muted-foreground">Total</span><p className="font-semibold text-primary">₦{Number(activeOrder.total).toLocaleString()}</p></div>
             </div>
 
