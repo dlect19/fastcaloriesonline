@@ -6824,6 +6824,33 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_templates: {
+        Row: {
+          content_sid: string
+          created_at: string
+          description: string | null
+          id: string
+          template_key: string
+          updated_at: string
+        }
+        Insert: {
+          content_sid: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          template_key: string
+          updated_at?: string
+        }
+        Update: {
+          content_sid?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          template_key?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       withdrawal_otps: {
         Row: {
           amount: number

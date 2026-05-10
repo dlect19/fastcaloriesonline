@@ -1,84 +1,100 @@
-# WhatsApp Ordering — Nice UI (Both Tracks)
+## Goal
 
-Add a polished experience in two layers: tappable interactive messages **inside WhatsApp** for quick actions, plus a mobile-first **web mini-app** for the rich browse → cart → checkout flow. WhatsApp messages always include a fallback link so it works even when interactive buttons aren't supported.
+Everything happens inside WhatsApp using **tap buttons & lists** — including account creation. No `/wa/...` mini-app link, no "reply with a number".
 
-## 1. Web mini-app (primary UI)
+---
 
-New public route: `/wa/:sessionId`
+## How WhatsApp interactive messages work (important context)
 
-Mobile-first single-page flow (uses existing design tokens, shadcn components):
+WhatsApp does NOT let us send arbitrary buttons via plain TwiML. We must:
 
-```
-┌──────────────────────────────┐
-│  FastCalories  •  WhatsApp    │  ← branded header with phone masked
-├──────────────────────────────┤
-│  📍 Use my location  [btn]    │
-│  Or pick on map / saved addr  │
-├──────────────────────────────┤
-│  🏪 Nearby Vendors            │
-│  ┌──────┐ ┌──────┐ ┌──────┐  │  ← horizontal vendor cards w/ logo,
-│  │ Img  │ │ Img  │ │ Img  │  │    distance, rating
-│  └──────┘ └──────┘ └──────┘  │
-├──────────────────────────────┤
-│  📋 Vendor menu (on tap)      │
-│  • Item card: image, price,   │
-│    calories, qty stepper      │
-├──────────────────────────────┤
-│  🛒 Sticky cart bar           │
-│  "3 items • ₦4,500 — Checkout"│
-└──────────────────────────────┘
-```
+1. **Pre-create Content Templates** in Twilio (Quick Reply buttons up to 3, or List Picker up to 10 rows).
+2. **Send** them by `ContentSid` + variables via Twilio's Messages API (not TwiML reply).
+3. Inbound taps come back as normal text matching the button's payload (e.g. `BTN_ORDER`, `LIST_vendor_<id>`).
 
-Key features:
-- Reads/writes the same `whatsapp_sessions.cart` row as the bot (so chat + web stay in sync)
-- Pulls vendors via existing `get-nearby-vendors` edge function
-- Pulls menu items from `products` table (filters by vendor + `is_available`)
-- "Continue in app" CTA at checkout → existing `/cart?wa=:sessionId` handoff (already wired)
-- Real-time order status block once an order exists for the session
+So we'll switch from synchronous TwiML replies to async outbound sends, and store template ContentSids in the DB.
 
-### Routing & access
-- Public route, no auth required (sessionId acts as the bearer)
-- Add basic rate limiting: 60 requests/min per session via in-memory map in a new edge function `wa-session` that proxies reads/writes
+---
 
-### New edge function: `wa-session`
-- `GET ?sid=...` → returns `{ phone (masked), cart, customer_user_id, vendors?, ... }`
-- `POST { sid, action }` where action is one of:
-  - `set_location { lat, lon, label }`
-  - `add_item { vendor_id, product_id }`
-  - `update_qty { product_id, qty }`
-  - `remove_item { product_id }`
-  - `clear_cart`
-- All writes update the same `whatsapp_sessions` row using service-role key
-- Validates session exists & not expired (extends `expires_at` on each call)
+## What we'll build
 
-## 2. Interactive WhatsApp messages
+### 1. Outbound sender (new helper)
+- `sendInteractive(to, contentSid, variables)` — POSTs to `/Messages.json` via the Twilio connector gateway with `ContentSid` + `ContentVariables`.
+- `sendText(to, body)` — plain fallback.
+- Webhook returns empty `<Response/>` and pushes replies async.
 
-Upgrade `whatsapp-webhook/index.ts` to return Twilio **Quick Reply** and **List Picker** content where the channel supports it:
+### 2. Twilio Content Templates (created once in Twilio console, sids stored in `platform_settings`)
+- `wa_main_menu` — Quick Reply: **Order food** · **Track order** · **My wallet**
+- `wa_secondary_menu` — Quick Reply: **Healthy suggestions** · **Support** · **Main menu**
+- `wa_vendor_list` — List Picker (up to 10 nearby vendors, dynamic rows)
+- `wa_menu_list` — List Picker (up to 10 menu items per vendor)
+- `wa_cart_actions` — Quick Reply: **Checkout** · **Add more** · **Clear cart**
+- `wa_delivery_choice` — Quick Reply: **Deliver to me** · **Carryout** · **Cancel**
+- `wa_confirm_order` — Quick Reply: **Confirm & Pay** · **Cancel**
+- `wa_account_setup` — Quick Reply: **Create account** · **I have one** · **Maybe later**
+- `wa_request_location` — Quick Reply: **Share location** (instructs user to use 📎→Location), **Use saved address**, **Skip**
 
-- Greeting/menu → 3 Quick Reply buttons: `Order food`, `Track order`, `Support` + a "🌐 Open mini-app" link
-- Vendor list (>3 items) → List Picker with up to 10 vendors (name + distance subtitle)
-- Menu items → List Picker grouped by category
-- Every interactive message also sends the existing numbered text as fallback (so sandbox / unsupported clients keep working today)
+User will need to create these in Twilio console; we'll provide exact JSON for each.
 
-Implementation detail: Twilio's TwiML `<Message>` doesn't carry interactive payloads — we'll send interactive replies via the **Twilio Content API** (`/Content` + `/Messages` with `ContentSid`) through the existing Twilio connector gateway. The webhook still returns an empty TwiML `<Response/>` and pushes the rich reply via the API.
+### 3. In-WhatsApp account creation
+- On first message, if no profile exists for the phone:
+  - Send `wa_account_setup` template.
+  - Tap **Create account** → ask for **first name** (free text) → auto-create:
+    - `auth.users` row via admin API with phone as identifier and a random password
+    - `profiles` row with phone + name
+    - `whatsapp_sessions.customer_user_id` linked
+  - User is now fully provisioned. They can later set email/password from the app if they want, but it's optional.
 
-For the sandbox (development), the bot detects sandbox numbers and falls back to plain text + the mini-app link, since interactive content templates require approval in production WhatsApp Business.
+### 4. Tap-driven state machine rewrite
+Replace the "reply 1/2/3" branches with payload matching:
+- `BTN_ORDER` → send `wa_request_location` or jump to vendor list
+- `LIST_VENDOR_<id>` → load menu, send `wa_menu_list`
+- `LIST_ITEM_<id>` → add to cart, send `wa_cart_actions`
+- `BTN_CHECKOUT` → send `wa_delivery_choice`
+- `BTN_DELIVERY` / `BTN_CARRYOUT` → compute total, send `wa_confirm_order`
+- `BTN_CONFIRM` → debit wallet, place order, send order number + tracking buttons
 
-### Webhook changes
-- New helper `sendInteractive(to, type, payload)` calls Twilio Content API via gateway
-- Every reply path can now include `webLink: \`https://app.fastcalories.online/wa/\${session.id}\``
-- "Open in app" appended to greeting/menu/cart/vendor messages
+### 5. Remove the mini-app link
+Strip the `_Prefer tapping over typing?_ 👉 /wa/...` footer entirely. Users never leave WhatsApp.
 
-## Technical notes
+The `/wa/:sessionId` route + `WhatsAppMiniApp.tsx` + `wa-session` edge function stay in the codebase (no harm) but are no longer linked from chat. We can delete them later if you want.
 
-- New file: `supabase/functions/wa-session/index.ts` (public, service-role, with input validation via simple TS guards — no new deps)
-- New page: `src/pages/WhatsAppMiniApp.tsx` mounted at `/wa/:sessionId` in `src/App.tsx`
-- New components: `src/components/wa/VendorCard.tsx`, `MenuItemCard.tsx`, `StickyCartBar.tsx`, `LocationPrompt.tsx`
-- No DB schema changes — reuses `whatsapp_sessions` (already has `cart`, `context`, `customer_user_id`)
-- No new secrets — uses existing `TWILIO_API_KEY` and `LOVABLE_API_KEY` (already configured)
+### 6. Wallet funding inside WhatsApp
+- **Check balance** → bot replies with text balance + recent transactions.
+- **Fund wallet** → bot sends a one-time Paystack payment link (still WhatsApp-native — tapping a link opens browser briefly to pay, then auto-returns; this is the only place a link is unavoidable because Paystack card entry can't render in WhatsApp).
+  - We'll mark this clearly so user knows it's the one exception.
 
-## Out of scope
+---
 
-- WhatsApp Business template approval workflow (will document for production later)
-- Persisting cart per-vendor history (mini-app uses single active cart, same as bot today)
-- Payment inside the mini-app (still hands off to existing `/cart` flow for wallet/Paystack)
+## What you (the user) need to do once
+
+1. In Twilio Console → **Messaging → Content Template Builder**, create the 9 templates above (we'll give you copy-paste JSON for each).
+2. Paste each template's `ContentSid` (`HX...`) into a small admin screen we'll add at `/admin/whatsapp-templates`, which writes them to `platform_settings`.
+3. Submit each template for WhatsApp approval (sandbox auto-approves; production takes ~24h per Meta).
+
+---
+
+## Honest constraints
+
+- **Twilio Sandbox**: interactive buttons work but only for users who have joined your sandbox.
+- **Production WhatsApp number**: requires templates approved by Meta. This is a one-time review.
+- **Paystack funding**: the actual card form must open in a browser tab — there's no way around this with WhatsApp. Order placement, balance checks, wallet debits, vendor browsing, checkout confirmation all stay 100% in chat.
+
+---
+
+## Files we'll touch
+
+- `supabase/functions/whatsapp-webhook/index.ts` — full rewrite to async + payload matching
+- `supabase/functions/whatsapp-send/index.ts` — **new**, wraps Twilio Content API
+- `supabase/migrations/...` — add `whatsapp_template_sids` to `platform_settings` (or new table)
+- `src/pages/admin/AdminWhatsAppTemplates.tsx` — **new**, paste-in screen for ContentSids
+- Optional cleanup: keep or delete `src/pages/WhatsAppMiniApp.tsx` + `wa-session` function
+
+---
+
+## Approve to proceed?
+
+Reply **yes** and I'll:
+1. Build the migration + send function + admin screen.
+2. Hand you the 9 template JSON snippets to paste into Twilio.
+3. Once you paste back the ContentSids, I'll wire the new state machine and remove the mini-app link.
