@@ -314,6 +314,15 @@ serve(async (req) => {
     } else if (session.state === "ai_suggest") {
       reply = await aiSuggest(body);
       goMenu();
+    } else if (session.state === "awaiting_location") {
+      if (lower === "skip") {
+        await showNearbyVendors(); // falls back to top vendors
+      } else {
+        reply =
+          `📍 Please share your location to see nearby vendors.\n\n` +
+          `Tap *➕* (or *📎*) → *Location* → *Send your current location*.\n\n` +
+          `Or reply *skip* to see top vendors, or *menu* to restart.`;
+      }
     } else {
       goMenu();
     }
