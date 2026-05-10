@@ -156,9 +156,7 @@ serve(async (req) => {
     }
 
     // ---- Parse Twilio inbound ----
-    const form = await req.formData();
-    const params: Record<string, string> = {};
-    for (const [k, v] of form.entries()) params[k] = String(v);
+    const params = await parseInboundParams(req);
 
     const ok = await verifyTwilioSignature(req, params, platformEnvironment);
     if (!ok) return new Response("forbidden", { status: 403, headers: corsHeaders });
@@ -394,7 +392,7 @@ serve(async (req) => {
     }
 
     if (tap === "BTN_WALLET" || (session.state === "menu" && lower === "3")) {
-      const text = await renderWallet(supabase, session.customer_user_id);
+      const text = await renderWallet(supabase, session.customer_user_id, phone);
       await persistSession(supabase, session.id, "menu", nextContext, nextCart);
       return await replyText(text + HELP_HINT);
     }
