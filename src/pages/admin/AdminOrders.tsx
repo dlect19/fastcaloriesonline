@@ -29,6 +29,7 @@ export default function AdminOrders() {
   const [trackOrder, setTrackOrder] = useState<any | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [orderTab, setOrderTab] = useState<'all' | 'ongoing' | 'past'>('all');
+  const [channelTab, setChannelTab] = useState<'online' | 'pos'>('online');
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
@@ -53,10 +54,14 @@ export default function AdminOrders() {
   }, [statusFilter]);
 
   // Reset page when filters change
-  useEffect(() => { setCurrentPage(1); }, [orderTab, dateRange, searchQuery, statusFilter, itemsPerPage, freeMealOnly]);
+  useEffect(() => { setCurrentPage(1); }, [orderTab, channelTab, dateRange, searchQuery, statusFilter, itemsPerPage, freeMealOnly]);
 
   const filteredOrders = useMemo(() => {
     let result = orders;
+
+    // Channel tab (POS vs Online)
+    if (channelTab === 'pos') result = result.filter(o => o.channel === 'pos');
+    else result = result.filter(o => o.channel !== 'pos');
 
     // Tab filter
     if (orderTab === 'ongoing') result = result.filter(o => ONGOING_STATUSES.includes(o.status));
@@ -88,7 +93,7 @@ export default function AdminOrders() {
     }
 
     return result;
-  }, [orders, orderTab, dateRange, searchQuery, freeMealOnly]);
+  }, [orders, orderTab, channelTab, dateRange, searchQuery, freeMealOnly]);
 
   const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
   const paginatedOrders = useMemo(() => {
@@ -244,8 +249,11 @@ export default function AdminOrders() {
     return <Badge className={colors[status] || 'bg-secondary'}>{status.replace(/_/g, ' ')}</Badge>;
   };
 
-  const ongoingCount = orders.filter(o => ONGOING_STATUSES.includes(o.status)).length;
-  const pastCount = orders.filter(o => PAST_STATUSES.includes(o.status)).length;
+  const onlineOrders = orders.filter(o => o.channel !== 'pos');
+  const posOrders = orders.filter(o => o.channel === 'pos');
+  const channelOrders = channelTab === 'pos' ? posOrders : onlineOrders;
+  const ongoingCount = channelOrders.filter(o => ONGOING_STATUSES.includes(o.status)).length;
+  const pastCount = channelOrders.filter(o => PAST_STATUSES.includes(o.status)).length;
 
   if (loading) {
     return (
@@ -348,12 +356,20 @@ export default function AdminOrders() {
           </div>
         )}
 
+        {/* Channel switcher: Online vs POS */}
+        <Tabs value={channelTab} onValueChange={(v) => setChannelTab(v as any)} className="mb-3">
+          <TabsList>
+            <TabsTrigger value="online">🌐 Online Orders ({onlineOrders.length})</TabsTrigger>
+            <TabsTrigger value="pos">🧾 POS Orders ({posOrders.length})</TabsTrigger>
+          </TabsList>
+        </Tabs>
+
         {/* Tabs + Date filter + Per-page selector */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-3">
             <Tabs value={orderTab} onValueChange={(v) => setOrderTab(v as any)}>
               <TabsList>
-                <TabsTrigger value="all">All ({orders.length})</TabsTrigger>
+                <TabsTrigger value="all">All ({channelOrders.length})</TabsTrigger>
                 <TabsTrigger value="ongoing">Ongoing ({ongoingCount})</TabsTrigger>
                 <TabsTrigger value="past">Past ({pastCount})</TabsTrigger>
               </TabsList>

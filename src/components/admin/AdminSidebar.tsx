@@ -1,6 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { Home, Package, Store, Bike, Ticket, Users, Settings, LogOut, Image, Activity, Banknote, Wallet, ArrowDownLeft, Gift, Truck, UserCheck, Star, MessageSquare, DollarSign, UserPlus, Receipt, ClipboardList, Scale, HelpCircle, Percent, ShieldAlert, Megaphone, Gavel, UtensilsCrossed, Map, ExternalLink, Sparkles, Pill } from 'lucide-react';
+import { Home, Package, Store, Bike, Ticket, Users, Settings, LogOut, Image, Activity, Banknote, Wallet, ArrowDownLeft, Gift, Truck, UserCheck, Star, MessageSquare, DollarSign, UserPlus, Receipt, ClipboardList, Scale, HelpCircle, Percent, ShieldAlert, Megaphone, Gavel, UtensilsCrossed, Map, ExternalLink, Sparkles, Pill, PauseCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -27,6 +27,7 @@ const menuItems: MenuItem[] = [
   { icon: Truck, label: 'Delivery Companies', path: '/admin/delivery-companies', requiredPermission: 'manage_vendors' },
   { icon: UserCheck, label: 'Customers', path: '/admin/customers', requiredPermission: 'manage_users' },
   { icon: Banknote, label: 'Payouts', path: '/admin/payouts', badgeKey: 'payouts', requiredPermission: 'process_withdrawals' },
+  { icon: PauseCircle, label: 'On-Hold Payments', path: '/admin/on-hold-payments', requiredPermission: 'process_withdrawals' },
   { icon: Wallet, label: 'Customer Wallets', path: '/admin/customer-wallets', requiredPermission: 'manage_users' },
   { icon: ArrowDownLeft, label: 'Wallet Funding', path: '/admin/wallet-funding', requiredPermission: 'manage_users' },
   { icon: ShieldAlert, label: 'Chargebacks', path: '/admin/chargebacks', requiredPermission: 'process_withdrawals' },
