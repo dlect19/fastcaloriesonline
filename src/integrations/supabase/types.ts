@@ -6699,6 +6699,131 @@ export type Database = {
           },
         ]
       }
+      whatsapp_messages: {
+        Row: {
+          body: string | null
+          created_at: string
+          direction: string
+          id: string
+          phone: string
+          session_id: string | null
+          twilio_sid: string | null
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          direction: string
+          id?: string
+          phone: string
+          session_id?: string | null
+          twilio_sid?: string | null
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          direction?: string
+          id?: string
+          phone?: string
+          session_id?: string | null
+          twilio_sid?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_messages_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_orders: {
+        Row: {
+          created_at: string
+          id: string
+          order_id: string | null
+          payment_link: string | null
+          phone: string
+          session_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          order_id?: string | null
+          payment_link?: string | null
+          phone: string
+          session_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          order_id?: string | null
+          payment_link?: string | null
+          phone?: string
+          session_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_orders_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_orders_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_sessions: {
+        Row: {
+          cart: Json
+          context: Json
+          created_at: string
+          customer_user_id: string | null
+          expires_at: string
+          id: string
+          last_message_at: string
+          phone: string
+          state: string
+          updated_at: string
+        }
+        Insert: {
+          cart?: Json
+          context?: Json
+          created_at?: string
+          customer_user_id?: string | null
+          expires_at?: string
+          id?: string
+          last_message_at?: string
+          phone: string
+          state?: string
+          updated_at?: string
+        }
+        Update: {
+          cart?: Json
+          context?: Json
+          created_at?: string
+          customer_user_id?: string | null
+          expires_at?: string
+          id?: string
+          last_message_at?: string
+          phone?: string
+          state?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       withdrawal_otps: {
         Row: {
           amount: number
