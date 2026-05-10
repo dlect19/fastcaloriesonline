@@ -35,6 +35,8 @@ export default function Orders() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
+  const [cancelTarget, setCancelTarget] = useState<Order | null>(null);
+  const [cancelSettings, setCancelSettings] = useState({ enabled: true, countdownMinutes: 3 });
   const ITEMS_PER_PAGE = 10;
 
   const totalPages = Math.ceil(orders.length / ITEMS_PER_PAGE);
