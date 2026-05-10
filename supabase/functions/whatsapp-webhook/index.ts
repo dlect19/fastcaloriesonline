@@ -137,10 +137,12 @@ serve(async (req) => {
       session = { ...session, state: "menu", context: {}, cart: [] };
     }
 
-    // Try to link to a customer profile by phone
+    // Try to link to a customer profile by phone (try multiple Nigerian formats)
     if (!session.customer_user_id) {
-      const { data: prof } = await supabase
-        .from("profiles").select("user_id").eq("phone", phone).maybeSingle();
+      const variants = phoneVariants(phone);
+      const { data: profs } = await supabase
+        .from("profiles").select("user_id, phone").in("phone", variants).limit(1);
+      const prof = profs?.[0];
       if (prof?.user_id) {
         await supabase.from("whatsapp_sessions").update({ customer_user_id: prof.user_id }).eq("id", session.id);
         session.customer_user_id = prof.user_id;
