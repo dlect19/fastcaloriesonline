@@ -393,8 +393,46 @@ serve(async (req) => {
 
     if (tap === "BTN_WALLET" || (session.state === "menu" && lower === "3")) {
       const text = await renderWallet(supabase, session.customer_user_id, phone);
-      await persistSession(supabase, session.id, "menu", nextContext, nextCart);
-      return await replyText(text + HELP_HINT);
+      await persistSession(supabase, session.id, "wallet_menu", nextContext, nextCart);
+      return await replyText(text);
+    }
+
+    // ===== Wallet submenu =====
+    if (session.state === "wallet_menu") {
+      if (lower === "1" || lower === "topup" || lower === "top up" || lower === "fund") {
+        await persistSession(supabase, session.id, "wallet_awaiting_amount", nextContext, nextCart);
+        return await replyText("💰 *Top up wallet*\n\nReply with the amount in Naira you want to add (minimum ₦100).\n\nExamples: *1000*, *5000*, *20000*\n\nReply *0* to cancel.");
+      }
+      if (lower === "2" || lower === "dva" || lower === "account") {
+        const dvaText = await createOrFetchDVA(supabase, session.customer_user_id);
+        await persistSession(supabase, session.id, "wallet_menu", nextContext, nextCart);
+        return await replyText(dvaText + "\n\nReply *1* to top up by card, or *0* for main menu.");
+      }
+      if (lower === "3" || lower === "history" || lower === "transactions") {
+        const text = await renderWallet(supabase, session.customer_user_id, phone);
+        return await replyText(text);
+      }
+      if (lower === "0" || lower === "menu" || lower === "back") {
+        await persistSession(supabase, session.id, "menu", nextContext, nextCart);
+        return await sendToUser("wa_main_menu", {}, MAIN_MENU);
+      }
+      return await replyText("Reply *1* to top up by card, *2* to get a virtual bank account, *3* to refresh, or *0* for main menu.");
+    }
+
+    if (session.state === "wallet_awaiting_amount") {
+      if (lower === "0" || lower === "cancel" || lower === "menu") {
+        await persistSession(supabase, session.id, "wallet_menu", nextContext, nextCart);
+        const text = await renderWallet(supabase, session.customer_user_id, phone);
+        return await replyText("Top-up cancelled.\n\n" + text);
+      }
+      const amt = Math.floor(Number((body || "").replace(/[^\d.]/g, "")));
+      if (!amt || amt < 100) {
+        return await replyText("⚠️ Please reply with a valid amount of at least ₦100. E.g. *2000*.\n\nReply *0* to cancel.");
+      }
+      const link = await createWalletFundingLink(supabase, session.customer_user_id!, amt, phone);
+      await persistSession(supabase, session.id, "wallet_menu", nextContext, nextCart);
+      if (!link) return await replyText("⚠️ Couldn't create payment link right now. Please try again in a moment.");
+      return await replyText(`✅ *Top up ₦${amt.toLocaleString()}*\n\nTap to pay securely with card or bank:\n${link}\n\nYour wallet will credit automatically once payment is confirmed.`);
     }
 
     if (tap === "BTN_HEALTHY" || (session.state === "menu" && lower === "4")) {
@@ -495,9 +533,11 @@ serve(async (req) => {
     if (session.state === "confirming_order") {
       if (tap === "BTN_WALLET" || lower === "3" || lower === "fund" || lower === "top up" || lower === "topup") {
         const pendingTotal = Number(nextContext?.pending_total || cartTotal(nextCart) || 1000);
-        const text = await renderWallet(supabase, session.customer_user_id, phone, Math.max(1000, pendingTotal));
+        const amount = Math.max(1000, Math.ceil(pendingTotal));
+        const link = await createWalletFundingLink(supabase, session.customer_user_id!, amount, phone);
         await persistSession(supabase, session.id, "confirming_order", nextContext, nextCart);
-        return await replyText(text + "\n\nAfter funding, reply *checkout* again to continue.");
+        if (!link) return await replyText("⚠️ Couldn't create payment link right now. Please try again.");
+        return await replyText(`💰 Top up *₦${amount.toLocaleString()}* to cover your order:\n${link}\n\nAfter funding, reply *checkout* to continue.`);
       }
       if (tap === "BTN_CONFIRM" || lower === "yes" || lower === "confirm") {
         return await replyText("Order confirmation is being finalized. For now, please reply *checkout* after funding your wallet.");
@@ -621,29 +661,130 @@ async function renderRecentOrders(supabase: any, phone: string, userId: string |
   return "📦 No recent orders found.";
 }
 
-async function renderWallet(supabase: any, userId: string | null, phone?: string, suggestedAmount = 2000) {
+async function renderWallet(supabase: any, userId: string | null, phone?: string, _suggestedAmount = 2000) {
   if (!userId) return "💼 Reply *menu* to set up your account first.";
   const { data: wallet } = await supabase
-    .from("wallets").select("id, balance, test_balance, is_disabled").eq("user_id", userId).eq("wallet_type", "customer").maybeSingle();
+    .from("wallets").select("id, balance, test_balance, is_disabled, dva_account_number, dva_bank_name, dva_account_name, dva_active").eq("user_id", userId).eq("wallet_type", "customer").maybeSingle();
   if (wallet?.is_disabled) return "💼 Your wallet is disabled. Please contact support.";
   const { data: envSetting } = await supabase.from("platform_settings").select("value").eq("key", "platform_environment").maybeSingle();
   const isTestMode = (envSetting?.value || "development") === "development";
   const bal = Number((isTestMode ? wallet?.test_balance : wallet?.balance) || 0);
   const { data: txs } = wallet?.id ? await supabase
     .from("wallet_transactions").select("transaction_type, amount, notes, category, created_at")
-    .eq("wallet_id", wallet.id).order("created_at", { ascending: false }).limit(5) : { data: [] };
+    .eq("wallet_id", wallet.id).order("created_at", { ascending: false }).limit(3) : { data: [] };
   let text = `💼 *Your Wallet*\n\nBalance: *₦${bal.toLocaleString()}*`;
+  if (wallet?.dva_active && wallet?.dva_account_number) {
+    text += `\n\n🏦 *Virtual Account*\n${wallet.dva_bank_name}\n${wallet.dva_account_number}\n${wallet.dva_account_name}\n_(Send any amount to this account to fund your wallet instantly.)_`;
+  }
   if (txs?.length) {
     text += `\n\n_Recent transactions:_\n` + txs.map((t: any) => {
       const sign = t.transaction_type === "credit" ? "+" : "-";
       return `${sign}₦${Number(t.amount).toLocaleString()} — ${t.notes || t.category || t.transaction_type}`;
     }).join("\n");
   }
-  const fundingLink = await createWalletFundingLink(supabase, userId, suggestedAmount, phone);
-  if (fundingLink) {
-    text += `\n\nTop up here: ${fundingLink}`;
-  }
+  text += `\n\n*Reply with a number:*\n1️⃣ Top up wallet (card/bank link)\n2️⃣ ${wallet?.dva_active ? "Show" : "Get"} my virtual bank account\n3️⃣ Refresh balance\n0️⃣ Back to main menu`;
   return text;
+}
+
+async function createOrFetchDVA(supabase: any, userId: string | null): Promise<string> {
+  if (!userId) return "⚠️ Please reply *menu* to set up your account first.";
+  try {
+    const { data: envSetting } = await supabase.from("platform_settings").select("value").eq("key", "platform_environment").maybeSingle();
+    const environment = envSetting?.value || "development";
+    const isProduction = environment === "production";
+
+    const { data: wallet } = await supabase
+      .from("wallets")
+      .select("id, paystack_customer_id, paystack_customer_code, dva_account_number, dva_bank_name, dva_account_name, dva_active")
+      .eq("user_id", userId).eq("wallet_type", "customer").maybeSingle();
+
+    let walletRow = wallet;
+    if (!walletRow) {
+      const { data: newWallet } = await supabase.from("wallets")
+        .insert({ user_id: userId, wallet_type: "customer" })
+        .select("id, paystack_customer_id, paystack_customer_code, dva_account_number, dva_bank_name, dva_account_name, dva_active")
+        .single();
+      walletRow = newWallet;
+    }
+
+    if (walletRow?.dva_active && walletRow?.dva_account_number) {
+      return `🏦 *Your Virtual Account*\n\nBank: *${walletRow.dva_bank_name}*\nAccount: *${walletRow.dva_account_number}*\nName: *${walletRow.dva_account_name}*\n\n_Send any amount to this account from any Nigerian bank app — your wallet credits automatically (usually within seconds)._`;
+    }
+
+    if (!isProduction) {
+      return `⚠️ Virtual bank accounts are only available in *live mode* (we're currently in test mode). Please use *option 1* (top up via card link) for now.`;
+    }
+
+    const { data: profile } = await supabase.from("profiles").select("full_name, phone").eq("user_id", userId).maybeSingle();
+    if (!profile?.full_name || !profile?.phone) {
+      return `⚠️ To create your virtual bank account we need your *full name* and *phone number* on your profile.\n\nPlease open the app: https://app.fastcalories.online/profile to complete it, then reply *2* again.`;
+    }
+
+    const { data: authUser } = await supabase.auth.admin.getUserById(userId);
+    const email = authUser?.user?.email;
+    if (!email) return "⚠️ Couldn't find your account email. Please contact support.";
+
+    const paystackSecretKey = Deno.env.get("PAYSTACK_LIVE_SECRET_KEY") || Deno.env.get("PAYSTACK_SECRET_KEY");
+    if (!paystackSecretKey) return "⚠️ Payment provider not configured. Please contact support.";
+
+    let customerCode = walletRow.paystack_customer_code;
+    if (!customerCode) {
+      const nameParts = profile.full_name.trim().split(" ");
+      const firstName = nameParts[0];
+      const lastName = nameParts.slice(1).join(" ") || firstName;
+      const cRes = await fetch("https://api.paystack.co/customer", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${paystackSecretKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ email, first_name: firstName, last_name: lastName, phone: profile.phone }),
+      });
+      const cData = await cRes.json();
+      if (!cRes.ok || !cData.status) {
+        console.error("Paystack customer create failed", cData);
+        return `⚠️ Couldn't set up your bank account: ${cData.message || "unknown error"}`;
+      }
+      customerCode = cData.data.customer_code;
+      await supabase.from("wallets").update({
+        paystack_customer_id: cData.data.id,
+        paystack_customer_code: customerCode,
+        updated_at: new Date().toISOString(),
+      }).eq("id", walletRow.id);
+    }
+
+    await fetch(`https://api.paystack.co/customer/${customerCode}`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${paystackSecretKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: profile.phone }),
+    });
+
+    const dRes = await fetch("https://api.paystack.co/dedicated_account", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${paystackSecretKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ customer: customerCode, preferred_bank: "titan-paystack" }),
+    });
+    const dData = await dRes.json();
+    if (!dRes.ok || !dData.status) {
+      console.error("Paystack DVA create failed", dData);
+      return `⚠️ Couldn't create virtual account: ${dData.message || "unknown error"}. Please try again later or use *option 1* to top up via card.`;
+    }
+
+    const bankName = dData.data.bank?.name || "Wema Bank";
+    const accountNumber = dData.data.account_number;
+    const accountName = dData.data.account_name;
+
+    await supabase.from("wallets").update({
+      dva_bank_name: bankName,
+      dva_account_number: accountNumber,
+      dva_account_name: accountName,
+      dva_active: true,
+      dva_created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }).eq("id", walletRow.id);
+
+    return `✅ *Virtual Account Created!*\n\nBank: *${bankName}*\nAccount: *${accountNumber}*\nName: *${accountName}*\n\n_Send any amount to this account from any Nigerian bank app — your wallet credits automatically (usually within seconds)._`;
+  } catch (e) {
+    console.error("WhatsApp DVA error", e);
+    return "⚠️ Something went wrong creating your virtual account. Please try again in a moment.";
+  }
 }
 
 async function createWalletFundingLink(supabase: any, userId: string, amount: number, phone?: string): Promise<string | null> {
