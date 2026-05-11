@@ -920,6 +920,97 @@ async function aiSuggest(query: string): Promise<string> {
   }
 }
 
+async function buildOrderSummary(supabase: any, cart: any[]) {
+  const subtotal = cartTotal(cart);
+  const total_calories = cart.reduce((s, c) => s + (Number(c.calories) || 0) * Number(c.qty), 0);
+  const { data: settings } = await supabase
+    .from("platform_settings").select("key, value")
+    .in("key", ["base_delivery_fee", "service_fee_percentage"]);
+  const map = new Map((settings || []).map((s: any) => [s.key, s.value]));
+  const delivery_fee = Number(map.get("base_delivery_fee")) || 500;
+  const servicePct = Number(map.get("service_fee_percentage")) || 8;
+  const service_fee = Math.round((subtotal * servicePct) / 100);
+  return { subtotal, delivery_fee, service_fee, total: subtotal + delivery_fee + service_fee, total_calories };
+}
+
+async function confirmWhatsAppOrder(
+  supabase: any,
+  session: any,
+  cart: any[],
+  replyText: (t: string) => Promise<Response>,
+  sendToUser: (k: string, v: Record<string, string>, fb: string) => Promise<Response>,
+) {
+  if (!cart.length) return await replyText("Your cart is empty. Reply *menu* to browse vendors.");
+  if (!session.customer_user_id) return await replyText("⚠️ Please reply *menu* and follow the setup first.");
+
+  const { data: envSetting } = await supabase.from("platform_settings").select("value").eq("key", "platform_environment").maybeSingle();
+  const environment = envSetting?.value || "development";
+  const isTestMode = environment === "development";
+  const summary = await buildOrderSummary(supabase, cart);
+  const { data: wallet } = await supabase.from("wallets").select("*").eq("user_id", session.customer_user_id).eq("wallet_type", "customer").maybeSingle();
+  if (!wallet || wallet.is_disabled) return await replyText("⚠️ Wallet unavailable. Please contact support.");
+  const balance = Number(isTestMode ? wallet.test_balance : wallet.balance) || 0;
+  if (balance < summary.total) return await doCheckout(supabase, session, cart, session.phone, "", "", {}, sendToUser, replyText);
+
+  const vendorId = cart[0]?.vendor_id;
+  const paymentRef = `WA-${Date.now()}`;
+  const { data: order, error: orderErr } = await supabase.from("orders").insert({
+    user_id: session.customer_user_id,
+    vendor_id: vendorId,
+    status: "confirmed",
+    subtotal: summary.subtotal,
+    menu_subtotal: summary.subtotal,
+    delivery_fee: summary.delivery_fee,
+    service_fee: summary.service_fee,
+    total: summary.total,
+    total_calories: summary.total_calories,
+    delivery_type: "delivery",
+    delivery_address_text: session.context?.location_label || "WhatsApp order",
+    payment_method: "wallet",
+    payment_status: "paid",
+    payment_reference: paymentRef,
+    environment,
+    channel: "whatsapp",
+  }).select("id, order_number").single();
+
+  if (orderErr || !order) {
+    console.error("WhatsApp order insert failed", orderErr);
+    return await replyText("⚠️ Could not create your order. Your wallet was not debited. Please try *checkout* again.");
+  }
+
+  const items = cart.map((c) => ({
+    order_id: order.id,
+    product_id: c.id,
+    product_name: c.name,
+    quantity: c.qty,
+    unit_price: Number(c.price) || 0,
+    total_price: (Number(c.price) || 0) * Number(c.qty),
+    calories: c.calories ?? 0,
+  }));
+  await supabase.from("order_items").insert(items);
+
+  const newBalance = balance - summary.total;
+  await supabase.from("wallet_transactions").insert({
+    wallet_id: wallet.id,
+    wallet_type: "customer",
+    transaction_type: "debit",
+    category: "wallet_payment",
+    amount: summary.total,
+    balance_after: newBalance,
+    reference: `WA-${order.order_number}`,
+    order_id: order.id,
+    status: "completed",
+    environment,
+    notes: `WhatsApp order #${order.order_number}`,
+  });
+  const walletUpdate: any = { updated_at: new Date().toISOString() };
+  if (isTestMode) walletUpdate.test_balance = newBalance; else walletUpdate.balance = newBalance;
+  await supabase.from("wallets").update(walletUpdate).eq("id", wallet.id);
+
+  await persistSession(supabase, session.id, "menu", { last_order_id: order.id, last_order_number: order.order_number }, []);
+  return await sendToUser("wa_main_menu", {}, `✅ Order confirmed!\n\n*${order.order_number}*\nTotal: ₦${summary.total.toLocaleString()}\nWallet balance: ₦${newBalance.toLocaleString()}\n\n${MENU_OPTIONS}`);
+}
+
 async function doCheckout(
   supabase: any, session: any, cart: any[], phone: string,
   fromNumber: string, fromRaw: string,
