@@ -1,0 +1,1 @@
+UPDATE public.orders SET confirmation_code = LPAD((floor(random()*900000)+100000)::int::text, 6, '0') WHERE channel='whatsapp' AND confirmation_code IS NULL;
