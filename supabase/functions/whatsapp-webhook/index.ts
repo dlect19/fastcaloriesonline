@@ -847,7 +847,22 @@ async function createOrFetchDVA(supabase: any, userId: string | null): Promise<s
   }
 }
 
-async function createWalletFundingLink(supabase: any, userId: string, amount: number, phone?: string): Promise<string | null> {
+function extractWhatsAppFundingReference(text: string): string | null {
+  return text.match(/WF-WA-[a-z0-9]{8}-\d{10,}/i)?.[0] || null;
+}
+
+async function verifyWhatsAppFunding(supabase: any, reference: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.functions.invoke("verify-whatsapp-funding", { body: { reference } });
+    if (error) console.error("WhatsApp funding verification failed", error);
+    return Boolean(data?.success);
+  } catch (e) {
+    console.error("WhatsApp funding verification error", e);
+    return false;
+  }
+}
+
+async function createWalletFundingLink(supabase: any, userId: string, amount: number, phone?: string): Promise<{ link: string; reference: string } | null> {
   try {
     const { data: profile } = await supabase.from("profiles").select("full_name, phone").eq("user_id", userId).maybeSingle();
     const { data: userData } = await supabase.auth.admin.getUserById(userId);
@@ -875,7 +890,8 @@ async function createWalletFundingLink(supabase: any, userId: string, amount: nu
       console.error("WhatsApp wallet funding init failed", json);
       return null;
     }
-    return json.data.authorization_url || null;
+    const link = json.data.authorization_url;
+    return link ? { link, reference } : null;
   } catch (e) {
     console.error("WhatsApp wallet funding link error", e);
     return null;
