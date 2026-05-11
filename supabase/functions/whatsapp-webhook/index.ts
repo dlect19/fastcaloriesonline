@@ -1033,10 +1033,11 @@ async function doCheckout(
   const { data: wallet } = await supabase
     .from("wallets").select("balance, test_balance").eq("user_id", session.customer_user_id).eq("wallet_type", "customer").maybeSingle();
   const bal = Number((isTestMode ? wallet?.test_balance : wallet?.balance) || 0);
-  const subtotal = cartTotal(cart);
-  const serviceFee = Math.round(subtotal * 0.08);
-  const deliveryFee = 500; // default — actual is computed at order placement
-  const total = subtotal + serviceFee + deliveryFee;
+  const summary = await buildOrderSummary(supabase, cart);
+  const subtotal = summary.subtotal;
+  const serviceFee = summary.service_fee;
+  const deliveryFee = summary.delivery_fee;
+  const total = summary.total;
 
   const insufficient = bal < total;
   const shortfall = Math.max(0, total - bal);
