@@ -36,7 +36,7 @@ serve(async (req) => {
     // Fetch order details
     const { data: order, error: orderErr } = await supabase
       .from('orders')
-      .select('id, order_number, user_id, vendor_id, outlet_id, delivery_type, rider_id, status, total')
+      .select('id, order_number, user_id, vendor_id, outlet_id, delivery_type, rider_id, status, total, channel, confirmation_code')
       .eq('id', order_id)
       .single();
 
