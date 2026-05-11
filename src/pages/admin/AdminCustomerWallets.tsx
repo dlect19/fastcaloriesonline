@@ -435,6 +435,7 @@ export default function AdminCustomerWallets() {
     return (
       wallet.profile?.full_name?.toLowerCase().includes(searchLower) ||
       wallet.profile?.phone?.includes(searchQuery) ||
+      wallet.profile?.email?.toLowerCase().includes(searchLower) ||
       wallet.user_id.toLowerCase().includes(searchLower) ||
       wallet.dva_account_number?.includes(searchQuery)
     );
