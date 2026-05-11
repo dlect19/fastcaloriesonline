@@ -333,7 +333,7 @@ serve(async (req) => {
       const txt = renderCart(nextCart);
       await persistSession(supabase, session.id, nextCart.length ? "cart" : session.state, nextContext, nextCart);
       if (nextCart.length) {
-        return await sendToUser("wa_cart_actions", { total: cartTotal(nextCart).toLocaleString() }, txt + "\n\nReply *checkout* to pay, *clear* to empty, or *menu*.");
+        return await sendToUser("wa_cart_actions", { "1": cartTotal(nextCart).toLocaleString() }, txt + "\n\nReply *checkout* to pay, *clear* to empty, or *menu*.");
       }
       return await replyText(txt + HELP_HINT);
     }
@@ -449,7 +449,7 @@ serve(async (req) => {
     if ((session.state === "menu" && lower === "5")) {
       const txt = renderCart(nextCart);
       await persistSession(supabase, session.id, nextCart.length ? "cart" : "menu", nextContext, nextCart);
-      if (nextCart.length) return await sendToUser("wa_cart_actions", { total: cartTotal(nextCart).toLocaleString() }, txt);
+      if (nextCart.length) return await sendToUser("wa_cart_actions", { "1": cartTotal(nextCart).toLocaleString() }, txt);
       return await replyText(txt + HELP_HINT);
     }
 
@@ -524,7 +524,7 @@ serve(async (req) => {
       else nextCart.push({ ...it, qty, vendor_id: nextContext.vendor_id, vendor_name: nextContext.vendor_name });
       await persistSession(supabase, session.id, "browsing_menu", nextContext, nextCart);
       const txt = `✅ Added *${qty} × ${it.name}* to cart.\n\n` + renderCart(nextCart);
-      return await sendToUser("wa_cart_actions", { total: cartTotal(nextCart).toLocaleString() }, txt + "\n\nReply *checkout* to pay, another item number, or *<item>x<qty>* for multiple.");
+      return await sendToUser("wa_cart_actions", { "1": cartTotal(nextCart).toLocaleString() }, txt + "\n\nReply *checkout* to pay, another item number, or *<item>x<qty>* for multiple.");
     }
 
     if (session.state === "cart") {
@@ -544,7 +544,7 @@ serve(async (req) => {
         await persistSession(supabase, session.id, "menu", nextContext, nextCart);
         return await sendToUser("wa_main_menu", {}, MENU_OPTIONS);
       }
-      return await sendToUser("wa_cart_actions", { total: cartTotal(nextCart).toLocaleString() },
+      return await sendToUser("wa_cart_actions", { "1": cartTotal(nextCart).toLocaleString() },
         renderCart(nextCart) + "\n\nReply *checkout* to pay, *clear* to empty, or *menu* to restart.");
     }
 
@@ -908,7 +908,11 @@ async function doCheckout(
     (bal < total ? `\n\n⚠️ _Insufficient balance — reply *3* to fund your wallet first._` : `\n\nReply *yes* to confirm & pay.`);
 
   await persistSession(supabase, session.id, "confirming_order", { ...(session.context || {}), pending_total: total }, cart);
-  return await sendToUser("wa_confirm_order", { total: total.toLocaleString() }, text);
+  return await sendToUser("wa_confirm_order", {
+    "1": subtotal.toLocaleString(),
+    "2": deliveryFee.toLocaleString(),
+    "3": total.toLocaleString(),
+  }, text);
 }
 
 function phoneVariants(phone: string): string[] {
