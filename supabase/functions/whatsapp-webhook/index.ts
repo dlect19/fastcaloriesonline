@@ -364,9 +364,9 @@ serve(async (req) => {
           const dTxt = typeof d === "number" ? ` — ${d.toFixed(1)} km` : "";
           return `${i + 1}. ${v.name}${dTxt}`;
         }).join("\n") + "\n\nReply with a number to view the menu." + HELP_HINT;
-      // Variables: v1..v10 names for list picker
       const vars: Record<string, string> = {};
       vendors.slice(0, 10).forEach((v: any, i: number) => { vars[`${i + 1}`] = v.name; vars[`id${i + 1}`] = v.id; });
+      if (vendors.length < 10) return await replyText(text);
       return await sendToUser("wa_vendor_list", vars, text);
     };
 
@@ -383,6 +383,7 @@ serve(async (req) => {
           "\n\nReply with a number." + HELP_HINT;
         const vars: Record<string, string> = {};
         vendors.slice(0, 10).forEach((v: any, i: number) => { vars[`${i + 1}`] = v.name; vars[`id${i + 1}`] = v.id; });
+        if (vendors.length < 10) return await replyText(text);
         return await sendToUser("wa_vendor_list", vars, text);
       }
       await persistSession(supabase, session.id, "awaiting_location", nextContext, nextCart);
@@ -573,6 +574,7 @@ serve(async (req) => {
           const text = `🏪 *Nearby vendors:*\n\n` + vendors.map((v: any, i: number) => `${i + 1}. ${v.name}`).join("\n") + HELP_HINT;
           const vars: Record<string, string> = {};
           vendors.slice(0, 10).forEach((v: any, i: number) => { vars[`${i + 1}`] = v.name; vars[`id${i + 1}`] = v.id; });
+          if (vendors.length < 10) return await replyText(text);
           return await sendToUser("wa_vendor_list", vars, text);
         }
       }
