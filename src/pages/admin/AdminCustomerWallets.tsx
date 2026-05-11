@@ -33,6 +33,7 @@ interface CustomerWallet {
   profile?: {
     full_name: string | null;
     phone: string | null;
+    email?: string | null;
   };
 }
 
@@ -131,6 +132,13 @@ export default function AdminCustomerWallets() {
         .select('user_id, full_name, phone')
         .in('user_id', userIds);
 
+      const { data: emailRows } = userIds.length > 0
+        ? await supabase.rpc('admin_get_user_emails' as any, { p_user_ids: userIds })
+        : { data: [] as any[] };
+      const emailMap = new Map<string, string>(
+        ((emailRows as any[]) || []).map((r: any) => [r.user_id, r.email])
+      );
+
       const walletsWithProfiles: CustomerWallet[] = (walletsData || []).map(wallet => {
         const profile = profiles?.find(p => p.user_id === wallet.user_id);
         return {
@@ -144,7 +152,11 @@ export default function AdminCustomerWallets() {
           dva_account_number: (wallet as any).dva_account_number ?? null,
           dva_account_name: (wallet as any).dva_account_name ?? null,
           created_at: wallet.created_at,
-          profile: profile ? { full_name: profile.full_name, phone: profile.phone } : undefined,
+          profile: {
+            full_name: profile?.full_name ?? null,
+            phone: profile?.phone ?? null,
+            email: emailMap.get(wallet.user_id) ?? null,
+          },
         };
       });
 
@@ -423,6 +435,7 @@ export default function AdminCustomerWallets() {
     return (
       wallet.profile?.full_name?.toLowerCase().includes(searchLower) ||
       wallet.profile?.phone?.includes(searchQuery) ||
+      wallet.profile?.email?.toLowerCase().includes(searchLower) ||
       wallet.user_id.toLowerCase().includes(searchLower) ||
       wallet.dva_account_number?.includes(searchQuery)
     );
@@ -543,7 +556,7 @@ export default function AdminCustomerWallets() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search by name, phone, user ID, or account number..."
+                  placeholder="Search by name, email, phone, user ID, or account number..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10"
@@ -582,6 +595,9 @@ export default function AdminCustomerWallets() {
                               <TableCell>
                                 <div>
                                   <p className="font-medium">{wallet.profile?.full_name || 'Unknown'}</p>
+                                  {wallet.profile?.email && (
+                                    <p className="text-xs text-muted-foreground">{wallet.profile.email}</p>
+                                  )}
                                   <p className="text-xs text-muted-foreground">
                                     {wallet.profile?.phone || wallet.user_id.slice(0, 8)}
                                   </p>
