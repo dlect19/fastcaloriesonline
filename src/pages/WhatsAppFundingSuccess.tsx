@@ -28,16 +28,17 @@ export default function WhatsAppFundingSuccess() {
     const poll = async () => {
       while (!cancelled && attempts < 15) {
         attempts++;
-        const { data } = await supabase
-          .from("wallet_transactions")
-          .select("id")
-          .eq("paystack_reference", reference)
-          .eq("category", "wallet_funding")
-          .eq("status", "completed")
-          .maybeSingle();
-        if (data) {
-          setStatus("ok");
-          return;
+        // Actively verify with Paystack + credit wallet (does not depend on webhook)
+        try {
+          const { data: verifyData } = await supabase.functions.invoke("verify-whatsapp-funding", {
+            body: { reference },
+          });
+          if (verifyData?.success) {
+            setStatus("ok");
+            return;
+          }
+        } catch (e) {
+          console.error("verify-whatsapp-funding failed", e);
         }
         await new Promise((r) => setTimeout(r, 2000));
       }
