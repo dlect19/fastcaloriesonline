@@ -382,7 +382,7 @@ serve(async (req) => {
           vendors.map((v: any, i: number) => `${i + 1}. ${v.name}`).join("\n") +
           "\n\nReply with a number." + HELP_HINT;
         const vars: Record<string, string> = {};
-        vendors.slice(0, 10).forEach((v: any, i: number) => { vars[`v${i + 1}`] = v.name; vars[`id${i + 1}`] = v.id; });
+        vendors.slice(0, 10).forEach((v: any, i: number) => { vars[`${i + 1}`] = v.name; vars[`id${i + 1}`] = v.id; });
         return await sendToUser("wa_vendor_list", vars, text);
       }
       await persistSession(supabase, session.id, "awaiting_location", nextContext, nextCart);
