@@ -587,7 +587,7 @@ serve(async (req) => {
         return await replyText(`💰 Top up *₦${amount.toLocaleString()}* to cover your order:\n${funding.link}\n\nAfter funding, reply *checkout* or paste this reference:\n${funding.reference}`);
       }
       if (tap === "BTN_CONFIRM" || lower === "yes" || lower === "confirm") {
-        return await replyText("Order confirmation is being finalized. For now, please reply *checkout* after funding your wallet.");
+        return await confirmWhatsAppOrder(supabase, session, nextCart, replyText, sendToUser);
       }
       if (tap === "BTN_CANCEL" || lower === "cancel") {
         await persistSession(supabase, session.id, "menu", nextContext, nextCart);
