@@ -897,6 +897,9 @@ async function doCheckout(
   const deliveryFee = 500; // default — actual is computed at order placement
   const total = subtotal + serviceFee + deliveryFee;
 
+  const insufficient = bal < total;
+  const shortfall = Math.max(0, total - bal);
+
   const text =
     `🧾 *Order Summary*\n\n` +
     cart.map(c => `• ${c.name} × ${c.qty} — ₦${(Number(c.price) * c.qty).toLocaleString()}`).join("\n") +
@@ -904,15 +907,16 @@ async function doCheckout(
     `\nService fee (8%): ₦${serviceFee.toLocaleString()}` +
     `\nDelivery: ₦${deliveryFee.toLocaleString()}` +
     `\n*Total: ₦${total.toLocaleString()}*` +
-    `\n\nWallet balance: ₦${bal.toLocaleString()}` +
-    (bal < total ? `\n\n⚠️ _Insufficient balance — reply *3* to fund your wallet first._` : `\n\nReply *yes* to confirm & pay.`);
+    `\n\n💼 Wallet balance: ₦${bal.toLocaleString()}` +
+    (insufficient
+      ? `\n\n❌ *Insufficient funds*\nYou need ₦${shortfall.toLocaleString()} more to place this order.\n\nReply *3* to top up your wallet, or *cancel* to stop.`
+      : `\n\nReply *yes* to confirm & pay.`);
 
   await persistSession(supabase, session.id, "confirming_order", { ...(session.context || {}), pending_total: total }, cart);
-  return await sendToUser("wa_confirm_order", {
-    "1": subtotal.toLocaleString(),
-    "2": deliveryFee.toLocaleString(),
-    "3": total.toLocaleString(),
-  }, text);
+
+  // Send plain text so the full breakdown (including service fee) and insufficient-funds warning are visible.
+  // The Twilio template only supports 3 variables and cannot show the service fee or balance check.
+  return await replyText(text);
 }
 
 function phoneVariants(phone: string): string[] {
