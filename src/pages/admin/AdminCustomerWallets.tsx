@@ -595,6 +595,9 @@ export default function AdminCustomerWallets() {
                               <TableCell>
                                 <div>
                                   <p className="font-medium">{wallet.profile?.full_name || 'Unknown'}</p>
+                                  {wallet.profile?.email && (
+                                    <p className="text-xs text-muted-foreground">{wallet.profile.email}</p>
+                                  )}
                                   <p className="text-xs text-muted-foreground">
                                     {wallet.profile?.phone || wallet.user_id.slice(0, 8)}
                                   </p>
