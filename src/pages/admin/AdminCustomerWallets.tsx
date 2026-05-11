@@ -132,6 +132,13 @@ export default function AdminCustomerWallets() {
         .select('user_id, full_name, phone')
         .in('user_id', userIds);
 
+      const { data: emailRows } = userIds.length > 0
+        ? await supabase.rpc('admin_get_user_emails' as any, { p_user_ids: userIds })
+        : { data: [] as any[] };
+      const emailMap = new Map<string, string>(
+        ((emailRows as any[]) || []).map((r: any) => [r.user_id, r.email])
+      );
+
       const walletsWithProfiles: CustomerWallet[] = (walletsData || []).map(wallet => {
         const profile = profiles?.find(p => p.user_id === wallet.user_id);
         return {
@@ -145,7 +152,11 @@ export default function AdminCustomerWallets() {
           dva_account_number: (wallet as any).dva_account_number ?? null,
           dva_account_name: (wallet as any).dva_account_name ?? null,
           created_at: wallet.created_at,
-          profile: profile ? { full_name: profile.full_name, phone: profile.phone } : undefined,
+          profile: {
+            full_name: profile?.full_name ?? null,
+            phone: profile?.phone ?? null,
+            email: emailMap.get(wallet.user_id) ?? null,
+          },
         };
       });
 
