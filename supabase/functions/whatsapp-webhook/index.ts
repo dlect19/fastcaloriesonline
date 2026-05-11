@@ -464,10 +464,10 @@ serve(async (req) => {
       if (!amt || amt < 100) {
         return await replyText("⚠️ Please reply with a valid amount of at least ₦100. E.g. *2000*.\n\nReply *0* to cancel.");
       }
-      const link = await createWalletFundingLink(supabase, session.customer_user_id!, amt, phone);
-      await persistSession(supabase, session.id, "wallet_menu", nextContext, nextCart);
-      if (!link) return await replyText("⚠️ Couldn't create payment link right now. Please try again in a moment.");
-      return await replyText(`✅ *Top up ₦${amt.toLocaleString()}*\n\nTap to pay securely with card or bank:\n${link}\n\nYour wallet will credit automatically once payment is confirmed.`);
+      const funding = await createWalletFundingLink(supabase, session.customer_user_id!, amt, phone);
+      await persistSession(supabase, session.id, "wallet_menu", { ...nextContext, pending_funding_reference: funding?.reference }, nextCart);
+      if (!funding) return await replyText("⚠️ Couldn't create payment link right now. Please try again in a moment.");
+      return await replyText(`✅ *Top up ₦${amt.toLocaleString()}*\n\nTap to pay securely with card or bank:\n${funding.link}\n\nAfter payment, reply *checkout* or paste this reference:\n${funding.reference}`);
     }
 
     if (tap === "BTN_HEALTHY" || (session.state === "menu" && lower === "4")) {
@@ -581,10 +581,10 @@ serve(async (req) => {
       if (tap === "BTN_WALLET" || lower === "3" || lower === "fund" || lower === "top up" || lower === "topup") {
         const pendingTotal = Number(nextContext?.pending_total || cartTotal(nextCart) || 1000);
         const amount = Math.max(1000, Math.ceil(pendingTotal));
-        const link = await createWalletFundingLink(supabase, session.customer_user_id!, amount, phone);
-        await persistSession(supabase, session.id, "confirming_order", nextContext, nextCart);
-        if (!link) return await replyText("⚠️ Couldn't create payment link right now. Please try again.");
-        return await replyText(`💰 Top up *₦${amount.toLocaleString()}* to cover your order:\n${link}\n\nAfter funding, reply *checkout* to continue.`);
+        const funding = await createWalletFundingLink(supabase, session.customer_user_id!, amount, phone);
+        await persistSession(supabase, session.id, "confirming_order", { ...nextContext, pending_funding_reference: funding?.reference }, nextCart);
+        if (!funding) return await replyText("⚠️ Couldn't create payment link right now. Please try again.");
+        return await replyText(`💰 Top up *₦${amount.toLocaleString()}* to cover your order:\n${funding.link}\n\nAfter funding, reply *checkout* or paste this reference:\n${funding.reference}`);
       }
       if (tap === "BTN_CONFIRM" || lower === "yes" || lower === "confirm") {
         return await replyText("Order confirmation is being finalized. For now, please reply *checkout* after funding your wallet.");
