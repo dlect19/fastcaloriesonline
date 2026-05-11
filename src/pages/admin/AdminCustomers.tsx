@@ -29,7 +29,7 @@ import { format } from 'date-fns';
 export default function AdminCustomers() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { isTestMode } = useEnvironmentConfig();
+  const { isTestMode, loading: envLoading } = useEnvironmentConfig();
   const [loading, setLoading] = useState(true);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState('');
@@ -43,8 +43,10 @@ export default function AdminCustomers() {
   const [loadingWallet, setLoadingWallet] = useState(false);
  
    useEffect(() => {
-     checkAuth();
-   }, []);
+     if (!envLoading) {
+       checkAuth();
+     }
+   }, [envLoading, isTestMode]);
  
    const checkAuth = async () => {
      const { data: { user } } = await supabase.auth.getUser();
@@ -68,6 +70,7 @@ export default function AdminCustomers() {
  
    const fetchCustomers = async () => {
      try {
+        setLoading(true);
        // Fetch users with customer role
        const { data: customerRoles } = await supabase
          .from('user_roles')
@@ -129,7 +132,9 @@ export default function AdminCustomers() {
        // Map wallets by user
        const walletsByUser: Record<string, number> = {};
        wallets?.forEach(w => {
-         walletsByUser[w.user_id] = Number(w.balance) || 0;
+          walletsByUser[w.user_id] = isTestMode
+            ? Number(w.test_balance) || 0
+            : Number(w.balance) || 0;
        });
  
        // Merge all data
