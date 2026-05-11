@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.wa-session]
 verify_jwt = false
+
+[functions.verify-whatsapp-funding]
+verify_jwt = false
