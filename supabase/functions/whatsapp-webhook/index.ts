@@ -806,7 +806,7 @@ async function createWalletFundingLink(supabase: any, userId: string, amount: nu
         email,
         amount: Math.round(Math.max(100, amount) * 100),
         reference,
-        callback_url: "https://app.fastcalories.online/profile/wallet?funding=success",
+        callback_url: `https://app.fastcalories.online/wallet/wa-success?ref=${reference}`,
         metadata: { type: "wallet_funding", user_id: userId, environment, source: "whatsapp", phone: phone || profile?.phone || null },
       }),
     });
