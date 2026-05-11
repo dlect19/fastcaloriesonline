@@ -668,8 +668,15 @@ async function renderRecentOrders(supabase: any, phone: string, userId: string |
 
 async function renderWallet(supabase: any, userId: string | null, phone?: string, _suggestedAmount = 2000) {
   if (!userId) return "💼 Reply *menu* to set up your account first.";
-  const { data: wallet } = await supabase
+  let { data: wallet } = await supabase
     .from("wallets").select("id, balance, test_balance, is_disabled, dva_account_number, dva_bank_name, dva_account_name, dva_active").eq("user_id", userId).eq("wallet_type", "customer").maybeSingle();
+  if (!wallet) {
+    const { data: created } = await supabase.from("wallets")
+      .insert({ user_id: userId, wallet_type: "customer" })
+      .select("id, balance, test_balance, is_disabled, dva_account_number, dva_bank_name, dva_account_name, dva_active")
+      .single();
+    wallet = created;
+  }
   if (wallet?.is_disabled) return "💼 Your wallet is disabled. Please contact support.";
   const { data: envSetting } = await supabase.from("platform_settings").select("value").eq("key", "platform_environment").maybeSingle();
   const isTestMode = (envSetting?.value || "development") === "development";
