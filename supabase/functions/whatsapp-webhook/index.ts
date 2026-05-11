@@ -908,7 +908,11 @@ async function doCheckout(
     (bal < total ? `\n\n⚠️ _Insufficient balance — reply *3* to fund your wallet first._` : `\n\nReply *yes* to confirm & pay.`);
 
   await persistSession(supabase, session.id, "confirming_order", { ...(session.context || {}), pending_total: total }, cart);
-  return await sendToUser("wa_confirm_order", { "1": total.toLocaleString() }, text);
+  return await sendToUser("wa_confirm_order", {
+    "1": subtotal.toLocaleString(),
+    "2": deliveryFee.toLocaleString(),
+    "3": total.toLocaleString(),
+  }, text);
 }
 
 function phoneVariants(phone: string): string[] {
