@@ -7079,6 +7079,13 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_get_user_emails: {
+        Args: { p_user_ids: string[] }
+        Returns: {
+          email: string
+          user_id: string
+        }[]
+      }
       admin_resolve_payment_hold: {
         Args: {
           p_amount: number
