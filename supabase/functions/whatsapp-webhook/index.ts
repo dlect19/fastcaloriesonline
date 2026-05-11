@@ -631,6 +631,10 @@ function renderCart(cart: any[]): string {
 }
 
 async function fetchVendors(supabase: any, userId: string | null, overrideLat: number | null, overrideLon: number | null) {
+  const withNamesOnly = (rows: any[] = []) => rows
+    .filter((v: any) => typeof v?.name === "string" && v.name.trim().length > 0 && !/^vendor\s*\d+$/i.test(v.name.trim()))
+    .map((v: any) => ({ ...v, name: v.name.trim() }))
+    .slice(0, 10);
   let lat = overrideLat, lon = overrideLon;
   if ((lat === null || lon === null) && userId) {
     const { data: addr } = await supabase
@@ -641,11 +645,12 @@ async function fetchVendors(supabase: any, userId: string | null, overrideLat: n
   if (lat !== null && lon !== null) {
     try {
       const { data } = await supabase.functions.invoke("get-nearby-vendors", { body: { customer_lat: lat, customer_lon: lon } });
-      if (data?.vendors?.length) return data.vendors.slice(0, 10);
+      const namedVendors = withNamesOnly(data?.vendors || []);
+      if (namedVendors.length) return namedVendors;
     } catch (_) {}
   }
-  const { data } = await supabase.from("vendors").select("id, name").eq("is_active", true).limit(10);
-  return data || [];
+  const { data } = await supabase.from("vendors").select("id, name").eq("is_active", true).limit(50);
+  return withNamesOnly(data || []);
 }
 
 async function fetchMenuItems(supabase: any, vendorId: string) {
