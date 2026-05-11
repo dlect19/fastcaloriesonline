@@ -337,6 +337,20 @@ serve(async (req) => {
       }
       return await replyText(txt + HELP_HINT);
     }
+    // Global clear cart — works from any state
+    if (tap === "BTN_CLEAR" || lower === "clear" || lower === "empty cart" || lower === "clear cart") {
+      nextCart = [];
+      nextContext = { ...nextContext, pending_total: undefined };
+      await persistSession(supabase, session.id, "menu", nextContext, nextCart);
+      return await sendToUser("wa_main_menu", {}, "🗑️ Cart cleared.\n\n" + MENU_OPTIONS);
+    }
+    // Global cancel — cancels current order/checkout flow and clears cart
+    if (tap === "BTN_CANCEL" || lower === "cancel" || lower === "cancel order" || lower === "delete order") {
+      nextCart = [];
+      nextContext = {};
+      await persistSession(supabase, session.id, "menu", nextContext, nextCart);
+      return await sendToUser("wa_main_menu", {}, "❌ Order cancelled and cart cleared.\n\n" + MENU_OPTIONS);
+    }
 
     // Capture shared location pin
     const latStr = params["Latitude"];
