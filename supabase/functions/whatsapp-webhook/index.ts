@@ -967,6 +967,9 @@ async function confirmWhatsAppOrder(
     outletId = def?.id ?? null;
   }
 
+  // 6-digit confirmation code customer must give to the rider on hand-off
+  const confirmationCode = String(Math.floor(100000 + Math.random() * 900000));
+
   const { data: order, error: orderErr } = await supabase.from("orders").insert({
     user_id: session.customer_user_id,
     vendor_id: vendorId,
@@ -985,7 +988,8 @@ async function confirmWhatsAppOrder(
     payment_reference: paymentRef,
     environment,
     channel: "whatsapp",
-  }).select("id, order_number").single();
+    confirmation_code: confirmationCode,
+  }).select("id, order_number, confirmation_code").single();
 
   if (orderErr || !order) {
     console.error("WhatsApp order insert failed", orderErr);
@@ -1022,7 +1026,7 @@ async function confirmWhatsAppOrder(
   await supabase.from("wallets").update(walletUpdate).eq("id", wallet.id);
 
   await persistSession(supabase, session.id, "menu", { last_order_id: order.id, last_order_number: order.order_number }, []);
-  return await sendToUser("wa_main_menu", {}, `✅ Order confirmed!\n\n*${order.order_number}*\nTotal: ₦${summary.total.toLocaleString()}\nWallet balance: ₦${newBalance.toLocaleString()}\n\n${MENU_OPTIONS}`);
+  return await sendToUser("wa_main_menu", {}, `✅ Order confirmed!\n\n*${order.order_number}*\nTotal: ₦${summary.total.toLocaleString()}\nWallet balance: ₦${newBalance.toLocaleString()}\n\n🔐 *Delivery code: ${confirmationCode}*\nGive this code to the rider when your order arrives.\n\n${MENU_OPTIONS}`);
 }
 
 async function doCheckout(
