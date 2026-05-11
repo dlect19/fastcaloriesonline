@@ -20,6 +20,7 @@ import Favorites from "./pages/Favorites";
 import VerifyEmail from "./pages/VerifyEmail";
 import VerificationPending from "./pages/VerificationPending";
 import PaymentCallback from "./pages/PaymentCallback";
+import WhatsAppFundingSuccess from "./pages/WhatsAppFundingSuccess";
 import VendorLanding from "./pages/VendorLanding";
 import RiderLanding from "./pages/RiderLanding";
 import DeliveryCompanyLanding from "./pages/DeliveryCompanyLanding";
@@ -172,6 +173,7 @@ const App = () => {
               <Route path="/verify-email" element={<VerifyEmail />} />
               <Route path="/verification-pending" element={<VerificationPending />} />
               <Route path="/payment-callback" element={<PaymentCallback />} />
+              <Route path="/wallet/wa-success" element={<WhatsAppFundingSuccess />} />
               <Route path="/profile/transactions" element={<TransactionHistoryPage />} />
               <Route path="/profile/wallet" element={<WalletPage />} />
               <Route path="/rewards" element={<Rewards />} />
