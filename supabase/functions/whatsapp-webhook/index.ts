@@ -352,6 +352,21 @@ serve(async (req) => {
       return await sendToUser("wa_main_menu", {}, "❌ Order cancelled and cart cleared.\n\n" + MENU_OPTIONS);
     }
 
+    const typedFundingReference = extractWhatsAppFundingReference(body);
+    if (typedFundingReference && session.customer_user_id) {
+      const verified = await verifyWhatsAppFunding(supabase, typedFundingReference);
+      nextContext = { ...nextContext, pending_funding_reference: verified ? undefined : typedFundingReference };
+      await persistSession(supabase, session.id, session.state, nextContext, nextCart);
+      if (verified && nextCart.length) {
+        return await doCheckout(supabase, { ...session, context: nextContext }, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
+      }
+      return await replyText(
+        verified
+          ? "✅ Wallet top-up confirmed. Reply *checkout* to continue."
+          : "⏳ I can see that payment reference, but it is not confirmed yet. Please wait a moment, then reply *checkout* again."
+      );
+    }
+
     // Capture shared location pin
     const latStr = params["Latitude"];
     const lonStr = params["Longitude"];
