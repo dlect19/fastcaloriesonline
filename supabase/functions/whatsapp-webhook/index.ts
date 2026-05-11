@@ -932,6 +932,11 @@ async function doCheckout(
     return await replyText("⚠️ Please reply *menu* and follow the setup to create your account first.");
   }
 
+  const pendingFundingReference = session.context?.pending_funding_reference;
+  if (typeof pendingFundingReference === "string") {
+    await verifyWhatsAppFunding(supabase, pendingFundingReference);
+  }
+
   const { data: envSetting } = await supabase.from("platform_settings").select("value").eq("key", "platform_environment").maybeSingle();
   const isTestMode = (envSetting?.value || "development") === "development";
   const { data: wallet } = await supabase
