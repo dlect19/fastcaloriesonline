@@ -1026,7 +1026,7 @@ async function confirmWhatsAppOrder(
   await supabase.from("wallets").update(walletUpdate).eq("id", wallet.id);
 
   await persistSession(supabase, session.id, "menu", { last_order_id: order.id, last_order_number: order.order_number }, []);
-  return await sendToUser("wa_main_menu", {}, `✅ Order confirmed!\n\n*${order.order_number}*\nTotal: ₦${summary.total.toLocaleString()}\nWallet balance: ₦${newBalance.toLocaleString()}\n\n${MENU_OPTIONS}`);
+  return await sendToUser("wa_main_menu", {}, `✅ Order confirmed!\n\n*${order.order_number}*\nTotal: ₦${summary.total.toLocaleString()}\nWallet balance: ₦${newBalance.toLocaleString()}\n\n🔐 *Delivery code: ${confirmationCode}*\nGive this code to the rider when your order arrives.\n\n${MENU_OPTIONS}`);
 }
 
 async function doCheckout(
