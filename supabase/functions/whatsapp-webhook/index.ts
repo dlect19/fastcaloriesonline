@@ -480,12 +480,15 @@ serve(async (req) => {
         return await sendToUser("wa_main_menu", {}, `${vendor?.name || "This vendor"} has no items right now.\n\n${MENU_OPTIONS}`);
       }
       await persistSession(supabase, session.id, "browsing_menu", nextContext, nextCart);
+      const shown = items.slice(0, 10);
       const text = `📋 *${vendor?.name || ""}*\n\n` +
-        items.slice(0, 10).map((m: any, i: number) =>
+        shown.map((m: any, i: number) =>
           `${i + 1}. ${m.name} — ₦${Number(m.price).toLocaleString()}${m.calories ? ` (${m.calories} cal)` : ""}`
-        ).join("\n") + "\n\nReply with item number to add to cart, or *menu* to go back.";
+        ).join("\n") + "\n\nReply with the item number to add 1 to cart.\nFor multiple, reply *<item>x<qty>* (e.g. *1x3* = 3 of item 1).\nOr *menu* to go back.";
+      // Twilio template requires all 10 slots filled — only use it when we have exactly 10 real items
+      if (shown.length < 10) return await replyText(text);
       const vars: Record<string, string> = { vendor: vendor?.name || "" };
-      items.slice(0, 10).forEach((m: any, i: number) => {
+      shown.forEach((m: any, i: number) => {
         vars[`${i + 1}`] = m.name;
         vars[`p${i + 1}`] = `₦${Number(m.price).toLocaleString()}`;
         vars[`id${i + 1}`] = m.id;
@@ -496,23 +499,32 @@ serve(async (req) => {
     // Menu item — add to cart
     if (session.state === "browsing_menu") {
       let itemId: string | null = null;
+      let qty = 1;
       if (tap.startsWith("LIST_ITEM_")) itemId = tap.replace("LIST_ITEM_", "");
       else if (tap === "BTN_CHECKOUT" || lower === "checkout") {
         return await doCheckout(supabase, session, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
       } else {
-        const idx = parseInt(lower, 10) - 1;
         const items = nextContext.items || [];
-        if (Number.isFinite(idx) && items[idx]) itemId = items[idx].id;
+        // Parse "<item>x<qty>" or "<item>*<qty>" or "<item> <qty>"
+        const m = lower.replace(/\s+/g, "").match(/^(\d+)[x*](\d+)$/);
+        if (m) {
+          const idx = parseInt(m[1], 10) - 1;
+          const q = parseInt(m[2], 10);
+          if (Number.isFinite(idx) && items[idx] && q > 0) { itemId = items[idx].id; qty = Math.min(q, 50); }
+        } else {
+          const idx = parseInt(lower, 10) - 1;
+          if (Number.isFinite(idx) && items[idx]) itemId = items[idx].id;
+        }
       }
-      if (!itemId) return await replyText("Reply with a menu item number, *checkout* to pay, or *menu* to restart.");
+      if (!itemId) return await replyText("Reply with item number (e.g. *2*) or *<item>x<qty>* (e.g. *2x3*), *checkout* to pay, or *menu* to restart.");
       const it = (nextContext.items || []).find((x: any) => x.id === itemId);
       if (!it) return await replyText("That item is no longer available.");
       const inCart = nextCart.find((c: any) => c.id === it.id);
-      if (inCart) inCart.qty += 1;
-      else nextCart.push({ ...it, qty: 1, vendor_id: nextContext.vendor_id, vendor_name: nextContext.vendor_name });
+      if (inCart) inCart.qty += qty;
+      else nextCart.push({ ...it, qty, vendor_id: nextContext.vendor_id, vendor_name: nextContext.vendor_name });
       await persistSession(supabase, session.id, "browsing_menu", nextContext, nextCart);
-      const txt = `✅ Added *${it.name}* to cart.\n\n` + renderCart(nextCart);
-      return await sendToUser("wa_cart_actions", { total: cartTotal(nextCart).toLocaleString() }, txt + "\n\nReply *checkout* to pay or another item number to add more.");
+      const txt = `✅ Added *${qty} × ${it.name}* to cart.\n\n` + renderCart(nextCart);
+      return await sendToUser("wa_cart_actions", { total: cartTotal(nextCart).toLocaleString() }, txt + "\n\nReply *checkout* to pay, another item number, or *<item>x<qty>* for multiple.");
     }
 
     if (session.state === "cart") {
