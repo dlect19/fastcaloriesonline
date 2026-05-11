@@ -352,6 +352,21 @@ serve(async (req) => {
       return await sendToUser("wa_main_menu", {}, "❌ Order cancelled and cart cleared.\n\n" + MENU_OPTIONS);
     }
 
+    const typedFundingReference = extractWhatsAppFundingReference(body);
+    if (typedFundingReference && session.customer_user_id) {
+      const verified = await verifyWhatsAppFunding(supabase, typedFundingReference);
+      nextContext = { ...nextContext, pending_funding_reference: verified ? undefined : typedFundingReference };
+      await persistSession(supabase, session.id, session.state, nextContext, nextCart);
+      if (verified && nextCart.length) {
+        return await doCheckout(supabase, { ...session, context: nextContext }, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
+      }
+      return await replyText(
+        verified
+          ? "✅ Wallet top-up confirmed. Reply *checkout* to continue."
+          : "⏳ I can see that payment reference, but it is not confirmed yet. Please wait a moment, then reply *checkout* again."
+      );
+    }
+
     // Capture shared location pin
     const latStr = params["Latitude"];
     const lonStr = params["Longitude"];
@@ -449,10 +464,10 @@ serve(async (req) => {
       if (!amt || amt < 100) {
         return await replyText("⚠️ Please reply with a valid amount of at least ₦100. E.g. *2000*.\n\nReply *0* to cancel.");
       }
-      const link = await createWalletFundingLink(supabase, session.customer_user_id!, amt, phone);
-      await persistSession(supabase, session.id, "wallet_menu", nextContext, nextCart);
-      if (!link) return await replyText("⚠️ Couldn't create payment link right now. Please try again in a moment.");
-      return await replyText(`✅ *Top up ₦${amt.toLocaleString()}*\n\nTap to pay securely with card or bank:\n${link}\n\nYour wallet will credit automatically once payment is confirmed.`);
+      const funding = await createWalletFundingLink(supabase, session.customer_user_id!, amt, phone);
+      await persistSession(supabase, session.id, "wallet_menu", { ...nextContext, pending_funding_reference: funding?.reference }, nextCart);
+      if (!funding) return await replyText("⚠️ Couldn't create payment link right now. Please try again in a moment.");
+      return await replyText(`✅ *Top up ₦${amt.toLocaleString()}*\n\nTap to pay securely with card or bank:\n${funding.link}\n\nAfter payment, reply *checkout* or paste this reference:\n${funding.reference}`);
     }
 
     if (tap === "BTN_HEALTHY" || (session.state === "menu" && lower === "4")) {
@@ -566,10 +581,10 @@ serve(async (req) => {
       if (tap === "BTN_WALLET" || lower === "3" || lower === "fund" || lower === "top up" || lower === "topup") {
         const pendingTotal = Number(nextContext?.pending_total || cartTotal(nextCart) || 1000);
         const amount = Math.max(1000, Math.ceil(pendingTotal));
-        const link = await createWalletFundingLink(supabase, session.customer_user_id!, amount, phone);
-        await persistSession(supabase, session.id, "confirming_order", nextContext, nextCart);
-        if (!link) return await replyText("⚠️ Couldn't create payment link right now. Please try again.");
-        return await replyText(`💰 Top up *₦${amount.toLocaleString()}* to cover your order:\n${link}\n\nAfter funding, reply *checkout* to continue.`);
+        const funding = await createWalletFundingLink(supabase, session.customer_user_id!, amount, phone);
+        await persistSession(supabase, session.id, "confirming_order", { ...nextContext, pending_funding_reference: funding?.reference }, nextCart);
+        if (!funding) return await replyText("⚠️ Couldn't create payment link right now. Please try again.");
+        return await replyText(`💰 Top up *₦${amount.toLocaleString()}* to cover your order:\n${funding.link}\n\nAfter funding, reply *checkout* or paste this reference:\n${funding.reference}`);
       }
       if (tap === "BTN_CONFIRM" || lower === "yes" || lower === "confirm") {
         return await replyText("Order confirmation is being finalized. For now, please reply *checkout* after funding your wallet.");
@@ -832,7 +847,22 @@ async function createOrFetchDVA(supabase: any, userId: string | null): Promise<s
   }
 }
 
-async function createWalletFundingLink(supabase: any, userId: string, amount: number, phone?: string): Promise<string | null> {
+function extractWhatsAppFundingReference(text: string): string | null {
+  return text.match(/WF-WA-[a-z0-9]{8}-\d{10,}/i)?.[0] || null;
+}
+
+async function verifyWhatsAppFunding(supabase: any, reference: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.functions.invoke("verify-whatsapp-funding", { body: { reference } });
+    if (error) console.error("WhatsApp funding verification failed", error);
+    return Boolean(data?.success);
+  } catch (e) {
+    console.error("WhatsApp funding verification error", e);
+    return false;
+  }
+}
+
+async function createWalletFundingLink(supabase: any, userId: string, amount: number, phone?: string): Promise<{ link: string; reference: string } | null> {
   try {
     const { data: profile } = await supabase.from("profiles").select("full_name, phone").eq("user_id", userId).maybeSingle();
     const { data: userData } = await supabase.auth.admin.getUserById(userId);
@@ -860,7 +890,8 @@ async function createWalletFundingLink(supabase: any, userId: string, amount: nu
       console.error("WhatsApp wallet funding init failed", json);
       return null;
     }
-    return json.data.authorization_url || null;
+    const link = json.data.authorization_url;
+    return link ? { link, reference } : null;
   } catch (e) {
     console.error("WhatsApp wallet funding link error", e);
     return null;
@@ -899,6 +930,11 @@ async function doCheckout(
   if (!cart.length) return await replyText("Your cart is empty. Reply *menu* to browse vendors.");
   if (!session.customer_user_id) {
     return await replyText("⚠️ Please reply *menu* and follow the setup to create your account first.");
+  }
+
+  const pendingFundingReference = session.context?.pending_funding_reference;
+  if (typeof pendingFundingReference === "string") {
+    await verifyWhatsAppFunding(supabase, pendingFundingReference);
   }
 
   const { data: envSetting } = await supabase.from("platform_settings").select("value").eq("key", "platform_environment").maybeSingle();
