@@ -485,7 +485,7 @@ serve(async (req) => {
         ).join("\n") + "\n\nReply with item number to add to cart, or *menu* to go back.";
       const vars: Record<string, string> = { vendor: vendor?.name || "" };
       items.slice(0, 10).forEach((m: any, i: number) => {
-        vars[`i${i + 1}`] = m.name;
+        vars[`${i + 1}`] = m.name;
         vars[`p${i + 1}`] = `₦${Number(m.price).toLocaleString()}`;
         vars[`id${i + 1}`] = m.id;
       });
