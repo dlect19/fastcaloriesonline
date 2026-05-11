@@ -533,9 +533,11 @@ serve(async (req) => {
     if (session.state === "confirming_order") {
       if (tap === "BTN_WALLET" || lower === "3" || lower === "fund" || lower === "top up" || lower === "topup") {
         const pendingTotal = Number(nextContext?.pending_total || cartTotal(nextCart) || 1000);
-        const text = await renderWallet(supabase, session.customer_user_id, phone, Math.max(1000, pendingTotal));
+        const amount = Math.max(1000, Math.ceil(pendingTotal));
+        const link = await createWalletFundingLink(supabase, session.customer_user_id!, amount, phone);
         await persistSession(supabase, session.id, "confirming_order", nextContext, nextCart);
-        return await replyText(text + "\n\nAfter funding, reply *checkout* again to continue.");
+        if (!link) return await replyText("⚠️ Couldn't create payment link right now. Please try again.");
+        return await replyText(`💰 Top up *₦${amount.toLocaleString()}* to cover your order:\n${link}\n\nAfter funding, reply *checkout* to continue.`);
       }
       if (tap === "BTN_CONFIRM" || lower === "yes" || lower === "confirm") {
         return await replyText("Order confirmation is being finalized. For now, please reply *checkout* after funding your wallet.");
