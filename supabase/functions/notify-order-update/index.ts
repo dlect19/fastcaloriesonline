@@ -340,6 +340,7 @@ serve(async (req) => {
         notifications_triggered: notifications.length,
         total_sent: totalSent,
         total_failed: totalFailed,
+        whatsapp_sent: whatsappSent,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
