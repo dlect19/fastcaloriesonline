@@ -173,6 +173,7 @@ const App = () => {
               <Route path="/verify-email" element={<VerifyEmail />} />
               <Route path="/verification-pending" element={<VerificationPending />} />
               <Route path="/payment-callback" element={<PaymentCallback />} />
+              <Route path="/wallet/wa-success" element={<WhatsAppFundingSuccess />} />
               <Route path="/profile/transactions" element={<TransactionHistoryPage />} />
               <Route path="/profile/wallet" element={<WalletPage />} />
               <Route path="/rewards" element={<Rewards />} />
