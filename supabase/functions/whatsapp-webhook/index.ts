@@ -364,9 +364,9 @@ serve(async (req) => {
           const dTxt = typeof d === "number" ? ` — ${d.toFixed(1)} km` : "";
           return `${i + 1}. ${v.name}${dTxt}`;
         }).join("\n") + "\n\nReply with a number to view the menu." + HELP_HINT;
-      // Variables: v1..v10 names for list picker
       const vars: Record<string, string> = {};
       vendors.slice(0, 10).forEach((v: any, i: number) => { vars[`${i + 1}`] = v.name; vars[`id${i + 1}`] = v.id; });
+      if (vendors.length < 10) return await replyText(text);
       return await sendToUser("wa_vendor_list", vars, text);
     };
 
@@ -383,6 +383,7 @@ serve(async (req) => {
           "\n\nReply with a number." + HELP_HINT;
         const vars: Record<string, string> = {};
         vendors.slice(0, 10).forEach((v: any, i: number) => { vars[`${i + 1}`] = v.name; vars[`id${i + 1}`] = v.id; });
+        if (vendors.length < 10) return await replyText(text);
         return await sendToUser("wa_vendor_list", vars, text);
       }
       await persistSession(supabase, session.id, "awaiting_location", nextContext, nextCart);
@@ -573,6 +574,7 @@ serve(async (req) => {
           const text = `🏪 *Nearby vendors:*\n\n` + vendors.map((v: any, i: number) => `${i + 1}. ${v.name}`).join("\n") + HELP_HINT;
           const vars: Record<string, string> = {};
           vendors.slice(0, 10).forEach((v: any, i: number) => { vars[`${i + 1}`] = v.name; vars[`id${i + 1}`] = v.id; });
+          if (vendors.length < 10) return await replyText(text);
           return await sendToUser("wa_vendor_list", vars, text);
         }
       }
@@ -629,6 +631,10 @@ function renderCart(cart: any[]): string {
 }
 
 async function fetchVendors(supabase: any, userId: string | null, overrideLat: number | null, overrideLon: number | null) {
+  const withNamesOnly = (rows: any[] = []) => rows
+    .filter((v: any) => typeof v?.name === "string" && v.name.trim().length > 0 && !/^vendor\s*\d+$/i.test(v.name.trim()))
+    .map((v: any) => ({ ...v, name: v.name.trim() }))
+    .slice(0, 10);
   let lat = overrideLat, lon = overrideLon;
   if ((lat === null || lon === null) && userId) {
     const { data: addr } = await supabase
@@ -639,11 +645,12 @@ async function fetchVendors(supabase: any, userId: string | null, overrideLat: n
   if (lat !== null && lon !== null) {
     try {
       const { data } = await supabase.functions.invoke("get-nearby-vendors", { body: { customer_lat: lat, customer_lon: lon } });
-      if (data?.vendors?.length) return data.vendors.slice(0, 10);
+      const namedVendors = withNamesOnly(data?.vendors || []);
+      if (namedVendors.length) return namedVendors;
     } catch (_) {}
   }
-  const { data } = await supabase.from("vendors").select("id, name").eq("is_active", true).limit(10);
-  return data || [];
+  const { data } = await supabase.from("vendors").select("id, name").eq("is_active", true).limit(50);
+  return withNamesOnly(data || []);
 }
 
 async function fetchMenuItems(supabase: any, vendorId: string) {
