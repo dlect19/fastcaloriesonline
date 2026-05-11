@@ -366,7 +366,7 @@ serve(async (req) => {
         }).join("\n") + "\n\nReply with a number to view the menu." + HELP_HINT;
       // Variables: v1..v10 names for list picker
       const vars: Record<string, string> = {};
-      vendors.slice(0, 10).forEach((v: any, i: number) => { vars[`v${i + 1}`] = v.name; vars[`id${i + 1}`] = v.id; });
+      vendors.slice(0, 10).forEach((v: any, i: number) => { vars[`${i + 1}`] = v.name; vars[`id${i + 1}`] = v.id; });
       return await sendToUser("wa_vendor_list", vars, text);
     };
 
