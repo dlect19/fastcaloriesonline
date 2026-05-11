@@ -366,7 +366,7 @@ serve(async (req) => {
         }).join("\n") + "\n\nReply with a number to view the menu." + HELP_HINT;
       // Variables: v1..v10 names for list picker
       const vars: Record<string, string> = {};
-      vendors.slice(0, 10).forEach((v: any, i: number) => { vars[`v${i + 1}`] = v.name; vars[`id${i + 1}`] = v.id; });
+      vendors.slice(0, 10).forEach((v: any, i: number) => { vars[`${i + 1}`] = v.name; vars[`id${i + 1}`] = v.id; });
       return await sendToUser("wa_vendor_list", vars, text);
     };
 
@@ -382,7 +382,7 @@ serve(async (req) => {
           vendors.map((v: any, i: number) => `${i + 1}. ${v.name}`).join("\n") +
           "\n\nReply with a number." + HELP_HINT;
         const vars: Record<string, string> = {};
-        vendors.slice(0, 10).forEach((v: any, i: number) => { vars[`v${i + 1}`] = v.name; vars[`id${i + 1}`] = v.id; });
+        vendors.slice(0, 10).forEach((v: any, i: number) => { vars[`${i + 1}`] = v.name; vars[`id${i + 1}`] = v.id; });
         return await sendToUser("wa_vendor_list", vars, text);
       }
       await persistSession(supabase, session.id, "awaiting_location", nextContext, nextCart);
@@ -485,7 +485,7 @@ serve(async (req) => {
         ).join("\n") + "\n\nReply with item number to add to cart, or *menu* to go back.";
       const vars: Record<string, string> = { vendor: vendor?.name || "" };
       items.slice(0, 10).forEach((m: any, i: number) => {
-        vars[`i${i + 1}`] = m.name;
+        vars[`${i + 1}`] = m.name;
         vars[`p${i + 1}`] = `₦${Number(m.price).toLocaleString()}`;
         vars[`id${i + 1}`] = m.id;
       });
@@ -572,7 +572,7 @@ serve(async (req) => {
           await persistSession(supabase, session.id, "browsing_vendors", nextContext, nextCart);
           const text = `🏪 *Nearby vendors:*\n\n` + vendors.map((v: any, i: number) => `${i + 1}. ${v.name}`).join("\n") + HELP_HINT;
           const vars: Record<string, string> = {};
-          vendors.slice(0, 10).forEach((v: any, i: number) => { vars[`v${i + 1}`] = v.name; vars[`id${i + 1}`] = v.id; });
+          vendors.slice(0, 10).forEach((v: any, i: number) => { vars[`${i + 1}`] = v.name; vars[`id${i + 1}`] = v.id; });
           return await sendToUser("wa_vendor_list", vars, text);
         }
       }
