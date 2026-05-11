@@ -954,9 +954,23 @@ async function confirmWhatsAppOrder(
 
   const vendorId = cart[0]?.vendor_id;
   const paymentRef = `WA-${Date.now()}`;
+
+  // Resolve outlet so the order shows up in the vendor portal (scoped by selected outlet)
+  let outletId: string | null = cart[0]?.outlet_id ?? null;
+  if (!outletId && vendorId) {
+    const { data: outlets } = await supabase
+      .from("vendor_outlets")
+      .select("id, is_default, is_active")
+      .eq("vendor_id", vendorId)
+      .eq("is_active", true);
+    const def = outlets?.find((o: any) => o.is_default) || outlets?.[0];
+    outletId = def?.id ?? null;
+  }
+
   const { data: order, error: orderErr } = await supabase.from("orders").insert({
     user_id: session.customer_user_id,
     vendor_id: vendorId,
+    outlet_id: outletId,
     status: "confirmed",
     subtotal: summary.subtotal,
     menu_subtotal: summary.subtotal,
