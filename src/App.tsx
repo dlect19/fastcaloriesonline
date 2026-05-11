@@ -20,6 +20,7 @@ import Favorites from "./pages/Favorites";
 import VerifyEmail from "./pages/VerifyEmail";
 import VerificationPending from "./pages/VerificationPending";
 import PaymentCallback from "./pages/PaymentCallback";
+import WhatsAppFundingSuccess from "./pages/WhatsAppFundingSuccess";
 import VendorLanding from "./pages/VendorLanding";
 import RiderLanding from "./pages/RiderLanding";
 import DeliveryCompanyLanding from "./pages/DeliveryCompanyLanding";
