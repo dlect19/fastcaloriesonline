@@ -245,6 +245,96 @@ serve(async (req) => {
       }
     }
 
+    // === WhatsApp customer updates (only for orders placed via WhatsApp) ===
+    let whatsappSent = 0;
+    if (order.channel === 'whatsapp' && order.user_id) {
+      try {
+        const { data: waSession } = await supabase
+          .from('whatsapp_sessions')
+          .select('phone')
+          .eq('customer_user_id', order.user_id)
+          .order('last_message_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        const phone = waSession?.phone;
+        if (phone) {
+          const code = order.confirmation_code;
+          const codeLine = code ? `\n\n🔐 *Delivery code: ${code}*\nGive this to the rider on hand-off.` : '';
+          let waBody = '';
+
+          if (new_rider_id && !old_rider_id) {
+            const { data: riderProfile } = await supabase
+              .from('profiles').select('full_name').eq('user_id', new_rider_id).single();
+            waBody = `🏍️ A rider (${riderProfile?.full_name || 'Rider'}) has been assigned to your order *#${order.order_number}*.${codeLine}`;
+          } else if (new_status !== old_status) {
+            switch (new_status) {
+              case 'confirmed':
+                waBody = `✅ Order *#${order.order_number}* confirmed by ${vendor?.name || 'the vendor'}.${codeLine}`;
+                break;
+              case 'preparing':
+                waBody = `👨‍🍳 Your order *#${order.order_number}* is being prepared.`;
+                break;
+              case 'ready_for_pickup':
+                waBody = `📦 Order *#${order.order_number}* is ready and waiting for the rider.${codeLine}`;
+                break;
+              case 'picked_up':
+                waBody = `🏍️ Order *#${order.order_number}* picked up by the rider.${codeLine}`;
+                break;
+              case 'on_the_way':
+                waBody = `🚀 Order *#${order.order_number}* is on its way!${codeLine}`;
+                break;
+              case 'delivered':
+                waBody = `🎉 Order *#${order.order_number}* delivered. Enjoy! Reply *menu* to order again.`;
+                break;
+              case 'cancelled':
+                waBody = `❌ Order *#${order.order_number}* has been cancelled. Any payment will be refunded to your wallet.`;
+                break;
+            }
+          }
+
+          if (waBody) {
+            const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+            const TWILIO_API_KEY = Deno.env.get('TWILIO_API_KEY');
+            const from = Deno.env.get('TWILIO_WHATSAPP_FROM') || 'whatsapp:+14155238886';
+            if (LOVABLE_API_KEY && TWILIO_API_KEY) {
+              const to = phone.startsWith('whatsapp:') ? phone : `whatsapp:${phone}`;
+              const r = await fetch('https://connector-gateway.lovable.dev/twilio/Messages.json', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+                  'X-Connection-Api-Key': TWILIO_API_KEY,
+                  'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({ To: to, From: from, Body: waBody }),
+              });
+              const wd = await r.json();
+              if (r.ok) {
+                whatsappSent++;
+                const cleanPhone = phone.replace('whatsapp:', '');
+                const { data: sess } = await supabase
+                  .from('whatsapp_sessions').select('id').eq('phone', cleanPhone).maybeSingle();
+                await supabase.from('whatsapp_messages').insert({
+                  session_id: sess?.id ?? null,
+                  phone: cleanPhone,
+                  direction: 'out',
+                  body: waBody,
+                  twilio_sid: wd.sid ?? null,
+                });
+                console.log(`WhatsApp update sent for order ${order.order_number} → ${phone}`);
+              } else {
+                console.error('WhatsApp send failed:', wd);
+              }
+            } else {
+              console.warn('WhatsApp keys missing — skipping channel update');
+            }
+          }
+        }
+      } catch (waErr) {
+        console.error('WhatsApp dispatch error (non-blocking):', waErr);
+      }
+    }
+
     return new Response(
       JSON.stringify({
         notifications_triggered: notifications.length,
