@@ -393,8 +393,46 @@ serve(async (req) => {
 
     if (tap === "BTN_WALLET" || (session.state === "menu" && lower === "3")) {
       const text = await renderWallet(supabase, session.customer_user_id, phone);
-      await persistSession(supabase, session.id, "menu", nextContext, nextCart);
-      return await replyText(text + HELP_HINT);
+      await persistSession(supabase, session.id, "wallet_menu", nextContext, nextCart);
+      return await replyText(text);
+    }
+
+    // ===== Wallet submenu =====
+    if (session.state === "wallet_menu") {
+      if (lower === "1" || lower === "topup" || lower === "top up" || lower === "fund") {
+        await persistSession(supabase, session.id, "wallet_awaiting_amount", nextContext, nextCart);
+        return await replyText("💰 *Top up wallet*\n\nReply with the amount in Naira you want to add (minimum ₦100).\n\nExamples: *1000*, *5000*, *20000*\n\nReply *0* to cancel.");
+      }
+      if (lower === "2" || lower === "dva" || lower === "account") {
+        const dvaText = await createOrFetchDVA(supabase, session.customer_user_id);
+        await persistSession(supabase, session.id, "wallet_menu", nextContext, nextCart);
+        return await replyText(dvaText + "\n\nReply *1* to top up by card, or *0* for main menu.");
+      }
+      if (lower === "3" || lower === "history" || lower === "transactions") {
+        const text = await renderWallet(supabase, session.customer_user_id, phone);
+        return await replyText(text);
+      }
+      if (lower === "0" || lower === "menu" || lower === "back") {
+        await persistSession(supabase, session.id, "menu", nextContext, nextCart);
+        return await sendToUser("wa_main_menu", {}, MAIN_MENU);
+      }
+      return await replyText("Reply *1* to top up by card, *2* to get a virtual bank account, *3* to refresh, or *0* for main menu.");
+    }
+
+    if (session.state === "wallet_awaiting_amount") {
+      if (lower === "0" || lower === "cancel" || lower === "menu") {
+        await persistSession(supabase, session.id, "wallet_menu", nextContext, nextCart);
+        const text = await renderWallet(supabase, session.customer_user_id, phone);
+        return await replyText("Top-up cancelled.\n\n" + text);
+      }
+      const amt = Math.floor(Number((body || "").replace(/[^\d.]/g, "")));
+      if (!amt || amt < 100) {
+        return await replyText("⚠️ Please reply with a valid amount of at least ₦100. E.g. *2000*.\n\nReply *0* to cancel.");
+      }
+      const link = await createWalletFundingLink(supabase, session.customer_user_id!, amt, phone);
+      await persistSession(supabase, session.id, "wallet_menu", nextContext, nextCart);
+      if (!link) return await replyText("⚠️ Couldn't create payment link right now. Please try again in a moment.");
+      return await replyText(`✅ *Top up ₦${amt.toLocaleString()}*\n\nTap to pay securely with card or bank:\n${link}\n\nYour wallet will credit automatically once payment is confirmed.`);
     }
 
     if (tap === "BTN_HEALTHY" || (session.state === "menu" && lower === "4")) {
