@@ -312,6 +312,34 @@ async function handleWalletFunding(supabase: SupabaseClient, data: any, environm
     .eq("id", customerWallet.id);
 
   console.log(`Wallet funding successful: ${reference}, new balance: ${newBalance}`);
+
+  // If funded via WhatsApp, send a WhatsApp confirmation message
+  if (metadata?.source === "whatsapp" && metadata?.phone) {
+    try {
+      const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+      const twilioKey = Deno.env.get("TWILIO_API_KEY");
+      const { data: fromRow } = await supabase
+        .from("platform_settings").select("value").eq("key", "whatsapp_from_number").maybeSingle();
+      const fromNumber = fromRow?.value || "whatsapp:+14155238886";
+      if (lovableKey && twilioKey) {
+        const toRaw = String(metadata.phone).replace(/\D/g, "");
+        const to = `whatsapp:+${toRaw}`;
+        const body = `✅ *Wallet topped up!*\n\nAmount: ₦${amount.toLocaleString()}\nNew balance: *₦${newBalance.toLocaleString()}*\n\nReply *menu* to keep ordering, or *checkout* if you have a pending order.`;
+        await fetch("https://connector-gateway.lovable.dev/twilio/Messages.json", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${lovableKey}`,
+            "X-Connection-Api-Key": twilioKey,
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: new URLSearchParams({ From: fromNumber, To: to, Body: body }),
+        });
+        console.log(`WhatsApp wallet credit notification sent to ${to}`);
+      }
+    } catch (e) {
+      console.error("Failed to send WhatsApp wallet credit notification", e);
+    }
+  }
 }
 
 // deno-lint-ignore no-explicit-any
