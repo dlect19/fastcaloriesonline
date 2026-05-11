@@ -324,6 +324,11 @@ serve(async (req) => {
       await persistSession(supabase, session.id, "menu", nextContext, nextCart);
       return await sendToUser("wa_main_menu", {}, existing ? MAIN_MENU : WELCOME_INTRO);
     }
+    if (lower === "balance" || lower === "wallet") {
+      const text = await renderWallet(supabase, session.customer_user_id, phone);
+      await persistSession(supabase, session.id, "wallet_menu", nextContext, nextCart);
+      return await replyText(text);
+    }
     if (tap === "BTN_CART" || lower === "cart") {
       const txt = renderCart(nextCart);
       await persistSession(supabase, session.id, nextCart.length ? "cart" : session.state, nextContext, nextCart);
