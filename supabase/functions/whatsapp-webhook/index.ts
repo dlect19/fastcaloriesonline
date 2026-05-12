@@ -771,6 +771,25 @@ async function renderRecentOrders(supabase: any, phone: string, userId: string |
   return "📦 No recent orders found.";
 }
 
+async function renderOrderHistory(supabase: any, userId: string | null) {
+  if (!userId) return "📦 Reply *menu* to set up your account first.";
+  const { data } = await supabase
+    .from("orders")
+    .select("order_number, status, total, created_at, delivery_type, confirmation_code")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(10);
+  if (!data?.length) return "📦 *Order history*\n\nYou haven't placed any orders yet. Reply *1* to place your first order.";
+  const lines = data.map((o: any) => {
+    const dt = new Date(o.created_at);
+    const date = `${String(dt.getDate()).padStart(2, "0")}/${String(dt.getMonth() + 1).padStart(2, "0")}/${dt.getFullYear()}`;
+    const type = o.delivery_type === "self_pickup" ? "Carryout" : "Delivery";
+    const code = o.confirmation_code ? ` · code *${o.confirmation_code}*` : "";
+    return `#${o.order_number}\n   ${date} · ${type} · ${o.status} · ₦${Number(o.total).toLocaleString()}${code}`;
+  });
+  return "📦 *Your order history (last 10):*\n\n" + lines.join("\n\n");
+}
+
 async function renderWallet(supabase: any, userId: string | null, phone?: string, _suggestedAmount = 2000) {
   if (!userId) return "💼 Reply *menu* to set up your account first.";
   let { data: wallet } = await supabase
