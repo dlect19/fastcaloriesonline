@@ -507,20 +507,32 @@ serve(async (req) => {
       }
       if (!vendorId) return await replyText("Please reply with a vendor number from the list, or *menu* to restart.");
       const vendor = (nextContext.vendors || []).find((v: any) => v.id === vendorId);
+      // Look up vendor category (pharmacy gets special handling)
+      const { data: vendorRow } = await supabase.from("vendors").select("category").eq("id", vendorId).maybeSingle();
+      const vendorCategory = vendorRow?.category || "restaurant";
       const items = await fetchMenuItems(supabase, vendorId);
       nextContext.vendor_id = vendorId;
       nextContext.vendor_name = vendor?.name || "";
-      nextContext.items = items.map((m: any) => ({ id: m.id, name: m.name, price: m.price, calories: m.calories }));
+      nextContext.vendor_category = vendorCategory;
+      nextContext.items = items.map((m: any) => ({
+        id: m.id, name: m.name, price: m.price, calories: m.calories,
+        requires_prescription: !!m.requires_prescription,
+      }));
       if (!items.length) {
         await persistSession(supabase, session.id, "menu", nextContext, nextCart);
         return await sendToUser("wa_main_menu", {}, `${vendor?.name || "This vendor"} has no items right now.\n\n${MENU_OPTIONS}`);
       }
       await persistSession(supabase, session.id, "browsing_menu", nextContext, nextCart);
       const shown = items.slice(0, 10);
-      const text = `📋 *${vendor?.name || ""}*\n\n` +
-        shown.map((m: any, i: number) =>
-          `${i + 1}. ${m.name} — ₦${Number(m.price).toLocaleString()}${m.calories ? ` (${m.calories} cal)` : ""}`
-        ).join("\n") + "\n\nReply with the item number to add 1 to cart.\nFor multiple, reply *<item>x<qty>* (e.g. *1x3* = 3 of item 1).\nOr *menu* to go back.";
+      const isPharm = vendorCategory === "pharmacy";
+      const headerIcon = isPharm ? "💊" : "📋";
+      const text = `${headerIcon} *${vendor?.name || ""}*${isPharm ? " _(Pharmacy)_" : ""}\n\n` +
+        shown.map((m: any, i: number) => {
+          const rx = m.requires_prescription ? " ⚕️_Rx_" : "";
+          return `${i + 1}. ${m.name}${rx} — ₦${Number(m.price).toLocaleString()}${m.calories ? ` (${m.calories} cal)` : ""}`;
+        }).join("\n") +
+        (isPharm ? "\n\n_⚕️ = prescription required. We'll ask for your prescription at checkout._" : "") +
+        "\n\nReply with the item number to add 1 to cart.\nFor multiple, reply *<item>x<qty>* (e.g. *1x3* = 3 of item 1).\nOr *menu* to go back.";
       // Twilio template requires all 10 slots filled — only use it when we have exactly 10 real items
       if (shown.length < 10) return await replyText(text);
       const vars: Record<string, string> = { vendor: vendor?.name || "" };
@@ -557,7 +569,12 @@ serve(async (req) => {
       if (!it) return await replyText("That item is no longer available.");
       const inCart = nextCart.find((c: any) => c.id === it.id);
       if (inCart) inCart.qty += qty;
-      else nextCart.push({ ...it, qty, vendor_id: nextContext.vendor_id, vendor_name: nextContext.vendor_name });
+      else nextCart.push({
+        ...it, qty,
+        vendor_id: nextContext.vendor_id, vendor_name: nextContext.vendor_name,
+        is_pharmacy: nextContext.vendor_category === "pharmacy",
+        requires_prescription: !!it.requires_prescription,
+      });
       await persistSession(supabase, session.id, "browsing_menu", nextContext, nextCart);
       const txt = `✅ Added *${qty} × ${it.name}* to cart.\n\n` + renderCart(nextCart);
       return await sendToUser("wa_cart_actions", { "1": cartTotal(nextCart).toLocaleString() }, txt + "\n\nReply *checkout* to pay, another item number, or *<item>x<qty>* for multiple.");
@@ -673,6 +690,72 @@ serve(async (req) => {
       return await replyText("Reply *1* to use your saved address, *2* for a different address, share a location pin, or type the full delivery address.");
     }
 
+    // ===== Pharmacy Rx capture (asked during checkout when cart contains pharmacy items) =====
+    if (session.state === "pharmacy_rx_choice") {
+      if (lower === "1" || lower === "doctor" || lower === "yes") {
+        await persistSession(supabase, session.id, "pharmacy_rx_awaiting_image", { ...nextContext, rx_type: "doctor" }, nextCart);
+        return await replyText(
+          "📸 *Please send a clear photo of your prescription* (or PDF).\n\n" +
+          "Tap *📎* → *Photo* (or *Document*) → select your prescription, then send.\n\n" +
+          "Reply *0* to cancel."
+        );
+      }
+      if (lower === "2" || lower === "no" || lower === "pharmacist") {
+        await persistSession(supabase, session.id, "pharmacy_rx_awaiting_instructions", { ...nextContext, rx_type: "pharmacist" }, nextCart);
+        return await replyText(
+          "📝 *Tell the pharmacist what you need.*\n\n" +
+          "Reply with your symptoms / what the medicine is for / how often you take it.\n" +
+          "Example: _\"Headache, adult, take twice daily for 3 days.\"_\n\n" +
+          "Reply *0* to cancel."
+        );
+      }
+      if (lower === "0" || lower === "cancel") {
+        await persistSession(supabase, session.id, "menu", { ...nextContext, pharmacy_rx: undefined }, nextCart);
+        return await sendToUser("wa_main_menu", {}, "Order cancelled.\n\n" + MENU_OPTIONS);
+      }
+      return await replyText(
+        "💊 *Pharmacy order — prescription check*\n\n" +
+        "Reply:\n1️⃣ I have a *doctor's prescription* (I'll send a photo)\n2️⃣ *No prescription* — guide me (pharmacist instructions)\n0️⃣ Cancel"
+      );
+    }
+
+    if (session.state === "pharmacy_rx_awaiting_image") {
+      if (lower === "0" || lower === "cancel") {
+        await persistSession(supabase, session.id, "menu", { ...nextContext, pharmacy_rx: undefined }, nextCart);
+        return await sendToUser("wa_main_menu", {}, "Order cancelled.\n\n" + MENU_OPTIONS);
+      }
+      const numMedia = parseInt(params["NumMedia"] || "0", 10);
+      if (!numMedia || numMedia < 1) {
+        return await replyText("📸 I'm waiting for your prescription image. Tap *📎* → *Photo* → send. Or reply *0* to cancel.");
+      }
+      const mediaUrl = params["MediaUrl0"];
+      const mediaType = params["MediaContentType0"] || "image/jpeg";
+      const uploaded = await uploadTwilioMediaToBucket(supabase, session.customer_user_id!, mediaUrl, mediaType);
+      if (!uploaded) {
+        return await replyText("⚠️ Couldn't save your prescription image. Please try sending it again, or reply *0* to cancel.");
+      }
+      const rx = { type: "doctor", image_url: uploaded, captured_at: new Date().toISOString() };
+      const merged = { ...nextContext, pharmacy_rx: rx };
+      await persistSession(supabase, session.id, "menu", merged, nextCart);
+      await replyText("✅ Prescription received. Continuing to checkout…");
+      return await doCheckout(supabase, { ...session, context: merged }, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
+    }
+
+    if (session.state === "pharmacy_rx_awaiting_instructions") {
+      if (lower === "0" || lower === "cancel") {
+        await persistSession(supabase, session.id, "menu", { ...nextContext, pharmacy_rx: undefined }, nextCart);
+        return await sendToUser("wa_main_menu", {}, "Order cancelled.\n\n" + MENU_OPTIONS);
+      }
+      if (!body || body.trim().length < 5) {
+        return await replyText("Please reply with a few words about your symptoms or what the medicine is for. Reply *0* to cancel.");
+      }
+      const rx = { type: "pharmacist", pharmacist_instructions: body.trim(), captured_at: new Date().toISOString() };
+      const merged = { ...nextContext, pharmacy_rx: rx };
+      await persistSession(supabase, session.id, "menu", merged, nextCart);
+      await replyText("✅ Got it — the pharmacist will see this. Continuing to checkout…");
+      return await doCheckout(supabase, { ...session, context: merged }, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
+    }
+
     // Default: bounce to main menu
     await persistSession(supabase, session.id, "menu", nextContext, nextCart);
     return await sendToUser("wa_main_menu", {}, MAIN_MENU);
@@ -746,7 +829,7 @@ async function fetchVendors(supabase: any, userId: string | null, overrideLat: n
 
 async function fetchMenuItems(supabase: any, vendorId: string) {
   const { data } = await supabase
-    .from("products").select("id, name, price, calories")
+    .from("products").select("id, name, price, calories, requires_prescription")
     .eq("vendor_id", vendorId).eq("is_available", true).limit(20);
   return data || [];
 }
@@ -1046,11 +1129,16 @@ async function confirmWhatsAppOrder(
   // 6-digit confirmation code customer must give to the rider on hand-off
   const confirmationCode = String(Math.floor(100000 + Math.random() * 900000));
 
+  const isPharmacyOrder = cart.some((c: any) => c.is_pharmacy);
+  const rx = session.context?.pharmacy_rx || null;
+  const requiresApproval = isPharmacyOrder && rx?.type === "doctor"; // doctor Rx → pharmacist approval needed
+  const orderStatus = requiresApproval ? "pending" : "confirmed";
+
   const { data: order, error: orderErr } = await supabase.from("orders").insert({
     user_id: session.customer_user_id,
     vendor_id: vendorId,
     outlet_id: outletId,
-    status: "confirmed",
+    status: orderStatus,
     subtotal: summary.subtotal,
     menu_subtotal: summary.subtotal,
     delivery_fee: summary.delivery_fee,
@@ -1083,6 +1171,42 @@ async function confirmWhatsAppOrder(
   }));
   await supabase.from("order_items").insert(items);
 
+  // === Pharmacy: insert prescription_orders + prescriptions row ===
+  if (isPharmacyOrder) {
+    try {
+      const rxRows = cart.filter((c: any) => c.is_pharmacy && c.id).map((c: any) => ({
+        order_id: order.id,
+        product_id: c.id,
+        user_id: session.customer_user_id,
+        vendor_id: vendorId,
+        is_prescription: rx?.type === "doctor",
+        prescription_type: rx?.type || "pharmacist",
+        prescription_image_url: rx?.image_url || null,
+        doctor_instructions: rx?.doctor_instructions || "",
+        pharmacist_instructions: rx?.pharmacist_instructions || "",
+        dosage_frequency: "as_directed",
+        dosage_duration_days: 7,
+        quantity_per_dose: 1,
+        total_quantity: c.qty,
+        requires_approval: requiresApproval,
+        approval_status: requiresApproval ? "pending" : "approved",
+      }));
+      if (rxRows.length) await supabase.from("prescription_orders").insert(rxRows);
+
+      if (rx?.image_url) {
+        await supabase.from("prescriptions").insert({
+          user_id: session.customer_user_id,
+          order_id: order.id,
+          image_url: rx.image_url,
+          status: "pending",
+          notes: "Submitted via WhatsApp",
+        });
+      }
+    } catch (e) {
+      console.error("WhatsApp pharmacy Rx insert failed", e);
+    }
+  }
+
   const newBalance = balance - summary.total;
   await supabase.from("wallet_transactions").insert({
     wallet_id: wallet.id,
@@ -1102,7 +1226,12 @@ async function confirmWhatsAppOrder(
   await supabase.from("wallets").update(walletUpdate).eq("id", wallet.id);
 
   await persistSession(supabase, session.id, "menu", { last_order_id: order.id, last_order_number: order.order_number }, []);
-  return await sendToUser("wa_main_menu", {}, `✅ Order confirmed!\n\n*${order.order_number}*\nTotal: ₦${summary.total.toLocaleString()}\nWallet balance: ₦${newBalance.toLocaleString()}\n\n🔐 *Delivery code: ${confirmationCode}*\nGive this code to the rider when your order arrives.\n\n${MENU_OPTIONS}`);
+  const pharmaNote = isPharmacyOrder
+    ? (requiresApproval
+        ? `\n\n💊 *Pharmacy review pending.* Your prescription was sent to the pharmacist. They'll approve before dispatch — you'll get an update here.`
+        : `\n\n💊 The pharmacist has your instructions and is preparing your order.`)
+    : "";
+  return await sendToUser("wa_main_menu", {}, `✅ Order ${requiresApproval ? "submitted" : "confirmed"}!\n\n*${order.order_number}*\nTotal: ₦${summary.total.toLocaleString()}\nWallet balance: ₦${newBalance.toLocaleString()}\n\n🔐 *Delivery code: ${confirmationCode}*\nGive this code to the rider when your order arrives.${pharmaNote}\n\n${MENU_OPTIONS}`);
 }
 
 async function doCheckout(
@@ -1117,8 +1246,20 @@ async function doCheckout(
     return await replyText("⚠️ Please reply *menu* and follow the setup to create your account first.");
   }
 
-  // === Step 1: confirm delivery address before showing the order summary ===
   const ctx = session.context || {};
+
+  // === Step 0: pharmacy Rx capture (before address) ===
+  const hasPharmacyItems = cart.some((c: any) => c.is_pharmacy);
+  if (hasPharmacyItems && !ctx.pharmacy_rx) {
+    await persistSession(supabase, session.id, "pharmacy_rx_choice", ctx, cart);
+    return await replyText(
+      "💊 *Pharmacy order — prescription check*\n\n" +
+      "Before we place this order, the pharmacy needs to know how to dispense.\n\n" +
+      "Reply:\n1️⃣ I have a *doctor's prescription* (I'll send a photo)\n2️⃣ *No prescription* — guide me (pharmacist instructions)\n0️⃣ Cancel"
+    );
+  }
+
+  // === Step 1: confirm delivery address before showing the order summary ===
   if (!ctx.address_confirmed) {
     const { data: savedAddr } = await supabase
       .from("delivery_addresses")
@@ -1196,4 +1337,28 @@ function phoneVariants(phone: string): string[] {
     set.add("+234" + digits.slice(1));
   }
   return Array.from(set);
+}
+
+// Download a Twilio MediaUrl (auth-required) and upload to the `prescriptions` bucket.
+// Returns the public path or null on failure.
+async function uploadTwilioMediaToBucket(supabase: any, userId: string, mediaUrl: string, contentType: string): Promise<string | null> {
+  try {
+    if (!mediaUrl || !userId) return null;
+    const sid = Deno.env.get("TWILIO_ACCOUNT_SID");
+    const token = Deno.env.get("TWILIO_AUTH_TOKEN");
+    if (!sid || !token) { console.error("Twilio creds missing for media download"); return null; }
+    const auth = "Basic " + btoa(`${sid}:${token}`);
+    const res = await fetch(mediaUrl, { headers: { Authorization: auth }, redirect: "follow" });
+    if (!res.ok) { console.error("Twilio media fetch failed", res.status); return null; }
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    const ext = contentType.includes("pdf") ? "pdf" : contentType.includes("png") ? "png" : contentType.includes("webp") ? "webp" : "jpg";
+    const path = `${userId}/${Date.now()}-${crypto.randomUUID().slice(0,8)}.${ext}`;
+    const { error: upErr } = await supabase.storage.from("prescriptions").upload(path, bytes, { contentType, upsert: false });
+    if (upErr) { console.error("Prescription upload failed", upErr); return null; }
+    const { data: signed } = await supabase.storage.from("prescriptions").createSignedUrl(path, 60 * 60 * 24 * 365);
+    return signed?.signedUrl || path;
+  } catch (e) {
+    console.error("uploadTwilioMediaToBucket error", e);
+    return null;
+  }
 }
