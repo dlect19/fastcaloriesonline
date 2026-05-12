@@ -252,7 +252,11 @@ serve(async (req) => {
     // ============================================================
     // Account creation flow — runs FIRST when user has no profile linked
     // ============================================================
-    const isGreeting = !tap && (lower === "menu" || lower === "hi" || lower === "hello" || lower === "start" || lower === "");
+    // A WhatsApp location share / media upload arrives with empty Body — don't treat as greeting.
+    const hasLocationParams = !!(params["Latitude"] && params["Longitude"]);
+    const hasMediaParams = parseInt(params["NumMedia"] || "0", 10) > 0;
+    const isGreeting = !tap && !hasLocationParams && !hasMediaParams &&
+      (lower === "menu" || lower === "hi" || lower === "hello" || lower === "start" || lower === "");
 
     if (!session.customer_user_id && session.state !== "awaiting_name") {
       // First-time user: ask for name
