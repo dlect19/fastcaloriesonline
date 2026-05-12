@@ -569,7 +569,12 @@ serve(async (req) => {
       if (!it) return await replyText("That item is no longer available.");
       const inCart = nextCart.find((c: any) => c.id === it.id);
       if (inCart) inCart.qty += qty;
-      else nextCart.push({ ...it, qty, vendor_id: nextContext.vendor_id, vendor_name: nextContext.vendor_name });
+      else nextCart.push({
+        ...it, qty,
+        vendor_id: nextContext.vendor_id, vendor_name: nextContext.vendor_name,
+        is_pharmacy: nextContext.vendor_category === "pharmacy",
+        requires_prescription: !!it.requires_prescription,
+      });
       await persistSession(supabase, session.id, "browsing_menu", nextContext, nextCart);
       const txt = `✅ Added *${qty} × ${it.name}* to cart.\n\n` + renderCart(nextCart);
       return await sendToUser("wa_cart_actions", { "1": cartTotal(nextCart).toLocaleString() }, txt + "\n\nReply *checkout* to pay, another item number, or *<item>x<qty>* for multiple.");
