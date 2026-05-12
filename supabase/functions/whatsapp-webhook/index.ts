@@ -1129,11 +1129,16 @@ async function confirmWhatsAppOrder(
   // 6-digit confirmation code customer must give to the rider on hand-off
   const confirmationCode = String(Math.floor(100000 + Math.random() * 900000));
 
+  const isPharmacyOrder = cart.some((c: any) => c.is_pharmacy);
+  const rx = session.context?.pharmacy_rx || null;
+  const requiresApproval = isPharmacyOrder && rx?.type === "doctor"; // doctor Rx → pharmacist approval needed
+  const orderStatus = requiresApproval ? "pending" : "confirmed";
+
   const { data: order, error: orderErr } = await supabase.from("orders").insert({
     user_id: session.customer_user_id,
     vendor_id: vendorId,
     outlet_id: outletId,
-    status: "confirmed",
+    status: orderStatus,
     subtotal: summary.subtotal,
     menu_subtotal: summary.subtotal,
     delivery_fee: summary.delivery_fee,
