@@ -1319,7 +1319,7 @@ async function doCheckout(
       ? `\n\n❌ *Insufficient funds*\nYou need ₦${shortfall.toLocaleString()} more to place this order.\n\nReply *3* to top up your wallet, or *cancel* to stop.`
       : `\n\nReply *yes* to confirm & pay.`);
 
-  await persistSession(supabase, session.id, "confirming_order", { ...(session.context || {}), pending_total: total }, cart);
+  await persistSession(supabase, session.id, "confirming_order", { ...(session.context || {}), pending_total: total, pending_shortfall: shortfall }, cart);
 
   // Send plain text so the full breakdown (including service fee) and insufficient-funds warning are visible.
   // The Twilio template only supports 3 variables and cannot show the service fee or balance check.
