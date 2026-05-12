@@ -607,8 +607,10 @@ serve(async (req) => {
 
     if (session.state === "confirming_order") {
       if (tap === "BTN_WALLET" || lower === "3" || lower === "fund" || lower === "top up" || lower === "topup") {
-        const pendingTotal = Number(nextContext?.pending_total || cartTotal(nextCart) || 1000);
-        const amount = Math.max(1000, Math.ceil(pendingTotal));
+        const pendingTotal = Number(nextContext?.pending_total || cartTotal(nextCart) || 0);
+        const shortfall = Number(nextContext?.pending_shortfall ?? pendingTotal) || 0;
+        // Top up exactly the shortfall (with Paystack ₦100 minimum), not the whole order total.
+        const amount = Math.max(100, Math.ceil(shortfall || pendingTotal));
         const funding = await createWalletFundingLink(supabase, session.customer_user_id!, amount, phone);
         await persistSession(supabase, session.id, "confirming_order", { ...nextContext, pending_funding_reference: funding?.reference }, nextCart);
         if (!funding) return await replyText("⚠️ Couldn't create payment link right now. Please try again.");
@@ -1319,7 +1321,7 @@ async function doCheckout(
       ? `\n\n❌ *Insufficient funds*\nYou need ₦${shortfall.toLocaleString()} more to place this order.\n\nReply *3* to top up your wallet, or *cancel* to stop.`
       : `\n\nReply *yes* to confirm & pay.`);
 
-  await persistSession(supabase, session.id, "confirming_order", { ...(session.context || {}), pending_total: total }, cart);
+  await persistSession(supabase, session.id, "confirming_order", { ...(session.context || {}), pending_total: total, pending_shortfall: shortfall }, cart);
 
   // Send plain text so the full breakdown (including service fee) and insufficient-funds warning are visible.
   // The Twilio template only supports 3 variables and cannot show the service fee or balance check.
