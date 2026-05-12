@@ -316,6 +316,18 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
       setOrderFinancials(null);
     }
 
+    // Customer refunds/credits issued against this order (e.g. dispute refunds, promo corrections)
+    const { data: refundTxs } = await supabase
+      .from('wallet_transactions')
+      .select('amount')
+      .eq('order_id', o.id)
+      .eq('wallet_type', 'customer')
+      .eq('transaction_type', 'credit')
+      .eq('category', 'refund')
+      .eq('status', 'completed');
+    const refundSum = (refundTxs || []).reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
+    setCustomerRefundTotal(refundSum);
+
     // Surge / dispatch offer info (latest)
     const { data: dr } = await supabase
       .from('dispatch_requests')
