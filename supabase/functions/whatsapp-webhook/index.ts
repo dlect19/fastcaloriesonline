@@ -490,6 +490,12 @@ serve(async (req) => {
       );
     }
 
+    if (session.state === "menu" && lower === "7") {
+      const text = await renderOrderHistory(supabase, session.customer_user_id) + HELP_HINT;
+      await persistSession(supabase, session.id, "menu", nextContext, nextCart);
+      return await replyText(text);
+    }
+
     // Vendor list — tap on a list item OR typed number
     if (session.state === "browsing_vendors") {
       let vendorId: string | null = null;
