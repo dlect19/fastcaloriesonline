@@ -955,6 +955,12 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
               {Number(activeOrder.discount || 0) > 0 && (
                 <div><span className="text-muted-foreground">Discount</span><p className="font-medium text-green-600">-₦{Number(activeOrder.discount || 0).toLocaleString()}</p></div>
               )}
+              {customerRefundTotal > 0 && (
+                <div>
+                  <span className="text-muted-foreground">Refund to Customer</span>
+                  <p className="font-medium text-green-600">+₦{customerRefundTotal.toLocaleString()}</p>
+                </div>
+              )}
               {Number(activeOrder.extra_package_fee || 0) > 0 && (
                 <div><span className="text-muted-foreground">Extra Pack Fee</span><p className="font-medium">₦{Number(activeOrder.extra_package_fee || 0).toLocaleString()}</p></div>
               )}
