@@ -51,7 +51,7 @@ serve(async (req) => {
     // Get vendor info
     const { data: vendor } = await supabase
       .from('vendors')
-      .select('user_id, name')
+      .select('user_id, name, phone')
       .eq('id', order.vendor_id)
       .single();
 
