@@ -261,28 +261,43 @@ serve(async (req) => {
         if (phone) {
           const code = order.confirmation_code;
           const codeLine = code ? `\n\n🔐 *Delivery code: ${code}*\nGive this to the rider on hand-off.` : '';
-          let waBody = '';
 
-          if (new_rider_id && !old_rider_id) {
+          // Always resolve current rider info (assignment OR any later status update)
+          const currentRiderId = new_rider_id || order.rider_id;
+          let riderBlock = '';
+          if (currentRiderId) {
             const { data: riderProfile } = await supabase
-              .from('profiles').select('full_name').eq('user_id', new_rider_id).single();
-            waBody = `🏍️ A rider (${riderProfile?.full_name || 'Rider'}) has been assigned to your order *#${order.order_number}*.${codeLine}`;
+              .from('profiles')
+              .select('full_name, phone, vehicle_type, vehicle_plate_number')
+              .eq('user_id', currentRiderId)
+              .maybeSingle();
+            const rName = riderProfile?.full_name || 'Rider';
+            const rPhone = riderProfile?.phone ? `\n📞 ${riderProfile.phone}` : '';
+            const rVeh = riderProfile?.vehicle_type
+              ? `\n🛵 ${riderProfile.vehicle_type}${riderProfile.vehicle_plate_number ? ` • ${riderProfile.vehicle_plate_number}` : ''}`
+              : '';
+            riderBlock = `\n\n🏍️ *Rider:* ${rName}${rPhone}${rVeh}`;
+          }
+
+          let waBody = '';
+          if (new_rider_id && !old_rider_id) {
+            waBody = `🏍️ A rider has been assigned to your order *#${order.order_number}*.${riderBlock}${codeLine}`;
           } else if (new_status !== old_status) {
             switch (new_status) {
               case 'confirmed':
                 waBody = `✅ Order *#${order.order_number}* confirmed by ${vendor?.name || 'the vendor'}.${codeLine}`;
                 break;
               case 'preparing':
-                waBody = `👨‍🍳 Your order *#${order.order_number}* is being prepared.`;
+                waBody = `👨‍🍳 Your order *#${order.order_number}* is being prepared.${riderBlock}`;
                 break;
               case 'ready_for_pickup':
-                waBody = `📦 Order *#${order.order_number}* is ready and waiting for the rider.${codeLine}`;
+                waBody = `📦 Order *#${order.order_number}* is ready and waiting for the rider.${riderBlock}${codeLine}`;
                 break;
               case 'picked_up':
-                waBody = `🏍️ Order *#${order.order_number}* picked up by the rider.${codeLine}`;
+                waBody = `🏍️ Order *#${order.order_number}* picked up by the rider.${riderBlock}${codeLine}`;
                 break;
               case 'on_the_way':
-                waBody = `🚀 Order *#${order.order_number}* is on its way!${codeLine}`;
+                waBody = `🚀 Order *#${order.order_number}* is on its way!${riderBlock}${codeLine}`;
                 break;
               case 'delivered':
                 waBody = `🎉 Order *#${order.order_number}* delivered. Enjoy! Reply *menu* to order again.`;
