@@ -177,7 +177,7 @@ export function VendorCheckoutSection({
         description: `You're saving ₦${discount.toLocaleString()} on this order`,
       });
     }
-  }, [activePlatformPromo, computePromoAmount, selectedDiscountType, vendorCategory, toast]);
+  }, [activePlatformPromo, computePromoAmount, selectedDiscountType, vendorCategory, toast, platformPromosLoading]);
 
   // Handle GPS prompt for customers who haven't set location
   const handlePromptGps = () => {
