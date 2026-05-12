@@ -690,6 +690,72 @@ serve(async (req) => {
       return await replyText("Reply *1* to use your saved address, *2* for a different address, share a location pin, or type the full delivery address.");
     }
 
+    // ===== Pharmacy Rx capture (asked during checkout when cart contains pharmacy items) =====
+    if (session.state === "pharmacy_rx_choice") {
+      if (lower === "1" || lower === "doctor" || lower === "yes") {
+        await persistSession(supabase, session.id, "pharmacy_rx_awaiting_image", { ...nextContext, rx_type: "doctor" }, nextCart);
+        return await replyText(
+          "📸 *Please send a clear photo of your prescription* (or PDF).\n\n" +
+          "Tap *📎* → *Photo* (or *Document*) → select your prescription, then send.\n\n" +
+          "Reply *0* to cancel."
+        );
+      }
+      if (lower === "2" || lower === "no" || lower === "pharmacist") {
+        await persistSession(supabase, session.id, "pharmacy_rx_awaiting_instructions", { ...nextContext, rx_type: "pharmacist" }, nextCart);
+        return await replyText(
+          "📝 *Tell the pharmacist what you need.*\n\n" +
+          "Reply with your symptoms / what the medicine is for / how often you take it.\n" +
+          "Example: _\"Headache, adult, take twice daily for 3 days.\"_\n\n" +
+          "Reply *0* to cancel."
+        );
+      }
+      if (lower === "0" || lower === "cancel") {
+        await persistSession(supabase, session.id, "menu", { ...nextContext, pharmacy_rx: undefined }, nextCart);
+        return await sendToUser("wa_main_menu", {}, "Order cancelled.\n\n" + MENU_OPTIONS);
+      }
+      return await replyText(
+        "💊 *Pharmacy order — prescription check*\n\n" +
+        "Reply:\n1️⃣ I have a *doctor's prescription* (I'll send a photo)\n2️⃣ *No prescription* — guide me (pharmacist instructions)\n0️⃣ Cancel"
+      );
+    }
+
+    if (session.state === "pharmacy_rx_awaiting_image") {
+      if (lower === "0" || lower === "cancel") {
+        await persistSession(supabase, session.id, "menu", { ...nextContext, pharmacy_rx: undefined }, nextCart);
+        return await sendToUser("wa_main_menu", {}, "Order cancelled.\n\n" + MENU_OPTIONS);
+      }
+      const numMedia = parseInt(params["NumMedia"] || "0", 10);
+      if (!numMedia || numMedia < 1) {
+        return await replyText("📸 I'm waiting for your prescription image. Tap *📎* → *Photo* → send. Or reply *0* to cancel.");
+      }
+      const mediaUrl = params["MediaUrl0"];
+      const mediaType = params["MediaContentType0"] || "image/jpeg";
+      const uploaded = await uploadTwilioMediaToBucket(supabase, session.customer_user_id!, mediaUrl, mediaType);
+      if (!uploaded) {
+        return await replyText("⚠️ Couldn't save your prescription image. Please try sending it again, or reply *0* to cancel.");
+      }
+      const rx = { type: "doctor", image_url: uploaded, captured_at: new Date().toISOString() };
+      const merged = { ...nextContext, pharmacy_rx: rx };
+      await persistSession(supabase, session.id, "menu", merged, nextCart);
+      await replyText("✅ Prescription received. Continuing to checkout…");
+      return await doCheckout(supabase, { ...session, context: merged }, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
+    }
+
+    if (session.state === "pharmacy_rx_awaiting_instructions") {
+      if (lower === "0" || lower === "cancel") {
+        await persistSession(supabase, session.id, "menu", { ...nextContext, pharmacy_rx: undefined }, nextCart);
+        return await sendToUser("wa_main_menu", {}, "Order cancelled.\n\n" + MENU_OPTIONS);
+      }
+      if (!body || body.trim().length < 5) {
+        return await replyText("Please reply with a few words about your symptoms or what the medicine is for. Reply *0* to cancel.");
+      }
+      const rx = { type: "pharmacist", pharmacist_instructions: body.trim(), captured_at: new Date().toISOString() };
+      const merged = { ...nextContext, pharmacy_rx: rx };
+      await persistSession(supabase, session.id, "menu", merged, nextCart);
+      await replyText("✅ Got it — the pharmacist will see this. Continuing to checkout…");
+      return await doCheckout(supabase, { ...session, context: merged }, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
+    }
+
     // Default: bounce to main menu
     await persistSession(supabase, session.id, "menu", nextContext, nextCart);
     return await sendToUser("wa_main_menu", {}, MAIN_MENU);
