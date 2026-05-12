@@ -607,8 +607,10 @@ serve(async (req) => {
 
     if (session.state === "confirming_order") {
       if (tap === "BTN_WALLET" || lower === "3" || lower === "fund" || lower === "top up" || lower === "topup") {
-        const pendingTotal = Number(nextContext?.pending_total || cartTotal(nextCart) || 1000);
-        const amount = Math.max(1000, Math.ceil(pendingTotal));
+        const pendingTotal = Number(nextContext?.pending_total || cartTotal(nextCart) || 0);
+        const shortfall = Number(nextContext?.pending_shortfall ?? pendingTotal) || 0;
+        // Top up exactly the shortfall (with Paystack ₦100 minimum), not the whole order total.
+        const amount = Math.max(100, Math.ceil(shortfall || pendingTotal));
         const funding = await createWalletFundingLink(supabase, session.customer_user_id!, amount, phone);
         await persistSession(supabase, session.id, "confirming_order", { ...nextContext, pending_funding_reference: funding?.reference }, nextCart);
         if (!funding) return await replyText("⚠️ Couldn't create payment link right now. Please try again.");
