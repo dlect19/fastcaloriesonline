@@ -46,6 +46,9 @@ export function useOrderFinancials({
     setLoading(true);
     try {
       // First, get all orders for this vendor in the environment (with subtotal for gross)
+      // IMPORTANT: Exclude POS (in-store) sales — vendor receives cash directly,
+      // no commission applied, no wallet credit. Earnings page reflects ONLINE
+      // (online + whatsapp) orders only. POS reports live under /vendor/pos-reports.
       let orderQuery = supabase
         .from('orders')
         .select('id, subtotal')
@@ -53,7 +56,9 @@ export function useOrderFinancials({
         .eq('environment', environment)
         .eq('payment_status', 'paid')
         .not('status', 'eq', 'cancelled')
-        .in('status', ['delivered']);
+        .in('status', ['delivered'])
+        .neq('channel', 'pos')
+        .is('pos_session_id', null);
 
       if (outletId) {
         orderQuery = orderQuery.eq('outlet_id', outletId);
