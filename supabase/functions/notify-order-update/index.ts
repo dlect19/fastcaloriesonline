@@ -95,6 +95,58 @@ serve(async (req) => {
           order_total: String(order.total),
         },
       });
+
+      // WhatsApp the vendor (and outlet phone if different)
+      try {
+        const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+        const TWILIO_API_KEY = Deno.env.get('TWILIO_API_KEY');
+        const from = Deno.env.get('TWILIO_WHATSAPP_FROM') || 'whatsapp:+14155238886';
+        if (LOVABLE_API_KEY && TWILIO_API_KEY && vendor?.phone) {
+          // Fetch items + customer name for context
+          const [{ data: items }, { data: customerProfile }] = await Promise.all([
+            supabase.from('order_items').select('name, quantity, price').eq('order_id', order.id),
+            order.user_id
+              ? supabase.from('profiles').select('full_name, phone').eq('user_id', order.user_id).maybeSingle()
+              : Promise.resolve({ data: null } as any),
+          ]);
+
+          const itemsText = (items || [])
+            .map((i: any) => `• ${i.name} × ${i.quantity}`)
+            .join('\n');
+          const dType = order.delivery_type === 'self_pickup' ? 'Carryout' : 'Delivery';
+          const custLine = customerProfile?.full_name
+            ? `\n👤 ${customerProfile.full_name}${customerProfile.phone ? ` (${customerProfile.phone})` : ''}`
+            : '';
+          const vendorBody =
+            `🛎️ *New Paid Order!*\n*#${order.order_number}*\n` +
+            `Total: ₦${Number(order.total).toLocaleString()}\n` +
+            `Type: ${dType}${custLine}\n\n` +
+            (itemsText ? `${itemsText}\n\n` : '') +
+            `Open the vendor app to accept and start preparing.`;
+
+          // Collect unique phones (vendor + staff would need their own opt-in; sticking to vendor + outlet vendor for now)
+          const phones = new Set<string>();
+          phones.add(vendor.phone);
+
+          for (const p of phones) {
+            const cleaned = String(p).replace(/\s+/g, '');
+            const to = cleaned.startsWith('whatsapp:') ? cleaned : `whatsapp:${cleaned}`;
+            const r = await fetch('https://connector-gateway.lovable.dev/twilio/Messages.json', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+                'X-Connection-Api-Key': TWILIO_API_KEY,
+                'Content-Type': 'application/x-www-form-urlencoded',
+              },
+              body: new URLSearchParams({ To: to, From: from, Body: vendorBody }),
+            });
+            if (!r.ok) console.error('Vendor WhatsApp send failed:', await r.text());
+            else console.log(`Vendor WhatsApp sent for ${order.order_number} → ${to}`);
+          }
+        }
+      } catch (e) {
+        console.error('Vendor WhatsApp dispatch error (non-blocking):', e);
+      }
     }
 
     // 2. Rider assigned → Notify customer AND rider
