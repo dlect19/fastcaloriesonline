@@ -23,36 +23,37 @@ export function PosReceiptPreviewDialog({ open, onOpenChange, receipt, hasPrinte
     const html = `
 <!doctype html><html><head><meta charset="utf-8"><title>${receipt.receiptNumber}</title>
 <style>
+  /* 80mm thermal paper => printable area ~72mm. Sized for XPrinter & generic ESC/POS. */
   @page { size: 80mm auto; margin: 0; }
   html, body { margin: 0; padding: 0; background: #fff; }
   body {
-    font-family: 'Courier New', 'Consolas', monospace;
-    font-size: 13px;
-    font-weight: 700;            /* bold for thermal readability without overflow */
-    width: 76mm;
+    font-family: Tahoma, 'Segoe UI', Verdana, Arial, sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    width: 72mm;
     margin: 0 auto;
-    padding: 2mm 2mm 0 2mm;       /* no bottom padding => no extra blank */
+    padding: 3mm 2mm 0 2mm;
     color: #000;
-    line-height: 1.25;
+    line-height: 1.35;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
     word-wrap: break-word;
     overflow-wrap: break-word;
   }
-  .store { text-align: center; font-size: 18px; font-weight: 900; margin: 3px 0; letter-spacing: 0.3px; }
-  .meta-line { text-align: center; font-size: 12px; font-weight: 700; }
+  .store { text-align: center; font-size: 19px; font-weight: 800; margin: 4px 0; letter-spacing: 0.2px; font-family: Tahoma, sans-serif; }
+  .meta-line { text-align: center; font-size: 13px; font-weight: 600; }
   .center { text-align: center; }
-  .row { display: flex; justify-content: space-between; gap: 4px; font-size: 12px; font-weight: 700; }
+  .row { display: flex; justify-content: space-between; gap: 4px; font-size: 13px; font-weight: 600; }
   .row > span:last-child { text-align: right; white-space: nowrap; }
-  .sep { border-top: 2px dashed #000; margin: 4px 0; }
-  .item-name { font-size: 13px; font-weight: 900; word-break: break-word; margin-top: 3px; line-height: 1.2; }
-  .item-line { font-size: 12px; font-weight: 700; }
-  .cal { font-size: 11px; font-weight: 600; color: #222; }
-  .total { font-size: 18px; font-weight: 900; margin-top: 4px; }
-  .paid { font-size: 13px; font-weight: 800; }
-  .footer { text-align: center; font-size: 13px; font-weight: 800; margin-top: 4px; }
-  .powered { text-align: center; font-size: 10px; font-weight: 600; margin-top: 2px; }
-  img.logo { max-width: 50mm; max-height: 20mm; display: block; margin: 0 auto 3px; }
+  .sep { border-top: 1px dashed #000; margin: 5px 0; }
+  .item-name { font-size: 14px; font-weight: 800; word-break: break-word; margin-top: 4px; line-height: 1.3; }
+  .item-line { font-size: 13px; font-weight: 600; }
+  .cal { font-size: 12px; font-weight: 500; color: #222; }
+  .total { font-size: 19px; font-weight: 800; margin-top: 5px; }
+  .paid { font-size: 14px; font-weight: 700; }
+  .footer { text-align: center; font-size: 13px; font-weight: 700; margin-top: 5px; }
+  .powered { text-align: center; font-size: 11px; font-weight: 500; margin-top: 3px; }
+  img.logo { max-width: 45mm; max-height: 18mm; display: block; margin: 0 auto 3px; }
   /* Kill page-breaks AFTER content so the browser doesn't add a blank page */
   body > :last-child { page-break-after: avoid; }
 </style></head><body>
