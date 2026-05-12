@@ -704,11 +704,18 @@ async function fetchMenuItems(supabase: any, vendorId: string) {
 async function renderRecentOrders(supabase: any, phone: string, userId: string | null) {
   if (userId) {
     const { data } = await supabase
-      .from("orders").select("order_number, status, total, created_at")
+      .from("orders").select("order_number, status, total, created_at, confirmation_code, delivery_type")
       .eq("user_id", userId).order("created_at", { ascending: false }).limit(5);
     if (data?.length) {
-      return "📦 *Your recent orders:*\n\n" + data.map((o: any) =>
-        `#${o.order_number} — ${o.status} — ₦${Number(o.total).toLocaleString()}`).join("\n");
+      const activeStatuses = new Set(["pending", "confirmed", "preparing", "ready_for_pickup", "picked_up", "on_the_way"]);
+      return "📦 *Your recent orders:*\n\n" + data.map((o: any) => {
+        const base = `#${o.order_number} — ${o.status} — ₦${Number(o.total).toLocaleString()}`;
+        if (activeStatuses.has(o.status) && o.confirmation_code) {
+          const who = o.delivery_type === "self_pickup" ? "the vendor at pickup" : "the rider on hand-off";
+          return `${base}\n   🔐 Delivery code: *${o.confirmation_code}* (give to ${who})`;
+        }
+        return base;
+      }).join("\n\n");
     }
   }
   return "📦 No recent orders found.";
