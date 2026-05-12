@@ -173,6 +173,7 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
 
   // Vendor countdown
   const [vendorElapsed, setVendorElapsed] = useState(0);
+  const [customerRefundTotal, setCustomerRefundTotal] = useState<number>(0);
 
   // Manual assignment
   const [nearbyRiders, setNearbyRiders] = useState<NearbyRider[]>([]);
