@@ -623,6 +623,49 @@ serve(async (req) => {
         `📍 Please share your location: tap *📎* → *Location* → *Send your current location*.\n\nOr reply *skip* to see top vendors.`);
     }
 
+    // ===== Awaiting delivery address (asked during checkout) =====
+    if (session.state === "awaiting_delivery_address") {
+      const saved = nextContext.saved_address;
+      // Option 1: use saved address
+      if (lower === "1" || lower === "yes" || lower === "use saved" || tap === "BTN_USE_SAVED_ADDR") {
+        if (!saved?.address_text && !saved?.label) {
+          return await replyText("⚠️ No saved address found. Please reply with your full delivery address or share a location pin.");
+        }
+        nextContext.address_confirmed = true;
+        nextContext.delivery_address_text = saved.address_text || saved.label;
+        if (saved.latitude && saved.longitude) {
+          nextContext.lat = saved.latitude;
+          nextContext.lon = saved.longitude;
+        }
+        await persistSession(supabase, session.id, "menu", nextContext, nextCart);
+        return await doCheckout(supabase, { ...session, context: nextContext }, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
+      }
+      // Option 2: ask for a new address
+      if (lower === "2" || lower === "new" || lower === "different") {
+        await persistSession(supabase, session.id, "awaiting_delivery_address", { ...nextContext, awaiting_new_address: true }, nextCart);
+        return await sendToUser("wa_request_location", {},
+          `📍 Please reply with the *full delivery address* (street, area, landmark), or share your location pin (📎 → Location → Send your current location).`);
+      }
+      // Shared a new location pin
+      if (hasSharedLocation) {
+        nextContext.address_confirmed = true;
+        nextContext.delivery_address_text = nextContext.location_label || `Pinned location (${sharedLat.toFixed(5)}, ${sharedLon.toFixed(5)})`;
+        await persistSession(supabase, session.id, "menu", nextContext, nextCart);
+        return await doCheckout(supabase, { ...session, context: nextContext }, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
+      }
+      // Typed a free-text address
+      if (body && body.trim().length >= 5) {
+        nextContext.address_confirmed = true;
+        nextContext.delivery_address_text = body.trim();
+        // Clear any old coords so delivery falls back to text address
+        nextContext.lat = undefined;
+        nextContext.lon = undefined;
+        await persistSession(supabase, session.id, "menu", nextContext, nextCart);
+        return await doCheckout(supabase, { ...session, context: nextContext }, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
+      }
+      return await replyText("Reply *1* to use your saved address, *2* for a different address, share a location pin, or type the full delivery address.");
+    }
+
     // Default: bounce to main menu
     await persistSession(supabase, session.id, "menu", nextContext, nextCart);
     return await sendToUser("wa_main_menu", {}, MAIN_MENU);
