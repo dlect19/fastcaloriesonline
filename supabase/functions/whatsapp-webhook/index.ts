@@ -1171,6 +1171,42 @@ async function confirmWhatsAppOrder(
   }));
   await supabase.from("order_items").insert(items);
 
+  // === Pharmacy: insert prescription_orders + prescriptions row ===
+  if (isPharmacyOrder) {
+    try {
+      const rxRows = cart.filter((c: any) => c.is_pharmacy && c.id).map((c: any) => ({
+        order_id: order.id,
+        product_id: c.id,
+        user_id: session.customer_user_id,
+        vendor_id: vendorId,
+        is_prescription: rx?.type === "doctor",
+        prescription_type: rx?.type || "pharmacist",
+        prescription_image_url: rx?.image_url || null,
+        doctor_instructions: rx?.doctor_instructions || "",
+        pharmacist_instructions: rx?.pharmacist_instructions || "",
+        dosage_frequency: "as_directed",
+        dosage_duration_days: 7,
+        quantity_per_dose: 1,
+        total_quantity: c.qty,
+        requires_approval: requiresApproval,
+        approval_status: requiresApproval ? "pending" : "approved",
+      }));
+      if (rxRows.length) await supabase.from("prescription_orders").insert(rxRows);
+
+      if (rx?.image_url) {
+        await supabase.from("prescriptions").insert({
+          user_id: session.customer_user_id,
+          order_id: order.id,
+          image_url: rx.image_url,
+          status: "pending",
+          notes: "Submitted via WhatsApp",
+        });
+      }
+    } catch (e) {
+      console.error("WhatsApp pharmacy Rx insert failed", e);
+    }
+  }
+
   const newBalance = balance - summary.total;
   await supabase.from("wallet_transactions").insert({
     wallet_id: wallet.id,
@@ -1190,7 +1226,12 @@ async function confirmWhatsAppOrder(
   await supabase.from("wallets").update(walletUpdate).eq("id", wallet.id);
 
   await persistSession(supabase, session.id, "menu", { last_order_id: order.id, last_order_number: order.order_number }, []);
-  return await sendToUser("wa_main_menu", {}, `✅ Order confirmed!\n\n*${order.order_number}*\nTotal: ₦${summary.total.toLocaleString()}\nWallet balance: ₦${newBalance.toLocaleString()}\n\n🔐 *Delivery code: ${confirmationCode}*\nGive this code to the rider when your order arrives.\n\n${MENU_OPTIONS}`);
+  const pharmaNote = isPharmacyOrder
+    ? (requiresApproval
+        ? `\n\n💊 *Pharmacy review pending.* Your prescription was sent to the pharmacist. They'll approve before dispatch — you'll get an update here.`
+        : `\n\n💊 The pharmacist has your instructions and is preparing your order.`)
+    : "";
+  return await sendToUser("wa_main_menu", {}, `✅ Order ${requiresApproval ? "submitted" : "confirmed"}!\n\n*${order.order_number}*\nTotal: ₦${summary.total.toLocaleString()}\nWallet balance: ₦${newBalance.toLocaleString()}\n\n🔐 *Delivery code: ${confirmationCode}*\nGive this code to the rider when your order arrives.${pharmaNote}\n\n${MENU_OPTIONS}`);
 }
 
 async function doCheckout(
