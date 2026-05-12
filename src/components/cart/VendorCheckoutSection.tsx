@@ -79,7 +79,7 @@ export function VendorCheckoutSection({
   const { toast } = useToast();
   const navigate = useNavigate();
   const { activeDiscounts, getBestDiscount, useDiscount } = useSpinWheel();
-  const { eligibility, getBestPlatformPromo, markFirstOrderUsed, markFirstPharmacyOrderUsed } = usePlatformPromos();
+  const { eligibility, getBestPlatformPromo, markFirstOrderUsed, markFirstPharmacyOrderUsed, loading: platformPromosLoading } = usePlatformPromos();
   const { latitude: gpsLat, longitude: gpsLon, getCurrentPosition, loading: gpsLoading } = useGeolocation();
 
   const [deliveryType, setDeliveryType] = useState<DeliveryType>('delivery');
@@ -159,6 +159,7 @@ export function VendorCheckoutSection({
   useEffect(() => {
     if (autoAppliedRef.current) return;
     if (vendorCategory === null) return; // wait until we know if vendor is pharmacy
+    if (platformPromosLoading) return; // wait until real promo % is loaded from platform_settings
     if (activePlatformPromo && selectedDiscountType === 'none') {
       autoAppliedRef.current = true;
       setSelectedDiscountType('platform');
