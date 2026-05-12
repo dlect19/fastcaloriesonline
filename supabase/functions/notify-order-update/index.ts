@@ -129,7 +129,19 @@ serve(async (req) => {
           phones.add(vendor.phone);
 
           for (const p of phones) {
-            const cleaned = String(p).replace(/\s+/g, '');
+            let cleaned = String(p).replace(/[\s\-()]/g, '');
+            // Normalize Nigerian local format (e.g. 0812... → +234812...)
+            if (cleaned.startsWith('whatsapp:')) {
+              // keep as-is
+            } else if (cleaned.startsWith('+')) {
+              // already E.164
+            } else if (cleaned.startsWith('0') && cleaned.length === 11) {
+              cleaned = '+234' + cleaned.slice(1);
+            } else if (cleaned.startsWith('234')) {
+              cleaned = '+' + cleaned;
+            } else if (!cleaned.startsWith('+')) {
+              cleaned = '+' + cleaned;
+            }
             const to = cleaned.startsWith('whatsapp:') ? cleaned : `whatsapp:${cleaned}`;
             const r = await fetch('https://connector-gateway.lovable.dev/twilio/Messages.json', {
               method: 'POST',
