@@ -1032,7 +1032,7 @@ async function confirmWhatsAppOrder(
     total: summary.total,
     total_calories: summary.total_calories,
     delivery_type: "delivery",
-    delivery_address_text: session.context?.location_label || "WhatsApp order",
+    delivery_address_text: session.context?.delivery_address_text || session.context?.location_label || "WhatsApp order",
     payment_method: "wallet",
     payment_status: "paid",
     payment_reference: paymentRef,
