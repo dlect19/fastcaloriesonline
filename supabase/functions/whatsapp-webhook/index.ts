@@ -1338,3 +1338,27 @@ function phoneVariants(phone: string): string[] {
   }
   return Array.from(set);
 }
+
+// Download a Twilio MediaUrl (auth-required) and upload to the `prescriptions` bucket.
+// Returns the public path or null on failure.
+async function uploadTwilioMediaToBucket(supabase: any, userId: string, mediaUrl: string, contentType: string): Promise<string | null> {
+  try {
+    if (!mediaUrl || !userId) return null;
+    const sid = Deno.env.get("TWILIO_ACCOUNT_SID");
+    const token = Deno.env.get("TWILIO_AUTH_TOKEN");
+    if (!sid || !token) { console.error("Twilio creds missing for media download"); return null; }
+    const auth = "Basic " + btoa(`${sid}:${token}`);
+    const res = await fetch(mediaUrl, { headers: { Authorization: auth }, redirect: "follow" });
+    if (!res.ok) { console.error("Twilio media fetch failed", res.status); return null; }
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    const ext = contentType.includes("pdf") ? "pdf" : contentType.includes("png") ? "png" : contentType.includes("webp") ? "webp" : "jpg";
+    const path = `${userId}/${Date.now()}-${crypto.randomUUID().slice(0,8)}.${ext}`;
+    const { error: upErr } = await supabase.storage.from("prescriptions").upload(path, bytes, { contentType, upsert: false });
+    if (upErr) { console.error("Prescription upload failed", upErr); return null; }
+    const { data: signed } = await supabase.storage.from("prescriptions").createSignedUrl(path, 60 * 60 * 24 * 365);
+    return signed?.signedUrl || path;
+  } catch (e) {
+    console.error("uploadTwilioMediaToBucket error", e);
+    return null;
+  }
+}
