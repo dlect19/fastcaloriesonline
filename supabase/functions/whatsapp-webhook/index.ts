@@ -1048,7 +1048,33 @@ async function doCheckout(
     return await replyText("⚠️ Please reply *menu* and follow the setup to create your account first.");
   }
 
-  const pendingFundingReference = session.context?.pending_funding_reference;
+  // === Step 1: confirm delivery address before showing the order summary ===
+  const ctx = session.context || {};
+  if (!ctx.address_confirmed) {
+    const { data: savedAddr } = await supabase
+      .from("delivery_addresses")
+      .select("label, address_text, latitude, longitude")
+      .eq("user_id", session.customer_user_id)
+      .order("is_default", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const savedLabel = savedAddr?.address_text || savedAddr?.label || null;
+    await persistSession(
+      supabase,
+      session.id,
+      "awaiting_delivery_address",
+      { ...ctx, saved_address: savedAddr || null },
+      cart,
+    );
+
+    const prompt = savedLabel
+      ? `📍 *Where should we deliver this order?*\n\nSaved address: *${savedLabel}*\n\nReply:\n1️⃣ Use this saved address\n2️⃣ Deliver to a *different* address\n\nOr share a new location pin (📎 → Location).`
+      : `📍 *Where should we deliver this order?*\n\nYou don't have a saved address yet. Please reply with the *full delivery address* (street, area, landmark) or share your location pin (📎 → Location).`;
+    return await replyText(prompt);
+  }
+
+  const pendingFundingReference = ctx.pending_funding_reference;
   if (typeof pendingFundingReference === "string") {
     await verifyWhatsAppFunding(supabase, pendingFundingReference);
   }
