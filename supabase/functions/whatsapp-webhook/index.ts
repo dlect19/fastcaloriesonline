@@ -763,7 +763,7 @@ async function fetchVendors(supabase: any, userId: string | null, overrideLat: n
 
 async function fetchMenuItems(supabase: any, vendorId: string) {
   const { data } = await supabase
-    .from("products").select("id, name, price, calories")
+    .from("products").select("id, name, price, calories, requires_prescription")
     .eq("vendor_id", vendorId).eq("is_available", true).limit(20);
   return data || [];
 }
