@@ -104,7 +104,7 @@ const HELP_HINT = "\n\nReply *menu* anytime to restart, or *cart* to see your ba
 
 const MENU_OPTIONS =
   `Reply with a number:\n` +
-  `1️⃣ Order food (nearby vendors)\n` +
+  `1️⃣ Place your order (food, groceries, meds)\n` +
   `2️⃣ Track an order\n` +
   `3️⃣ My wallet\n` +
   `4️⃣ Healthy meal suggestions\n` +
