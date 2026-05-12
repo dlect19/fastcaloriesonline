@@ -173,6 +173,7 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
 
   // Vendor countdown
   const [vendorElapsed, setVendorElapsed] = useState(0);
+  const [customerRefundTotal, setCustomerRefundTotal] = useState<number>(0);
 
   // Manual assignment
   const [nearbyRiders, setNearbyRiders] = useState<NearbyRider[]>([]);
@@ -314,6 +315,18 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
     } else {
       setOrderFinancials(null);
     }
+
+    // Customer refunds/credits issued against this order (e.g. dispute refunds, promo corrections)
+    const { data: refundTxs } = await supabase
+      .from('wallet_transactions')
+      .select('amount')
+      .eq('order_id', o.id)
+      .eq('wallet_type', 'customer')
+      .eq('transaction_type', 'credit')
+      .eq('category', 'refund')
+      .eq('status', 'completed');
+    const refundSum = (refundTxs || []).reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
+    setCustomerRefundTotal(refundSum);
 
     // Surge / dispatch offer info (latest)
     const { data: dr } = await supabase
@@ -941,6 +954,12 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
               <div><span className="text-muted-foreground">Service Fee</span><p className="font-medium">₦{Number(activeOrder.service_fee || 0).toLocaleString()}</p></div>
               {Number(activeOrder.discount || 0) > 0 && (
                 <div><span className="text-muted-foreground">Discount</span><p className="font-medium text-green-600">-₦{Number(activeOrder.discount || 0).toLocaleString()}</p></div>
+              )}
+              {customerRefundTotal > 0 && (
+                <div>
+                  <span className="text-muted-foreground">Refund to Customer</span>
+                  <p className="font-medium text-green-600">+₦{customerRefundTotal.toLocaleString()}</p>
+                </div>
               )}
               {Number(activeOrder.extra_package_fee || 0) > 0 && (
                 <div><span className="text-muted-foreground">Extra Pack Fee</span><p className="font-medium">₦{Number(activeOrder.extra_package_fee || 0).toLocaleString()}</p></div>
