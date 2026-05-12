@@ -1200,8 +1200,20 @@ async function doCheckout(
     return await replyText("⚠️ Please reply *menu* and follow the setup to create your account first.");
   }
 
-  // === Step 1: confirm delivery address before showing the order summary ===
   const ctx = session.context || {};
+
+  // === Step 0: pharmacy Rx capture (before address) ===
+  const hasPharmacyItems = cart.some((c: any) => c.is_pharmacy);
+  if (hasPharmacyItems && !ctx.pharmacy_rx) {
+    await persistSession(supabase, session.id, "pharmacy_rx_choice", ctx, cart);
+    return await replyText(
+      "💊 *Pharmacy order — prescription check*\n\n" +
+      "Before we place this order, the pharmacy needs to know how to dispense.\n\n" +
+      "Reply:\n1️⃣ I have a *doctor's prescription* (I'll send a photo)\n2️⃣ *No prescription* — guide me (pharmacist instructions)\n0️⃣ Cancel"
+    );
+  }
+
+  // === Step 1: confirm delivery address before showing the order summary ===
   if (!ctx.address_confirmed) {
     const { data: savedAddr } = await supabase
       .from("delivery_addresses")
