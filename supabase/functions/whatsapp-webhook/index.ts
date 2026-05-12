@@ -507,20 +507,32 @@ serve(async (req) => {
       }
       if (!vendorId) return await replyText("Please reply with a vendor number from the list, or *menu* to restart.");
       const vendor = (nextContext.vendors || []).find((v: any) => v.id === vendorId);
+      // Look up vendor category (pharmacy gets special handling)
+      const { data: vendorRow } = await supabase.from("vendors").select("category").eq("id", vendorId).maybeSingle();
+      const vendorCategory = vendorRow?.category || "restaurant";
       const items = await fetchMenuItems(supabase, vendorId);
       nextContext.vendor_id = vendorId;
       nextContext.vendor_name = vendor?.name || "";
-      nextContext.items = items.map((m: any) => ({ id: m.id, name: m.name, price: m.price, calories: m.calories }));
+      nextContext.vendor_category = vendorCategory;
+      nextContext.items = items.map((m: any) => ({
+        id: m.id, name: m.name, price: m.price, calories: m.calories,
+        requires_prescription: !!m.requires_prescription,
+      }));
       if (!items.length) {
         await persistSession(supabase, session.id, "menu", nextContext, nextCart);
         return await sendToUser("wa_main_menu", {}, `${vendor?.name || "This vendor"} has no items right now.\n\n${MENU_OPTIONS}`);
       }
       await persistSession(supabase, session.id, "browsing_menu", nextContext, nextCart);
       const shown = items.slice(0, 10);
-      const text = `📋 *${vendor?.name || ""}*\n\n` +
-        shown.map((m: any, i: number) =>
-          `${i + 1}. ${m.name} — ₦${Number(m.price).toLocaleString()}${m.calories ? ` (${m.calories} cal)` : ""}`
-        ).join("\n") + "\n\nReply with the item number to add 1 to cart.\nFor multiple, reply *<item>x<qty>* (e.g. *1x3* = 3 of item 1).\nOr *menu* to go back.";
+      const isPharm = vendorCategory === "pharmacy";
+      const headerIcon = isPharm ? "💊" : "📋";
+      const text = `${headerIcon} *${vendor?.name || ""}*${isPharm ? " _(Pharmacy)_" : ""}\n\n` +
+        shown.map((m: any, i: number) => {
+          const rx = m.requires_prescription ? " ⚕️_Rx_" : "";
+          return `${i + 1}. ${m.name}${rx} — ₦${Number(m.price).toLocaleString()}${m.calories ? ` (${m.calories} cal)` : ""}`;
+        }).join("\n") +
+        (isPharm ? "\n\n_⚕️ = prescription required. We'll ask for your prescription at checkout._" : "") +
+        "\n\nReply with the item number to add 1 to cart.\nFor multiple, reply *<item>x<qty>* (e.g. *1x3* = 3 of item 1).\nOr *menu* to go back.";
       // Twilio template requires all 10 slots filled — only use it when we have exactly 10 real items
       if (shown.length < 10) return await replyText(text);
       const vars: Record<string, string> = { vendor: vendor?.name || "" };
