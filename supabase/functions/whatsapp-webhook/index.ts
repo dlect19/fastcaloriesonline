@@ -109,7 +109,8 @@ const MENU_OPTIONS =
   `3️⃣ My wallet\n` +
   `4️⃣ Healthy meal suggestions\n` +
   `5️⃣ View cart\n` +
-  `6️⃣ Customer support`;
+  `6️⃣ Customer support\n` +
+  `7️⃣ Order history (past orders)`;
 
 const MAIN_MENU = `🍔 *FastCalories Menu*\n\n${MENU_OPTIONS}`;
 
