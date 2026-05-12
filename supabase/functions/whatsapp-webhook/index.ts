@@ -104,7 +104,7 @@ const HELP_HINT = "\n\nReply *menu* anytime to restart, or *cart* to see your ba
 
 const MENU_OPTIONS =
   `Reply with a number:\n` +
-  `1️⃣ Order food (nearby vendors)\n` +
+  `1️⃣ Place your order (food, groceries, meds)\n` +
   `2️⃣ Track an order\n` +
   `3️⃣ My wallet\n` +
   `4️⃣ Healthy meal suggestions\n` +
@@ -623,6 +623,49 @@ serve(async (req) => {
         `📍 Please share your location: tap *📎* → *Location* → *Send your current location*.\n\nOr reply *skip* to see top vendors.`);
     }
 
+    // ===== Awaiting delivery address (asked during checkout) =====
+    if (session.state === "awaiting_delivery_address") {
+      const saved = nextContext.saved_address;
+      // Option 1: use saved address
+      if (lower === "1" || lower === "yes" || lower === "use saved" || tap === "BTN_USE_SAVED_ADDR") {
+        if (!saved?.address_text && !saved?.label) {
+          return await replyText("⚠️ No saved address found. Please reply with your full delivery address or share a location pin.");
+        }
+        nextContext.address_confirmed = true;
+        nextContext.delivery_address_text = saved.address_text || saved.label;
+        if (saved.latitude && saved.longitude) {
+          nextContext.lat = saved.latitude;
+          nextContext.lon = saved.longitude;
+        }
+        await persistSession(supabase, session.id, "menu", nextContext, nextCart);
+        return await doCheckout(supabase, { ...session, context: nextContext }, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
+      }
+      // Option 2: ask for a new address
+      if (lower === "2" || lower === "new" || lower === "different") {
+        await persistSession(supabase, session.id, "awaiting_delivery_address", { ...nextContext, awaiting_new_address: true }, nextCart);
+        return await sendToUser("wa_request_location", {},
+          `📍 Please reply with the *full delivery address* (street, area, landmark), or share your location pin (📎 → Location → Send your current location).`);
+      }
+      // Shared a new location pin
+      if (hasSharedLocation) {
+        nextContext.address_confirmed = true;
+        nextContext.delivery_address_text = nextContext.location_label || `Pinned location (${sharedLat.toFixed(5)}, ${sharedLon.toFixed(5)})`;
+        await persistSession(supabase, session.id, "menu", nextContext, nextCart);
+        return await doCheckout(supabase, { ...session, context: nextContext }, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
+      }
+      // Typed a free-text address
+      if (body && body.trim().length >= 5) {
+        nextContext.address_confirmed = true;
+        nextContext.delivery_address_text = body.trim();
+        // Clear any old coords so delivery falls back to text address
+        nextContext.lat = undefined;
+        nextContext.lon = undefined;
+        await persistSession(supabase, session.id, "menu", nextContext, nextCart);
+        return await doCheckout(supabase, { ...session, context: nextContext }, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
+      }
+      return await replyText("Reply *1* to use your saved address, *2* for a different address, share a location pin, or type the full delivery address.");
+    }
+
     // Default: bounce to main menu
     await persistSession(supabase, session.id, "menu", nextContext, nextCart);
     return await sendToUser("wa_main_menu", {}, MAIN_MENU);
@@ -704,11 +747,18 @@ async function fetchMenuItems(supabase: any, vendorId: string) {
 async function renderRecentOrders(supabase: any, phone: string, userId: string | null) {
   if (userId) {
     const { data } = await supabase
-      .from("orders").select("order_number, status, total, created_at")
+      .from("orders").select("order_number, status, total, created_at, confirmation_code, delivery_type")
       .eq("user_id", userId).order("created_at", { ascending: false }).limit(5);
     if (data?.length) {
-      return "📦 *Your recent orders:*\n\n" + data.map((o: any) =>
-        `#${o.order_number} — ${o.status} — ₦${Number(o.total).toLocaleString()}`).join("\n");
+      const activeStatuses = new Set(["pending", "confirmed", "preparing", "ready_for_pickup", "picked_up", "on_the_way"]);
+      return "📦 *Your recent orders:*\n\n" + data.map((o: any) => {
+        const base = `#${o.order_number} — ${o.status} — ₦${Number(o.total).toLocaleString()}`;
+        if (activeStatuses.has(o.status) && o.confirmation_code) {
+          const who = o.delivery_type === "self_pickup" ? "the vendor at pickup" : "the rider on hand-off";
+          return `${base}\n   🔐 Delivery code: *${o.confirmation_code}* (give to ${who})`;
+        }
+        return base;
+      }).join("\n\n");
     }
   }
   return "📦 No recent orders found.";
@@ -982,7 +1032,7 @@ async function confirmWhatsAppOrder(
     total: summary.total,
     total_calories: summary.total_calories,
     delivery_type: "delivery",
-    delivery_address_text: session.context?.location_label || "WhatsApp order",
+    delivery_address_text: session.context?.delivery_address_text || session.context?.location_label || "WhatsApp order",
     payment_method: "wallet",
     payment_status: "paid",
     payment_reference: paymentRef,
@@ -1041,7 +1091,33 @@ async function doCheckout(
     return await replyText("⚠️ Please reply *menu* and follow the setup to create your account first.");
   }
 
-  const pendingFundingReference = session.context?.pending_funding_reference;
+  // === Step 1: confirm delivery address before showing the order summary ===
+  const ctx = session.context || {};
+  if (!ctx.address_confirmed) {
+    const { data: savedAddr } = await supabase
+      .from("delivery_addresses")
+      .select("label, address_text, latitude, longitude")
+      .eq("user_id", session.customer_user_id)
+      .order("is_default", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const savedLabel = savedAddr?.address_text || savedAddr?.label || null;
+    await persistSession(
+      supabase,
+      session.id,
+      "awaiting_delivery_address",
+      { ...ctx, saved_address: savedAddr || null },
+      cart,
+    );
+
+    const prompt = savedLabel
+      ? `📍 *Where should we deliver this order?*\n\nSaved address: *${savedLabel}*\n\nReply:\n1️⃣ Use this saved address\n2️⃣ Deliver to a *different* address\n\nOr share a new location pin (📎 → Location).`
+      : `📍 *Where should we deliver this order?*\n\nYou don't have a saved address yet. Please reply with the *full delivery address* (street, area, landmark) or share your location pin (📎 → Location).`;
+    return await replyText(prompt);
+  }
+
+  const pendingFundingReference = ctx.pending_funding_reference;
   if (typeof pendingFundingReference === "string") {
     await verifyWhatsAppFunding(supabase, pendingFundingReference);
   }
