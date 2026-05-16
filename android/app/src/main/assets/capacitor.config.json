@@ -1,5 +1,5 @@
 {
-	"appId": "com.fastcalories.customer",
+	"appId": "com.customers.fastcalories.app",
 	"appName": "Fast Calories",
 	"webDir": "dist",
 	"server": {
