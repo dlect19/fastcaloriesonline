@@ -1,11 +1,11 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace "com.fastcalories.customer"
+    namespace "com.customers.fastcalories.app"
     compileSdk 36
 
     defaultConfig {
-        applicationId "com.fastcalories.customer"
+        applicationId "com.customers.fastcalories.app"
         minSdk 23
         targetSdk 35
         versionCode 1

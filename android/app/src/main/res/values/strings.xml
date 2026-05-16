@@ -2,6 +2,6 @@
 <resources>
     <string name="app_name">Fast Calories</string>
     <string name="title_activity_main">Fast Calories</string>
-    <string name="package_name">com.fastcalories.customer</string>
-    <string name="custom_url_scheme">com.fastcalories.customer</string>
+    <string name="package_name">com.customers.fastcalories.app</string>
+    <string name="custom_url_scheme">com.customers.fastcalories.app</string>
 </resources>

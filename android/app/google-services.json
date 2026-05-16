@@ -7,12 +7,17 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:356075693003:android:d95ffd55ecaceefb59cc4e",
+        "mobilesdk_app_id": "1:356075693003:android:8e9c5314516f427059cc4e",
         "android_client_info": {
-          "package_name": "com.fastcalories.customer"
+          "package_name": "com.customers.fastcalories.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "356075693003-dina3r161kcmru1au5o3qsiu4fpg63s7.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyC7jXZLKBnsdhLItmoGkjIz1Xi6luj7FvQ"
@@ -20,7 +25,41 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "356075693003-dina3r161kcmru1au5o3qsiu4fpg63s7.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:356075693003:android:d95ffd55ecaceefb59cc4e",
+        "android_client_info": {
+          "package_name": "com.fastcalories.customer"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "356075693003-dina3r161kcmru1au5o3qsiu4fpg63s7.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC7jXZLKBnsdhLItmoGkjIz1Xi6luj7FvQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "356075693003-dina3r161kcmru1au5o3qsiu4fpg63s7.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     },
@@ -31,7 +70,12 @@
           "package_name": "com.fastcalories.fastcaloriesrider"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "356075693003-dina3r161kcmru1au5o3qsiu4fpg63s7.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyC7jXZLKBnsdhLItmoGkjIz1Xi6luj7FvQ"
@@ -39,7 +83,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "356075693003-dina3r161kcmru1au5o3qsiu4fpg63s7.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     },
@@ -50,7 +99,12 @@
           "package_name": "com.fastcalories.online"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "356075693003-dina3r161kcmru1au5o3qsiu4fpg63s7.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyC7jXZLKBnsdhLItmoGkjIz1Xi6luj7FvQ"
@@ -58,7 +112,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "356075693003-dina3r161kcmru1au5o3qsiu4fpg63s7.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     },
@@ -69,7 +128,12 @@
           "package_name": "com.fastcalories.vendor"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "356075693003-dina3r161kcmru1au5o3qsiu4fpg63s7.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyC7jXZLKBnsdhLItmoGkjIz1Xi6luj7FvQ"
@@ -77,7 +141,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "356075693003-dina3r161kcmru1au5o3qsiu4fpg63s7.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

@@ -1,4 +1,4 @@
-package com.fastcalories.customer;
+package com.customers.fastcalories.app;
 
 import android.content.Intent;
 
