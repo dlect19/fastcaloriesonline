@@ -1,28 +1,22 @@
-import { useState } from 'react';
-import { Download, X, Sparkles, Loader2 } from 'lucide-react';
+import { Download, X, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useApkUpdateCheck } from '@/hooks/useApkUpdateCheck';
-import { downloadApk } from '@/lib/apkInstall';
 
 interface ApkUpdateBannerProps {
   appType: 'customer' | 'rider' | 'vendor';
 }
 
 export function ApkUpdateBanner({ appType }: ApkUpdateBannerProps) {
-  const { updateInfo, dismiss } = useApkUpdateCheck(appType);
-  const [downloading, setDownloading] = useState(false);
+  const { updateInfo, dismiss, markClicked } = useApkUpdateCheck(appType);
 
   if (!updateInfo) return null;
 
-  const handleUpdate = async (e: React.MouseEvent) => {
+  const handleUpdate = (e: React.MouseEvent) => {
     e.preventDefault();
-    if (downloading) return;
-    setDownloading(true);
-    try {
-      await downloadApk(updateInfo.downloadUrl);
-    } finally {
-      setTimeout(() => setDownloading(false), 3000);
-    }
+    // Open the platform-appropriate store/download link in a new tab
+    window.open(updateInfo.downloadUrl, '_blank', 'noopener,noreferrer');
+    // Permanently hide for this version once clicked
+    markClicked(updateInfo.version);
   };
 
   return (
@@ -36,13 +30,9 @@ export function ApkUpdateBanner({ appType }: ApkUpdateBannerProps) {
         </p>
         <p className="text-xs text-muted-foreground truncate">{updateInfo.changelog}</p>
       </div>
-      <Button size="sm" className="shrink-0 h-8 text-xs" disabled={downloading} onClick={handleUpdate}>
-        {downloading ? (
-          <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
-        ) : (
-          <Download className="w-3.5 h-3.5 mr-1" />
-        )}
-        {downloading ? 'Opening...' : 'Update'}
+      <Button size="sm" className="shrink-0 h-8 text-xs" onClick={handleUpdate}>
+        <Download className="w-3.5 h-3.5 mr-1" />
+        Update
       </Button>
       <button
         onClick={() => dismiss(updateInfo.version)}
