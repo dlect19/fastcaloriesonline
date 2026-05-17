@@ -7,12 +7,9 @@ interface ApkUpdateInfo {
   version: string;
   changelog: string;
   downloadUrl: string;
+  platform: 'android' | 'ios';
 }
 
-/**
- * Compares two semver strings. Returns:
- *  -1 if a < b, 0 if equal, 1 if a > b
- */
 function compareSemver(a: string, b: string): number {
   const pa = a.split('.').map(Number);
   const pb = b.split('.').map(Number);
@@ -25,18 +22,34 @@ function compareSemver(a: string, b: string): number {
   return 0;
 }
 
+/**
+ * Detect target store platform.
+ * - Native app: uses its actual platform
+ * - Web/PWA: detects iOS vs Android via user agent (defaults to android)
+ */
+function detectPlatform(): 'android' | 'ios' {
+  if (Capacitor.isNativePlatform()) {
+    return Capacitor.getPlatform() === 'ios' ? 'ios' : 'android';
+  }
+  const ua = navigator.userAgent || '';
+  if (/iPad|iPhone|iPod/i.test(ua)) return 'ios';
+  return 'android';
+}
+
 export function useApkUpdateCheck(appType: 'customer' | 'rider' | 'vendor') {
   const [updateInfo, setUpdateInfo] = useState<ApkUpdateInfo | null>(null);
 
   useEffect(() => {
+    const platform = detectPlatform();
     const versionKey = `${appType}_apk_version`;
     const changelogKey = `${appType}_apk_changelog`;
-    const downloadUrlKey = `${appType}_apk_download_url`;
+    const androidUrlKey = `${appType}_apk_download_url`;
+    const iosUrlKey = `${appType}_ios_app_url`;
 
     const checkUpdate = async () => {
-      // Get the currently installed app version
+      // Get the currently installed app version (native only)
       let currentVersion = '0.0.0';
-      if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') {
+      if (Capacitor.isNativePlatform()) {
         try {
           const { App } = await import('@capacitor/app');
           const info = await App.getInfo();
@@ -50,25 +63,32 @@ export function useApkUpdateCheck(appType: 'customer' | 'rider' | 'vendor') {
       const { data, error } = await supabase
         .from('platform_settings')
         .select('key, value')
-        .in('key', [versionKey, changelogKey, downloadUrlKey]);
+        .in('key', [versionKey, changelogKey, androidUrlKey, iosUrlKey]);
 
       if (error || !data) return;
 
       const latestVersion = data.find(d => d.key === versionKey)?.value || '1.0.0';
       const changelog = data.find(d => d.key === changelogKey)?.value || 'Performance improvements';
-      const downloadUrl = data.find(d => d.key === downloadUrlKey)?.value
-        || `/downloads/fastcalories-${appType}.apk`;
+      const androidUrl = data.find(d => d.key === androidUrlKey)?.value || '';
+      const iosUrl = data.find(d => d.key === iosUrlKey)?.value || '';
 
-      // On native: compare actual installed version vs latest
+      const downloadUrl = platform === 'ios' ? iosUrl : androidUrl;
+      if (!downloadUrl) return; // no link configured for this platform
+
+      // Native: compare installed version vs latest
       if (Capacitor.isNativePlatform()) {
-        if (compareSemver(currentVersion, latestVersion) >= 0) return; // already up to date
-      } else {
-        // On web: use localStorage dismiss approach
-        const dismissedVersion = localStorage.getItem(`${appType}_apk_dismissed_version`);
-        if (dismissedVersion === latestVersion) return;
+        if (compareSemver(currentVersion, latestVersion) >= 0) return;
       }
 
-      setUpdateInfo({ hasUpdate: true, version: latestVersion, changelog, downloadUrl });
+      // Permanent dismiss after user clicks "Update"
+      const clickedVersion = localStorage.getItem(`${appType}_apk_clicked_version`);
+      if (clickedVersion === latestVersion) return;
+
+      // Per-version dismiss via X button
+      const dismissedVersion = localStorage.getItem(`${appType}_apk_dismissed_version`);
+      if (dismissedVersion === latestVersion) return;
+
+      setUpdateInfo({ hasUpdate: true, version: latestVersion, changelog, downloadUrl, platform });
     };
 
     checkUpdate();
@@ -79,5 +99,10 @@ export function useApkUpdateCheck(appType: 'customer' | 'rider' | 'vendor') {
     setUpdateInfo(null);
   };
 
-  return { updateInfo, dismiss };
+  const markClicked = (version: string) => {
+    localStorage.setItem(`${appType}_apk_clicked_version`, version);
+    setUpdateInfo(null);
+  };
+
+  return { updateInfo, dismiss, markClicked };
 }
