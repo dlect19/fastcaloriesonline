@@ -44,14 +44,29 @@ export function AdminBalanceBreakdown({ isTestMode }: AdminBalanceBreakdownProps
         return;
       }
 
-      // Fetch all transactions for the environment (ledger source of truth)
-      const { data: allTx } = await supabase
-        .from('wallet_transactions')
-        .select('wallet_id, category, transaction_type, amount, status, notes')
-        .eq('environment', env);
+      // Fetch all transactions for the environment (ledger source of truth).
+      // IMPORTANT: paginate to bypass Supabase's default 1000-row cap — otherwise
+      // the most recent transactions get silently dropped and balances go stale.
+      const PAGE_SIZE = 1000;
+      type TxRow = { wallet_id: string | null; category: string | null; transaction_type: string | null; amount: number | string | null; status: string | null; notes: string | null };
+      const allTx: TxRow[] = [];
+      let from = 0;
+      while (true) {
+        const { data: page, error: pageErr } = await supabase
+          .from('wallet_transactions')
+          .select('wallet_id, category, transaction_type, amount, status, notes')
+          .eq('environment', env)
+          .order('created_at', { ascending: true })
+          .range(from, from + PAGE_SIZE - 1);
+        if (pageErr) { console.error('Tx page error', pageErr); break; }
+        if (!page || page.length === 0) break;
+        allTx.push(...(page as TxRow[]));
+        if (page.length < PAGE_SIZE) break;
+        from += PAGE_SIZE;
+      }
 
-      const txByWallet: Record<string, typeof allTx> = {};
-      for (const tx of allTx || []) {
+      const txByWallet: Record<string, TxRow[]> = {};
+      for (const tx of allTx) {
         if (!tx.wallet_id) continue;
         if (!txByWallet[tx.wallet_id]) txByWallet[tx.wallet_id] = [];
         txByWallet[tx.wallet_id].push(tx);
