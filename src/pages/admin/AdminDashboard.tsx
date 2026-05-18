@@ -203,10 +203,60 @@ export default function AdminDashboard() {
 
       const { data: payouts } = await payoutQuery;
 
-      // Fetch wallet balances
+      // Fetch wallet balances from the ledger source of truth, not stale wallet columns
       const { data: wallets } = await supabase
         .from('wallets')
-        .select('wallet_type, eligible_balance, pending_balance, test_eligible_balance, test_pending_balance');
+        .select('id, wallet_type');
+
+      type TxRow = { wallet_id: string | null; wallet_type: string | null; category: string | null; transaction_type: string | null; amount: number | string | null; status: string | null; notes: string | null };
+      const walletTransactions: TxRow[] = [];
+      let from = 0;
+      const PAGE_SIZE = 1000;
+
+      while (true) {
+        const { data: page, error: pageError } = await supabase
+          .from('wallet_transactions')
+          .select('wallet_id, wallet_type, category, transaction_type, amount, status, notes')
+          .eq('environment', envFilter)
+          .order('created_at', { ascending: true })
+          .range(from, from + PAGE_SIZE - 1);
+
+        if (pageError || !page?.length) break;
+        walletTransactions.push(...(page as TxRow[]));
+        if (page.length < PAGE_SIZE) break;
+        from += PAGE_SIZE;
+      }
+
+      const txByWallet = walletTransactions.reduce<Record<string, TxRow[]>>((acc, tx) => {
+        if (!tx.wallet_id) return acc;
+        acc[tx.wallet_id] = acc[tx.wallet_id] || [];
+        acc[tx.wallet_id].push(tx);
+        return acc;
+      }, {});
+
+      const computeWithdrawable = (walletId: string, walletType: string | null) => {
+        const txs = txByWallet[walletId] || [];
+        if (walletType === 'vendor') {
+          return txs.reduce((sum, tx) => {
+            const amount = Number(tx.amount) || 0;
+            if (tx.category === 'vendor_share' && tx.status === 'completed') return sum + (tx.transaction_type === 'credit' ? amount : -amount);
+            if (tx.category === 'vendor_rider_share' && tx.status === 'completed') return sum + (tx.transaction_type === 'credit' ? amount : -amount);
+            if (tx.category === 'withdrawal' && tx.transaction_type === 'debit') return sum - amount;
+            if (tx.category === 'withdrawal_reversal' && tx.transaction_type === 'credit') return sum + amount;
+            if (tx.category === 'admin_debit' && tx.transaction_type === 'debit') return sum - amount;
+            if (tx.category === 'admin_credit' && tx.transaction_type === 'credit') return sum + amount;
+            if (tx.category === 'dispute_deduction' && tx.transaction_type === 'debit') return sum - amount;
+            return sum;
+          }, 0);
+        }
+
+        return txs.reduce((sum, tx) => {
+          const amount = Number(tx.amount) || 0;
+          if (tx.transaction_type === 'credit' && tx.status === 'completed') return sum + amount;
+          if (tx.transaction_type === 'debit') return sum - amount;
+          return sum;
+        }, 0);
+      };
 
       // Calculate financial metrics
       let grossRevenue = 0;
@@ -259,11 +309,10 @@ export default function AdminDashboard() {
       const totalPayouts = payouts?.filter(p => p.status === 'completed').reduce((sum, p) => sum + Number(p.amount), 0) || 0;
       const pendingPayouts = payouts?.filter(p => p.status === 'pending').reduce((sum, p) => sum + Number(p.amount), 0) || 0;
 
-      // Calculate wallet balances by type
-      const balanceField = isTestMode ? 'test_eligible_balance' : 'eligible_balance';
-      const vendorBalances = wallets?.filter(w => w.wallet_type === 'vendor').reduce((sum, w) => sum + (Number(w[balanceField]) || 0), 0) || 0;
-      const riderBalances = wallets?.filter(w => w.wallet_type === 'rider').reduce((sum, w) => sum + (Number(w[balanceField]) || 0), 0) || 0;
-      const deliveryCompanyBalances = wallets?.filter(w => w.wallet_type === 'delivery_company').reduce((sum, w) => sum + (Number(w[balanceField]) || 0), 0) || 0;
+      // Calculate withdrawable wallet balances by type from ledger totals
+      const vendorBalances = wallets?.filter(w => w.wallet_type === 'vendor').reduce((sum, w) => sum + computeWithdrawable(w.id, w.wallet_type), 0) || 0;
+      const riderBalances = wallets?.filter(w => w.wallet_type === 'rider').reduce((sum, w) => sum + computeWithdrawable(w.id, w.wallet_type), 0) || 0;
+      const deliveryCompanyBalances = wallets?.filter(w => w.wallet_type === 'delivery_company').reduce((sum, w) => sum + computeWithdrawable(w.id, w.wallet_type), 0) || 0;
 
       const platformBalance = isTestMode 
         ? Number(platformWallet?.test_balance) || 0 
