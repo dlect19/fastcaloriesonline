@@ -398,6 +398,15 @@ export function TransactionHistory({
               const tags = getTransactionTags(tx);
               const metadata = tx.metadata as Record<string, any> | null;
               const linkedOrder = tx.order_id ? orderDetails[tx.order_id] : null;
+              const balanceTrail = balanceTrailByTxId[tx.id];
+              const fallbackBalanceTrail = tx.balance_after != null ? {
+                before: tx.transaction_type === 'credit'
+                  ? Number(tx.balance_after) - Number(tx.amount)
+                  : Number(tx.balance_after) + Number(tx.amount),
+                after: Number(tx.balance_after),
+                label: 'Balance',
+              } : null;
+              const displayedBalanceTrail = balanceTrail || fallbackBalanceTrail;
               
               return (
                 <div
@@ -481,15 +490,12 @@ export function TransactionHistory({
                   {isExpanded && (
                     <div className="px-4 pb-4 pt-0 border-t border-border/50 space-y-3">
                       {/* Running Balance Trail */}
-                      {tx.balance_after != null && (
+                      {displayedBalanceTrail && (
                         <div className="flex items-center gap-3 pt-3 pb-1">
                           <div className="flex-1 text-center p-2 bg-muted rounded-lg">
-                            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Balance Before</p>
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{displayedBalanceTrail.label} Before</p>
                             <p className="font-semibold text-sm">
-                              ₦{(tx.transaction_type === 'credit'
-                                ? tx.balance_after - Number(tx.amount)
-                                : tx.balance_after + Number(tx.amount)
-                              ).toLocaleString()}
+                              ₦{displayedBalanceTrail.before.toLocaleString()}
                             </p>
                           </div>
                           <div className={`flex-shrink-0 px-2 py-1 rounded-full text-xs font-bold ${
@@ -498,9 +504,9 @@ export function TransactionHistory({
                             {tx.transaction_type === 'credit' ? '+' : '−'}₦{Number(tx.amount).toLocaleString()}
                           </div>
                           <div className="flex-1 text-center p-2 bg-primary/10 rounded-lg">
-                            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Balance After</p>
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{displayedBalanceTrail.label} After</p>
                             <p className="font-semibold text-sm text-primary">
-                              ₦{Number(tx.balance_after).toLocaleString()}
+                              ₦{displayedBalanceTrail.after.toLocaleString()}
                             </p>
                           </div>
                         </div>
