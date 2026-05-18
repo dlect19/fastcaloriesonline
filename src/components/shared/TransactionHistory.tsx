@@ -123,19 +123,30 @@ export function TransactionHistory({
         .maybeSingle();
 
       if (walletInfo?.wallet_type && ['vendor', 'rider', 'delivery_company'].includes(walletInfo.wallet_type)) {
-        let allTxQuery = supabase
-          .from('wallet_transactions')
-          .select('id, wallet_type, transaction_type, category, amount, status, order_id, created_at, notes, environment, metadata, balance_after')
-          .eq('wallet_id', walletId)
-          .order('created_at', { ascending: true })
-          .limit(5000);
+        const PAGE_SIZE = 1000;
+        const allWalletTx: Transaction[] = [];
+        let from = 0;
 
-        if (environment) {
-          allTxQuery = allTxQuery.eq('environment', environment);
+        while (true) {
+          let allTxQuery = supabase
+            .from('wallet_transactions')
+            .select('id, wallet_type, transaction_type, category, amount, status, order_id, created_at, notes, environment, metadata, balance_after')
+            .eq('wallet_id', walletId)
+            .order('created_at', { ascending: true })
+            .range(from, from + PAGE_SIZE - 1);
+
+          if (environment) {
+            allTxQuery = allTxQuery.eq('environment', environment);
+          }
+
+          const { data: page, error: pageError } = await allTxQuery;
+          if (pageError || !page?.length) break;
+          allWalletTx.push(...(page as Transaction[]));
+          if (page.length < PAGE_SIZE) break;
+          from += PAGE_SIZE;
         }
 
-        const { data: allWalletTx } = await allTxQuery;
-        setBalanceTrailByTxId(buildProfessionalBalanceTrail(allWalletTx || [], walletInfo.wallet_type));
+        setBalanceTrailByTxId(buildProfessionalBalanceTrail(allWalletTx, walletInfo.wallet_type));
       } else {
         setBalanceTrailByTxId({});
       }
