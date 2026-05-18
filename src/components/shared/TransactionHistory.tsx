@@ -23,6 +23,12 @@ interface Transaction {
   balance_after?: number | null;
 }
 
+interface WalletBalanceTrail {
+  before: number;
+  after: number;
+  label: string;
+}
+
 interface OrderDetail {
   order_number: string;
   total: number;
@@ -56,6 +62,7 @@ export function TransactionHistory({
   environment = null
 }: TransactionHistoryProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [balanceTrailByTxId, setBalanceTrailByTxId] = useState<Record<string, WalletBalanceTrail>>({});
   const [orderDetails, setOrderDetails] = useState<Record<string, OrderDetail>>({});
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'credit' | 'debit'>('all');
@@ -109,6 +116,30 @@ export function TransactionHistory({
       if (error) throw error;
       setTransactions(data || []);
 
+      const { data: walletInfo } = await supabase
+        .from('wallets')
+        .select('wallet_type')
+        .eq('id', walletId)
+        .maybeSingle();
+
+      if (walletInfo?.wallet_type && ['vendor', 'rider', 'delivery_company'].includes(walletInfo.wallet_type)) {
+        let allTxQuery = supabase
+          .from('wallet_transactions')
+          .select('id, wallet_type, transaction_type, category, amount, status, order_id, created_at, notes, environment, metadata, balance_after')
+          .eq('wallet_id', walletId)
+          .order('created_at', { ascending: true })
+          .limit(5000);
+
+        if (environment) {
+          allTxQuery = allTxQuery.eq('environment', environment);
+        }
+
+        const { data: allWalletTx } = await allTxQuery;
+        setBalanceTrailByTxId(buildProfessionalBalanceTrail(allWalletTx || [], walletInfo.wallet_type));
+      } else {
+        setBalanceTrailByTxId({});
+      }
+
       // Fetch order details for transactions that have order_id
       const orderIds = [...new Set((data || []).filter(t => t.order_id).map(t => t.order_id as string))];
       if (orderIds.length > 0) {
@@ -139,6 +170,63 @@ export function TransactionHistory({
     } finally {
       setLoading(false);
     }
+  };
+
+  const buildProfessionalBalanceTrail = (allWalletTx: Transaction[], walletType: string): Record<string, WalletBalanceTrail> => {
+    const trail: Record<string, WalletBalanceTrail> = {};
+    let runningBalance = 0;
+
+    const sorted = [...allWalletTx].sort((a, b) => {
+      const byDate = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      return byDate || a.id.localeCompare(b.id);
+    });
+
+    for (const tx of sorted) {
+      const before = runningBalance;
+      const amount = Number(tx.amount) || 0;
+      let delta = 0;
+
+      if (walletType === 'vendor') {
+        const isRiderRevenueWithdrawal = tx.notes?.includes('Rider Revenue') || false;
+        if (tx.category === 'vendor_share' && tx.status === 'completed') {
+          delta = tx.transaction_type === 'credit' ? amount : -amount;
+        } else if (tx.category === 'vendor_rider_share' && tx.status === 'completed') {
+          delta = tx.transaction_type === 'credit' ? amount : -amount;
+        } else if (tx.category === 'withdrawal' && tx.transaction_type === 'debit') {
+          delta = -amount;
+        } else if (tx.category === 'withdrawal_reversal' && tx.transaction_type === 'credit') {
+          delta = amount;
+        } else if (tx.category === 'admin_debit' && tx.transaction_type === 'debit') {
+          delta = -amount;
+        } else if (tx.category === 'admin_credit' && tx.transaction_type === 'credit') {
+          delta = amount;
+        } else if (tx.category === 'dispute_deduction' && tx.transaction_type === 'debit') {
+          delta = -amount;
+        }
+
+        trail[tx.id] = {
+          before,
+          after: before + delta,
+          label: isRiderRevenueWithdrawal ? 'Rider Revenue Balance' : 'Withdrawable Balance',
+        };
+      } else {
+        if (tx.transaction_type === 'credit' && tx.status === 'completed') {
+          delta = amount;
+        } else if (tx.transaction_type === 'debit') {
+          delta = -amount;
+        }
+
+        trail[tx.id] = {
+          before,
+          after: before + delta,
+          label: 'Withdrawable Balance',
+        };
+      }
+
+      runningBalance += delta;
+    }
+
+    return trail;
   };
 
   const getCategoryLabel = (category: string) => {
