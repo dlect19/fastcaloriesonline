@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TransactionHistory } from '@/components/shared/TransactionHistory';
 import { Card, CardContent } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Wallet } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
@@ -9,13 +10,9 @@ import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 interface AdminEntityWalletDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** auth user id of the entity (vendor.user_id, rider.user_id, delivery_company.user_id) */
   userId: string | null;
-  /** Entity wallet_type as stored in wallets.wallet_type */
   walletType: 'vendor' | 'rider' | 'delivery_company';
-  /** Display name for the dialog header */
   entityName: string;
-  /** Optional sub-label, e.g. role */
   subLabel?: string;
 }
 
@@ -25,10 +22,8 @@ interface WalletRow {
   test_balance: number;
   eligible_balance: number | null;
   test_eligible_balance: number | null;
-  pending_balance: number | null;
-  test_pending_balance: number | null;
-  total_earned: number | null;
-  total_withdrawn: number | null;
+  outlet_id: string | null;
+  outlet_name?: string;
 }
 
 export function AdminEntityWalletDialog({
@@ -40,30 +35,51 @@ export function AdminEntityWalletDialog({
   subLabel,
 }: AdminEntityWalletDialogProps) {
   const { isTestMode } = useEnvironmentConfig();
-  const [wallet, setWallet] = useState<WalletRow | null>(null);
+  const [wallets, setWallets] = useState<WalletRow[]>([]);
+  const [selectedWalletId, setSelectedWalletId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     if (!open || !userId) return;
-    const fetchWallet = async () => {
+    const fetchWallets = async () => {
       setLoading(true);
       setNotFound(false);
       try {
         const { data, error } = await supabase
           .from('wallets')
-          .select('id, balance, test_balance, eligible_balance, test_eligible_balance, pending_balance, test_pending_balance, total_earned, total_withdrawn')
+          .select('id, balance, test_balance, eligible_balance, test_eligible_balance, outlet_id')
           .eq('user_id', userId)
-          .eq('wallet_type', walletType)
-          .maybeSingle();
+          .eq('wallet_type', walletType);
 
         if (error) throw error;
-        if (!data) {
+        if (!data || data.length === 0) {
           setNotFound(true);
-          setWallet(null);
-        } else {
-          setWallet(data as WalletRow);
+          setWallets([]);
+          setSelectedWalletId(null);
+          return;
         }
+
+        // Enrich vendor wallets with outlet names
+        let enriched: WalletRow[] = data as WalletRow[];
+        if (walletType === 'vendor') {
+          const outletIds = data.map(w => w.outlet_id).filter(Boolean) as string[];
+          if (outletIds.length > 0) {
+            const { data: outlets } = await supabase
+              .from('vendor_outlets')
+              .select('id, outlet_name')
+              .in('id', outletIds);
+            enriched = data.map(w => ({
+              ...w,
+              outlet_name: outlets?.find(o => o.id === w.outlet_id)?.outlet_name,
+            })) as WalletRow[];
+          }
+        }
+
+        // Prefer wallet with the highest balance as default (most likely the active one)
+        const sorted = [...enriched].sort((a, b) => Number(b.balance || 0) - Number(a.balance || 0));
+        setWallets(sorted);
+        setSelectedWalletId(sorted[0].id);
       } catch (e) {
         console.error('Failed to load wallet', e);
         setNotFound(true);
@@ -71,9 +87,10 @@ export function AdminEntityWalletDialog({
         setLoading(false);
       }
     };
-    fetchWallet();
+    fetchWallets();
   }, [open, userId, walletType]);
 
+  const wallet = wallets.find(w => w.id === selectedWalletId) || null;
   const live = wallet ? Number(wallet.balance || 0) : 0;
   const test = wallet ? Number(wallet.test_balance || 0) : 0;
   const liveEligible = wallet ? Number(wallet.eligible_balance || 0) : 0;
@@ -105,7 +122,26 @@ export function AdminEntityWalletDialog({
           </Card>
         ) : (
           <div className="space-y-4">
-            {/* Wallet Summary */}
+            {wallets.length > 1 && (
+              <div>
+                <label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  Outlet ({wallets.length} branches)
+                </label>
+                <Select value={selectedWalletId ?? ''} onValueChange={setSelectedWalletId}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Select outlet" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {wallets.map(w => (
+                      <SelectItem key={w.id} value={w.id}>
+                        {w.outlet_name || (w.outlet_id ? 'Outlet' : 'Main')} — ₦{Number(w.balance || 0).toLocaleString()}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-xl border p-3">
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
