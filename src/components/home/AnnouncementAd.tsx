@@ -113,7 +113,7 @@ export function AnnouncementAd({ userLatitude, userLongitude }: AnnouncementAdPr
           <img
             src={ad.image_url}
             alt={ad.title}
-            className="w-full h-48 object-cover cursor-pointer"
+            className="w-full aspect-square object-contain bg-black cursor-pointer"
             onClick={handleClick}
           />
         )}
