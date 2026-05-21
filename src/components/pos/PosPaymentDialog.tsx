@@ -209,14 +209,32 @@ export function PosPaymentDialog({ open, onOpenChange, total, onConfirm }: Props
                 </Button>
               </div>
               {foundCustomer && (
-                <div className="rounded-lg border p-3 space-y-1">
-                  <p className="font-semibold">{foundCustomer.full_name || 'Customer'}</p>
-                  <p className="text-xs text-muted-foreground">{foundCustomer.phone}</p>
-                  <p className={cn('text-sm font-medium mt-2', walletInsufficient ? 'text-destructive' : 'text-calorie-low')}>
-                    Wallet balance: ₦{foundCustomer.wallet_balance.toLocaleString()}
-                    {walletInsufficient && ' — insufficient'}
-                  </p>
-                </div>
+                <>
+                  <div className="rounded-lg border p-3 space-y-1">
+                    <p className="font-semibold">{foundCustomer.full_name || 'Customer'}</p>
+                    <p className="text-xs text-muted-foreground">{foundCustomer.phone}</p>
+                    <p className={cn('text-sm font-medium mt-2', walletInsufficient ? 'text-destructive' : 'text-calorie-low')}>
+                      Wallet balance: ₦{foundCustomer.wallet_balance.toLocaleString()}
+                      {walletInsufficient && ' — insufficient'}
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Authorization code (from customer app)</Label>
+                    <Input
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={6}
+                      value={authCode}
+                      onChange={e => setAuthCode(e.target.value.replace(/\D/g, ''))}
+                      placeholder="6-digit code"
+                      className="h-12 text-center text-2xl tracking-[0.3em] font-semibold tabular-nums"
+                      autoFocus
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Customer generates this in Profile → In-Store Wallet Code (valid 5 minutes).
+                    </p>
+                  </div>
+                </>
               )}
             </div>
           )}
@@ -234,7 +252,7 @@ export function PosPaymentDialog({ open, onOpenChange, total, onConfirm }: Props
             </div>
           )}
 
-          <Button onClick={handleSubmit} disabled={submitting || insufficient || (method === 'wallet' && (!foundCustomer || walletInsufficient))} className="w-full h-14 text-base">
+          <Button onClick={handleSubmit} disabled={submitting || insufficient || (method === 'wallet' && (!foundCustomer || walletInsufficient || codeMissing))} className="w-full h-14 text-base">
             {submitting ? 'Processing...' : `Confirm Payment ₦${total.toLocaleString()}`}
           </Button>
         </div>
