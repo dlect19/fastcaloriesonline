@@ -598,8 +598,12 @@ export default function VendorPos() {
       if (reason) console.warn('[POS] queued offline:', reason);
     };
 
-    // If offline, queue immediately
+    // If offline, queue immediately — but wallet method requires online code verification
     if (!navigator.onLine) {
+      if (data.paymentMethod === 'wallet') {
+        toast({ title: 'Wallet payments need internet', description: 'Reconnect to verify the customer code.', variant: 'destructive' });
+        return;
+      }
       queueOffline('navigator offline');
       return;
     }
