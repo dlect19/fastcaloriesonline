@@ -386,24 +386,12 @@ export default function VendorAuth() {
                   {loading ? 'Signing in...' : 'Sign In'}
                 </Button>
 
-                <div className="relative my-4">
-                  <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border" /></div>
-                  <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">or</span></div>
-                </div>
-
-                <GoogleButton label="Sign in with Google" />
               </form>
             </TabsContent>
 
             <TabsContent value="signup">
               <form onSubmit={handleSignup} className="space-y-4">
-                {/* Google signup option first */}
-                <GoogleButton label="Sign up with Google" />
 
-                <div className="relative my-4">
-                  <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border" /></div>
-                  <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">or register with email</span></div>
-                </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
