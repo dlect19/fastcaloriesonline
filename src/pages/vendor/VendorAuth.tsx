@@ -26,11 +26,8 @@ export default function VendorAuth() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [showPreSignupOTP, setShowPreSignupOTP] = useState(false);
 
-  // Google OAuth: after Google auth, if no vendor profile, show business info step
-  const [googleCompleteProfile, setGoogleCompleteProfile] = useState(false);
-  const [googleUserId, setGoogleUserId] = useState<string | null>(null);
-  const [googleEmail, setGoogleEmail] = useState('');
-  const [googleFullName, setGoogleFullName] = useState('');
+  // (Google OAuth removed for vendors)
+
 
   // Login state
   const [loginEmail, setLoginEmail] = useState('');
@@ -66,64 +63,14 @@ export default function VendorAuth() {
   const [linkStoreType, setLinkStoreType] = useState<StoreType>('physical');
   const [linkSocialHandles, setLinkSocialHandles] = useState<SocialMediaHandles>({});
 
-  // Google business info state (reused for google signup completion)
-  const [gBusinessName, setGBusinessName] = useState('');
-  const [gBusinessCategory, setGBusinessCategory] = useState<'restaurant' | 'pharmacy' | 'market'>('restaurant');
-  const [gAddress, setGAddress] = useState('');
-  const [gCity, setGCity] = useState('');
-  const [gState, setGState] = useState('Lagos');
-  const [gPhone, setGPhone] = useState('');
-  const [gStoreType, setGStoreType] = useState<StoreType>('physical');
-  const [gSocialHandles, setGSocialHandles] = useState<SocialMediaHandles>({});
-  const [gTermsAccepted, setGTermsAccepted] = useState(false);
+  // (Google completion-state removed)
+
 
   // Google sign-in temporarily disabled for vendors
 
 
-  const handleGoogleCompleteProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!gTermsAccepted) {
-      toast({ title: 'Agreement required', description: 'You must agree to the Terms & Conditions before continuing.', variant: 'destructive' });
-      return;
-    }
-    if (!gBusinessName.trim()) {
-      toast({ title: 'Business name required', variant: 'destructive' });
-      return;
-    }
+  // handleGoogleCompleteProfile removed (Google sign-in disabled)
 
-    setLoading(true);
-    try {
-      // Add vendor role
-      const { error: roleError } = await supabase.rpc('add_vendor_role');
-      if (roleError) throw roleError;
-
-      // Create vendor profile
-      const { error: vendorError } = await supabase
-        .from('vendors')
-        .insert({
-          user_id: googleUserId,
-          name: gBusinessName,
-          category: gBusinessCategory,
-          address: gAddress,
-          city: gCity,
-          state: gState,
-          phone: gPhone || null,
-          email: googleEmail,
-          is_active: false,
-          store_type: gStoreType,
-          social_media_handles: gSocialHandles,
-        } as any);
-
-      if (vendorError) throw vendorError;
-
-      toast({ title: 'Vendor account created!', description: 'Your business profile has been set up. Redirecting...' });
-      navigate('/vendor/dashboard');
-    } catch (error: any) {
-      toast({ title: 'Registration failed', description: error.message, variant: 'destructive' });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
