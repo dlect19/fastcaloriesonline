@@ -15,6 +15,7 @@ import { FundWalletDialog } from '@/components/profile/FundWalletDialog';
 import { ReferralCard } from '@/components/profile/ReferralCard';
 import { VirtualAccountCard } from '@/components/profile/VirtualAccountCard';
 import { CreateDVADialog } from '@/components/profile/CreateDVADialog';
+import { PosWalletCodeCard } from '@/components/profile/PosWalletCodeCard';
 import { DeleteAccountDialog } from '@/components/shared/DeleteAccountDialog';
 import { Leaf, ArrowLeft, Receipt, ChevronRight, Wallet, Plus, Building2, User, MessageCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -239,6 +240,8 @@ export default function Profile() {
             </div>
           </CardContent>
         </Card>
+        {/* In-Store Wallet Code */}
+        <PosWalletCodeCard />
 
         {/* Referral Card */}
         <ReferralCard />

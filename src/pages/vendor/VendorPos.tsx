@@ -488,6 +488,7 @@ export default function VendorPos() {
     customerUserId?: string;
     customerName?: string;
     customerPhone?: string;
+    walletAuthCode?: string;
   }) => {
     if (!session || !vendor || !vendorId) return;
 
@@ -597,8 +598,12 @@ export default function VendorPos() {
       if (reason) console.warn('[POS] queued offline:', reason);
     };
 
-    // If offline, queue immediately
+    // If offline, queue immediately — but wallet method requires online code verification
     if (!navigator.onLine) {
+      if (data.paymentMethod === 'wallet') {
+        toast({ title: 'Wallet payments need internet', description: 'Reconnect to verify the customer code.', variant: 'destructive' });
+        return;
+      }
       queueOffline('navigator offline');
       return;
     }
@@ -616,24 +621,27 @@ export default function VendorPos() {
       const { error: itemsErr } = await supabase.from('order_items').insert(itemRows as any);
       if (itemsErr) throw itemsErr;
 
-      if (data.paymentMethod === 'wallet' && data.customerUserId) {
-        const { data: wallet } = await supabase
-          .from('wallets')
-          .select('id')
-          .eq('user_id', data.customerUserId)
-          .maybeSingle();
-        if (wallet?.id) {
-          await supabase.from('wallet_transactions').insert({
-            wallet_id: wallet.id,
-            wallet_type: 'customer',
-            amount: -subtotal,
-            transaction_type: 'debit',
-            category: 'pos_purchase',
-            reference: orderRow.id,
-            order_id: orderRow.id,
-            notes: `POS purchase at ${vendor.name}`,
-            status: 'completed',
-          } as any);
+      if (data.paymentMethod === 'wallet' && data.customerUserId && data.walletAuthCode) {
+        const { data: payRes, error: payErr } = await supabase.functions.invoke('process-pos-wallet-payment', {
+          body: {
+            customerUserId: data.customerUserId,
+            code: data.walletAuthCode,
+            amount: subtotal,
+            vendorId,
+            outletId,
+            orderId: orderRow.id,
+            vendorName: vendor.name,
+          },
+        });
+        if (payErr || (payRes as any)?.error) {
+          // Roll back the order so vendor isn't charged
+          await supabase.from('orders').update({ payment_status: 'unpaid', status: 'cancelled' }).eq('id', orderRow.id);
+          toast({
+            title: 'Wallet payment failed',
+            description: (payRes as any)?.error || payErr?.message || 'Authorization failed',
+            variant: 'destructive',
+          });
+          return;
         }
       }
 

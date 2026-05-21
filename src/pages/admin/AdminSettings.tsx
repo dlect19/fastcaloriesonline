@@ -204,6 +204,7 @@ export default function AdminSettings() {
       const serviceFeeKeys = [
         'service_fee_type', 'service_fee_fixed', 'service_fee_percentage',
         'service_fee_min', 'service_fee_max',
+        'pos_wallet_fee_percentage',
       ];
 
       // Save package settings
@@ -496,6 +497,45 @@ export default function AdminSettings() {
               onSave={handleSave}
               saving={saving}
             />
+
+            {/* POS In-Store Wallet Fee */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Store className="w-5 h-5 text-primary" />
+                  POS In-Store Wallet Fee
+                </CardTitle>
+                <CardDescription>
+                  Platform service fee charged when customers pay via wallet at a vendor's physical POS (deducted from vendor credit).
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2 max-w-xs">
+                  <Label htmlFor="pos_wallet_fee_percentage">Fee Percentage</Label>
+                  <div className="relative">
+                    <Input
+                      id="pos_wallet_fee_percentage"
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={settings['pos_wallet_fee_percentage'] ?? ''}
+                      onChange={(e) => handleSettingChange('pos_wallet_fee_percentage', e.target.value)}
+                      className="pr-10"
+                      placeholder="1.5"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Example: ₦10,000 sale × {settings['pos_wallet_fee_percentage'] || '1.5'}% = ₦{Math.round((10000 * Number(settings['pos_wallet_fee_percentage'] || 1.5)) / 100).toLocaleString()} platform fee. Vendor receives ₦{(10000 - Math.round((10000 * Number(settings['pos_wallet_fee_percentage'] || 1.5)) / 100)).toLocaleString()}.
+                  </p>
+                </div>
+                <div className="flex justify-end">
+                  <Button onClick={handleSave} disabled={saving}>
+                    {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</> : <><Save className="w-4 h-4 mr-2" /> Save Settings</>}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
 
             {/* Social Media Platform Logos */}
             <SocialLogoSettings />

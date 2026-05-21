@@ -21,6 +21,7 @@ interface Props {
     customerUserId?: string;
     customerName?: string;
     customerPhone?: string;
+    walletAuthCode?: string;
   }) => Promise<void>;
 }
 
@@ -33,10 +34,13 @@ export function PosPaymentDialog({ open, onOpenChange, total, onConfirm }: Props
   const [submitting, setSubmitting] = useState(false);
   const [searching, setSearching] = useState(false);
 
+  const [authCode, setAuthCode] = useState('');
+
   const paid = parseFloat(amountPaid) || 0;
   const change = method === 'cash' ? Math.max(0, paid - total) : 0;
   const insufficient = method === 'cash' && paid < total;
   const walletInsufficient = method === 'wallet' && (foundCustomer?.wallet_balance ?? 0) < total;
+  const codeMissing = method === 'wallet' && authCode.trim().length !== 6;
 
   const handleSearchCustomer = async () => {
     if (!phoneSearch.trim()) return;
@@ -93,20 +97,29 @@ export function PosPaymentDialog({ open, onOpenChange, total, onConfirm }: Props
       toast({ title: 'Customer wallet has insufficient balance', variant: 'destructive' });
       return;
     }
+    if (method === 'wallet' && codeMissing) {
+      toast({ title: 'Authorization code required', description: 'Ask the customer to generate a 6-digit code from their app.', variant: 'destructive' });
+      return;
+    }
     setSubmitting(true);
-    await onConfirm({
-      paymentMethod: method,
-      amountPaid: method === 'cash' ? paid : total,
-      change,
-      customerUserId: foundCustomer?.id,
-      customerName: foundCustomer?.full_name || walkInName || undefined,
-      customerPhone: foundCustomer?.phone || undefined,
-    });
-    setSubmitting(false);
-    setAmountPaid(total.toString());
-    setFoundCustomer(null);
-    setPhoneSearch('');
-    setWalkInName('');
+    try {
+      await onConfirm({
+        paymentMethod: method,
+        amountPaid: method === 'cash' ? paid : total,
+        change,
+        customerUserId: foundCustomer?.id,
+        customerName: foundCustomer?.full_name || walkInName || undefined,
+        customerPhone: foundCustomer?.phone || undefined,
+        walletAuthCode: method === 'wallet' ? authCode.trim() : undefined,
+      });
+      setAmountPaid(total.toString());
+      setFoundCustomer(null);
+      setPhoneSearch('');
+      setWalkInName('');
+      setAuthCode('');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const methods: { id: PaymentMethod; label: string; icon: typeof Banknote }[] = [
@@ -196,14 +209,32 @@ export function PosPaymentDialog({ open, onOpenChange, total, onConfirm }: Props
                 </Button>
               </div>
               {foundCustomer && (
-                <div className="rounded-lg border p-3 space-y-1">
-                  <p className="font-semibold">{foundCustomer.full_name || 'Customer'}</p>
-                  <p className="text-xs text-muted-foreground">{foundCustomer.phone}</p>
-                  <p className={cn('text-sm font-medium mt-2', walletInsufficient ? 'text-destructive' : 'text-calorie-low')}>
-                    Wallet balance: ₦{foundCustomer.wallet_balance.toLocaleString()}
-                    {walletInsufficient && ' — insufficient'}
-                  </p>
-                </div>
+                <>
+                  <div className="rounded-lg border p-3 space-y-1">
+                    <p className="font-semibold">{foundCustomer.full_name || 'Customer'}</p>
+                    <p className="text-xs text-muted-foreground">{foundCustomer.phone}</p>
+                    <p className={cn('text-sm font-medium mt-2', walletInsufficient ? 'text-destructive' : 'text-calorie-low')}>
+                      Wallet balance: ₦{foundCustomer.wallet_balance.toLocaleString()}
+                      {walletInsufficient && ' — insufficient'}
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Authorization code (from customer app)</Label>
+                    <Input
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={6}
+                      value={authCode}
+                      onChange={e => setAuthCode(e.target.value.replace(/\D/g, ''))}
+                      placeholder="6-digit code"
+                      className="h-12 text-center text-2xl tracking-[0.3em] font-semibold tabular-nums"
+                      autoFocus
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Customer generates this in Profile → In-Store Wallet Code (valid 5 minutes).
+                    </p>
+                  </div>
+                </>
               )}
             </div>
           )}
@@ -221,7 +252,7 @@ export function PosPaymentDialog({ open, onOpenChange, total, onConfirm }: Props
             </div>
           )}
 
-          <Button onClick={handleSubmit} disabled={submitting || insufficient || (method === 'wallet' && (!foundCustomer || walletInsufficient))} className="w-full h-14 text-base">
+          <Button onClick={handleSubmit} disabled={submitting || insufficient || (method === 'wallet' && (!foundCustomer || walletInsufficient || codeMissing))} className="w-full h-14 text-base">
             {submitting ? 'Processing...' : `Confirm Payment ₦${total.toLocaleString()}`}
           </Button>
         </div>
