@@ -4199,6 +4199,39 @@ export type Database = {
           },
         ]
       }
+      pos_wallet_auth_codes: {
+        Row: {
+          code: string
+          created_at: string
+          expires_at: string
+          id: string
+          used_at: string | null
+          used_by_vendor_id: string | null
+          used_for_order_id: string | null
+          user_id: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          used_at?: string | null
+          used_by_vendor_id?: string | null
+          used_for_order_id?: string | null
+          user_id: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          used_at?: string | null
+          used_by_vendor_id?: string | null
+          used_for_order_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       prescription_orders: {
         Row: {
           afternoon_dose: number | null
