@@ -21,6 +21,7 @@ interface Props {
     customerUserId?: string;
     customerName?: string;
     customerPhone?: string;
+    walletAuthCode?: string;
   }) => Promise<void>;
 }
 
@@ -33,10 +34,13 @@ export function PosPaymentDialog({ open, onOpenChange, total, onConfirm }: Props
   const [submitting, setSubmitting] = useState(false);
   const [searching, setSearching] = useState(false);
 
+  const [authCode, setAuthCode] = useState('');
+
   const paid = parseFloat(amountPaid) || 0;
   const change = method === 'cash' ? Math.max(0, paid - total) : 0;
   const insufficient = method === 'cash' && paid < total;
   const walletInsufficient = method === 'wallet' && (foundCustomer?.wallet_balance ?? 0) < total;
+  const codeMissing = method === 'wallet' && authCode.trim().length !== 6;
 
   const handleSearchCustomer = async () => {
     if (!phoneSearch.trim()) return;
