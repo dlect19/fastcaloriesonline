@@ -97,20 +97,29 @@ export function PosPaymentDialog({ open, onOpenChange, total, onConfirm }: Props
       toast({ title: 'Customer wallet has insufficient balance', variant: 'destructive' });
       return;
     }
+    if (method === 'wallet' && codeMissing) {
+      toast({ title: 'Authorization code required', description: 'Ask the customer to generate a 6-digit code from their app.', variant: 'destructive' });
+      return;
+    }
     setSubmitting(true);
-    await onConfirm({
-      paymentMethod: method,
-      amountPaid: method === 'cash' ? paid : total,
-      change,
-      customerUserId: foundCustomer?.id,
-      customerName: foundCustomer?.full_name || walkInName || undefined,
-      customerPhone: foundCustomer?.phone || undefined,
-    });
-    setSubmitting(false);
-    setAmountPaid(total.toString());
-    setFoundCustomer(null);
-    setPhoneSearch('');
-    setWalkInName('');
+    try {
+      await onConfirm({
+        paymentMethod: method,
+        amountPaid: method === 'cash' ? paid : total,
+        change,
+        customerUserId: foundCustomer?.id,
+        customerName: foundCustomer?.full_name || walkInName || undefined,
+        customerPhone: foundCustomer?.phone || undefined,
+        walletAuthCode: method === 'wallet' ? authCode.trim() : undefined,
+      });
+      setAmountPaid(total.toString());
+      setFoundCustomer(null);
+      setPhoneSearch('');
+      setWalkInName('');
+      setAuthCode('');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const methods: { id: PaymentMethod; label: string; icon: typeof Banknote }[] = [
