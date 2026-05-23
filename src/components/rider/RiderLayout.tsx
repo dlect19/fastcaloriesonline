@@ -155,7 +155,7 @@ export function RiderLayout({ children, isOnline, onToggleOnline, canViewEarning
         <main className="flex-1 p-4 pb-36">
           {children}
         </main>
-        <RiderBottomNav isOnline={isOnline} onToggleOnline={onToggleOnline} canViewEarnings={canViewEarnings} />
+        <RiderBottomNav isOnline={isOnline} onToggleOnline={handleToggleOnline} canViewEarnings={canViewEarnings} />
       </div>
     );
   }
