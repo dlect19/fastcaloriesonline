@@ -162,7 +162,7 @@ export function RiderLayout({ children, isOnline, onToggleOnline, canViewEarning
 
   return (
     <div className="h-screen bg-background flex overflow-hidden">
-      <RiderSidebar isOnline={isOnline} onToggleOnline={onToggleOnline} canViewEarnings={canViewEarnings} />
+      <RiderSidebar isOnline={isOnline} onToggleOnline={handleToggleOnline} canViewEarnings={canViewEarnings} />
       <main className="flex-1 p-8 overflow-y-auto">
         {children}
       </main>
