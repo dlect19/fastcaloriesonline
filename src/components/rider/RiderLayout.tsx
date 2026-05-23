@@ -7,6 +7,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { playGlobalNotificationSound } from '@/lib/globalAudio';
 import { useRiderNativeService } from '@/hooks/useRiderNativeService';
 import { useRiderLocation } from '@/hooks/useRiderLocation';
+import { useEnsureLocationPermissions } from '@/hooks/useEnsureLocationPermissions';
+
 
 interface RiderLayoutProps {
   children: ReactNode;
