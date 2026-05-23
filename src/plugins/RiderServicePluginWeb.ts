@@ -19,6 +19,29 @@ export class RiderServicePluginWeb
 {
   private _running = false;
 
+  async requestLocationWithDisclosure(): Promise<{ status: 'granted' | 'denied' }> {
+    // On web, fall back to the standard Geolocation permission prompt.
+    if (!('geolocation' in navigator)) return { status: 'denied' };
+    return new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        () => resolve({ status: 'granted' }),
+        () => resolve({ status: 'denied' }),
+        { timeout: 10000 },
+      );
+    });
+  }
+
+  async startService(): Promise<void> {
+    this._running = true;
+    console.log('[RiderServicePlugin:Web] startService (simulated)');
+  }
+
+  async stopService(): Promise<void> {
+    this._running = false;
+    console.log('[RiderServicePlugin:Web] stopService (simulated)');
+  }
+
+
   async startForegroundService(options: ForegroundServiceOptions): Promise<void> {
     this._running = true;
     console.log('[RiderServicePlugin:Web] Foreground service started (simulated):', options.title);
