@@ -53,6 +53,23 @@ export interface FloatingOverlayOptions {
 
 export interface RiderServicePluginInterface {
   /**
+   * Show the Google Play-compliant Prominent Disclosure dialog for background
+   * location, then request the OS permission. Returns 'granted' or 'denied'.
+   */
+  requestLocationWithDisclosure(): Promise<{ status: 'granted' | 'denied' }>;
+
+  /**
+   * Start the rider tracking foreground service. Call after location
+   * permission has been granted.
+   */
+  startService(): Promise<void>;
+
+  /**
+   * Stop the rider tracking foreground service.
+   */
+  stopService(): Promise<void>;
+
+  /**
    * Start the foreground service with a persistent notification.
    * Called when rider goes ONLINE.
    */
@@ -68,6 +85,7 @@ export interface RiderServicePluginInterface {
    * Check if the foreground service is currently running.
    */
   isForegroundServiceRunning(): Promise<{ running: boolean }>;
+
 
   /**
    * Show a heads-up notification for a new dispatch offer.
