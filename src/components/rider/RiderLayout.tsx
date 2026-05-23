@@ -151,7 +151,7 @@ export function RiderLayout({ children, isOnline, onToggleOnline, canViewEarning
   if (isMobile) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
-        <RiderMobileHeader isOnline={isOnline} onToggleOnline={onToggleOnline} />
+        <RiderMobileHeader isOnline={isOnline} onToggleOnline={handleToggleOnline} />
         <main className="flex-1 p-4 pb-36">
           {children}
         </main>
