@@ -7,6 +7,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { playGlobalNotificationSound } from '@/lib/globalAudio';
 import { useRiderNativeService } from '@/hooks/useRiderNativeService';
 import { useRiderLocation } from '@/hooks/useRiderLocation';
+import { useEnsureLocationPermissions } from '@/hooks/useEnsureLocationPermissions';
+
 
 interface RiderLayoutProps {
   children: ReactNode;
@@ -20,6 +22,7 @@ export function RiderLayout({ children, isOnline, onToggleOnline, canViewEarning
   const [riderId, setRiderId] = useState<string | null>(null);
   const [pendingOfferCount, setPendingOfferCount] = useState(0);
   const repeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const { ensureLocationPermissions, stopLocationService } = useEnsureLocationPermissions();
 
   // Fetch rider user id on mount for auto location tracking
   useEffect(() => {
@@ -31,9 +34,25 @@ export function RiderLayout({ children, isOnline, onToggleOnline, canViewEarning
   // Auto-track rider GPS location and update DB every 30s when online
   useRiderLocation({ riderId: riderId || undefined, enabled: isOnline && !!riderId });
 
+  // Gate the "go online" action behind the Prominent Disclosure + permission flow.
+  const handleToggleOnline = useCallback(
+    async (next: boolean) => {
+      if (next) {
+        const ok = await ensureLocationPermissions();
+        if (!ok) return; // stay offline if location was denied
+        onToggleOnline(true);
+      } else {
+        await stopLocationService();
+        onToggleOnline(false);
+      }
+    },
+    [ensureLocationPermissions, stopLocationService, onToggleOnline],
+  );
+
   const handleToggleOffline = useCallback(() => {
-    onToggleOnline(false);
-  }, [onToggleOnline]);
+    handleToggleOnline(false);
+  }, [handleToggleOnline]);
+
 
   // Native Capacitor integration - foreground service & notification actions
   const { showOfferNotification } = useRiderNativeService({
@@ -132,18 +151,18 @@ export function RiderLayout({ children, isOnline, onToggleOnline, canViewEarning
   if (isMobile) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
-        <RiderMobileHeader isOnline={isOnline} onToggleOnline={onToggleOnline} />
+        <RiderMobileHeader isOnline={isOnline} onToggleOnline={handleToggleOnline} />
         <main className="flex-1 p-4 pb-36">
           {children}
         </main>
-        <RiderBottomNav isOnline={isOnline} onToggleOnline={onToggleOnline} canViewEarnings={canViewEarnings} />
+        <RiderBottomNav isOnline={isOnline} onToggleOnline={handleToggleOnline} canViewEarnings={canViewEarnings} />
       </div>
     );
   }
 
   return (
     <div className="h-screen bg-background flex overflow-hidden">
-      <RiderSidebar isOnline={isOnline} onToggleOnline={onToggleOnline} canViewEarnings={canViewEarnings} />
+      <RiderSidebar isOnline={isOnline} onToggleOnline={handleToggleOnline} canViewEarnings={canViewEarnings} />
       <main className="flex-1 p-8 overflow-y-auto">
         {children}
       </main>
