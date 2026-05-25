@@ -53,33 +53,23 @@ export function PosPaymentDialog({ open, onOpenChange, total, onConfirm }: Props
     const intlNoPlus = '234' + local.replace(/^0/, '');
     const variants = Array.from(new Set([raw, local, intl, intlNoPlus, digits]));
 
-    const { data: profiles, error } = await supabase
-      .from('profiles')
-      .select('user_id, full_name, phone')
-      .in('phone', variants)
-      .limit(5);
+    const { data: rows, error } = await supabase.rpc('lookup_pos_wallet_customer', {
+      _phone_variants: variants,
+    });
 
-    if (error || !profiles || profiles.length === 0) {
-      toast({ title: 'Customer not found', description: 'No registered customer with that phone.', variant: 'destructive' });
+    if (error || !rows || rows.length === 0) {
+      toast({ title: 'Customer not found', description: error?.message || 'No registered customer with that phone.', variant: 'destructive' });
       setFoundCustomer(null);
       setSearching(false);
       return;
     }
 
-    // Pick the most recently active profile (first match)
-    const profile = profiles[0];
-
-    const { data: wallet } = await supabase
-      .from('wallets')
-      .select('balance')
-      .eq('user_id', profile.user_id)
-      .maybeSingle();
-
+    const profile: any = rows[0];
     setFoundCustomer({
       id: profile.user_id,
       full_name: profile.full_name,
       phone: profile.phone,
-      wallet_balance: Number(wallet?.balance ?? 0),
+      wallet_balance: Number(profile.wallet_balance ?? 0),
     });
     setSearching(false);
   };
