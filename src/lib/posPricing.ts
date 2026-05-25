@@ -43,22 +43,21 @@ export function computePosPrice(
 
   const mode: PosPricingMode = (config?.pos_pricing_mode as PosPricingMode) || 'same';
 
+  // Per-outlet override always wins when set
+  if (product.outlet_in_store_price != null && Number(product.outlet_in_store_price) > 0) {
+    return Number(product.outlet_in_store_price);
+  }
+
   if (mode === 'global_discount') {
     const pct = Math.max(0, Math.min(100, Number(config?.pos_global_discount_pct ?? 0)));
     const discounted = onlinePrice * (1 - pct / 100);
     return Math.max(0, Math.round(discounted * 100) / 100);
   }
 
-  if (mode === 'per_item') {
-    if (product.outlet_in_store_price != null && Number(product.outlet_in_store_price) > 0) {
-      return Number(product.outlet_in_store_price);
-    }
-    if (product.in_store_price != null && Number(product.in_store_price) > 0) {
-      return Number(product.in_store_price);
-    }
-    return onlinePrice;
+  // For 'same' and 'per_item': if vendor set an item-level in-store price, honor it.
+  if (product.in_store_price != null && Number(product.in_store_price) > 0) {
+    return Number(product.in_store_price);
   }
-
   return onlinePrice;
 }
 
