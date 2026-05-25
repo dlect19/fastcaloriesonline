@@ -7302,6 +7302,15 @@ export type Database = {
         Args: { _user_id: string; _vendor_id: string }
         Returns: boolean
       }
+      lookup_pos_wallet_customer: {
+        Args: { _phone_variants: string[] }
+        Returns: {
+          full_name: string
+          phone: string
+          user_id: string
+          wallet_balance: number
+        }[]
+      }
       owns_delivery_company: {
         Args: { _company_id: string; _user_id: string }
         Returns: boolean
