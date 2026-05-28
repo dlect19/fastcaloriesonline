@@ -7112,6 +7112,19 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_get_entity_wallets: {
+        Args: { _user_id: string; _wallet_type: string }
+        Returns: {
+          balance: number
+          eligible_balance: number
+          id: string
+          is_disabled: boolean
+          outlet_id: string
+          outlet_name: string
+          test_balance: number
+          test_eligible_balance: number
+        }[]
+      }
       admin_get_user_emails: {
         Args: { p_user_ids: string[] }
         Returns: {

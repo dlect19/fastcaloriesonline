@@ -46,11 +46,11 @@ export function AdminEntityWalletDialog({
       setLoading(true);
       setNotFound(false);
       try {
-        const { data, error } = await supabase
-          .from('wallets')
-          .select('id, balance, test_balance, eligible_balance, test_eligible_balance, outlet_id')
-          .eq('user_id', userId)
-          .eq('wallet_type', walletType);
+        // Use SECURITY DEFINER RPC so multi-outlet vendors return all wallets reliably
+        const { data, error } = await supabase.rpc('admin_get_entity_wallets', {
+          _user_id: userId,
+          _wallet_type: walletType,
+        });
 
         if (error) throw error;
         if (!data || data.length === 0) {
@@ -60,23 +60,16 @@ export function AdminEntityWalletDialog({
           return;
         }
 
-        // Enrich vendor wallets with outlet names
-        let enriched: WalletRow[] = data as WalletRow[];
-        if (walletType === 'vendor') {
-          const outletIds = data.map(w => w.outlet_id).filter(Boolean) as string[];
-          if (outletIds.length > 0) {
-            const { data: outlets } = await supabase
-              .from('vendor_outlets')
-              .select('id, outlet_name')
-              .in('id', outletIds);
-            enriched = data.map(w => ({
-              ...w,
-              outlet_name: outlets?.find(o => o.id === w.outlet_id)?.outlet_name,
-            })) as WalletRow[];
-          }
-        }
+        const enriched: WalletRow[] = (data as any[]).map(w => ({
+          id: w.id,
+          balance: Number(w.balance) || 0,
+          test_balance: Number(w.test_balance) || 0,
+          eligible_balance: Number(w.eligible_balance) || 0,
+          test_eligible_balance: Number(w.test_eligible_balance) || 0,
+          outlet_id: w.outlet_id,
+          outlet_name: w.outlet_name,
+        }));
 
-        // Prefer wallet with the highest balance as default (most likely the active one)
         const sorted = [...enriched].sort((a, b) => Number(b.balance || 0) - Number(a.balance || 0));
         setWallets(sorted);
         setSelectedWalletId(sorted[0].id);
@@ -89,6 +82,7 @@ export function AdminEntityWalletDialog({
     };
     fetchWallets();
   }, [open, userId, walletType]);
+
 
   const wallet = wallets.find(w => w.id === selectedWalletId) || null;
   const live = wallet ? Number(wallet.balance || 0) : 0;
