@@ -58,6 +58,12 @@ export default function AdminSettings() {
     { key: 'settlement_hours_market', label: '🛒 Market', unit: 'hrs', icon: Clock, description: 'Settlement hold for market vendors', defaultVal: '24' },
   ];
 
+  const vendorSettlementTimingOptions = [
+    { value: 'instant', label: 'Instant', description: 'Vendor menu sales become available immediately.' },
+    { value: 'next_day', label: 'Next Day', description: 'All orders from a day release together the next day.' },
+    { value: 'third_day', label: 'Third Day', description: 'All orders from a day release together on the third day.' },
+  ];
+
   const navigationApps = [
     { value: 'google_maps', label: 'Google Maps' },
     { value: 'waze', label: 'Waze' },
@@ -144,6 +150,15 @@ export default function AdminSettings() {
           key: 'payout_approval_mode',
           value: settings['payout_approval_mode'],
           description: 'Payout approval mode: auto or manual',
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'key' });
+      }
+
+      if (settings['vendor_settlement_timing']) {
+        await supabase.from('platform_settings').upsert({
+          key: 'vendor_settlement_timing',
+          value: settings['vendor_settlement_timing'],
+          description: 'Global vendor settlement timing: instant, next day, or third day',
           updated_at: new Date().toISOString()
         }, { onConflict: 'key' });
       }
