@@ -702,6 +702,85 @@ export default function AdminPayouts() {
               </p>
             </div>
             <div className="flex items-center gap-2">
+              <Dialog open={manualDialogOpen} onOpenChange={setManualDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Banknote className="w-4 h-4 mr-2" />
+                    Manual Vendor Payout
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Manual Vendor Payout</DialogTitle>
+                    <DialogDescription>
+                      Send all available funds or a set amount to a vendor bank account.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Vendor / Outlet</Label>
+                      <Select value={manualWalletId} onValueChange={setManualWalletId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select vendor wallet" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {manualWallets.map(wallet => (
+                            <SelectItem key={wallet.wallet_id} value={wallet.wallet_id}>
+                              {wallet.vendor_name} — {wallet.outlet_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Fund Source</Label>
+                      <Select value={manualSource} onValueChange={(value) => setManualSource(value as 'menu_earnings' | 'rider_revenue')}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="menu_earnings">Menu Sales Revenue</SelectItem>
+                          <SelectItem value="rider_revenue">Rider Delivery Revenue</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Available: ₦{selectedManualBalance.toLocaleString()}
+                      </p>
+                    </div>
+
+                    {selectedManualWallet && (
+                      <div className="rounded-lg bg-muted p-3 text-sm">
+                        <p className="text-muted-foreground">Paying to</p>
+                        <p className="font-medium">{selectedManualWallet.bank_account_name || 'No account name'}</p>
+                        <p>{selectedManualWallet.bank_name || 'No bank'} · {selectedManualWallet.bank_account_number || 'No account number'}</p>
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      <Label>Amount (₦)</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          type="number"
+                          min="1"
+                          max={selectedManualBalance}
+                          value={manualAmount}
+                          onChange={(event) => setManualAmount(event.target.value)}
+                          placeholder="Enter amount"
+                        />
+                        <Button type="button" variant="outline" onClick={() => setManualAmount(String(selectedManualBalance))} disabled={!selectedManualWallet}>
+                          All
+                        </Button>
+                      </div>
+                    </div>
+
+                    <Button className="w-full" onClick={handleManualVendorPayout} disabled={manualProcessing || !selectedManualWallet}>
+                      {manualProcessing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                      Send Payout
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
               <Badge 
                 variant="outline" 
                 className={isTestMode 
