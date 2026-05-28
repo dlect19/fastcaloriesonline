@@ -5,6 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -47,6 +50,17 @@ interface PayoutRequest {
   entity_email?: string;
 }
 
+interface ManualVendorWallet {
+  wallet_id: string;
+  vendor_name: string;
+  outlet_name: string;
+  bank_name: string | null;
+  bank_account_number: string | null;
+  bank_account_name: string | null;
+  menu_balance: number;
+  rider_balance: number;
+}
+
 const isRetryableFailure = (reason: string | null): boolean => {
   if (!reason) return false;
   const lowerReason = reason.toLowerCase();
@@ -75,6 +89,12 @@ export default function AdminPayouts() {
   const [searchQuery, setSearchQuery] = useState('');
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [verifying, setVerifying] = useState<string | null>(null);
+  const [manualDialogOpen, setManualDialogOpen] = useState(false);
+  const [manualWallets, setManualWallets] = useState<ManualVendorWallet[]>([]);
+  const [manualWalletId, setManualWalletId] = useState('');
+  const [manualSource, setManualSource] = useState<'menu_earnings' | 'rider_revenue'>('menu_earnings');
+  const [manualAmount, setManualAmount] = useState('');
+  const [manualProcessing, setManualProcessing] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !role) {
@@ -83,6 +103,7 @@ export default function AdminPayouts() {
     }
     if (role && !envLoading) {
       fetchPayouts();
+      fetchManualVendorWallets();
     }
   }, [role, authLoading, envLoading, effectiveEnvironment, navigate]);
 
