@@ -230,6 +230,89 @@ export default function AdminPayouts() {
     }
   };
 
+  const fetchManualVendorWallets = async () => {
+    const { data: walletsData, error } = await supabase
+      .from('wallets')
+      .select('id, user_id, outlet_id, bank_name, bank_account_number, bank_account_name, menu_earnings_balance, rider_revenue_balance, test_menu_earnings_balance, test_rider_revenue_balance')
+      .eq('wallet_type', 'vendor')
+      .order('updated_at', { ascending: false });
+
+    if (error) {
+      console.error('Error loading vendor wallets:', error);
+      return;
+    }
+
+    const userIds = [...new Set((walletsData || []).map(wallet => wallet.user_id))];
+    const outletIds = [...new Set((walletsData || []).map(wallet => wallet.outlet_id).filter(Boolean))] as string[];
+    const [vendorsRes, outletsRes] = await Promise.all([
+      userIds.length ? supabase.from('vendors').select('user_id, name').in('user_id', userIds) : Promise.resolve({ data: [] as any[] }),
+      outletIds.length ? supabase.from('vendor_outlets').select('id, name').in('id', outletIds) : Promise.resolve({ data: [] as any[] }),
+    ]);
+
+    const vendorMap = new Map((vendorsRes.data || []).map(vendor => [vendor.user_id, vendor.name]));
+    const outletMap = new Map((outletsRes.data || []).map(outlet => [outlet.id, outlet.name]));
+
+    setManualWallets((walletsData || []).map(wallet => ({
+      wallet_id: wallet.id,
+      vendor_name: vendorMap.get(wallet.user_id) || 'Unknown Vendor',
+      outlet_name: wallet.outlet_id ? (outletMap.get(wallet.outlet_id) || 'Outlet') : 'Main Wallet',
+      bank_name: wallet.bank_name,
+      bank_account_number: wallet.bank_account_number,
+      bank_account_name: wallet.bank_account_name,
+      menu_balance: Number(isTestMode ? wallet.test_menu_earnings_balance : wallet.menu_earnings_balance) || 0,
+      rider_balance: Number(isTestMode ? wallet.test_rider_revenue_balance : wallet.rider_revenue_balance) || 0,
+    })));
+  };
+
+  const selectedManualWallet = manualWallets.find(wallet => wallet.wallet_id === manualWalletId);
+  const selectedManualBalance = selectedManualWallet
+    ? (manualSource === 'rider_revenue' ? selectedManualWallet.rider_balance : selectedManualWallet.menu_balance)
+    : 0;
+
+  const handleManualVendorPayout = async () => {
+    if (!selectedManualWallet) {
+      toast({ title: 'Select a vendor wallet', variant: 'destructive' });
+      return;
+    }
+
+    const amount = Number(manualAmount);
+    if (!amount || amount <= 0 || amount > selectedManualBalance) {
+      toast({ title: `Enter an amount up to ₦${selectedManualBalance.toLocaleString()}`, variant: 'destructive' });
+      return;
+    }
+
+    if (!selectedManualWallet.bank_name || !selectedManualWallet.bank_account_number) {
+      toast({ title: 'Vendor has no bank details', variant: 'destructive' });
+      return;
+    }
+
+    setManualProcessing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('process-payout', {
+        body: {
+          wallet_id: selectedManualWallet.wallet_id,
+          amount,
+          withdrawal_source: manualSource,
+        },
+      });
+
+      if (error) throw new Error(error.message);
+      if (!data?.success) throw new Error(data?.error || 'Failed to process vendor payout');
+
+      toast({ title: '✅ Vendor payout started', description: data?.data?.message });
+      setManualDialogOpen(false);
+      setManualAmount('');
+      setManualWalletId('');
+      fetchPayouts(true);
+      fetchManualVendorWallets();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      toast({ title: 'Manual payout failed', description: message, variant: 'destructive' });
+    } finally {
+      setManualProcessing(false);
+    }
+  };
+
   const handleApprove = async () => {
     if (!selectedPayout) return;
     
