@@ -1672,16 +1672,19 @@ export default function VendorMenu() {
                         )}
                       </div>
                       {/* Cuisine category badge */}
-                      {(product as any).cuisine_category_id && (() => {
-                        const cat = cuisineCategories.find(c => c.id === (product as any).cuisine_category_id);
-                        const parent = cat?.parent_id ? cuisineCategories.find(c => c.id === cat.parent_id) : null;
-                        return cat ? (
+                      {(() => {
+                        const embedded = (product as any).cuisine_category;
+                        const cat = embedded || cuisineCategories.find(c => c.id === (product as any).cuisine_category_id);
+                        if (!cat) return null;
+                        const parent = cat.parent_id ? cuisineCategories.find(c => c.id === cat.parent_id) : null;
+                        return (
                           <Badge variant="outline" className="text-xs gap-1 mt-0.5">
                             <ChefHat className="w-3 h-3" />
                             {parent ? `${parent.icon} ` : ''}{cat.icon} {cat.name}
                           </Badge>
-                        ) : null;
+                        );
                       })()}
+
                       <p className="text-sm text-muted-foreground line-clamp-1">
                         {product.description || 'No description'}
                       </p>
