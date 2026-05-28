@@ -577,10 +577,32 @@ export default function AdminSettings() {
                   Vendor Settlement Periods
                 </CardTitle>
                 <CardDescription>
-                  Set how long to hold vendor earnings before release, based on vendor category. Use 0 for immediate settlement.
+                  Set when vendor menu sales become withdrawable for all vendors.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <Label>Global Settlement Timing</Label>
+                  <Select
+                    value={settings['vendor_settlement_timing'] || 'instant'}
+                    onValueChange={(value) => handleSettingChange('vendor_settlement_timing', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose settlement timing" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {vendorSettlementTimingOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {vendorSettlementTimingOptions.find(option => option.value === (settings['vendor_settlement_timing'] || 'instant'))?.description}
+                  </p>
+                </div>
+
                 <div className="grid gap-4 sm:grid-cols-3">
                   {settlementSettingsConfig.map((config) => (
                     <div key={config.key} className="space-y-2">
@@ -609,6 +631,11 @@ export default function AdminSettings() {
                 {/* Settlement Preview */}
                 <div className="p-4 bg-secondary rounded-lg">
                   <h4 className="text-sm font-medium text-foreground mb-2">Settlement Schedule</h4>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Global timing: <span className="text-primary font-medium">
+                      {vendorSettlementTimingOptions.find(option => option.value === (settings['vendor_settlement_timing'] || 'instant'))?.label || 'Instant'}
+                    </span>
+                  </p>
                   <p className="text-sm text-muted-foreground">
                     🍽️ Restaurant vendors: <span className="text-primary font-medium">{settings['settlement_hours_restaurant'] === '0' ? 'Immediate' : `${settings['settlement_hours_restaurant'] || '0'} hours`}</span>
                   </p>
