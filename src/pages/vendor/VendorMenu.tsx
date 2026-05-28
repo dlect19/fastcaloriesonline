@@ -274,12 +274,13 @@ export default function VendorMenu() {
       if (vendorData) {
         const { data: productsData } = await supabase
           .from('products')
-          .select('*')
+          .select('*, cuisine_category:cuisine_categories!cuisine_category_id(id, name, icon, parent_id)')
           .eq('vendor_id', vendorData.id)
           .order('name');
 
         setProducts(productsData || []);
       }
+
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
