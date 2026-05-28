@@ -7402,6 +7402,10 @@ export type Database = {
               error: true
             } & "Could not choose the best candidate function between: public.urlencode(string => bytea), public.urlencode(string => varchar). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
           }
+      vendor_settlement_release_at: {
+        Args: { p_earned_at?: string }
+        Returns: string
+      }
     }
     Enums: {
       admin_staff_role: "super_admin" | "admin" | "support" | "analyst"

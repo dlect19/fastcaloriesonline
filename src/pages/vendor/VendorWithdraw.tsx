@@ -394,17 +394,14 @@ export default function VendorWithdraw() {
     }, 0));
 
   // Display uses ledger-computed values (consistent with Earnings page)
-  // Withdrawal validation uses min(ledger, DB) to prevent over-withdrawal
-  const dbMenuBalance = wallet?.menu_earnings_balance ?? 0;
-  const dbRiderBalance = wallet?.rider_revenue_balance ?? 0;
-  
+  // Withdrawal validation uses the displayed ledger balance; the database trigger
+  // reconciles and locks the wallet again before any money is reserved.
   // Use ledger values for display (same as Earnings page shows)
   const displayMenuBalance = computedMenuBalance;
   const displayRiderBalance = computedRiderBalance;
   
-  // For withdrawal: use the minimum of ledger and DB to be safe
-  const safeMenuBalance = Math.min(computedMenuBalance, dbMenuBalance);
-  const safeRiderBalance = Math.min(computedRiderBalance, dbRiderBalance);
+  const safeMenuBalance = computedMenuBalance;
+  const safeRiderBalance = computedRiderBalance;
 
   // Track pending withdrawals for display, but don't block new ones
   const hasPendingWithdrawal = withdrawals.some(
@@ -479,22 +476,8 @@ export default function VendorWithdraw() {
         throw new Error('Invalid or expired OTP');
       }
 
-      // CRITICAL: Re-check balance server-side to prevent race conditions
-      const { data: freshWallet } = await supabase
-        .from('wallets')
-        .select('menu_earnings_balance, rider_revenue_balance, test_menu_earnings_balance, test_rider_revenue_balance, eligible_balance, test_eligible_balance, balance, test_balance, pending_payouts')
-        .eq('id', wallet!.id)
-        .single();
-
-      if (!freshWallet) throw new Error('Wallet not found');
-
-      const freshSourceBalance = withdrawalSource === 'rider_revenue'
-        ? (isTestMode ? Number(freshWallet.test_rider_revenue_balance) : Number(freshWallet.rider_revenue_balance)) || 0
-        : (isTestMode ? Number(freshWallet.test_menu_earnings_balance) : Number(freshWallet.menu_earnings_balance)) || 0;
-
-      if (amount > freshSourceBalance) {
-        throw new Error('Insufficient balance. Your available balance may have changed.');
-      }
+      // Final balance validation happens inside the payout insert trigger after
+      // reconciling the wallet from the transaction ledger.
 
       // Process withdrawal - insert into unified payout_requests table with source tag
       const { data: insertedPayout, error } = await supabase

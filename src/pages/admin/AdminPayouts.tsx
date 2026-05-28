@@ -5,6 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -47,6 +50,17 @@ interface PayoutRequest {
   entity_email?: string;
 }
 
+interface ManualVendorWallet {
+  wallet_id: string;
+  vendor_name: string;
+  outlet_name: string;
+  bank_name: string | null;
+  bank_account_number: string | null;
+  bank_account_name: string | null;
+  menu_balance: number;
+  rider_balance: number;
+}
+
 const isRetryableFailure = (reason: string | null): boolean => {
   if (!reason) return false;
   const lowerReason = reason.toLowerCase();
@@ -75,6 +89,12 @@ export default function AdminPayouts() {
   const [searchQuery, setSearchQuery] = useState('');
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [verifying, setVerifying] = useState<string | null>(null);
+  const [manualDialogOpen, setManualDialogOpen] = useState(false);
+  const [manualWallets, setManualWallets] = useState<ManualVendorWallet[]>([]);
+  const [manualWalletId, setManualWalletId] = useState('');
+  const [manualSource, setManualSource] = useState<'menu_earnings' | 'rider_revenue'>('menu_earnings');
+  const [manualAmount, setManualAmount] = useState('');
+  const [manualProcessing, setManualProcessing] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !role) {
@@ -83,6 +103,7 @@ export default function AdminPayouts() {
     }
     if (role && !envLoading) {
       fetchPayouts();
+      fetchManualVendorWallets();
     }
   }, [role, authLoading, envLoading, effectiveEnvironment, navigate]);
 
@@ -206,6 +227,89 @@ export default function AdminPayouts() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchManualVendorWallets = async () => {
+    const { data: walletsData, error } = await supabase
+      .from('wallets')
+      .select('id, user_id, outlet_id, bank_name, bank_account_number, bank_account_name, menu_earnings_balance, rider_revenue_balance, test_menu_earnings_balance, test_rider_revenue_balance')
+      .eq('wallet_type', 'vendor')
+      .order('updated_at', { ascending: false });
+
+    if (error) {
+      console.error('Error loading vendor wallets:', error);
+      return;
+    }
+
+    const userIds = [...new Set((walletsData || []).map(wallet => wallet.user_id))];
+    const outletIds = [...new Set((walletsData || []).map(wallet => wallet.outlet_id).filter(Boolean))] as string[];
+    const [vendorsRes, outletsRes] = await Promise.all([
+      userIds.length ? supabase.from('vendors').select('user_id, name').in('user_id', userIds) : Promise.resolve({ data: [] as any[] }),
+      outletIds.length ? supabase.from('vendor_outlets').select('id, name').in('id', outletIds) : Promise.resolve({ data: [] as any[] }),
+    ]);
+
+    const vendorMap = new Map((vendorsRes.data || []).map(vendor => [vendor.user_id, vendor.name]));
+    const outletMap = new Map((outletsRes.data || []).map(outlet => [outlet.id, outlet.name]));
+
+    setManualWallets((walletsData || []).map(wallet => ({
+      wallet_id: wallet.id,
+      vendor_name: vendorMap.get(wallet.user_id) || 'Unknown Vendor',
+      outlet_name: wallet.outlet_id ? (outletMap.get(wallet.outlet_id) || 'Outlet') : 'Main Wallet',
+      bank_name: wallet.bank_name,
+      bank_account_number: wallet.bank_account_number,
+      bank_account_name: wallet.bank_account_name,
+      menu_balance: Number(isTestMode ? wallet.test_menu_earnings_balance : wallet.menu_earnings_balance) || 0,
+      rider_balance: Number(isTestMode ? wallet.test_rider_revenue_balance : wallet.rider_revenue_balance) || 0,
+    })));
+  };
+
+  const selectedManualWallet = manualWallets.find(wallet => wallet.wallet_id === manualWalletId);
+  const selectedManualBalance = selectedManualWallet
+    ? (manualSource === 'rider_revenue' ? selectedManualWallet.rider_balance : selectedManualWallet.menu_balance)
+    : 0;
+
+  const handleManualVendorPayout = async () => {
+    if (!selectedManualWallet) {
+      toast({ title: 'Select a vendor wallet', variant: 'destructive' });
+      return;
+    }
+
+    const amount = Number(manualAmount);
+    if (!amount || amount <= 0 || amount > selectedManualBalance) {
+      toast({ title: `Enter an amount up to ₦${selectedManualBalance.toLocaleString()}`, variant: 'destructive' });
+      return;
+    }
+
+    if (!selectedManualWallet.bank_name || !selectedManualWallet.bank_account_number) {
+      toast({ title: 'Vendor has no bank details', variant: 'destructive' });
+      return;
+    }
+
+    setManualProcessing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('process-payout', {
+        body: {
+          wallet_id: selectedManualWallet.wallet_id,
+          amount,
+          withdrawal_source: manualSource,
+        },
+      });
+
+      if (error) throw new Error(error.message);
+      if (!data?.success) throw new Error(data?.error || 'Failed to process vendor payout');
+
+      toast({ title: '✅ Vendor payout started', description: data?.data?.message });
+      setManualDialogOpen(false);
+      setManualAmount('');
+      setManualWalletId('');
+      fetchPayouts(true);
+      fetchManualVendorWallets();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      toast({ title: 'Manual payout failed', description: message, variant: 'destructive' });
+    } finally {
+      setManualProcessing(false);
     }
   };
 
@@ -598,6 +702,85 @@ export default function AdminPayouts() {
               </p>
             </div>
             <div className="flex items-center gap-2">
+              <Dialog open={manualDialogOpen} onOpenChange={setManualDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Banknote className="w-4 h-4 mr-2" />
+                    Manual Vendor Payout
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Manual Vendor Payout</DialogTitle>
+                    <DialogDescription>
+                      Send all available funds or a set amount to a vendor bank account.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Vendor / Outlet</Label>
+                      <Select value={manualWalletId} onValueChange={setManualWalletId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select vendor wallet" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {manualWallets.map(wallet => (
+                            <SelectItem key={wallet.wallet_id} value={wallet.wallet_id}>
+                              {wallet.vendor_name} — {wallet.outlet_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Fund Source</Label>
+                      <Select value={manualSource} onValueChange={(value) => setManualSource(value as 'menu_earnings' | 'rider_revenue')}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="menu_earnings">Menu Sales Revenue</SelectItem>
+                          <SelectItem value="rider_revenue">Rider Delivery Revenue</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Available: ₦{selectedManualBalance.toLocaleString()}
+                      </p>
+                    </div>
+
+                    {selectedManualWallet && (
+                      <div className="rounded-lg bg-muted p-3 text-sm">
+                        <p className="text-muted-foreground">Paying to</p>
+                        <p className="font-medium">{selectedManualWallet.bank_account_name || 'No account name'}</p>
+                        <p>{selectedManualWallet.bank_name || 'No bank'} · {selectedManualWallet.bank_account_number || 'No account number'}</p>
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      <Label>Amount (₦)</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          type="number"
+                          min="1"
+                          max={selectedManualBalance}
+                          value={manualAmount}
+                          onChange={(event) => setManualAmount(event.target.value)}
+                          placeholder="Enter amount"
+                        />
+                        <Button type="button" variant="outline" onClick={() => setManualAmount(String(selectedManualBalance))} disabled={!selectedManualWallet}>
+                          All
+                        </Button>
+                      </div>
+                    </div>
+
+                    <Button className="w-full" onClick={handleManualVendorPayout} disabled={manualProcessing || !selectedManualWallet}>
+                      {manualProcessing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                      Send Payout
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
               <Badge 
                 variant="outline" 
                 className={isTestMode 

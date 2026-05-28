@@ -32,6 +32,8 @@ async function getPaystackConfig(supabase: SupabaseClient): Promise<{ key: strin
 interface PayoutRequest {
   payout_request_id?: string; // For admin-triggered payouts
   amount?: number; // For manual amount specification
+  wallet_id?: string; // For admin-created manual vendor payouts
+  withdrawal_source?: "menu_earnings" | "rider_revenue";
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -95,7 +97,7 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    const { payout_request_id, amount }: PayoutRequest = await req.json();
+    const { payout_request_id, amount, wallet_id, withdrawal_source = "menu_earnings" }: PayoutRequest = await req.json();
 
     let payoutRequest;
 
@@ -138,6 +140,98 @@ const handler = async (req: Request): Promise<Response> => {
         .eq("id", payout_request_id);
 
       payoutRequest = data;
+    } else if (wallet_id && amount) {
+      if (isServiceRoleCall || !userId) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Admin authentication required" }),
+          { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+
+      const { data: isAdmin } = await supabase.rpc("has_role", {
+        _user_id: userId,
+        _role: "admin"
+      });
+
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Admin access required" }),
+          { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+
+      const { data: wallet, error: walletError } = await supabase
+        .from("wallets")
+        .select("*")
+        .eq("id", wallet_id)
+        .eq("wallet_type", "vendor")
+        .single();
+
+      if (walletError || !wallet) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Vendor wallet not found" }),
+          { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+
+      const available = withdrawal_source === "rider_revenue"
+        ? Number(environment === "development" ? wallet.test_rider_revenue_balance : wallet.rider_revenue_balance) || 0
+        : Number(environment === "development" ? wallet.test_menu_earnings_balance : wallet.menu_earnings_balance) || 0;
+
+      if (amount <= 0 || amount > available) {
+        return new Response(
+          JSON.stringify({ success: false, error: `Amount exceeds available vendor balance of ₦${available}` }),
+          { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+
+      const { data: defaultRecipient } = await supabase
+        .from("paystack_recipients")
+        .select("id, recipient_code, created_in_environment")
+        .eq("user_id", wallet.user_id)
+        .eq("is_default", true)
+        .maybeSingle();
+
+      if (!defaultRecipient?.recipient_code && !wallet.paystack_recipient_code) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Vendor has no verified bank recipient" }),
+          { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+
+      const reference = `PAY-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+      const { data: newRequest, error: insertError } = await supabase
+        .from("payout_requests")
+        .insert({
+          wallet_id: wallet.id,
+          user_id: wallet.user_id,
+          outlet_id: wallet.outlet_id,
+          user_type: "vendor",
+          amount,
+          status: "processing",
+          paystack_reference: reference,
+          recipient_id: defaultRecipient?.id,
+          bank_name: wallet.bank_name,
+          bank_account_number: wallet.bank_account_number,
+          bank_account_name: wallet.bank_account_name,
+          withdrawal_source,
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error("Error creating admin vendor payout request:", insertError);
+        return new Response(
+          JSON.stringify({ success: false, error: insertError.message || "Failed to create vendor payout" }),
+          { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+
+      payoutRequest = {
+        ...newRequest,
+        recipient_code: defaultRecipient?.recipient_code || wallet.paystack_recipient_code,
+        paystack_recipients: defaultRecipient,
+      };
     } else if (amount) {
       // Create new payout request
       const { data: wallet, error: walletError } = await supabase
