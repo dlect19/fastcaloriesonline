@@ -396,9 +396,6 @@ export default function VendorWithdraw() {
   // Display uses ledger-computed values (consistent with Earnings page)
   // Withdrawal validation uses the displayed ledger balance; the database trigger
   // reconciles and locks the wallet again before any money is reserved.
-  const dbMenuBalance = wallet?.menu_earnings_balance ?? 0;
-  const dbRiderBalance = wallet?.rider_revenue_balance ?? 0;
-  
   // Use ledger values for display (same as Earnings page shows)
   const displayMenuBalance = computedMenuBalance;
   const displayRiderBalance = computedRiderBalance;
