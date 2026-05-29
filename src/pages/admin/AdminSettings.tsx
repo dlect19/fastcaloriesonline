@@ -53,13 +53,14 @@ export default function AdminSettings() {
   ];
 
   const settlementSettingsConfig = [
-    { key: 'settlement_hours_restaurant', label: '🍽️ Restaurant', unit: 'hrs', icon: Clock, description: 'Settlement hold for restaurant vendors', defaultVal: '0' },
-    { key: 'settlement_hours_pharmacy', label: '💊 Pharmacy', unit: 'hrs', icon: Clock, description: 'Settlement hold for pharmacy vendors', defaultVal: '12' },
-    { key: 'settlement_hours_market', label: '🛒 Market', unit: 'hrs', icon: Clock, description: 'Settlement hold for market vendors', defaultVal: '24' },
+    { type: 'restaurant', modeKey: 'vendor_settlement_mode_restaurant', hoursKey: 'settlement_hours_restaurant', label: '🍽️ Restaurant', description: 'Settlement timing for restaurant vendors', defaultHours: '0' },
+    { type: 'pharmacy', modeKey: 'vendor_settlement_mode_pharmacy', hoursKey: 'settlement_hours_pharmacy', label: '💊 Pharmacy', description: 'Settlement timing for pharmacy vendors', defaultHours: '36' },
+    { type: 'market', modeKey: 'vendor_settlement_mode_market', hoursKey: 'settlement_hours_market', label: '🛒 Market', description: 'Settlement timing for market vendors', defaultHours: '24' },
   ];
 
   const vendorSettlementTimingOptions = [
-    { value: 'instant', label: 'Instant', description: 'Vendor menu sales become available immediately.' },
+    { value: 'instant', label: 'Immediate', description: 'Sales become withdrawable immediately.' },
+    { value: 'hours', label: 'After Hours', description: 'Sales release after the number of hours set below.' },
     { value: 'next_day', label: 'Next Day', description: 'All orders from a day release together the next day.' },
     { value: 'third_day', label: 'Third Day', description: 'All orders from a day release together on the third day.' },
   ];
