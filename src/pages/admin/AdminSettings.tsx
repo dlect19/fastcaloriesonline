@@ -128,7 +128,7 @@ export default function AdminSettings() {
     setSaving(true);
     try {
       // Update each setting - include all keys that have been set
-      const allConfigs = [...deliverySettingsConfig, ...financialSettingsConfig, ...settlementSettingsConfig];
+      const allConfigs = [...deliverySettingsConfig, ...financialSettingsConfig];
       for (const config of allConfigs) {
         const value = settings[config.key];
         if (value !== undefined) {
@@ -162,6 +162,29 @@ export default function AdminSettings() {
           description: 'Global vendor settlement timing: instant, next day, or third day',
           updated_at: new Date().toISOString()
         }, { onConflict: 'key' });
+      }
+
+      for (const config of settlementSettingsConfig) {
+        const mode = settings[config.modeKey];
+        const hours = settings[config.hoursKey];
+
+        if (mode !== undefined) {
+          await supabase.from('platform_settings').upsert({
+            key: config.modeKey,
+            value: mode,
+            description: `${config.label} settlement mode: instant, hours, next_day, or third_day`,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'key' });
+        }
+
+        if (hours !== undefined) {
+          await supabase.from('platform_settings').upsert({
+            key: config.hoursKey,
+            value: hours,
+            description: `${config.label} hour-based settlement hold`,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'key' });
+        }
       }
 
       // Save rider test notification toggle
