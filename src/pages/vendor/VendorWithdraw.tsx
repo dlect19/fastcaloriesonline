@@ -372,6 +372,12 @@ export default function VendorWithdraw() {
       if (tx.category === 'admin_credit' && tx.transaction_type === 'credit') {
         return sum + Number(tx.amount);
       }
+      if (tx.category === 'adjustment') {
+        return tx.transaction_type === 'credit' ? sum + Number(tx.amount) : sum - Number(tx.amount);
+      }
+      if (tx.category === 'dispute_deduction' && tx.transaction_type === 'debit') {
+        return sum - Number(tx.amount);
+      }
       return sum;
     }, 0));
 
