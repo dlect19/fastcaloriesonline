@@ -53,13 +53,14 @@ export default function AdminSettings() {
   ];
 
   const settlementSettingsConfig = [
-    { key: 'settlement_hours_restaurant', label: '🍽️ Restaurant', unit: 'hrs', icon: Clock, description: 'Settlement hold for restaurant vendors', defaultVal: '0' },
-    { key: 'settlement_hours_pharmacy', label: '💊 Pharmacy', unit: 'hrs', icon: Clock, description: 'Settlement hold for pharmacy vendors', defaultVal: '12' },
-    { key: 'settlement_hours_market', label: '🛒 Market', unit: 'hrs', icon: Clock, description: 'Settlement hold for market vendors', defaultVal: '24' },
+    { type: 'restaurant', modeKey: 'vendor_settlement_mode_restaurant', hoursKey: 'settlement_hours_restaurant', label: '🍽️ Restaurant', description: 'Settlement timing for restaurant vendors', defaultHours: '0' },
+    { type: 'pharmacy', modeKey: 'vendor_settlement_mode_pharmacy', hoursKey: 'settlement_hours_pharmacy', label: '💊 Pharmacy', description: 'Settlement timing for pharmacy vendors', defaultHours: '36' },
+    { type: 'market', modeKey: 'vendor_settlement_mode_market', hoursKey: 'settlement_hours_market', label: '🛒 Market', description: 'Settlement timing for market vendors', defaultHours: '24' },
   ];
 
   const vendorSettlementTimingOptions = [
-    { value: 'instant', label: 'Instant', description: 'Vendor menu sales become available immediately.' },
+    { value: 'instant', label: 'Immediate', description: 'Sales become withdrawable immediately.' },
+    { value: 'hours', label: 'After Hours', description: 'Sales release after the number of hours set below.' },
     { value: 'next_day', label: 'Next Day', description: 'All orders from a day release together the next day.' },
     { value: 'third_day', label: 'Third Day', description: 'All orders from a day release together on the third day.' },
   ];
@@ -127,7 +128,7 @@ export default function AdminSettings() {
     setSaving(true);
     try {
       // Update each setting - include all keys that have been set
-      const allConfigs = [...deliverySettingsConfig, ...financialSettingsConfig, ...settlementSettingsConfig];
+      const allConfigs = [...deliverySettingsConfig, ...financialSettingsConfig];
       for (const config of allConfigs) {
         const value = settings[config.key];
         if (value !== undefined) {
@@ -161,6 +162,29 @@ export default function AdminSettings() {
           description: 'Global vendor settlement timing: instant, next day, or third day',
           updated_at: new Date().toISOString()
         }, { onConflict: 'key' });
+      }
+
+      for (const config of settlementSettingsConfig) {
+        const mode = settings[config.modeKey];
+        const hours = settings[config.hoursKey];
+
+        if (mode !== undefined) {
+          await supabase.from('platform_settings').upsert({
+            key: config.modeKey,
+            value: mode,
+            description: `${config.label} settlement mode: instant, hours, next_day, or third_day`,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'key' });
+        }
+
+        if (hours !== undefined) {
+          await supabase.from('platform_settings').upsert({
+            key: config.hoursKey,
+            value: hours,
+            description: `${config.label} hour-based settlement hold`,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'key' });
+        }
       }
 
       // Save rider test notification toggle
@@ -581,60 +605,58 @@ export default function AdminSettings() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="space-y-2">
-                  <Label>Global Settlement Timing</Label>
-                  <Select
-                    value={settings['vendor_settlement_timing'] || 'instant'}
-                    onValueChange={(value) => handleSettingChange('vendor_settlement_timing', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choose settlement timing" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {vendorSettlementTimingOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    {vendorSettlementTimingOptions.find(option => option.value === (settings['vendor_settlement_timing'] || 'instant'))?.description}
-                  </p>
-                </div>
+                <div className="grid gap-4">
+                  {settlementSettingsConfig.map((config) => {
+                    const selectedMode = settings[config.modeKey] || 'hours';
+                    const selectedOption = vendorSettlementTimingOptions.find(option => option.value === selectedMode);
 
-                <div className="grid gap-4 sm:grid-cols-3">
-                  {settlementSettingsConfig.map((config) => (
-                    <div key={config.key} className="space-y-2">
-                      <Label htmlFor={config.key} className="flex items-center gap-2 text-base">
-                        {config.label}
-                      </Label>
-                      <div className="relative">
-                        <Input
-                          id={config.key}
-                          type="number"
-                          min="0"
-                          step="1"
-                          value={settings[config.key] ?? config.defaultVal}
-                          onChange={(e) => handleSettingChange(config.key, e.target.value)}
-                          className="pr-12"
-                        />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                          hrs
-                        </span>
+                    return (
+                      <div key={config.type} className="space-y-3 rounded-lg border p-4">
+                        <Label className="flex items-center gap-2 text-base">{config.label}</Label>
+                        <div className="grid gap-3 sm:grid-cols-[1fr_140px]">
+                          <div className="space-y-2">
+                            <Select
+                              value={selectedMode}
+                              onValueChange={(value) => handleSettingChange(config.modeKey, value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Choose settlement timing" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {vendorSettlementTimingOptions.map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">{selectedOption?.description || config.description}</p>
+                          </div>
+                          <div className="relative">
+                            <Input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={settings[config.hoursKey] ?? config.defaultHours}
+                              onChange={(e) => handleSettingChange(config.hoursKey, e.target.value)}
+                              disabled={selectedMode !== 'hours'}
+                              className="pr-12"
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                              hrs
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                      <p className="text-xs text-muted-foreground">{config.description}</p>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {/* Settlement Preview */}
                 <div className="p-4 bg-secondary rounded-lg">
                   <h4 className="text-sm font-medium text-foreground mb-2">Settlement Schedule</h4>
                   <p className="text-sm text-muted-foreground mb-2">
-                    Global timing: <span className="text-primary font-medium">
-                      {vendorSettlementTimingOptions.find(option => option.value === (settings['vendor_settlement_timing'] || 'instant'))?.label || 'Instant'}
-                    </span>
+                    Each vendor type now has its own timing mode.
                   </p>
                   <p className="text-sm text-muted-foreground">
                     🍽️ Restaurant vendors: <span className="text-primary font-medium">{settings['settlement_hours_restaurant'] === '0' ? 'Immediate' : `${settings['settlement_hours_restaurant'] || '0'} hours`}</span>

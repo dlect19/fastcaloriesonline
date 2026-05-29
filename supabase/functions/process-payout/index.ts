@@ -174,9 +174,25 @@ const handler = async (req: Request): Promise<Response> => {
         );
       }
 
+      await supabase.rpc("reconcile_vendor_wallet", { p_wallet_id: wallet.id });
+
+      const { data: reconciledWallet, error: reconciledWalletError } = await supabase
+        .from("wallets")
+        .select("*")
+        .eq("id", wallet_id)
+        .eq("wallet_type", "vendor")
+        .single();
+
+      if (reconciledWalletError || !reconciledWallet) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Vendor wallet could not be refreshed" }),
+          { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+
       const available = withdrawal_source === "rider_revenue"
-        ? Number(environment === "development" ? wallet.test_rider_revenue_balance : wallet.rider_revenue_balance) || 0
-        : Number(environment === "development" ? wallet.test_menu_earnings_balance : wallet.menu_earnings_balance) || 0;
+        ? Number(environment === "development" ? reconciledWallet.test_rider_revenue_balance : reconciledWallet.rider_revenue_balance) || 0
+        : Number(environment === "development" ? reconciledWallet.test_menu_earnings_balance : reconciledWallet.menu_earnings_balance) || 0;
 
       if (amount <= 0 || amount > available) {
         return new Response(
@@ -185,14 +201,16 @@ const handler = async (req: Request): Promise<Response> => {
         );
       }
 
+      const payoutWallet = reconciledWallet;
+
       const { data: defaultRecipient } = await supabase
         .from("paystack_recipients")
         .select("id, recipient_code, created_in_environment")
-        .eq("user_id", wallet.user_id)
+        .eq("user_id", payoutWallet.user_id)
         .eq("is_default", true)
         .maybeSingle();
 
-      if (!defaultRecipient?.recipient_code && !wallet.paystack_recipient_code) {
+      if (!defaultRecipient?.recipient_code && !payoutWallet.paystack_recipient_code) {
         return new Response(
           JSON.stringify({ success: false, error: "Vendor has no verified bank recipient" }),
           { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
@@ -203,17 +221,17 @@ const handler = async (req: Request): Promise<Response> => {
       const { data: newRequest, error: insertError } = await supabase
         .from("payout_requests")
         .insert({
-          wallet_id: wallet.id,
-          user_id: wallet.user_id,
-          outlet_id: wallet.outlet_id,
+          wallet_id: payoutWallet.id,
+          user_id: payoutWallet.user_id,
+          outlet_id: payoutWallet.outlet_id,
           user_type: "vendor",
           amount,
           status: "processing",
           paystack_reference: reference,
           recipient_id: defaultRecipient?.id,
-          bank_name: wallet.bank_name,
-          bank_account_number: wallet.bank_account_number,
-          bank_account_name: wallet.bank_account_name,
+          bank_name: payoutWallet.bank_name,
+          bank_account_number: payoutWallet.bank_account_number,
+          bank_account_name: payoutWallet.bank_account_name,
           withdrawal_source,
         })
         .select()
@@ -229,7 +247,7 @@ const handler = async (req: Request): Promise<Response> => {
 
       payoutRequest = {
         ...newRequest,
-        recipient_code: defaultRecipient?.recipient_code || wallet.paystack_recipient_code,
+        recipient_code: defaultRecipient?.recipient_code || payoutWallet.paystack_recipient_code,
         paystack_recipients: defaultRecipient,
       };
     } else if (amount) {
