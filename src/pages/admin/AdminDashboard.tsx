@@ -246,6 +246,7 @@ export default function AdminDashboard() {
             if (tx.category === 'admin_debit' && tx.transaction_type === 'debit') return sum - amount;
             if (tx.category === 'admin_credit' && tx.transaction_type === 'credit') return sum + amount;
             if (tx.category === 'dispute_deduction' && tx.transaction_type === 'debit') return sum - amount;
+            if (tx.category === 'adjustment') return sum + (tx.transaction_type === 'credit' ? amount : -amount);
             return sum;
           }, 0);
         }
