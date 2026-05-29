@@ -605,60 +605,58 @@ export default function AdminSettings() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="space-y-2">
-                  <Label>Global Settlement Timing</Label>
-                  <Select
-                    value={settings['vendor_settlement_timing'] || 'instant'}
-                    onValueChange={(value) => handleSettingChange('vendor_settlement_timing', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choose settlement timing" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {vendorSettlementTimingOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    {vendorSettlementTimingOptions.find(option => option.value === (settings['vendor_settlement_timing'] || 'instant'))?.description}
-                  </p>
-                </div>
+                <div className="grid gap-4">
+                  {settlementSettingsConfig.map((config) => {
+                    const selectedMode = settings[config.modeKey] || 'hours';
+                    const selectedOption = vendorSettlementTimingOptions.find(option => option.value === selectedMode);
 
-                <div className="grid gap-4 sm:grid-cols-3">
-                  {settlementSettingsConfig.map((config) => (
-                    <div key={config.key} className="space-y-2">
-                      <Label htmlFor={config.key} className="flex items-center gap-2 text-base">
-                        {config.label}
-                      </Label>
-                      <div className="relative">
-                        <Input
-                          id={config.key}
-                          type="number"
-                          min="0"
-                          step="1"
-                          value={settings[config.key] ?? config.defaultVal}
-                          onChange={(e) => handleSettingChange(config.key, e.target.value)}
-                          className="pr-12"
-                        />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                          hrs
-                        </span>
+                    return (
+                      <div key={config.type} className="space-y-3 rounded-lg border p-4">
+                        <Label className="flex items-center gap-2 text-base">{config.label}</Label>
+                        <div className="grid gap-3 sm:grid-cols-[1fr_140px]">
+                          <div className="space-y-2">
+                            <Select
+                              value={selectedMode}
+                              onValueChange={(value) => handleSettingChange(config.modeKey, value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Choose settlement timing" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {vendorSettlementTimingOptions.map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">{selectedOption?.description || config.description}</p>
+                          </div>
+                          <div className="relative">
+                            <Input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={settings[config.hoursKey] ?? config.defaultHours}
+                              onChange={(e) => handleSettingChange(config.hoursKey, e.target.value)}
+                              disabled={selectedMode !== 'hours'}
+                              className="pr-12"
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                              hrs
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                      <p className="text-xs text-muted-foreground">{config.description}</p>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {/* Settlement Preview */}
                 <div className="p-4 bg-secondary rounded-lg">
                   <h4 className="text-sm font-medium text-foreground mb-2">Settlement Schedule</h4>
                   <p className="text-sm text-muted-foreground mb-2">
-                    Global timing: <span className="text-primary font-medium">
-                      {vendorSettlementTimingOptions.find(option => option.value === (settings['vendor_settlement_timing'] || 'instant'))?.label || 'Instant'}
-                    </span>
+                    Each vendor type now has its own timing mode.
                   </p>
                   <p className="text-sm text-muted-foreground">
                     🍽️ Restaurant vendors: <span className="text-primary font-medium">{settings['settlement_hours_restaurant'] === '0' ? 'Immediate' : `${settings['settlement_hours_restaurant'] || '0'} hours`}</span>
