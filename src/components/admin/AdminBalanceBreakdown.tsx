@@ -78,7 +78,7 @@ export function AdminBalanceBreakdown({ isTestMode }: AdminBalanceBreakdownProps
         let menuCredits = 0, menuDebits = 0, menuPending = 0;
         let riderCredits = 0, riderDebits = 0;
         let menuWithdrawals = 0, riderWithdrawals = 0, reversals = 0;
-        let adminDebits = 0, adminCredits = 0, disputeDebits = 0;
+        let adminDebits = 0, adminCredits = 0, disputeDebits = 0, adjustments = 0;
 
         for (const tx of txs) {
           const amt = Number(tx.amount) || 0;
@@ -100,10 +100,12 @@ export function AdminBalanceBreakdown({ isTestMode }: AdminBalanceBreakdownProps
             adminCredits += amt;
           } else if (tx.category === 'dispute_deduction' && tx.transaction_type === 'debit') {
             disputeDebits += amt;
+          } else if (tx.category === 'adjustment') {
+            adjustments += tx.transaction_type === 'credit' ? amt : -amt;
           }
         }
 
-        const menuBalance = menuCredits - menuDebits - menuWithdrawals + reversals - adminDebits + adminCredits - disputeDebits;
+        const menuBalance = menuCredits - menuDebits - menuWithdrawals + reversals - adminDebits + adminCredits - disputeDebits + adjustments;
         const riderBalance = riderCredits - riderDebits - riderWithdrawals;
         const eligibleBalance = menuBalance + riderBalance;
         const totalEarned = menuCredits - menuDebits + riderCredits - riderDebits;
