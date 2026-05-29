@@ -206,11 +206,11 @@ const handler = async (req: Request): Promise<Response> => {
       const { data: defaultRecipient } = await supabase
         .from("paystack_recipients")
         .select("id, recipient_code, created_in_environment")
-        .eq("user_id", wallet.user_id)
+        .eq("user_id", payoutWallet.user_id)
         .eq("is_default", true)
         .maybeSingle();
 
-      if (!defaultRecipient?.recipient_code && !wallet.paystack_recipient_code) {
+      if (!defaultRecipient?.recipient_code && !payoutWallet.paystack_recipient_code) {
         return new Response(
           JSON.stringify({ success: false, error: "Vendor has no verified bank recipient" }),
           { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
@@ -221,7 +221,7 @@ const handler = async (req: Request): Promise<Response> => {
       const { data: newRequest, error: insertError } = await supabase
         .from("payout_requests")
         .insert({
-          wallet_id: wallet.id,
+          wallet_id: payoutWallet.id,
           user_id: payoutWallet.user_id,
           outlet_id: payoutWallet.outlet_id,
           user_type: "vendor",
