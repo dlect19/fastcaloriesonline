@@ -7149,8 +7149,8 @@ export type Database = {
       apply_vendor_commission_promos: { Args: never; Returns: undefined }
       bytea_to_text: { Args: { data: string }; Returns: string }
       cancel_stale_pending_orders: { Args: never; Returns: number }
-      debug_wallet_payment_flow: {
-        Args: { p_order_id: string }
+      debug_wallet_tx_insert: {
+        Args: { p_amount: number; p_order_id: string; p_wallet_id: string }
         Returns: string
       }
       full_reconcile_wallets: {
