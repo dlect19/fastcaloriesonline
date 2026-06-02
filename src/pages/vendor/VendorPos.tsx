@@ -454,7 +454,8 @@ export default function VendorPos() {
     setCart(c => c.filter(x => `${x.productId}__${x.purchaseUnit}` !== lineKey));
   const clearCart = () => setCart([]);
 
-  const subtotal = useMemo(() => cart.reduce((s, c) => s + c.unitPrice * c.qty, 0), [cart]);
+  const cartSubtotal = useMemo(() => cart.reduce((s, c) => s + c.unitPrice * c.qty, 0), [cart]);
+  const subtotal = cartSubtotal + packsTotal;
 
   // Connect Bluetooth printer
   const handleConnectPrinter = async () => {
@@ -536,16 +537,27 @@ export default function VendorPos() {
         ? `POS sale to ${data.customerName}${data.customerPhone ? ` (${data.customerPhone})` : ''}`
         : 'POS walk-in sale',
     };
-    const itemPayloads = cart.map(c => ({
-      // order_id will be filled in once the order row exists
-      product_id: c.productId,
-      quantity: c.qty,
-      unit_price: c.unitPrice,
-      total_price: c.unitPrice * c.qty,
-      product_name: c.name,
-      purchase_unit: c.purchaseUnit,
-      unit_multiplier: c.unitMultiplier,
-    }));
+    const itemPayloads = [
+      ...cart.map(c => ({
+        // order_id will be filled in once the order row exists
+        product_id: c.productId,
+        quantity: c.qty,
+        unit_price: c.unitPrice,
+        total_price: c.unitPrice * c.qty,
+        product_name: c.name,
+        purchase_unit: c.purchaseUnit,
+        unit_multiplier: c.unitMultiplier,
+      })),
+      ...applicablePacks.map(p => ({
+        product_id: null as string | null,
+        quantity: 1,
+        unit_price: Number(p.price || 0),
+        total_price: Number(p.price || 0),
+        product_name: `Takeaway Pack: ${p.name}`,
+        purchase_unit: 'pack',
+        unit_multiplier: 1,
+      })),
+    ];
 
     const totalCalories = cart.reduce(
       (s, c) => s + (c.caloriesPerUnit ? c.caloriesPerUnit * c.qty : 0),
@@ -559,12 +571,20 @@ export default function VendorPos() {
       receiptNumber: orderNumber,
       cashierName: session.cashier_name ?? undefined,
       date: new Date(),
-      items: cart.map(c => ({
-        name: c.purchaseUnit === 'sachet' ? `${c.name} (${c.unitLabel})` : c.name,
-        qty: c.qty,
-        price: c.unitPrice * c.qty,
-        calories: c.caloriesPerUnit,
-      })),
+      items: [
+        ...cart.map(c => ({
+          name: c.purchaseUnit === 'sachet' ? `${c.name} (${c.unitLabel})` : c.name,
+          qty: c.qty,
+          price: c.unitPrice * c.qty,
+          calories: c.caloriesPerUnit,
+        })),
+        ...applicablePacks.map(p => ({
+          name: `Takeaway Pack: ${p.name}`,
+          qty: 1,
+          price: Number(p.price || 0),
+          calories: null as number | null,
+        })),
+      ],
       subtotal,
       total: subtotal,
       totalCalories: totalCalories > 0 ? totalCalories : null,
