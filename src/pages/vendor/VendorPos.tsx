@@ -983,6 +983,47 @@ export default function VendorPos() {
           </ScrollArea>
 
           <div className="border-t p-3 space-y-2 bg-card">
+            {takeawayPacks.length > 0 && cart.length > 0 && (
+              <div className="rounded-lg border bg-secondary/40 p-2.5 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <label htmlFor="pos-carryout" className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                    <Package className="w-4 h-4 text-primary" />
+                    Carryout (add takeaway pack)
+                  </label>
+                  <Switch id="pos-carryout" checked={carryoutMode} onCheckedChange={setCarryoutMode} />
+                </div>
+                {carryoutMode && (
+                  applicablePacks.length > 0 ? (
+                    <div className="space-y-1">
+                      {applicablePacks.map(p => (
+                        <div key={p.id} className="flex items-center justify-between text-xs">
+                          <span className="truncate pr-2">{p.name}</span>
+                          <span className="font-semibold text-primary shrink-0">
+                            {p.price > 0 ? `+₦${Number(p.price).toLocaleString()}` : 'Free'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-muted-foreground">
+                      Add more items to qualify for a takeaway pack.
+                    </p>
+                  )
+                )}
+              </div>
+            )}
+            {packsTotal > 0 && (
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Items</span>
+                <span>₦{cartSubtotal.toLocaleString()}</span>
+              </div>
+            )}
+            {packsTotal > 0 && (
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Takeaway pack</span>
+                <span>+₦{packsTotal.toLocaleString()}</span>
+              </div>
+            )}
             <div className="flex items-center justify-between text-lg font-bold">
               <span>Total</span>
               <span className="text-primary">₦{subtotal.toLocaleString()}</span>
