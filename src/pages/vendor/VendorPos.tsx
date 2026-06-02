@@ -48,6 +48,9 @@ import { PosReceiptPreviewDialog } from '@/components/pos/PosReceiptPreviewDialo
 import { Label } from '@/components/ui/label';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
 import { computePosPrice, type PosOutletPricingConfig } from '@/lib/posPricing';
+import { useTakeawayPacks } from '@/hooks/useTakeawayPacks';
+import { Switch } from '@/components/ui/switch';
+import { Package } from 'lucide-react';
 
 type Product = {
   id: string;
@@ -158,6 +161,17 @@ export default function VendorPos() {
 
   const { session, openSession, closeSession, recordSale } = usePosSession(vendorId, outletId);
   const { isOnline, queue: offlineQueue, syncing, enqueue: enqueueOfflineSale, syncQueue } = usePosOfflineQueue(vendorId);
+  const { packs: takeawayPacks, getApplicablePacks } = useTakeawayPacks(vendorId);
+  const [carryoutMode, setCarryoutMode] = useState(false);
+
+  // Auto-computed packs for the current cart
+  const applicablePacks = useMemo(() => {
+    if (!carryoutMode || cart.length === 0) return [];
+    return getApplicablePacks(
+      cart.map(c => ({ productId: c.productId, quantity: c.qty * (c.purchaseUnit === 'pack' ? c.unitMultiplier : 1) }))
+    );
+  }, [carryoutMode, cart, getApplicablePacks]);
+  const packsTotal = useMemo(() => applicablePacks.reduce((s, p) => s + Number(p.price || 0), 0), [applicablePacks]);
 
   const holdStorageKey = vendorId ? `${HOLD_KEY_PREFIX}${vendorId}` : null;
 
