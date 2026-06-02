@@ -48,6 +48,9 @@ import { PosReceiptPreviewDialog } from '@/components/pos/PosReceiptPreviewDialo
 import { Label } from '@/components/ui/label';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
 import { computePosPrice, type PosOutletPricingConfig } from '@/lib/posPricing';
+import { useTakeawayPacks } from '@/hooks/useTakeawayPacks';
+import { Switch } from '@/components/ui/switch';
+import { Package } from 'lucide-react';
 
 type Product = {
   id: string;
@@ -158,6 +161,17 @@ export default function VendorPos() {
 
   const { session, openSession, closeSession, recordSale } = usePosSession(vendorId, outletId);
   const { isOnline, queue: offlineQueue, syncing, enqueue: enqueueOfflineSale, syncQueue } = usePosOfflineQueue(vendorId);
+  const { packs: takeawayPacks, getApplicablePacks } = useTakeawayPacks(vendorId);
+  const [carryoutMode, setCarryoutMode] = useState(false);
+
+  // Auto-computed packs for the current cart
+  const applicablePacks = useMemo(() => {
+    if (!carryoutMode || cart.length === 0) return [];
+    return getApplicablePacks(
+      cart.map(c => ({ productId: c.productId, quantity: c.qty * (c.purchaseUnit === 'pack' ? c.unitMultiplier : 1) }))
+    );
+  }, [carryoutMode, cart, getApplicablePacks]);
+  const packsTotal = useMemo(() => applicablePacks.reduce((s, p) => s + Number(p.price || 0), 0), [applicablePacks]);
 
   const holdStorageKey = vendorId ? `${HOLD_KEY_PREFIX}${vendorId}` : null;
 
@@ -440,7 +454,8 @@ export default function VendorPos() {
     setCart(c => c.filter(x => `${x.productId}__${x.purchaseUnit}` !== lineKey));
   const clearCart = () => setCart([]);
 
-  const subtotal = useMemo(() => cart.reduce((s, c) => s + c.unitPrice * c.qty, 0), [cart]);
+  const cartSubtotal = useMemo(() => cart.reduce((s, c) => s + c.unitPrice * c.qty, 0), [cart]);
+  const subtotal = cartSubtotal + packsTotal;
 
   // Connect Bluetooth printer
   const handleConnectPrinter = async () => {
@@ -522,16 +537,27 @@ export default function VendorPos() {
         ? `POS sale to ${data.customerName}${data.customerPhone ? ` (${data.customerPhone})` : ''}`
         : 'POS walk-in sale',
     };
-    const itemPayloads = cart.map(c => ({
-      // order_id will be filled in once the order row exists
-      product_id: c.productId,
-      quantity: c.qty,
-      unit_price: c.unitPrice,
-      total_price: c.unitPrice * c.qty,
-      product_name: c.name,
-      purchase_unit: c.purchaseUnit,
-      unit_multiplier: c.unitMultiplier,
-    }));
+    const itemPayloads = [
+      ...cart.map(c => ({
+        // order_id will be filled in once the order row exists
+        product_id: c.productId,
+        quantity: c.qty,
+        unit_price: c.unitPrice,
+        total_price: c.unitPrice * c.qty,
+        product_name: c.name,
+        purchase_unit: c.purchaseUnit,
+        unit_multiplier: c.unitMultiplier,
+      })),
+      ...applicablePacks.map(p => ({
+        product_id: null as string | null,
+        quantity: 1,
+        unit_price: Number(p.price || 0),
+        total_price: Number(p.price || 0),
+        product_name: `Takeaway Pack: ${p.name}`,
+        purchase_unit: 'pack',
+        unit_multiplier: 1,
+      })),
+    ];
 
     const totalCalories = cart.reduce(
       (s, c) => s + (c.caloriesPerUnit ? c.caloriesPerUnit * c.qty : 0),
@@ -545,12 +571,20 @@ export default function VendorPos() {
       receiptNumber: orderNumber,
       cashierName: session.cashier_name ?? undefined,
       date: new Date(),
-      items: cart.map(c => ({
-        name: c.purchaseUnit === 'sachet' ? `${c.name} (${c.unitLabel})` : c.name,
-        qty: c.qty,
-        price: c.unitPrice * c.qty,
-        calories: c.caloriesPerUnit,
-      })),
+      items: [
+        ...cart.map(c => ({
+          name: c.purchaseUnit === 'sachet' ? `${c.name} (${c.unitLabel})` : c.name,
+          qty: c.qty,
+          price: c.unitPrice * c.qty,
+          calories: c.caloriesPerUnit,
+        })),
+        ...applicablePacks.map(p => ({
+          name: `Takeaway Pack: ${p.name}`,
+          qty: 1,
+          price: Number(p.price || 0),
+          calories: null as number | null,
+        })),
+      ],
       subtotal,
       total: subtotal,
       totalCalories: totalCalories > 0 ? totalCalories : null,
@@ -573,6 +607,7 @@ export default function VendorPos() {
           : `${orderNumber} • ₦${subtotal.toLocaleString()}`,
       });
       clearCart();
+      setCarryoutMode(false);
       setPaymentDialog(false);
       setMobileCartOpen(false);
     };
@@ -949,6 +984,47 @@ export default function VendorPos() {
           </ScrollArea>
 
           <div className="border-t p-3 space-y-2 bg-card">
+            {takeawayPacks.length > 0 && cart.length > 0 && (
+              <div className="rounded-lg border bg-secondary/40 p-2.5 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <label htmlFor="pos-carryout" className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                    <Package className="w-4 h-4 text-primary" />
+                    Carryout (add takeaway pack)
+                  </label>
+                  <Switch id="pos-carryout" checked={carryoutMode} onCheckedChange={setCarryoutMode} />
+                </div>
+                {carryoutMode && (
+                  applicablePacks.length > 0 ? (
+                    <div className="space-y-1">
+                      {applicablePacks.map(p => (
+                        <div key={p.id} className="flex items-center justify-between text-xs">
+                          <span className="truncate pr-2">{p.name}</span>
+                          <span className="font-semibold text-primary shrink-0">
+                            {p.price > 0 ? `+₦${Number(p.price).toLocaleString()}` : 'Free'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-muted-foreground">
+                      Add more items to qualify for a takeaway pack.
+                    </p>
+                  )
+                )}
+              </div>
+            )}
+            {packsTotal > 0 && (
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Items</span>
+                <span>₦{cartSubtotal.toLocaleString()}</span>
+              </div>
+            )}
+            {packsTotal > 0 && (
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Takeaway pack</span>
+                <span>+₦{packsTotal.toLocaleString()}</span>
+              </div>
+            )}
             <div className="flex items-center justify-between text-lg font-bold">
               <span>Total</span>
               <span className="text-primary">₦{subtotal.toLocaleString()}</span>

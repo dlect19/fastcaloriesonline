@@ -50,6 +50,7 @@ import RiderSettings from "./pages/rider/RiderSettings";
 import AdminAuth from "./pages/admin/AdminAuth";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminOrders from "./pages/admin/AdminOrders";
+import AdminPosReports from "./pages/admin/AdminPosReports";
 import AdminVendors from "./pages/admin/AdminVendors";
 import AdminVendorMenus from "./pages/admin/AdminVendorMenus";
 import AdminPharmacyAnalytics from "./pages/admin/AdminPharmacyAnalytics";
@@ -222,6 +223,7 @@ const App = () => {
               <Route path="/admin/auth" element={<AdminAuth />} />
               <Route path="/admin/dashboard" element={<AdminDashboard />} />
               <Route path="/admin/orders" element={<AdminOrders />} />
+              <Route path="/admin/pos-reports" element={<AdminPosReports />} />
               <Route path="/admin/vendors" element={<AdminVendors />} />
               <Route path="/admin/vendor-menus" element={<AdminVendorMenus />} />
               <Route path="/admin/pharmacy-analytics" element={<AdminPharmacyAnalytics />} />
