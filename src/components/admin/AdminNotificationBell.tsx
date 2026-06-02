@@ -101,14 +101,19 @@ export function AdminNotificationBell() {
 
     const channel = supabase
       .channel('admin-new-orders-bell')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, () => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
+        // Ignore POS (in-store) sales — they don't need an admin alert sound
+        const row: any = payload.new;
+        if (row?.channel === 'pos') return;
         // Realtime continues working in background tabs — fire sound + system notification immediately
         playGlobalNotificationSound();
         // Fire a system notification so the OS alerts even if tab audio is throttled
         showBrowserNotification((lastCountRef.current || 0) + 1);
         fetchPendingOrders();
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, () => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, (payload) => {
+        const row: any = payload.new;
+        if (row?.channel === 'pos') return;
         fetchPendingOrders();
       })
       .subscribe();
