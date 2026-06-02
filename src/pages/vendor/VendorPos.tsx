@@ -607,6 +607,7 @@ export default function VendorPos() {
           : `${orderNumber} • ₦${subtotal.toLocaleString()}`,
       });
       clearCart();
+      setCarryoutMode(false);
       setPaymentDialog(false);
       setMobileCartOpen(false);
     };
