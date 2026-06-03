@@ -180,10 +180,28 @@ export default function Explore() {
       {/* Header */}
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border">
         <div className="container py-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <h1 className="text-xl font-bold text-foreground">Explore</h1>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              {(cuisineId || viewMode === 'cuisines') && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0"
+                  onClick={() => navigate('/explore')}
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </Button>
+              )}
+              <h1 className="text-xl font-bold text-foreground truncate">
+                {viewMode === 'cuisines'
+                  ? 'Browse by Food'
+                  : selectedCuisine
+                  ? `${selectedCuisine.icon || ''} ${selectedCuisine.name}`
+                  : 'Explore'}
+              </h1>
+            </div>
             {hasLocation && (
-              <span className="flex items-center gap-1 text-xs text-muted-foreground bg-secondary px-2 py-1 rounded-full">
+              <span className="flex items-center gap-1 text-xs text-muted-foreground bg-secondary px-2 py-1 rounded-full shrink-0">
                 <MapPin className="w-3 h-3" />
                 {maxRadius}km radius
               </span>
