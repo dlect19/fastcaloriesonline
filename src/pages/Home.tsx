@@ -5,6 +5,7 @@ import { useProfileCompletion } from '@/hooks/useProfileCompletion';
 import { getPortalRedirect } from '@/hooks/usePortalMemory';
 import { Header } from '@/components/home/Header';
 import { CategoryPills } from '@/components/home/CategoryPills';
+import { CuisineCategoryRow } from '@/components/home/CuisineCategoryRow';
 import { PromoBanner } from '@/components/home/PromoBanner';
 import { AnnouncementAd } from '@/components/home/AnnouncementAd';
 import { CalorieWidget } from '@/components/home/CalorieWidget';
@@ -477,6 +478,9 @@ export default function Home() {
           externalOpen={locationDialogOpen}
           onExternalOpenChange={setLocationDialogOpen}
         />
+
+        {/* Browse by Cuisine */}
+        <CuisineCategoryRow />
 
         {/* Category Pills */}
         <CategoryPills onSelect={setSelectedCategory} />
