@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Loader2, Wallet, CreditCard } from 'lucide-react';
 import { useCustomerWallet } from '@/hooks/useCustomerWallet';
 import { useToast } from '@/hooks/use-toast';
+import { openPaymentUrl } from '@/lib/openPaymentUrl';
 
 interface FundWalletDialogProps {
   open: boolean;
