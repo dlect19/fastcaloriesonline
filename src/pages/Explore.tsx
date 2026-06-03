@@ -83,6 +83,33 @@ export default function Explore() {
     fetchProducts();
   }, []);
 
+  // When a cuisine filter is active, fetch vendor_ids that have available products in that cuisine
+  useEffect(() => {
+    let cancelled = false;
+    if (!cuisineId) {
+      setCuisineVendorIds(null);
+      return;
+    }
+    (async () => {
+      const { data, error } = await supabase
+        .from('products')
+        .select('vendor_id')
+        .eq('cuisine_category_id', cuisineId)
+        .eq('is_available', true)
+        .eq('is_hidden', false);
+      if (cancelled) return;
+      if (error) {
+        console.error('cuisine vendor filter error:', error);
+        setCuisineVendorIds(new Set());
+        return;
+      }
+      setCuisineVendorIds(new Set((data || []).map((r: any) => r.vendor_id)));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [cuisineId]);
+
   const fetchProducts = async () => {
     try {
       const { data: productsRes, error } = await supabase
@@ -99,7 +126,7 @@ export default function Explore() {
     }
   };
 
-  // Filter vendors based on search (already location-filtered from backend)
+  // Filter vendors based on search + active cuisine
   const filteredVendors = vendors.filter((vendor) => {
     const displayName = (vendor as any).display_name || vendor.name;
     const matchesSearch =
@@ -108,7 +135,9 @@ export default function Explore() {
       vendor.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       vendor.description?.toLowerCase().includes(searchQuery.toLowerCase());
 
-    return matchesSearch;
+    const matchesCuisine = !cuisineVendorIds || cuisineVendorIds.has(vendor.id);
+
+    return matchesSearch && matchesCuisine;
   });
 
   // Filter products based on search and calorie filter
