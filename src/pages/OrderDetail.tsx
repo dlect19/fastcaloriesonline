@@ -16,6 +16,7 @@ import { ArrowLeft, Package, Check, Truck, MapPin, Phone, Loader2, Store, Clock,
 import { format, differenceInMinutes } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { openPaymentUrl } from '@/lib/openPaymentUrl';
 
 const DELIVERY_ORDER_STATUSES = [
   { key: 'pending', label: 'Order Placed', icon: Package },
