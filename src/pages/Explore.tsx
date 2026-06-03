@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Search, Filter, X, Navigation, MapPin } from 'lucide-react';
+import { Search, Filter, X, Navigation, MapPin, ArrowLeft, UtensilsCrossed } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { useLocationBasedVendors, VendorWithDistance, checkVendorAccess } from '@/hooks/useLocationBasedVendors';
 import { formatDistance } from '@/lib/location';
+import { useCuisineCategories } from '@/hooks/useCuisineCategories';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Product = Tables<'products'>;
@@ -32,14 +33,22 @@ const calorieFilters = [
 
 export default function Explore() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const initialQuery = searchParams.get('q') || '';
+  const cuisineId = searchParams.get('cuisine');
+  const viewMode = searchParams.get('view'); // 'cuisines' shows the cuisine grid
   const [searchQuery, setSearchQuery] = useState(initialQuery);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedCalorieFilter, setSelectedCalorieFilter] = useState('all');
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
+  const [cuisineVendorIds, setCuisineVendorIds] = useState<Set<string> | null>(null);
+
+  const { categories: cuisineCategories, loading: cuisinesLoading } = useCuisineCategories();
+  const selectedCuisine = cuisineId
+    ? cuisineCategories.find((c) => c.id === cuisineId)
+    : null;
 
   const { latitude, longitude, loading: geoLoading, getCurrentPosition } = useGeolocation();
   const hasLocation = latitude !== null && longitude !== null;
