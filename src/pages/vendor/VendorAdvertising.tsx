@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { openPaymentUrl } from '@/lib/openPaymentUrl';
 import { Loader2, Eye, MousePointer, DollarSign, Plus, Wallet, ArrowUpRight, ArrowDownLeft, Megaphone, Clock, Sparkles, Upload, Image as ImageIcon, Trash2, ImagePlus } from 'lucide-react';
 import { VendorLayout } from '@/components/vendor/VendorLayout';
 
