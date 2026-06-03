@@ -271,7 +271,7 @@ export default function VendorAdvertising() {
       });
       if (error) throw error;
       if (data?.authorization_url) {
-        window.location.href = data.authorization_url;
+        await openPaymentUrl(data.authorization_url);
       } else {
         throw new Error('No payment URL returned');
       }
