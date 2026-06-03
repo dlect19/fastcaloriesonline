@@ -16,6 +16,7 @@ import { ArrowLeft, Package, Check, Truck, MapPin, Phone, Loader2, Store, Clock,
 import { format, differenceInMinutes } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { openPaymentUrl } from '@/lib/openPaymentUrl';
 
 const DELIVERY_ORDER_STATUSES = [
   { key: 'pending', label: 'Order Placed', icon: Package },
@@ -217,8 +218,8 @@ export default function OrderDetail() {
         throw new Error(paymentData?.error || 'Could not initialize payment');
       }
 
-      // Redirect to Paystack checkout
-      window.location.href = paymentData.authorization_url;
+      // Open Paystack checkout (in-app browser on native, redirect on web)
+      await openPaymentUrl(paymentData.authorization_url);
     } catch (error: any) {
       console.error('Payment error:', error);
       toast({
