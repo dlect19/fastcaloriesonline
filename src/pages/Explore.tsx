@@ -294,6 +294,39 @@ export default function Explore() {
       </header>
 
       <main className="container py-6 space-y-8">
+        {/* Cuisine grid view */}
+        {viewMode === 'cuisines' && (
+          <section>
+            <p className="text-sm text-muted-foreground mb-4">
+              Tap a category to see vendors near you that serve it.
+            </p>
+            {cuisinesLoading ? (
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                {Array.from({ length: 12 }).map((_, i) => (
+                  <Skeleton key={i} className="h-24 rounded-2xl" />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                {cuisineCategories.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => setSearchParams({ cuisine: c.id })}
+                    className="flex flex-col items-center justify-center gap-2 p-3 rounded-2xl bg-card border border-border hover:border-primary hover:bg-secondary transition-all"
+                  >
+                    <span className="text-3xl">
+                      {c.icon || <UtensilsCrossed className="w-7 h-7 text-muted-foreground" />}
+                    </span>
+                    <span className="text-xs font-medium text-foreground text-center line-clamp-2">
+                      {c.name}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
         {/* No Location Warning */}
         {noLocationError && !geoLoading && (
           <div className="bg-card rounded-2xl border border-border p-8 text-center">
