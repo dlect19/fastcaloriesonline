@@ -24,6 +24,7 @@ const menuItems: MenuItem[] = [
   { icon: Store, label: 'Vendors', path: '/admin/vendors', requiredPermission: 'manage_vendors' },
   { icon: Bike, label: 'Riders', path: '/admin/riders', requiredPermission: 'manage_riders' },
   { icon: UtensilsCrossed, label: 'Vendor Menus', path: '/admin/vendor-menus', requiredPermission: 'manage_vendors' },
+  { icon: UtensilsCrossed, label: 'Cuisine Categories', path: '/admin/cuisine-categories', requiredPermission: 'manage_vendors' },
   { icon: Star, label: 'Reviews', path: '/admin/reviews', requiredPermission: 'manage_vendors' },
   { icon: Truck, label: 'Delivery Companies', path: '/admin/delivery-companies', requiredPermission: 'manage_vendors' },
   { icon: UserCheck, label: 'Customers', path: '/admin/customers', requiredPermission: 'manage_users' },
