@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Search, Filter, X, Navigation, MapPin } from 'lucide-react';
+import { Search, Filter, X, Navigation, MapPin, ArrowLeft, UtensilsCrossed } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { useLocationBasedVendors, VendorWithDistance, checkVendorAccess } from '@/hooks/useLocationBasedVendors';
 import { formatDistance } from '@/lib/location';
+import { useCuisineCategories } from '@/hooks/useCuisineCategories';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Product = Tables<'products'>;
@@ -32,14 +33,22 @@ const calorieFilters = [
 
 export default function Explore() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const initialQuery = searchParams.get('q') || '';
+  const cuisineId = searchParams.get('cuisine');
+  const viewMode = searchParams.get('view'); // 'cuisines' shows the cuisine grid
   const [searchQuery, setSearchQuery] = useState(initialQuery);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedCalorieFilter, setSelectedCalorieFilter] = useState('all');
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
+  const [cuisineVendorIds, setCuisineVendorIds] = useState<Set<string> | null>(null);
+
+  const { categories: cuisineCategories, loading: cuisinesLoading } = useCuisineCategories();
+  const selectedCuisine = cuisineId
+    ? cuisineCategories.find((c) => c.id === cuisineId)
+    : null;
 
   const { latitude, longitude, loading: geoLoading, getCurrentPosition } = useGeolocation();
   const hasLocation = latitude !== null && longitude !== null;
@@ -74,6 +83,33 @@ export default function Explore() {
     fetchProducts();
   }, []);
 
+  // When a cuisine filter is active, fetch vendor_ids that have available products in that cuisine
+  useEffect(() => {
+    let cancelled = false;
+    if (!cuisineId) {
+      setCuisineVendorIds(null);
+      return;
+    }
+    (async () => {
+      const { data, error } = await supabase
+        .from('products')
+        .select('vendor_id')
+        .eq('cuisine_category_id', cuisineId)
+        .eq('is_available', true)
+        .eq('is_hidden', false);
+      if (cancelled) return;
+      if (error) {
+        console.error('cuisine vendor filter error:', error);
+        setCuisineVendorIds(new Set());
+        return;
+      }
+      setCuisineVendorIds(new Set((data || []).map((r: any) => r.vendor_id)));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [cuisineId]);
+
   const fetchProducts = async () => {
     try {
       const { data: productsRes, error } = await supabase
@@ -90,7 +126,7 @@ export default function Explore() {
     }
   };
 
-  // Filter vendors based on search (already location-filtered from backend)
+  // Filter vendors based on search + active cuisine
   const filteredVendors = vendors.filter((vendor) => {
     const displayName = (vendor as any).display_name || vendor.name;
     const matchesSearch =
@@ -99,7 +135,9 @@ export default function Explore() {
       vendor.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       vendor.description?.toLowerCase().includes(searchQuery.toLowerCase());
 
-    return matchesSearch;
+    const matchesCuisine = !cuisineVendorIds || cuisineVendorIds.has(vendor.id);
+
+    return matchesSearch && matchesCuisine;
   });
 
   // Filter products based on search and calorie filter
@@ -142,10 +180,28 @@ export default function Explore() {
       {/* Header */}
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border">
         <div className="container py-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <h1 className="text-xl font-bold text-foreground">Explore</h1>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              {(cuisineId || viewMode === 'cuisines') && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0"
+                  onClick={() => navigate('/explore')}
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </Button>
+              )}
+              <h1 className="text-xl font-bold text-foreground truncate">
+                {viewMode === 'cuisines'
+                  ? 'Browse by Food'
+                  : selectedCuisine
+                  ? `${selectedCuisine.icon || ''} ${selectedCuisine.name}`
+                  : 'Explore'}
+              </h1>
+            </div>
             {hasLocation && (
-              <span className="flex items-center gap-1 text-xs text-muted-foreground bg-secondary px-2 py-1 rounded-full">
+              <span className="flex items-center gap-1 text-xs text-muted-foreground bg-secondary px-2 py-1 rounded-full shrink-0">
                 <MapPin className="w-3 h-3" />
                 {maxRadius}km radius
               </span>
@@ -238,6 +294,39 @@ export default function Explore() {
       </header>
 
       <main className="container py-6 space-y-8">
+        {/* Cuisine grid view */}
+        {viewMode === 'cuisines' && (
+          <section>
+            <p className="text-sm text-muted-foreground mb-4">
+              Tap a category to see vendors near you that serve it.
+            </p>
+            {cuisinesLoading ? (
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                {Array.from({ length: 12 }).map((_, i) => (
+                  <Skeleton key={i} className="h-24 rounded-2xl" />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                {cuisineCategories.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => setSearchParams({ cuisine: c.id })}
+                    className="flex flex-col items-center justify-center gap-2 p-3 rounded-2xl bg-card border border-border hover:border-primary hover:bg-secondary transition-all"
+                  >
+                    <span className="text-3xl">
+                      {c.icon || <UtensilsCrossed className="w-7 h-7 text-muted-foreground" />}
+                    </span>
+                    <span className="text-xs font-medium text-foreground text-center line-clamp-2">
+                      {c.name}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
         {/* No Location Warning */}
         {noLocationError && !geoLoading && (
           <div className="bg-card rounded-2xl border border-border p-8 text-center">

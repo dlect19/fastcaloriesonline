@@ -53,6 +53,7 @@ import AdminOrders from "./pages/admin/AdminOrders";
 import AdminPosReports from "./pages/admin/AdminPosReports";
 import AdminVendors from "./pages/admin/AdminVendors";
 import AdminVendorMenus from "./pages/admin/AdminVendorMenus";
+import AdminCuisineCategories from "./pages/admin/AdminCuisineCategories";
 import AdminPharmacyAnalytics from "./pages/admin/AdminPharmacyAnalytics";
 import AdminRiders from "./pages/admin/AdminRiders";
 import AdminPromos from "./pages/admin/AdminPromos";
@@ -226,6 +227,7 @@ const App = () => {
               <Route path="/admin/pos-reports" element={<AdminPosReports />} />
               <Route path="/admin/vendors" element={<AdminVendors />} />
               <Route path="/admin/vendor-menus" element={<AdminVendorMenus />} />
+              <Route path="/admin/cuisine-categories" element={<AdminCuisineCategories />} />
               <Route path="/admin/pharmacy-analytics" element={<AdminPharmacyAnalytics />} />
               <Route path="/admin/riders" element={<AdminRiders />} />
               <Route path="/admin/promos" element={<AdminPromos />} />
