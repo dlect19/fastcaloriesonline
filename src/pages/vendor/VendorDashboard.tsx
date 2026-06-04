@@ -320,6 +320,14 @@ export default function VendorDashboard() {
             .eq('wallet_id', wallet.id)
             .eq('environment', env);
           if (allTxData) setAllTransactions(allTxData);
+
+          // Fetch settlement period config + currently-held funds
+          const [{ data: infoRows }, { data: pendingRows }] = await Promise.all([
+            supabase.rpc('get_vendor_settlement_info', { p_wallet_id: wallet.id }),
+            supabase.rpc('get_vendor_pending_settlement', { p_wallet_id: wallet.id, p_environment: env }),
+          ]);
+          if (infoRows && infoRows[0]) setSettlementInfo(infoRows[0] as any);
+          if (pendingRows && pendingRows[0]) setPendingSettlement(pendingRows[0] as any);
         }
         setStats(prev => ({
           ...prev,
