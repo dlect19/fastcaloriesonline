@@ -349,10 +349,19 @@ export default function VendorDashboard() {
     return `₦${amount.toLocaleString()}`;
   };
 
-  // Ledger-based balance computation (source of truth)
+  // Ledger-based balance computation (source of truth) — settlement-period aware
+  const _nowMs = Date.now();
+  const _isReleased = (tx: any) => {
+    const ts = tx.release_at ? new Date(tx.release_at).getTime() : new Date(tx.created_at).getTime();
+    return ts <= _nowMs;
+  };
+
   const computedMenuBalance = Math.max(0, allTransactions.reduce((sum: number, tx: any) => {
     if (tx.category === 'vendor_share' && tx.status === 'completed') {
-      return tx.transaction_type === 'credit' ? sum + Number(tx.amount) : sum - Number(tx.amount);
+      if (tx.transaction_type === 'credit') {
+        return _isReleased(tx) ? sum + Number(tx.amount) : sum;
+      }
+      return sum - Number(tx.amount);
     }
     if (tx.category === 'withdrawal' && tx.transaction_type === 'debit' && tx.notes?.includes('Menu Earnings')) {
       return sum - Number(tx.amount);
@@ -364,12 +373,16 @@ export default function VendorDashboard() {
   }, 0));
 
   const computedMenuPending = Math.max(0, allTransactions
-    .filter((tx: any) => tx.category === 'vendor_share' && tx.transaction_type === 'credit' && tx.status === 'pending')
+    .filter((tx: any) => tx.category === 'vendor_share' && tx.transaction_type === 'credit'
+      && (tx.status === 'pending' || (tx.status === 'completed' && !_isReleased(tx))))
     .reduce((sum: number, tx: any) => sum + Number(tx.amount), 0));
 
   const computedRiderBalance = Math.max(0, allTransactions.reduce((sum: number, tx: any) => {
     if (tx.category === 'vendor_rider_share' && tx.status === 'completed') {
-      return tx.transaction_type === 'credit' ? sum + Number(tx.amount) : sum - Number(tx.amount);
+      if (tx.transaction_type === 'credit') {
+        return _isReleased(tx) ? sum + Number(tx.amount) : sum;
+      }
+      return sum - Number(tx.amount);
     }
     if (tx.category === 'withdrawal' && tx.transaction_type === 'debit' && tx.notes?.includes('Rider Revenue')) {
       return sum - Number(tx.amount);
@@ -379,6 +392,11 @@ export default function VendorDashboard() {
     }
     return sum;
   }, 0));
+
+  const computedRiderPending = Math.max(0, allTransactions
+    .filter((tx: any) => tx.category === 'vendor_rider_share' && tx.transaction_type === 'credit'
+      && tx.status === 'completed' && !_isReleased(tx))
+    .reduce((sum: number, tx: any) => sum + Number(tx.amount), 0));
 
   const toggleOrderExpand = async (orderId: string) => {
     if (expandedOrderId === orderId) {
