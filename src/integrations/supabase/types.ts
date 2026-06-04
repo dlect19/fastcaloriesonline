@@ -7177,6 +7177,14 @@ export type Database = {
       get_platform_environment: { Args: never; Returns: string }
       get_rider_delivery_count: { Args: { _rider_id: string }; Returns: number }
       get_rider_profile_id: { Args: { _user_id: string }; Returns: string }
+      get_vendor_pending_settlement: {
+        Args: { p_environment?: string; p_wallet_id: string }
+        Returns: {
+          item_count: number
+          next_release_at: string
+          pending_total: number
+        }[]
+      }
       get_vendor_settlement_info: {
         Args: { p_wallet_id: string }
         Returns: {
