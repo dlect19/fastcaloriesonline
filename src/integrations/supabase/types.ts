@@ -6519,6 +6519,7 @@ export type Database = {
           platform_wallet_id: string | null
           reference: string | null
           related_wallet_id: string | null
+          release_at: string | null
           status: string | null
           transaction_type: string
           updated_at: string
@@ -6540,6 +6541,7 @@ export type Database = {
           platform_wallet_id?: string | null
           reference?: string | null
           related_wallet_id?: string | null
+          release_at?: string | null
           status?: string | null
           transaction_type: string
           updated_at?: string
@@ -6561,6 +6563,7 @@ export type Database = {
           platform_wallet_id?: string | null
           reference?: string | null
           related_wallet_id?: string | null
+          release_at?: string | null
           status?: string | null
           transaction_type?: string
           updated_at?: string
@@ -7174,6 +7177,14 @@ export type Database = {
       get_platform_environment: { Args: never; Returns: string }
       get_rider_delivery_count: { Args: { _rider_id: string }; Returns: number }
       get_rider_profile_id: { Args: { _user_id: string }; Returns: string }
+      get_vendor_settlement_info: {
+        Args: { p_wallet_id: string }
+        Returns: {
+          category: string
+          hours: number
+          mode: string
+        }[]
+      }
       get_vendor_staff_role: {
         Args: { _user_id: string; _vendor_id: string }
         Returns: Database["public"]["Enums"]["vendor_staff_role"]
