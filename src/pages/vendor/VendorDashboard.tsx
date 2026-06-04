@@ -51,6 +51,8 @@ export default function VendorDashboard() {
   const [loading, setLoading] = useState(true);
   const [walletData, setWalletData] = useState<any>(null);
   const [allTransactions, setAllTransactions] = useState<any[]>([]);
+  const [settlementInfo, setSettlementInfo] = useState<{ category: string; mode: string; hours: number } | null>(null);
+  const [pendingSettlement, setPendingSettlement] = useState<{ pending_total: number; next_release_at: string | null; item_count: number } | null>(null);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [orderItems, setOrderItems] = useState<Record<string, any[]>>({});
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
