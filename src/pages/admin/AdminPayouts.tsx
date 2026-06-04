@@ -240,7 +240,7 @@ export default function AdminPayouts() {
     if (walletIds?.length) {
       await Promise.all(
         walletIds.map(w =>
-          supabase.rpc('reconcile_vendor_wallet', { p_wallet_id: w.id }).then(() => null).catch(() => null)
+          Promise.resolve(supabase.rpc('reconcile_vendor_wallet', { p_wallet_id: w.id })).catch(() => null)
         )
       );
     }
