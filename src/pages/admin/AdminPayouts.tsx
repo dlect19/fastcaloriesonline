@@ -231,6 +231,20 @@ export default function AdminPayouts() {
   };
 
   const fetchManualVendorWallets = async () => {
+    // First grab wallet IDs, then reconcile each to honor settlement hold periods,
+    // so the admin sees the same withdrawable balance the vendor sees.
+    const { data: walletIds } = await supabase
+      .from('wallets')
+      .select('id')
+      .eq('wallet_type', 'vendor');
+    if (walletIds?.length) {
+      await Promise.all(
+        walletIds.map(w =>
+          supabase.rpc('reconcile_vendor_wallet', { p_wallet_id: w.id }).then(() => null).catch(() => null)
+        )
+      );
+    }
+
     const { data: walletsData, error } = await supabase
       .from('wallets')
       .select('id, user_id, outlet_id, bank_name, bank_account_number, bank_account_name, menu_earnings_balance, rider_revenue_balance, test_menu_earnings_balance, test_rider_revenue_balance')
