@@ -608,6 +608,56 @@ export default function VendorDashboard() {
             </Card>
           </div>
 
+          {/* Settlement Period Notice — Pending Funds Hold */}
+          {hasPermission('view_earnings') && walletData && settlementInfo && (() => {
+            const cat = settlementInfo.category.charAt(0).toUpperCase() + settlementInfo.category.slice(1);
+            const periodLabel =
+              settlementInfo.mode === 'instant' ? 'Instant (no hold)' :
+              settlementInfo.mode === 'next_day' ? 'Released next day' :
+              settlementInfo.mode === 'third_day' ? 'Released after 3 days' :
+              settlementInfo.mode === 'hours' ? `${Number(settlementInfo.hours)} hour hold` :
+              settlementInfo.mode;
+            const pendingTotal = Number(pendingSettlement?.pending_total || 0);
+            const nextRelease = pendingSettlement?.next_release_at
+              ? new Date(pendingSettlement.next_release_at)
+              : null;
+            return (
+              <Card className="border-0 shadow-soft bg-warning/5">
+                <CardContent className="p-5">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-warning/10 flex items-center justify-center shrink-0">
+                      <Clock className="w-5 h-5 text-warning" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <p className="font-semibold text-foreground">Pending Settlement</p>
+                        <Badge variant="outline" className="text-xs">{cat} • {periodLabel}</Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Funds shown here are earned but still on hold based on the admin-set settlement period for your vendor type.
+                        They'll automatically move into your withdrawable balance once the hold ends.
+                      </p>
+                      <div className="grid grid-cols-2 gap-4 mt-3">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Currently Held</p>
+                          <p className="text-xl font-bold text-warning">{formatCurrency(pendingTotal)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Next Release</p>
+                          <p className="text-sm font-semibold text-foreground">
+                            {nextRelease
+                              ? nextRelease.toLocaleString('en-NG', { dateStyle: 'medium', timeStyle: 'short' })
+                              : '—'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
+
           {/* Revenue Pools - Menu & Rider Revenue */}
           {hasPermission('view_earnings') && walletData && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -624,13 +674,21 @@ export default function VendorDashboard() {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-xs text-muted-foreground">Available</p>
+                      <p className="text-xs text-muted-foreground">Withdrawable</p>
                       <p className="text-xl font-bold text-success">
                         {formatCurrency(computedMenuBalance)}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground">Pending ({settlementHours === 0 ? 'Immediate' : `${settlementHours || 24}hr hold`})</p>
+                      <p className="text-xs text-muted-foreground">
+                        Pending {settlementInfo
+                          ? (settlementInfo.mode === 'instant' ? '(Instant)'
+                              : settlementInfo.mode === 'next_day' ? '(Next day)'
+                              : settlementInfo.mode === 'third_day' ? '(3 days)'
+                              : settlementInfo.mode === 'hours' ? `(${Number(settlementInfo.hours)}h hold)`
+                              : '')
+                          : ''}
+                      </p>
                       <p className="text-xl font-bold text-warning">
                         {formatCurrency(computedMenuPending)}
                       </p>
@@ -652,14 +710,16 @@ export default function VendorDashboard() {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-xs text-muted-foreground">Available</p>
+                      <p className="text-xs text-muted-foreground">Withdrawable</p>
                       <p className="text-xl font-bold text-primary">
                         {formatCurrency(computedRiderBalance)}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground">No Hold Period</p>
-                      <p className="text-sm text-muted-foreground">Available immediately</p>
+                      <p className="text-xs text-muted-foreground">On Settlement Hold</p>
+                      <p className="text-xl font-bold text-warning">
+                        {formatCurrency(computedRiderPending)}
+                      </p>
                     </div>
                   </div>
                 </CardContent>
