@@ -1,6 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { Home, Package, Store, Bike, Ticket, Users, Settings, LogOut, Image, Activity, Banknote, Wallet, ArrowDownLeft, Gift, Truck, UserCheck, Star, MessageSquare, DollarSign, UserPlus, Receipt, ClipboardList, Scale, HelpCircle, Percent, ShieldAlert, Megaphone, Gavel, UtensilsCrossed, Map, ExternalLink, Sparkles, Pill, PauseCircle, MessageCircle } from 'lucide-react';
+import { Home, Package, Store, Bike, Ticket, Users, Settings, LogOut, Image, Activity, Banknote, Wallet, ArrowDownLeft, Gift, Truck, UserCheck, Star, MessageSquare, DollarSign, UserPlus, Receipt, ClipboardList, Scale, HelpCircle, Percent, ShieldAlert, Megaphone, Gavel, UtensilsCrossed, Map, ExternalLink, Sparkles, Pill, PauseCircle, MessageCircle, CalendarDays, QrCode } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -26,6 +26,8 @@ const menuItems: MenuItem[] = [
   { icon: UtensilsCrossed, label: 'Vendor Menus', path: '/admin/vendor-menus', requiredPermission: 'manage_vendors' },
   { icon: UtensilsCrossed, label: 'Cuisine Categories', path: '/admin/cuisine-categories', requiredPermission: 'manage_vendors' },
   { icon: Star, label: 'Reviews', path: '/admin/reviews', requiredPermission: 'manage_vendors' },
+  { icon: CalendarDays, label: 'Events', path: '/admin/events', requiredPermission: 'manage_vendors' },
+  { icon: QrCode, label: 'Verify Tickets', path: '/admin/event-verify', requiredPermission: 'manage_vendors' },
   { icon: Truck, label: 'Delivery Companies', path: '/admin/delivery-companies', requiredPermission: 'manage_vendors' },
   { icon: UserCheck, label: 'Customers', path: '/admin/customers', requiredPermission: 'manage_users' },
   { icon: Banknote, label: 'Payouts', path: '/admin/payouts', badgeKey: 'payouts', requiredPermission: 'process_withdrawals' },
