@@ -61,7 +61,7 @@ export default function AdminEvents() {
       organizer: editing.organizer || null,
       capacity: editing.capacity ? Number(editing.capacity) : null,
       terms: editing.terms || null,
-      status: editing.status,
+      status: editing.status as any,
     };
     if (!payload.name || !payload.event_date) {
       toast({ title: 'Name and date are required', variant: 'destructive' });
