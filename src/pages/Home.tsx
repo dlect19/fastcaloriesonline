@@ -6,6 +6,7 @@ import { getPortalRedirect } from '@/hooks/usePortalMemory';
 import { Header } from '@/components/home/Header';
 import { CategoryPills } from '@/components/home/CategoryPills';
 import { CuisineCategoryRow } from '@/components/home/CuisineCategoryRow';
+import { EventsCarousel } from '@/components/events/EventsCarousel';
 import { PromoBanner } from '@/components/home/PromoBanner';
 import { AnnouncementAd } from '@/components/home/AnnouncementAd';
 import { CalorieWidget } from '@/components/home/CalorieWidget';
@@ -479,8 +480,12 @@ export default function Home() {
           onExternalOpenChange={setLocationDialogOpen}
         />
 
+        {/* Events */}
+        <EventsCarousel />
+
         {/* Browse by Cuisine */}
         <CuisineCategoryRow />
+
 
         {/* Category Pills */}
         <CategoryPills onSelect={setSelectedCategory} />
