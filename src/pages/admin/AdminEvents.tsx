@@ -80,7 +80,7 @@ export default function AdminEvents() {
   };
 
   const setStatus = async (id: string, status: string) => {
-    const { error } = await supabase.from('events').update({ status }).eq('id', id);
+    const { error } = await supabase.from('events').update({ status: status as any }).eq('id', id);
     if (error) return toast({ title: 'Update failed', description: error.message, variant: 'destructive' });
     load();
   };
