@@ -123,6 +123,12 @@ import DeleteAccount from "./pages/DeleteAccount";
 import CoverageMap from "./pages/CoverageMap";
 import WorkspaceLogin from "./pages/WorkspaceLogin";
 import WhatsAppMiniApp from "./pages/WhatsAppMiniApp";
+import EventsList from "./pages/EventsList";
+import EventDetail from "./pages/EventDetail";
+import MyEvents from "./pages/MyEvents";
+import AdminEvents from "./pages/admin/AdminEvents";
+import AdminEventDetail from "./pages/admin/AdminEventDetail";
+import AdminEventVerify from "./pages/admin/AdminEventVerify";
 import { playGlobalNotificationSound } from '@/lib/globalAudio';
 import { useFcmNotifications } from '@/hooks/useFcmNotifications';
 import { usePortalMemory } from '@/hooks/usePortalMemory';
@@ -185,6 +191,10 @@ const App = () => {
               <Route path="/coverage" element={<CoverageMap />} />
               <Route path="/nutrition-report" element={<NutritionReport />} />
               <Route path="/drug-tracker" element={<DrugTracker />} />
+              {/* Events */}
+              <Route path="/events" element={<EventsList />} />
+              <Route path="/events/:id" element={<EventDetail />} />
+              <Route path="/my-events" element={<MyEvents />} />
               {/* Landing Pages */}
               <Route path="/become-vendor" element={<VendorLanding />} />
               <Route path="/become-rider" element={<RiderLanding />} />
@@ -265,6 +275,10 @@ const App = () => {
               <Route path="/admin/financial-tools" element={<AdminFinancialTools />} />
               <Route path="/admin/ambassadors" element={<AdminAmbassadors />} />
               <Route path="/admin/drug-database" element={<AdminDrugDatabase />} />
+              {/* Admin Events */}
+              <Route path="/admin/events" element={<AdminEvents />} />
+              <Route path="/admin/events/:id" element={<AdminEventDetail />} />
+              <Route path="/admin/event-verify" element={<AdminEventVerify />} />
               {/* Public Pages */}
               <Route path="/delete-account" element={<DeleteAccount />} />
               {/* Legal Pages (public) */}

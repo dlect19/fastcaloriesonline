@@ -1,47 +1,104 @@
-## Goal
-Route push notifications to the Android package **`com.customers.fastcalories.app`** under Firebase project `fastcalories-18ba8` (Sender ID `356075693003`), matching the updated `google-services.json` you uploaded.
+# Event Ticketing + Food Voucher + QR Verification
 
-## Background
-FCM delivers messages to **device tokens**, and each token is bound to the package the app was installed under. The backend (`send-push-notification`, `broadcast-notification`) does not need any change — it already sends to whatever FCM tokens are stored in `push_subscriptions`. The fix is on the **Android client side**: the customer app is currently built as `com.fastcalories.customer`, so its tokens are registered against that package. To deliver to `com.customers.fastcalories.app`, the customer build must use that applicationId, register fresh FCM tokens, and ship with the new `google-services.json`.
+This is a large, multi-phase module. I'll integrate it cleanly into the existing FastCalories infrastructure (wallet payments, vendors, combos, notifications, customer app) rather than building a parallel system.
 
-Your uploaded JSON keeps the old `com.fastcalories.customer` entry and *adds* `com.customers.fastcalories.app`, so both packages remain valid in Firebase — but only the package the APK is built with will actually receive pushes on a given device.
+Given the scope, I propose shipping in **4 phases** so each phase is stable, testable, and you can start using it before the next ships. Please confirm the phasing (or tell me to compress it).
 
-## Plan
+---
 
-### 1. Replace `android/app/google-services.json`
-Overwrite with the uploaded file (adds the new `com.customers.fastcalories.app` client; keeps existing rider/vendor/online entries).
+## Phase 1 — Foundation: Events + Tickets + Purchase + QR
 
-### 2. Rename customer Android app package → `com.customers.fastcalories.app`
-Files to update:
-- `capacitor.config.ts` — change `appId` from `com.fastcalories.app` to `com.customers.fastcalories.app` (current value is stale and inconsistent already).
-- `android/app/build.gradle` — `namespace` and `applicationId` → `com.customers.fastcalories.app`.
-- `android/app/src/main/AndroidManifest.xml` — update `android:name=".MainActivity"` reference and any `com.fastcalories.customer.*` fully-qualified names.
-- `android/app/src/main/assets/capacitor.config.json` — `appId` → `com.customers.fastcalories.app`.
-- `android/app/src/main/res/values/strings.xml` — `package_name` and `custom_url_scheme` → `com.customers.fastcalories.app`.
-- Move `MainActivity.java` from `android/app/src/main/java/com/fastcalories/customer/` to `android/app/src/main/java/com/customers/fastcalories/app/` and update its `package` declaration.
+**Database**
+- `events` — name, banner, description, location (text + lat/lng optional), date, start/end time, organizer, capacity, terms, status (draft/published/paused/cancelled/completed)
+- `event_ticket_types` — event_id, name, image, price, qty_available, qty_sold, max_per_customer, sales_start, sales_end
+- `event_tickets` — issued tickets: id, ticket_code (short, human-readable), qr_token (random secure), user_id, event_id, ticket_type_id, order_id, status (unused/checked_in/cancelled/expired), checked_in_at, checked_in_by
+- `event_ticket_orders` — purchase grouping, payment_status, amount, payment_reference
+- RLS: customers see own tickets; admins (via `has_role`) manage everything; event-verifier role can update check-in.
 
-### 3. Deep linking / OAuth follow-ups (flag for you)
-These live outside the repo and must be updated manually in the respective consoles, otherwise Google Sign-In and App Links will break for the renamed app:
-- **Google Cloud Console** — add a new Android OAuth client for `com.customers.fastcalories.app` with the APK's SHA-1 fingerprint (the uploaded `google-services.json` shows no oauth_client entries with SHA for this package yet).
-- **`.well-known/assetlinks.json`** on `app.fastcalories.online` — add the new package name + SHA-256 alongside the existing entries.
-- **Paystack / any webhook callback whitelists** — no change (web-based).
+**Payment integration**
+- Reuse existing wallet-first checkout pattern (`Order-First then Debit`), plus Paystack fallback through existing `paystack-initialize-payment` style edge function (new edge fn `purchase-event-ticket`).
+- Stock decrement is atomic via DB function with row lock to prevent overselling.
 
-### 4. Rebuild & reinstall
-After merging, you must:
-```
-git pull
-npm install
-npx cap sync android
-npx cap run android   # or rebuild APK via Codemagic
-```
-Existing installs of `com.fastcalories.customer` will keep getting pushes to the old package until uninstalled. New installs of `com.customers.fastcalories.app` will register fresh FCM tokens into `push_subscriptions` and start receiving notifications immediately.
+**Admin UI** (`/admin/events`)
+- List/Create/Edit/Pause/Publish/Cancel events
+- Manage ticket types per event (CRUD, low-stock badge, sold-out auto)
+- Basic analytics card (sold, revenue, remaining, check-ins)
 
-### 5. Verification
-- After install, check `push_subscriptions` for the test user — `endpoint` should start with `fcm://` and a new row should appear post-login.
-- Trigger a test from Admin → Broadcast Notification (target: customers) and confirm receipt on the renamed app.
+**Customer UI**
+- Home page landscape **Events carousel** (above vendor list)
+- `/events/:id` — details, ticket types, buy button
+- `/my-events` — purchased tickets with QR images
+- Ticket detail screen renders QR (qrcode lib) + ticket code
 
-## Out of scope
-- No backend / edge function changes (FCM v1 send path is package-agnostic).
-- Rider (`com.fastcalories.fastcaloriesrider`), vendor (`com.fastcalories.vendor`), and online (`com.fastcalories.online`) packages are untouched.
+**Verification UI** (`/admin/event-verify` or staff-scoped)
+- Camera QR scanner (`html5-qrcode`) + manual code entry
+- Edge function `verify-event-ticket` validates token, marks checked_in atomically, returns Valid / Already Used / Invalid / Expired
 
-Confirm and I'll implement steps 1–2 in the repo; steps 3–5 are manual actions on your side.
+**Notifications**
+- Push + email on purchase (reuse existing transactional email infra)
+
+---
+
+## Phase 2 — Food Voucher System
+
+**Database**
+- `event_voucher_templates` — attached to ticket_type: reward_type (none/food/discount/merch), vendor_id, combo_id (FK to existing combos), redemption_mode (venue/delivery/both), delivery_rule (free_food/free_food_paid_delivery/free_food_free_delivery), sponsor (fastcalories/vendor/organizer), expires_at_rule
+- `event_vouchers` — issued per ticket: id, voucher_code, qr_token, ticket_id, user_id, vendor_id, combo_id, status (generated/reserved/redeemed/expired/cancelled), redemption_method, redeemed_at, redeemed_vendor_id, sponsor
+- Trigger: when ticket created, auto-generate voucher rows from template.
+- Separate QR namespace from tickets (different token prefix) so a ticket QR cannot be redeemed as voucher.
+
+**Admin UI**
+- On ticket-type form: add voucher template (vendor picker → combo picker, redemption mode, sponsor, delivery rule)
+
+**Vendor venue redemption** (`/vendor/voucher-verify`)
+- Scoped to the vendor's own outlet; QR scanner; only validates vouchers tied to that vendor; atomic mark-redeemed.
+
+**Customer delivery redemption**
+- `/my-events` → "Redeem for delivery" button on eligible vouchers
+- Creates a normal FastCalories order pre-loaded with the voucher's combo from the correct vendor, applies 100% discount on that combo line, applies delivery rule (fee/free)
+- Voucher moves to `reserved` until order completes → `redeemed`; auto-revert to `generated` if order cancelled.
+
+**Sponsor accounting**
+- New `voucher_settlements` ledger entry per redemption — vendor still gets paid via existing payout flow; sponsor bucket is debited (FC platform expense, vendor self-funded write-off, or organizer invoice line). Reuses `wallet_transactions` ledger pattern.
+
+---
+
+## Phase 3 — Analytics, Notifications, Wallet Polish
+
+- Admin analytics dashboard per event: sold, revenue by type, check-in rate, vouchers issued/redeemed/expired, conversion rate
+- Customer **My Events**: upcoming, history, rewards tab, voucher statuses
+- Notifications: event reminder (24h before), starting soon (1h before), voucher available, voucher redeemed, voucher expiry reminder (cron via pg_cron + existing push/email infra)
+- Repeating sound alerts already exist for admin/rider — extend to ticket-sale alerts only if you want (off by default).
+
+---
+
+## Phase 4 — Future-Ready Hooks (schema only, no UI yet)
+
+Schema fields/tables stubbed but inactive:
+- `event_organizers` table (so vendor-created and organizer-created events work later)
+- `created_by_type` (admin/vendor/organizer) on events
+- `event_promo_codes`, `referral_tickets`, `group_tickets`, `event_merchandise`, `event_seats`
+- Keeps Phase 1–3 code clean while making expansion non-breaking.
+
+---
+
+## Technical Notes (for engineers)
+
+- **QR library:** `qrcode` for generation (client + edge fn), `html5-qrcode` for scanning. Both lightweight.
+- **Ticket code format:** `FC-EVT-XXXX-XXXX` (Crockford base32, 8 random chars) for manual entry; QR carries a separate signed token.
+- **Atomic check-in:** Postgres function `check_in_ticket(qr_token, staff_id)` with row-level lock returning status.
+- **Atomic stock:** `purchase_event_tickets(...)` function decrements `qty_sold` with `FOR UPDATE` to prevent oversell.
+- **Voucher ↔ combo:** reuses existing `combos` table — no parallel menu system.
+- **RLS:** verifier role via existing `user_roles` + new `event_verifier` enum value; vendor voucher scanner scoped via `owns_vendor`.
+- **No changes to existing order flow** for non-event orders — event tickets are a separate order namespace.
+- **Settlement holds:** event ticket revenue uses existing vendor settlement-period system if event is vendor-owned; admin-owned events settle to platform wallet.
+
+---
+
+## Confirmation needed before I start
+
+1. **OK with 4-phase rollout?** (Phase 1 first, ~big migration + ~15 files)
+2. **Who scans tickets at the venue?** Admin staff only, or do we need a dedicated lightweight "event verifier" role/login?
+3. **Default voucher sponsor when admin creates a ticket?** FastCalories-sponsored, or force admin to pick every time?
+
+Once you confirm, I'll start Phase 1 immediately.

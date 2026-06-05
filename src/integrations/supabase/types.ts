@@ -2303,6 +2303,272 @@ export type Database = {
         }
         Relationships: []
       }
+      event_ticket_orders: {
+        Row: {
+          created_at: string
+          environment: string
+          event_id: string
+          id: string
+          metadata: Json
+          order_number: string
+          paid_at: string | null
+          payment_method: string | null
+          payment_reference: string | null
+          payment_status: Database["public"]["Enums"]["event_order_payment_status"]
+          subtotal: number
+          total: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          environment?: string
+          event_id: string
+          id?: string
+          metadata?: Json
+          order_number: string
+          paid_at?: string | null
+          payment_method?: string | null
+          payment_reference?: string | null
+          payment_status?: Database["public"]["Enums"]["event_order_payment_status"]
+          subtotal?: number
+          total?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          environment?: string
+          event_id?: string
+          id?: string
+          metadata?: Json
+          order_number?: string
+          paid_at?: string | null
+          payment_method?: string | null
+          payment_reference?: string | null
+          payment_status?: Database["public"]["Enums"]["event_order_payment_status"]
+          subtotal?: number
+          total?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_ticket_orders_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_ticket_types: {
+        Row: {
+          created_at: string
+          description: string | null
+          event_id: string
+          id: string
+          image_url: string | null
+          is_active: boolean
+          max_per_customer: number
+          name: string
+          price: number
+          qty_available: number
+          qty_sold: number
+          sales_end: string | null
+          sales_start: string | null
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          event_id: string
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          max_per_customer?: number
+          name: string
+          price: number
+          qty_available?: number
+          qty_sold?: number
+          sales_end?: string | null
+          sales_start?: string | null
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          event_id?: string
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          max_per_customer?: number
+          name?: string
+          price?: number
+          qty_available?: number
+          qty_sold?: number
+          sales_end?: string | null
+          sales_start?: string | null
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_ticket_types_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_tickets: {
+        Row: {
+          checked_in_at: string | null
+          checked_in_by: string | null
+          created_at: string
+          event_id: string
+          id: string
+          metadata: Json
+          order_id: string
+          price: number
+          qr_token: string
+          status: Database["public"]["Enums"]["event_ticket_status"]
+          ticket_code: string
+          ticket_type_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          checked_in_at?: string | null
+          checked_in_by?: string | null
+          created_at?: string
+          event_id: string
+          id?: string
+          metadata?: Json
+          order_id: string
+          price: number
+          qr_token: string
+          status?: Database["public"]["Enums"]["event_ticket_status"]
+          ticket_code: string
+          ticket_type_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          checked_in_at?: string | null
+          checked_in_by?: string | null
+          created_at?: string
+          event_id?: string
+          id?: string
+          metadata?: Json
+          order_id?: string
+          price?: number
+          qr_token?: string
+          status?: Database["public"]["Enums"]["event_ticket_status"]
+          ticket_code?: string
+          ticket_type_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_tickets_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_tickets_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "event_ticket_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_tickets_ticket_type_id_fkey"
+            columns: ["ticket_type_id"]
+            isOneToOne: false
+            referencedRelation: "event_ticket_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      events: {
+        Row: {
+          banner_url: string | null
+          capacity: number | null
+          created_at: string
+          created_by: string | null
+          created_by_type: string
+          description: string | null
+          end_time: string | null
+          event_date: string
+          id: string
+          location_lat: number | null
+          location_lng: number | null
+          location_text: string | null
+          metadata: Json
+          name: string
+          organizer: string | null
+          organizer_user_id: string | null
+          slug: string | null
+          start_time: string | null
+          status: Database["public"]["Enums"]["event_status"]
+          terms: string | null
+          updated_at: string
+        }
+        Insert: {
+          banner_url?: string | null
+          capacity?: number | null
+          created_at?: string
+          created_by?: string | null
+          created_by_type?: string
+          description?: string | null
+          end_time?: string | null
+          event_date: string
+          id?: string
+          location_lat?: number | null
+          location_lng?: number | null
+          location_text?: string | null
+          metadata?: Json
+          name: string
+          organizer?: string | null
+          organizer_user_id?: string | null
+          slug?: string | null
+          start_time?: string | null
+          status?: Database["public"]["Enums"]["event_status"]
+          terms?: string | null
+          updated_at?: string
+        }
+        Update: {
+          banner_url?: string | null
+          capacity?: number | null
+          created_at?: string
+          created_by?: string | null
+          created_by_type?: string
+          description?: string | null
+          end_time?: string | null
+          event_date?: string
+          id?: string
+          location_lat?: number | null
+          location_lng?: number | null
+          location_text?: string | null
+          metadata?: Json
+          name?: string
+          organizer?: string | null
+          organizer_user_id?: string | null
+          slug?: string | null
+          start_time?: string | null
+          status?: Database["public"]["Enums"]["event_status"]
+          terms?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       expense_requisitions: {
         Row: {
           account_name: string | null
@@ -7152,6 +7418,10 @@ export type Database = {
       apply_vendor_commission_promos: { Args: never; Returns: undefined }
       bytea_to_text: { Args: { data: string }; Returns: string }
       cancel_stale_pending_orders: { Args: never; Returns: number }
+      check_in_event_ticket: {
+        Args: { p_lookup: string; p_staff_id: string }
+        Returns: Json
+      }
       debug_wallet_tx_insert: {
         Args: { p_amount: number; p_order_id: string; p_wallet_id: string }
         Returns: string
@@ -7160,6 +7430,8 @@ export type Database = {
         Args: { p_dry_run?: boolean; p_environment?: string }
         Returns: Json
       }
+      gen_event_order_number: { Args: never; Returns: string }
+      gen_event_ticket_code: { Args: never; Returns: string }
       generate_slug: { Args: { input_text: string }; Returns: string }
       get_admin_staff_role: {
         Args: { _user_id: string }
@@ -7359,6 +7631,21 @@ export type Database = {
         Args: { _user_id: string; _vendor_id: string }
         Returns: boolean
       }
+      purchase_event_tickets: {
+        Args: {
+          p_environment?: string
+          p_event_id: string
+          p_items: Json
+          p_payment_method: string
+          p_payment_reference: string
+          p_user_id: string
+        }
+        Returns: {
+          order_id: string
+          order_number: string
+          total: number
+        }[]
+      }
       reconcile_customer_wallet: {
         Args: { p_wallet_id: string }
         Returns: undefined
@@ -7437,6 +7724,19 @@ export type Database = {
       app_role: "customer" | "vendor" | "rider" | "admin" | "delivery_company"
       calorie_class: "carbs" | "protein" | "fats" | "fiber"
       delivery_company_staff_role: "owner" | "manager" | "dispatcher"
+      event_order_payment_status:
+        | "pending"
+        | "paid"
+        | "failed"
+        | "refunded"
+        | "cancelled"
+      event_status: "draft" | "published" | "paused" | "cancelled" | "completed"
+      event_ticket_status:
+        | "unused"
+        | "checked_in"
+        | "cancelled"
+        | "expired"
+        | "refunded"
       order_status:
         | "pending"
         | "confirmed"
@@ -7612,6 +7912,21 @@ export const Constants = {
       app_role: ["customer", "vendor", "rider", "admin", "delivery_company"],
       calorie_class: ["carbs", "protein", "fats", "fiber"],
       delivery_company_staff_role: ["owner", "manager", "dispatcher"],
+      event_order_payment_status: [
+        "pending",
+        "paid",
+        "failed",
+        "refunded",
+        "cancelled",
+      ],
+      event_status: ["draft", "published", "paused", "cancelled", "completed"],
+      event_ticket_status: [
+        "unused",
+        "checked_in",
+        "cancelled",
+        "expired",
+        "refunded",
+      ],
       order_status: [
         "pending",
         "confirmed",
