@@ -35,6 +35,7 @@ import VendorHours from "./pages/vendor/VendorHours";
 import VendorSettings from "./pages/vendor/VendorSettings";
 import VendorStoreSettings from "./pages/vendor/VendorStoreSettings";
 import VendorPromos from "./pages/vendor/VendorPromos";
+import VendorVoucherVerify from "./pages/vendor/VendorVoucherVerify";
 import VendorRiders from "./pages/vendor/VendorRiders";
 import VendorStaff from "./pages/vendor/VendorStaff";
 import VendorStaffJoin from "./pages/vendor/VendorStaffJoin";
@@ -220,6 +221,7 @@ const App = () => {
               <Route path="/vendor/pos" element={<VendorPos />} />
               <Route path="/vendor/pos/reports" element={<VendorPosReports />} />
               <Route path="/vendor/pos/pricing" element={<VendorPosPricing />} />
+              <Route path="/vendor/voucher-verify" element={<VendorVoucherVerify />} />
               {/* Rider Portal Routes */}
               <Route path="/rider/auth" element={<RiderAuth />} />
               <Route path="/rider/dashboard" element={<RiderDashboard />} />

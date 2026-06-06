@@ -2497,6 +2497,198 @@ export type Database = {
           },
         ]
       }
+      event_voucher_templates: {
+        Row: {
+          combo_id: string | null
+          created_at: string
+          delivery_rule: Database["public"]["Enums"]["voucher_delivery_rule"]
+          event_id: string
+          expires_at: string | null
+          expires_hours_after_event: number | null
+          id: string
+          is_active: boolean
+          name: string
+          redemption_mode: Database["public"]["Enums"]["voucher_redemption_mode"]
+          reward_type: Database["public"]["Enums"]["voucher_reward_type"]
+          sponsor: Database["public"]["Enums"]["voucher_sponsor"]
+          sponsor_cost_per_voucher: number
+          ticket_type_id: string
+          updated_at: string
+          vendor_id: string | null
+        }
+        Insert: {
+          combo_id?: string | null
+          created_at?: string
+          delivery_rule?: Database["public"]["Enums"]["voucher_delivery_rule"]
+          event_id: string
+          expires_at?: string | null
+          expires_hours_after_event?: number | null
+          id?: string
+          is_active?: boolean
+          name: string
+          redemption_mode?: Database["public"]["Enums"]["voucher_redemption_mode"]
+          reward_type?: Database["public"]["Enums"]["voucher_reward_type"]
+          sponsor?: Database["public"]["Enums"]["voucher_sponsor"]
+          sponsor_cost_per_voucher?: number
+          ticket_type_id: string
+          updated_at?: string
+          vendor_id?: string | null
+        }
+        Update: {
+          combo_id?: string | null
+          created_at?: string
+          delivery_rule?: Database["public"]["Enums"]["voucher_delivery_rule"]
+          event_id?: string
+          expires_at?: string | null
+          expires_hours_after_event?: number | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          redemption_mode?: Database["public"]["Enums"]["voucher_redemption_mode"]
+          reward_type?: Database["public"]["Enums"]["voucher_reward_type"]
+          sponsor?: Database["public"]["Enums"]["voucher_sponsor"]
+          sponsor_cost_per_voucher?: number
+          ticket_type_id?: string
+          updated_at?: string
+          vendor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_voucher_templates_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_voucher_templates_ticket_type_id_fkey"
+            columns: ["ticket_type_id"]
+            isOneToOne: false
+            referencedRelation: "event_ticket_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_voucher_templates_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_vouchers: {
+        Row: {
+          combo_id: string | null
+          created_at: string
+          event_id: string
+          expires_at: string | null
+          id: string
+          qr_token: string
+          redeemed_at: string | null
+          redeemed_by: string | null
+          redeemed_order_id: string | null
+          redeemed_vendor_id: string | null
+          redemption_method:
+            | Database["public"]["Enums"]["voucher_redemption_method"]
+            | null
+          reserved_at: string | null
+          reserved_order_id: string | null
+          reward_type: Database["public"]["Enums"]["voucher_reward_type"]
+          sponsor: Database["public"]["Enums"]["voucher_sponsor"]
+          sponsor_cost: number
+          status: Database["public"]["Enums"]["voucher_status"]
+          template_id: string
+          ticket_id: string
+          updated_at: string
+          user_id: string
+          vendor_id: string | null
+          voucher_code: string
+        }
+        Insert: {
+          combo_id?: string | null
+          created_at?: string
+          event_id: string
+          expires_at?: string | null
+          id?: string
+          qr_token: string
+          redeemed_at?: string | null
+          redeemed_by?: string | null
+          redeemed_order_id?: string | null
+          redeemed_vendor_id?: string | null
+          redemption_method?:
+            | Database["public"]["Enums"]["voucher_redemption_method"]
+            | null
+          reserved_at?: string | null
+          reserved_order_id?: string | null
+          reward_type?: Database["public"]["Enums"]["voucher_reward_type"]
+          sponsor?: Database["public"]["Enums"]["voucher_sponsor"]
+          sponsor_cost?: number
+          status?: Database["public"]["Enums"]["voucher_status"]
+          template_id: string
+          ticket_id: string
+          updated_at?: string
+          user_id: string
+          vendor_id?: string | null
+          voucher_code: string
+        }
+        Update: {
+          combo_id?: string | null
+          created_at?: string
+          event_id?: string
+          expires_at?: string | null
+          id?: string
+          qr_token?: string
+          redeemed_at?: string | null
+          redeemed_by?: string | null
+          redeemed_order_id?: string | null
+          redeemed_vendor_id?: string | null
+          redemption_method?:
+            | Database["public"]["Enums"]["voucher_redemption_method"]
+            | null
+          reserved_at?: string | null
+          reserved_order_id?: string | null
+          reward_type?: Database["public"]["Enums"]["voucher_reward_type"]
+          sponsor?: Database["public"]["Enums"]["voucher_sponsor"]
+          sponsor_cost?: number
+          status?: Database["public"]["Enums"]["voucher_status"]
+          template_id?: string
+          ticket_id?: string
+          updated_at?: string
+          user_id?: string
+          vendor_id?: string | null
+          voucher_code?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_vouchers_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_vouchers_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "event_voucher_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_vouchers_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "event_tickets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_vouchers_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       events: {
         Row: {
           banner_url: string | null
@@ -6769,6 +6961,53 @@ export type Database = {
         }
         Relationships: []
       }
+      voucher_settlements: {
+        Row: {
+          amount: number
+          created_at: string
+          event_id: string
+          id: string
+          notes: string | null
+          order_id: string | null
+          redemption_method: Database["public"]["Enums"]["voucher_redemption_method"]
+          sponsor: Database["public"]["Enums"]["voucher_sponsor"]
+          vendor_id: string | null
+          voucher_id: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          event_id: string
+          id?: string
+          notes?: string | null
+          order_id?: string | null
+          redemption_method: Database["public"]["Enums"]["voucher_redemption_method"]
+          sponsor: Database["public"]["Enums"]["voucher_sponsor"]
+          vendor_id?: string | null
+          voucher_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          event_id?: string
+          id?: string
+          notes?: string | null
+          order_id?: string | null
+          redemption_method?: Database["public"]["Enums"]["voucher_redemption_method"]
+          sponsor?: Database["public"]["Enums"]["voucher_sponsor"]
+          vendor_id?: string | null
+          voucher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voucher_settlements_voucher_id_fkey"
+            columns: ["voucher_id"]
+            isOneToOne: false
+            referencedRelation: "event_vouchers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wallet_transactions: {
         Row: {
           amount: number
@@ -7422,6 +7661,10 @@ export type Database = {
         Args: { p_lookup: string; p_staff_id: string }
         Returns: Json
       }
+      complete_voucher_delivery: {
+        Args: { p_order_id: string; p_vendor_id: string; p_voucher_id: string }
+        Returns: undefined
+      }
       debug_wallet_tx_insert: {
         Args: { p_amount: number; p_order_id: string; p_wallet_id: string }
         Returns: string
@@ -7433,6 +7676,7 @@ export type Database = {
       gen_event_order_number: { Args: never; Returns: string }
       gen_event_ticket_code: { Args: never; Returns: string }
       generate_slug: { Args: { input_text: string }; Returns: string }
+      generate_voucher_code: { Args: never; Returns: string }
       get_admin_staff_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["admin_staff_role"]
@@ -7674,8 +7918,20 @@ export type Database = {
         }
         Returns: undefined
       }
+      redeem_voucher_at_venue: {
+        Args: { p_lookup: string; p_staff_id: string; p_vendor_id: string }
+        Returns: Json
+      }
       release_pending_payouts: { Args: never; Returns: number }
       release_pending_vendor_earnings: { Args: never; Returns: number }
+      release_voucher_reservation: {
+        Args: { p_voucher_id: string }
+        Returns: undefined
+      }
+      reserve_voucher_for_delivery: {
+        Args: { p_order_id: string; p_voucher_id: string }
+        Returns: Json
+      }
       resolve_commission_rate: {
         Args: { p_entity_id: string; p_entity_type: string }
         Returns: number
@@ -7765,6 +8021,19 @@ export type Database = {
         | "pending_verification"
         | "verified"
         | "locked_pending_reverify"
+      voucher_delivery_rule:
+        | "free_food_paid_delivery"
+        | "free_food_free_delivery"
+      voucher_redemption_method: "venue" | "delivery"
+      voucher_redemption_mode: "venue" | "delivery" | "both"
+      voucher_reward_type: "food" | "discount" | "merch"
+      voucher_sponsor: "fastcalories" | "vendor" | "organizer"
+      voucher_status:
+        | "generated"
+        | "reserved"
+        | "redeemed"
+        | "expired"
+        | "cancelled"
     }
     CompositeTypes: {
       http_header: {
@@ -7957,6 +8226,21 @@ export const Constants = {
         "pending_verification",
         "verified",
         "locked_pending_reverify",
+      ],
+      voucher_delivery_rule: [
+        "free_food_paid_delivery",
+        "free_food_free_delivery",
+      ],
+      voucher_redemption_method: ["venue", "delivery"],
+      voucher_redemption_mode: ["venue", "delivery", "both"],
+      voucher_reward_type: ["food", "discount", "merch"],
+      voucher_sponsor: ["fastcalories", "vendor", "organizer"],
+      voucher_status: [
+        "generated",
+        "reserved",
+        "redeemed",
+        "expired",
+        "cancelled",
       ],
     },
   },
