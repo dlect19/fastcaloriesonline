@@ -35,6 +35,7 @@ import VendorHours from "./pages/vendor/VendorHours";
 import VendorSettings from "./pages/vendor/VendorSettings";
 import VendorStoreSettings from "./pages/vendor/VendorStoreSettings";
 import VendorPromos from "./pages/vendor/VendorPromos";
+import VendorVoucherVerify from "./pages/vendor/VendorVoucherVerify";
 import VendorRiders from "./pages/vendor/VendorRiders";
 import VendorStaff from "./pages/vendor/VendorStaff";
 import VendorStaffJoin from "./pages/vendor/VendorStaffJoin";
