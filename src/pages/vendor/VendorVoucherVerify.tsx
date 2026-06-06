@@ -67,7 +67,7 @@ export default function VendorVoucherVerify() {
   const label = ok ? 'REDEEMED — Hand over food'
     : result?.status === 'ALREADY_REDEEMED' ? 'ALREADY REDEEMED'
     : result?.status === 'WRONG_VENDOR' ? 'NOT FOR THIS VENDOR'
-    : result?.status?.replaceAll('_', ' ');
+    : result?.status?.split('_').join(' ');
 
   if (vendorLoading) {
     return <VendorLayout><div className="flex items-center justify-center py-20"><Loader2 className="animate-spin" /></div></VendorLayout>;
