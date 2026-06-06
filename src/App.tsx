@@ -220,6 +220,7 @@ const App = () => {
               <Route path="/vendor/pos" element={<VendorPos />} />
               <Route path="/vendor/pos/reports" element={<VendorPosReports />} />
               <Route path="/vendor/pos/pricing" element={<VendorPosPricing />} />
+              <Route path="/vendor/voucher-verify" element={<VendorVoucherVerify />} />
               {/* Rider Portal Routes */}
               <Route path="/rider/auth" element={<RiderAuth />} />
               <Route path="/rider/dashboard" element={<RiderDashboard />} />
