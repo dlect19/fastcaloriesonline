@@ -505,6 +505,7 @@ export default function VendorMenu() {
       cuisine_category_id: (product as any).cuisine_category_id || '',
       drug_database_id: (product as any).drug_database_id || '',
       requires_prescription: (product as any).requires_prescription || false,
+      medicine_classification: ((product as any).medicine_classification as any) || ((product as any).requires_prescription ? 'prescription' : 'otc'),
       pharmacist_dosage_instructions: (product as any).pharmacist_dosage_instructions || '',
       default_dosage_frequency: (product as any).default_dosage_frequency || 'twice_daily',
       default_dosage_duration_days: (product as any).default_dosage_duration_days?.toString() || '',
