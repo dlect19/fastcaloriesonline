@@ -130,6 +130,7 @@ import MyEvents from "./pages/MyEvents";
 import AdminEvents from "./pages/admin/AdminEvents";
 import AdminEventDetail from "./pages/admin/AdminEventDetail";
 import AdminEventDashboard from "./pages/admin/AdminEventDashboard";
+import AdminEventsAnalytics from "./pages/admin/AdminEventsAnalytics";
 import OrganizerPortal from "./pages/OrganizerPortal";
 import OrganizerVerify from "./pages/OrganizerVerify";
 import AdminEventVerify from "./pages/admin/AdminEventVerify";
@@ -282,6 +283,7 @@ const App = () => {
               <Route path="/admin/drug-database" element={<AdminDrugDatabase />} />
               {/* Admin Events */}
               <Route path="/admin/events" element={<AdminEvents />} />
+              <Route path="/admin/events-analytics" element={<AdminEventsAnalytics />} />
               <Route path="/admin/events/:id" element={<AdminEventDetail />} />
               <Route path="/admin/events/:id/dashboard" element={<AdminEventDashboard />} />
               <Route path="/admin/event-verify" element={<AdminEventVerify />} />

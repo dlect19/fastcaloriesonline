@@ -158,6 +158,13 @@ async function handleChargeSuccess(supabase: SupabaseClient, data: any, environm
     return;
   }
 
+  // Check if this is an event ticket purchase
+  if (metadata?.type === "event_purchase") {
+    await handleEventPurchase(supabase, data, environment);
+    return;
+  }
+
+
   if (!metadata?.order_id) {
     console.log("No order_id in metadata, skipping");
     return;
@@ -726,4 +733,31 @@ async function handleAdWalletFunding(supabase: SupabaseClient, data: any, enviro
   console.log(`Ad wallet funding successful: ${reference}, new balance: ${newBalance}`);
 }
 
+// Handle event ticket purchase via Paystack
+// deno-lint-ignore no-explicit-any
+async function handleEventPurchase(supabase: SupabaseClient, data: any, environment: string) {
+  const reference = data.reference as string;
+  const metadata = data.metadata;
+  const orderId = metadata?.order_id as string;
+
+  console.log(`Processing event purchase: ref=${reference}, order=${orderId}`);
+
+  if (!orderId) {
+    console.error("No order_id in event_purchase metadata");
+    return;
+  }
+
+  const { data: result, error } = await supabase.rpc("mark_event_order_paid", {
+    p_order_id: orderId,
+    p_reference: reference,
+  });
+
+  if (error) {
+    console.error("mark_event_order_paid failed", error);
+    return;
+  }
+  console.log(`Event order paid: ${orderId}`, result);
+}
+
 serve(handler);
+

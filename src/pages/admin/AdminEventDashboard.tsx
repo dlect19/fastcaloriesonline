@@ -109,6 +109,19 @@ export default function AdminEventDashboard() {
     return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
   }, [activeTickets]);
 
+  // Sales by hour of day (peak time analysis)
+  const salesByHour = useMemo(() => {
+    const buckets = Array.from({ length: 24 }, (_, h) => ({ hour: h, tickets: 0, revenue: 0 }));
+    activeTickets.forEach(t => {
+      if (!t.created_at) return;
+      const h = new Date(t.created_at).getHours();
+      buckets[h].tickets += 1;
+      buckets[h].revenue += Number(t.price || 0);
+    });
+    return buckets;
+  }, [activeTickets]);
+
+
   // Ticket type breakdown
   const ticketBreakdown = useMemo(() => {
     return ticketTypes.map(tt => {
@@ -267,6 +280,25 @@ export default function AdminEventDashboard() {
             )}
           </div>
         </div>
+
+        {/* Peak time analysis */}
+        <div className="bg-card border border-border rounded-xl p-4">
+          <h3 className="font-semibold text-sm mb-3">Peak Purchase Times (hour of day)</h3>
+          {salesByHour.every(b => b.tickets === 0) ? (
+            <p className="text-sm text-muted-foreground py-10 text-center">No purchases yet</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={salesByHour}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                <XAxis dataKey="hour" tick={{ fontSize: 11 }} tickFormatter={(h) => `${h}:00`} />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip labelFormatter={(h) => `${h}:00 – ${h}:59`} />
+                <Bar dataKey="tickets" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
 
         {/* Ticket type breakdown table */}
         <div className="bg-card border border-border rounded-xl p-4">
