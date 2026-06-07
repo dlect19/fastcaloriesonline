@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Edit, Trash2, Gift } from 'lucide-react';
+import { ArrowLeft, Plus, Edit, Trash2, Gift, LineChart } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -190,9 +190,14 @@ export default function AdminEventDetail() {
           <ArrowLeft className="w-4 h-4" /> Back to Events
         </button>
 
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold">{event.name}</h1>
-          <p className="text-sm text-muted-foreground capitalize">Status: {event.status}</p>
+        <div className="mb-6 flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold">{event.name}</h1>
+            <p className="text-sm text-muted-foreground capitalize">Status: {event.status}</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => navigate(`/admin/events/${id}/dashboard`)}>
+            <LineChart className="w-4 h-4 mr-1.5" /> View Dashboard
+          </Button>
         </div>
 
         <div className="grid grid-cols-3 gap-3 mb-6">

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Edit, Pause, Play, X, BarChart3, QrCode } from 'lucide-react';
+import { Plus, Edit, Pause, Play, X, BarChart3, QrCode, LineChart } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -127,6 +127,9 @@ export default function AdminEvents() {
                     }`}>{e.status}</span>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
+                    <Button size="sm" variant="outline" onClick={() => navigate(`/admin/events/${e.id}/dashboard`)}>
+                      <LineChart className="w-3 h-3 mr-1" /> Dashboard
+                    </Button>
                     <Button size="sm" variant="outline" onClick={() => navigate(`/admin/events/${e.id}`)}>
                       <BarChart3 className="w-3 h-3 mr-1" /> Manage
                     </Button>
