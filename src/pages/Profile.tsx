@@ -17,7 +17,7 @@ import { VirtualAccountCard } from '@/components/profile/VirtualAccountCard';
 import { CreateDVADialog } from '@/components/profile/CreateDVADialog';
 import { PosWalletCodeCard } from '@/components/profile/PosWalletCodeCard';
 import { DeleteAccountDialog } from '@/components/shared/DeleteAccountDialog';
-import { Leaf, ArrowLeft, Receipt, ChevronRight, Wallet, Plus, Building2, User, MessageCircle } from 'lucide-react';
+import { Leaf, ArrowLeft, Receipt, ChevronRight, Wallet, Plus, Building2, User, MessageCircle, Ticket } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Tables } from '@/integrations/supabase/types';
 
@@ -240,6 +240,27 @@ export default function Profile() {
             </div>
           </CardContent>
         </Card>
+        {/* My Events Link */}
+        <Card
+          className="border-0 shadow-soft cursor-pointer hover:bg-muted/50 transition-colors"
+          onClick={() => navigate('/my-events')}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <Ticket className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <p className="font-medium">My Events</p>
+                  <p className="text-sm text-muted-foreground">Your tickets & vouchers</p>
+                </div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-muted-foreground" />
+            </div>
+          </CardContent>
+        </Card>
+
         {/* In-Store Wallet Code */}
         <PosWalletCodeCard />
 
