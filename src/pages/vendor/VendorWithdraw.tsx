@@ -265,21 +265,25 @@ export default function VendorWithdraw() {
         setRecipientEnvironment(recipientData?.created_in_environment || null);
       }
 
-      // Fetch settlement hours based on vendor category
+      // Fetch settlement mode + hours based on vendor category
       if (vendorData?.category) {
-        const categoryKey = `settlement_hours_${vendorData.category.toLowerCase()}`;
-        const { data: settlementData } = await supabase
+        const cat = vendorData.category.toLowerCase();
+        const modeKey = `vendor_settlement_mode_${cat}`;
+        const hoursKey = `settlement_hours_${cat}`;
+        const { data: settingsRows } = await supabase
           .from('platform_settings')
-          .select('value')
-          .eq('key', categoryKey)
-          .maybeSingle();
+          .select('key, value')
+          .in('key', [modeKey, hoursKey]);
 
-        const raw = settlementData?.value as string | undefined;
-        if (raw === 'next_day' || raw === 'third_day') {
-          setSettlementMode(raw);
+        const modeRaw = settingsRows?.find(r => r.key === modeKey)?.value as string | undefined;
+        const hoursRaw = settingsRows?.find(r => r.key === hoursKey)?.value as string | undefined;
+
+        if (modeRaw === 'next_day' || modeRaw === 'third_day') {
+          setSettlementMode(modeRaw);
           setSettlementHours(null);
         } else {
-          const n = Number(raw);
+          // 'hours' mode (or legacy: only hours key set)
+          const n = Number(hoursRaw);
           setSettlementMode('hours');
           setSettlementHours(Number.isFinite(n) ? n : 24);
         }
