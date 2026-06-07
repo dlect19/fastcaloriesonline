@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Edit, Trash2, Gift, LineChart } from 'lucide-react';
+import { ArrowLeft, Plus, Edit, Trash2, Gift, LineChart, Link as LinkIcon, Copy, RefreshCw } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -200,11 +200,15 @@ export default function AdminEventDetail() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-3 gap-3 mb-6">
+        <div className="grid grid-cols-3 gap-3 mb-4">
           <div className="bg-card border border-border rounded-lg p-3"><p className="text-xs text-muted-foreground">Tickets Sold</p><p className="text-2xl font-bold">{stats.sold}</p></div>
           <div className="bg-card border border-border rounded-lg p-3"><p className="text-xs text-muted-foreground">Revenue</p><p className="text-2xl font-bold">₦{stats.revenue.toLocaleString()}</p></div>
           <div className="bg-card border border-border rounded-lg p-3"><p className="text-xs text-muted-foreground">Checked In</p><p className="text-2xl font-bold">{stats.checked}</p></div>
         </div>
+
+        {/* Organizer link */}
+        <OrganizerLinkCard event={event} onChange={refetch} />
+
 
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-bold">Ticket Types</h2>
