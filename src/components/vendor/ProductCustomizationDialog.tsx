@@ -13,6 +13,7 @@ import { Flame, Plus, Minus, Info, Loader2, Settings2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
+import { MedicineClassificationBadge } from '@/components/pharmacy/MedicineClassificationBadge';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Product = Tables<'products'>;
