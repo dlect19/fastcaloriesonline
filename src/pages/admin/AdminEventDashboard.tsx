@@ -281,6 +281,25 @@ export default function AdminEventDashboard() {
           </div>
         </div>
 
+        {/* Peak time analysis */}
+        <div className="bg-card border border-border rounded-xl p-4">
+          <h3 className="font-semibold text-sm mb-3">Peak Purchase Times (hour of day)</h3>
+          {salesByHour.every(b => b.tickets === 0) ? (
+            <p className="text-sm text-muted-foreground py-10 text-center">No purchases yet</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={salesByHour}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                <XAxis dataKey="hour" tick={{ fontSize: 11 }} tickFormatter={(h) => `${h}:00`} />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip labelFormatter={(h) => `${h}:00 – ${h}:59`} />
+                <Bar dataKey="tickets" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+
         {/* Ticket type breakdown table */}
         <div className="bg-card border border-border rounded-xl p-4">
           <h3 className="font-semibold text-sm mb-3">Ticket Type Performance</h3>
