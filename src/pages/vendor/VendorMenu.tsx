@@ -713,6 +713,7 @@ export default function VendorMenu() {
       cuisine_category_id: '',
       drug_database_id: '',
       requires_prescription: false,
+      medicine_classification: 'otc',
       pharmacist_dosage_instructions: '',
       default_dosage_frequency: 'twice_daily',
       default_dosage_duration_days: '',
