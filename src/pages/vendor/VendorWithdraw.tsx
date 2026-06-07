@@ -273,9 +273,18 @@ export default function VendorWithdraw() {
           .select('value')
           .eq('key', categoryKey)
           .maybeSingle();
-        
-        setSettlementHours(settlementData ? Number(settlementData.value) : 24);
+
+        const raw = settlementData?.value as string | undefined;
+        if (raw === 'next_day' || raw === 'third_day') {
+          setSettlementMode(raw);
+          setSettlementHours(null);
+        } else {
+          const n = Number(raw);
+          setSettlementMode('hours');
+          setSettlementHours(Number.isFinite(n) ? n : 24);
+        }
       } else {
+        setSettlementMode('hours');
         setSettlementHours(24);
       }
     } catch (error) {
