@@ -44,13 +44,26 @@ export default function EventDetail() {
           items: items.map(([ticket_type_id, quantity]) => ({ ticket_type_id, quantity })),
         },
       });
-      if (error || data?.error) {
-        const msg = data?.error || error?.message || 'Purchase failed';
-        if (msg === 'INSUFFICIENT_BALANCE') {
-          toast({ title: 'Insufficient wallet balance', description: 'Please fund your wallet and try again.', variant: 'destructive' });
+
+      // Parse error body from non-2xx (e.g. 402 INSUFFICIENT_BALANCE)
+      let errPayload: any = data?.error ? data : null;
+      if (error && (error as any).context?.json) {
+        try { errPayload = await (error as any).context.json(); } catch { /* noop */ }
+      }
+
+      if (errPayload?.error || error) {
+        const code = errPayload?.error || error?.message || 'Purchase failed';
+        if (code === 'INSUFFICIENT_BALANCE') {
+          const need = errPayload?.required ?? total;
+          const have = errPayload?.available ?? 0;
+          toast({
+            title: 'Insufficient wallet balance',
+            description: `Need ₦${Number(need).toLocaleString()}, you have ₦${Number(have).toLocaleString()}. Fund your wallet to continue.`,
+            variant: 'destructive',
+          });
           navigate('/profile/wallet');
         } else {
-          toast({ title: 'Could not purchase', description: msg, variant: 'destructive' });
+          toast({ title: 'Could not purchase', description: String(code), variant: 'destructive' });
         }
         return;
       }
