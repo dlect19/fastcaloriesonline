@@ -56,7 +56,10 @@ export interface RiderServicePluginInterface {
    * Show the Google Play-compliant Prominent Disclosure dialog for background
    * location, then request the OS permission. Returns 'granted' or 'denied'.
    */
-  requestLocationWithDisclosure(): Promise<{ status: 'granted' | 'denied' }>;
+  requestLocationWithDisclosure(): Promise<{
+    location: 'granted' | 'denied';
+    backgroundLocation: 'granted' | 'denied';
+  }>;
 
   /**
    * Start the rider tracking foreground service. Call after location
