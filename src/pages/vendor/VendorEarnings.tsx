@@ -135,6 +135,7 @@ export default function VendorEarnings() {
       }
 
       setVendor(vendorData);
+      setSettlementInfo(null);
 
       // Fetch settlement hours based on vendor category
       if (vendorData?.category) {
@@ -164,6 +165,7 @@ export default function VendorEarnings() {
 
       if (!selectedOutletId) {
         setWallet(null);
+        setSettlementInfo(null);
         setTransactions([]);
         setAllTransactions([]);
         return;
@@ -201,6 +203,20 @@ export default function VendorEarnings() {
       }
 
       if (walletData) {
+        const { data: walletSettlementData } = await supabase
+          .rpc('get_vendor_settlement_info', { p_wallet_id: walletData.id })
+          .maybeSingle();
+
+        if (walletSettlementData) {
+          const hours = Number(walletSettlementData.hours) || 0;
+          setSettlementInfo({
+            category: walletSettlementData.category,
+            mode: walletSettlementData.mode,
+            hours,
+          });
+          setSettlementHours(hours);
+        }
+
         // Use test columns if in test mode, otherwise production columns
         const balance = isTestMode 
           ? Number(walletData.test_balance) || 0 
@@ -297,6 +313,18 @@ export default function VendorEarnings() {
   };
 
   const formatCurrency = (amount: number) => `₦${amount.toLocaleString()}`;
+
+  const getSettlementLabel = () => {
+    if (settlementInfo?.mode === 'next_day') return 'Next-day settlement';
+    if (settlementInfo?.mode === 'third_day') return 'Third-day settlement';
+
+    const hours = settlementInfo?.mode === 'hours'
+      ? settlementInfo.hours
+      : settlementHours;
+
+    if (hours === null) return 'Admin settlement period';
+    return hours > 0 ? `${hours}hr hold` : 'Immediate';
+  };
 
   const getCategoryLabel = (category: string) => {
     const labels: Record<string, string> = {
