@@ -1004,9 +1004,28 @@ export default function VendorMenu() {
                         Change Drug from Database
                       </Button>
                       
-                      <div className="flex items-center justify-between">
-                        <Label className="text-sm">Requires Prescription (Rx)</Label>
-                        <Switch checked={formData.requires_prescription} onCheckedChange={v => setFormData({ ...formData, requires_prescription: v })} />
+                      <div className="space-y-1">
+                        <Label className="text-sm">Medicine Classification</Label>
+                        <Select
+                          value={formData.medicine_classification}
+                          onValueChange={(v: 'otc' | 'prescription' | 'controlled') =>
+                            setFormData({ ...formData, medicine_classification: v, requires_prescription: v !== 'otc' })
+                          }
+                        >
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="otc">🟢 OTC — No Prescription Required</SelectItem>
+                            <SelectItem value="prescription">🟡 Prescription Required</SelectItem>
+                            <SelectItem value="controlled">🔴 Controlled Drug — Verification Required</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[11px] text-muted-foreground">
+                          {formData.medicine_classification === 'otc'
+                            ? 'Customers can buy this immediately.'
+                            : formData.medicine_classification === 'prescription'
+                              ? 'Customers must upload a prescription; pharmacist must approve.'
+                              : 'Prescription + pharmacist approval + enhanced audit trail required.'}
+                        </p>
                       </div>
 
                       <div className="grid grid-cols-2 gap-2">
