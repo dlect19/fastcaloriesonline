@@ -5469,6 +5469,7 @@ export type Database = {
           is_hidden: boolean
           low_stock_threshold: number | null
           meal_type: string
+          medicine_classification: string
           name: string
           nutrient_tags: string[] | null
           nutrition_source: string | null
@@ -5515,6 +5516,7 @@ export type Database = {
           is_hidden?: boolean
           low_stock_threshold?: number | null
           meal_type?: string
+          medicine_classification?: string
           name: string
           nutrient_tags?: string[] | null
           nutrition_source?: string | null
@@ -5561,6 +5563,7 @@ export type Database = {
           is_hidden?: boolean
           low_stock_threshold?: number | null
           meal_type?: string
+          medicine_classification?: string
           name?: string
           nutrient_tags?: string[] | null
           nutrition_source?: string | null

@@ -13,6 +13,7 @@ import { Flame, Plus, Minus, Info, Loader2, Settings2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
+import { MedicineClassificationBadge } from '@/components/pharmacy/MedicineClassificationBadge';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Product = Tables<'products'>;
@@ -583,7 +584,12 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{product.name}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2 flex-wrap">
+            <span>{product.name}</span>
+            {(vendor as any).category === 'pharmacy' && (
+              <MedicineClassificationBadge classification={(product as any).medicine_classification} />
+            )}
+          </DialogTitle>
         </DialogHeader>
         
         <div className="space-y-4">

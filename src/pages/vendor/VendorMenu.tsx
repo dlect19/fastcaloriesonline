@@ -146,6 +146,7 @@ export default function VendorMenu() {
     // Pharmacy fields
     drug_database_id: '' as string,
     requires_prescription: false,
+    medicine_classification: 'otc' as 'otc' | 'prescription' | 'controlled',
     pharmacist_dosage_instructions: '',
     default_dosage_frequency: 'twice_daily',
     default_dosage_duration_days: '',
@@ -429,7 +430,8 @@ export default function VendorMenu() {
       // Add pharmacy-specific fields
       if (vendor.category === 'pharmacy') {
         productData.drug_database_id = formData.drug_database_id || null;
-        productData.requires_prescription = formData.requires_prescription;
+        productData.requires_prescription = formData.medicine_classification !== 'otc';
+        productData.medicine_classification = formData.medicine_classification;
         productData.pharmacist_dosage_instructions = formData.pharmacist_dosage_instructions || null;
         productData.default_dosage_frequency = formData.default_dosage_frequency || null;
         productData.default_dosage_duration_days = formData.default_dosage_duration_days ? parseInt(formData.default_dosage_duration_days) : null;
@@ -504,6 +506,7 @@ export default function VendorMenu() {
       cuisine_category_id: (product as any).cuisine_category_id || '',
       drug_database_id: (product as any).drug_database_id || '',
       requires_prescription: (product as any).requires_prescription || false,
+      medicine_classification: ((product as any).medicine_classification as any) || ((product as any).requires_prescription ? 'prescription' : 'otc'),
       pharmacist_dosage_instructions: (product as any).pharmacist_dosage_instructions || '',
       default_dosage_frequency: (product as any).default_dosage_frequency || 'twice_daily',
       default_dosage_duration_days: (product as any).default_dosage_duration_days?.toString() || '',
@@ -711,6 +714,7 @@ export default function VendorMenu() {
       cuisine_category_id: '',
       drug_database_id: '',
       requires_prescription: false,
+      medicine_classification: 'otc',
       pharmacist_dosage_instructions: '',
       default_dosage_frequency: 'twice_daily',
       default_dosage_duration_days: '',
@@ -1000,9 +1004,28 @@ export default function VendorMenu() {
                         Change Drug from Database
                       </Button>
                       
-                      <div className="flex items-center justify-between">
-                        <Label className="text-sm">Requires Prescription (Rx)</Label>
-                        <Switch checked={formData.requires_prescription} onCheckedChange={v => setFormData({ ...formData, requires_prescription: v })} />
+                      <div className="space-y-1">
+                        <Label className="text-sm">Medicine Classification</Label>
+                        <Select
+                          value={formData.medicine_classification}
+                          onValueChange={(v: 'otc' | 'prescription' | 'controlled') =>
+                            setFormData({ ...formData, medicine_classification: v, requires_prescription: v !== 'otc' })
+                          }
+                        >
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="otc">🟢 OTC — No Prescription Required</SelectItem>
+                            <SelectItem value="prescription">🟡 Prescription Required</SelectItem>
+                            <SelectItem value="controlled">🔴 Controlled Drug — Verification Required</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[11px] text-muted-foreground">
+                          {formData.medicine_classification === 'otc'
+                            ? 'Customers can buy this immediately.'
+                            : formData.medicine_classification === 'prescription'
+                              ? 'Customers must upload a prescription; pharmacist must approve.'
+                              : 'Prescription + pharmacist approval + enhanced audit trail required.'}
+                        </p>
                       </div>
 
                       <div className="grid grid-cols-2 gap-2">
@@ -1842,6 +1865,7 @@ export default function VendorMenu() {
                 name: drug.name + (drug.strength ? ` ${drug.strength}` : ''),
                 drug_database_id: drug.id,
                 requires_prescription: drug.requires_prescription,
+                medicine_classification: drug.requires_prescription ? 'prescription' : 'otc',
                 pharmacist_dosage_instructions: drug.common_dosage_instructions || prev.pharmacist_dosage_instructions,
                 default_dosage_frequency: drug.default_dosage_frequency || prev.default_dosage_frequency,
                 default_dosage_duration_days: drug.default_dosage_duration_days?.toString() || prev.default_dosage_duration_days,
