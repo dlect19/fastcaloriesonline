@@ -45,6 +45,14 @@ interface VendorBreakdown {
   grossRevenue: number;
   commission: number;
   netPayout: number;
+  onlineOrders: number;
+  onlineGrossRevenue: number;
+  onlineCommission: number;
+  onlineNetPayout: number;
+  posOrders: number;
+  posGrossRevenue: number;
+  posCommission: number;
+  posNetPayout: number;
 }
 
 export default function AdminDashboard() {
