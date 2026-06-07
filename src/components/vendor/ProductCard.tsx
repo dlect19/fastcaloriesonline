@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Flame, Wheat, Drumstick, Droplets, Leaf } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ProductCustomizationDialog } from '@/components/vendor/ProductCustomizationDialog';
+import { MedicineClassificationBadge } from '@/components/pharmacy/MedicineClassificationBadge';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Product = Tables<'products'>;
