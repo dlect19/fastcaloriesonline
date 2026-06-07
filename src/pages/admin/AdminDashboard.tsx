@@ -535,6 +535,18 @@ export default function AdminDashboard() {
               {vendorBreakdowns.length > 0 ? (
                 <Card>
                   <CardContent className="p-0">
+                    <div className="flex items-center gap-2 p-3 border-b">
+                      <span className="text-xs text-muted-foreground mr-1">Channel:</span>
+                      {(['all', 'online', 'pos'] as const).map((c) => (
+                        <button
+                          key={c}
+                          onClick={() => setVendorChannel(c)}
+                          className={`px-3 py-1 text-xs rounded-md border transition-colors ${vendorChannel === c ? 'bg-primary text-primary-foreground border-primary' : 'bg-background text-foreground hover:bg-muted'}`}
+                        >
+                          {c === 'all' ? 'All' : c === 'online' ? 'Online Sales' : 'POS'}
+                        </button>
+                      ))}
+                    </div>
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -546,22 +558,52 @@ export default function AdminDashboard() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {vendorBreakdowns.map((v) => (
-                          <TableRow key={v.vendorId}>
-                            <TableCell className="font-medium">{v.vendorName}</TableCell>
-                            <TableCell className="text-right">{v.totalOrders}</TableCell>
-                            <TableCell className="text-right">{formatCurrency(v.grossRevenue)}</TableCell>
-                            <TableCell className="text-right text-calorie-low">{formatCurrency(v.commission)}</TableCell>
-                            <TableCell className="text-right text-success">{formatCurrency(v.netPayout)}</TableCell>
-                          </TableRow>
-                        ))}
-                        <TableRow className="font-bold border-t-2">
-                          <TableCell>Total</TableCell>
-                          <TableCell className="text-right">{vendorBreakdowns.reduce((s, v) => s + v.totalOrders, 0)}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(vendorBreakdowns.reduce((s, v) => s + v.grossRevenue, 0))}</TableCell>
-                          <TableCell className="text-right text-calorie-low">{formatCurrency(vendorBreakdowns.reduce((s, v) => s + v.commission, 0))}</TableCell>
-                          <TableCell className="text-right text-success">{formatCurrency(vendorBreakdowns.reduce((s, v) => s + v.netPayout, 0))}</TableCell>
-                        </TableRow>
+                        {(() => {
+                          const pick = (v: VendorBreakdown) => {
+                            if (vendorChannel === 'online') return { orders: v.onlineOrders, gross: v.onlineGrossRevenue, commission: v.onlineCommission, net: v.onlineNetPayout };
+                            if (vendorChannel === 'pos') return { orders: v.posOrders, gross: v.posGrossRevenue, commission: v.posCommission, net: v.posNetPayout };
+                            return { orders: v.totalOrders, gross: v.grossRevenue, commission: v.commission, net: v.netPayout };
+                          };
+                          const rows = vendorBreakdowns
+                            .map(v => ({ v, p: pick(v) }))
+                            .filter(({ p }) => p.orders > 0)
+                            .sort((a, b) => b.p.gross - a.p.gross);
+                          if (rows.length === 0) {
+                            return (
+                              <TableRow>
+                                <TableCell colSpan={5} className="text-center text-muted-foreground py-6">
+                                  No {vendorChannel === 'pos' ? 'POS' : vendorChannel === 'online' ? 'online' : ''} sales for this period
+                                </TableCell>
+                              </TableRow>
+                            );
+                          }
+                          const totals = rows.reduce((acc, { p }) => ({
+                            orders: acc.orders + p.orders,
+                            gross: acc.gross + p.gross,
+                            commission: acc.commission + p.commission,
+                            net: acc.net + p.net,
+                          }), { orders: 0, gross: 0, commission: 0, net: 0 });
+                          return (
+                            <>
+                              {rows.map(({ v, p }) => (
+                                <TableRow key={v.vendorId}>
+                                  <TableCell className="font-medium">{v.vendorName}</TableCell>
+                                  <TableCell className="text-right">{p.orders}</TableCell>
+                                  <TableCell className="text-right">{formatCurrency(p.gross)}</TableCell>
+                                  <TableCell className="text-right text-calorie-low">{formatCurrency(p.commission)}</TableCell>
+                                  <TableCell className="text-right text-success">{formatCurrency(p.net)}</TableCell>
+                                </TableRow>
+                              ))}
+                              <TableRow className="font-bold border-t-2">
+                                <TableCell>Total</TableCell>
+                                <TableCell className="text-right">{totals.orders}</TableCell>
+                                <TableCell className="text-right">{formatCurrency(totals.gross)}</TableCell>
+                                <TableCell className="text-right text-calorie-low">{formatCurrency(totals.commission)}</TableCell>
+                                <TableCell className="text-right text-success">{formatCurrency(totals.net)}</TableCell>
+                              </TableRow>
+                            </>
+                          );
+                        })()}
                       </TableBody>
                     </Table>
                   </CardContent>
