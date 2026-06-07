@@ -129,6 +129,7 @@ import EventDetail from "./pages/EventDetail";
 import MyEvents from "./pages/MyEvents";
 import AdminEvents from "./pages/admin/AdminEvents";
 import AdminEventDetail from "./pages/admin/AdminEventDetail";
+import AdminEventDashboard from "./pages/admin/AdminEventDashboard";
 import AdminEventVerify from "./pages/admin/AdminEventVerify";
 import { playGlobalNotificationSound } from '@/lib/globalAudio';
 import { useFcmNotifications } from '@/hooks/useFcmNotifications';
@@ -280,6 +281,7 @@ const App = () => {
               {/* Admin Events */}
               <Route path="/admin/events" element={<AdminEvents />} />
               <Route path="/admin/events/:id" element={<AdminEventDetail />} />
+              <Route path="/admin/events/:id/dashboard" element={<AdminEventDashboard />} />
               <Route path="/admin/event-verify" element={<AdminEventVerify />} />
               {/* Public Pages */}
               <Route path="/delete-account" element={<DeleteAccount />} />
