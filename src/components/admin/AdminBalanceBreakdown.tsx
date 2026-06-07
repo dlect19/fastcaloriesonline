@@ -3,7 +3,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Store, Bike, Truck } from 'lucide-react';
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
+import { Store, Bike, Truck, Info } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface BalanceEntry {
@@ -212,7 +213,19 @@ export function AdminBalanceBreakdown({ isTestMode }: AdminBalanceBreakdownProps
                 <TableHead>Name</TableHead>
                 {showOutlet && <TableHead>Outlet</TableHead>}
                 <TableHead className="text-right">Pending Balance</TableHead>
-                <TableHead className="text-right">Withdrawable Balance</TableHead>
+                  <TableHead className="text-right">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger className="inline-flex items-center gap-1 cursor-help">
+                          Withdrawable Balance
+                          <Info className="w-3.5 h-3.5 text-muted-foreground" />
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-xs">
+                          <p>Combined total of Menu sales and Rider revenue available for withdrawal.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableHead>
                 <TableHead className="text-right">Total Earned</TableHead>
               </TableRow>
             </TableHeader>
