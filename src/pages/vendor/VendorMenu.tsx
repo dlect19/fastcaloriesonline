@@ -146,6 +146,7 @@ export default function VendorMenu() {
     // Pharmacy fields
     drug_database_id: '' as string,
     requires_prescription: false,
+    medicine_classification: 'otc' as 'otc' | 'prescription' | 'controlled',
     pharmacist_dosage_instructions: '',
     default_dosage_frequency: 'twice_daily',
     default_dosage_duration_days: '',
