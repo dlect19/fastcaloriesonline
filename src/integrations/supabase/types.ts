@@ -2706,6 +2706,7 @@ export type Database = {
           metadata: Json
           name: string
           organizer: string | null
+          organizer_access_token: string | null
           organizer_user_id: string | null
           slug: string | null
           start_time: string | null
@@ -2729,6 +2730,7 @@ export type Database = {
           metadata?: Json
           name: string
           organizer?: string | null
+          organizer_access_token?: string | null
           organizer_user_id?: string | null
           slug?: string | null
           start_time?: string | null
@@ -2752,6 +2754,7 @@ export type Database = {
           metadata?: Json
           name?: string
           organizer?: string | null
+          organizer_access_token?: string | null
           organizer_user_id?: string | null
           slug?: string | null
           start_time?: string | null
@@ -7659,6 +7662,10 @@ export type Database = {
       cancel_stale_pending_orders: { Args: never; Returns: number }
       check_in_event_ticket: {
         Args: { p_lookup: string; p_staff_id: string }
+        Returns: Json
+      }
+      check_in_event_ticket_by_token: {
+        Args: { p_lookup: string; p_token: string }
         Returns: Json
       }
       complete_voucher_delivery: {
