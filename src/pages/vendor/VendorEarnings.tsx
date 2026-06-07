@@ -56,12 +56,19 @@ interface WalletTransaction {
   metadata: Record<string, unknown>;
 }
 
+interface SettlementInfo {
+  category: string;
+  mode: string;
+  hours: number;
+}
+
 export default function VendorEarnings() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { isTestMode } = useEnvironmentConfig();
   const [vendor, setVendor] = useState<Vendor | null>(null);
   const [settlementHours, setSettlementHours] = useState<number | null>(null);
+  const [settlementInfo, setSettlementInfo] = useState<SettlementInfo | null>(null);
   const [wallet, setWallet] = useState<VendorWallet | null>(null);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [allTransactions, setAllTransactions] = useState<WalletTransaction[]>([]);
