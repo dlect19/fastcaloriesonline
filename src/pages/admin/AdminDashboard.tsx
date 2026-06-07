@@ -291,12 +291,25 @@ export default function AdminDashboard() {
 
         // Build per-vendor breakdown
         if (order.vendor_id) {
+          const isPos = (order as any).channel === 'pos';
+          const netForOrder = orderSubtotal - commission;
           const existing = vendorMap.get(order.vendor_id);
           if (existing) {
             existing.totalOrders += 1;
             existing.grossRevenue += orderSubtotal;
             existing.commission += commission;
-            existing.netPayout += orderSubtotal - commission;
+            existing.netPayout += netForOrder;
+            if (isPos) {
+              existing.posOrders += 1;
+              existing.posGrossRevenue += orderSubtotal;
+              existing.posCommission += commission;
+              existing.posNetPayout += netForOrder;
+            } else {
+              existing.onlineOrders += 1;
+              existing.onlineGrossRevenue += orderSubtotal;
+              existing.onlineCommission += commission;
+              existing.onlineNetPayout += netForOrder;
+            }
           } else {
             vendorMap.set(order.vendor_id, {
               vendorId: order.vendor_id,
@@ -304,7 +317,15 @@ export default function AdminDashboard() {
               totalOrders: 1,
               grossRevenue: orderSubtotal,
               commission: commission,
-              netPayout: orderSubtotal - commission,
+              netPayout: netForOrder,
+              onlineOrders: isPos ? 0 : 1,
+              onlineGrossRevenue: isPos ? 0 : orderSubtotal,
+              onlineCommission: isPos ? 0 : commission,
+              onlineNetPayout: isPos ? 0 : netForOrder,
+              posOrders: isPos ? 1 : 0,
+              posGrossRevenue: isPos ? orderSubtotal : 0,
+              posCommission: isPos ? commission : 0,
+              posNetPayout: isPos ? netForOrder : 0,
             });
           }
         }
