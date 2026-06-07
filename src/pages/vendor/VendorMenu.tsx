@@ -430,7 +430,8 @@ export default function VendorMenu() {
       // Add pharmacy-specific fields
       if (vendor.category === 'pharmacy') {
         productData.drug_database_id = formData.drug_database_id || null;
-        productData.requires_prescription = formData.requires_prescription;
+        productData.requires_prescription = formData.medicine_classification !== 'otc';
+        productData.medicine_classification = formData.medicine_classification;
         productData.pharmacist_dosage_instructions = formData.pharmacist_dosage_instructions || null;
         productData.default_dosage_frequency = formData.default_dosage_frequency || null;
         productData.default_dosage_duration_days = formData.default_dosage_duration_days ? parseInt(formData.default_dosage_duration_days) : null;
