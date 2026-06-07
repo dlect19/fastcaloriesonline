@@ -1303,17 +1303,16 @@ export default function VendorMenu() {
                   {vendor?.category === 'restaurant' && cuisineCategories.length > 0 && (
                     <div className="space-y-2">
                       <Label className="flex items-center gap-1.5">
-                        <ChefHat className="w-4 h-4" /> Cuisine Category
+                        <ChefHat className="w-4 h-4" /> Cuisine Category <span className="text-destructive">*</span>
                       </Label>
                       <Select
-                        value={formData.cuisine_category_id || 'none'}
-                        onValueChange={(val) => setFormData({ ...formData, cuisine_category_id: val === 'none' ? '' : val })}
+                        value={formData.cuisine_category_id || ''}
+                        onValueChange={(val) => setFormData({ ...formData, cuisine_category_id: val })}
                       >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select cuisine category" />
+                        <SelectTrigger className={!formData.cuisine_category_id ? 'border-destructive/60' : ''}>
+                          <SelectValue placeholder="Select cuisine category (required)" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">No category</SelectItem>
                           {cuisineCategories.filter(c => !c.parent_id).map(parent => {
                             const subs = cuisineCategories.filter(c => c.parent_id === parent.id);
                             if (subs.length === 0) {
@@ -1330,8 +1329,12 @@ export default function VendorMenu() {
                           })}
                         </SelectContent>
                       </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Required — helps customers find this dish when browsing by food type.
+                      </p>
                     </div>
                   )}
+
 
                   {/* Food Classes - Only show for restaurants */}
                   {vendor?.category === 'restaurant' && (
