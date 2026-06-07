@@ -381,9 +381,20 @@ export default function VendorMenu() {
     e.preventDefault();
     if (!vendor) return;
 
+    // Require cuisine category for restaurant menu items
+    if (vendor.category === 'restaurant' && !formData.cuisine_category_id) {
+      toast({
+        title: 'Cuisine category required',
+        description: 'Please select the cuisine/food category this item belongs to so customers can discover it.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     try {
       // Upload image first if there's a new one
       const imageUrl = await uploadImage();
+
 
       // Use auto-calculated calories if no manual override, or if manual is empty
       const finalCalories = formData.calories 
