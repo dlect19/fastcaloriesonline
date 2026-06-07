@@ -2303,6 +2303,207 @@ export type Database = {
         }
         Relationships: []
       }
+      event_organizer_members: {
+        Row: {
+          created_at: string
+          id: string
+          organizer_id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          organizer_id: string
+          role?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          organizer_id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_organizer_members_organizer_id_fkey"
+            columns: ["organizer_id"]
+            isOneToOne: false
+            referencedRelation: "event_organizers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_organizers: {
+        Row: {
+          bio: string | null
+          contact_email: string | null
+          contact_phone: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          is_verified: boolean
+          logo_url: string | null
+          metadata: Json
+          name: string
+          owner_user_id: string | null
+          payout_account: Json | null
+          slug: string | null
+          social_links: Json
+          updated_at: string
+          website_url: string | null
+        }
+        Insert: {
+          bio?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_verified?: boolean
+          logo_url?: string | null
+          metadata?: Json
+          name: string
+          owner_user_id?: string | null
+          payout_account?: Json | null
+          slug?: string | null
+          social_links?: Json
+          updated_at?: string
+          website_url?: string | null
+        }
+        Update: {
+          bio?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_verified?: boolean
+          logo_url?: string | null
+          metadata?: Json
+          name?: string
+          owner_user_id?: string | null
+          payout_account?: Json | null
+          slug?: string | null
+          social_links?: Json
+          updated_at?: string
+          website_url?: string | null
+        }
+        Relationships: []
+      }
+      event_promo_code_redemptions: {
+        Row: {
+          created_at: string
+          discount_amount: number
+          event_id: string
+          id: string
+          order_id: string | null
+          promo_code_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          discount_amount?: number
+          event_id: string
+          id?: string
+          order_id?: string | null
+          promo_code_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          discount_amount?: number
+          event_id?: string
+          id?: string
+          order_id?: string | null
+          promo_code_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_promo_code_redemptions_promo_code_id_fkey"
+            columns: ["promo_code_id"]
+            isOneToOne: false
+            referencedRelation: "event_promo_codes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_promo_codes: {
+        Row: {
+          applies_to_ticket_type_ids: string[]
+          code: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          discount_type: string
+          discount_value: number
+          event_id: string
+          expires_at: string | null
+          id: string
+          is_active: boolean
+          max_discount: number | null
+          max_uses: number | null
+          max_uses_per_user: number | null
+          metadata: Json
+          min_subtotal: number
+          starts_at: string | null
+          updated_at: string
+          uses_count: number
+        }
+        Insert: {
+          applies_to_ticket_type_ids?: string[]
+          code: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          discount_type?: string
+          discount_value?: number
+          event_id: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          max_discount?: number | null
+          max_uses?: number | null
+          max_uses_per_user?: number | null
+          metadata?: Json
+          min_subtotal?: number
+          starts_at?: string | null
+          updated_at?: string
+          uses_count?: number
+        }
+        Update: {
+          applies_to_ticket_type_ids?: string[]
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          discount_type?: string
+          discount_value?: number
+          event_id?: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          max_discount?: number | null
+          max_uses?: number | null
+          max_uses_per_user?: number | null
+          metadata?: Json
+          min_subtotal?: number
+          starts_at?: string | null
+          updated_at?: string
+          uses_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_promo_codes_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_reminders_sent: {
         Row: {
           event_id: string | null
@@ -2334,6 +2535,158 @@ export type Database = {
             columns: ["event_id"]
             isOneToOne: false
             referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_seats: {
+        Row: {
+          created_at: string
+          event_id: string
+          held_by_user_id: string | null
+          hold_expires_at: string | null
+          id: string
+          layout_id: string
+          metadata: Json
+          position_x: number | null
+          position_y: number | null
+          row_label: string | null
+          seat_number: string | null
+          section_id: string | null
+          status: string
+          ticket_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          held_by_user_id?: string | null
+          hold_expires_at?: string | null
+          id?: string
+          layout_id: string
+          metadata?: Json
+          position_x?: number | null
+          position_y?: number | null
+          row_label?: string | null
+          seat_number?: string | null
+          section_id?: string | null
+          status?: string
+          ticket_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          held_by_user_id?: string | null
+          hold_expires_at?: string | null
+          id?: string
+          layout_id?: string
+          metadata?: Json
+          position_x?: number | null
+          position_y?: number | null
+          row_label?: string | null
+          seat_number?: string | null
+          section_id?: string | null
+          status?: string
+          ticket_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_seats_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_seats_layout_id_fkey"
+            columns: ["layout_id"]
+            isOneToOne: false
+            referencedRelation: "event_venue_layouts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_seats_section_id_fkey"
+            columns: ["section_id"]
+            isOneToOne: false
+            referencedRelation: "event_venue_sections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_seats_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "event_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_ticket_bundles: {
+        Row: {
+          bundle_price: number
+          created_at: string
+          description: string | null
+          event_id: string
+          group_size: number
+          id: string
+          is_active: boolean
+          metadata: Json
+          name: string
+          qty_available: number | null
+          qty_sold: number
+          sales_end: string | null
+          sales_start: string | null
+          ticket_type_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          bundle_price: number
+          created_at?: string
+          description?: string | null
+          event_id: string
+          group_size: number
+          id?: string
+          is_active?: boolean
+          metadata?: Json
+          name: string
+          qty_available?: number | null
+          qty_sold?: number
+          sales_end?: string | null
+          sales_start?: string | null
+          ticket_type_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          bundle_price?: number
+          created_at?: string
+          description?: string | null
+          event_id?: string
+          group_size?: number
+          id?: string
+          is_active?: boolean
+          metadata?: Json
+          name?: string
+          qty_available?: number | null
+          qty_sold?: number
+          sales_end?: string | null
+          sales_start?: string | null
+          ticket_type_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_ticket_bundles_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_ticket_bundles_ticket_type_id_fkey"
+            columns: ["ticket_type_id"]
+            isOneToOne: false
+            referencedRelation: "event_ticket_types"
             referencedColumns: ["id"]
           },
         ]
@@ -2461,15 +2814,18 @@ export type Database = {
       }
       event_tickets: {
         Row: {
+          bundle_id: string | null
           checked_in_at: string | null
           checked_in_by: string | null
           created_at: string
           event_id: string
+          group_lead_user_id: string | null
           id: string
           metadata: Json
           order_id: string
           price: number
           qr_token: string
+          seat_id: string | null
           status: Database["public"]["Enums"]["event_ticket_status"]
           ticket_code: string
           ticket_type_id: string
@@ -2477,15 +2833,18 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          bundle_id?: string | null
           checked_in_at?: string | null
           checked_in_by?: string | null
           created_at?: string
           event_id: string
+          group_lead_user_id?: string | null
           id?: string
           metadata?: Json
           order_id: string
           price: number
           qr_token: string
+          seat_id?: string | null
           status?: Database["public"]["Enums"]["event_ticket_status"]
           ticket_code: string
           ticket_type_id: string
@@ -2493,15 +2852,18 @@ export type Database = {
           user_id: string
         }
         Update: {
+          bundle_id?: string | null
           checked_in_at?: string | null
           checked_in_by?: string | null
           created_at?: string
           event_id?: string
+          group_lead_user_id?: string | null
           id?: string
           metadata?: Json
           order_id?: string
           price?: number
           qr_token?: string
+          seat_id?: string | null
           status?: Database["public"]["Enums"]["event_ticket_status"]
           ticket_code?: string
           ticket_type_id?: string
@@ -2509,6 +2871,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "event_tickets_bundle_id_fkey"
+            columns: ["bundle_id"]
+            isOneToOne: false
+            referencedRelation: "event_ticket_bundles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "event_tickets_event_id_fkey"
             columns: ["event_id"]
@@ -2524,7 +2893,112 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "event_tickets_seat_id_fkey"
+            columns: ["seat_id"]
+            isOneToOne: false
+            referencedRelation: "event_seats"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "event_tickets_ticket_type_id_fkey"
+            columns: ["ticket_type_id"]
+            isOneToOne: false
+            referencedRelation: "event_ticket_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_venue_layouts: {
+        Row: {
+          created_at: string
+          event_id: string
+          id: string
+          is_active: boolean
+          layout_json: Json
+          layout_type: string
+          name: string
+          svg_url: string | null
+          total_seats: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          id?: string
+          is_active?: boolean
+          layout_json?: Json
+          layout_type?: string
+          name: string
+          svg_url?: string | null
+          total_seats?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          id?: string
+          is_active?: boolean
+          layout_json?: Json
+          layout_type?: string
+          name?: string
+          svg_url?: string | null
+          total_seats?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_venue_layouts_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_venue_sections: {
+        Row: {
+          capacity: number
+          color: string | null
+          created_at: string
+          id: string
+          layout_id: string
+          metadata: Json
+          name: string
+          sort_order: number
+          ticket_type_id: string | null
+        }
+        Insert: {
+          capacity?: number
+          color?: string | null
+          created_at?: string
+          id?: string
+          layout_id: string
+          metadata?: Json
+          name: string
+          sort_order?: number
+          ticket_type_id?: string | null
+        }
+        Update: {
+          capacity?: number
+          color?: string | null
+          created_at?: string
+          id?: string
+          layout_id?: string
+          metadata?: Json
+          name?: string
+          sort_order?: number
+          ticket_type_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_venue_sections_layout_id_fkey"
+            columns: ["layout_id"]
+            isOneToOne: false
+            referencedRelation: "event_venue_layouts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_venue_sections_ticket_type_id_fkey"
             columns: ["ticket_type_id"]
             isOneToOne: false
             referencedRelation: "event_ticket_types"
@@ -2742,6 +3216,7 @@ export type Database = {
           name: string
           organizer: string | null
           organizer_access_token: string | null
+          organizer_id: string | null
           organizer_user_id: string | null
           slug: string | null
           start_time: string | null
@@ -2766,6 +3241,7 @@ export type Database = {
           name: string
           organizer?: string | null
           organizer_access_token?: string | null
+          organizer_id?: string | null
           organizer_user_id?: string | null
           slug?: string | null
           start_time?: string | null
@@ -2790,6 +3266,7 @@ export type Database = {
           name?: string
           organizer?: string | null
           organizer_access_token?: string | null
+          organizer_id?: string | null
           organizer_user_id?: string | null
           slug?: string | null
           start_time?: string | null
@@ -2797,7 +3274,15 @@ export type Database = {
           terms?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "events_organizer_id_fkey"
+            columns: ["organizer_id"]
+            isOneToOne: false
+            referencedRelation: "event_organizers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       expense_requisitions: {
         Row: {
