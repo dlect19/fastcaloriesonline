@@ -109,6 +109,19 @@ export default function AdminEventDashboard() {
     return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
   }, [activeTickets]);
 
+  // Sales by hour of day (peak time analysis)
+  const salesByHour = useMemo(() => {
+    const buckets = Array.from({ length: 24 }, (_, h) => ({ hour: h, tickets: 0, revenue: 0 }));
+    activeTickets.forEach(t => {
+      if (!t.created_at) return;
+      const h = new Date(t.created_at).getHours();
+      buckets[h].tickets += 1;
+      buckets[h].revenue += Number(t.price || 0);
+    });
+    return buckets;
+  }, [activeTickets]);
+
+
   // Ticket type breakdown
   const ticketBreakdown = useMemo(() => {
     return ticketTypes.map(tt => {
