@@ -19,13 +19,15 @@ export class RiderServicePluginWeb
 {
   private _running = false;
 
-  async requestLocationWithDisclosure(): Promise<{ status: 'granted' | 'denied' }> {
-    // On web, fall back to the standard Geolocation permission prompt.
-    if (!('geolocation' in navigator)) return { status: 'denied' };
+  async requestLocationWithDisclosure(): Promise<{
+    location: 'granted' | 'denied';
+    backgroundLocation: 'granted' | 'denied';
+  }> {
+    if (!('geolocation' in navigator)) return { location: 'denied', backgroundLocation: 'denied' };
     return new Promise((resolve) => {
       navigator.geolocation.getCurrentPosition(
-        () => resolve({ status: 'granted' }),
-        () => resolve({ status: 'denied' }),
+        () => resolve({ location: 'granted', backgroundLocation: 'denied' }),
+        () => resolve({ location: 'denied', backgroundLocation: 'denied' }),
         { timeout: 10000 },
       );
     });

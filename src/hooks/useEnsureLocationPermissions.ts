@@ -23,12 +23,18 @@ export function useEnsureLocationPermissions() {
   const ensureLocationPermissions = useCallback(async (): Promise<boolean> => {
     setChecking(true);
     try {
-      const { status: result } = await RiderServicePlugin.requestLocationWithDisclosure();
-      setStatus(result);
+      const result = await RiderServicePlugin.requestLocationWithDisclosure();
+      const granted = result.location === 'granted' && result.backgroundLocation === 'granted';
+      setStatus(granted ? 'granted' : 'denied');
 
-      if (result === 'granted') {
+      if (granted) {
         try {
           await RiderServicePlugin.startService();
+          await RiderServicePlugin.startForegroundService({
+            title: 'Online',
+            body: 'You are ready to receive orders',
+            channelId: 'rider_foreground',
+          });
         } catch (err) {
           console.error('[ensureLocationPermissions] startService failed', err);
         }
@@ -36,9 +42,9 @@ export function useEnsureLocationPermissions() {
       }
 
       toast({
-        title: 'Location access required',
+        title: 'Always-on location required',
         description:
-          'Fast Calories needs your location — even in the background — to receive nearby delivery orders, navigate to pickups, and keep customers updated. Please enable location access to go online.',
+          'To receive delivery orders while the app is in the background, please allow always-on location access.',
         variant: 'destructive',
       });
       return false;
