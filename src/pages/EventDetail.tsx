@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Calendar, MapPin, Users, Minus, Plus, Loader2 } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, Users, Minus, Plus, Loader2, Wallet, CreditCard } from 'lucide-react';
 import { useEvent } from '@/hooks/useEvents';
 import { Button } from '@/components/ui/button';
 import { format, parseISO } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+
 
 export default function EventDetail() {
   const { id } = useParams<{ id: string }>();
@@ -30,11 +31,8 @@ export default function EventDetail() {
     });
   };
 
-  const handleBuy = async () => {
-    if (!user) {
-      navigate('/auth');
-      return;
-    }
+  const handleWalletBuy = async () => {
+    if (!user) { navigate('/auth'); return; }
     if (items.length === 0) return;
     setSubmitting(true);
     try {
@@ -44,13 +42,10 @@ export default function EventDetail() {
           items: items.map(([ticket_type_id, quantity]) => ({ ticket_type_id, quantity })),
         },
       });
-
-      // Parse error body from non-2xx (e.g. 402 INSUFFICIENT_BALANCE)
       let errPayload: any = data?.error ? data : null;
       if (error && (error as any).context?.json) {
         try { errPayload = await (error as any).context.json(); } catch { /* noop */ }
       }
-
       if (errPayload?.error || error) {
         const code = errPayload?.error || error?.message || 'Purchase failed';
         if (code === 'INSUFFICIENT_BALANCE') {
@@ -58,10 +53,9 @@ export default function EventDetail() {
           const have = errPayload?.available ?? 0;
           toast({
             title: 'Insufficient wallet balance',
-            description: `Need ₦${Number(need).toLocaleString()}, you have ₦${Number(have).toLocaleString()}. Fund your wallet to continue.`,
+            description: `Need ₦${Number(need).toLocaleString()}, you have ₦${Number(have).toLocaleString()}. Try "Pay with Card" instead, or fund your wallet.`,
             variant: 'destructive',
           });
-          navigate('/profile/wallet');
         } else {
           toast({ title: 'Could not purchase', description: String(code), variant: 'destructive' });
         }
@@ -73,6 +67,41 @@ export default function EventDetail() {
       setSubmitting(false);
     }
   };
+
+  const handleCardBuy = async () => {
+    if (!user) { navigate('/auth'); return; }
+    if (items.length === 0) return;
+    setSubmitting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('paystack-initialize-event-purchase', {
+        body: {
+          event_id: id,
+          items: items.map(([ticket_type_id, quantity]) => ({ ticket_type_id, quantity })),
+          callbackUrl: `${window.location.origin}/my-events`,
+        },
+      });
+      let errPayload: any = data?.error ? data : null;
+      if (error && (error as any).context?.json) {
+        try { errPayload = await (error as any).context.json(); } catch { /* noop */ }
+      }
+      if (errPayload?.error || error) {
+        toast({ title: 'Payment failed to start', description: errPayload?.error || error?.message || 'Try again', variant: 'destructive' });
+        return;
+      }
+      if (data?.free) {
+        toast({ title: 'Tickets reserved!', description: `Order ${data.order_number}` });
+        navigate('/my-events');
+        return;
+      }
+      // Redirect to Paystack hosted checkout
+      if (data?.authorization_url) {
+        window.location.href = data.authorization_url;
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin" /></div>;
@@ -176,16 +205,22 @@ export default function EventDetail() {
       </div>
 
       {items.length > 0 && (
-        <div className="fixed bottom-0 inset-x-0 bg-card border-t border-border p-4 shadow-lg">
-          <div className="flex items-center justify-between mb-2">
+        <div className="fixed bottom-0 inset-x-0 bg-card border-t border-border p-4 shadow-lg space-y-2">
+          <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground">Total</span>
             <span className="text-lg font-bold">₦{total.toLocaleString()}</span>
           </div>
-          <Button onClick={handleBuy} disabled={submitting} className="w-full">
-            {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Pay with Wallet'}
-          </Button>
+          <div className="grid grid-cols-2 gap-2">
+            <Button onClick={handleWalletBuy} disabled={submitting} variant="outline">
+              {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Wallet className="w-4 h-4 mr-1.5" /> Wallet</>}
+            </Button>
+            <Button onClick={handleCardBuy} disabled={submitting}>
+              {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <><CreditCard className="w-4 h-4 mr-1.5" /> Pay with Card</>}
+            </Button>
+          </div>
         </div>
       )}
     </div>
   );
 }
+
