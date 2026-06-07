@@ -2303,6 +2303,41 @@ export type Database = {
         }
         Relationships: []
       }
+      event_reminders_sent: {
+        Row: {
+          event_id: string | null
+          id: string
+          reference_id: string | null
+          reminder_type: string
+          sent_at: string
+          user_id: string
+        }
+        Insert: {
+          event_id?: string | null
+          id?: string
+          reference_id?: string | null
+          reminder_type: string
+          sent_at?: string
+          user_id: string
+        }
+        Update: {
+          event_id?: string | null
+          id?: string
+          reference_id?: string | null
+          reminder_type?: string
+          sent_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_reminders_sent_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_ticket_orders: {
         Row: {
           created_at: string
@@ -7659,6 +7694,10 @@ export type Database = {
       }
       apply_vendor_commission_promos: { Args: never; Returns: undefined }
       bytea_to_text: { Args: { data: string }; Returns: string }
+      cancel_pending_event_order: {
+        Args: { p_order_id: string }
+        Returns: Json
+      }
       cancel_stale_pending_orders: { Args: never; Returns: number }
       check_in_event_ticket: {
         Args: { p_lookup: string; p_staff_id: string }
@@ -7869,6 +7908,10 @@ export type Database = {
           user_id: string
           wallet_balance: number
         }[]
+      }
+      mark_event_order_paid: {
+        Args: { p_order_id: string; p_reference: string }
+        Returns: Json
       }
       owns_delivery_company: {
         Args: { _company_id: string; _user_id: string }
