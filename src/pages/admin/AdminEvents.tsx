@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ImageUploadField } from '@/components/admin/ImageUploadField';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
@@ -171,7 +172,7 @@ export default function AdminEvents() {
             <DialogHeader><DialogTitle>{editing.id ? 'Edit Event' : 'New Event'}</DialogTitle></DialogHeader>
             <div className="space-y-3">
               <div><Label>Name *</Label><Input value={editing.name} onChange={e => setEditing({ ...editing, name: e.target.value })} /></div>
-              <div><Label>Banner image URL</Label><Input value={editing.banner_url} onChange={e => setEditing({ ...editing, banner_url: e.target.value })} placeholder="https://…" /></div>
+              <ImageUploadField label="Banner image" value={editing.banner_url} onChange={(url) => setEditing({ ...editing, banner_url: url })} folder="event-banners" />
               <div><Label>Description</Label><Textarea rows={3} value={editing.description} onChange={e => setEditing({ ...editing, description: e.target.value })} /></div>
               <div><Label>Location</Label><Input value={editing.location_text} onChange={e => setEditing({ ...editing, location_text: e.target.value })} /></div>
               <div className="grid grid-cols-3 gap-3">

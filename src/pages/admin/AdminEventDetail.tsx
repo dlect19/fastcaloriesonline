@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useEvent } from '@/hooks/useEvents';
+import { ImageUploadField } from '@/components/admin/ImageUploadField';
 
 interface TTForm {
   id?: string;
@@ -271,7 +272,7 @@ export default function AdminEventDetail() {
               <div className="space-y-3">
                 <div><Label>Name *</Label><Input value={editing.name} onChange={e => setEditing({ ...editing, name: e.target.value })} placeholder="VIP, Regular, etc." /></div>
                 <div><Label>Description</Label><Textarea rows={2} value={editing.description} onChange={e => setEditing({ ...editing, description: e.target.value })} /></div>
-                <div><Label>Image URL</Label><Input value={editing.image_url} onChange={e => setEditing({ ...editing, image_url: e.target.value })} /></div>
+                <ImageUploadField label="Ticket image" value={editing.image_url} onChange={(url) => setEditing({ ...editing, image_url: url })} folder="event-tickets" />
                 <div className="grid grid-cols-2 gap-3">
                   <div><Label>Price (₦) *</Label><Input type="number" value={editing.price} onChange={e => setEditing({ ...editing, price: e.target.value })} /></div>
                   <div><Label>Quantity *</Label><Input type="number" value={editing.qty_available} onChange={e => setEditing({ ...editing, qty_available: e.target.value })} /></div>
