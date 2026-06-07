@@ -130,6 +130,8 @@ import MyEvents from "./pages/MyEvents";
 import AdminEvents from "./pages/admin/AdminEvents";
 import AdminEventDetail from "./pages/admin/AdminEventDetail";
 import AdminEventDashboard from "./pages/admin/AdminEventDashboard";
+import OrganizerPortal from "./pages/OrganizerPortal";
+import OrganizerVerify from "./pages/OrganizerVerify";
 import AdminEventVerify from "./pages/admin/AdminEventVerify";
 import { playGlobalNotificationSound } from '@/lib/globalAudio';
 import { useFcmNotifications } from '@/hooks/useFcmNotifications';
@@ -283,6 +285,9 @@ const App = () => {
               <Route path="/admin/events/:id" element={<AdminEventDetail />} />
               <Route path="/admin/events/:id/dashboard" element={<AdminEventDashboard />} />
               <Route path="/admin/event-verify" element={<AdminEventVerify />} />
+              {/* Organizer Portal (public via secret token) */}
+              <Route path="/organizer/:token" element={<OrganizerPortal />} />
+              <Route path="/organizer/:token/verify" element={<OrganizerVerify />} />
               {/* Public Pages */}
               <Route path="/delete-account" element={<DeleteAccount />} />
               {/* Legal Pages (public) */}
