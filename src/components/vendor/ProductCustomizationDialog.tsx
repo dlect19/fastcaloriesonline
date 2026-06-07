@@ -584,7 +584,12 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{product.name}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2 flex-wrap">
+            <span>{product.name}</span>
+            {(vendor as any).category === 'pharmacy' && (
+              <MedicineClassificationBadge classification={(product as any).medicine_classification} />
+            )}
+          </DialogTitle>
         </DialogHeader>
         
         <div className="space-y-4">
