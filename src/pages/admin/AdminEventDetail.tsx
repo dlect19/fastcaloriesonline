@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Edit, Trash2, Gift, LineChart } from 'lucide-react';
+import { ArrowLeft, Plus, Edit, Trash2, Gift, LineChart, Link as LinkIcon, Copy, RefreshCw } from 'lucide-react';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -200,11 +200,15 @@ export default function AdminEventDetail() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-3 gap-3 mb-6">
+        <div className="grid grid-cols-3 gap-3 mb-4">
           <div className="bg-card border border-border rounded-lg p-3"><p className="text-xs text-muted-foreground">Tickets Sold</p><p className="text-2xl font-bold">{stats.sold}</p></div>
           <div className="bg-card border border-border rounded-lg p-3"><p className="text-xs text-muted-foreground">Revenue</p><p className="text-2xl font-bold">₦{stats.revenue.toLocaleString()}</p></div>
           <div className="bg-card border border-border rounded-lg p-3"><p className="text-xs text-muted-foreground">Checked In</p><p className="text-2xl font-bold">{stats.checked}</p></div>
         </div>
+
+        {/* Organizer link */}
+        <OrganizerLinkCard event={event} onChange={refetch} />
+
 
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-bold">Ticket Types</h2>
@@ -388,5 +392,54 @@ export default function AdminEventDetail() {
         )}
       </div>
     </AdminLayout>
+  );
+}
+
+function OrganizerLinkCard({ event, onChange }: { event: any; onChange: () => void }) {
+  const { toast } = useToast();
+  const token: string | null = event?.organizer_access_token || null;
+  const link = token ? `${window.location.origin}/organizer/${token}` : '';
+
+  const copy = async () => {
+    if (!link) return;
+    try {
+      await navigator.clipboard.writeText(link);
+      toast({ title: 'Organizer link copied' });
+    } catch {
+      toast({ title: 'Copy failed', variant: 'destructive' });
+    }
+  };
+
+  const regenerate = async () => {
+    if (!confirm('Regenerate link? The old link will stop working immediately.')) return;
+    // Use a random hex token generated client-side (32 chars)
+    const bytes = new Uint8Array(24);
+    crypto.getRandomValues(bytes);
+    const newToken = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+    const { error } = await supabase.from('events').update({ organizer_access_token: newToken }).eq('id', event.id);
+    if (error) return toast({ title: 'Failed to regenerate', description: error.message, variant: 'destructive' });
+    toast({ title: 'New organizer link generated' });
+    onChange();
+  };
+
+  return (
+    <div className="bg-card border border-border rounded-lg p-3 mb-6">
+      <div className="flex items-center gap-2 mb-2">
+        <LinkIcon className="w-4 h-4 text-primary" />
+        <p className="font-semibold text-sm">Organizer Portal Link</p>
+      </div>
+      <p className="text-xs text-muted-foreground mb-2">
+        Share this private link with the event organizer. They can view KPIs and verify tickets without an admin account.
+      </p>
+      <div className="flex gap-2">
+        <Input value={link} readOnly className="font-mono text-xs" />
+        <Button size="sm" variant="outline" onClick={copy} disabled={!link}>
+          <Copy className="w-3.5 h-3.5 mr-1.5" /> Copy
+        </Button>
+        <Button size="sm" variant="ghost" onClick={regenerate}>
+          <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Reset
+        </Button>
+      </div>
+    </div>
   );
 }
