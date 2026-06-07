@@ -90,6 +90,7 @@ export default function VendorWithdraw() {
   const [withdrawalPage, setWithdrawalPage] = useState(1);
   const W_PER_PAGE = 10;
   const [settlementHours, setSettlementHours] = useState<number | null>(null);
+  const [settlementMode, setSettlementMode] = useState<string | null>(null);
 
   // Bank details form
   const [bankName, setBankName] = useState('');
