@@ -1865,6 +1865,7 @@ export default function VendorMenu() {
                 name: drug.name + (drug.strength ? ` ${drug.strength}` : ''),
                 drug_database_id: drug.id,
                 requires_prescription: drug.requires_prescription,
+                medicine_classification: drug.requires_prescription ? 'prescription' : 'otc',
                 pharmacist_dosage_instructions: drug.common_dosage_instructions || prev.pharmacist_dosage_instructions,
                 default_dosage_frequency: drug.default_dosage_frequency || prev.default_dosage_frequency,
                 default_dosage_duration_days: drug.default_dosage_duration_days?.toString() || prev.default_dosage_duration_days,
