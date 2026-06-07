@@ -81,6 +81,7 @@ export default function AdminDashboard() {
     totalEarned: 0,
   });
   const [vendorBreakdowns, setVendorBreakdowns] = useState<VendorBreakdown[]>([]);
+  const [vendorChannel, setVendorChannel] = useState<'all' | 'online' | 'pos'>('all');
   const [riderSharePct, setRiderSharePct] = useState(80);
 
   useEffect(() => {
