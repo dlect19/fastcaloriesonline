@@ -90,6 +90,7 @@ export default function VendorWithdraw() {
   const [withdrawalPage, setWithdrawalPage] = useState(1);
   const W_PER_PAGE = 10;
   const [settlementHours, setSettlementHours] = useState<number | null>(null);
+  const [settlementMode, setSettlementMode] = useState<string | null>(null);
 
   // Bank details form
   const [bankName, setBankName] = useState('');
@@ -272,9 +273,18 @@ export default function VendorWithdraw() {
           .select('value')
           .eq('key', categoryKey)
           .maybeSingle();
-        
-        setSettlementHours(settlementData ? Number(settlementData.value) : 24);
+
+        const raw = settlementData?.value as string | undefined;
+        if (raw === 'next_day' || raw === 'third_day') {
+          setSettlementMode(raw);
+          setSettlementHours(null);
+        } else {
+          const n = Number(raw);
+          setSettlementMode('hours');
+          setSettlementHours(Number.isFinite(n) ? n : 24);
+        }
       } else {
+        setSettlementMode('hours');
         setSettlementHours(24);
       }
     } catch (error) {
@@ -817,9 +827,13 @@ export default function VendorWithdraw() {
                     <p className="text-sm text-muted-foreground">Total Pending</p>
                     <p className="text-2xl font-bold text-foreground">{formatCurrency(wallet?.pending_balance || 0)}</p>
                     <p className="text-xs text-muted-foreground">
-                      {settlementHours !== null && settlementHours > 0 
-                        ? `Menu sales (${settlementHours}hr hold)` 
-                        : 'Menu sales (no hold)'}
+                      {settlementMode === 'next_day'
+                        ? 'Next-day settlement'
+                        : settlementMode === 'third_day'
+                          ? 'Third-day settlement'
+                          : settlementHours !== null && settlementHours > 0
+                            ? `Menu sales (${settlementHours}hr hold)`
+                            : 'Menu sales (no hold)'}
                     </p>
                   </div>
                   <div className="w-12 h-12 rounded-xl bg-warning/10 flex items-center justify-center">
