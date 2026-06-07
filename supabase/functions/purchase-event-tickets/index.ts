@@ -56,7 +56,7 @@ serve(async (req) => {
     }
     const currentBalance = Number(wallet[balanceField] || 0);
     if (currentBalance < total) {
-      return new Response(JSON.stringify({ error: 'INSUFFICIENT_BALANCE', required: total, available: currentBalance }), { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ error: 'INSUFFICIENT_BALANCE', required: total, available: currentBalance }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     const reference = `EVT-PAY-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
