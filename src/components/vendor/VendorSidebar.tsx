@@ -185,11 +185,27 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
     : navItems;
 
   // Pharmacy vendors see "Drugs" instead of "Menu" with a Pill icon
-  const visibleItems = baseItems.map(item =>
+  const visibleItemsBase = baseItems.map(item =>
     item.id === 'menu' && vendorCategory === 'pharmacy'
       ? { ...item, label: 'Drugs', icon: Pill }
       : item
   );
+
+  // Add pharmacist review entry for pharmacy vendors (right after Orders)
+  const visibleItems = vendorCategory === 'pharmacy'
+    ? (() => {
+        const idx = visibleItemsBase.findIndex((x) => x.id === 'orders');
+        const out = [...visibleItemsBase];
+        out.splice(idx + 1, 0, {
+          id: 'pharmacy-review',
+          icon: Pill,
+          label: 'Rx Review',
+          path: '/vendor/pharmacy-review',
+          permission: 'process_orders' as VendorPermission,
+        });
+        return out;
+      })()
+    : visibleItemsBase;
 
   return (
     <>
