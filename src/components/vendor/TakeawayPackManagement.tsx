@@ -270,7 +270,7 @@ export function TakeawayPackManagement({ vendorId, userId }: TakeawayPackManagem
               resetForm();
             }
           }}>
-            <DialogContent className="max-w-md">
+            <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{editingPack ? 'Edit' : 'Add'} Takeaway Pack</DialogTitle>
                 <DialogDescription>
