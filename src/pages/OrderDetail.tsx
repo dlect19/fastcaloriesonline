@@ -156,6 +156,13 @@ export default function OrderDetail() {
         setOrderItemAddons(addonsMap);
       }
 
+      // Fetch prescription review status for pharmacy items
+      const { data: rxs } = await (supabase as any)
+        .from('prescription_orders')
+        .select('id, product_id, approval_status, requires_approval, rejection_reason, products(name, medicine_classification)')
+        .eq('order_id', id);
+      setPrescriptions(rxs || []);
+
       // Check if user has already reviewed this order
       if (orderData?.status === 'delivered') {
         const { data: review } = await supabase
