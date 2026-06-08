@@ -5,6 +5,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { RiderLayout } from '@/components/rider/RiderLayout';
 import { RiderFloatingWidget } from '@/components/rider/RiderFloatingWidget';
 import { ConfirmationCodeDialog } from '@/components/rider/ConfirmationCodeDialog';
+import { ControlledDeliveryOtpDialog, type ControlledItem } from '@/components/rider/ControlledDeliveryOtpDialog';
+
 import { ReassignOrderDialog } from '@/components/rider/ReassignOrderDialog';
 import { RiderOrderChat } from '@/components/rider/RiderOrderChat';
 import { MapOptionsMenu } from '@/components/shared/MapOptionsMenu';
@@ -43,6 +45,9 @@ export default function RiderOrders() {
   const [confirmingDelivery, setConfirmingDelivery] = useState(false);
   const [reassignDialogOpen, setReassignDialogOpen] = useState(false);
   const [orderToReassign, setOrderToReassign] = useState<any>(null);
+  const [controlledDialogOpen, setControlledDialogOpen] = useState(false);
+  const [controlledItems, setControlledItems] = useState<ControlledItem[]>([]);
+
   
 
   // Use rider restrictions hook
