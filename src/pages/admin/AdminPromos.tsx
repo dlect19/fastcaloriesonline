@@ -135,6 +135,7 @@ export default function AdminPromos() {
     setValidUntil('');
     setScope('platform');
     setPerUserLimit('');
+    setPerUserResetPeriod('never');
   };
 
   if (loading) {
