@@ -145,8 +145,60 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
             </div>
             <p className="text-sm text-muted-foreground">Qty: {item.quantity}</p>
             {item.dosageForm && <Badge variant="secondary" className="text-xs mt-1">{item.dosageForm}</Badge>}
-            {item.requiresPrescription && <Badge variant="destructive" className="text-xs mt-1 ml-1">Requires Rx</Badge>}
+            {item.medicineClassification && (
+              <span className="inline-block ml-1 mt-1">
+                <MedicineClassificationBadge classification={item.medicineClassification} />
+              </span>
+            )}
           </div>
+
+          {/* Prescription image upload (Rx + Controlled) */}
+          {item.medicineClassification && item.medicineClassification !== 'otc' && (
+            <div className="p-3 bg-secondary/30 rounded-lg border border-border space-y-2">
+              <PrescriptionImageUpload
+                userId={userId}
+                productId={item.productId}
+                value={current.prescriptionImageUrl}
+                onChange={(path) => updateCurrent({ prescriptionImageUrl: path })}
+                label={item.medicineClassification === 'controlled' ? 'Prescription Photo (required)' : 'Prescription Photo (optional)'}
+                required={item.medicineClassification === 'controlled'}
+              />
+              <p className="text-xs text-muted-foreground">
+                A licensed pharmacist will review your prescription before this item is prepared. Your photo is stored privately and only visible to the dispensing pharmacy.
+              </p>
+            </div>
+          )}
+
+          {/* Emergency flag */}
+          {item.medicineClassification && item.medicineClassification !== 'otc' && (
+            <div className="p-3 rounded-lg border border-warning/30 bg-warning/5 space-y-2">
+              <div className="flex items-start gap-2">
+                <Checkbox
+                  id={`emergency-${item.productId}`}
+                  checked={current.isEmergency}
+                  onCheckedChange={(c) => updateCurrent({ isEmergency: !!c })}
+                />
+                <div className="flex-1">
+                  <Label htmlFor={`emergency-${item.productId}`} className="text-sm font-medium flex items-center gap-1 cursor-pointer">
+                    <AlertTriangle className="w-4 h-4 text-warning" />
+                    This is an emergency / urgent need
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    The pharmacist will prioritise this prescription.
+                  </p>
+                </div>
+              </div>
+              {current.isEmergency && (
+                <Textarea
+                  value={current.emergencyReason}
+                  onChange={(e) => updateCurrent({ emergencyReason: e.target.value })}
+                  placeholder="Briefly describe the emergency (e.g. severe asthma attack, post-surgery pain)"
+                  rows={2}
+                  className="text-sm"
+                />
+              )}
+            </div>
+          )}
 
           {/* Prescription type selection */}
           <div className="space-y-2">
