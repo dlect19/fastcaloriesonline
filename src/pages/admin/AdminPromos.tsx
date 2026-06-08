@@ -239,6 +239,23 @@ export default function AdminPromos() {
                     />
                   </div>
                 </div>
+                <div className="space-y-2">
+                  <Label>Reset Per-User Limit Every</Label>
+                  <Select value={perUserResetPeriod} onValueChange={setPerUserResetPeriod}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="never">Never (lifetime limit)</SelectItem>
+                      <SelectItem value="daily">Day</SelectItem>
+                      <SelectItem value="weekly">Week</SelectItem>
+                      <SelectItem value="monthly">Month</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    e.g. set Per User Limit = 1 and Week → customer can use once every week
+                  </p>
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Total Usage Limit</Label>
