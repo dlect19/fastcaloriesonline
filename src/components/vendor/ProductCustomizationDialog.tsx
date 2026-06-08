@@ -476,6 +476,15 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
       })) : undefined,
       addonsDescription,
       purchaseUnit: sachetEnabled ? purchaseUnit : undefined,
+      // Pharmacy metadata propagated to cart for checkout prescription flow
+      requiresPrescription: (product as any).requires_prescription || false,
+      medicineClassification: (product as any).medicine_classification || ((product as any).requires_prescription ? 'prescription' : 'otc'),
+      pharmacistInstructions: (product as any).pharmacist_dosage_instructions || null,
+      defaultFrequency: (product as any).default_dosage_frequency || null,
+      defaultDuration: (product as any).default_dosage_duration_days || null,
+      defaultQtyPerDose: (product as any).default_quantity_per_dose || null,
+      dosageForm: (product as any).dosage_form || null,
+      targetAgeGroup: (product as any).target_age_group || null,
     };
 
     if (editItem) {
