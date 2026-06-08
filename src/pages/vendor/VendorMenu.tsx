@@ -1149,15 +1149,20 @@ export default function VendorMenu() {
                         </div>
                       )}
                       
-                      <div className="space-y-1">
-                        <Label className="text-sm">Pharmacist Dosage Instructions</Label>
-                        <Textarea 
-                          value={formData.pharmacist_dosage_instructions}
-                          onChange={e => setFormData({ ...formData, pharmacist_dosage_instructions: e.target.value })}
-                          placeholder="e.g. Take 1 tablet twice daily after meals"
-                          rows={2}
-                        />
-                      </div>
+                      {formData.medicine_classification !== 'otc' && (
+                        <div className="space-y-1">
+                          <Label className="text-sm">Pharmacist Dosage Instructions</Label>
+                          <Textarea 
+                            value={formData.pharmacist_dosage_instructions}
+                            onChange={e => setFormData({ ...formData, pharmacist_dosage_instructions: e.target.value })}
+                            placeholder="e.g. Take 1 tablet twice daily after meals"
+                            rows={2}
+                          />
+                          <p className="text-[11px] text-muted-foreground">
+                            Sent to the customer's drug reminder schedule after pharmacist approval.
+                          </p>
+                        </div>
+                      )}
 
                       {/* Stock Tracking - Pharmacy only */}
                       <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-2">
