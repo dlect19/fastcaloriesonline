@@ -519,7 +519,10 @@ export function VendorCheckoutSection({
               total_quantity: item.quantity,
               requires_approval: rxData?.requiresApproval || false,
               approval_status: rxData?.requiresApproval ? 'pending' : 'approved',
-            };
+              prescription_image_url: rxData?.prescriptionImageUrl || null,
+              is_emergency: rxData?.isEmergency || false,
+              emergency_reason: rxData?.emergencyReason || null,
+            } as any;
           });
 
         if (prescriptionInserts.length > 0) {
