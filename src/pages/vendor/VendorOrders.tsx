@@ -421,14 +421,26 @@ export default function VendorOrders() {
   };
 
   const updateOrderStatus = async (orderId: string, newStatus: OrderStatus) => {
+    const order = orders.find(o => o.id === orderId);
+
+    // Block start of preparation while pharmacist review is still pending
+    if (newStatus === 'preparing' && (order as any)?.pharmacy_review_status === 'pending') {
+      toast({
+        title: 'Awaiting pharmacist review',
+        description: 'You can start preparing only after all prescription items are approved.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     // If setting to "preparing" and prep time is enabled, show the prep time dialog instead
     if (newStatus === 'preparing' && prepTimeSettings.enabled) {
-      const order = orders.find(o => o.id === orderId);
       if (order) {
         setPrepTimeDialog({ open: true, order });
         return;
       }
     }
+
 
     try {
       const order = orders.find(o => o.id === orderId);
