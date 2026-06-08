@@ -93,6 +93,23 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
   };
 
   const handleNext = () => {
+    // Controlled drugs require a prescription image upload
+    if (item.medicineClassification === 'controlled' && !current.prescriptionImageUrl) {
+      toast({
+        title: 'Prescription photo required',
+        description: 'Controlled medicines need a prescription image before checkout.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (current.isEmergency && !current.emergencyReason.trim()) {
+      toast({
+        title: 'Emergency reason required',
+        description: 'Please briefly describe the emergency so the pharmacist can prioritise.',
+        variant: 'destructive',
+      });
+      return;
+    }
     if (currentIndex < pharmacyItems.length - 1) {
       setCurrentIndex(currentIndex + 1);
     } else {
