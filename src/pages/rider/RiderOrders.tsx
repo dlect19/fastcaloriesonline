@@ -609,6 +609,33 @@ export default function RiderOrders() {
         <RiderFloatingWidget isOnline={isOnline} onToggleOnline={toggleOnline} />
       )}
 
+      {/* Controlled-drug OTP verification (runs before final confirmation) */}
+      <ControlledDeliveryOtpDialog
+        open={controlledDialogOpen}
+        onOpenChange={setControlledDialogOpen}
+        items={controlledItems}
+        verify={async (codes) => {
+          // Verify each item's delivery_otp; if all match, stamp verified_at
+          const ids = Object.keys(codes);
+          const { data: rows, error } = await supabase
+            .from('order_items')
+            .select('id, delivery_otp')
+            .in('id', ids);
+          if (error || !rows) return false;
+          const allMatch = rows.every((r: any) => codes[r.id] && r.delivery_otp === codes[r.id]);
+          if (!allMatch) return false;
+          await supabase
+            .from('order_items')
+            .update({ delivery_otp_verified_at: new Date().toISOString() })
+            .in('id', ids);
+          return true;
+        }}
+        onVerified={() => {
+          setControlledDialogOpen(false);
+          setConfirmDialogOpen(true);
+        }}
+      />
+
       {/* Confirmation Code Dialog */}
       <ConfirmationCodeDialog
         open={confirmDialogOpen}
@@ -617,6 +644,7 @@ export default function RiderOrders() {
         isLoading={confirmingDelivery}
         orderNumber={pendingDeliveryOrder?.order_number}
       />
+
 
       {/* Reassign Order Dialog */}
       <ReassignOrderDialog
