@@ -18,6 +18,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 import { Search, Wallet, Users, AlertCircle, Plus, Minus, Eye, Ban, CheckCircle, Building2, Loader2, Copy, RotateCcw, Receipt } from 'lucide-react';
 import { format, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
+import { PaginationControls } from '@/components/shared/PaginationControls';
+import { usePagination } from '@/hooks/usePagination';
 
 interface CustomerWallet {
   id: string;
@@ -456,6 +458,8 @@ export default function AdminCustomerWallets() {
   });
 
   const totalRefunded = filteredRefundHistory.reduce((sum, r) => sum + r.amount, 0);
+  const { paged: pagedWallets, page: walletPage, setPage: setWalletPage, totalPages: walletTotalPages } = usePagination(filteredWallets, 10);
+  const { paged: pagedRefunds, page: refundPage, setPage: setRefundPage, totalPages: refundTotalPages } = usePagination(filteredRefundHistory, 10);
 
   if (permLoading || loading) {
     return (
@@ -585,7 +589,7 @@ export default function AdminCustomerWallets() {
                           </TableCell>
                         </TableRow>
                       ) : (
-                        filteredWallets.map((wallet) => {
+                        pagedWallets.map((wallet) => {
                           const balance = isTestMode
                             ? Number(wallet.test_balance) || 0
                             : Number(wallet.balance) || 0;
@@ -655,6 +659,15 @@ export default function AdminCustomerWallets() {
                       )}
                     </TableBody>
                   </Table>
+                  <div className="px-4 pb-3">
+                    <PaginationControls
+                      currentPage={walletPage}
+                      totalPages={walletTotalPages}
+                      onPageChange={setWalletPage}
+                      totalItems={filteredWallets.length}
+                      itemsPerPage={10}
+                    />
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -701,7 +714,7 @@ export default function AdminCustomerWallets() {
                           </TableCell>
                         </TableRow>
                       ) : (
-                        filteredRefundHistory.map((refund) => (
+                        pagedRefunds.map((refund) => (
                           <TableRow key={refund.id}>
                             <TableCell className="text-sm">
                               {format(new Date(refund.created_at), 'MMM d, yyyy HH:mm')}
@@ -724,6 +737,15 @@ export default function AdminCustomerWallets() {
                       )}
                     </TableBody>
                   </Table>
+                  <div className="px-4 pb-3">
+                    <PaginationControls
+                      currentPage={refundPage}
+                      totalPages={refundTotalPages}
+                      onPageChange={setRefundPage}
+                      totalItems={filteredRefundHistory.length}
+                      itemsPerPage={10}
+                    />
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
