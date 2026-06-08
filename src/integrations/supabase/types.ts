@@ -584,6 +584,168 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_2fa_settings: {
+        Row: {
+          backup_codes: Json
+          created_at: string
+          preferred_method: string
+          totp_enabled: boolean
+          totp_enrolled_at: string | null
+          totp_secret: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          backup_codes?: Json
+          created_at?: string
+          preferred_method?: string
+          totp_enabled?: boolean
+          totp_enrolled_at?: string | null
+          totp_secret?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          backup_codes?: Json
+          created_at?: string
+          preferred_method?: string
+          totp_enabled?: boolean
+          totp_enrolled_at?: string | null
+          totp_secret?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      admin_lockouts: {
+        Row: {
+          created_at: string
+          id: string
+          locked_until: string
+          reason: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          locked_until: string
+          reason?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          locked_until?: string
+          reason?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      admin_login_activity: {
+        Row: {
+          created_at: string
+          device_fingerprint: string | null
+          id: string
+          ip: string | null
+          location_city: string | null
+          user_agent: string | null
+          user_id: string
+          was_new_device: boolean
+        }
+        Insert: {
+          created_at?: string
+          device_fingerprint?: string | null
+          id?: string
+          ip?: string | null
+          location_city?: string | null
+          user_agent?: string | null
+          user_id: string
+          was_new_device?: boolean
+        }
+        Update: {
+          created_at?: string
+          device_fingerprint?: string | null
+          id?: string
+          ip?: string | null
+          location_city?: string | null
+          user_agent?: string | null
+          user_id?: string
+          was_new_device?: boolean
+        }
+        Relationships: []
+      }
+      admin_login_attempts: {
+        Row: {
+          created_at: string
+          email: string | null
+          failure_reason: string | null
+          id: string
+          ip: string | null
+          outcome: string
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          failure_reason?: string | null
+          id?: string
+          ip?: string | null
+          outcome: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          failure_reason?: string | null
+          id?: string
+          ip?: string | null
+          outcome?: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      admin_otp_codes: {
+        Row: {
+          attempts: number
+          code_hash: string
+          created_at: string
+          expires_at: string
+          id: string
+          ip: string | null
+          method: string
+          used: boolean
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          attempts?: number
+          code_hash: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          ip?: string | null
+          method?: string
+          used?: boolean
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          attempts?: number
+          code_hash?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          ip?: string | null
+          method?: string
+          used?: boolean
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       admin_staff: {
         Row: {
           created_at: string | null
@@ -8184,6 +8346,10 @@ export type Database = {
           user_id: string
         }[]
       }
+      admin_recent_failed_attempts: {
+        Args: { _user_id: string; _window_minutes?: number }
+        Returns: number
+      }
       admin_resolve_payment_hold: {
         Args: {
           p_amount: number
@@ -8401,6 +8567,7 @@ export type Database = {
         Args: { curlopt: string; value: string }
         Returns: boolean
       }
+      is_admin_locked_out: { Args: { _user_id: string }; Returns: boolean }
       is_delivery_company_email_verified: {
         Args: { _company_id: string }
         Returns: boolean
