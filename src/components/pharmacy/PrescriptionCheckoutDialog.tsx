@@ -105,16 +105,20 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
     setPrescriptions(prev => prev.map((p, i) => i === currentIndex ? { ...p, ...updates } : p));
   };
 
+  const isControlled = item.medicineClassification === 'controlled';
+  const isRx = item.medicineClassification === 'prescription';
+
   const handleNext = () => {
-    // Doctor route: require prescription photo for Rx / Controlled drugs
+    // Only CONTROLLED drugs gate on doctor-prescription photo upload.
+    // (OTC + Rx can always proceed — pharmacist guidance is enough.)
     if (
+      isControlled &&
       current.prescriptionType === 'doctor' &&
-      item.medicineClassification && item.medicineClassification !== 'otc' &&
       !current.prescriptionImageUrl
     ) {
       toast({
         title: 'Prescription photo required',
-        description: 'Please upload your doctor\'s prescription image to continue.',
+        description: "This is a controlled drug. Please upload your doctor's prescription image to continue.",
         variant: 'destructive',
       });
       return;
