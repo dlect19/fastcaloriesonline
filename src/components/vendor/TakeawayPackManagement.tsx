@@ -378,17 +378,15 @@ export function TakeawayPackManagement({ vendorId, userId }: TakeawayPackManagem
                   />
                   <p className="text-xs text-muted-foreground">
                     {thresholdType === 'per_item'
-                      ? `Pack added when any item has ${thresholdValue}+ quantity (e.g., ${thresholdValue} ${servingUnits[0] || 'per plate'})`
-                      : `Pack added when customer orders ${thresholdValue}+ total items`}
+                      ? `Pack added when any portion/plate item has ${thresholdValue}+ quantity`
+                      : `Pack added when customer orders ${thresholdValue}+ portion/plate items`}
                   </p>
-                  {thresholdType === 'per_item' && servingUnits.length > 0 && (
-                    <div className="flex items-center gap-1.5 mt-2">
-                      <Info className="w-3 h-3 text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground">
-                        Your products use: {servingUnitExamples}
-                      </span>
-                    </div>
-                  )}
+                  <div className="flex items-start gap-1.5 mt-2">
+                    <Info className="w-3 h-3 text-muted-foreground mt-0.5 shrink-0" />
+                    <span className="text-xs text-muted-foreground">
+                      Only items sold per <strong>portion</strong>, <strong>plate</strong>, <strong>bowl</strong>, <strong>wrap</strong>, or <strong>pack</strong> count toward pack sizing. Per-piece add-ons (e.g. extra meat) are ignored so a customer ordering 1 plate + 8 meats still gets the small pack.
+                    </span>
+                  </div>
                 </div>
 
                 {/* Max Capacity */}
