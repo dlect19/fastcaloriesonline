@@ -63,6 +63,9 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
   const [prescriptions, setPrescriptions] = useState<PrescriptionData[]>(
     pharmacyItems.map(item => {
       const isTablet = !item.dosageForm || ['tablet', 'capsule'].includes(item.dosageForm);
+      // Only CONTROLLED drugs require pharmacist approval before dispatch.
+      // OTC + Rx (prescription) drugs proceed straight to payment.
+      const needsApproval = item.medicineClassification === 'controlled';
       return {
         productId: item.productId,
         prescriptionType: 'pharmacist',
@@ -78,7 +81,7 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
         dosageDurationDays: item.defaultDuration || 7,
         quantityPerDose: item.defaultQtyPerDose || 1,
         totalQuantity: item.quantity,
-        requiresApproval: item.requiresPrescription,
+        requiresApproval: needsApproval,
         prescriptionImageUrl: '',
         isEmergency: false,
         emergencyReason: '',
@@ -102,16 +105,20 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
     setPrescriptions(prev => prev.map((p, i) => i === currentIndex ? { ...p, ...updates } : p));
   };
 
+  const isControlled = item.medicineClassification === 'controlled';
+  const isRx = item.medicineClassification === 'prescription';
+
   const handleNext = () => {
-    // Doctor route: require prescription photo for Rx / Controlled drugs
+    // Only CONTROLLED drugs gate on doctor-prescription photo upload.
+    // (OTC + Rx can always proceed — pharmacist guidance is enough.)
     if (
+      isControlled &&
       current.prescriptionType === 'doctor' &&
-      item.medicineClassification && item.medicineClassification !== 'otc' &&
       !current.prescriptionImageUrl
     ) {
       toast({
         title: 'Prescription photo required',
-        description: 'Please upload your doctor\'s prescription image to continue.',
+        description: "This is a controlled drug. Please upload your doctor's prescription image to continue.",
         variant: 'destructive',
       });
       return;
@@ -166,8 +173,8 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
             )}
           </div>
 
-          {/* Prescription image upload — only when doctor route is selected */}
-          {item.medicineClassification && item.medicineClassification !== 'otc' && current.prescriptionType === 'doctor' && (
+          {/* CONTROLLED drugs only: prescription image upload (doctor route) */}
+          {isControlled && current.prescriptionType === 'doctor' && (
             <div className="p-3 bg-secondary/30 rounded-lg border border-border space-y-2">
               <PrescriptionImageUpload
                 userId={userId}
@@ -178,13 +185,13 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
                 required
               />
               <p className="text-xs text-muted-foreground">
-                A licensed pharmacist will verify your prescription before this item is prepared. The photo is stored privately and only visible to the dispensing pharmacy.
+                A licensed pharmacist will verify your prescription before this controlled medicine is dispensed.
               </p>
             </div>
           )}
 
-          {/* Pharmacist consultation route — chat / call the pharmacy */}
-          {item.medicineClassification && item.medicineClassification !== 'otc' && current.prescriptionType === 'pharmacist' && (
+          {/* CONTROLLED drugs only: pharmacist consultation route */}
+          {isControlled && current.prescriptionType === 'pharmacist' && (
             <div className="p-3 bg-secondary/30 rounded-lg border border-border space-y-2">
               <p className="text-sm font-medium flex items-center gap-2">
                 <Pill className="w-4 h-4 text-primary" /> Speak with the pharmacy
@@ -209,8 +216,17 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
             </div>
           )}
 
-          {/* Emergency flag */}
-          {item.medicineClassification && item.medicineClassification !== 'otc' && (
+          {/* Rx (non-controlled) hint — no approval wait */}
+          {isRx && (
+            <div className="p-3 bg-primary/5 rounded-lg border border-primary/20">
+              <p className="text-xs text-foreground">
+                💊 Prescription drug. If you have a doctor's prescription, add the details below — otherwise the pharmacist's recommended dosage will be used. You can complete payment immediately.
+              </p>
+            </div>
+          )}
+
+          {/* Emergency flag — controlled drugs only */}
+          {isControlled && (
             <div className="p-3 rounded-lg border border-warning/30 bg-warning/5 space-y-2">
               <div className="flex items-start gap-2">
                 <Checkbox
@@ -402,9 +418,10 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
           </div>
 
           {(() => {
+            // Only CONTROLLED drugs gate the proceed button on photo upload.
             const needsDoctorPhoto =
+              isControlled &&
               current.prescriptionType === 'doctor' &&
-              item.medicineClassification && item.medicineClassification !== 'otc' &&
               !current.prescriptionImageUrl;
             return (
               <Button className="w-full" onClick={handleNext} disabled={!!needsDoctorPhoto}>
