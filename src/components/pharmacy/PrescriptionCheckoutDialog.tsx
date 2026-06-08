@@ -78,6 +78,9 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
         quantityPerDose: item.defaultQtyPerDose || 1,
         totalQuantity: item.quantity,
         requiresApproval: item.requiresPrescription,
+        prescriptionImageUrl: '',
+        isEmergency: false,
+        emergencyReason: '',
       };
     })
   );
