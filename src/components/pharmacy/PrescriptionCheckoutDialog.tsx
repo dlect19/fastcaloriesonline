@@ -418,9 +418,10 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
           </div>
 
           {(() => {
+            // Only CONTROLLED drugs gate the proceed button on photo upload.
             const needsDoctorPhoto =
+              isControlled &&
               current.prescriptionType === 'doctor' &&
-              item.medicineClassification && item.medicineClassification !== 'otc' &&
               !current.prescriptionImageUrl;
             return (
               <Button className="w-full" onClick={handleNext} disabled={!!needsDoctorPhoto}>
