@@ -154,6 +154,7 @@ export default function AdminRefundAudit() {
   const totalVendor = rows.reduce((s, r) => s + r.vendorDebit, 0);
   const totalRider = rows.reduce((s, r) => s + r.riderDebit, 0);
   const totalPlatform = rows.reduce((s, r) => s + r.platformDebit + r.deliveryCommissionDebit + r.serviceFeDebit, 0);
+  const { paged: pagedRows, page: rowsPage, setPage: setRowsPage, totalPages: rowsTotalPages } = usePagination(rows, 10);
 
   return (
     <AdminLayout>
