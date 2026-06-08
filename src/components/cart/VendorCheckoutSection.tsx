@@ -865,6 +865,7 @@ export function VendorCheckoutSection({
           open={showPrescriptionDialog}
           onClose={() => setShowPrescriptionDialog(false)}
           vendorId={group.vendorId}
+          userId={userId}
           pharmacyItems={group.items.filter(i => i.productId).map(item => ({
             productId: item.productId,
             productName: item.productName,
@@ -876,6 +877,7 @@ export function VendorCheckoutSection({
             defaultQtyPerDose: (item as any).defaultQtyPerDose || null,
             dosageForm: (item as any).dosageForm || null,
             targetAgeGroup: (item as any).targetAgeGroup || null,
+            medicineClassification: (item as any).medicineClassification || ((item as any).requiresPrescription ? 'prescription' : 'otc'),
           }))}
           onComplete={(rxData) => {
             setPrescriptionData(rxData);
