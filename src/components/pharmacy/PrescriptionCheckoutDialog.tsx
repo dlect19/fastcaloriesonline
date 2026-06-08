@@ -4,9 +4,13 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Pill, Stethoscope, Clock, Baby, User } from 'lucide-react';
+import { Pill, Stethoscope, Clock, Baby, User, AlertTriangle } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { PrescriptionImageUpload } from './PrescriptionImageUpload';
+import { MedicineClassificationBadge } from './MedicineClassificationBadge';
 
 interface PharmacyItem {
   productId: string;
@@ -19,6 +23,7 @@ interface PharmacyItem {
   defaultQtyPerDose: number | null;
   dosageForm: string | null;
   targetAgeGroup: string | null;
+  medicineClassification?: 'otc' | 'prescription' | 'controlled' | null;
 }
 
 export interface PrescriptionData {
@@ -37,6 +42,9 @@ export interface PrescriptionData {
   quantityPerDose: number;
   totalQuantity: number;
   requiresApproval: boolean;
+  prescriptionImageUrl: string;
+  isEmergency: boolean;
+  emergencyReason: string;
 }
 
 interface PrescriptionCheckoutDialogProps {
@@ -45,9 +53,11 @@ interface PrescriptionCheckoutDialogProps {
   pharmacyItems: PharmacyItem[];
   onComplete: (prescriptions: PrescriptionData[]) => void;
   vendorId: string;
+  userId: string;
 }
 
-export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onComplete, vendorId }: PrescriptionCheckoutDialogProps) {
+export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onComplete, vendorId, userId }: PrescriptionCheckoutDialogProps) {
+  const { toast } = useToast();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [prescriptions, setPrescriptions] = useState<PrescriptionData[]>(
     pharmacyItems.map(item => {
@@ -68,6 +78,9 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
         quantityPerDose: item.defaultQtyPerDose || 1,
         totalQuantity: item.quantity,
         requiresApproval: item.requiresPrescription,
+        prescriptionImageUrl: '',
+        isEmergency: false,
+        emergencyReason: '',
       };
     })
   );
@@ -80,6 +93,23 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
   };
 
   const handleNext = () => {
+    // Controlled drugs require a prescription image upload
+    if (item.medicineClassification === 'controlled' && !current.prescriptionImageUrl) {
+      toast({
+        title: 'Prescription photo required',
+        description: 'Controlled medicines need a prescription image before checkout.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (current.isEmergency && !current.emergencyReason.trim()) {
+      toast({
+        title: 'Emergency reason required',
+        description: 'Please briefly describe the emergency so the pharmacist can prioritise.',
+        variant: 'destructive',
+      });
+      return;
+    }
     if (currentIndex < pharmacyItems.length - 1) {
       setCurrentIndex(currentIndex + 1);
     } else {
@@ -115,8 +145,60 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
             </div>
             <p className="text-sm text-muted-foreground">Qty: {item.quantity}</p>
             {item.dosageForm && <Badge variant="secondary" className="text-xs mt-1">{item.dosageForm}</Badge>}
-            {item.requiresPrescription && <Badge variant="destructive" className="text-xs mt-1 ml-1">Requires Rx</Badge>}
+            {item.medicineClassification && (
+              <span className="inline-block ml-1 mt-1">
+                <MedicineClassificationBadge classification={item.medicineClassification} />
+              </span>
+            )}
           </div>
+
+          {/* Prescription image upload (Rx + Controlled) */}
+          {item.medicineClassification && item.medicineClassification !== 'otc' && (
+            <div className="p-3 bg-secondary/30 rounded-lg border border-border space-y-2">
+              <PrescriptionImageUpload
+                userId={userId}
+                productId={item.productId}
+                value={current.prescriptionImageUrl}
+                onChange={(path) => updateCurrent({ prescriptionImageUrl: path })}
+                label={item.medicineClassification === 'controlled' ? 'Prescription Photo (required)' : 'Prescription Photo (optional)'}
+                required={item.medicineClassification === 'controlled'}
+              />
+              <p className="text-xs text-muted-foreground">
+                A licensed pharmacist will review your prescription before this item is prepared. Your photo is stored privately and only visible to the dispensing pharmacy.
+              </p>
+            </div>
+          )}
+
+          {/* Emergency flag */}
+          {item.medicineClassification && item.medicineClassification !== 'otc' && (
+            <div className="p-3 rounded-lg border border-warning/30 bg-warning/5 space-y-2">
+              <div className="flex items-start gap-2">
+                <Checkbox
+                  id={`emergency-${item.productId}`}
+                  checked={current.isEmergency}
+                  onCheckedChange={(c) => updateCurrent({ isEmergency: !!c })}
+                />
+                <div className="flex-1">
+                  <Label htmlFor={`emergency-${item.productId}`} className="text-sm font-medium flex items-center gap-1 cursor-pointer">
+                    <AlertTriangle className="w-4 h-4 text-warning" />
+                    This is an emergency / urgent need
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    The pharmacist will prioritise this prescription.
+                  </p>
+                </div>
+              </div>
+              {current.isEmergency && (
+                <Textarea
+                  value={current.emergencyReason}
+                  onChange={(e) => updateCurrent({ emergencyReason: e.target.value })}
+                  placeholder="Briefly describe the emergency (e.g. severe asthma attack, post-surgery pain)"
+                  rows={2}
+                  className="text-sm"
+                />
+              )}
+            </div>
+          )}
 
           {/* Prescription type selection */}
           <div className="space-y-2">
