@@ -91,6 +91,7 @@ export default function AdminPromos() {
         is_active: true,
         scope: scope,
         per_user_limit: perUserLimit ? parseInt(perUserLimit) : null,
+        per_user_reset_period: perUserResetPeriod,
       });
 
       toast({ title: 'Promo code created successfully' });
