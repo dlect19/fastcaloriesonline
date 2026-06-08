@@ -4,9 +4,13 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Pill, Stethoscope, Clock, Baby, User } from 'lucide-react';
+import { Pill, Stethoscope, Clock, Baby, User, AlertTriangle } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { PrescriptionImageUpload } from './PrescriptionImageUpload';
+import { MedicineClassificationBadge } from './MedicineClassificationBadge';
 
 interface PharmacyItem {
   productId: string;
@@ -19,6 +23,7 @@ interface PharmacyItem {
   defaultQtyPerDose: number | null;
   dosageForm: string | null;
   targetAgeGroup: string | null;
+  medicineClassification?: 'otc' | 'prescription' | 'controlled' | null;
 }
 
 export interface PrescriptionData {
@@ -37,6 +42,9 @@ export interface PrescriptionData {
   quantityPerDose: number;
   totalQuantity: number;
   requiresApproval: boolean;
+  prescriptionImageUrl: string;
+  isEmergency: boolean;
+  emergencyReason: string;
 }
 
 interface PrescriptionCheckoutDialogProps {
@@ -45,9 +53,11 @@ interface PrescriptionCheckoutDialogProps {
   pharmacyItems: PharmacyItem[];
   onComplete: (prescriptions: PrescriptionData[]) => void;
   vendorId: string;
+  userId: string;
 }
 
-export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onComplete, vendorId }: PrescriptionCheckoutDialogProps) {
+export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onComplete, vendorId, userId }: PrescriptionCheckoutDialogProps) {
+  const { toast } = useToast();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [prescriptions, setPrescriptions] = useState<PrescriptionData[]>(
     pharmacyItems.map(item => {
