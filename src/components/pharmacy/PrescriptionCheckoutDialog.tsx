@@ -63,6 +63,9 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
   const [prescriptions, setPrescriptions] = useState<PrescriptionData[]>(
     pharmacyItems.map(item => {
       const isTablet = !item.dosageForm || ['tablet', 'capsule'].includes(item.dosageForm);
+      // Only CONTROLLED drugs require pharmacist approval before dispatch.
+      // OTC + Rx (prescription) drugs proceed straight to payment.
+      const needsApproval = item.medicineClassification === 'controlled';
       return {
         productId: item.productId,
         prescriptionType: 'pharmacist',
@@ -78,7 +81,7 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
         dosageDurationDays: item.defaultDuration || 7,
         quantityPerDose: item.defaultQtyPerDose || 1,
         totalQuantity: item.quantity,
-        requiresApproval: item.requiresPrescription,
+        requiresApproval: needsApproval,
         prescriptionImageUrl: '',
         isEmergency: false,
         emergencyReason: '',
