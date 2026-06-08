@@ -86,6 +86,15 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
     })
   );
 
+  const [vendorPhone, setVendorPhone] = useState<string | null>(null);
+  useEffect(() => {
+    if (!vendorId) return;
+    (async () => {
+      const { data } = await supabase.from('vendors').select('phone').eq('id', vendorId).maybeSingle();
+      setVendorPhone((data as any)?.phone || null);
+    })();
+  }, [vendorId]);
+
   const current = prescriptions[currentIndex];
   const item = pharmacyItems[currentIndex];
 
@@ -94,11 +103,15 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
   };
 
   const handleNext = () => {
-    // Controlled drugs require a prescription image upload
-    if (item.medicineClassification === 'controlled' && !current.prescriptionImageUrl) {
+    // Doctor route: require prescription photo for Rx / Controlled drugs
+    if (
+      current.prescriptionType === 'doctor' &&
+      item.medicineClassification && item.medicineClassification !== 'otc' &&
+      !current.prescriptionImageUrl
+    ) {
       toast({
         title: 'Prescription photo required',
-        description: 'Controlled medicines need a prescription image before checkout.',
+        description: 'Please upload your doctor\'s prescription image to continue.',
         variant: 'destructive',
       });
       return;
