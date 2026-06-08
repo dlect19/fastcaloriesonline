@@ -143,33 +143,63 @@ export function usePromoCode() {
       }
 
       const effectivePerUserLimit = promo.per_user_limit || 1;
-      if (user) {
-        const { data: userUsage } = await supabase
-          .from('promo_usage')
-          .select('used_count')
-          .eq('promo_id', promo.id)
-          .eq('user_id', user.id)
-          .maybeSingle();
+      const resetPeriod: string = promo.per_user_reset_period || 'never';
 
-        if (userUsage && userUsage.used_count >= effectivePerUserLimit) {
-          return { valid: false, discount: 0, message: `You've already used this promo code` };
+      if (user) {
+        // Compute the window start based on reset period
+        let windowStart: Date | null = null;
+        const now = new Date();
+        if (resetPeriod === 'daily') {
+          windowStart = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        } else if (resetPeriod === 'weekly') {
+          windowStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        } else if (resetPeriod === 'monthly') {
+          windowStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         }
 
-        if (!userUsage) {
-          const { count: orderUsageCount } = await supabase
+        if (windowStart) {
+          // Count orders using this code within the rolling window
+          const { count: recentUses } = await supabase
             .from('orders')
             .select('id', { count: 'exact', head: true })
             .eq('user_id', user.id)
             .eq('promo_code', promo.code)
-            .not('status', 'eq', 'cancelled');
+            .not('status', 'eq', 'cancelled')
+            .gte('created_at', windowStart.toISOString());
 
-          if (orderUsageCount && orderUsageCount >= effectivePerUserLimit) {
-            await supabase.from('promo_usage').insert({
-              promo_id: promo.id,
-              user_id: user.id,
-              used_count: orderUsageCount,
-            });
+          if ((recentUses || 0) >= effectivePerUserLimit) {
+            const label = resetPeriod === 'daily' ? 'today' : resetPeriod === 'weekly' ? 'this week' : 'this month';
+            return { valid: false, discount: 0, message: `You've already used this promo code ${label}. Try again later.` };
+          }
+        } else {
+          // Lifetime limit (existing behavior)
+          const { data: userUsage } = await supabase
+            .from('promo_usage')
+            .select('used_count')
+            .eq('promo_id', promo.id)
+            .eq('user_id', user.id)
+            .maybeSingle();
+
+          if (userUsage && userUsage.used_count >= effectivePerUserLimit) {
             return { valid: false, discount: 0, message: `You've already used this promo code` };
+          }
+
+          if (!userUsage) {
+            const { count: orderUsageCount } = await supabase
+              .from('orders')
+              .select('id', { count: 'exact', head: true })
+              .eq('user_id', user.id)
+              .eq('promo_code', promo.code)
+              .not('status', 'eq', 'cancelled');
+
+            if (orderUsageCount && orderUsageCount >= effectivePerUserLimit) {
+              await supabase.from('promo_usage').insert({
+                promo_id: promo.id,
+                user_id: user.id,
+                used_count: orderUsageCount,
+              });
+              return { valid: false, discount: 0, message: `You've already used this promo code` };
+            }
           }
         }
       }

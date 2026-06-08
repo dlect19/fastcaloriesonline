@@ -31,6 +31,7 @@ export default function AdminPromos() {
   const [validUntil, setValidUntil] = useState('');
   const [scope, setScope] = useState('platform');
   const [perUserLimit, setPerUserLimit] = useState('');
+  const [perUserResetPeriod, setPerUserResetPeriod] = useState('never');
 
   useEffect(() => {
     checkAuth();
@@ -90,6 +91,7 @@ export default function AdminPromos() {
         is_active: true,
         scope: scope,
         per_user_limit: perUserLimit ? parseInt(perUserLimit) : null,
+        per_user_reset_period: perUserResetPeriod,
       });
 
       toast({ title: 'Promo code created successfully' });
@@ -133,6 +135,7 @@ export default function AdminPromos() {
     setValidUntil('');
     setScope('platform');
     setPerUserLimit('');
+    setPerUserResetPeriod('never');
   };
 
   if (loading) {
@@ -236,6 +239,23 @@ export default function AdminPromos() {
                     />
                   </div>
                 </div>
+                <div className="space-y-2">
+                  <Label>Reset Per-User Limit Every</Label>
+                  <Select value={perUserResetPeriod} onValueChange={setPerUserResetPeriod}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="never">Never (lifetime limit)</SelectItem>
+                      <SelectItem value="daily">Day</SelectItem>
+                      <SelectItem value="weekly">Week</SelectItem>
+                      <SelectItem value="monthly">Month</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    e.g. set Per User Limit = 1 and Week → customer can use once every week
+                  </p>
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Total Usage Limit</Label>
@@ -294,7 +314,7 @@ export default function AdminPromos() {
                       </p>
                       <p className="text-xs text-muted-foreground">
                         Used {promo.used_count || 0}{promo.usage_limit ? `/${promo.usage_limit}` : ''} times
-                        {promo.per_user_limit && ` • ${promo.per_user_limit}/user`}
+                        {promo.per_user_limit && ` • ${promo.per_user_limit}/user${promo.per_user_reset_period && promo.per_user_reset_period !== 'never' ? ` per ${promo.per_user_reset_period.replace('ly','')}` : ''}`}
                         {promo.valid_until && ` • Expires ${format(new Date(promo.valid_until), 'PP')}`}
                       </p>
                     </div>

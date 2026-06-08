@@ -5889,6 +5889,7 @@ export type Database = {
           min_order_amount: number | null
           outlet_id: string | null
           per_user_limit: number | null
+          per_user_reset_period: string
           scope: string | null
           usage_limit: number | null
           used_count: number | null
@@ -5908,6 +5909,7 @@ export type Database = {
           min_order_amount?: number | null
           outlet_id?: string | null
           per_user_limit?: number | null
+          per_user_reset_period?: string
           scope?: string | null
           usage_limit?: number | null
           used_count?: number | null
@@ -5927,6 +5929,7 @@ export type Database = {
           min_order_amount?: number | null
           outlet_id?: string | null
           per_user_limit?: number | null
+          per_user_reset_period?: string
           scope?: string | null
           usage_limit?: number | null
           used_count?: number | null

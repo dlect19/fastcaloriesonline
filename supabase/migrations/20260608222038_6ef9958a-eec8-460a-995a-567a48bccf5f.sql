@@ -1,0 +1,1 @@
+ALTER TABLE public.promo_codes ADD COLUMN IF NOT EXISTS per_user_reset_period text NOT NULL DEFAULT 'never' CHECK (per_user_reset_period IN ('never','daily','weekly','monthly'));
