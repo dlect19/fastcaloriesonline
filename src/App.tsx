@@ -38,6 +38,7 @@ import VendorPromos from "./pages/vendor/VendorPromos";
 import VendorVoucherVerify from "./pages/vendor/VendorVoucherVerify";
 import VendorRiders from "./pages/vendor/VendorRiders";
 import VendorStaff from "./pages/vendor/VendorStaff";
+import VendorPharmacyReview from "./pages/vendor/VendorPharmacyReview";
 import VendorStaffJoin from "./pages/vendor/VendorStaffJoin";
 import VendorStaffLogin from "./pages/vendor/VendorStaffLogin";
 import VendorRiderJoin from "./pages/rider/VendorRiderJoin";
@@ -209,6 +210,7 @@ const App = () => {
               <Route path="/vendor/dashboard" element={<VendorDashboard />} />
               <Route path="/vendor/menu" element={<VendorMenu />} />
               <Route path="/vendor/orders" element={<VendorOrders />} />
+              <Route path="/vendor/pharmacy-review" element={<VendorPharmacyReview />} />
               <Route path="/vendor/reviews" element={<VendorReviews />} />
               <Route path="/vendor/earnings" element={<VendorEarnings />} />
               <Route path="/vendor/withdraw" element={<VendorWithdraw />} />
