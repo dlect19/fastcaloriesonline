@@ -13,6 +13,8 @@ import { Search, Loader2, Users, ShoppingBag, Wallet, Plus } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 import { format } from 'date-fns';
+import { PaginationControls } from '@/components/shared/PaginationControls';
+import { usePagination } from '@/hooks/usePagination';
  
  interface Customer {
    id: string;
@@ -228,6 +230,7 @@ export default function AdminCustomers() {
       customer.full_name?.toLowerCase().includes(search.toLowerCase()) ||
       customer.phone?.includes(search)
     );
+    const { paged: pagedCustomers, page: custPage, setPage: setCustPage, totalPages: custTotalPages } = usePagination(filteredCustomers, 10);
   
     const totalCustomers = customers.length;
     const totalRevenue = customers.reduce((sum, c) => sum + c.total_spent, 0);
@@ -323,7 +326,7 @@ export default function AdminCustomers() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredCustomers.map((customer) => (
+                    {pagedCustomers.map((customer) => (
                       <tr key={customer.id} className="border-b hover:bg-secondary/50">
                         <td className="py-3 px-4 font-medium">{customer.full_name || 'N/A'}</td>
                         <td className="py-3 px-4">{customer.phone || 'N/A'}</td>
@@ -384,6 +387,13 @@ export default function AdminCustomers() {
                   </tbody>
                 </table>
               </div>
+              <PaginationControls
+                currentPage={custPage}
+                totalPages={custTotalPages}
+                onPageChange={setCustPage}
+                totalItems={filteredCustomers.length}
+                itemsPerPage={10}
+              />
             </CardContent>
           </Card>
         
