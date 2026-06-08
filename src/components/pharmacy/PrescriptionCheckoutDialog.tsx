@@ -361,8 +361,14 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
             </div>
           </div>
 
-          <Button className="w-full" onClick={handleNext}>
-            {currentIndex < pharmacyItems.length - 1 ? 'Next Drug →' : 'Confirm & Proceed to Payment'}
+          <Button
+            className="w-full"
+            onClick={handleNext}
+            disabled={item.medicineClassification === 'controlled' && !current.prescriptionImageUrl}
+          >
+            {item.medicineClassification === 'controlled' && !current.prescriptionImageUrl
+              ? 'Upload prescription photo to continue'
+              : currentIndex < pharmacyItems.length - 1 ? 'Next Drug →' : 'Confirm & Proceed to Payment'}
           </Button>
         </div>
       </DialogContent>
