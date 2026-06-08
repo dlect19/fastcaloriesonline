@@ -46,6 +46,7 @@ export default function OrderDetail() {
   const [order, setOrder] = useState<any>(null);
   const [orderItems, setOrderItems] = useState<any[]>([]);
   const [orderItemAddons, setOrderItemAddons] = useState<Record<string, any[]>>({});
+  const [prescriptions, setPrescriptions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasReviewed, setHasReviewed] = useState(false);
   const [processingPayment, setProcessingPayment] = useState(false);
@@ -154,6 +155,13 @@ export default function OrderDetail() {
         });
         setOrderItemAddons(addonsMap);
       }
+
+      // Fetch prescription review status for pharmacy items
+      const { data: rxs } = await (supabase as any)
+        .from('prescription_orders')
+        .select('id, product_id, approval_status, requires_approval, rejection_reason, products(name, medicine_classification)')
+        .eq('order_id', id);
+      setPrescriptions(rxs || []);
 
       // Check if user has already reviewed this order
       if (orderData?.status === 'delivered') {
@@ -319,6 +327,50 @@ export default function OrderDetail() {
             <XCircle className="w-4 h-4 mr-2" />
             Cancel Order
           </Button>
+        )}
+
+        {/* Pharmacist review status (prescription items) */}
+        {prescriptions.length > 0 && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-primary" /> Prescription Review
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {order.pharmacy_review_status === 'pending' && (
+                <p className="text-xs text-warning bg-warning/10 border border-warning/30 rounded px-3 py-2">
+                  ⏳ Pharmacist is reviewing your prescription. The vendor will start preparing once approved.
+                </p>
+              )}
+              {order.pharmacy_review_status === 'approved' && (
+                <p className="text-xs text-calorie-low bg-calorie-low/10 border border-calorie-low/30 rounded px-3 py-2">
+                  ✅ All prescription items approved.
+                </p>
+              )}
+              {order.pharmacy_review_status === 'partially_rejected' && (
+                <p className="text-xs text-destructive bg-destructive/10 border border-destructive/30 rounded px-3 py-2">
+                  Some items were rejected and refunded to your wallet. Approved items will continue.
+                </p>
+              )}
+              <ul className="space-y-1.5 text-sm">
+                {prescriptions.map((rx) => (
+                  <li key={rx.id} className="flex items-start justify-between gap-2 text-xs">
+                    <span className="truncate">{rx.products?.name}</span>
+                    {!rx.requires_approval ? (
+                      <span className="text-muted-foreground">Not required</span>
+                    ) : rx.approval_status === 'approved' ? (
+                      <span className="text-calorie-low">✅ Approved</span>
+                    ) : rx.approval_status === 'rejected' ? (
+                      <span className="text-destructive" title={rx.rejection_reason || ''}>❌ Refunded</span>
+                    ) : (
+                      <span className="text-warning">⏳ Awaiting review</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
         )}
 
         {/* Prep Time Notification */}

@@ -5,6 +5,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { RiderLayout } from '@/components/rider/RiderLayout';
 import { RiderFloatingWidget } from '@/components/rider/RiderFloatingWidget';
 import { ConfirmationCodeDialog } from '@/components/rider/ConfirmationCodeDialog';
+import { ControlledDeliveryOtpDialog, type ControlledItem } from '@/components/rider/ControlledDeliveryOtpDialog';
+
 import { ReassignOrderDialog } from '@/components/rider/ReassignOrderDialog';
 import { RiderOrderChat } from '@/components/rider/RiderOrderChat';
 import { MapOptionsMenu } from '@/components/shared/MapOptionsMenu';
@@ -43,6 +45,9 @@ export default function RiderOrders() {
   const [confirmingDelivery, setConfirmingDelivery] = useState(false);
   const [reassignDialogOpen, setReassignDialogOpen] = useState(false);
   const [orderToReassign, setOrderToReassign] = useState<any>(null);
+  const [controlledDialogOpen, setControlledDialogOpen] = useState(false);
+  const [controlledItems, setControlledItems] = useState<ControlledItem[]>([]);
+
   
 
   // Use rider restrictions hook
@@ -201,13 +206,36 @@ export default function RiderOrders() {
   const updateOrderStatus = async (orderId: string, newStatus: string, order?: any) => {
     // Stop notification sound when rider takes action — effect will restart if needed
     stopRepeating();
-    
-    // If trying to deliver, open confirmation dialog instead
+
+    // If trying to deliver, check controlled items first, then open confirmation dialog
     if (newStatus === 'delivered') {
-      setPendingDeliveryOrder(order || activeOrders.find(o => o.id === orderId));
-      setConfirmDialogOpen(true);
+      const targetOrder = order || activeOrders.find(o => o.id === orderId);
+      setPendingDeliveryOrder(targetOrder);
+
+      // Fetch any controlled items still needing OTP verification
+      const { data: items } = await supabase
+        .from('order_items')
+        .select('id, product_name, quantity, delivery_otp, delivery_otp_verified_at, products(medicine_classification)')
+        .eq('order_id', orderId);
+      const pending = (items || []).filter((it: any) =>
+        it.products?.medicine_classification === 'controlled' &&
+        it.delivery_otp &&
+        !it.delivery_otp_verified_at
+      );
+
+      if (pending.length > 0) {
+        setControlledItems(pending.map((it: any) => ({
+          id: it.id,
+          product_name: it.product_name,
+          quantity: it.quantity,
+        })));
+        setControlledDialogOpen(true);
+      } else {
+        setConfirmDialogOpen(true);
+      }
       return;
     }
+
 
     try {
       const updateData: any = { status: newStatus };
@@ -581,6 +609,33 @@ export default function RiderOrders() {
         <RiderFloatingWidget isOnline={isOnline} onToggleOnline={toggleOnline} />
       )}
 
+      {/* Controlled-drug OTP verification (runs before final confirmation) */}
+      <ControlledDeliveryOtpDialog
+        open={controlledDialogOpen}
+        onOpenChange={setControlledDialogOpen}
+        items={controlledItems}
+        verify={async (codes) => {
+          // Verify each item's delivery_otp; if all match, stamp verified_at
+          const ids = Object.keys(codes);
+          const { data: rows, error } = await supabase
+            .from('order_items')
+            .select('id, delivery_otp')
+            .in('id', ids);
+          if (error || !rows) return false;
+          const allMatch = rows.every((r: any) => codes[r.id] && r.delivery_otp === codes[r.id]);
+          if (!allMatch) return false;
+          await supabase
+            .from('order_items')
+            .update({ delivery_otp_verified_at: new Date().toISOString() })
+            .in('id', ids);
+          return true;
+        }}
+        onVerified={() => {
+          setControlledDialogOpen(false);
+          setConfirmDialogOpen(true);
+        }}
+      />
+
       {/* Confirmation Code Dialog */}
       <ConfirmationCodeDialog
         open={confirmDialogOpen}
@@ -589,6 +644,7 @@ export default function RiderOrders() {
         isLoading={confirmingDelivery}
         orderNumber={pendingDeliveryOrder?.order_number}
       />
+
 
       {/* Reassign Order Dialog */}
       <ReassignOrderDialog

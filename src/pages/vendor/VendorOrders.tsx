@@ -421,14 +421,26 @@ export default function VendorOrders() {
   };
 
   const updateOrderStatus = async (orderId: string, newStatus: OrderStatus) => {
+    const order = orders.find(o => o.id === orderId);
+
+    // Block start of preparation while pharmacist review is still pending
+    if (newStatus === 'preparing' && (order as any)?.pharmacy_review_status === 'pending') {
+      toast({
+        title: 'Awaiting pharmacist review',
+        description: 'You can start preparing only after all prescription items are approved.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     // If setting to "preparing" and prep time is enabled, show the prep time dialog instead
     if (newStatus === 'preparing' && prepTimeSettings.enabled) {
-      const order = orders.find(o => o.id === orderId);
       if (order) {
         setPrepTimeDialog({ open: true, order });
         return;
       }
     }
+
 
     try {
       const order = orders.find(o => o.id === orderId);
@@ -719,10 +731,23 @@ export default function VendorOrders() {
             </CollapsibleContent>
           </Collapsible>
 
+          {/* Pharmacist review banner */}
+          {(order as any).pharmacy_review_status === 'pending' && (
+            <div className="mx-4 mb-3 px-3 py-2 rounded-lg bg-warning/10 text-warning border border-warning/30 text-xs font-medium flex items-center gap-2">
+              ⏳ Awaiting pharmacist review — prescription items must be approved before you can start preparing this order.
+            </div>
+          )}
+          {(order as any).pharmacy_review_status === 'partially_rejected' && (
+            <div className="mx-4 mb-3 px-3 py-2 rounded-lg bg-destructive/10 text-destructive border border-destructive/30 text-xs font-medium">
+              Some prescription items were rejected and refunded. Prepare only approved items.
+            </div>
+          )}
+
           {/* Prep time countdown for preparing orders */}
           {order.status === 'preparing' && order.estimated_delivery_at && (
             <PrepCountdown estimatedAt={order.estimated_delivery_at} prepMinutes={order.prep_minutes} />
           )}
+
 
           {/* Food proof photo upload for preparing/ready orders */}
           {['preparing', 'ready_for_pickup'].includes(order.status) && vendor && (
@@ -778,10 +803,14 @@ export default function VendorOrders() {
                   {nextStatus && (
                     <DropdownMenuItem
                       onClick={() => updateOrderStatus(order.id, nextStatus)}
+                      disabled={nextStatus === 'preparing' && (order as any).pharmacy_review_status === 'pending'}
                     >
-                      Mark as {statusConfig[nextStatus].label}
+                      {nextStatus === 'preparing' && (order as any).pharmacy_review_status === 'pending'
+                        ? 'Awaiting pharmacist review'
+                        : `Mark as ${statusConfig[nextStatus].label}`}
                     </DropdownMenuItem>
                   )}
+
                   <DropdownMenuItem
                     className="text-destructive"
                     onClick={() => setCancelDialog({ open: true, order })}
@@ -805,10 +834,14 @@ export default function VendorOrders() {
                   {nextStatus && (
                     <DropdownMenuItem
                       onClick={() => updateOrderStatus(order.id, nextStatus)}
+                      disabled={nextStatus === 'preparing' && (order as any).pharmacy_review_status === 'pending'}
                     >
-                      Mark as {statusConfig[nextStatus].label}
+                      {nextStatus === 'preparing' && (order as any).pharmacy_review_status === 'pending'
+                        ? 'Awaiting pharmacist review'
+                        : `Mark as ${statusConfig[nextStatus].label}`}
                     </DropdownMenuItem>
                   )}
+
                   <DropdownMenuItem
                     className="text-destructive"
                     onClick={() => setCancelDialog({ open: true, order })}
