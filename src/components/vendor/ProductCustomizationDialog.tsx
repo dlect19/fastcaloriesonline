@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { MedicineClassificationBadge } from '@/components/pharmacy/MedicineClassificationBadge';
+import { MedicineClassificationLegend } from '@/components/pharmacy/MedicineClassificationLegend';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Product = Tables<'products'>;
@@ -607,6 +608,11 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
           {/* Description */}
           {product.description && (
             <p className="text-muted-foreground">{product.description}</p>
+          )}
+
+          {/* Pharmacy classification legend */}
+          {(vendor as any).category === 'pharmacy' && (
+            <MedicineClassificationLegend />
           )}
 
           {/* Nutrition Info */}
