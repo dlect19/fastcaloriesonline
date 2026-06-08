@@ -9,6 +9,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { FileSearch, ArrowDownLeft, ArrowUpRight, Building2, Bike, Landmark } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAdminTestMode } from '@/hooks/useAdminTestMode';
+import { PaginationControls } from '@/components/shared/PaginationControls';
+import { usePagination } from '@/hooks/usePagination';
 
 interface RefundAuditRow {
   orderId: string;
@@ -152,6 +154,7 @@ export default function AdminRefundAudit() {
   const totalVendor = rows.reduce((s, r) => s + r.vendorDebit, 0);
   const totalRider = rows.reduce((s, r) => s + r.riderDebit, 0);
   const totalPlatform = rows.reduce((s, r) => s + r.platformDebit + r.deliveryCommissionDebit + r.serviceFeDebit, 0);
+  const { paged: pagedRows, page: rowsPage, setPage: setRowsPage, totalPages: rowsTotalPages } = usePagination(rows, 10);
 
   return (
     <AdminLayout>
@@ -240,7 +243,7 @@ export default function AdminRefundAudit() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {rows.map((row, i) => (
+                      {pagedRows.map((row, i) => (
                         <TableRow key={`${row.orderId}-${i}`}>
                           <TableCell className="text-sm whitespace-nowrap">
                             {format(new Date(row.refundDate), 'dd MMM yyyy, HH:mm')}
@@ -273,6 +276,13 @@ export default function AdminRefundAudit() {
                       ))}
                     </TableBody>
                   </Table>
+                  <PaginationControls
+                    currentPage={rowsPage}
+                    totalPages={rowsTotalPages}
+                    onPageChange={setRowsPage}
+                    totalItems={rows.length}
+                    itemsPerPage={10}
+                  />
                 </div>
               )}
             </CardContent>

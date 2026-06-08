@@ -14,6 +14,8 @@ import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 import { DateRangeFilter, DateRange } from '@/components/shared/DateRangeFilter';
 import { Search, Wallet, ArrowDownLeft, Filter, Loader2, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
+import { PaginationControls } from '@/components/shared/PaginationControls';
+import { usePagination } from '@/hooks/usePagination';
 
 interface FundingTransaction {
   id: string;
@@ -168,6 +170,7 @@ export default function AdminWalletFunding() {
       tx.notes?.toLowerCase().includes(searchLower)
     );
   });
+  const { paged: pagedTransactions, page: txPage, setPage: setTxPage, totalPages: txTotalPages } = usePagination(filteredTransactions, 10);
 
   const totalFunding = filteredTransactions
     .filter(tx => tx.status === 'completed')
@@ -302,7 +305,7 @@ export default function AdminWalletFunding() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredTransactions.map((tx) => (
+                    pagedTransactions.map((tx) => (
                       <TableRow key={tx.id}>
                         <TableCell>
                           <div>
@@ -335,6 +338,13 @@ export default function AdminWalletFunding() {
                   )}
                 </TableBody>
               </Table>
+              <PaginationControls
+                currentPage={txPage}
+                totalPages={txTotalPages}
+                onPageChange={setTxPage}
+                totalItems={filteredTransactions.length}
+                itemsPerPage={10}
+              />
             </CardContent>
           </Card>
         </div>

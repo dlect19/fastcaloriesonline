@@ -27,6 +27,8 @@ import { useAdminPermissions } from '@/hooks/useAdminPermissions';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 import { DateRangeFilter, DateRange } from '@/components/shared/DateRangeFilter';
 import { format } from 'date-fns';
+import { PaginationControls } from '@/components/shared/PaginationControls';
+import { usePagination } from '@/hooks/usePagination';
 
 interface PayoutRequest {
   id: string;
@@ -523,6 +525,11 @@ export default function AdminPayouts() {
   const completedPayouts = filteredPayouts.filter(p => p.status === 'completed');
   const failedPayouts = filteredPayouts.filter(p => p.status === 'failed');
 
+  const pendingPag = usePagination(pendingPayouts, 10);
+  const processingPag = usePagination(processingPayouts, 10);
+  const completedPag = usePagination(completedPayouts, 10);
+  const failedPag = usePagination(failedPayouts, 10);
+
   const renderPayoutCard = (payout: PayoutRequest) => {
     const status = statusConfig[payout.status] || statusConfig.pending;
     const StatusIcon = status.icon;
@@ -882,9 +889,12 @@ export default function AdminPayouts() {
                   </CardContent>
                 </Card>
               ) : (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {pendingPayouts.map(renderPayoutCard)}
-                </div>
+                <>
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {pendingPag.paged.map(renderPayoutCard)}
+                  </div>
+                  <PaginationControls currentPage={pendingPag.page} totalPages={pendingPag.totalPages} onPageChange={pendingPag.setPage} totalItems={pendingPayouts.length} itemsPerPage={10} />
+                </>
               )}
             </TabsContent>
 
@@ -897,9 +907,12 @@ export default function AdminPayouts() {
                   </CardContent>
                 </Card>
               ) : (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {processingPayouts.map(renderPayoutCard)}
-                </div>
+                <>
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {processingPag.paged.map(renderPayoutCard)}
+                  </div>
+                  <PaginationControls currentPage={processingPag.page} totalPages={processingPag.totalPages} onPageChange={processingPag.setPage} totalItems={processingPayouts.length} itemsPerPage={10} />
+                </>
               )}
             </TabsContent>
 
@@ -912,9 +925,12 @@ export default function AdminPayouts() {
                   </CardContent>
                 </Card>
               ) : (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {completedPayouts.map(renderPayoutCard)}
-                </div>
+                <>
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {completedPag.paged.map(renderPayoutCard)}
+                  </div>
+                  <PaginationControls currentPage={completedPag.page} totalPages={completedPag.totalPages} onPageChange={completedPag.setPage} totalItems={completedPayouts.length} itemsPerPage={10} />
+                </>
               )}
             </TabsContent>
 
@@ -927,9 +943,12 @@ export default function AdminPayouts() {
                   </CardContent>
                 </Card>
               ) : (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {failedPayouts.map(renderPayoutCard)}
-                </div>
+                <>
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {failedPag.paged.map(renderPayoutCard)}
+                  </div>
+                  <PaginationControls currentPage={failedPag.page} totalPages={failedPag.totalPages} onPageChange={failedPag.setPage} totalItems={failedPayouts.length} itemsPerPage={10} />
+                </>
               )}
             </TabsContent>
           </Tabs>
