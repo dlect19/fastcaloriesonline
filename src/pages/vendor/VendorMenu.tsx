@@ -1149,15 +1149,20 @@ export default function VendorMenu() {
                         </div>
                       )}
                       
-                      <div className="space-y-1">
-                        <Label className="text-sm">Pharmacist Dosage Instructions</Label>
-                        <Textarea 
-                          value={formData.pharmacist_dosage_instructions}
-                          onChange={e => setFormData({ ...formData, pharmacist_dosage_instructions: e.target.value })}
-                          placeholder="e.g. Take 1 tablet twice daily after meals"
-                          rows={2}
-                        />
-                      </div>
+                      {formData.medicine_classification !== 'otc' && (
+                        <div className="space-y-1">
+                          <Label className="text-sm">Pharmacist Dosage Instructions</Label>
+                          <Textarea 
+                            value={formData.pharmacist_dosage_instructions}
+                            onChange={e => setFormData({ ...formData, pharmacist_dosage_instructions: e.target.value })}
+                            placeholder="e.g. Take 1 tablet twice daily after meals"
+                            rows={2}
+                          />
+                          <p className="text-[11px] text-muted-foreground">
+                            Sent to the customer's drug reminder schedule after pharmacist approval.
+                          </p>
+                        </div>
+                      )}
 
                       {/* Stock Tracking - Pharmacy only */}
                       <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-2">
@@ -1275,31 +1280,33 @@ export default function VendorMenu() {
                         </p>
                       </div>
                       
-                      <div className="grid grid-cols-3 gap-2">
-                        <div className="space-y-1">
-                          <Label className="text-xs">Frequency</Label>
-                          <Select value={formData.default_dosage_frequency} onValueChange={v => setFormData({ ...formData, default_dosage_frequency: v })}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="once_daily">Once Daily</SelectItem>
-                              <SelectItem value="twice_daily">Twice Daily</SelectItem>
-                              <SelectItem value="three_times_daily">3x Daily</SelectItem>
-                              <SelectItem value="four_times_daily">4x Daily</SelectItem>
-                              <SelectItem value="every_6_hours">Every 6hrs</SelectItem>
-                              <SelectItem value="every_8_hours">Every 8hrs</SelectItem>
-                              <SelectItem value="as_needed">As Needed</SelectItem>
-                            </SelectContent>
-                          </Select>
+                      {formData.medicine_classification !== 'otc' && (
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Frequency</Label>
+                            <Select value={formData.default_dosage_frequency} onValueChange={v => setFormData({ ...formData, default_dosage_frequency: v })}>
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="once_daily">Once Daily</SelectItem>
+                                <SelectItem value="twice_daily">Twice Daily</SelectItem>
+                                <SelectItem value="three_times_daily">3x Daily</SelectItem>
+                                <SelectItem value="four_times_daily">4x Daily</SelectItem>
+                                <SelectItem value="every_6_hours">Every 6hrs</SelectItem>
+                                <SelectItem value="every_8_hours">Every 8hrs</SelectItem>
+                                <SelectItem value="as_needed">As Needed</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Duration (days)</Label>
+                            <Input type="number" value={formData.default_dosage_duration_days} onChange={e => setFormData({ ...formData, default_dosage_duration_days: e.target.value })} placeholder="7" />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Qty/dose</Label>
+                            <Input type="number" value={formData.default_quantity_per_dose} onChange={e => setFormData({ ...formData, default_quantity_per_dose: e.target.value })} placeholder="1" />
+                          </div>
                         </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs">Duration (days)</Label>
-                          <Input type="number" value={formData.default_dosage_duration_days} onChange={e => setFormData({ ...formData, default_dosage_duration_days: e.target.value })} placeholder="7" />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs">Qty/dose</Label>
-                          <Input type="number" value={formData.default_quantity_per_dose} onChange={e => setFormData({ ...formData, default_quantity_per_dose: e.target.value })} placeholder="1" />
-                        </div>
-                      </div>
+                      )}
                     </div>
                   )}
 
