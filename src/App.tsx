@@ -63,6 +63,7 @@ import AdminVendorCommissionPromos from "./pages/admin/AdminVendorCommissionProm
 import AdminRewards from "./pages/admin/AdminRewards";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminStaff from "./pages/admin/AdminStaff";
+import AdminSecurity from "./pages/admin/AdminSecurity";
 import AdminStaffJoin from "./pages/admin/AdminStaffJoin";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminAdvertisements from "./pages/admin/AdminAdvertisements";
