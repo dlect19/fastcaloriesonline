@@ -610,6 +610,11 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
             <p className="text-muted-foreground">{product.description}</p>
           )}
 
+          {/* Pharmacy classification legend */}
+          {(vendor as any).category === 'pharmacy' && (
+            <MedicineClassificationLegend />
+          )}
+
           {/* Nutrition Info */}
           <div className="bg-secondary rounded-xl p-4">
             <div className="flex items-center gap-2 mb-3">
