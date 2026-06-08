@@ -834,10 +834,14 @@ export default function VendorOrders() {
                   {nextStatus && (
                     <DropdownMenuItem
                       onClick={() => updateOrderStatus(order.id, nextStatus)}
+                      disabled={nextStatus === 'preparing' && (order as any).pharmacy_review_status === 'pending'}
                     >
-                      Mark as {statusConfig[nextStatus].label}
+                      {nextStatus === 'preparing' && (order as any).pharmacy_review_status === 'pending'
+                        ? 'Awaiting pharmacist review'
+                        : `Mark as ${statusConfig[nextStatus].label}`}
                     </DropdownMenuItem>
                   )}
+
                   <DropdownMenuItem
                     className="text-destructive"
                     onClick={() => setCancelDialog({ open: true, order })}
