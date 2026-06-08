@@ -314,7 +314,7 @@ export default function AdminPromos() {
                       </p>
                       <p className="text-xs text-muted-foreground">
                         Used {promo.used_count || 0}{promo.usage_limit ? `/${promo.usage_limit}` : ''} times
-                        {promo.per_user_limit && ` • ${promo.per_user_limit}/user`}
+                        {promo.per_user_limit && ` • ${promo.per_user_limit}/user${promo.per_user_reset_period && promo.per_user_reset_period !== 'never' ? ` per ${promo.per_user_reset_period.replace('ly','')}` : ''}`}
                         {promo.valid_until && ` • Expires ${format(new Date(promo.valid_until), 'PP')}`}
                       </p>
                     </div>
