@@ -206,13 +206,36 @@ export default function RiderOrders() {
   const updateOrderStatus = async (orderId: string, newStatus: string, order?: any) => {
     // Stop notification sound when rider takes action — effect will restart if needed
     stopRepeating();
-    
-    // If trying to deliver, open confirmation dialog instead
+
+    // If trying to deliver, check controlled items first, then open confirmation dialog
     if (newStatus === 'delivered') {
-      setPendingDeliveryOrder(order || activeOrders.find(o => o.id === orderId));
-      setConfirmDialogOpen(true);
+      const targetOrder = order || activeOrders.find(o => o.id === orderId);
+      setPendingDeliveryOrder(targetOrder);
+
+      // Fetch any controlled items still needing OTP verification
+      const { data: items } = await supabase
+        .from('order_items')
+        .select('id, product_name, quantity, delivery_otp, delivery_otp_verified_at, products(medicine_classification)')
+        .eq('order_id', orderId);
+      const pending = (items || []).filter((it: any) =>
+        it.products?.medicine_classification === 'controlled' &&
+        it.delivery_otp &&
+        !it.delivery_otp_verified_at
+      );
+
+      if (pending.length > 0) {
+        setControlledItems(pending.map((it: any) => ({
+          id: it.id,
+          product_name: it.product_name,
+          quantity: it.quantity,
+        })));
+        setControlledDialogOpen(true);
+      } else {
+        setConfirmDialogOpen(true);
+      }
       return;
     }
+
 
     try {
       const updateData: any = { status: newStatus };
