@@ -131,9 +131,10 @@ serve(async (req: Request) => {
       .single();
 
     if (existingRefund) {
+      // Idempotent: treat as success so callers (e.g. cancel flow) don't error on retry
       return new Response(
-        JSON.stringify({ error: "Refund already processed for this order" }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        JSON.stringify({ success: true, already_processed: true, message: "Refund already processed for this order" }),
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
