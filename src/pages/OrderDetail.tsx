@@ -329,6 +329,50 @@ export default function OrderDetail() {
           </Button>
         )}
 
+        {/* Pharmacist review status (prescription items) */}
+        {prescriptions.length > 0 && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-primary" /> Prescription Review
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {order.pharmacy_review_status === 'pending' && (
+                <p className="text-xs text-warning bg-warning/10 border border-warning/30 rounded px-3 py-2">
+                  ⏳ Pharmacist is reviewing your prescription. The vendor will start preparing once approved.
+                </p>
+              )}
+              {order.pharmacy_review_status === 'approved' && (
+                <p className="text-xs text-calorie-low bg-calorie-low/10 border border-calorie-low/30 rounded px-3 py-2">
+                  ✅ All prescription items approved.
+                </p>
+              )}
+              {order.pharmacy_review_status === 'partially_rejected' && (
+                <p className="text-xs text-destructive bg-destructive/10 border border-destructive/30 rounded px-3 py-2">
+                  Some items were rejected and refunded to your wallet. Approved items will continue.
+                </p>
+              )}
+              <ul className="space-y-1.5 text-sm">
+                {prescriptions.map((rx) => (
+                  <li key={rx.id} className="flex items-start justify-between gap-2 text-xs">
+                    <span className="truncate">{rx.products?.name}</span>
+                    {!rx.requires_approval ? (
+                      <span className="text-muted-foreground">Not required</span>
+                    ) : rx.approval_status === 'approved' ? (
+                      <span className="text-calorie-low">✅ Approved</span>
+                    ) : rx.approval_status === 'rejected' ? (
+                      <span className="text-destructive" title={rx.rejection_reason || ''}>❌ Refunded</span>
+                    ) : (
+                      <span className="text-warning">⏳ Awaiting review</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Prep Time Notification */}
         {order.prep_minutes && ['preparing'].includes(order.status) && (
           <Alert className="border-primary bg-primary/5">
