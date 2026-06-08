@@ -731,10 +731,23 @@ export default function VendorOrders() {
             </CollapsibleContent>
           </Collapsible>
 
+          {/* Pharmacist review banner */}
+          {(order as any).pharmacy_review_status === 'pending' && (
+            <div className="mx-4 mb-3 px-3 py-2 rounded-lg bg-warning/10 text-warning border border-warning/30 text-xs font-medium flex items-center gap-2">
+              ⏳ Awaiting pharmacist review — prescription items must be approved before you can start preparing this order.
+            </div>
+          )}
+          {(order as any).pharmacy_review_status === 'partially_rejected' && (
+            <div className="mx-4 mb-3 px-3 py-2 rounded-lg bg-destructive/10 text-destructive border border-destructive/30 text-xs font-medium">
+              Some prescription items were rejected and refunded. Prepare only approved items.
+            </div>
+          )}
+
           {/* Prep time countdown for preparing orders */}
           {order.status === 'preparing' && order.estimated_delivery_at && (
             <PrepCountdown estimatedAt={order.estimated_delivery_at} prepMinutes={order.prep_minutes} />
           )}
+
 
           {/* Food proof photo upload for preparing/ready orders */}
           {['preparing', 'ready_for_pickup'].includes(order.status) && vendor && (
