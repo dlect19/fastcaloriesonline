@@ -1,91 +1,61 @@
-## Phase 2 — Pharmacy Compliance: Prescription Upload, Review & Controlled Drug OTP
+## Admin Security: 2FA + Activity Monitoring (Super Admins)
 
-### 1. Database (single migration)
+### Scope
+- **Who:** Mandatory for `super_admin` only. Regular `admin` staff keep current login.
+- **Delivery:** Admin chooses **Email OTP** or **Authenticator app (TOTP)**. Email is the default fallback if TOTP not enrolled.
+- **Hardening:** Login activity log + email alert on new device, and 15-min auto-lock after 5 failed OTP attempts.
 
-**`prescription_orders` additions**
-- `prescription_image_url TEXT` — uploaded prescription photo (private bucket)
-- `review_status TEXT NOT NULL DEFAULT 'pending'` — `pending | approved | rejected | not_required`
-- `reviewed_by UUID`, `reviewed_at TIMESTAMPTZ`, `review_notes TEXT`
-- `is_emergency BOOLEAN DEFAULT false` — customer-flagged urgent need
-- Backfill: existing rows → `not_required` when product is OTC, else `pending`
+---
 
-**`order_items` additions**
-- `delivery_otp TEXT` — 6-digit code generated only for controlled-drug items
-- `delivery_otp_verified_at TIMESTAMPTZ`
+### 1. Database (new tables)
 
-**`vendor_staff` addition**
-- `is_pharmacist BOOLEAN DEFAULT false` — only owner + flagged staff can review
+- `admin_2fa_settings` — one row per admin: `preferred_method` (`email` | `totp`), `totp_secret` (encrypted-at-rest via vault), `totp_enabled`, `backup_codes` (hashed jsonb), `enrolled_at`.
+- `admin_otp_codes` — pending email OTPs: `code_hash`, `expires_at` (10 min), `used`, `attempts`, `ip`, `user_agent`.
+- `admin_login_activity` — every successful login: `ip`, `user_agent`, `device_fingerprint` (sha256 of UA+IP), `was_new_device`, `location_city`, `created_at`.
+- `admin_login_attempts` — every attempt (success/fail) for lockout & audit: `email`, `outcome`, `failure_reason`, `ip`, `created_at`.
+- `admin_lockouts` — active locks: `user_id`, `locked_until`, `reason`.
 
-**`orders` additions**
-- `pharmacy_review_status TEXT DEFAULT 'not_required'` — `not_required | pending | approved | partially_rejected`
-- Computed by trigger on prescription_orders updates
+All locked behind RLS — only the row owner + super admins via `has_role` can read; writes are service-role only.
 
-**Storage bucket**: `prescriptions` (private). RLS:
-- Customer can upload/read own files
-- Vendor pharmacists can read files for their vendor's orders
-- Admins full access
+### 2. Edge functions
 
-**Helper function**: `is_pharmacist(_user_id, _vendor_id)` (SECURITY DEFINER) — true if owner or `is_pharmacist=true` staff.
+- `admin-2fa-initiate` — called right after password verify. Looks up `admin_2fa_settings`; if TOTP enabled returns `{method:'totp'}`; otherwise generates a 6-digit email OTP, stores hashed, and sends via existing transactional email queue. Also checks `admin_lockouts`.
+- `admin-2fa-verify` — accepts `{code, method}`. Verifies TOTP (RFC 6238) or hashed email OTP. On success: writes `admin_login_activity`, compares device_fingerprint to last 30 days, fires `admin-new-device-alert` email if new, clears failed counter, returns `{verified:true}`. On failure: increments `admin_login_attempts`; at 5 fails in 15 min inserts `admin_lockouts` row (locked_until = now + 15 min).
+- `admin-2fa-enroll-totp` — generates secret + `otpauth://` URI + QR payload (base32). Returns to client; not enabled until first code confirmed.
+- `admin-2fa-confirm-totp` — verifies first TOTP code and flips `totp_enabled=true`, generates 8 backup codes (hashed, returned plaintext once).
+- `admin-2fa-disable` — requires current TOTP/OTP + records in activity log.
 
-**RPC `reject_prescription_item(prescription_id, notes)`**: marks rejected, calls existing refund flow to credit the rejected line (price × qty + proportional discounts removed) back to customer wallet via `wallet_transactions` insert, decrements order totals. Keeps the rest of the order alive.
+All functions validate the caller is a super_admin via JWT before doing anything.
 
-**RPC `approve_prescription_item(prescription_id, notes)`**: marks approved, recomputes `orders.pharmacy_review_status`. When all approved → order moves from `awaiting_pharmacy_review` back to its normal flow (`preparing` if vendor accepted, else `pending`).
+### 3. Frontend changes
 
-**Trigger on `orders` insert**: if any item is Rx/Controlled, status starts `awaiting_pharmacy_review`. Vendor's "Accept" button disabled until approved.
+- **`src/pages/admin/AdminAuth.tsx`**: after `signInWithPassword` succeeds, if user is super_admin → call `admin-2fa-initiate`, do **not** navigate yet, show a new `<Admin2FAChallenge>` step with 6-digit input (or "Open authenticator app" hint). On verify success → navigate to dashboard. Lockout message if returned.
+- **New `src/components/admin/Admin2FAChallenge.tsx`** — pin input, resend (email only), countdown.
+- **New `src/pages/admin/AdminSecurity.tsx`** (route `/admin/security`) — manage preferred method, enroll TOTP (QR + confirm), regenerate backup codes, view last 20 login events, view active lockouts. Linked from admin sidebar.
+- **New `src/components/admin/Admin2FAEnrollDialog.tsx`** — QR + manual secret + first-code confirm + backup-codes display.
 
-**Controlled OTP**: trigger generates random 6-digit `delivery_otp` for each order_item where product is `controlled`. Rider sees masked indicator; recipient verifies in delivery completion dialog.
+### 4. Email templates
+Use the existing transactional email pipeline (`send-transactional-email`) with two new templates:
+- `admin_otp_code` — "Your sign-in code: 123456 (expires in 10 minutes)".
+- `admin_new_device_login` — "New sign-in to your admin account from {device} at {ip} on {time}. If this wasn't you, change your password."
 
-### 2. Customer side — Checkout
+### 5. Auto-lockout behavior
+- Counted per `user_id` (not IP) over a 15-min sliding window.
+- On 5th failure: 15-min lock + alert email to the admin.
+- `admin-2fa-initiate` short-circuits with `{locked:true, until:…}` if lock is active.
+- Super admins can manually unlock another admin from the Security page.
 
-**`PrescriptionCheckoutDialog`**:
-- Adds image upload field (camera + file) for items where `requires_prescription = true`. Mandatory for `controlled`, optional-skippable for `prescription` (will go to pharmacist for default dosage validation).
-- New "Emergency / urgent" checkbox + reason textarea — flags the prescription_order; pharmacy review queue surfaces these at top with a red badge.
-- After upload, file goes to `prescriptions/{user_id}/{order_id}/{product_id}-{ts}.jpg` via signed URL.
+### 6. Out of scope (for this pass)
+- Trust-device-for-30-days (user opted out).
+- SMS OTP, hardware keys, WebAuthn — can come later.
+- Forcing 2FA on regular admins — only Super Admins per your choice.
 
-**Order detail (customer)**: shows banner per item — "⏳ Awaiting pharmacist review", "✅ Approved", "❌ Rejected — refunded ₦X to wallet".
+---
 
-### 3. Vendor — Pharmacist Review Dashboard
+### Files touched
+- 1 migration (5 tables + RLS + helper fn `is_admin_locked_out`)
+- 5 new edge functions under `supabase/functions/`
+- 2 new email templates registered with the email registry
+- `AdminAuth.tsx` (modified), 3 new components, 1 new page + route in `App.tsx`, sidebar link in `AdminSidebar`.
 
-New page **`/vendor/pharmacy-review`** (link in `VendorSidebar` only when category=pharmacy):
-- Tabs: **Pending** | **Approved** | **Rejected** | **Emergency** (red badge with live count).
-- Each card: customer name, drug, qty, prescription type (doctor/pharmacist), prescription image (zoomable), dosage schedule, doctor info if provided, age group warning if children.
-- Actions: **Approve** | **Reject (with required reason)** | **Request re-upload** (sends notification, sets back to pending without image).
-- Only visible to owner OR staff with `is_pharmacist=true`. RLS-enforced.
-
-**`VendorStaff` page**: add `is_pharmacist` toggle column for pharmacy vendors only.
-
-### 4. Vendor — Order acceptance gating
-- `VendorOrders` "Accept / Start Preparing" button disabled with tooltip "Awaiting pharmacist review" when `orders.pharmacy_review_status='pending'`.
-- Auto-enables via realtime when status flips to `approved`.
-
-### 5. Controlled-drug delivery OTP
-- Rider order detail: for each controlled item, shows "🔒 Recipient verification required".
-- On delivery completion, new dialog asks rider to input the 6-digit code the recipient reads. Verifies against `order_items.delivery_otp`; on success sets `delivery_otp_verified_at`. Cannot complete delivery while any controlled OTP remains unverified.
-
-### 6. Emergency flag
-- Customer-side checkbox in `PrescriptionCheckoutDialog`.
-- Pharmacy review queue: emergency tab + red top-of-queue ordering.
-- Optional push: vendor pharmacist receives an "🚨 Emergency Rx" alert sound (reuses `useVendorNotificationSound`).
-
-### Technical files touched
-
-```text
-supabase/migrations/<ts>_phase2_pharmacy.sql       (new — schema + grants + RLS + RPCs + triggers + bucket policies)
-src/components/pharmacy/PrescriptionCheckoutDialog.tsx       (add image upload + emergency)
-src/components/pharmacy/PrescriptionImageUpload.tsx          (new)
-src/components/pharmacy/PrescriptionReviewCard.tsx           (new)
-src/components/pharmacy/ControlledDeliveryOtpDialog.tsx      (new)
-src/pages/vendor/VendorPharmacyReview.tsx                    (new)
-src/pages/vendor/VendorStaff.tsx                             (add is_pharmacist toggle)
-src/pages/vendor/VendorOrders.tsx                            (gating)
-src/components/vendor/VendorSidebar.tsx                      (nav entry)
-src/pages/rider/RiderOrders.tsx                              (OTP step)
-src/pages/OrderDetail.tsx                                    (customer status banners)
-src/App.tsx                                                  (route registration)
-```
-
-### Out of scope (saved for later phase)
-- Pharmacist consultation chat
-- Medicine alternatives / substitution
-- Multi-use prescription reuse (Phase 1 set single-use)
-- Audit-log viewer UI (data still recorded)
+Ready to build it as described, or adjust anything first?
