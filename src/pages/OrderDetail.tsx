@@ -46,6 +46,7 @@ export default function OrderDetail() {
   const [order, setOrder] = useState<any>(null);
   const [orderItems, setOrderItems] = useState<any[]>([]);
   const [orderItemAddons, setOrderItemAddons] = useState<Record<string, any[]>>({});
+  const [prescriptions, setPrescriptions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasReviewed, setHasReviewed] = useState(false);
   const [processingPayment, setProcessingPayment] = useState(false);
