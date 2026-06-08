@@ -31,6 +31,7 @@ export default function AdminPromos() {
   const [validUntil, setValidUntil] = useState('');
   const [scope, setScope] = useState('platform');
   const [perUserLimit, setPerUserLimit] = useState('');
+  const [perUserResetPeriod, setPerUserResetPeriod] = useState('never');
 
   useEffect(() => {
     checkAuth();
