@@ -4032,6 +4032,8 @@ export type Database = {
         Row: {
           calories: number | null
           created_at: string
+          delivery_otp: string | null
+          delivery_otp_verified_at: string | null
           free_qty: number | null
           id: string
           is_free_meal_item: boolean | null
@@ -4050,6 +4052,8 @@ export type Database = {
         Insert: {
           calories?: number | null
           created_at?: string
+          delivery_otp?: string | null
+          delivery_otp_verified_at?: string | null
           free_qty?: number | null
           id?: string
           is_free_meal_item?: boolean | null
@@ -4068,6 +4072,8 @@ export type Database = {
         Update: {
           calories?: number | null
           created_at?: string
+          delivery_otp?: string | null
+          delivery_otp_verified_at?: string | null
           free_qty?: number | null
           id?: string
           is_free_meal_item?: boolean | null
@@ -5225,8 +5231,10 @@ export type Database = {
           dosage_duration_days: number
           dosage_frequency: string
           dose_unit: string
+          emergency_reason: string | null
           hospital_name: string | null
           id: string
+          is_emergency: boolean
           is_prescription: boolean
           morning_dose: number | null
           night_dose: number | null
@@ -5254,8 +5262,10 @@ export type Database = {
           dosage_duration_days?: number
           dosage_frequency?: string
           dose_unit?: string
+          emergency_reason?: string | null
           hospital_name?: string | null
           id?: string
+          is_emergency?: boolean
           is_prescription?: boolean
           morning_dose?: number | null
           night_dose?: number | null
@@ -5283,8 +5293,10 @@ export type Database = {
           dosage_duration_days?: number
           dosage_frequency?: string
           dose_unit?: string
+          emergency_reason?: string | null
           hospital_name?: string | null
           id?: string
+          is_emergency?: boolean
           is_prescription?: boolean
           morning_dose?: number | null
           night_dose?: number | null
@@ -7203,6 +7215,7 @@ export type Database = {
           invite_email: string | null
           invited_by: string | null
           is_active: boolean | null
+          is_pharmacist: boolean
           outlet_id: string | null
           permissions: string[] | null
           role: Database["public"]["Enums"]["vendor_staff_role"]
@@ -7218,6 +7231,7 @@ export type Database = {
           invite_email?: string | null
           invited_by?: string | null
           is_active?: boolean | null
+          is_pharmacist?: boolean
           outlet_id?: string | null
           permissions?: string[] | null
           role?: Database["public"]["Enums"]["vendor_staff_role"]
@@ -7233,6 +7247,7 @@ export type Database = {
           invite_email?: string | null
           invited_by?: string | null
           is_active?: boolean | null
+          is_pharmacist?: boolean
           outlet_id?: string | null
           permissions?: string[] | null
           role?: Database["public"]["Enums"]["vendor_staff_role"]
@@ -8181,6 +8196,10 @@ export type Database = {
         Returns: Json
       }
       apply_vendor_commission_promos: { Args: never; Returns: undefined }
+      approve_prescription_item: {
+        Args: { _notes?: string; _prescription_id: string }
+        Returns: undefined
+      }
       bytea_to_text: { Args: { data: string }; Returns: string }
       cancel_pending_event_order: {
         Args: { p_order_id: string }
@@ -8459,6 +8478,10 @@ export type Database = {
       redeem_voucher_at_venue: {
         Args: { p_lookup: string; p_staff_id: string; p_vendor_id: string }
         Returns: Json
+      }
+      reject_prescription_item: {
+        Args: { _prescription_id: string; _reason: string }
+        Returns: undefined
       }
       release_pending_payouts: { Args: never; Returns: number }
       release_pending_vendor_earnings: { Args: never; Returns: number }
