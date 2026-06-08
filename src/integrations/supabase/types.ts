@@ -4269,6 +4269,7 @@ export type Database = {
           payment_method: string | null
           payment_reference: string | null
           payment_status: string | null
+          pharmacy_review_status: string
           pos_cashier_id: string | null
           pos_payment_method: string | null
           pos_session_id: string | null
@@ -4312,6 +4313,7 @@ export type Database = {
           payment_method?: string | null
           payment_reference?: string | null
           payment_status?: string | null
+          pharmacy_review_status?: string
           pos_cashier_id?: string | null
           pos_payment_method?: string | null
           pos_session_id?: string | null
@@ -4355,6 +4357,7 @@ export type Database = {
           payment_method?: string | null
           payment_reference?: string | null
           payment_status?: string | null
+          pharmacy_review_status?: string
           pos_cashier_id?: string | null
           pos_payment_method?: string | null
           pos_session_id?: string | null
@@ -8446,6 +8449,10 @@ export type Database = {
           order_number: string
           total: number
         }[]
+      }
+      recompute_order_pharmacy_status: {
+        Args: { _order_id: string }
+        Returns: undefined
       }
       reconcile_customer_wallet: {
         Args: { p_wallet_id: string }
