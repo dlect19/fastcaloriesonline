@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface TakeawayPack {
@@ -18,28 +18,51 @@ interface CartItem {
   quantity: number;
 }
 
+// Only these serving units count toward takeaway pack sizing.
+// Items sold "per piece" (e.g. extra meats, sides) should NOT inflate pack size.
+const PACK_ELIGIBLE_UNIT_REGEX = /(portion|plate|bowl|wrap|pack)/i;
+
+const isPackEligibleUnit = (unit: string | null | undefined) => {
+  if (!unit) return false;
+  return PACK_ELIGIBLE_UNIT_REGEX.test(unit);
+};
+
 export function useTakeawayPacks(vendorId: string | null) {
   const [packs, setPacks] = useState<TakeawayPack[]>([]);
+  const [productUnits, setProductUnits] = useState<Record<string, string | null>>({});
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!vendorId) {
       setPacks([]);
+      setProductUnits({});
       return;
     }
 
-    const fetchPacks = async () => {
+    const fetchData = async () => {
       setLoading(true);
       try {
-        const { data, error } = await supabase
-          .from('takeaway_packs')
-          .select('*')
-          .eq('vendor_id', vendorId)
-          .eq('is_active', true)
-          .order('sort_order');
+        const [packsRes, productsRes] = await Promise.all([
+          supabase
+            .from('takeaway_packs')
+            .select('*')
+            .eq('vendor_id', vendorId)
+            .eq('is_active', true)
+            .order('sort_order'),
+          supabase
+            .from('products')
+            .select('id, serving_unit')
+            .eq('vendor_id', vendorId),
+        ]);
 
-        if (error) throw error;
-        setPacks((data as TakeawayPack[]) || []);
+        if (packsRes.error) throw packsRes.error;
+        setPacks((packsRes.data as TakeawayPack[]) || []);
+
+        const unitMap: Record<string, string | null> = {};
+        (productsRes.data || []).forEach((p: any) => {
+          unitMap[p.id] = p.serving_unit ?? null;
+        });
+        setProductUnits(unitMap);
       } catch (error) {
         console.error('Error fetching takeaway packs:', error);
       } finally {
@@ -47,7 +70,7 @@ export function useTakeawayPacks(vendorId: string | null) {
       }
     };
 
-    fetchPacks();
+    fetchData();
   }, [vendorId]);
 
   // Calculate which packs should be applied based on cart items
@@ -55,8 +78,16 @@ export function useTakeawayPacks(vendorId: string | null) {
     (items: CartItem[]) => {
       if (!packs.length || !items.length) return [];
 
-      const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
-      const maxItemQuantity = Math.max(...items.map((item) => item.quantity));
+      // Filter to only items whose serving unit counts toward pack sizing
+      // (portion / plate / bowl etc.) — skip per-piece add-ons like extra meat.
+      const eligibleItems = items.filter((item) =>
+        isPackEligibleUnit(productUnits[item.productId])
+      );
+
+      if (!eligibleItems.length) return [];
+
+      const totalItems = eligibleItems.reduce((sum, item) => sum + item.quantity, 0);
+      const maxItemQuantity = Math.max(...eligibleItems.map((item) => item.quantity));
 
       const applicablePacks: TakeawayPack[] = [];
 
@@ -64,10 +95,8 @@ export function useTakeawayPacks(vendorId: string | null) {
         let shouldApply = false;
 
         if (pack.threshold_type === 'per_item') {
-          // Check if any item has quantity >= threshold
           shouldApply = maxItemQuantity >= pack.threshold_value;
         } else if (pack.threshold_type === 'total_items') {
-          // Check if total items >= threshold
           shouldApply = totalItems >= pack.threshold_value;
         }
 
@@ -78,14 +107,13 @@ export function useTakeawayPacks(vendorId: string | null) {
 
       // Return only the most suitable pack (highest threshold that applies)
       if (applicablePacks.length > 1) {
-        // Sort by threshold value descending, return the one with highest threshold
         applicablePacks.sort((a, b) => b.threshold_value - a.threshold_value);
         return [applicablePacks[0]];
       }
 
       return applicablePacks;
     },
-    [packs]
+    [packs, productUnits]
   );
 
   return {
