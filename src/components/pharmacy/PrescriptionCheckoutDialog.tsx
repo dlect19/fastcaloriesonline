@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -7,10 +7,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Pill, Stethoscope, Clock, Baby, User, AlertTriangle } from 'lucide-react';
+import { Pill, Stethoscope, Clock, Baby, User, AlertTriangle, Phone, MessageCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { PrescriptionImageUpload } from './PrescriptionImageUpload';
 import { MedicineClassificationBadge } from './MedicineClassificationBadge';
+import { supabase } from '@/integrations/supabase/client';
 
 interface PharmacyItem {
   productId: string;
@@ -85,6 +86,15 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
     })
   );
 
+  const [vendorPhone, setVendorPhone] = useState<string | null>(null);
+  useEffect(() => {
+    if (!vendorId) return;
+    (async () => {
+      const { data } = await supabase.from('vendors').select('phone').eq('id', vendorId).maybeSingle();
+      setVendorPhone((data as any)?.phone || null);
+    })();
+  }, [vendorId]);
+
   const current = prescriptions[currentIndex];
   const item = pharmacyItems[currentIndex];
 
@@ -93,11 +103,15 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
   };
 
   const handleNext = () => {
-    // Controlled drugs require a prescription image upload
-    if (item.medicineClassification === 'controlled' && !current.prescriptionImageUrl) {
+    // Doctor route: require prescription photo for Rx / Controlled drugs
+    if (
+      current.prescriptionType === 'doctor' &&
+      item.medicineClassification && item.medicineClassification !== 'otc' &&
+      !current.prescriptionImageUrl
+    ) {
       toast({
         title: 'Prescription photo required',
-        description: 'Controlled medicines need a prescription image before checkout.',
+        description: 'Please upload your doctor\'s prescription image to continue.',
         variant: 'destructive',
       });
       return;
@@ -152,20 +166,46 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
             )}
           </div>
 
-          {/* Prescription image upload (Rx + Controlled) */}
-          {item.medicineClassification && item.medicineClassification !== 'otc' && (
+          {/* Prescription image upload — only when doctor route is selected */}
+          {item.medicineClassification && item.medicineClassification !== 'otc' && current.prescriptionType === 'doctor' && (
             <div className="p-3 bg-secondary/30 rounded-lg border border-border space-y-2">
               <PrescriptionImageUpload
                 userId={userId}
                 productId={item.productId}
                 value={current.prescriptionImageUrl}
                 onChange={(path) => updateCurrent({ prescriptionImageUrl: path })}
-                label={item.medicineClassification === 'controlled' ? 'Prescription Photo (required)' : 'Prescription Photo (optional)'}
-                required={item.medicineClassification === 'controlled'}
+                label="Doctor's Prescription Photo (required)"
+                required
               />
               <p className="text-xs text-muted-foreground">
-                A licensed pharmacist will review your prescription before this item is prepared. Your photo is stored privately and only visible to the dispensing pharmacy.
+                A licensed pharmacist will verify your prescription before this item is prepared. The photo is stored privately and only visible to the dispensing pharmacy.
               </p>
+            </div>
+          )}
+
+          {/* Pharmacist consultation route — chat / call the pharmacy */}
+          {item.medicineClassification && item.medicineClassification !== 'otc' && current.prescriptionType === 'pharmacist' && (
+            <div className="p-3 bg-secondary/30 rounded-lg border border-border space-y-2">
+              <p className="text-sm font-medium flex items-center gap-2">
+                <Pill className="w-4 h-4 text-primary" /> Speak with the pharmacy
+              </p>
+              <p className="text-xs text-muted-foreground">
+                No prescription? A licensed pharmacist will reach out after you place this order to ask about your symptoms and approve the medicine. You can also call them directly.
+              </p>
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <Button type="button" variant="outline" size="sm" className="gap-1" disabled>
+                  <MessageCircle className="w-4 h-4" /> Chat after order
+                </Button>
+                {vendorPhone ? (
+                  <a href={`tel:${vendorPhone}`} className="inline-flex items-center justify-center gap-1 h-9 px-3 rounded-md border border-border hover:bg-accent text-sm">
+                    <Phone className="w-4 h-4" /> Call pharmacy
+                  </a>
+                ) : (
+                  <Button type="button" variant="outline" size="sm" className="gap-1" disabled>
+                    <Phone className="w-4 h-4" /> Phone unavailable
+                  </Button>
+                )}
+              </div>
             </div>
           )}
 
@@ -361,15 +401,19 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
             </div>
           </div>
 
-          <Button
-            className="w-full"
-            onClick={handleNext}
-            disabled={item.medicineClassification === 'controlled' && !current.prescriptionImageUrl}
-          >
-            {item.medicineClassification === 'controlled' && !current.prescriptionImageUrl
-              ? 'Upload prescription photo to continue'
-              : currentIndex < pharmacyItems.length - 1 ? 'Next Drug →' : 'Confirm & Proceed to Payment'}
-          </Button>
+          {(() => {
+            const needsDoctorPhoto =
+              current.prescriptionType === 'doctor' &&
+              item.medicineClassification && item.medicineClassification !== 'otc' &&
+              !current.prescriptionImageUrl;
+            return (
+              <Button className="w-full" onClick={handleNext} disabled={!!needsDoctorPhoto}>
+                {needsDoctorPhoto
+                  ? 'Upload prescription photo to continue'
+                  : currentIndex < pharmacyItems.length - 1 ? 'Next Drug →' : 'Confirm & Proceed to Payment'}
+              </Button>
+            );
+          })()}
         </div>
       </DialogContent>
     </Dialog>
