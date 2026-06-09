@@ -13,6 +13,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useDeliveryCompany } from '@/hooks/useDeliveryCompany';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { sanitizePhoneInput, isValidNgPhone, PHONE_ERROR_MESSAGE, PHONE_LENGTH } from '@/lib/phoneValidation';
 
 export default function DeliverySettings() {
   const { user, loading: authLoading } = useAuth();
@@ -49,6 +50,10 @@ export default function DeliverySettings() {
 
   const handleSave = async () => {
     if (!company) return;
+    if (!isValidNgPhone(formData.phone)) {
+      toast({ title: 'Invalid phone number', description: PHONE_ERROR_MESSAGE, variant: 'destructive' });
+      return;
+    }
 
     setSaving(true);
     try {
@@ -178,9 +183,14 @@ export default function DeliverySettings() {
                   <Input
                     id="phone"
                     type="tel"
+                    inputMode="numeric"
                     value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, phone: sanitizePhoneInput(e.target.value) })}
                     disabled={!isOwner}
+                    maxLength={PHONE_LENGTH}
+                    pattern="\d{11}"
+                    placeholder="08012345678"
+                    title={PHONE_ERROR_MESSAGE}
                   />
                 </div>
               </div>
