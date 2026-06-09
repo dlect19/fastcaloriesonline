@@ -208,6 +208,10 @@ export default function VendorAuth() {
 
   const handleLinkAccount = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (linkPhone && !isValidNgPhone(linkPhone)) {
+      toast({ title: 'Invalid phone number', description: PHONE_ERROR_MESSAGE, variant: 'destructive' });
+      return;
+    }
     setLoading(true);
 
     try {
