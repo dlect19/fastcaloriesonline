@@ -19,6 +19,7 @@ import { CommissionDisplay } from '@/components/shared/CommissionDisplay';
 import { useToast } from '@/hooks/use-toast';
 import { useNotificationSound } from '@/hooks/useNotificationSound';
 import { useVehicleTypeConfigs } from '@/hooks/useVehicleTypeConfigs';
+import { sanitizePhoneInput, isValidNgPhone, PHONE_ERROR_MESSAGE, PHONE_LENGTH } from '@/lib/phoneValidation';
 
 export default function RiderSettings() {
   const navigate = useNavigate();
@@ -128,6 +129,11 @@ export default function RiderSettings() {
     // Validate required fields
     if (!vehicleType) {
       toast({ title: 'Please select a vehicle type', variant: 'destructive' });
+      return;
+    }
+
+    if (!isValidNgPhone(phone)) {
+      toast({ title: 'Invalid phone number', description: PHONE_ERROR_MESSAGE, variant: 'destructive' });
       return;
     }
 
@@ -534,8 +540,13 @@ export default function RiderSettings() {
               <Input
                 id="phone"
                 type="tel"
+                inputMode="numeric"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={(e) => setPhone(sanitizePhoneInput(e.target.value))}
+                maxLength={PHONE_LENGTH}
+                pattern="\d{11}"
+                placeholder="08012345678"
+                title={PHONE_ERROR_MESSAGE}
               />
             </div>
           </CardContent>
