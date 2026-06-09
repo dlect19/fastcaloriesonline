@@ -249,12 +249,17 @@ export default function ProfileSetup() {
                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <Input
                   id="phone"
+                  type="tel"
+                  inputMode="numeric"
                   placeholder="08012345678"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(e) => setPhone(sanitizePhoneInput(e.target.value))}
                   className="pl-10"
                   required
-                  maxLength={15}
+                  maxLength={PHONE_LENGTH}
+                  minLength={PHONE_LENGTH}
+                  pattern="\d{11}"
+                  title={PHONE_ERROR_MESSAGE}
                 />
               </div>
             </div>
