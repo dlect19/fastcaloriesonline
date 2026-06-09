@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { User, Phone, Leaf } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { sanitizePhoneInput, isValidNgPhone, PHONE_ERROR_MESSAGE, PHONE_LENGTH } from '@/lib/phoneValidation';
 
 export default function ProfileSetup() {
   const { user, loading: authLoading } = useAuth();
@@ -62,10 +63,10 @@ export default function ProfileSetup() {
       return;
     }
 
-    if (!/^[0-9+\-\s()]{7,15}$/.test(phone.trim())) {
+    if (!isValidNgPhone(phone)) {
       toast({
         title: 'Invalid phone number',
-        description: 'Please enter a valid phone number.',
+        description: PHONE_ERROR_MESSAGE,
         variant: 'destructive',
       });
       return;
@@ -248,12 +249,17 @@ export default function ProfileSetup() {
                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <Input
                   id="phone"
+                  type="tel"
+                  inputMode="numeric"
                   placeholder="08012345678"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(e) => setPhone(sanitizePhoneInput(e.target.value))}
                   className="pl-10"
                   required
-                  maxLength={15}
+                  maxLength={PHONE_LENGTH}
+                  minLength={PHONE_LENGTH}
+                  pattern="\d{11}"
+                  title={PHONE_ERROR_MESSAGE}
                 />
               </div>
             </div>

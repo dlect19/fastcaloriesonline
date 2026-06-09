@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { sanitizePhoneInput, isValidNgPhone, PHONE_ERROR_MESSAGE, PHONE_LENGTH } from '@/lib/phoneValidation';
 
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 import { ForgotPasswordModal } from '@/components/auth/ForgotPasswordModal';
@@ -135,6 +136,11 @@ export default function VendorAuth() {
       return;
     }
 
+    if (!isValidNgPhone(phone)) {
+      toast({ title: 'Invalid phone number', description: PHONE_ERROR_MESSAGE, variant: 'destructive' });
+      return;
+    }
+
     // Show pre-signup OTP verification
     setShowPreSignupOTP(true);
   };
@@ -202,6 +208,10 @@ export default function VendorAuth() {
 
   const handleLinkAccount = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (linkPhone && !isValidNgPhone(linkPhone)) {
+      toast({ title: 'Invalid phone number', description: PHONE_ERROR_MESSAGE, variant: 'destructive' });
+      return;
+    }
     setLoading(true);
 
     try {
@@ -414,11 +424,17 @@ export default function VendorAuth() {
                       <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                       <Input
                         id="phone"
+                        type="tel"
+                        inputMode="numeric"
                         placeholder="08012345678"
                         value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
+                        onChange={(e) => setPhone(sanitizePhoneInput(e.target.value))}
                         className="pl-10"
                         required
+                        maxLength={PHONE_LENGTH}
+                        minLength={PHONE_LENGTH}
+                        pattern="\d{11}"
+                        title={PHONE_ERROR_MESSAGE}
                       />
                     </div>
                   </div>
@@ -690,7 +706,7 @@ export default function VendorAuth() {
                   <Label htmlFor="link-phone">Phone (Optional)</Label>
                   <div className="relative">
                     <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                    <Input id="link-phone" placeholder="08012345678" value={linkPhone} onChange={(e) => setLinkPhone(e.target.value)} className="pl-10" />
+                    <Input id="link-phone" type="tel" inputMode="numeric" placeholder="08012345678" value={linkPhone} onChange={(e) => setLinkPhone(sanitizePhoneInput(e.target.value))} className="pl-10" maxLength={PHONE_LENGTH} pattern="\d{11}" title={PHONE_ERROR_MESSAGE} />
                   </div>
                 </div>
 

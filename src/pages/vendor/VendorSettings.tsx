@@ -17,6 +17,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { sanitizePhoneInput, isValidNgPhone, PHONE_ERROR_MESSAGE, PHONE_LENGTH } from '@/lib/phoneValidation';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Vendor = Tables<'vendors'>;
@@ -178,6 +179,10 @@ export default function VendorSettings() {
 
   const handleSave = async () => {
     if (!vendor) return;
+    if (formData.phone && !isValidNgPhone(formData.phone)) {
+      toast({ title: 'Invalid phone number', description: PHONE_ERROR_MESSAGE, variant: 'destructive' });
+      return;
+    }
     setSaving(true);
     try {
       const updatePayload: Record<string, any> = {
@@ -334,9 +339,14 @@ export default function VendorSettings() {
                   <Label htmlFor="phone">Phone Number</Label>
                   <Input
                     id="phone"
+                    type="tel"
+                    inputMode="numeric"
                     value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, phone: sanitizePhoneInput(e.target.value) })}
                     placeholder="08012345678"
+                    maxLength={PHONE_LENGTH}
+                    pattern="\d{11}"
+                    title={PHONE_ERROR_MESSAGE}
                   />
                 </div>
               </div>

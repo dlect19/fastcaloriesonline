@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { sanitizePhoneInput, isValidNgPhone, PHONE_ERROR_MESSAGE, PHONE_LENGTH } from '@/lib/phoneValidation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -86,6 +87,10 @@ export default function DeliveryCompanyAuth() {
     if (!googleUserId) return;
     if (!companyName || !phone || !city || !state) {
       toast({ title: 'All fields required', description: 'Please fill all company details.', variant: 'destructive' });
+      return;
+    }
+    if (!isValidNgPhone(phone)) {
+      toast({ title: 'Invalid phone number', description: PHONE_ERROR_MESSAGE, variant: 'destructive' });
       return;
     }
     setLoading(true);
@@ -199,6 +204,11 @@ export default function DeliveryCompanyAuth() {
         description: 'Password must be at least 6 characters',
         variant: 'destructive',
       });
+      return;
+    }
+
+    if (!isValidNgPhone(phone)) {
+      toast({ title: 'Invalid phone number', description: PHONE_ERROR_MESSAGE, variant: 'destructive' });
       return;
     }
 
@@ -377,7 +387,7 @@ export default function DeliveryCompanyAuth() {
             </div>
             <div className="space-y-2">
               <Label>Phone Number</Label>
-              <Input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} required />
+              <Input type="tel" inputMode="numeric" value={phone} onChange={(e) => setPhone(sanitizePhoneInput(e.target.value))} required maxLength={PHONE_LENGTH} pattern="\d{11}" placeholder="08012345678" title={PHONE_ERROR_MESSAGE} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -517,9 +527,15 @@ export default function DeliveryCompanyAuth() {
                   <Input
                     id="phone"
                     type="tel"
+                    inputMode="numeric"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={(e) => setPhone(sanitizePhoneInput(e.target.value))}
                     required
+                    maxLength={PHONE_LENGTH}
+                    minLength={PHONE_LENGTH}
+                    pattern="\d{11}"
+                    placeholder="08012345678"
+                    title={PHONE_ERROR_MESSAGE}
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
