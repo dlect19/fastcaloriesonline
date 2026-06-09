@@ -527,9 +527,15 @@ export default function DeliveryCompanyAuth() {
                   <Input
                     id="phone"
                     type="tel"
+                    inputMode="numeric"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={(e) => setPhone(sanitizePhoneInput(e.target.value))}
                     required
+                    maxLength={PHONE_LENGTH}
+                    minLength={PHONE_LENGTH}
+                    pattern="\d{11}"
+                    placeholder="08012345678"
+                    title={PHONE_ERROR_MESSAGE}
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
