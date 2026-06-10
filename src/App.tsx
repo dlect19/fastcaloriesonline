@@ -247,6 +247,10 @@ const App = () => {
               <Route path="/admin/auth" element={<AdminAuth />} />
               <Route path="/admin/dashboard" element={<AdminDashboard />} />
               <Route path="/admin/orders" element={<AdminOrders />} />
+              <Route path="/admin/assisted-orders" element={<AssistedOrdersList />} />
+              <Route path="/admin/assisted-orders/new" element={<AssistedOrderCreate />} />
+              <Route path="/admin/assisted-orders/:orderId" element={<AssistedOrderDetail />} />
+              <Route path="/track/:orderNumber" element={<Track />} />
               <Route path="/admin/pos-reports" element={<AdminPosReports />} />
               <Route path="/admin/vendors" element={<AdminVendors />} />
               <Route path="/admin/vendor-menus" element={<AdminVendorMenus />} />
