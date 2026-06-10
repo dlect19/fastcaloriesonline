@@ -20,6 +20,7 @@ interface MenuItem {
 const menuItems: MenuItem[] = [
   { icon: Home, label: 'Dashboard', path: '/admin/dashboard', requiredPermission: 'view_dashboard' },
   { icon: Package, label: 'Orders', path: '/admin/orders', requiredPermission: 'manage_vendors' },
+  { icon: Headphones, label: 'Assisted Orders', path: '/admin/assisted-orders', requiredPermission: 'manage_assisted_orders' },
   { icon: Receipt, label: 'POS Sales', path: '/admin/pos-reports', requiredPermission: 'view_reports' },
   { icon: Store, label: 'Vendors', path: '/admin/vendors', requiredPermission: 'manage_vendors' },
   { icon: Bike, label: 'Riders', path: '/admin/riders', requiredPermission: 'manage_riders' },
