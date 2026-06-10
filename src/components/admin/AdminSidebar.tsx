@@ -1,6 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { Home, Package, Store, Bike, Ticket, Users, Settings, LogOut, Image, Activity, Banknote, Wallet, ArrowDownLeft, Gift, Truck, UserCheck, Star, MessageSquare, DollarSign, UserPlus, Receipt, ClipboardList, Scale, HelpCircle, Percent, ShieldAlert, Megaphone, Gavel, UtensilsCrossed, Map, ExternalLink, Sparkles, Pill, PauseCircle, MessageCircle, CalendarDays, QrCode, BarChart3 } from 'lucide-react';
+import { Home, Package, Store, Bike, Ticket, Users, Settings, LogOut, Image, Activity, Banknote, Wallet, ArrowDownLeft, Gift, Truck, UserCheck, Star, MessageSquare, DollarSign, UserPlus, Receipt, ClipboardList, Scale, HelpCircle, Percent, ShieldAlert, Megaphone, Gavel, UtensilsCrossed, Map, ExternalLink, Sparkles, Pill, PauseCircle, MessageCircle, CalendarDays, QrCode, BarChart3, Headphones } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -20,6 +20,7 @@ interface MenuItem {
 const menuItems: MenuItem[] = [
   { icon: Home, label: 'Dashboard', path: '/admin/dashboard', requiredPermission: 'view_dashboard' },
   { icon: Package, label: 'Orders', path: '/admin/orders', requiredPermission: 'manage_vendors' },
+  { icon: Headphones, label: 'Assisted Orders', path: '/admin/assisted-orders', requiredPermission: 'manage_assisted_orders' },
   { icon: Receipt, label: 'POS Sales', path: '/admin/pos-reports', requiredPermission: 'view_reports' },
   { icon: Store, label: 'Vendors', path: '/admin/vendors', requiredPermission: 'manage_vendors' },
   { icon: Bike, label: 'Riders', path: '/admin/riders', requiredPermission: 'manage_riders' },

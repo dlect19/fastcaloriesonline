@@ -1,61 +1,119 @@
-## Admin Security: 2FA + Activity Monitoring (Super Admins)
+# Assisted Ordering System — Implementation Plan
 
-### Scope
-- **Who:** Mandatory for `super_admin` only. Regular `admin` staff keep current login.
-- **Delivery:** Admin chooses **Email OTP** or **Authenticator app (TOTP)**. Email is the default fallback if TOTP not enrolled.
-- **Hardening:** Login activity log + email alert on new device, and 15-min auto-lock after 5 failed OTP attempts.
+A staff-only "Concierge" tool that lets admins create real FastCalories orders on behalf of customers who reach out via phone, WhatsApp, SMS, or social. Every assisted order becomes a regular `orders` row, so it flows through the existing vendor → rider → tracking → wallet → notification pipeline. **No parallel workflows are introduced.**
 
 ---
 
-### 1. Database (new tables)
+## 1. Scope of this first build
 
-- `admin_2fa_settings` — one row per admin: `preferred_method` (`email` | `totp`), `totp_secret` (encrypted-at-rest via vault), `totp_enabled`, `backup_codes` (hashed jsonb), `enrolled_at`.
-- `admin_otp_codes` — pending email OTPs: `code_hash`, `expires_at` (10 min), `used`, `attempts`, `ip`, `user_agent`.
-- `admin_login_activity` — every successful login: `ip`, `user_agent`, `device_fingerprint` (sha256 of UA+IP), `was_new_device`, `location_city`, `created_at`.
-- `admin_login_attempts` — every attempt (success/fail) for lockout & audit: `email`, `outcome`, `failure_reason`, `ip`, `created_at`.
-- `admin_lockouts` — active locks: `user_id`, `locked_until`, `reason`.
+Because this spec is very large, I'll deliver it in **two phases**. This plan covers **Phase 1 (core MVP)** end-to-end. Phase 2 items are listed at the bottom and I'll build them next once you approve Phase 1.
 
-All locked behind RLS — only the row owner + super admins via `has_role` can read; writes are service-role only.
+### Phase 1 — In scope
+1. New admin section **Operations → Assisted Orders** with:
+   - Create Order wizard
+   - List / filter / search
+   - Order detail (track, resend payment link, resend OTP, cancel)
+   - Repeat previous order
+2. Customer + Receiver capture (payer ≠ receiver supported)
+3. Address picker reusing existing `MapLocationPicker` (autocomplete, drop pin, paste coordinates / Google Maps link / WhatsApp location link)
+4. Vendor + product selection reusing existing vendor menu data; quantities, special instructions
+5. Pricing reuses existing delivery-fee + service-fee + promo engine — no duplication
+6. Customer auto-provisioning (profile row by phone, no auth account yet; can be claimed later via existing OTP login)
+7. Order insertion into existing `orders` table with `source = 'assisted'` and an `assisted_order_meta` row for concierge-specific data
+8. Payment: generate Paystack payment link + bank-transfer instructions; auto-verify via existing Paystack webhook OR mark as manually confirmed by staff
+9. After payment confirmed → order automatically becomes a normal pending order (vendor sees it, rider gets dispatched, tracking link works, delivery OTP issued — all via the existing pipeline)
+10. Public tracking link `/track/:orderNumber` (no login)
+11. Delivery OTP — reuse existing per-order code
+12. Notifications via existing engine (SMS/email/push); resend buttons for payment link + OTP
+13. Audit trail (`created_by`, `payment_verified_by`, `last_modified_by`, change log)
+14. Pharmacy support: OTC flows normally; prescription uploads attach to the existing prescription workflow
+15. Communication notes field on the order (free-text log of phone/WhatsApp conversation)
+16. RBAC: gated by a new `manage_assisted_orders` admin permission (Super Admins always allowed)
 
-### 2. Edge functions
-
-- `admin-2fa-initiate` — called right after password verify. Looks up `admin_2fa_settings`; if TOTP enabled returns `{method:'totp'}`; otherwise generates a 6-digit email OTP, stores hashed, and sends via existing transactional email queue. Also checks `admin_lockouts`.
-- `admin-2fa-verify` — accepts `{code, method}`. Verifies TOTP (RFC 6238) or hashed email OTP. On success: writes `admin_login_activity`, compares device_fingerprint to last 30 days, fires `admin-new-device-alert` email if new, clears failed counter, returns `{verified:true}`. On failure: increments `admin_login_attempts`; at 5 fails in 15 min inserts `admin_lockouts` row (locked_until = now + 15 min).
-- `admin-2fa-enroll-totp` — generates secret + `otpauth://` URI + QR payload (base32). Returns to client; not enabled until first code confirmed.
-- `admin-2fa-confirm-totp` — verifies first TOTP code and flips `totp_enabled=true`, generates 8 backup codes (hashed, returned plaintext once).
-- `admin-2fa-disable` — requires current TOTP/OTP + records in activity log.
-
-All functions validate the caller is a super_admin via JWT before doing anything.
-
-### 3. Frontend changes
-
-- **`src/pages/admin/AdminAuth.tsx`**: after `signInWithPassword` succeeds, if user is super_admin → call `admin-2fa-initiate`, do **not** navigate yet, show a new `<Admin2FAChallenge>` step with 6-digit input (or "Open authenticator app" hint). On verify success → navigate to dashboard. Lockout message if returned.
-- **New `src/components/admin/Admin2FAChallenge.tsx`** — pin input, resend (email only), countdown.
-- **New `src/pages/admin/AdminSecurity.tsx`** (route `/admin/security`) — manage preferred method, enroll TOTP (QR + confirm), regenerate backup codes, view last 20 login events, view active lockouts. Linked from admin sidebar.
-- **New `src/components/admin/Admin2FAEnrollDialog.tsx`** — QR + manual secret + first-code confirm + backup-codes display.
-
-### 4. Email templates
-Use the existing transactional email pipeline (`send-transactional-email`) with two new templates:
-- `admin_otp_code` — "Your sign-in code: 123456 (expires in 10 minutes)".
-- `admin_new_device_login` — "New sign-in to your admin account from {device} at {ip} on {time}. If this wasn't you, change your password."
-
-### 5. Auto-lockout behavior
-- Counted per `user_id` (not IP) over a 15-min sliding window.
-- On 5th failure: 15-min lock + alert email to the admin.
-- `admin-2fa-initiate` short-circuits with `{locked:true, until:…}` if lock is active.
-- Super admins can manually unlock another admin from the Security page.
-
-### 6. Out of scope (for this pass)
-- Trust-device-for-30-days (user opted out).
-- SMS OTP, hardware keys, WebAuthn — can come later.
-- Forcing 2FA on regular admins — only Super Admins per your choice.
+### Phase 2 — Deferred (next batch)
+- Analytics dashboard (revenue, top vendors, repeat customers, conversion)
+- Twilio WhatsApp two-way integration + "create order from chat"
+- AI order assistant, voice ordering, corporate / bulk orders
+- Saved address book picker on the concierge form (Phase 1 saves addresses but doesn't show a picker beyond the customer's existing list)
 
 ---
 
-### Files touched
-- 1 migration (5 tables + RLS + helper fn `is_admin_locked_out`)
-- 5 new edge functions under `supabase/functions/`
-- 2 new email templates registered with the email registry
-- `AdminAuth.tsx` (modified), 3 new components, 1 new page + route in `App.tsx`, sidebar link in `AdminSidebar`.
+## 2. Database changes
 
-Ready to build it as described, or adjust anything first?
+One migration. All new tables use `service_role` + scoped `authenticated` grants and RLS.
+
+- **`orders`** — add columns:
+  - `source TEXT DEFAULT 'app'` (`app` | `assisted` | `pos` | `whatsapp`)
+  - `assisted_created_by UUID` (admin user id, nullable)
+  - `receiver_name TEXT`, `receiver_phone TEXT` (nullable — only when payer ≠ receiver)
+  - `communication_notes TEXT`
+- **`assisted_orders`** — concierge metadata:
+  - `order_id` (FK to `orders`, unique)
+  - `customer_channel` (`phone` | `whatsapp` | `sms` | `facebook` | `instagram` | `other`)
+  - `channel_reference` (e.g. WhatsApp thread id, call note id)
+  - `payment_method` (`paystack_link` | `bank_transfer` | `wallet` | `cash`)
+  - `payment_link`, `payment_reference`, `payment_status` (`awaiting` | `received` | `failed` | `cancelled`)
+  - `payment_verified_by`, `payment_verified_at`
+  - `created_by`, `last_modified_by`
+- **`assisted_order_audit`** — append-only change log (`order_id`, `actor_id`, `action`, `details jsonb`, `created_at`)
+- **`admin_permissions` enum / mapping** — add `manage_assisted_orders` permission key (matches existing `useAdminPermissions` pattern)
+
+RLS:
+- `assisted_orders` and `assisted_order_audit`: only admins with `manage_assisted_orders` (via existing `has_admin_permission` helper) or Super Admin can read/write; `service_role` full access for edge functions.
+- Public tracking does **not** read these — it reads `orders` via a safe `SECURITY DEFINER` function keyed by order number (already pattern used elsewhere) plus a new variant if needed.
+
+---
+
+## 3. Edge functions
+
+- `assisted-order-create` — validates input (zod), upserts customer profile by phone, inserts `orders` + `order_items` + `order_packages` + `assisted_orders`, computes pricing via the same RPCs used by the customer cart, returns order id + payment link.
+- `assisted-order-payment-link` — generates a Paystack payment link (existing Paystack edge function pattern) and bank-transfer instructions; stores `payment_link`/`payment_reference`.
+- `assisted-order-verify-payment` — manual confirmation by staff; also called by Paystack webhook fan-out for `source='assisted'` orders to flip status to paid and release the order to the vendor (`status = 'pending_vendor'` — same status the normal checkout uses).
+- `assisted-order-notify` — wraps existing notification helpers to resend payment link, resend delivery OTP, send tracking link via SMS/email/push.
+- `assisted-order-repeat` — clones the last order for a given customer into a draft assisted order.
+
+All five are server-validated, JWT-checked (admin role), and write to `assisted_order_audit`.
+
+---
+
+## 4. Frontend
+
+New files under `src/pages/admin/assisted/`:
+- `AssistedOrdersList.tsx` — table with filters (date, vendor, customer, status, channel)
+- `AssistedOrderCreate.tsx` — multi-step wizard: Customer → Address → Vendor → Items → Review → Payment
+- `AssistedOrderDetail.tsx` — status, tracking, resend buttons, audit timeline, cancel
+- Shared components under `src/components/admin/assisted/`:
+  - `CustomerLookupStep.tsx` (phone search → existing profile or create new; receiver fields)
+  - `AddressStep.tsx` (reuses `MapLocationPicker`; adds paste-link / paste-coordinates parser for Google Maps / WhatsApp share URLs)
+  - `VendorStep.tsx` (reuses nearby-vendor logic)
+  - `ItemsStep.tsx` (reuses vendor menu + cart math)
+  - `ReviewStep.tsx` (totals via existing pricing hook)
+  - `PaymentStep.tsx` (payment method, link generation, mark-as-paid)
+  - `AuditTimeline.tsx`
+
+Sidebar: add **Assisted Orders** entry under Operations, gated by `manage_assisted_orders`.
+
+Public tracking: a lightweight `src/pages/Track.tsx` at `/track/:orderNumber` that calls an existing/new public RPC and shows the status timeline + rider ETA (reuses existing tracking components where possible). No auth required.
+
+Phone numbers everywhere reuse `src/lib/phoneValidation.ts` (11 digits, no country code).
+
+---
+
+## 5. Integration guarantees (the "do NOT duplicate" rules)
+
+- Order goes into the same `orders` table → vendor dashboard, rider dispatch, tracking page, wallet ledger, payouts, disputes, ratings all work unchanged.
+- Pricing uses the same hooks/RPCs as the customer cart (`useDeliveryFee`, `useServiceFee`, promo engine, takeaway packs).
+- Delivery OTP uses the existing per-order confirmation code (no parallel OTP table).
+- Notifications use the existing notification engine (no new sender).
+- Pharmacy prescription uploads use the existing `prescriptions` / `prescription_orders` tables.
+- Customer profile auto-created without an auth user; when the customer later signs up with the same phone, existing claim logic links the historical orders.
+
+---
+
+## 6. Open questions before I build
+
+1. **Payment methods for Phase 1** — confirm I should support **Paystack link + Bank transfer + Mark-as-paid (cash)**. Wallet debit from a customer who hasn't logged in isn't possible, so I'll skip wallet for assisted orders unless you want it for already-registered customers.
+2. **Public tracking** — OK to expose order status + rider first name + ETA only (no PII like phone) on `/track/:orderNumber`?
+3. **Customer claim flow** — when an auto-created (no-auth) customer later signs up with the same phone, auto-link prior assisted orders to their new auth account?
+
+If you're happy with these defaults (yes / yes / yes), I'll proceed with Phase 1 immediately.

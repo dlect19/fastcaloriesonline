@@ -1092,6 +1092,103 @@ export type Database = {
         }
         Relationships: []
       }
+      assisted_order_audit: {
+        Row: {
+          action: string
+          actor_id: string | null
+          created_at: string
+          details: Json | null
+          id: string
+          order_id: string
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          created_at?: string
+          details?: Json | null
+          id?: string
+          order_id: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          created_at?: string
+          details?: Json | null
+          id?: string
+          order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assisted_order_audit_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assisted_orders: {
+        Row: {
+          bank_transfer_instructions: string | null
+          channel_reference: string | null
+          created_at: string
+          created_by: string
+          customer_channel: string
+          id: string
+          last_modified_by: string | null
+          order_id: string
+          payment_link: string | null
+          payment_method: string
+          payment_reference: string | null
+          payment_status: string
+          payment_verified_at: string | null
+          payment_verified_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          bank_transfer_instructions?: string | null
+          channel_reference?: string | null
+          created_at?: string
+          created_by: string
+          customer_channel: string
+          id?: string
+          last_modified_by?: string | null
+          order_id: string
+          payment_link?: string | null
+          payment_method: string
+          payment_reference?: string | null
+          payment_status?: string
+          payment_verified_at?: string | null
+          payment_verified_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          bank_transfer_instructions?: string | null
+          channel_reference?: string | null
+          created_at?: string
+          created_by?: string
+          customer_channel?: string
+          id?: string
+          last_modified_by?: string | null
+          order_id?: string
+          payment_link?: string | null
+          payment_method?: string
+          payment_reference?: string | null
+          payment_status?: string
+          payment_verified_at?: string | null
+          payment_verified_by?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assisted_orders_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       auto_notification_logs: {
         Row: {
           created_at: string | null
@@ -4404,9 +4501,11 @@ export type Database = {
       }
       orders: {
         Row: {
+          assisted_created_by: string | null
           cancellation_reason: string | null
           cancelled_at: string | null
           channel: string
+          communication_notes: string | null
           confirmation_code: string | null
           created_at: string
           delivered_at: string | null
@@ -4437,6 +4536,8 @@ export type Database = {
           pos_session_id: string | null
           prep_minutes: number | null
           promo_code: string | null
+          receiver_name: string | null
+          receiver_phone: string | null
           rider_id: string | null
           service_fee: number | null
           status: Database["public"]["Enums"]["order_status"]
@@ -4448,9 +4549,11 @@ export type Database = {
           vendor_id: string
         }
         Insert: {
+          assisted_created_by?: string | null
           cancellation_reason?: string | null
           cancelled_at?: string | null
           channel?: string
+          communication_notes?: string | null
           confirmation_code?: string | null
           created_at?: string
           delivered_at?: string | null
@@ -4481,6 +4584,8 @@ export type Database = {
           pos_session_id?: string | null
           prep_minutes?: number | null
           promo_code?: string | null
+          receiver_name?: string | null
+          receiver_phone?: string | null
           rider_id?: string | null
           service_fee?: number | null
           status?: Database["public"]["Enums"]["order_status"]
@@ -4492,9 +4597,11 @@ export type Database = {
           vendor_id: string
         }
         Update: {
+          assisted_created_by?: string | null
           cancellation_reason?: string | null
           cancelled_at?: string | null
           channel?: string
+          communication_notes?: string | null
           confirmation_code?: string | null
           created_at?: string
           delivered_at?: string | null
@@ -4525,6 +4632,8 @@ export type Database = {
           pos_session_id?: string | null
           prep_minutes?: number | null
           promo_code?: string | null
+          receiver_name?: string | null
+          receiver_phone?: string | null
           rider_id?: string | null
           service_fee?: number | null
           status?: Database["public"]["Enums"]["order_status"]
@@ -8373,6 +8482,10 @@ export type Database = {
         Returns: undefined
       }
       bytea_to_text: { Args: { data: string }; Returns: string }
+      can_manage_assisted_orders: {
+        Args: { _user_id: string }
+        Returns: boolean
+      }
       cancel_pending_event_order: {
         Args: { p_order_id: string }
         Returns: Json
@@ -8416,6 +8529,19 @@ export type Database = {
         Returns: number
       }
       get_platform_environment: { Args: never; Returns: string }
+      get_public_order_tracking: {
+        Args: { _order_number: string }
+        Returns: {
+          created_at: string
+          delivered_at: string
+          delivery_type: string
+          estimated_delivery_at: string
+          order_number: string
+          rider_first_name: string
+          status: Database["public"]["Enums"]["order_status"]
+          vendor_name: string
+        }[]
+      }
       get_rider_delivery_count: { Args: { _rider_id: string }; Returns: number }
       get_rider_profile_id: { Args: { _user_id: string }; Returns: string }
       get_vendor_pending_settlement: {

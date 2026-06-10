@@ -51,6 +51,10 @@ import RiderWithdraw from "./pages/rider/RiderWithdraw";
 import RiderSettings from "./pages/rider/RiderSettings";
 import AdminAuth from "./pages/admin/AdminAuth";
 import AdminDashboard from "./pages/admin/AdminDashboard";
+import AssistedOrdersList from "./pages/admin/AssistedOrdersList";
+import AssistedOrderCreate from "./pages/admin/AssistedOrderCreate";
+import AssistedOrderDetail from "./pages/admin/AssistedOrderDetail";
+import Track from "./pages/Track";
 import AdminOrders from "./pages/admin/AdminOrders";
 import AdminPosReports from "./pages/admin/AdminPosReports";
 import AdminVendors from "./pages/admin/AdminVendors";
@@ -243,6 +247,10 @@ const App = () => {
               <Route path="/admin/auth" element={<AdminAuth />} />
               <Route path="/admin/dashboard" element={<AdminDashboard />} />
               <Route path="/admin/orders" element={<AdminOrders />} />
+              <Route path="/admin/assisted-orders" element={<AssistedOrdersList />} />
+              <Route path="/admin/assisted-orders/new" element={<AssistedOrderCreate />} />
+              <Route path="/admin/assisted-orders/:orderId" element={<AssistedOrderDetail />} />
+              <Route path="/track/:orderNumber" element={<Track />} />
               <Route path="/admin/pos-reports" element={<AdminPosReports />} />
               <Route path="/admin/vendors" element={<AdminVendors />} />
               <Route path="/admin/vendor-menus" element={<AdminVendorMenus />} />

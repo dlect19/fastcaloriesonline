@@ -15,19 +15,22 @@ export type AdminPermission =
   | 'view_reports'
   | 'handle_support'
   | 'manage_promos'
-  | 'manage_users';
+  | 'manage_users'
+  | 'manage_assisted_orders';
 
 const DEFAULT_ROLE_PERMISSIONS: Record<AdminStaffRole, AdminPermission[]> = {
   super_admin: [
     'view_dashboard', 'manage_vendors', 'approve_vendors', 'manage_riders',
     'process_withdrawals', 'manage_admin_staff', 'platform_settings',
-    'view_reports', 'handle_support', 'manage_promos', 'manage_users'
+    'view_reports', 'handle_support', 'manage_promos', 'manage_users',
+    'manage_assisted_orders'
   ],
   admin: [
     'view_dashboard', 'manage_vendors', 'approve_vendors', 'manage_riders',
-    'view_reports', 'handle_support', 'manage_promos', 'manage_users'
+    'view_reports', 'handle_support', 'manage_promos', 'manage_users',
+    'manage_assisted_orders'
   ],
-  support: ['view_dashboard', 'view_reports', 'handle_support'],
+  support: ['view_dashboard', 'view_reports', 'handle_support', 'manage_assisted_orders'],
   analyst: ['view_dashboard', 'view_reports']
 };
 
