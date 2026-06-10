@@ -72,7 +72,9 @@ serve(async (req) => {
         .insert({
           user_id: userId,
           label: 'Assisted Order',
-          street_address: delivery_address.text,
+          address_line: delivery_address.text,
+          city: delivery_address.city || '—',
+          state: delivery_address.state || '—',
           latitude: delivery_address.latitude,
           longitude: delivery_address.longitude,
         })
