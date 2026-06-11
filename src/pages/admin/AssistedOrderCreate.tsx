@@ -117,6 +117,20 @@ export default function AssistedOrderCreate() {
     setCart((c) => c.map((i) => i.product.id === id ? { ...i, special_instructions: txt } : i));
 
   const subtotal = useMemo(() => cart.reduce((s, i) => s + i.product.price * i.quantity, 0), [cart]);
+
+  // Auto-populate delivery + service fees when not manually overridden
+  useEffect(() => {
+    if (deliveryFeeOverridden) return;
+    if (deliveryType !== 'delivery') { setDeliveryFee(0); return; }
+    if (autoDelivery.loading || !autoDelivery.hasCoordinates) return;
+    setDeliveryFee(Math.round(autoDelivery.fee));
+  }, [autoDelivery.fee, autoDelivery.loading, autoDelivery.hasCoordinates, deliveryType, deliveryFeeOverridden]);
+
+  useEffect(() => {
+    if (serviceFeeOverridden) return;
+    setServiceFee(Math.round(calculateServiceFee(subtotal, deliveryType)));
+  }, [subtotal, deliveryType, calculateServiceFee, serviceFeeOverridden]);
+
   const total = subtotal + (deliveryType === 'delivery' ? deliveryFee : 0) + serviceFee;
 
   const filteredProducts = products.filter((p) =>
