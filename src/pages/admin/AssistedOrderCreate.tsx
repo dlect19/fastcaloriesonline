@@ -12,8 +12,10 @@ import { Loader2, Search, Plus, Minus, Trash2, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { MapLocationPicker } from '@/components/shared/MapLocationPicker';
 import { sanitizePhoneInput, isValidNgPhone, PHONE_ERROR_MESSAGE } from '@/lib/phoneValidation';
+import { useDeliveryFee } from '@/hooks/useDeliveryFee';
+import { useServiceFee } from '@/hooks/useServiceFee';
 
-type Vendor = { id: string; name: string };
+type Vendor = { id: string; name: string; latitude: number | null; longitude: number | null };
 type Product = { id: string; name: string; price: number; vendor_id: string; outlet_id: string | null };
 type CartItem = { product: Product; quantity: number; special_instructions?: string };
 
@@ -48,16 +50,27 @@ export default function AssistedOrderCreate() {
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
 
-  // Pricing extras
+  // Pricing extras (auto-calculated; admin can override)
   const [deliveryFee, setDeliveryFee] = useState<number>(0);
   const [serviceFee, setServiceFee] = useState<number>(0);
+  const [deliveryFeeOverridden, setDeliveryFeeOverridden] = useState(false);
+  const [serviceFeeOverridden, setServiceFeeOverridden] = useState(false);
+
+  const selectedVendor = vendors.find((v) => v.id === vendorId);
+  const autoDelivery = useDeliveryFee({
+    vendorLat: selectedVendor?.latitude ?? null,
+    vendorLon: selectedVendor?.longitude ?? null,
+    customerLat: deliveryType === 'delivery' ? lat ?? null : null,
+    customerLon: deliveryType === 'delivery' ? lng ?? null : null,
+  });
+  const { calculateServiceFee } = useServiceFee();
 
   // Payment
   const [paymentMethod, setPaymentMethod] = useState<'paystack_link' | 'bank_transfer' | 'cash'>('paystack_link');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    supabase.from('vendors').select('id, name').eq('is_active', true).order('name').then(({ data }) => setVendors(data || []));
+    supabase.from('vendors').select('id, name, latitude, longitude').eq('is_active', true).order('name').then(({ data }) => setVendors((data as Vendor[]) || []));
   }, []);
 
   useEffect(() => {
@@ -104,6 +117,20 @@ export default function AssistedOrderCreate() {
     setCart((c) => c.map((i) => i.product.id === id ? { ...i, special_instructions: txt } : i));
 
   const subtotal = useMemo(() => cart.reduce((s, i) => s + i.product.price * i.quantity, 0), [cart]);
+
+  // Auto-populate delivery + service fees when not manually overridden
+  useEffect(() => {
+    if (deliveryFeeOverridden) return;
+    if (deliveryType !== 'delivery') { setDeliveryFee(0); return; }
+    if (autoDelivery.loading || !autoDelivery.hasCoordinates) return;
+    setDeliveryFee(Math.round(autoDelivery.fee));
+  }, [autoDelivery.fee, autoDelivery.loading, autoDelivery.hasCoordinates, deliveryType, deliveryFeeOverridden]);
+
+  useEffect(() => {
+    if (serviceFeeOverridden) return;
+    setServiceFee(Math.round(calculateServiceFee(subtotal, deliveryType)));
+  }, [subtotal, deliveryType, calculateServiceFee, serviceFeeOverridden]);
+
   const total = subtotal + (deliveryType === 'delivery' ? deliveryFee : 0) + serviceFee;
 
   const filteredProducts = products.filter((p) =>
@@ -336,16 +363,37 @@ export default function AssistedOrderCreate() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Fees & Total</CardTitle><CardDescription>Adjust manually for this concierge order.</CardDescription></CardHeader>
+          <CardHeader><CardTitle>Fees & Total</CardTitle><CardDescription>Auto-calculated from distance & platform rules. You can override.</CardDescription></CardHeader>
           <CardContent className="space-y-3">
             <div className="grid sm:grid-cols-2 gap-3">
               <div>
-                <Label>Delivery Fee (₦)</Label>
-                <Input type="number" value={deliveryFee} onChange={(e) => setDeliveryFee(Number(e.target.value) || 0)} disabled={deliveryType !== 'delivery'} />
+                <Label className="flex items-center justify-between">
+                  <span>Delivery Fee (₦)</span>
+                  {deliveryFeeOverridden && (
+                    <button type="button" className="text-xs text-primary underline" onClick={() => setDeliveryFeeOverridden(false)}>Reset auto</button>
+                  )}
+                </Label>
+                <Input type="number" value={deliveryFee}
+                  onChange={(e) => { setDeliveryFee(Number(e.target.value) || 0); setDeliveryFeeOverridden(true); }}
+                  disabled={deliveryType !== 'delivery'} />
+                {deliveryType === 'delivery' && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {autoDelivery.loading ? 'Calculating distance…'
+                      : !autoDelivery.hasCoordinates ? 'Pin customer location to auto-calculate'
+                      : `Auto: ₦${Math.round(autoDelivery.fee).toLocaleString()} (${autoDelivery.distanceKm ?? 0}km)${autoDelivery.isOutOfRange ? ' — out of range' : ''}`}
+                  </p>
+                )}
               </div>
               <div>
-                <Label>Service Fee (₦)</Label>
-                <Input type="number" value={serviceFee} onChange={(e) => setServiceFee(Number(e.target.value) || 0)} />
+                <Label className="flex items-center justify-between">
+                  <span>Service Fee (₦)</span>
+                  {serviceFeeOverridden && (
+                    <button type="button" className="text-xs text-primary underline" onClick={() => setServiceFeeOverridden(false)}>Reset auto</button>
+                  )}
+                </Label>
+                <Input type="number" value={serviceFee}
+                  onChange={(e) => { setServiceFee(Number(e.target.value) || 0); setServiceFeeOverridden(true); }} />
+                <p className="text-xs text-muted-foreground mt-1">Auto: ₦{Math.round(calculateServiceFee(subtotal, deliveryType)).toLocaleString()}</p>
               </div>
             </div>
             <div className="border-t pt-3 space-y-1 text-sm">
