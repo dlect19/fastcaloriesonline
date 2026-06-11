@@ -17,15 +17,26 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, serviceKey);
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
 
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader) return json({ error: 'No authorization header' }, 401);
+    const authHeader = req.headers.get('authorization') || req.headers.get('Authorization');
+    if (!authHeader?.toLowerCase().startsWith('bearer ')) {
+      return json({ error: 'No authorization header' }, 401);
+    }
 
-    const token = authHeader.replace('Bearer ', '');
-    const { data: userResp, error: authErr } = await supabase.auth.getUser(token);
-    if (authErr || !userResp.user) return json({ error: 'Invalid user' }, 401);
+    // User-scoped client to validate the caller
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: userResp, error: authErr } = await userClient.auth.getUser();
+    if (authErr || !userResp?.user) {
+      console.error('Auth getUser failed', authErr);
+      return json({ error: 'Invalid user', details: authErr?.message }, 401);
+    }
     const adminId = userResp.user.id;
+
+    // Service-role client for the actual writes
+    const supabase = createClient(supabaseUrl, serviceKey);
 
     // Permission check
     const { data: canManage } = await supabase.rpc('can_manage_assisted_orders', { _user_id: adminId });
