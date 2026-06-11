@@ -363,16 +363,37 @@ export default function AssistedOrderCreate() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Fees & Total</CardTitle><CardDescription>Adjust manually for this concierge order.</CardDescription></CardHeader>
+          <CardHeader><CardTitle>Fees & Total</CardTitle><CardDescription>Auto-calculated from distance & platform rules. You can override.</CardDescription></CardHeader>
           <CardContent className="space-y-3">
             <div className="grid sm:grid-cols-2 gap-3">
               <div>
-                <Label>Delivery Fee (₦)</Label>
-                <Input type="number" value={deliveryFee} onChange={(e) => setDeliveryFee(Number(e.target.value) || 0)} disabled={deliveryType !== 'delivery'} />
+                <Label className="flex items-center justify-between">
+                  <span>Delivery Fee (₦)</span>
+                  {deliveryFeeOverridden && (
+                    <button type="button" className="text-xs text-primary underline" onClick={() => setDeliveryFeeOverridden(false)}>Reset auto</button>
+                  )}
+                </Label>
+                <Input type="number" value={deliveryFee}
+                  onChange={(e) => { setDeliveryFee(Number(e.target.value) || 0); setDeliveryFeeOverridden(true); }}
+                  disabled={deliveryType !== 'delivery'} />
+                {deliveryType === 'delivery' && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {autoDelivery.loading ? 'Calculating distance…'
+                      : !autoDelivery.hasCoordinates ? 'Pin customer location to auto-calculate'
+                      : `Auto: ₦${Math.round(autoDelivery.fee).toLocaleString()} (${autoDelivery.distanceKm ?? 0}km)${autoDelivery.isOutOfRange ? ' — out of range' : ''}`}
+                  </p>
+                )}
               </div>
               <div>
-                <Label>Service Fee (₦)</Label>
-                <Input type="number" value={serviceFee} onChange={(e) => setServiceFee(Number(e.target.value) || 0)} />
+                <Label className="flex items-center justify-between">
+                  <span>Service Fee (₦)</span>
+                  {serviceFeeOverridden && (
+                    <button type="button" className="text-xs text-primary underline" onClick={() => setServiceFeeOverridden(false)}>Reset auto</button>
+                  )}
+                </Label>
+                <Input type="number" value={serviceFee}
+                  onChange={(e) => { setServiceFee(Number(e.target.value) || 0); setServiceFeeOverridden(true); }} />
+                <p className="text-xs text-muted-foreground mt-1">Auto: ₦{Math.round(calculateServiceFee(subtotal, deliveryType)).toLocaleString()}</p>
               </div>
             </div>
             <div className="border-t pt-3 space-y-1 text-sm">
