@@ -12,8 +12,10 @@ import { Loader2, Search, Plus, Minus, Trash2, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { MapLocationPicker } from '@/components/shared/MapLocationPicker';
 import { sanitizePhoneInput, isValidNgPhone, PHONE_ERROR_MESSAGE } from '@/lib/phoneValidation';
+import { useDeliveryFee } from '@/hooks/useDeliveryFee';
+import { useServiceFee } from '@/hooks/useServiceFee';
 
-type Vendor = { id: string; name: string };
+type Vendor = { id: string; name: string; latitude: number | null; longitude: number | null };
 type Product = { id: string; name: string; price: number; vendor_id: string; outlet_id: string | null };
 type CartItem = { product: Product; quantity: number; special_instructions?: string };
 
