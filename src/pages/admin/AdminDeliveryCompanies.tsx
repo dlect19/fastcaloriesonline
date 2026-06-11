@@ -12,6 +12,7 @@ import { AdminEntityWalletDialog } from '@/components/admin/AdminEntityWalletDia
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
+import { AdminDeleteUserButton } from '@/components/admin/AdminDeleteUserButton';
 
 interface DeliveryCompany {
   id: string;
@@ -266,6 +267,13 @@ export default function AdminDeliveryCompanies() {
                         >
                           {company.is_active ? 'Suspend' : 'Activate'}
                         </Button>
+                        <AdminDeleteUserButton
+                          userId={company.user_id}
+                          scope="delivery_company"
+                          entityName={company.name}
+                          buttonLabel="Remove Logistics"
+                          onDeleted={fetchCompanies}
+                        />
                       </div>
                     </div>
                   </CardContent>
