@@ -59,7 +59,7 @@ export default function AssistedOrderCreate() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    supabase.from('vendors').select('id, name').eq('is_active', true).order('name').then(({ data }) => setVendors(data || []));
+    supabase.from('vendors').select('id, name, latitude, longitude').eq('is_active', true).order('name').then(({ data }) => setVendors((data as Vendor[]) || []));
   }, []);
 
   useEffect(() => {
