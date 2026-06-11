@@ -15,6 +15,7 @@ import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 import { format } from 'date-fns';
 import { PaginationControls } from '@/components/shared/PaginationControls';
 import { usePagination } from '@/hooks/usePagination';
+import { AdminDeleteUserButton } from '@/components/admin/AdminDeleteUserButton';
  
  interface Customer {
    id: string;
@@ -362,18 +363,28 @@ export default function AdminCustomers() {
                            {format(new Date(customer.created_at), 'PP')}
                         </td>
                         <td className="py-3 px-4">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            title="Load Wallet"
-                            onClick={() => {
-                              setSelectedCustomer(customer);
-                              setLoadDialogOpen(true);
-                            }}
-                          >
-                            <Plus className="w-4 h-4 text-primary mr-1" />
-                            Load
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              title="Load Wallet"
+                              onClick={() => {
+                                setSelectedCustomer(customer);
+                                setLoadDialogOpen(true);
+                              }}
+                            >
+                              <Plus className="w-4 h-4 text-primary mr-1" />
+                              Load
+                            </Button>
+                            <AdminDeleteUserButton
+                              userId={customer.user_id}
+                              scope="all"
+                              entityName={customer.full_name || customer.phone || 'customer'}
+                              buttonLabel="Delete"
+                              variant="ghost"
+                              onDeleted={fetchCustomers}
+                            />
+                          </div>
                         </td>
                       </tr>
                     ))}

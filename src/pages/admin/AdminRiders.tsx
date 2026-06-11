@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 import { AdminChangeEmailDialog } from '@/components/admin/AdminChangeEmailDialog';
 import { AdminEntityWalletDialog } from '@/components/admin/AdminEntityWalletDialog';
+import { AdminDeleteUserButton } from '@/components/admin/AdminDeleteUserButton';
 
 export default function AdminRiders() {
   const navigate = useNavigate();
@@ -376,6 +377,13 @@ export default function AdminRiders() {
                               NIN Verified
                             </Badge>
                           )}
+                          <AdminDeleteUserButton
+                            userId={rider.user_id}
+                            scope="rider"
+                            entityName={rider.profile?.full_name || 'rider'}
+                            buttonLabel="Remove Rider"
+                            onDeleted={fetchRiders}
+                          />
                         </div>
                       </div>
                     ))}

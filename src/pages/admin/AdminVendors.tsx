@@ -15,6 +15,7 @@ import { AdminOutletList } from '@/components/admin/AdminOutletList';
 import { AdminChangeEmailDialog } from '@/components/admin/AdminChangeEmailDialog';
 import { AdminEntityWalletDialog } from '@/components/admin/AdminEntityWalletDialog';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
+import { AdminDeleteUserButton } from '@/components/admin/AdminDeleteUserButton';
 
 export default function AdminVendors() {
   const navigate = useNavigate();
@@ -286,6 +287,13 @@ export default function AdminVendors() {
                         >
                           {vendor.is_active ? 'Deactivate' : 'Activate'}
                         </Button>
+                        <AdminDeleteUserButton
+                          userId={vendor.user_id}
+                          scope="vendor"
+                          entityName={vendor.name}
+                          buttonLabel="Remove Vendor"
+                          onDeleted={fetchVendors}
+                        />
                       </div>
                     </div>
                   ))}
