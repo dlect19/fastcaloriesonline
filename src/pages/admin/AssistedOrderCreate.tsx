@@ -50,9 +50,20 @@ export default function AssistedOrderCreate() {
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
 
-  // Pricing extras
+  // Pricing extras (auto-calculated; admin can override)
   const [deliveryFee, setDeliveryFee] = useState<number>(0);
   const [serviceFee, setServiceFee] = useState<number>(0);
+  const [deliveryFeeOverridden, setDeliveryFeeOverridden] = useState(false);
+  const [serviceFeeOverridden, setServiceFeeOverridden] = useState(false);
+
+  const selectedVendor = vendors.find((v) => v.id === vendorId);
+  const autoDelivery = useDeliveryFee({
+    vendorLat: selectedVendor?.latitude ?? null,
+    vendorLon: selectedVendor?.longitude ?? null,
+    customerLat: deliveryType === 'delivery' ? lat ?? null : null,
+    customerLon: deliveryType === 'delivery' ? lng ?? null : null,
+  });
+  const { calculateServiceFee } = useServiceFee();
 
   // Payment
   const [paymentMethod, setPaymentMethod] = useState<'paystack_link' | 'bank_transfer' | 'cash'>('paystack_link');
