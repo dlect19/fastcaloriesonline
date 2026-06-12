@@ -256,6 +256,15 @@ export default function AssistedOrderCreate() {
                 <Label>Phone (11 digits)</Label>
                 <Input value={customerPhone} onChange={(e) => setCustomerPhone(sanitizePhoneInput(e.target.value))} inputMode="numeric" maxLength={11} placeholder="08012345678" />
               </div>
+              {lookingUp && <div className="text-xs text-muted-foreground">Looking up customer…</div>}
+              {existingCustomer && (
+                <div className="rounded-md border border-blue-500/30 bg-blue-500/5 p-3 text-xs space-y-1">
+                  <div className="font-medium text-blue-700 flex items-center gap-1">✓ Existing FastCalories customer</div>
+                  <div>Name: <span className="font-medium">{existingCustomer.full_name || '—'}</span></div>
+                  <div>Wallet balance: <span className="font-medium">₦{existingCustomer.wallet_balance.toLocaleString()}</span></div>
+                  <div className="text-muted-foreground pt-1">This order will be linked to their account so it appears in their app and they can track it. If they have wallet funds, they can pay from the app — just share the tracking link after creating.</div>
+                </div>
+              )}
               <div>
                 <Label>Full Name</Label>
                 <Input value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
