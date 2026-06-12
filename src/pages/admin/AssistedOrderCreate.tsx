@@ -53,7 +53,7 @@ export default function AssistedOrderCreate() {
       if (!profile?.user_id) { setExistingCustomer(null); setLookingUp(false); return; }
       const { data: wallet } = await supabase
         .from('wallets')
-        .select('available_balance')
+        .select('balance')
         .eq('user_id', profile.user_id)
         .eq('wallet_type', 'customer')
         .maybeSingle();
