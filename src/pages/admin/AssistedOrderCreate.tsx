@@ -62,7 +62,7 @@ export default function AssistedOrderCreate() {
         user_id: profile.user_id,
         full_name: profile.full_name,
         email: (profile as any).email || null,
-        wallet_balance: Number(wallet?.available_balance || 0),
+        wallet_balance: Number(wallet?.balance || 0),
       });
       // Auto-fill name/email if empty
       setCustomerName((cur) => cur || profile.full_name || '');
