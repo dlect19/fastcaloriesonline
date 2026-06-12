@@ -30,6 +30,47 @@ export default function AssistedOrderCreate() {
   const [receiverDifferent, setReceiverDifferent] = useState(false);
   const [receiverName, setReceiverName] = useState('');
   const [receiverPhone, setReceiverPhone] = useState('');
+  const [existingCustomer, setExistingCustomer] = useState<null | {
+    user_id: string | null;
+    full_name: string | null;
+    email: string | null;
+    wallet_balance: number;
+  }>(null);
+  const [lookingUp, setLookingUp] = useState(false);
+
+  // Lookup existing app user by phone (debounced) when 11 digits typed
+  useEffect(() => {
+    if (!isValidNgPhone(customerPhone)) { setExistingCustomer(null); return; }
+    let cancelled = false;
+    setLookingUp(true);
+    (async () => {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('user_id, full_name, email, phone')
+        .eq('phone', customerPhone)
+        .maybeSingle();
+      if (cancelled) return;
+      if (!profile?.user_id) { setExistingCustomer(null); setLookingUp(false); return; }
+      const { data: wallet } = await supabase
+        .from('wallets')
+        .select('available_balance')
+        .eq('user_id', profile.user_id)
+        .eq('wallet_type', 'customer')
+        .maybeSingle();
+      if (cancelled) return;
+      setExistingCustomer({
+        user_id: profile.user_id,
+        full_name: profile.full_name,
+        email: (profile as any).email || null,
+        wallet_balance: Number(wallet?.available_balance || 0),
+      });
+      // Auto-fill name/email if empty
+      setCustomerName((cur) => cur || profile.full_name || '');
+      setCustomerEmail((cur) => cur || (profile as any).email || '');
+      setLookingUp(false);
+    })();
+    return () => { cancelled = true; };
+  }, [customerPhone]);
 
   // Channel + notes
   const [channel, setChannel] = useState<string>('phone');
