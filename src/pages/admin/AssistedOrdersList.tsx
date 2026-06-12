@@ -89,6 +89,32 @@ export default function AssistedOrdersList() {
     return <Badge variant="outline" className={map[s] || ''}>{s}</Badge>;
   };
 
+  const buildPaymentMessage = (r: Row): string => {
+    const name = r.orders?.profiles?.full_name || r.orders?.receiver_name || 'there';
+    const trackingUrl = `${window.location.origin}/track/${r.orders?.order_number}`;
+    const total = `₦${Number(r.orders?.total || 0).toLocaleString()}`;
+    if (r.payment_method === 'paystack_link' && r.payment_link) {
+      return `Hi ${name}, thanks for ordering with FastCalories! 🍱\n\nOrder: ${r.orders?.order_number}\nTotal: ${total}\n\nPlease complete payment here:\n${r.payment_link}\n\nTrack your order anytime:\n${trackingUrl}\n\nReply to this message if you need anything. – FastCalories`;
+    }
+    if (r.payment_method === 'bank_transfer') {
+      return `Hi ${name}, thanks for ordering with FastCalories! 🍱\n\nOrder: ${r.orders?.order_number}\nTotal: ${total}\n\n${r.bank_transfer_instructions || ''}\n\nOnce paid, send proof so we can release your order. Track here:\n${trackingUrl}\n\n– FastCalories`;
+    }
+    return `Hi ${name}, your FastCalories order ${r.orders?.order_number} (${total}) has been placed. Track here:\n${trackingUrl}`;
+  };
+
+  const copyText = async (txt: string, label = 'Copied') => {
+    try { await navigator.clipboard.writeText(txt); toast({ title: label }); }
+    catch { toast({ title: 'Copy failed', variant: 'destructive' }); }
+  };
+
+  const openWhatsApp = (r: Row) => {
+    const phone = (r.orders?.profiles?.phone || r.orders?.receiver_phone || '').replace(/\D/g, '');
+    // Convert Nigerian 0xxxxxxxxxx → 234xxxxxxxxxx for wa.me
+    const intl = phone.startsWith('0') && phone.length === 11 ? '234' + phone.slice(1) : phone;
+    const msg = encodeURIComponent(buildPaymentMessage(r));
+    window.open(`https://wa.me/${intl}?text=${msg}`, '_blank');
+  };
+
   return (
     <AdminLayout>
       <div className="space-y-6">
