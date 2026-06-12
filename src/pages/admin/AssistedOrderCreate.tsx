@@ -46,7 +46,7 @@ export default function AssistedOrderCreate() {
     (async () => {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('user_id, full_name, email, phone')
+        .select('user_id, full_name, phone')
         .eq('phone', customerPhone)
         .maybeSingle();
       if (cancelled) return;
