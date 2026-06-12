@@ -36,6 +36,7 @@ type Row = {
 
 export default function AssistedOrdersList() {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -46,7 +47,7 @@ export default function AssistedOrdersList() {
     let q = supabase
       .from('assisted_orders')
       .select(`
-        id, order_id, customer_channel, payment_status, payment_method, created_at,
+        id, order_id, customer_channel, payment_status, payment_method, payment_link, bank_transfer_instructions, created_at,
         orders:order_id (
           order_number, status, total, receiver_name, receiver_phone, delivery_address_text, vendor_id, user_id,
           vendors:vendor_id ( name ),
