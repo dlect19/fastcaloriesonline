@@ -214,6 +214,29 @@ async function handleChargeSuccess(supabase: SupabaseClient, data: any, environm
     })
     .eq("id", orderId);
 
+  // If this is an assisted order, auto-flip its meta to "received" so admin
+  // staff sees Confirmed and the order is released to the vendor.
+  try {
+    const { data: ao } = await supabase
+      .from("assisted_orders")
+      .select("id, payment_status")
+      .eq("order_id", orderId)
+      .maybeSingle();
+    if (ao && ao.payment_status !== "received") {
+      await supabase
+        .from("assisted_orders")
+        .update({ payment_status: "received", payment_verified_at: new Date().toISOString() })
+        .eq("order_id", orderId);
+      await supabase.from("assisted_order_audit").insert({
+        order_id: orderId,
+        action: "payment_auto_confirmed_paystack",
+        details: { reference },
+      });
+    }
+  } catch (e) {
+    console.error("Failed to update assisted_orders meta:", e);
+  }
+
   console.log(`Charge processed for order ${orderId} - wallet splits handled by DB trigger`);
 }
 
