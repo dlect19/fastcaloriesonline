@@ -174,18 +174,45 @@ export default function AssistedOrdersList() {
                   </thead>
                   <tbody>
                     {filtered.map((r) => (
-                      <tr key={r.id} className="border-t hover:bg-muted/20">
-                        <td className="p-3 font-mono">{r.orders?.order_number}</td>
+                      <tr key={r.id} className="border-t hover:bg-muted/20 align-top">
+                        <td className="p-3 font-mono whitespace-nowrap">{r.orders?.order_number}</td>
                         <td className="p-3">
                           <div className="font-medium">{r.orders?.profiles?.full_name || r.orders?.receiver_name || '—'}</div>
                           <div className="text-xs text-muted-foreground">{r.orders?.profiles?.phone || r.orders?.receiver_phone || ''}</div>
+                          {r.orders?.user_id && <Badge variant="outline" className="mt-1 bg-blue-500/10 text-blue-700 border-blue-500/30 text-[10px]">App user</Badge>}
                         </td>
                         <td className="p-3">{r.orders?.vendors?.name || '—'}</td>
                         <td className="p-3 capitalize">{r.customer_channel}</td>
-                        <td className="p-3">{statusBadge(r.payment_status)}</td>
+                        <td className="p-3">
+                          {statusBadge(r.payment_status)}
+                          <div className="text-[10px] text-muted-foreground mt-1 capitalize">{r.payment_method.replace('_',' ')}</div>
+                          {r.payment_method === 'paystack_link' && r.payment_link && (
+                            <div className="flex items-center gap-1 mt-1">
+                              <Button size="sm" variant="ghost" className="h-6 px-1" onClick={() => copyText(r.payment_link!, 'Payment link copied')}>
+                                <Copy className="w-3 h-3 mr-1" />Link
+                              </Button>
+                              <Button size="sm" variant="ghost" className="h-6 px-1" onClick={() => copyText(buildPaymentMessage(r), 'Message copied')}>
+                                <Copy className="w-3 h-3 mr-1" />Msg
+                              </Button>
+                              <Button size="sm" variant="ghost" className="h-6 px-1 text-green-700" onClick={() => openWhatsApp(r)}>
+                                <MessageCircle className="w-3 h-3 mr-1" />WA
+                              </Button>
+                            </div>
+                          )}
+                          {r.payment_method === 'bank_transfer' && (
+                            <div className="flex items-center gap-1 mt-1">
+                              <Button size="sm" variant="ghost" className="h-6 px-1" onClick={() => copyText(buildPaymentMessage(r), 'Message copied')}>
+                                <Copy className="w-3 h-3 mr-1" />Msg
+                              </Button>
+                              <Button size="sm" variant="ghost" className="h-6 px-1 text-green-700" onClick={() => openWhatsApp(r)}>
+                                <MessageCircle className="w-3 h-3 mr-1" />WA
+                              </Button>
+                            </div>
+                          )}
+                        </td>
                         <td className="p-3 capitalize">{r.orders?.status || '—'}</td>
-                        <td className="p-3 text-right">₦{Number(r.orders?.total || 0).toLocaleString()}</td>
-                        <td className="p-3 text-xs">{format(new Date(r.created_at), 'PP p')}</td>
+                        <td className="p-3 text-right whitespace-nowrap">₦{Number(r.orders?.total || 0).toLocaleString()}</td>
+                        <td className="p-3 text-xs whitespace-nowrap">{format(new Date(r.created_at), 'PP p')}</td>
                         <td className="p-3"><Link className="text-primary hover:underline" to={`/admin/assisted-orders/${r.order_id}`}>View</Link></td>
                       </tr>
                     ))}
