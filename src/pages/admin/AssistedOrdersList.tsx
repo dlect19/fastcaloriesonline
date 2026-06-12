@@ -7,8 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Plus, Search, Headphones } from 'lucide-react';
+import { Loader2, Plus, Search, Headphones, Copy, MessageCircle } from 'lucide-react';
 import { format } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
 
 type Row = {
   id: string;
@@ -16,6 +17,8 @@ type Row = {
   customer_channel: string;
   payment_status: string;
   payment_method: string;
+  payment_link: string | null;
+  bank_transfer_instructions: string | null;
   created_at: string;
   orders: {
     order_number: string;
@@ -33,6 +36,7 @@ type Row = {
 
 export default function AssistedOrdersList() {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -43,7 +47,7 @@ export default function AssistedOrdersList() {
     let q = supabase
       .from('assisted_orders')
       .select(`
-        id, order_id, customer_channel, payment_status, payment_method, created_at,
+        id, order_id, customer_channel, payment_status, payment_method, payment_link, bank_transfer_instructions, created_at,
         orders:order_id (
           order_number, status, total, receiver_name, receiver_phone, delivery_address_text, vendor_id, user_id,
           vendors:vendor_id ( name ),
@@ -83,6 +87,32 @@ export default function AssistedOrdersList() {
       cancelled: 'bg-gray-500/10 text-gray-700 border-gray-500/30',
     };
     return <Badge variant="outline" className={map[s] || ''}>{s}</Badge>;
+  };
+
+  const buildPaymentMessage = (r: Row): string => {
+    const name = r.orders?.profiles?.full_name || r.orders?.receiver_name || 'there';
+    const trackingUrl = `${window.location.origin}/track/${r.orders?.order_number}`;
+    const total = `₦${Number(r.orders?.total || 0).toLocaleString()}`;
+    if (r.payment_method === 'paystack_link' && r.payment_link) {
+      return `Hi ${name}, thanks for ordering with FastCalories! 🍱\n\nOrder: ${r.orders?.order_number}\nTotal: ${total}\n\nPlease complete payment here:\n${r.payment_link}\n\nTrack your order anytime:\n${trackingUrl}\n\nReply to this message if you need anything. – FastCalories`;
+    }
+    if (r.payment_method === 'bank_transfer') {
+      return `Hi ${name}, thanks for ordering with FastCalories! 🍱\n\nOrder: ${r.orders?.order_number}\nTotal: ${total}\n\n${r.bank_transfer_instructions || ''}\n\nOnce paid, send proof so we can release your order. Track here:\n${trackingUrl}\n\n– FastCalories`;
+    }
+    return `Hi ${name}, your FastCalories order ${r.orders?.order_number} (${total}) has been placed. Track here:\n${trackingUrl}`;
+  };
+
+  const copyText = async (txt: string, label = 'Copied') => {
+    try { await navigator.clipboard.writeText(txt); toast({ title: label }); }
+    catch { toast({ title: 'Copy failed', variant: 'destructive' }); }
+  };
+
+  const openWhatsApp = (r: Row) => {
+    const phone = (r.orders?.profiles?.phone || r.orders?.receiver_phone || '').replace(/\D/g, '');
+    // Convert Nigerian 0xxxxxxxxxx → 234xxxxxxxxxx for wa.me
+    const intl = phone.startsWith('0') && phone.length === 11 ? '234' + phone.slice(1) : phone;
+    const msg = encodeURIComponent(buildPaymentMessage(r));
+    window.open(`https://wa.me/${intl}?text=${msg}`, '_blank');
   };
 
   return (
@@ -144,18 +174,45 @@ export default function AssistedOrdersList() {
                   </thead>
                   <tbody>
                     {filtered.map((r) => (
-                      <tr key={r.id} className="border-t hover:bg-muted/20">
-                        <td className="p-3 font-mono">{r.orders?.order_number}</td>
+                      <tr key={r.id} className="border-t hover:bg-muted/20 align-top">
+                        <td className="p-3 font-mono whitespace-nowrap">{r.orders?.order_number}</td>
                         <td className="p-3">
                           <div className="font-medium">{r.orders?.profiles?.full_name || r.orders?.receiver_name || '—'}</div>
                           <div className="text-xs text-muted-foreground">{r.orders?.profiles?.phone || r.orders?.receiver_phone || ''}</div>
+                          {r.orders?.user_id && <Badge variant="outline" className="mt-1 bg-blue-500/10 text-blue-700 border-blue-500/30 text-[10px]">App user</Badge>}
                         </td>
                         <td className="p-3">{r.orders?.vendors?.name || '—'}</td>
                         <td className="p-3 capitalize">{r.customer_channel}</td>
-                        <td className="p-3">{statusBadge(r.payment_status)}</td>
+                        <td className="p-3">
+                          {statusBadge(r.payment_status)}
+                          <div className="text-[10px] text-muted-foreground mt-1 capitalize">{r.payment_method.replace('_',' ')}</div>
+                          {r.payment_method === 'paystack_link' && r.payment_link && (
+                            <div className="flex items-center gap-1 mt-1">
+                              <Button size="sm" variant="ghost" className="h-6 px-1" onClick={() => copyText(r.payment_link!, 'Payment link copied')}>
+                                <Copy className="w-3 h-3 mr-1" />Link
+                              </Button>
+                              <Button size="sm" variant="ghost" className="h-6 px-1" onClick={() => copyText(buildPaymentMessage(r), 'Message copied')}>
+                                <Copy className="w-3 h-3 mr-1" />Msg
+                              </Button>
+                              <Button size="sm" variant="ghost" className="h-6 px-1 text-green-700" onClick={() => openWhatsApp(r)}>
+                                <MessageCircle className="w-3 h-3 mr-1" />WA
+                              </Button>
+                            </div>
+                          )}
+                          {r.payment_method === 'bank_transfer' && (
+                            <div className="flex items-center gap-1 mt-1">
+                              <Button size="sm" variant="ghost" className="h-6 px-1" onClick={() => copyText(buildPaymentMessage(r), 'Message copied')}>
+                                <Copy className="w-3 h-3 mr-1" />Msg
+                              </Button>
+                              <Button size="sm" variant="ghost" className="h-6 px-1 text-green-700" onClick={() => openWhatsApp(r)}>
+                                <MessageCircle className="w-3 h-3 mr-1" />WA
+                              </Button>
+                            </div>
+                          )}
+                        </td>
                         <td className="p-3 capitalize">{r.orders?.status || '—'}</td>
-                        <td className="p-3 text-right">₦{Number(r.orders?.total || 0).toLocaleString()}</td>
-                        <td className="p-3 text-xs">{format(new Date(r.created_at), 'PP p')}</td>
+                        <td className="p-3 text-right whitespace-nowrap">₦{Number(r.orders?.total || 0).toLocaleString()}</td>
+                        <td className="p-3 text-xs whitespace-nowrap">{format(new Date(r.created_at), 'PP p')}</td>
                         <td className="p-3"><Link className="text-primary hover:underline" to={`/admin/assisted-orders/${r.order_id}`}>View</Link></td>
                       </tr>
                     ))}

@@ -5,7 +5,8 @@ import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ArrowLeft, Copy, CheckCircle2, RefreshCw } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Loader2, ArrowLeft, Copy, CheckCircle2, RefreshCw, MessageCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 
@@ -159,10 +160,10 @@ export default function AssistedOrderDetail() {
           <CardContent className="space-y-3 text-sm">
             <div><span className="text-muted-foreground">Method:</span> <span className="capitalize">{data.payment_method.replace('_',' ')}</span></div>
             {data.payment_link && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-muted-foreground">Payment link:</span>
                 <a className="text-primary hover:underline truncate max-w-md" href={data.payment_link} target="_blank" rel="noreferrer">{data.payment_link}</a>
-                <Button size="icon" variant="ghost" onClick={() => copy(data.payment_link)}><Copy className="w-4 h-4" /></Button>
+                <Button size="sm" variant="outline" onClick={() => copy(data.payment_link)}><Copy className="w-3 h-3 mr-1" /> Copy link</Button>
               </div>
             )}
             {data.bank_transfer_instructions && (
@@ -171,16 +172,49 @@ export default function AssistedOrderDetail() {
                 <pre className="whitespace-pre-wrap text-xs bg-muted/30 p-3 rounded">{data.bank_transfer_instructions}</pre>
               </div>
             )}
-            <div className="flex items-center gap-2 pt-2 border-t">
+            <div className="flex items-center gap-2 pt-2 border-t flex-wrap">
               <span className="text-muted-foreground">Tracking link:</span>
               <a className="text-primary hover:underline" href={trackingUrl} target="_blank" rel="noreferrer">{trackingUrl}</a>
-              <Button size="icon" variant="ghost" onClick={() => copy(trackingUrl)}><Copy className="w-4 h-4" /></Button>
+              <Button size="sm" variant="outline" onClick={() => copy(trackingUrl)}><Copy className="w-3 h-3 mr-1" /> Copy</Button>
             </div>
+
+            {/* Prebuilt customer message */}
+            {(() => {
+              const name = o.profiles?.full_name || o.receiver_name || 'there';
+              const total = `₦${Number(o.total).toLocaleString()}`;
+              const msg = data.payment_method === 'paystack_link' && data.payment_link
+                ? `Hi ${name}, thanks for ordering with FastCalories! 🍱\n\nOrder: ${o.order_number}\nTotal: ${total}\n\nPlease complete payment here:\n${data.payment_link}\n\nTrack your order anytime:\n${trackingUrl}\n\nReply if you need help. – FastCalories`
+                : data.payment_method === 'bank_transfer'
+                ? `Hi ${name}, thanks for ordering with FastCalories! 🍱\n\nOrder: ${o.order_number}\nTotal: ${total}\n\n${data.bank_transfer_instructions || ''}\n\nOnce paid, send proof so we can release your order. Track here:\n${trackingUrl}\n\n– FastCalories`
+                : `Hi ${name}, your FastCalories order ${o.order_number} (${total}) has been placed. Track here:\n${trackingUrl}`;
+              const phone = (o.profiles?.phone || o.receiver_phone || '').replace(/\D/g, '');
+              const intl = phone.startsWith('0') && phone.length === 11 ? '234' + phone.slice(1) : phone;
+              return (
+                <div className="pt-2 border-t space-y-2">
+                  <div className="text-muted-foreground">Customer message (ready to send):</div>
+                  <Textarea value={msg} readOnly rows={6} className="text-xs font-mono" />
+                  <div className="flex gap-2 flex-wrap">
+                    <Button size="sm" variant="outline" onClick={() => copy(msg)}><Copy className="w-4 h-4 mr-1" /> Copy message</Button>
+                    {intl && (
+                      <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => window.open(`https://wa.me/${intl}?text=${encodeURIComponent(msg)}`, '_blank')}>
+                        <MessageCircle className="w-4 h-4 mr-1" /> Send via WhatsApp
+                      </Button>
+                    )}
+                    {phone && (
+                      <Button size="sm" variant="outline" onClick={() => window.open(`sms:${phone}?body=${encodeURIComponent(msg)}`, '_self')}>
+                        SMS
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
             <div className="flex flex-wrap gap-2 pt-3 border-t">
               {data.payment_status === 'awaiting' && (
                 <Button onClick={() => callFn('assisted-order-verify-payment', { order_id: orderId, action: 'mark_paid' })} disabled={busy !== null}>
                   {busy === 'assisted-order-verify-payment' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
-                  Mark Payment Received
+                  Mark Payment Received (confirm bank transfer / cash)
                 </Button>
               )}
               <Button variant="outline" onClick={() => callFn('assisted-order-notify', { order_id: orderId, action: 'resend_payment_link' })} disabled={busy !== null || data.payment_status !== 'awaiting'}>

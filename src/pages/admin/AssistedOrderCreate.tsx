@@ -30,6 +30,47 @@ export default function AssistedOrderCreate() {
   const [receiverDifferent, setReceiverDifferent] = useState(false);
   const [receiverName, setReceiverName] = useState('');
   const [receiverPhone, setReceiverPhone] = useState('');
+  const [existingCustomer, setExistingCustomer] = useState<null | {
+    user_id: string | null;
+    full_name: string | null;
+    email: string | null;
+    wallet_balance: number;
+  }>(null);
+  const [lookingUp, setLookingUp] = useState(false);
+
+  // Lookup existing app user by phone (debounced) when 11 digits typed
+  useEffect(() => {
+    if (!isValidNgPhone(customerPhone)) { setExistingCustomer(null); return; }
+    let cancelled = false;
+    setLookingUp(true);
+    (async () => {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('user_id, full_name, phone')
+        .eq('phone', customerPhone)
+        .maybeSingle();
+      if (cancelled) return;
+      if (!profile?.user_id) { setExistingCustomer(null); setLookingUp(false); return; }
+      const { data: wallet } = await supabase
+        .from('wallets')
+        .select('balance')
+        .eq('user_id', profile.user_id)
+        .eq('wallet_type', 'customer')
+        .maybeSingle();
+      if (cancelled) return;
+      setExistingCustomer({
+        user_id: profile.user_id,
+        full_name: profile.full_name,
+        email: (profile as any).email || null,
+        wallet_balance: Number(wallet?.balance || 0),
+      });
+      // Auto-fill name/email if empty
+      setCustomerName((cur) => cur || profile.full_name || '');
+      setCustomerEmail((cur) => cur || (profile as any).email || '');
+      setLookingUp(false);
+    })();
+    return () => { cancelled = true; };
+  }, [customerPhone]);
 
   // Channel + notes
   const [channel, setChannel] = useState<string>('phone');
@@ -215,6 +256,15 @@ export default function AssistedOrderCreate() {
                 <Label>Phone (11 digits)</Label>
                 <Input value={customerPhone} onChange={(e) => setCustomerPhone(sanitizePhoneInput(e.target.value))} inputMode="numeric" maxLength={11} placeholder="08012345678" />
               </div>
+              {lookingUp && <div className="text-xs text-muted-foreground">Looking up customer…</div>}
+              {existingCustomer && (
+                <div className="rounded-md border border-blue-500/30 bg-blue-500/5 p-3 text-xs space-y-1">
+                  <div className="font-medium text-blue-700 flex items-center gap-1">✓ Existing FastCalories customer</div>
+                  <div>Name: <span className="font-medium">{existingCustomer.full_name || '—'}</span></div>
+                  <div>Wallet balance: <span className="font-medium">₦{existingCustomer.wallet_balance.toLocaleString()}</span></div>
+                  <div className="text-muted-foreground pt-1">This order will be linked to their account so it appears in their app and they can track it. If they have wallet funds, they can pay from the app — just share the tracking link after creating.</div>
+                </div>
+              )}
               <div>
                 <Label>Full Name</Label>
                 <Input value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
