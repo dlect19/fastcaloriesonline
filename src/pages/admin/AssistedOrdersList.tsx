@@ -17,6 +17,8 @@ type Row = {
   customer_channel: string;
   payment_status: string;
   payment_method: string;
+  payment_link: string | null;
+  bank_transfer_instructions: string | null;
   created_at: string;
   orders: {
     order_number: string;
