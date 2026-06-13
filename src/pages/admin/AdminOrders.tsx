@@ -249,7 +249,7 @@ export default function AdminOrders() {
     return <Badge className={colors[status] || 'bg-secondary'}>{status.replace(/_/g, ' ')}</Badge>;
   };
 
-  const onlineOrders = orders.filter(o => o.channel !== 'pos');
+  const onlineOrders = orders.filter(o => o.channel !== 'pos' && !(o.channel === 'assisted' && o.payment_status !== 'paid'));
   const posOrders = orders.filter(o => o.channel === 'pos');
   const channelOrders = channelTab === 'pos' ? posOrders : onlineOrders;
   const ongoingCount = channelOrders.filter(o => ONGOING_STATUSES.includes(o.status)).length;
