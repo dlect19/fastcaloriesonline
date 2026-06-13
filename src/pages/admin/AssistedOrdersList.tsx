@@ -30,8 +30,8 @@ type Row = {
     vendor_id: string;
     user_id: string | null;
     vendors: { name: string } | null;
-    profiles: { full_name: string | null; phone: string | null } | null;
   } | null;
+  customer_profile?: { full_name: string | null; phone: string | null } | null;
 };
 
 export default function AssistedOrdersList() {
@@ -50,8 +50,7 @@ export default function AssistedOrdersList() {
         id, order_id, customer_channel, payment_status, payment_method, payment_link, bank_transfer_instructions, created_at,
         orders:order_id (
           order_number, status, total, receiver_name, receiver_phone, delivery_address_text, vendor_id, user_id,
-          vendors:vendor_id ( name ),
-          profiles!orders_user_id_fkey ( full_name, phone )
+          vendors:vendor_id ( name )
         )
       `)
       .order('created_at', { ascending: false })
@@ -61,7 +60,17 @@ export default function AssistedOrdersList() {
 
     const { data, error } = await q;
     if (error) console.error(error);
-    setRows((data || []) as any);
+    const baseRows = (data || []) as Row[];
+    const userIds = [...new Set(baseRows.map((r) => r.orders?.user_id).filter(Boolean))] as string[];
+    let profileMap = new Map<string, { full_name: string | null; phone: string | null }>();
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('user_id, full_name, phone')
+        .in('user_id', userIds);
+      profileMap = new Map((profiles || []).map((p: any) => [p.user_id, { full_name: p.full_name, phone: p.phone }]));
+    }
+    setRows(baseRows.map((r) => ({ ...r, customer_profile: r.orders?.user_id ? profileMap.get(r.orders.user_id) || null : null })));
     setLoading(false);
   };
 
@@ -74,8 +83,8 @@ export default function AssistedOrdersList() {
       r.orders?.order_number?.toLowerCase().includes(s) ||
       r.orders?.receiver_name?.toLowerCase().includes(s) ||
       r.orders?.receiver_phone?.includes(s) ||
-      r.orders?.profiles?.full_name?.toLowerCase().includes(s) ||
-      r.orders?.profiles?.phone?.includes(s)
+      r.customer_profile?.full_name?.toLowerCase().includes(s) ||
+      r.customer_profile?.phone?.includes(s)
     );
   });
 
@@ -90,7 +99,7 @@ export default function AssistedOrdersList() {
   };
 
   const buildPaymentMessage = (r: Row): string => {
-    const name = r.orders?.profiles?.full_name || r.orders?.receiver_name || 'there';
+    const name = r.customer_profile?.full_name || r.orders?.receiver_name || 'there';
     const trackingUrl = `${window.location.origin}/track/${r.orders?.order_number}`;
     const total = `₦${Number(r.orders?.total || 0).toLocaleString()}`;
     if (r.payment_method === 'paystack_link' && r.payment_link) {
@@ -108,7 +117,7 @@ export default function AssistedOrdersList() {
   };
 
   const openWhatsApp = (r: Row) => {
-    const phone = (r.orders?.profiles?.phone || r.orders?.receiver_phone || '').replace(/\D/g, '');
+    const phone = (r.customer_profile?.phone || r.orders?.receiver_phone || '').replace(/\D/g, '');
     // Convert Nigerian 0xxxxxxxxxx → 234xxxxxxxxxx for wa.me
     const intl = phone.startsWith('0') && phone.length === 11 ? '234' + phone.slice(1) : phone;
     const msg = encodeURIComponent(buildPaymentMessage(r));
@@ -177,8 +186,8 @@ export default function AssistedOrdersList() {
                       <tr key={r.id} className="border-t hover:bg-muted/20 align-top">
                         <td className="p-3 font-mono whitespace-nowrap">{r.orders?.order_number}</td>
                         <td className="p-3">
-                          <div className="font-medium">{r.orders?.profiles?.full_name || r.orders?.receiver_name || '—'}</div>
-                          <div className="text-xs text-muted-foreground">{r.orders?.profiles?.phone || r.orders?.receiver_phone || ''}</div>
+                          <div className="font-medium">{r.customer_profile?.full_name || r.orders?.receiver_name || '—'}</div>
+                          <div className="text-xs text-muted-foreground">{r.customer_profile?.phone || r.orders?.receiver_phone || ''}</div>
                           {r.orders?.user_id && <Badge variant="outline" className="mt-1 bg-blue-500/10 text-blue-700 border-blue-500/30 text-[10px]">App user</Badge>}
                         </td>
                         <td className="p-3">{r.orders?.vendors?.name || '—'}</td>
