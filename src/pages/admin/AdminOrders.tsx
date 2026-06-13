@@ -61,7 +61,7 @@ export default function AdminOrders() {
 
     // Channel tab (POS vs Online)
     if (channelTab === 'pos') result = result.filter(o => o.channel === 'pos');
-    else result = result.filter(o => o.channel !== 'pos');
+    else result = result.filter(o => o.channel !== 'pos' && !(o.channel === 'assisted' && o.payment_status !== 'paid'));
 
     // Tab filter
     if (orderTab === 'ongoing') result = result.filter(o => ONGOING_STATUSES.includes(o.status));
@@ -136,8 +136,8 @@ export default function AdminOrders() {
 
         const enriched = data.map(order => ({
           ...order,
-          customer_name: profileMap.get(order.user_id)?.full_name || 'N/A',
-          customer_phone: profileMap.get(order.user_id)?.phone || 'N/A',
+          customer_name: profileMap.get(order.user_id)?.full_name || order.receiver_name || 'N/A',
+          customer_phone: profileMap.get(order.user_id)?.phone || order.receiver_phone || 'N/A',
           rider_name: order.rider_id ? (riderNameMap.get(order.rider_id)?.full_name || 'Assigned') : null,
           rider_vehicle: order.rider_id ? (riderProfileMap.get(order.rider_id)?.vehicle_type || null) : null,
         }));
