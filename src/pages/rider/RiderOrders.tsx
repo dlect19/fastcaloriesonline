@@ -190,7 +190,7 @@ export default function RiderOrders() {
       // Attach customer profiles and order items to orders
       const attachExtras = (orders: any[], withItems: boolean) => orders.map(o => ({
         ...o,
-        customer_profile: o.user_id ? profilesMap[o.user_id] || null : null,
+        customer_profile: o.user_id ? profilesMap[o.user_id] || { full_name: o.receiver_name, phone: o.receiver_phone } : { full_name: o.receiver_name, phone: o.receiver_phone },
         ...(withItems ? { order_items: orderItemsMap[o.id] || [] } : {}),
       }));
 
