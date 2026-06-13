@@ -215,6 +215,11 @@ serve(async (req) => {
       } catch (e) {
         console.error('Paystack error', e);
       }
+
+      if (!paymentLink) {
+        await supabase.from('orders').delete().eq('id', order.id);
+        return json({ error: 'Paystack payment link could not be generated. Please check the active payment environment and Paystack keys, then try again.' }, 502);
+      }
     } else if (payment_method === 'bank_transfer') {
       const { data: settings } = await supabase
         .from('platform_settings').select('value').eq('key', 'bank_transfer_instructions').maybeSingle();
