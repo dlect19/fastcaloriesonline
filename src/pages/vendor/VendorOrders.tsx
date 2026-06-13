@@ -350,9 +350,11 @@ export default function VendorOrders() {
           .eq('outlet_id', selectedOutletId)
           .order('created_at', { ascending: false });
 
-        if (ordersData && ordersData.length > 0) {
+        const visibleOrders = (ordersData || []).filter((order) => !(order.channel === 'assisted' && order.payment_status !== 'paid'));
+
+        if (visibleOrders.length > 0) {
           // Fetch all order items for these orders
-          const orderIds = ordersData.map(o => o.id);
+          const orderIds = visibleOrders.map(o => o.id);
           const { data: itemsData } = await supabase
             .from('order_items')
             .select('*')
@@ -384,7 +386,7 @@ export default function VendorOrders() {
             .in('order_id', orderIds)
             .order('sort_order');
 
-          const ordersWithItems: OrderWithItems[] = ordersData.map(order => {
+            const ordersWithItems: OrderWithItems[] = visibleOrders.map(order => {
             const customerProfile = profilesData?.find(p => p.user_id === order.user_id);
             const orderItems: OrderItemWithAddons[] = (itemsData || [])
               .filter(item => item.order_id === order.id)

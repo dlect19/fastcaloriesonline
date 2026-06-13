@@ -10,6 +10,8 @@ import { Loader2, ArrowLeft, Copy, CheckCircle2, RefreshCw, MessageCircle } from
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 
+type CustomerProfile = { full_name: string | null; phone: string | null } | null;
+
 export default function AssistedOrderDetail() {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
@@ -18,6 +20,7 @@ export default function AssistedOrderDetail() {
   const [data, setData] = useState<any>(null);
   const [audit, setAudit] = useState<any[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
+  const [customerProfile, setCustomerProfile] = useState<CustomerProfile>(null);
 
   const load = async () => {
     if (!orderId) return;
@@ -29,13 +32,22 @@ export default function AssistedOrderDetail() {
         orders:order_id (
           *,
           order_items ( * ),
-          vendors:vendor_id ( name ),
-          profiles!orders_user_id_fkey ( full_name, phone )
+          vendors:vendor_id ( name )
         )
       `)
       .eq('order_id', orderId)
       .maybeSingle();
     setData(ao);
+    if (ao?.orders?.user_id) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name, phone')
+        .eq('user_id', ao.orders.user_id)
+        .maybeSingle();
+      setCustomerProfile(profile || null);
+    } else {
+      setCustomerProfile(null);
+    }
     const { data: a } = await supabase
       .from('assisted_order_audit')
       .select('*')
@@ -93,8 +105,8 @@ export default function AssistedOrderDetail() {
           <Card>
             <CardHeader><CardTitle>Customer</CardTitle></CardHeader>
             <CardContent className="space-y-1 text-sm">
-              <div><span className="text-muted-foreground">Name:</span> {o.profiles?.full_name || '—'}</div>
-              <div><span className="text-muted-foreground">Phone:</span> {o.profiles?.phone || '—'}</div>
+              <div><span className="text-muted-foreground">Customer:</span> {customerProfile?.full_name || o.receiver_name || '—'}</div>
+              <div><span className="text-muted-foreground">Phone:</span> {customerProfile?.phone || o.receiver_phone || '—'}</div>
               {o.receiver_name && <>
                 <div className="pt-2 border-t mt-2"><span className="text-muted-foreground">Receiver:</span> {o.receiver_name}</div>
                 <div><span className="text-muted-foreground">Receiver phone:</span> {o.receiver_phone}</div>
@@ -180,14 +192,14 @@ export default function AssistedOrderDetail() {
 
             {/* Prebuilt customer message */}
             {(() => {
-              const name = o.profiles?.full_name || o.receiver_name || 'there';
+              const name = customerProfile?.full_name || o.receiver_name || 'there';
               const total = `₦${Number(o.total).toLocaleString()}`;
               const msg = data.payment_method === 'paystack_link' && data.payment_link
                 ? `Hi ${name}, thanks for ordering with FastCalories! 🍱\n\nOrder: ${o.order_number}\nTotal: ${total}\n\nPlease complete payment here:\n${data.payment_link}\n\nTrack your order anytime:\n${trackingUrl}\n\nReply if you need help. – FastCalories`
                 : data.payment_method === 'bank_transfer'
                 ? `Hi ${name}, thanks for ordering with FastCalories! 🍱\n\nOrder: ${o.order_number}\nTotal: ${total}\n\n${data.bank_transfer_instructions || ''}\n\nOnce paid, send proof so we can release your order. Track here:\n${trackingUrl}\n\n– FastCalories`
                 : `Hi ${name}, your FastCalories order ${o.order_number} (${total}) has been placed. Track here:\n${trackingUrl}`;
-              const phone = (o.profiles?.phone || o.receiver_phone || '').replace(/\D/g, '');
+              const phone = (customerProfile?.phone || o.receiver_phone || '').replace(/\D/g, '');
               const intl = phone.startsWith('0') && phone.length === 11 ? '234' + phone.slice(1) : phone;
               return (
                 <div className="pt-2 border-t space-y-2">
