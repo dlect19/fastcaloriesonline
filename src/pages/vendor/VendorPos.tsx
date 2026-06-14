@@ -1033,10 +1033,18 @@ export default function VendorPos() {
                           <p className="text-sm font-medium line-clamp-1">{c.name}</p>
                           <p className="text-xs text-muted-foreground">
                             ₦{c.unitPrice.toLocaleString()} / {c.unitLabel}
+                            {c.isCombo && (
+                              <span className="ml-1 px-1 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-medium">combo</span>
+                            )}
                             {c.purchaseUnit === 'sachet' && (
                               <span className="ml-1 px-1 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-medium">sachet</span>
                             )}
                           </p>
+                          {c.isCombo && c.comboItems?.length ? (
+                            <ul className="mt-1 pl-3 border-l text-[11px] text-muted-foreground space-y-0.5">
+                              {c.comboItems.map((item, idx) => <li key={idx}>{item}</li>)}
+                            </ul>
+                          ) : null}
                         </div>
                         <button onClick={() => removeLine(lineKey)} className="text-muted-foreground hover:text-destructive">
                           <Trash2 className="w-4 h-4" />
