@@ -71,6 +71,17 @@ type Product = {
   sachets_per_pack?: number | null;
 };
 
+type Combo = {
+  id: string;
+  name: string;
+  description: string | null;
+  image_url: string | null;
+  combo_price: number;
+  outlet_id: string | null;
+  is_available: boolean | null;
+  combo_items?: Array<{ quantity: number | null; products?: { name: string; calories: number | null } | null }>;
+};
+
 type CartLine = {
   productId: string;
   name: string;
@@ -81,6 +92,8 @@ type CartLine = {
   purchaseUnit: 'pack' | 'sachet';
   unitMultiplier: number; // stock units consumed per qty
   unitLabel: string; // shown on receipt / cart row
+  isCombo?: boolean;
+  comboItems?: string[];
 };
 
 type HeldSale = {
@@ -139,6 +152,7 @@ export default function VendorPos() {
 
   const [vendor, setVendor] = useState<{ id: string; name: string; address: string | null; phone: string | null; category: string; logo_url: string | null } | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [combos, setCombos] = useState<Combo[]>([]);
   const [search, setSearch] = useState('');
   const [cart, setCart] = useState<CartLine[]>([]);
   const [loading, setLoading] = useState(true);
