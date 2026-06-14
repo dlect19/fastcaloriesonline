@@ -40,7 +40,7 @@ serve(async (req) => {
 
       await supabase.from('orders').update({
         payment_status: 'paid',
-        status: 'pending', // vendor will see and accept
+        status: 'confirmed',
       }).eq('id', order_id);
 
       await supabase.from('assisted_order_audit').insert({

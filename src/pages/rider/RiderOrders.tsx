@@ -282,13 +282,20 @@ export default function RiderOrders() {
       }
 
       // Code is correct, mark as delivered
-      await supabase
+      const { data: deliveredOrder, error: deliverError } = await supabase
         .from('orders')
         .update({ 
           status: 'delivered', 
           delivered_at: new Date().toISOString() 
         })
-        .eq('id', pendingDeliveryOrder.id);
+        .eq('id', pendingDeliveryOrder.id)
+        .select('id, status, delivered_at')
+        .maybeSingle();
+
+      if (deliverError) throw deliverError;
+      if (!deliveredOrder || deliveredOrder.status !== 'delivered') {
+        throw new Error('Delivery could not be completed. Please refresh and try again.');
+      }
 
       // Log calories for the customer on delivery
       try {
