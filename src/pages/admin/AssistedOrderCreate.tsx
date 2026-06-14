@@ -14,6 +14,7 @@ import { MapLocationPicker } from '@/components/shared/MapLocationPicker';
 import { sanitizePhoneInput, isValidNgPhone, PHONE_ERROR_MESSAGE } from '@/lib/phoneValidation';
 import { useDeliveryFee } from '@/hooks/useDeliveryFee';
 import { useServiceFee } from '@/hooks/useServiceFee';
+import { useTakeawayPacks } from '@/hooks/useTakeawayPacks';
 
 type Vendor = { id: string; name: string; latitude: number | null; longitude: number | null };
 type Product = { id: string; name: string; price: number; vendor_id: string; outlet_id: string | null };
@@ -98,6 +99,7 @@ export default function AssistedOrderCreate() {
   const [serviceFeeOverridden, setServiceFeeOverridden] = useState(false);
 
   const selectedVendor = vendors.find((v) => v.id === vendorId);
+  const { getApplicablePacks } = useTakeawayPacks(vendorId || null);
   const autoDelivery = useDeliveryFee({
     vendorLat: selectedVendor?.latitude ?? null,
     vendorLon: selectedVendor?.longitude ?? null,
@@ -158,6 +160,11 @@ export default function AssistedOrderCreate() {
     setCart((c) => c.map((i) => i.product.id === id ? { ...i, special_instructions: txt } : i));
 
   const subtotal = useMemo(() => cart.reduce((s, i) => s + i.product.price * i.quantity, 0), [cart]);
+  const applicablePacks = useMemo(
+    () => getApplicablePacks(cart.map((i) => ({ productId: i.product.id, quantity: i.quantity }))),
+    [cart, getApplicablePacks],
+  );
+  const packagingFee = useMemo(() => applicablePacks.reduce((s, p) => s + Number(p.price || 0), 0), [applicablePacks]);
 
   // Auto-populate delivery + service fees when not manually overridden
   useEffect(() => {
@@ -172,7 +179,7 @@ export default function AssistedOrderCreate() {
     setServiceFee(Math.round(calculateServiceFee(subtotal, deliveryType)));
   }, [subtotal, deliveryType, calculateServiceFee, serviceFeeOverridden]);
 
-  const total = subtotal + (deliveryType === 'delivery' ? deliveryFee : 0) + serviceFee;
+  const total = subtotal + packagingFee + (deliveryType === 'delivery' ? deliveryFee : 0) + serviceFee;
 
   const filteredProducts = products.filter((p) =>
     !productSearch.trim() || p.name.toLowerCase().includes(productSearch.toLowerCase())
@@ -224,6 +231,7 @@ export default function AssistedOrderCreate() {
             unit_price: i.product.price,
             special_instructions: i.special_instructions || null,
           })),
+          packaging_fee: Number(packagingFee),
           delivery_fee: deliveryType === 'delivery' ? Number(deliveryFee) : 0,
           service_fee: Number(serviceFee),
           payment_method: paymentMethod,
