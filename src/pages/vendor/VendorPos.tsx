@@ -268,12 +268,18 @@ export default function VendorPos() {
         return;
       }
       try {
-        const [{ data: v }, { data: p }, outletRes, overridesRes] = await Promise.all([
+        const [{ data: v }, { data: p }, { data: comboRows }, outletRes, overridesRes] = await Promise.all([
           supabase.from('vendors').select('id, name, address, phone, category, logo_url').eq('id', vendorId).maybeSingle(),
           supabase
             .from('products')
             .select('id, name, price, discount_price, in_store_price, image_url, stock_quantity, track_stock, is_available, calories, outlet_id, allows_sachet, sachet_price, sachet_unit_label, sachets_per_pack')
             .eq('vendor_id', vendorId)
+            .order('name'),
+          supabase
+            .from('combos')
+            .select('id, name, description, image_url, combo_price, outlet_id, is_available, combo_items(quantity, products(name, calories))')
+            .eq('vendor_id', vendorId)
+            .eq('is_available', true)
             .order('name'),
           outletId
             ? supabase.from('vendor_outlets').select('pos_pricing_mode, pos_global_discount_pct').eq('id', outletId).maybeSingle()
@@ -303,6 +309,7 @@ export default function VendorPos() {
           const filtered = merged.filter((x: any) => !outletId || x.outlet_id === outletId || !x.outlet_id);
           setProducts(filtered as any);
         }
+        setCombos(((comboRows as any[]) || []).filter((x: any) => !outletId || x.outlet_id === outletId || !x.outlet_id));
       } catch {
         // Network failed mid-fetch — keep cached data
       } finally {
