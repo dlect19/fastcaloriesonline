@@ -266,6 +266,7 @@ serve(async (req) => {
       if (!isPinVerified()) return json({ error: "pin_required" }, 403);
       if (!cart.length) return json({ error: "empty_cart" }, 400);
       const deliveryType = body.delivery_type === "self_pickup" ? "self_pickup" : "delivery";
+      const orderNote = typeof body.order_note === "string" ? body.order_note.trim() : "";
       const summary = await buildSummary(supabase, cart, nextContext, deliveryType);
       const env = await getEnv(supabase);
       const { data: wallet } = await supabase
@@ -299,6 +300,7 @@ serve(async (req) => {
         environment: env,
         channel: "whatsapp",
         confirmation_code: confirmationCode,
+        delivery_instructions: orderNote ? `Customer Note: ${orderNote}` : null,
       }).select("id, order_number, confirmation_code").single();
 
       if (orderErr || !order) {

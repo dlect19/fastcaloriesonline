@@ -606,6 +606,12 @@ serve(async (req) => {
     }
 
     if (session.state === "confirming_order") {
+      if (lower.startsWith("note:") || lower.startsWith("note ")) {
+        const note = body.replace(/^note[:\s]+/i, "").trim();
+        if (!note) return await replyText("Please type your note after `note:` e.g. *note: do not microwave*.");
+        await persistSession(supabase, session.id, "confirming_order", { ...nextContext, customer_order_note: note }, nextCart);
+        return await replyText(`📝 Note saved: ${note}\n\nReply *yes* to confirm & pay, or *cancel* to stop.`);
+      }
       if (tap === "BTN_WALLET" || lower === "3" || lower === "fund" || lower === "top up" || lower === "topup") {
         const pendingTotal = Number(nextContext?.pending_total || cartTotal(nextCart) || 0);
         const shortfall = Number(nextContext?.pending_shortfall ?? pendingTotal) || 0;
@@ -1159,6 +1165,7 @@ async function confirmWhatsAppOrder(
     environment,
     channel: "whatsapp",
     confirmation_code: confirmationCode,
+    delivery_instructions: session.context?.customer_order_note ? `Customer Note: ${session.context.customer_order_note}` : null,
   }).select("id, order_number, confirmation_code").single();
 
   if (orderErr || !order) {
@@ -1317,9 +1324,10 @@ async function doCheckout(
     `\nDelivery: ₦${deliveryFee.toLocaleString()}` +
     `\n*Total: ₦${total.toLocaleString()}*` +
     `\n\n💼 Wallet balance: ₦${bal.toLocaleString()}` +
+    (ctx.customer_order_note ? `\n📝 Note: ${ctx.customer_order_note}` : "") +
     (insufficient
       ? `\n\n❌ *Insufficient funds*\nYou need ₦${shortfall.toLocaleString()} more to place this order.\n\nReply *3* to top up your wallet, or *cancel* to stop.`
-      : `\n\nReply *yes* to confirm & pay.`);
+      : `\n\nReply *yes* to confirm & pay, or reply *note: your instruction* before confirming.`);
 
   await persistSession(supabase, session.id, "confirming_order", { ...(session.context || {}), pending_total: total, pending_shortfall: shortfall }, cart);
 
