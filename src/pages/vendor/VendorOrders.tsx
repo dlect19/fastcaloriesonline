@@ -242,6 +242,19 @@ export default function VendorOrders() {
           // When ANY order status changes, stop sound and re-evaluate after data refresh
           if (payload.eventType === 'UPDATE' && newOrder.status !== oldOrder.status) {
             stopRepeating();
+            const wasReleasedFromAssistedPayment =
+              (newOrder as any).channel === 'assisted' &&
+              (newOrder as any).payment_status === 'paid' &&
+              (oldOrder as any).payment_status !== 'paid';
+
+            if (wasReleasedFromAssistedPayment || (newOrder.status === 'confirmed' && oldOrder.status === 'pending')) {
+              playOnce();
+              startRepeating();
+              toast({
+                title: '🔔 New Confirmed Order!',
+                description: (newOrder as any).delivery_instructions || 'A paid order is ready to process.',
+              });
+            }
             
             // Notify when order is cancelled by customer
             if (newOrder.status === 'cancelled' && oldOrder.status !== 'cancelled') {
@@ -282,7 +295,7 @@ export default function VendorOrders() {
   // Re-evaluate sound whenever orders change: play only if pending orders exist
   useEffect(() => {
     if (loading) return;
-    const hasPending = orders.some(o => o.status === 'pending');
+    const hasPending = orders.some(o => ['pending', 'confirmed'].includes(o.status));
     if (hasPending) {
       startRepeating();
     } else {
