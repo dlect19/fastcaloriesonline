@@ -95,7 +95,7 @@ serve(async (req) => {
       .from('orders')
       .update({ 
         payment_status: 'paid',
-        status: 'confirmed',
+        status: orderData.status === 'pending' ? 'confirmed' : orderData.status,
         payment_reference: reference
       })
       .eq('id', orderId);
