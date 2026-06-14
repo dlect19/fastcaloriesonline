@@ -10,6 +10,7 @@ import { PrescriptionCheckoutDialog, PrescriptionData } from '@/components/pharm
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -84,6 +85,7 @@ export function VendorCheckoutSection({
 
   const [deliveryType, setDeliveryType] = useState<DeliveryType>('delivery');
   const [receiverPhone, setReceiverPhone] = useState('');
+  const [orderNote, setOrderNote] = useState('');
   const [promoDiscount, setPromoDiscount] = useState(0);
   const [appliedPromoCode, setAppliedPromoCode] = useState<string | null>(null);
   const [selectedDiscountType, setSelectedDiscountType] = useState<'none' | 'spin' | 'platform'>('none');
@@ -281,7 +283,10 @@ export function VendorCheckoutSection({
         : selectedDiscountType === 'platform' ? 'platform_promo'
         : null;
 
-      const deliveryInstructions = receiverPhone.trim() ? `Receiver Phone: ${receiverPhone.trim()}` : null;
+      const deliveryInstructions = [
+        receiverPhone.trim() ? `Receiver Phone: ${receiverPhone.trim()}` : null,
+        orderNote.trim() ? `Customer Note: ${orderNote.trim()}` : null,
+      ].filter(Boolean).join('\n') || null;
 
       const groupTotal = total;
 
