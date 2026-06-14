@@ -705,6 +705,18 @@ export function VendorCheckoutSection({
         </div>
       </section>
 
+      {/* Customer note */}
+      <section className="bg-card rounded-xl border border-border p-4 space-y-2">
+        <Label className="font-medium">Order Note (Optional)</Label>
+        <Textarea
+          value={orderNote}
+          onChange={(e) => setOrderNote(e.target.value)}
+          rows={3}
+          placeholder="e.g., Do not microwave, no pepper, call before arrival"
+          className="resize-none"
+        />
+      </section>
+
       {/* Pharmacy notice — explain why other promos aren't available */}
       {isPharmacy && (activeDiscounts.length > 0 || eligibility.firstOrderDiscount || eligibility.loyaltyDiscount) && (
         <div className="p-3 rounded-lg border border-info/30 bg-info/5 text-xs text-muted-foreground">
