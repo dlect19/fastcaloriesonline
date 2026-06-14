@@ -395,6 +395,13 @@ export default function VendorPos() {
     return products.filter(p => p.name.toLowerCase().includes(q));
   }, [products, search]);
 
+  const filteredCombos = useMemo(() => {
+    const available = combos.filter(c => c.is_available !== false);
+    if (!search.trim()) return available;
+    const q = search.toLowerCase();
+    return available.filter(c => c.name.toLowerCase().includes(q) || (c.description || '').toLowerCase().includes(q));
+  }, [combos, search]);
+
   const addToCart = useCallback((p: Product, unit: 'pack' | 'sachet' = 'pack') => {
     if (p.is_available === false) return;
     const sachetEligible = !!p.allows_sachet && Number(p.sachet_price) > 0 && Number(p.sachets_per_pack) > 0;
@@ -453,6 +460,29 @@ export default function VendorPos() {
       addToCart(p, 'pack');
     }
   }, [addToCart]);
+
+  const addComboToCart = useCallback((combo: Combo) => {
+    const comboItems = (combo.combo_items || []).map((item: any) => `${Number(item.quantity || 1)}× ${item.products?.name || 'Item'}`);
+    const calories = (combo.combo_items || []).reduce((sum: number, item: any) => sum + Number(item.products?.calories || 0) * Number(item.quantity || 1), 0);
+    setCart(prev => {
+      const existing = prev.find(c => c.productId === combo.id && c.isCombo);
+      if (existing) return prev.map(c => (c.productId === combo.id && c.isCombo ? { ...c, qty: c.qty + 1 } : c));
+      return [...prev, {
+        productId: combo.id,
+        name: combo.name,
+        unitPrice: Number(combo.combo_price || 0),
+        qty: 1,
+        stockMax: null,
+        caloriesPerUnit: calories || null,
+        purchaseUnit: 'pack',
+        unitMultiplier: 1,
+        unitLabel: 'combo',
+        isCombo: true,
+        comboItems,
+      }];
+    });
+    setMobileCartOpen(true);
+  }, []);
 
   const updateQty = (lineKey: string, delta: number) => {
     setCart(prev =>
