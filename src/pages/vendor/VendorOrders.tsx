@@ -413,9 +413,12 @@ export default function VendorOrders() {
               items: orderItems,
               packages: orderPackages.length > 0 ? orderPackages : undefined,
               customer: customerProfile ? {
-                full_name: customerProfile.full_name,
-                phone: customerProfile.phone
-              } : null
+                full_name: customerProfile.full_name || order.receiver_name,
+                phone: customerProfile.phone || order.receiver_phone
+              } : {
+                full_name: order.receiver_name,
+                phone: order.receiver_phone
+              }
             };
           });
 
