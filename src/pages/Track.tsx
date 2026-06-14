@@ -19,6 +19,7 @@ const STEPS = [
 export default function Track() {
   const { orderNumber } = useParams<{ orderNumber: string }>();
   const [searchParams] = useSearchParams();
+  const paymentQuery = searchParams.toString();
   const [loading, setLoading] = useState(true);
   const [info, setInfo] = useState<any>(null);
   const [verifyingPayment, setVerifyingPayment] = useState(false);
@@ -26,7 +27,8 @@ export default function Track() {
   useEffect(() => {
     (async () => {
       if (!orderNumber) return;
-      const paymentRef = searchParams.get('reference') || searchParams.get('trxref');
+      const currentParams = new URLSearchParams(paymentQuery);
+      const paymentRef = currentParams.get('reference') || currentParams.get('trxref');
       if (paymentRef) {
         setVerifyingPayment(true);
         await supabase.functions.invoke('paystack-verify-payment', { body: { reference: paymentRef } }).catch(console.error);
@@ -36,7 +38,7 @@ export default function Track() {
       if (!error) setInfo((data || [])[0] || null);
       setLoading(false);
     })();
-  }, [orderNumber, searchParams]);
+  }, [orderNumber, paymentQuery]);
 
   const currentIdx = info ? STEPS.findIndex((s) => s.key === info.status) : -1;
 
