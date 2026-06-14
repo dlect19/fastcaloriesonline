@@ -591,13 +591,14 @@ export default function VendorPos() {
     const itemPayloads = [
       ...cart.map(c => ({
         // order_id will be filled in once the order row exists
-        product_id: c.productId,
+        product_id: c.isCombo ? null : c.productId,
         quantity: c.qty,
         unit_price: c.unitPrice,
         total_price: c.unitPrice * c.qty,
         product_name: c.name,
         purchase_unit: c.purchaseUnit,
         unit_multiplier: c.unitMultiplier,
+        special_instructions: c.isCombo && c.comboItems?.length ? c.comboItems.join(' + ') : null,
       })),
       ...applicablePacks.map(p => ({
         product_id: null as string | null,
@@ -628,6 +629,7 @@ export default function VendorPos() {
           qty: c.qty,
           price: c.unitPrice * c.qty,
           calories: c.caloriesPerUnit,
+          note: c.isCombo && c.comboItems?.length ? c.comboItems.join(' + ') : undefined,
         })),
         ...applicablePacks.map(p => ({
           name: `Takeaway Pack: ${p.name}`,
