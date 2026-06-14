@@ -734,6 +734,14 @@ export default function VendorOrders() {
           </Collapsible>
 
           {/* Pharmacist review banner */}
+          {order.delivery_instructions && (
+            <div className="mx-4 mb-3 px-3 py-2 rounded-lg bg-primary/10 text-primary border border-primary/30 text-xs font-medium flex items-start gap-2 whitespace-pre-wrap">
+              <MessageSquare className="w-4 h-4 mt-0.5 shrink-0" />
+              <span>{order.delivery_instructions}</span>
+            </div>
+          )}
+
+          {/* Pharmacist review banner */}
           {(order as any).pharmacy_review_status === 'pending' && (
             <div className="mx-4 mb-3 px-3 py-2 rounded-lg bg-warning/10 text-warning border border-warning/30 text-xs font-medium flex items-center gap-2">
               ⏳ Awaiting pharmacist review — prescription items must be approved before you can start preparing this order.

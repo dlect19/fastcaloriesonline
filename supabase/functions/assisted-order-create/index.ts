@@ -46,7 +46,7 @@ serve(async (req) => {
     const {
       customer, receiver, channel, channel_reference, communication_notes,
       vendor_id, delivery_type, delivery_address, items,
-      delivery_fee = 0, service_fee = 0, payment_method,
+      delivery_fee = 0, service_fee = 0, packaging_fee = 0, payment_method, order_note,
     } = body;
 
     // Basic validation
@@ -106,7 +106,7 @@ serve(async (req) => {
 
     // Totals
     const subtotal = items.reduce((s: number, i: any) => s + Number(i.unit_price) * Number(i.quantity), 0);
-    const total = subtotal + (delivery_type === 'delivery' ? Number(delivery_fee) : 0) + Number(service_fee);
+    const total = subtotal + Number(packaging_fee) + (delivery_type === 'delivery' ? Number(delivery_fee) : 0) + Number(service_fee);
 
     // Confirmation code (delivery OTP) — 6 digits
     const confirmationCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -139,6 +139,7 @@ serve(async (req) => {
         delivery_address_text: delivery_type === 'delivery' ? delivery_address.text : null,
         subtotal,
         menu_subtotal: subtotal,
+        packaging_fee: Number(packaging_fee),
         delivery_fee: delivery_type === 'delivery' ? Number(delivery_fee) : 0,
         service_fee: Number(service_fee),
         discount: 0,
@@ -150,6 +151,7 @@ serve(async (req) => {
         channel: 'assisted',
         receiver_name: recvName,
         receiver_phone: recvPhone,
+        delivery_instructions: order_note ? `Customer Note: ${order_note}` : null,
         communication_notes: notes || null,
         assisted_created_by: adminId,
       })

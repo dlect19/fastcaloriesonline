@@ -15,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Package, MapPin, Phone, Clock, Loader2, ShieldCheck, RefreshCw, Lock } from 'lucide-react';
+import { Package, MapPin, Phone, Clock, Loader2, ShieldCheck, RefreshCw, Lock, MessageSquare } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useRepeatingNotificationSound } from '@/hooks/useRepeatingNotificationSound';
 import { useRiderRestrictions } from '@/hooks/useRiderRestrictions';
@@ -511,6 +511,13 @@ export default function RiderOrders() {
                       )}
                     </div>
                   </div>
+
+                  {order.delivery_instructions && (
+                    <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm text-primary flex items-start gap-2 whitespace-pre-wrap">
+                      <MessageSquare className="w-4 h-4 mt-0.5 shrink-0" />
+                      <span>{order.delivery_instructions}</span>
+                    </div>
+                  )}
 
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-4 border-t">
                     {/* Only show earnings for platform riders (not affiliated) */}
