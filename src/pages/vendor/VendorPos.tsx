@@ -902,9 +902,34 @@ export default function VendorPos() {
               {loading && Array.from({ length: 8 }).map((_, i) => (
                 <div key={i} className="aspect-square rounded-xl bg-muted animate-pulse" />
               ))}
-              {!loading && filtered.length === 0 && (
+              {!loading && filtered.length === 0 && filteredCombos.length === 0 && (
                 <p className="col-span-full text-center text-muted-foreground py-12">No products found</p>
               )}
+              {filteredCombos.map(combo => (
+                <button
+                  key={combo.id}
+                  onClick={() => addComboToCart(combo)}
+                  className="relative aspect-square rounded-xl border border-primary/20 bg-primary/5 overflow-hidden text-left transition-all flex flex-col hover:shadow-card hover:border-primary active:scale-95"
+                >
+                  <div className="flex-1 bg-secondary relative">
+                    {combo.image_url ? (
+                      <img src={combo.image_url} alt={combo.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-3xl">🍱</div>
+                    )}
+                    <Badge className="absolute top-1 left-1 text-[10px] bg-primary/90 hover:bg-primary/90">
+                      Combo
+                    </Badge>
+                  </div>
+                  <div className="p-2 space-y-0.5">
+                    <p className="text-xs font-medium line-clamp-1">{combo.name}</p>
+                    <p className="text-[10px] text-muted-foreground line-clamp-1">
+                      {(combo.combo_items || []).map((item: any) => `${Number(item.quantity || 1)}× ${item.products?.name || 'Item'}`).join(' + ')}
+                    </p>
+                    <p className="text-sm font-bold text-primary">₦{Number(combo.combo_price || 0).toLocaleString()}</p>
+                  </div>
+                </button>
+              ))}
               {filtered.map(p => {
                 const outOfStock = p.track_stock && (p.stock_quantity ?? 0) <= 0;
                 const sachetEligible = !!p.allows_sachet && Number(p.sachet_price) > 0 && Number(p.sachets_per_pack) > 0;
