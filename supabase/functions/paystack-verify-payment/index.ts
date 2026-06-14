@@ -14,9 +14,17 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const paystackSecretKey = Deno.env.get('PAYSTACK_SECRET_KEY')!;
-
     const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
+    const { data: envSetting } = await supabaseClient
+      .from('platform_settings')
+      .select('value')
+      .eq('key', 'platform_environment')
+      .maybeSingle();
+    const environment = (envSetting?.value as string) || 'development';
+    const paystackSecretKey = environment === 'production'
+      ? Deno.env.get('PAYSTACK_LIVE_SECRET_KEY') || Deno.env.get('PAYSTACK_SECRET_KEY')!
+      : Deno.env.get('PAYSTACK_TEST_SECRET_KEY') || Deno.env.get('PAYSTACK_SECRET_KEY')!;
+
     const { reference } = await req.json();
 
     if (!reference) {
@@ -82,7 +90,7 @@ serve(async (req) => {
       );
     }
 
-    // Update order payment status
+    // Update order payment status and release assisted orders to the vendor queue
     const { error: updateError } = await supabaseClient
       .from('orders')
       .update({ 
@@ -101,6 +109,23 @@ serve(async (req) => {
     }
 
     // Note: Calories are now logged on delivery confirmation, not payment
+
+    if ((orderData as any).channel === 'assisted') {
+      await supabaseClient
+        .from('assisted_orders')
+        .update({
+          payment_status: 'received',
+          payment_reference: reference,
+          payment_verified_at: new Date().toISOString(),
+        })
+        .eq('order_id', orderId);
+
+      await supabaseClient.from('assisted_order_audit').insert({
+        order_id: orderId,
+        action: 'payment_auto_confirmed_paystack_verify',
+        details: { reference },
+      });
+    }
 
     console.log(`Order ${orderNumber} payment confirmed`);
 
