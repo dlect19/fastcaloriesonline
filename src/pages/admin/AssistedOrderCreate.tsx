@@ -421,6 +421,17 @@ export default function AssistedOrderCreate() {
                     <Input value={i.special_instructions || ''} onChange={(e) => updateInstructions(i.product.id, e.target.value)} placeholder="Special instructions (e.g. No pepper)" />
                   </div>
                 ))}
+                {applicablePacks.length > 0 && (
+                  <div className="rounded-md bg-muted/40 p-2 text-sm space-y-1">
+                    <div className="font-medium">Takeaway Pack (Auto-added)</div>
+                    {applicablePacks.map((pack) => (
+                      <div key={pack.id} className="flex justify-between text-xs text-muted-foreground">
+                        <span>{pack.name}</span>
+                        <span>₦{Number(pack.price || 0).toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </CardContent>
@@ -462,6 +473,7 @@ export default function AssistedOrderCreate() {
             </div>
             <div className="border-t pt-3 space-y-1 text-sm">
               <div className="flex justify-between"><span>Subtotal</span><span>₦{subtotal.toLocaleString()}</span></div>
+              {packagingFee > 0 && <div className="flex justify-between"><span>Takeaway Pack</span><span>₦{Number(packagingFee).toLocaleString()}</span></div>}
               {deliveryType === 'delivery' && <div className="flex justify-between"><span>Delivery Fee</span><span>₦{Number(deliveryFee).toLocaleString()}</span></div>}
               <div className="flex justify-between"><span>Service Fee</span><span>₦{Number(serviceFee).toLocaleString()}</span></div>
               <div className="flex justify-between text-lg font-bold border-t pt-2"><span>Total</span><span>₦{total.toLocaleString()}</span></div>
