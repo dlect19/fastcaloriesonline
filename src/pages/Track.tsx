@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Loader2, CheckCircle2, Clock } from 'lucide-react';
@@ -18,17 +18,27 @@ const STEPS = [
 
 export default function Track() {
   const { orderNumber } = useParams<{ orderNumber: string }>();
+  const [searchParams] = useSearchParams();
+  const paymentQuery = searchParams.toString();
   const [loading, setLoading] = useState(true);
   const [info, setInfo] = useState<any>(null);
+  const [verifyingPayment, setVerifyingPayment] = useState(false);
 
   useEffect(() => {
     (async () => {
       if (!orderNumber) return;
+      const currentParams = new URLSearchParams(paymentQuery);
+      const paymentRef = currentParams.get('reference') || currentParams.get('trxref');
+      if (paymentRef) {
+        setVerifyingPayment(true);
+        await supabase.functions.invoke('paystack-verify-payment', { body: { reference: paymentRef } }).catch(console.error);
+        setVerifyingPayment(false);
+      }
       const { data, error } = await supabase.rpc('get_public_order_tracking', { _order_number: orderNumber });
       if (!error) setInfo((data || [])[0] || null);
       setLoading(false);
     })();
-  }, [orderNumber]);
+  }, [orderNumber, paymentQuery]);
 
   const currentIdx = info ? STEPS.findIndex((s) => s.key === info.status) : -1;
 
@@ -55,6 +65,7 @@ export default function Track() {
               <div>
                 <div className="text-xs text-muted-foreground">Order</div>
                 <div className="font-mono font-bold">{info.order_number}</div>
+                {verifyingPayment && <div className="text-xs text-primary pt-1">Confirming payment…</div>}
                 <div className="text-sm pt-2">From <strong>{info.vendor_name}</strong></div>
                 {info.rider_first_name && info.delivery_type === 'delivery' && (
                   <div className="text-sm text-muted-foreground">Rider: {info.rider_first_name}</div>

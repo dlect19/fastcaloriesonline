@@ -71,6 +71,7 @@ export function PosReceiptPreviewDialog({ open, onOpenChange, receipt, hasPrinte
   ${receipt.items.map(it => `
     <div class="item-name">${it.qty} × ${it.name}</div>
     <div class="row item-line"><span>&nbsp;&nbsp;@ ₦${(it.price / Math.max(it.qty, 1)).toFixed(2)}</span><span>₦${it.price.toLocaleString()}</span></div>
+    ${it.note ? `<div class="cal">&nbsp;&nbsp;${it.note}</div>` : ''}
     ${it.calories ? `<div class="cal">&nbsp;&nbsp;${(it.calories * it.qty).toFixed(0)} kcal</div>` : ''}
   `).join('')}
   <div class="sep"></div>
@@ -126,6 +127,7 @@ export function PosReceiptPreviewDialog({ open, onOpenChange, receipt, hasPrinte
                   <span>&nbsp;&nbsp;@ ₦{(it.price / Math.max(it.qty, 1)).toFixed(2)}</span>
                   <span className="font-black whitespace-nowrap">₦{it.price.toLocaleString()}</span>
                 </div>
+                {it.note ? <p className="text-[10px] font-semibold text-neutral-700">&nbsp;&nbsp;{it.note}</p> : null}
                 {it.calories ? <p className="text-[10px] font-semibold text-neutral-700">&nbsp;&nbsp;{(it.calories * it.qty).toFixed(0)} kcal</p> : null}
               </div>
             ))}

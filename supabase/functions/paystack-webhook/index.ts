@@ -175,7 +175,7 @@ async function handleChargeSuccess(supabase: SupabaseClient, data: any, environm
   // Get order details
   const { data: orderData, error: orderError } = await supabase
     .from("orders")
-    .select("id, subtotal, delivery_fee, rider_id, vendor_id, environment")
+    .select("id, subtotal, delivery_fee, rider_id, vendor_id, environment, status")
     .eq("id", orderId)
     .single();
 
@@ -209,6 +209,7 @@ async function handleChargeSuccess(supabase: SupabaseClient, data: any, environm
     .from("orders")
     .update({
       payment_status: "paid",
+      status: orderData.status === "pending" ? "confirmed" : orderData.status,
       payment_reference: reference,
       environment: environment,
     })

@@ -71,6 +71,17 @@ type Product = {
   sachets_per_pack?: number | null;
 };
 
+type Combo = {
+  id: string;
+  name: string;
+  description: string | null;
+  image_url: string | null;
+  combo_price: number;
+  outlet_id: string | null;
+  is_available: boolean | null;
+  combo_items?: Array<{ quantity: number | null; products?: { name: string; calories: number | null } | null }>;
+};
+
 type CartLine = {
   productId: string;
   name: string;
@@ -81,6 +92,8 @@ type CartLine = {
   purchaseUnit: 'pack' | 'sachet';
   unitMultiplier: number; // stock units consumed per qty
   unitLabel: string; // shown on receipt / cart row
+  isCombo?: boolean;
+  comboItems?: string[];
 };
 
 type HeldSale = {
@@ -139,6 +152,7 @@ export default function VendorPos() {
 
   const [vendor, setVendor] = useState<{ id: string; name: string; address: string | null; phone: string | null; category: string; logo_url: string | null } | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [combos, setCombos] = useState<Combo[]>([]);
   const [search, setSearch] = useState('');
   const [cart, setCart] = useState<CartLine[]>([]);
   const [loading, setLoading] = useState(true);
@@ -254,12 +268,18 @@ export default function VendorPos() {
         return;
       }
       try {
-        const [{ data: v }, { data: p }, outletRes, overridesRes] = await Promise.all([
+        const [{ data: v }, { data: p }, { data: comboRows }, outletRes, overridesRes] = await Promise.all([
           supabase.from('vendors').select('id, name, address, phone, category, logo_url').eq('id', vendorId).maybeSingle(),
           supabase
             .from('products')
             .select('id, name, price, discount_price, in_store_price, image_url, stock_quantity, track_stock, is_available, calories, outlet_id, allows_sachet, sachet_price, sachet_unit_label, sachets_per_pack')
             .eq('vendor_id', vendorId)
+            .order('name'),
+          supabase
+            .from('combos')
+            .select('id, name, description, image_url, combo_price, outlet_id, is_available, combo_items(quantity, products(name, calories))')
+            .eq('vendor_id', vendorId)
+            .eq('is_available', true)
             .order('name'),
           outletId
             ? supabase.from('vendor_outlets').select('pos_pricing_mode, pos_global_discount_pct').eq('id', outletId).maybeSingle()
@@ -289,6 +309,7 @@ export default function VendorPos() {
           const filtered = merged.filter((x: any) => !outletId || x.outlet_id === outletId || !x.outlet_id);
           setProducts(filtered as any);
         }
+        setCombos(((comboRows as any[]) || []).filter((x: any) => !outletId || x.outlet_id === outletId || !x.outlet_id));
       } catch {
         // Network failed mid-fetch — keep cached data
       } finally {
@@ -374,6 +395,13 @@ export default function VendorPos() {
     return products.filter(p => p.name.toLowerCase().includes(q));
   }, [products, search]);
 
+  const filteredCombos = useMemo(() => {
+    const available = combos.filter(c => c.is_available !== false);
+    if (!search.trim()) return available;
+    const q = search.toLowerCase();
+    return available.filter(c => c.name.toLowerCase().includes(q) || (c.description || '').toLowerCase().includes(q));
+  }, [combos, search]);
+
   const addToCart = useCallback((p: Product, unit: 'pack' | 'sachet' = 'pack') => {
     if (p.is_available === false) return;
     const sachetEligible = !!p.allows_sachet && Number(p.sachet_price) > 0 && Number(p.sachets_per_pack) > 0;
@@ -432,6 +460,29 @@ export default function VendorPos() {
       addToCart(p, 'pack');
     }
   }, [addToCart]);
+
+  const addComboToCart = useCallback((combo: Combo) => {
+    const comboItems = (combo.combo_items || []).map((item: any) => `${Number(item.quantity || 1)}× ${item.products?.name || 'Item'}`);
+    const calories = (combo.combo_items || []).reduce((sum: number, item: any) => sum + Number(item.products?.calories || 0) * Number(item.quantity || 1), 0);
+    setCart(prev => {
+      const existing = prev.find(c => c.productId === combo.id && c.isCombo);
+      if (existing) return prev.map(c => (c.productId === combo.id && c.isCombo ? { ...c, qty: c.qty + 1 } : c));
+      return [...prev, {
+        productId: combo.id,
+        name: combo.name,
+        unitPrice: Number(combo.combo_price || 0),
+        qty: 1,
+        stockMax: null,
+        caloriesPerUnit: calories || null,
+        purchaseUnit: 'pack',
+        unitMultiplier: 1,
+        unitLabel: 'combo',
+        isCombo: true,
+        comboItems,
+      }];
+    });
+    setMobileCartOpen(true);
+  }, []);
 
   const updateQty = (lineKey: string, delta: number) => {
     setCart(prev =>
@@ -540,13 +591,14 @@ export default function VendorPos() {
     const itemPayloads = [
       ...cart.map(c => ({
         // order_id will be filled in once the order row exists
-        product_id: c.productId,
+        product_id: c.isCombo ? null : c.productId,
         quantity: c.qty,
         unit_price: c.unitPrice,
         total_price: c.unitPrice * c.qty,
         product_name: c.name,
         purchase_unit: c.purchaseUnit,
         unit_multiplier: c.unitMultiplier,
+        special_instructions: c.isCombo && c.comboItems?.length ? c.comboItems.join(' + ') : null,
       })),
       ...applicablePacks.map(p => ({
         product_id: null as string | null,
@@ -577,6 +629,7 @@ export default function VendorPos() {
           qty: c.qty,
           price: c.unitPrice * c.qty,
           calories: c.caloriesPerUnit,
+          note: c.isCombo && c.comboItems?.length ? c.comboItems.join(' + ') : undefined,
         })),
         ...applicablePacks.map(p => ({
           name: `Takeaway Pack: ${p.name}`,
@@ -849,9 +902,34 @@ export default function VendorPos() {
               {loading && Array.from({ length: 8 }).map((_, i) => (
                 <div key={i} className="aspect-square rounded-xl bg-muted animate-pulse" />
               ))}
-              {!loading && filtered.length === 0 && (
+              {!loading && filtered.length === 0 && filteredCombos.length === 0 && (
                 <p className="col-span-full text-center text-muted-foreground py-12">No products found</p>
               )}
+              {filteredCombos.map(combo => (
+                <button
+                  key={combo.id}
+                  onClick={() => addComboToCart(combo)}
+                  className="relative aspect-square rounded-xl border border-primary/20 bg-primary/5 overflow-hidden text-left transition-all flex flex-col hover:shadow-card hover:border-primary active:scale-95"
+                >
+                  <div className="flex-1 bg-secondary relative">
+                    {combo.image_url ? (
+                      <img src={combo.image_url} alt={combo.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-3xl">🍱</div>
+                    )}
+                    <Badge className="absolute top-1 left-1 text-[10px] bg-primary/90 hover:bg-primary/90">
+                      Combo
+                    </Badge>
+                  </div>
+                  <div className="p-2 space-y-0.5">
+                    <p className="text-xs font-medium line-clamp-1">{combo.name}</p>
+                    <p className="text-[10px] text-muted-foreground line-clamp-1">
+                      {(combo.combo_items || []).map((item: any) => `${Number(item.quantity || 1)}× ${item.products?.name || 'Item'}`).join(' + ')}
+                    </p>
+                    <p className="text-sm font-bold text-primary">₦{Number(combo.combo_price || 0).toLocaleString()}</p>
+                  </div>
+                </button>
+              ))}
               {filtered.map(p => {
                 const outOfStock = p.track_stock && (p.stock_quantity ?? 0) <= 0;
                 const sachetEligible = !!p.allows_sachet && Number(p.sachet_price) > 0 && Number(p.sachets_per_pack) > 0;
@@ -955,10 +1033,18 @@ export default function VendorPos() {
                           <p className="text-sm font-medium line-clamp-1">{c.name}</p>
                           <p className="text-xs text-muted-foreground">
                             ₦{c.unitPrice.toLocaleString()} / {c.unitLabel}
+                            {c.isCombo && (
+                              <span className="ml-1 px-1 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-medium">combo</span>
+                            )}
                             {c.purchaseUnit === 'sachet' && (
                               <span className="ml-1 px-1 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-medium">sachet</span>
                             )}
                           </p>
+                          {c.isCombo && c.comboItems?.length ? (
+                            <ul className="mt-1 pl-3 border-l text-[11px] text-muted-foreground space-y-0.5">
+                              {c.comboItems.map((item, idx) => <li key={idx}>{item}</li>)}
+                            </ul>
+                          ) : null}
                         </div>
                         <button onClick={() => removeLine(lineKey)} className="text-muted-foreground hover:text-destructive">
                           <Trash2 className="w-4 h-4" />

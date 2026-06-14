@@ -159,6 +159,7 @@ export default function AssistedOrderDetail() {
               </tbody>
               <tfoot className="border-t">
                 <tr><td colSpan={3} className="p-2 text-right text-muted-foreground">Subtotal</td><td className="p-2 text-right">₦{Number(o.subtotal).toLocaleString()}</td></tr>
+                {Number(o.packaging_fee) > 0 && <tr><td colSpan={3} className="p-2 text-right text-muted-foreground">Takeaway Pack</td><td className="p-2 text-right">₦{Number(o.packaging_fee).toLocaleString()}</td></tr>}
                 {Number(o.delivery_fee) > 0 && <tr><td colSpan={3} className="p-2 text-right text-muted-foreground">Delivery Fee</td><td className="p-2 text-right">₦{Number(o.delivery_fee).toLocaleString()}</td></tr>}
                 {Number(o.service_fee) > 0 && <tr><td colSpan={3} className="p-2 text-right text-muted-foreground">Service Fee</td><td className="p-2 text-right">₦{Number(o.service_fee).toLocaleString()}</td></tr>}
                 <tr><td colSpan={3} className="p-2 text-right font-bold">Total</td><td className="p-2 text-right font-bold">₦{Number(o.total).toLocaleString()}</td></tr>

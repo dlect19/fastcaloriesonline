@@ -14,6 +14,7 @@ import { MapLocationPicker } from '@/components/shared/MapLocationPicker';
 import { sanitizePhoneInput, isValidNgPhone, PHONE_ERROR_MESSAGE } from '@/lib/phoneValidation';
 import { useDeliveryFee } from '@/hooks/useDeliveryFee';
 import { useServiceFee } from '@/hooks/useServiceFee';
+import { useTakeawayPacks } from '@/hooks/useTakeawayPacks';
 
 type Vendor = { id: string; name: string; latitude: number | null; longitude: number | null };
 type Product = { id: string; name: string; price: number; vendor_id: string; outlet_id: string | null };
@@ -76,6 +77,7 @@ export default function AssistedOrderCreate() {
   const [channel, setChannel] = useState<string>('phone');
   const [channelReference, setChannelReference] = useState('');
   const [communicationNotes, setCommunicationNotes] = useState('');
+  const [orderNote, setOrderNote] = useState('');
 
   // Address
   const [addressText, setAddressText] = useState('');
@@ -98,6 +100,7 @@ export default function AssistedOrderCreate() {
   const [serviceFeeOverridden, setServiceFeeOverridden] = useState(false);
 
   const selectedVendor = vendors.find((v) => v.id === vendorId);
+  const { getApplicablePacks } = useTakeawayPacks(vendorId || null);
   const autoDelivery = useDeliveryFee({
     vendorLat: selectedVendor?.latitude ?? null,
     vendorLon: selectedVendor?.longitude ?? null,
@@ -158,6 +161,11 @@ export default function AssistedOrderCreate() {
     setCart((c) => c.map((i) => i.product.id === id ? { ...i, special_instructions: txt } : i));
 
   const subtotal = useMemo(() => cart.reduce((s, i) => s + i.product.price * i.quantity, 0), [cart]);
+  const applicablePacks = useMemo(
+    () => getApplicablePacks(cart.map((i) => ({ productId: i.product.id, quantity: i.quantity }))),
+    [cart, getApplicablePacks],
+  );
+  const packagingFee = useMemo(() => applicablePacks.reduce((s, p) => s + Number(p.price || 0), 0), [applicablePacks]);
 
   // Auto-populate delivery + service fees when not manually overridden
   useEffect(() => {
@@ -172,7 +180,7 @@ export default function AssistedOrderCreate() {
     setServiceFee(Math.round(calculateServiceFee(subtotal, deliveryType)));
   }, [subtotal, deliveryType, calculateServiceFee, serviceFeeOverridden]);
 
-  const total = subtotal + (deliveryType === 'delivery' ? deliveryFee : 0) + serviceFee;
+  const total = subtotal + packagingFee + (deliveryType === 'delivery' ? deliveryFee : 0) + serviceFee;
 
   const filteredProducts = products.filter((p) =>
     !productSearch.trim() || p.name.toLowerCase().includes(productSearch.toLowerCase())
@@ -210,6 +218,7 @@ export default function AssistedOrderCreate() {
           channel,
           channel_reference: channelReference.trim() || null,
           communication_notes: communicationNotes.trim() || null,
+          order_note: orderNote.trim() || null,
           vendor_id: vendorId,
           delivery_type: deliveryType,
           delivery_address: deliveryType === 'delivery' ? {
@@ -224,6 +233,7 @@ export default function AssistedOrderCreate() {
             unit_price: i.product.price,
             special_instructions: i.special_instructions || null,
           })),
+          packaging_fee: Number(packagingFee),
           delivery_fee: deliveryType === 'delivery' ? Number(deliveryFee) : 0,
           service_fee: Number(serviceFee),
           payment_method: paymentMethod,
@@ -317,6 +327,10 @@ export default function AssistedOrderCreate() {
                 <Label>Communication Notes</Label>
                 <Textarea value={communicationNotes} onChange={(e) => setCommunicationNotes(e.target.value)} rows={4} placeholder="e.g. Customer prefers calls only. Leave package with security." />
               </div>
+              <div>
+                <Label>Customer Order Note</Label>
+                <Textarea value={orderNote} onChange={(e) => setOrderNote(e.target.value)} rows={3} placeholder="e.g. Do not microwave, no pepper, call before arrival" />
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -407,6 +421,17 @@ export default function AssistedOrderCreate() {
                     <Input value={i.special_instructions || ''} onChange={(e) => updateInstructions(i.product.id, e.target.value)} placeholder="Special instructions (e.g. No pepper)" />
                   </div>
                 ))}
+                {applicablePacks.length > 0 && (
+                  <div className="rounded-md bg-muted/40 p-2 text-sm space-y-1">
+                    <div className="font-medium">Takeaway Pack (Auto-added)</div>
+                    {applicablePacks.map((pack) => (
+                      <div key={pack.id} className="flex justify-between text-xs text-muted-foreground">
+                        <span>{pack.name}</span>
+                        <span>₦{Number(pack.price || 0).toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </CardContent>
@@ -448,6 +473,7 @@ export default function AssistedOrderCreate() {
             </div>
             <div className="border-t pt-3 space-y-1 text-sm">
               <div className="flex justify-between"><span>Subtotal</span><span>₦{subtotal.toLocaleString()}</span></div>
+              {packagingFee > 0 && <div className="flex justify-between"><span>Takeaway Pack</span><span>₦{Number(packagingFee).toLocaleString()}</span></div>}
               {deliveryType === 'delivery' && <div className="flex justify-between"><span>Delivery Fee</span><span>₦{Number(deliveryFee).toLocaleString()}</span></div>}
               <div className="flex justify-between"><span>Service Fee</span><span>₦{Number(serviceFee).toLocaleString()}</span></div>
               <div className="flex justify-between text-lg font-bold border-t pt-2"><span>Total</span><span>₦{total.toLocaleString()}</span></div>
