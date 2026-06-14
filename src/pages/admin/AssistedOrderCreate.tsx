@@ -77,6 +77,7 @@ export default function AssistedOrderCreate() {
   const [channel, setChannel] = useState<string>('phone');
   const [channelReference, setChannelReference] = useState('');
   const [communicationNotes, setCommunicationNotes] = useState('');
+  const [orderNote, setOrderNote] = useState('');
 
   // Address
   const [addressText, setAddressText] = useState('');
@@ -217,6 +218,7 @@ export default function AssistedOrderCreate() {
           channel,
           channel_reference: channelReference.trim() || null,
           communication_notes: communicationNotes.trim() || null,
+          order_note: orderNote.trim() || null,
           vendor_id: vendorId,
           delivery_type: deliveryType,
           delivery_address: deliveryType === 'delivery' ? {
@@ -324,6 +326,10 @@ export default function AssistedOrderCreate() {
               <div>
                 <Label>Communication Notes</Label>
                 <Textarea value={communicationNotes} onChange={(e) => setCommunicationNotes(e.target.value)} rows={4} placeholder="e.g. Customer prefers calls only. Leave package with security." />
+              </div>
+              <div>
+                <Label>Customer Order Note</Label>
+                <Textarea value={orderNote} onChange={(e) => setOrderNote(e.target.value)} rows={3} placeholder="e.g. Do not microwave, no pepper, call before arrival" />
               </div>
             </CardContent>
           </Card>
