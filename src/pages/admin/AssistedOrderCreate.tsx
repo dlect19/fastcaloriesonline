@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Search, Plus, Minus, Trash2, ArrowLeft } from 'lucide-react';
+import { Loader2, Search, Plus, Minus, Trash2, ArrowLeft, PackagePlus, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { MapLocationPicker } from '@/components/shared/MapLocationPicker';
 import { sanitizePhoneInput, isValidNgPhone, PHONE_ERROR_MESSAGE } from '@/lib/phoneValidation';
@@ -17,8 +17,11 @@ import { useServiceFee } from '@/hooks/useServiceFee';
 import { useTakeawayPacks } from '@/hooks/useTakeawayPacks';
 
 type Vendor = { id: string; name: string; latitude: number | null; longitude: number | null };
-type Product = { id: string; name: string; price: number; vendor_id: string; outlet_id: string | null };
-type CartItem = { product: Product; quantity: number; special_instructions?: string };
+type Outlet = { id: string; vendor_id: string; outlet_name: string | null; latitude: number | null; longitude: number | null; is_active: boolean };
+type Product = { id: string; name: string; price: number; vendor_id: string; outlet_id: string | null; is_available: boolean; calories: number | null };
+type CartItem = { product: Product; quantity: number; special_instructions?: string; pack: number };
+
+const MAX_PACKS = 5;
 
 export default function AssistedOrderCreate() {
   const navigate = useNavigate();
@@ -39,25 +42,17 @@ export default function AssistedOrderCreate() {
   }>(null);
   const [lookingUp, setLookingUp] = useState(false);
 
-  // Lookup existing app user by phone (debounced) when 11 digits typed
   useEffect(() => {
     if (!isValidNgPhone(customerPhone)) { setExistingCustomer(null); return; }
     let cancelled = false;
     setLookingUp(true);
     (async () => {
       const { data: profile } = await supabase
-        .from('profiles')
-        .select('user_id, full_name, phone')
-        .eq('phone', customerPhone)
-        .maybeSingle();
+        .from('profiles').select('user_id, full_name, phone').eq('phone', customerPhone).maybeSingle();
       if (cancelled) return;
       if (!profile?.user_id) { setExistingCustomer(null); setLookingUp(false); return; }
       const { data: wallet } = await supabase
-        .from('wallets')
-        .select('balance')
-        .eq('user_id', profile.user_id)
-        .eq('wallet_type', 'customer')
-        .maybeSingle();
+        .from('wallets').select('balance').eq('user_id', profile.user_id).eq('wallet_type', 'customer').maybeSingle();
       if (cancelled) return;
       setExistingCustomer({
         user_id: profile.user_id,
@@ -65,7 +60,6 @@ export default function AssistedOrderCreate() {
         email: (profile as any).email || null,
         wallet_balance: Number(wallet?.balance || 0),
       });
-      // Auto-fill name/email if empty
       setCustomerName((cur) => cur || profile.full_name || '');
       setCustomerEmail((cur) => cur || (profile as any).email || '');
       setLookingUp(false);
@@ -86,24 +80,32 @@ export default function AssistedOrderCreate() {
   const [coordPaste, setCoordPaste] = useState('');
   const [deliveryType, setDeliveryType] = useState<'delivery' | 'self_pickup'>('delivery');
 
-  // Vendor & products
+  // Vendor / outlet / products
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [vendorId, setVendorId] = useState<string>('');
+  const [outlets, setOutlets] = useState<Outlet[]>([]);
+  const [outletId, setOutletId] = useState<string>('');
   const [productSearch, setProductSearch] = useState('');
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [packsCount, setPacksCount] = useState<number>(1);
 
-  // Pricing extras (auto-calculated; admin can override)
+  // Pricing extras
   const [deliveryFee, setDeliveryFee] = useState<number>(0);
   const [serviceFee, setServiceFee] = useState<number>(0);
   const [deliveryFeeOverridden, setDeliveryFeeOverridden] = useState(false);
   const [serviceFeeOverridden, setServiceFeeOverridden] = useState(false);
 
   const selectedVendor = vendors.find((v) => v.id === vendorId);
+  const selectedOutlet = outlets.find((o) => o.id === outletId);
+  // Outlet coords take precedence over vendor coords for distance
+  const fromLat = selectedOutlet?.latitude ?? selectedVendor?.latitude ?? null;
+  const fromLon = selectedOutlet?.longitude ?? selectedVendor?.longitude ?? null;
+
   const { getApplicablePacks } = useTakeawayPacks(vendorId || null);
   const autoDelivery = useDeliveryFee({
-    vendorLat: selectedVendor?.latitude ?? null,
-    vendorLon: selectedVendor?.longitude ?? null,
+    vendorLat: fromLat,
+    vendorLon: fromLon,
     customerLat: deliveryType === 'delivery' ? lat ?? null : null,
     customerLon: deliveryType === 'delivery' ? lng ?? null : null,
   });
@@ -114,30 +116,50 @@ export default function AssistedOrderCreate() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    supabase.from('vendors').select('id, name, latitude, longitude').eq('is_active', true).order('name').then(({ data }) => setVendors((data as Vendor[]) || []));
+    supabase.from('vendors').select('id, name, latitude, longitude').eq('is_active', true).order('name')
+      .then(({ data }) => setVendors((data as Vendor[]) || []));
   }, []);
 
+  // Load outlets whenever vendor changes
   useEffect(() => {
-    if (!vendorId) { setProducts([]); return; }
-    supabase
-      .from('products')
-      .select('id, name, price, vendor_id, outlet_id')
-      .eq('vendor_id', vendorId)
-      .eq('is_available', true)
-      .order('name')
-      .limit(200)
-      .then(({ data }) => setProducts(data || []));
+    setOutletId('');
+    setOutlets([]);
+    setProducts([]);
+    setCart([]);
+    if (!vendorId) return;
+    supabase.from('vendor_outlets')
+      .select('id, vendor_id, outlet_name, latitude, longitude, is_active')
+      .eq('vendor_id', vendorId).eq('is_active', true)
+      .order('created_at', { ascending: true })
+      .then(({ data }) => {
+        const list = (data as Outlet[]) || [];
+        setOutlets(list);
+        // Auto-select if single outlet
+        if (list.length === 1) setOutletId(list[0].id);
+      });
   }, [vendorId]);
 
-  // Parse Google Maps / WhatsApp share / "lat,lng" paste
+  // Load products (all, then split available/unavailable) for selected outlet/vendor
+  useEffect(() => {
+    if (!vendorId) { setProducts([]); return; }
+    let q = supabase
+      .from('products')
+      .select('id, name, price, vendor_id, outlet_id, is_available, calories')
+      .eq('vendor_id', vendorId)
+      .order('name')
+      .limit(400);
+    if (outletId) {
+      // Include products for this outlet OR vendor-wide products (outlet_id null)
+      q = q.or(`outlet_id.eq.${outletId},outlet_id.is.null`);
+    }
+    q.then(({ data }) => setProducts((data || []) as Product[]));
+  }, [vendorId, outletId]);
+
   const handlePasteCoords = () => {
     const raw = coordPaste.trim();
     if (!raw) return;
-    // direct "lat,lng"
     const direct = raw.match(/^\s*(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)\s*$/);
-    // google maps URL with @lat,lng,zoom
     const gmaps = raw.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
-    // WhatsApp / generic "?q=lat,lng" / "ll=lat,lng"
     const queryParam = raw.match(/[?&](?:q|ll|destination|center)=(-?\d+\.\d+),(-?\d+\.\d+)/);
     const m = direct || gmaps || queryParam;
     if (!m) { toast({ title: 'Could not parse coordinates', description: 'Paste lat,lng or a Google Maps / WhatsApp location link.', variant: 'destructive' }); return; }
@@ -147,27 +169,36 @@ export default function AssistedOrderCreate() {
   };
 
   const addProduct = (p: Product) => {
+    if (!p.is_available) {
+      toast({ title: 'Item unavailable', description: `${p.name} is currently turned off by the vendor.`, variant: 'destructive' });
+      return;
+    }
     setCart((c) => {
-      const existing = c.find((i) => i.product.id === p.id);
-      if (existing) return c.map((i) => i.product.id === p.id ? { ...i, quantity: i.quantity + 1 } : i);
-      return [...c, { product: p, quantity: 1 }];
+      const existing = c.find((i) => i.product.id === p.id && i.pack === 1);
+      if (existing) return c.map((i) => i === existing ? { ...i, quantity: i.quantity + 1 } : i);
+      return [...c, { product: p, quantity: 1, pack: 1 }];
     });
   };
-  const setQty = (id: string, delta: number) => {
-    setCart((c) => c.map((i) => i.product.id === id ? { ...i, quantity: Math.max(1, i.quantity + delta) } : i));
+  const setQty = (idx: number, delta: number) => {
+    setCart((c) => c.map((it, i) => i === idx ? { ...it, quantity: Math.max(1, it.quantity + delta) } : it));
   };
-  const removeItem = (id: string) => setCart((c) => c.filter((i) => i.product.id !== id));
-  const updateInstructions = (id: string, txt: string) =>
-    setCart((c) => c.map((i) => i.product.id === id ? { ...i, special_instructions: txt } : i));
+  const removeItem = (idx: number) => setCart((c) => c.filter((_, i) => i !== idx));
+  const updateInstructions = (idx: number, txt: string) =>
+    setCart((c) => c.map((it, i) => i === idx ? { ...it, special_instructions: txt } : it));
+  const setItemPack = (idx: number, pack: number) =>
+    setCart((c) => c.map((it, i) => i === idx ? { ...it, pack } : it));
 
   const subtotal = useMemo(() => cart.reduce((s, i) => s + i.product.price * i.quantity, 0), [cart]);
+  const totalCalories = useMemo(
+    () => cart.reduce((s, i) => s + Number(i.product.calories || 0) * i.quantity, 0),
+    [cart],
+  );
   const applicablePacks = useMemo(
     () => getApplicablePacks(cart.map((i) => ({ productId: i.product.id, quantity: i.quantity }))),
     [cart, getApplicablePacks],
   );
   const packagingFee = useMemo(() => applicablePacks.reduce((s, p) => s + Number(p.price || 0), 0), [applicablePacks]);
 
-  // Auto-populate delivery + service fees when not manually overridden
   useEffect(() => {
     if (deliveryFeeOverridden) return;
     if (deliveryType !== 'delivery') { setDeliveryFee(0); return; }
@@ -182,7 +213,12 @@ export default function AssistedOrderCreate() {
 
   const total = subtotal + packagingFee + (deliveryType === 'delivery' ? deliveryFee : 0) + serviceFee;
 
-  const filteredProducts = products.filter((p) =>
+  const availableProducts = products.filter(p => p.is_available);
+  const unavailableProducts = products.filter(p => !p.is_available);
+  const filteredAvailable = availableProducts.filter((p) =>
+    !productSearch.trim() || p.name.toLowerCase().includes(productSearch.toLowerCase())
+  );
+  const filteredUnavailable = unavailableProducts.filter((p) =>
     !productSearch.trim() || p.name.toLowerCase().includes(productSearch.toLowerCase())
   );
 
@@ -194,6 +230,7 @@ export default function AssistedOrderCreate() {
       if (!isValidNgPhone(receiverPhone)) return 'Receiver phone: ' + PHONE_ERROR_MESSAGE;
     }
     if (!vendorId) return 'Select a vendor';
+    if (outlets.length > 1 && !outletId) return 'Select an outlet for this vendor';
     if (cart.length === 0) return 'Add at least one product';
     if (deliveryType === 'delivery') {
       if (!addressText.trim()) return 'Delivery address is required';
@@ -220,6 +257,8 @@ export default function AssistedOrderCreate() {
           communication_notes: communicationNotes.trim() || null,
           order_note: orderNote.trim() || null,
           vendor_id: vendorId,
+          outlet_id: outletId || null,
+          packs_count: packsCount,
           delivery_type: deliveryType,
           delivery_address: deliveryType === 'delivery' ? {
             text: addressText.trim(),
@@ -231,6 +270,8 @@ export default function AssistedOrderCreate() {
             product_name: i.product.name,
             quantity: i.quantity,
             unit_price: i.product.price,
+            calories: i.product.calories ?? null,
+            pack: i.pack,
             special_instructions: i.special_instructions || null,
           })),
           packaging_fee: Number(packagingFee),
@@ -272,7 +313,7 @@ export default function AssistedOrderCreate() {
                   <div className="font-medium text-blue-700 flex items-center gap-1">✓ Existing FastCalories customer</div>
                   <div>Name: <span className="font-medium">{existingCustomer.full_name || '—'}</span></div>
                   <div>Wallet balance: <span className="font-medium">₦{existingCustomer.wallet_balance.toLocaleString()}</span></div>
-                  <div className="text-muted-foreground pt-1">This order will be linked to their account so it appears in their app and they can track it. If they have wallet funds, they can pay from the app — just share the tracking link after creating.</div>
+                  <div className="text-muted-foreground pt-1">This order will be linked to their account so it appears in their app and they can track it.</div>
                 </div>
               )}
               <div>
@@ -285,7 +326,7 @@ export default function AssistedOrderCreate() {
               </div>
               <label className="flex items-center gap-2 text-sm pt-1">
                 <input type="checkbox" checked={receiverDifferent} onChange={(e) => setReceiverDifferent(e.target.checked)} />
-                Receiver is different from payer (e.g. son in Abuja, mother in Lagos)
+                Receiver is different from payer
               </label>
               {receiverDifferent && (
                 <div className="space-y-3 border-l-2 border-primary/40 pl-3">
@@ -325,11 +366,11 @@ export default function AssistedOrderCreate() {
               </div>
               <div>
                 <Label>Communication Notes</Label>
-                <Textarea value={communicationNotes} onChange={(e) => setCommunicationNotes(e.target.value)} rows={4} placeholder="e.g. Customer prefers calls only. Leave package with security." />
+                <Textarea value={communicationNotes} onChange={(e) => setCommunicationNotes(e.target.value)} rows={3} />
               </div>
               <div>
                 <Label>Customer Order Note</Label>
-                <Textarea value={orderNote} onChange={(e) => setOrderNote(e.target.value)} rows={3} placeholder="e.g. Do not microwave, no pepper, call before arrival" />
+                <Textarea value={orderNote} onChange={(e) => setOrderNote(e.target.value)} rows={2} placeholder="e.g. Do not microwave, no pepper" />
               </div>
             </CardContent>
           </Card>
@@ -376,15 +417,34 @@ export default function AssistedOrderCreate() {
         <Card>
           <CardHeader><CardTitle>Vendor & Products</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            <div>
-              <Label>Vendor</Label>
-              <Select value={vendorId} onValueChange={setVendorId}>
-                <SelectTrigger><SelectValue placeholder="Select vendor" /></SelectTrigger>
-                <SelectContent>
-                  {vendors.map((v) => <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <div>
+                <Label>Vendor</Label>
+                <Select value={vendorId} onValueChange={setVendorId}>
+                  <SelectTrigger><SelectValue placeholder="Select vendor" /></SelectTrigger>
+                  <SelectContent>
+                    {vendors.map((v) => <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              {vendorId && outlets.length > 0 && (
+                <div>
+                  <Label>Outlet / Branch {outlets.length > 1 && <span className="text-destructive">*</span>}</Label>
+                  <Select value={outletId} onValueChange={setOutletId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={outlets.length > 1 ? 'Select branch' : (outlets[0]?.outlet_name || 'Main')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {outlets.map((o) => <SelectItem key={o.id} value={o.id}>{o.outlet_name || 'Main outlet'}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  {outlets.length > 1 && !outletId && (
+                    <p className="text-xs text-yellow-700 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> This vendor has multiple branches — pick one so distance & menu match.</p>
+                  )}
+                </div>
+              )}
             </div>
+
             {vendorId && (
               <>
                 <div className="relative">
@@ -392,33 +452,81 @@ export default function AssistedOrderCreate() {
                   <Input value={productSearch} onChange={(e) => setProductSearch(e.target.value)} placeholder="Search products" className="pl-9" />
                 </div>
                 <div className="grid md:grid-cols-2 gap-2 max-h-72 overflow-y-auto">
-                  {filteredProducts.map((p) => (
+                  {filteredAvailable.map((p) => (
                     <button key={p.id} type="button" onClick={() => addProduct(p)}
                       className="flex items-center justify-between p-2 rounded border hover:bg-muted text-left">
-                      <span className="text-sm">{p.name}</span>
+                      <span className="text-sm">
+                        {p.name}
+                        {p.calories != null && <span className="text-[10px] text-muted-foreground ml-1">· {p.calories} kcal</span>}
+                      </span>
                       <span className="text-xs text-muted-foreground">₦{Number(p.price).toLocaleString()}</span>
                     </button>
                   ))}
-                  {filteredProducts.length === 0 && <div className="text-xs text-muted-foreground p-2">No products.</div>}
+                  {filteredAvailable.length === 0 && <div className="text-xs text-muted-foreground p-2">No available products.</div>}
                 </div>
+
+                {filteredUnavailable.length > 0 && (
+                  <details className="rounded border border-yellow-500/30 bg-yellow-500/5">
+                    <summary className="cursor-pointer p-2 text-sm font-medium text-yellow-700 flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4" /> {filteredUnavailable.length} item{filteredUnavailable.length>1?'s':''} unavailable right now — tell the customer
+                    </summary>
+                    <ul className="p-2 pt-0 space-y-1 max-h-48 overflow-y-auto">
+                      {filteredUnavailable.map((p) => (
+                        <li key={p.id} className="text-xs text-muted-foreground flex justify-between p-1 border-b last:border-0">
+                          <span className="line-through">{p.name}</span>
+                          <span>₦{Number(p.price).toLocaleString()}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
               </>
             )}
 
             {cart.length > 0 && (
               <div className="border rounded p-3 space-y-3">
-                {cart.map((i) => (
-                  <div key={i.product.id} className="border-b last:border-0 pb-3 last:pb-0 space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="font-medium text-sm">{i.product.name}</div>
+                <div className="flex items-center gap-2 justify-between flex-wrap">
+                  <Label className="m-0 flex items-center gap-1"><PackagePlus className="w-4 h-4" /> Number of packs</Label>
+                  <div className="flex items-center gap-2">
+                    <Button size="icon" variant="outline" type="button" onClick={() => setPacksCount(Math.max(1, packsCount - 1))}>
+                      <Minus className="w-3 h-3" />
+                    </Button>
+                    <span className="w-8 text-center font-medium">{packsCount}</span>
+                    <Button size="icon" variant="outline" type="button" onClick={() => setPacksCount(Math.min(MAX_PACKS, packsCount + 1))}>
+                      <Plus className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </div>
+                {packsCount > 1 && (
+                  <p className="text-xs text-muted-foreground">Assign each item to a pack below. A ₦200 multi-pack fee will be applied automatically by the system for orders with 2+ packs.</p>
+                )}
+
+                {cart.map((i, idx) => (
+                  <div key={idx} className="border-b last:border-0 pb-3 last:pb-0 space-y-2">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="font-medium text-sm">
+                        {i.product.name}
+                        {i.product.calories != null && <span className="text-[10px] text-muted-foreground ml-1">· {i.product.calories} kcal</span>}
+                      </div>
                       <div className="flex items-center gap-2">
-                        <Button size="icon" variant="outline" onClick={() => setQty(i.product.id, -1)}><Minus className="w-3 h-3" /></Button>
+                        {packsCount > 1 && (
+                          <Select value={String(i.pack)} onValueChange={(v) => setItemPack(idx, Number(v))}>
+                            <SelectTrigger className="w-[110px] h-8 text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {Array.from({ length: packsCount }).map((_, n) => (
+                                <SelectItem key={n+1} value={String(n+1)}>Pack {n+1}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                        <Button size="icon" variant="outline" onClick={() => setQty(idx, -1)}><Minus className="w-3 h-3" /></Button>
                         <span className="w-6 text-center text-sm">{i.quantity}</span>
-                        <Button size="icon" variant="outline" onClick={() => setQty(i.product.id, +1)}><Plus className="w-3 h-3" /></Button>
+                        <Button size="icon" variant="outline" onClick={() => setQty(idx, +1)}><Plus className="w-3 h-3" /></Button>
                         <div className="w-20 text-right text-sm">₦{(i.product.price * i.quantity).toLocaleString()}</div>
-                        <Button size="icon" variant="ghost" onClick={() => removeItem(i.product.id)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
+                        <Button size="icon" variant="ghost" onClick={() => removeItem(idx)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
                       </div>
                     </div>
-                    <Input value={i.special_instructions || ''} onChange={(e) => updateInstructions(i.product.id, e.target.value)} placeholder="Special instructions (e.g. No pepper)" />
+                    <Input value={i.special_instructions || ''} onChange={(e) => updateInstructions(idx, e.target.value)} placeholder="Special instructions (e.g. No pepper)" />
                   </div>
                 ))}
                 {applicablePacks.length > 0 && (
@@ -431,6 +539,9 @@ export default function AssistedOrderCreate() {
                       </div>
                     ))}
                   </div>
+                )}
+                {totalCalories > 0 && (
+                  <div className="text-xs text-muted-foreground">Total calories: <strong>{Math.round(totalCalories)} kcal</strong></div>
                 )}
               </div>
             )}

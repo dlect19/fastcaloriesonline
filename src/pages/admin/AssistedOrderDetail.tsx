@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, ArrowLeft, Copy, CheckCircle2, RefreshCw, MessageCircle } from 'lucide-react';
+import { Loader2, ArrowLeft, Copy, CheckCircle2, RefreshCw, MessageCircle, XCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 
@@ -191,21 +191,33 @@ export default function AssistedOrderDetail() {
               <Button size="sm" variant="outline" onClick={() => copy(trackingUrl)}><Copy className="w-3 h-3 mr-1" /> Copy</Button>
             </div>
 
-            {/* Prebuilt customer message */}
+            {/* Prebuilt customer message — full receipt + OTP + calories */}
             {(() => {
               const name = customerProfile?.full_name || o.receiver_name || 'there';
-              const total = `₦${Number(o.total).toLocaleString()}`;
-              const msg = data.payment_method === 'paystack_link' && data.payment_link
-                ? `Hi ${name}, thanks for ordering with FastCalories! 🍱\n\nOrder: ${o.order_number}\nTotal: ${total}\n\nPlease complete payment here:\n${data.payment_link}\n\nTrack your order anytime:\n${trackingUrl}\n\nReply if you need help. – FastCalories`
+              const totalNgn = `₦${Number(o.total).toLocaleString()}`;
+              const itemsLines = (o.order_items || []).map((it: any) => {
+                const line = `• ${it.quantity} × ${it.product_name} — ₦${Number(it.total_price).toLocaleString()}`;
+                const cal = it.calories != null ? ` (${Number(it.calories) * Number(it.quantity)} kcal)` : '';
+                return line + cal;
+              }).join('\n');
+              const totalCal = (o.order_items || []).reduce((s: number, it: any) => s + (Number(it.calories || 0) * Number(it.quantity || 0)), 0);
+              const calorieLine = totalCal > 0
+                ? `\n🔥 Total calories in this order: ${Math.round(totalCal)} kcal. That's roughly ${Math.round(totalCal/500)} typical meal portion${totalCal>1000?'s':''} — enjoy mindfully and stay within your daily goal.`
+                : '';
+              const otpLine = o.confirmation_code ? `\n🔐 Delivery OTP: *${o.confirmation_code}* (share only with our rider on arrival)` : '';
+              const receiptBlock = `\n\n🧾 Your order ${o.order_number}\n${itemsLines}\n— Subtotal: ₦${Number(o.subtotal).toLocaleString()}${Number(o.delivery_fee)>0?`\n— Delivery: ₦${Number(o.delivery_fee).toLocaleString()}`:''}${Number(o.service_fee)>0?`\n— Service: ₦${Number(o.service_fee).toLocaleString()}`:''}${Number(o.packaging_fee)>0?`\n— Pack: ₦${Number(o.packaging_fee).toLocaleString()}`:''}\n— *Total: ${totalNgn}*${calorieLine}${otpLine}`;
+              const payHeader = data.payment_method === 'paystack_link' && data.payment_link
+                ? `\n\n💳 Pay securely here:\n${data.payment_link}`
                 : data.payment_method === 'bank_transfer'
-                ? `Hi ${name}, thanks for ordering with FastCalories! 🍱\n\nOrder: ${o.order_number}\nTotal: ${total}\n\n${data.bank_transfer_instructions || ''}\n\nOnce paid, send proof so we can release your order. Track here:\n${trackingUrl}\n\n– FastCalories`
-                : `Hi ${name}, your FastCalories order ${o.order_number} (${total}) has been placed. Track here:\n${trackingUrl}`;
+                ? `\n\n🏦 Bank transfer:\n${data.bank_transfer_instructions || ''}\nReply with your proof of payment.`
+                : '';
+              const msg = `Hi ${name}, thanks for ordering with FastCalories! 🍱${receiptBlock}${payHeader}\n\n📍 Track your order live:\n${trackingUrl}\n\nReply if you need help. – FastCalories`;
               const phone = (customerProfile?.phone || o.receiver_phone || '').replace(/\D/g, '');
               const intl = phone.startsWith('0') && phone.length === 11 ? '234' + phone.slice(1) : phone;
               return (
                 <div className="pt-2 border-t space-y-2">
                   <div className="text-muted-foreground">Customer message (ready to send):</div>
-                  <Textarea value={msg} readOnly rows={6} className="text-xs font-mono" />
+                  <Textarea value={msg} readOnly rows={12} className="text-xs font-mono" />
                   <div className="flex gap-2 flex-wrap">
                     <Button size="sm" variant="outline" onClick={() => copy(msg)}><Copy className="w-4 h-4 mr-1" /> Copy message</Button>
                     {intl && (
@@ -225,10 +237,18 @@ export default function AssistedOrderDetail() {
 
             <div className="flex flex-wrap gap-2 pt-3 border-t">
               {data.payment_status === 'awaiting' && (
-                <Button onClick={() => callFn('assisted-order-verify-payment', { order_id: orderId, action: 'mark_paid' })} disabled={busy !== null}>
-                  {busy === 'assisted-order-verify-payment' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
-                  Mark Payment Received (confirm bank transfer / cash)
-                </Button>
+                <>
+                  <Button onClick={() => callFn('assisted-order-verify-payment', { order_id: orderId, action: 'mark_paid' })} disabled={busy !== null}>
+                    {busy === 'assisted-order-verify-payment' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+                    Mark Payment Received
+                  </Button>
+                  <Button variant="destructive" onClick={() => {
+                    if (!confirm('Cancel this order? The payment link will be deactivated and the customer cannot pay it anymore.')) return;
+                    callFn('assisted-order-verify-payment', { order_id: orderId, action: 'cancel' });
+                  }} disabled={busy !== null}>
+                    <XCircle className="w-4 h-4 mr-2" /> Cancel Order & Kill Payment Link
+                  </Button>
+                </>
               )}
               <Button variant="outline" onClick={() => callFn('assisted-order-notify', { order_id: orderId, action: 'resend_payment_link' })} disabled={busy !== null || data.payment_status !== 'awaiting'}>
                 <RefreshCw className="w-4 h-4 mr-2" /> Resend Payment Link

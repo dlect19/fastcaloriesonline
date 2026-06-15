@@ -51,10 +51,21 @@ serve(async (req) => {
     }
 
     if (action === 'cancel') {
-      await supabase.from('assisted_orders').update({ payment_status: 'cancelled', last_modified_by: adminId }).eq('order_id', order_id);
-      await supabase.from('orders').update({ status: 'cancelled', cancelled_at: new Date().toISOString(), cancellation_reason: 'Assisted order cancelled by admin' }).eq('id', order_id);
+      // Clear payment link so admin can't accidentally re-share, and so paystack-webhook
+      // skips any late callback for this order (it also checks order.status === 'cancelled').
+      await supabase.from('assisted_orders').update({
+        payment_status: 'cancelled',
+        payment_link: null,
+        bank_transfer_instructions: null,
+        last_modified_by: adminId,
+      }).eq('order_id', order_id);
+      await supabase.from('orders').update({
+        status: 'cancelled',
+        cancelled_at: new Date().toISOString(),
+        cancellation_reason: 'Assisted order cancelled by admin',
+      }).eq('id', order_id);
       await supabase.from('assisted_order_audit').insert({ order_id, actor_id: adminId, action: 'order_cancelled' });
-      return json({ ok: true, message: 'Order cancelled.' });
+      return json({ ok: true, message: 'Order cancelled and payment link deactivated.' });
     }
 
     return json({ error: 'Unknown action' }, 400);

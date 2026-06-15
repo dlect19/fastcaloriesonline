@@ -184,6 +184,12 @@ async function handleChargeSuccess(supabase: SupabaseClient, data: any, environm
     return;
   }
 
+  // Skip orders that admin cancelled — payment link is dead.
+  if (orderData.status === 'cancelled') {
+    console.log(`Order ${orderId} is cancelled; ignoring late Paystack callback.`);
+    return;
+  }
+
   // Verify order environment matches current platform environment
   if (orderData.environment && orderData.environment !== environment) {
     console.error(`Environment mismatch: order=${orderData.environment}, platform=${environment}`);

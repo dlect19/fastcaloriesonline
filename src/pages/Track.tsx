@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, CheckCircle2, Clock } from 'lucide-react';
+import { Loader2, CheckCircle2, Clock, Wifi } from 'lucide-react';
 import { format } from 'date-fns';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 
@@ -23,6 +23,14 @@ export default function Track() {
   const [loading, setLoading] = useState(true);
   const [info, setInfo] = useState<any>(null);
   const [verifyingPayment, setVerifyingPayment] = useState(false);
+  const [live, setLive] = useState(false);
+  const orderIdRef = useRef<string | null>(null);
+
+  const refetch = async () => {
+    if (!orderNumber) return;
+    const { data, error } = await supabase.rpc('get_public_order_tracking', { _order_number: orderNumber });
+    if (!error) setInfo((data || [])[0] || null);
+  };
 
   useEffect(() => {
     (async () => {
@@ -34,11 +42,42 @@ export default function Track() {
         await supabase.functions.invoke('paystack-verify-payment', { body: { reference: paymentRef } }).catch(console.error);
         setVerifyingPayment(false);
       }
-      const { data, error } = await supabase.rpc('get_public_order_tracking', { _order_number: orderNumber });
-      if (!error) setInfo((data || [])[0] || null);
+      await refetch();
       setLoading(false);
     })();
   }, [orderNumber, paymentQuery]);
+
+  // Realtime: subscribe to order updates so the customer sees status changes instantly.
+  useEffect(() => {
+    if (!orderNumber) return;
+    let channel: any;
+    let cancelled = false;
+    (async () => {
+      // Resolve the order id from the order_number (orders table is RLS-protected but
+      // realtime CHANGES use a public id filter; we just listen by order_number via a filter
+      // on a SECURITY DEFINER lookup. Simpler: poll the RPC if id is unknown.)
+      const { data } = await supabase
+        .from('orders').select('id').eq('order_number', orderNumber).maybeSingle();
+      if (cancelled) return;
+      orderIdRef.current = data?.id || null;
+      if (!orderIdRef.current) return;
+      channel = supabase
+        .channel(`track-${orderIdRef.current}`)
+        .on('postgres_changes', {
+          event: 'UPDATE', schema: 'public', table: 'orders',
+          filter: `id=eq.${orderIdRef.current}`,
+        }, () => { refetch(); })
+        .subscribe((status) => { if (status === 'SUBSCRIBED') setLive(true); });
+    })();
+
+    // Fallback polling every 20s in case realtime is blocked
+    const poll = setInterval(refetch, 20000);
+    return () => {
+      cancelled = true;
+      if (channel) supabase.removeChannel(channel);
+      clearInterval(poll);
+    };
+  }, [orderNumber]);
 
   const currentIdx = info ? STEPS.findIndex((s) => s.key === info.status) : -1;
 
@@ -47,10 +86,13 @@ export default function Track() {
       <div className="max-w-xl mx-auto py-8">
         <div className="flex items-center gap-3 mb-6">
           <img src={fastCaloriesLogo} alt="Fast Calories" className="w-12 h-12" />
-          <div>
+          <div className="flex-1">
             <h1 className="font-bold">Fast Calories</h1>
             <p className="text-xs text-muted-foreground">Order Tracking</p>
           </div>
+          {live && (
+            <span className="text-xs text-green-600 flex items-center gap-1"><Wifi className="w-3 h-3" /> Live</span>
+          )}
         </div>
 
         {loading ? (

@@ -45,7 +45,8 @@ serve(async (req) => {
     const body = await req.json();
     const {
       customer, receiver, channel, channel_reference, communication_notes,
-      vendor_id, delivery_type, delivery_address, items,
+      vendor_id, outlet_id = null, packs_count = 1,
+      delivery_type, delivery_address, items,
       delivery_fee = 0, service_fee = 0, packaging_fee = 0, payment_method, order_note,
     } = body;
 
@@ -94,15 +95,19 @@ serve(async (req) => {
       deliveryAddressId = addrIns?.id || null;
     }
 
-    // Determine vendor outlet
-    const { data: outlet } = await supabase
-      .from('vendor_outlets')
-      .select('id')
-      .eq('vendor_id', vendor_id)
-      .eq('is_active', true)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
+    // Determine vendor outlet: use provided outlet_id, else first active outlet
+    let outlet: { id: string } | null = null;
+    if (outlet_id) {
+      const { data: o } = await supabase
+        .from('vendor_outlets').select('id').eq('id', outlet_id).eq('vendor_id', vendor_id).maybeSingle();
+      outlet = o;
+    }
+    if (!outlet) {
+      const { data: o } = await supabase
+        .from('vendor_outlets').select('id').eq('vendor_id', vendor_id).eq('is_active', true)
+        .order('created_at', { ascending: true }).limit(1).maybeSingle();
+      outlet = o;
+    }
 
     // Totals
     const subtotal = items.reduce((s: number, i: any) => s + Number(i.unit_price) * Number(i.quantity), 0);
@@ -163,6 +168,24 @@ serve(async (req) => {
       return json({ error: orderErr?.message || 'Order insert failed' }, 500);
     }
 
+    // Insert packages (when multi-pack)
+    const packCount = Math.max(1, Math.min(5, Number(packs_count) || 1));
+    const packIdByNumber = new Map<number, string>();
+    if (packCount > 1) {
+      const pkgRows = Array.from({ length: packCount }).map((_, idx) => ({
+        order_id: order.id,
+        sort_order: idx + 1,
+      }));
+      const { data: pkgs, error: pkgErr } = await supabase
+        .from('order_packages').insert(pkgRows).select('id, sort_order');
+      if (pkgErr) {
+        console.error('Packages insert error', pkgErr);
+        await supabase.from('orders').delete().eq('id', order.id);
+        return json({ error: 'Failed to create packages: ' + pkgErr.message }, 500);
+      }
+      (pkgs || []).forEach((p: any) => packIdByNumber.set(p.sort_order, p.id));
+    }
+
     // Insert items
     const itemRows = items.map((i: any) => ({
       order_id: order.id,
@@ -172,6 +195,8 @@ serve(async (req) => {
       unit_price: Number(i.unit_price),
       total_price: Number(i.unit_price) * Number(i.quantity),
       special_instructions: i.special_instructions || null,
+      calories: i.calories != null ? Number(i.calories) : null,
+      package_id: packCount > 1 ? (packIdByNumber.get(Number(i.pack) || 1) || null) : null,
     }));
     const { error: itemsErr } = await supabase.from('order_items').insert(itemRows);
     if (itemsErr) {
