@@ -45,7 +45,8 @@ serve(async (req) => {
     const body = await req.json();
     const {
       customer, receiver, channel, channel_reference, communication_notes,
-      vendor_id, delivery_type, delivery_address, items,
+      vendor_id, outlet_id = null, packs_count = 1,
+      delivery_type, delivery_address, items,
       delivery_fee = 0, service_fee = 0, packaging_fee = 0, payment_method, order_note,
     } = body;
 
@@ -94,15 +95,19 @@ serve(async (req) => {
       deliveryAddressId = addrIns?.id || null;
     }
 
-    // Determine vendor outlet
-    const { data: outlet } = await supabase
-      .from('vendor_outlets')
-      .select('id')
-      .eq('vendor_id', vendor_id)
-      .eq('is_active', true)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
+    // Determine vendor outlet: use provided outlet_id, else first active outlet
+    let outlet: { id: string } | null = null;
+    if (outlet_id) {
+      const { data: o } = await supabase
+        .from('vendor_outlets').select('id').eq('id', outlet_id).eq('vendor_id', vendor_id).maybeSingle();
+      outlet = o;
+    }
+    if (!outlet) {
+      const { data: o } = await supabase
+        .from('vendor_outlets').select('id').eq('vendor_id', vendor_id).eq('is_active', true)
+        .order('created_at', { ascending: true }).limit(1).maybeSingle();
+      outlet = o;
+    }
 
     // Totals
     const subtotal = items.reduce((s: number, i: any) => s + Number(i.unit_price) * Number(i.quantity), 0);
