@@ -94,8 +94,27 @@ export default function AssistedOrdersList() {
         .in('user_id', userIds);
       profileMap = new Map((profiles || []).map((p: any) => [p.user_id, { full_name: p.full_name, phone: p.phone }]));
     }
-    setRows(baseRows.map((r) => ({ ...r, customer_profile: r.orders?.user_id ? profileMap.get(r.orders.user_id) || null : null })));
+    setRows(baseRows.map((r) => ({
+      ...r,
+      orders: r.orders ? { ...r.orders, order_items: (r.orders.id ? itemsByOrder.get(r.orders.id) : null) || [] } : null,
+      customer_profile: r.orders?.user_id ? profileMap.get(r.orders.user_id) || null : null,
+    } as Row)));
     setLoading(false);
+  };
+
+  const cancelOrder = async (r: Row) => {
+    if (!confirm(`Cancel order ${r.orders?.order_number}? The payment link will be deactivated.`)) return;
+    try {
+      const { data, error } = await supabase.functions.invoke('assisted-order-verify-payment', {
+        body: { order_id: r.order_id, action: 'cancel' },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast({ title: 'Order cancelled', description: 'Payment link deactivated.' });
+      load();
+    } catch (e: any) {
+      toast({ title: 'Cancel failed', description: e.message, variant: 'destructive' });
+    }
   };
 
   useEffect(() => { load(); }, [statusFilter]);
