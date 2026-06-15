@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Plus, Search, Headphones, Copy, MessageCircle } from 'lucide-react';
+import { Loader2, Plus, Search, Headphones, Copy, MessageCircle, XCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 
@@ -21,15 +21,22 @@ type Row = {
   bank_transfer_instructions: string | null;
   created_at: string;
   orders: {
+    id: string;
     order_number: string;
     status: string;
     total: number;
+    subtotal: number;
+    delivery_fee: number;
+    service_fee: number;
+    packaging_fee: number;
+    confirmation_code: string | null;
     receiver_name: string | null;
     receiver_phone: string | null;
     delivery_address_text: string | null;
     vendor_id: string;
     user_id: string | null;
     vendors: { name: string } | null;
+    order_items: { product_name: string; quantity: number; unit_price: number; total_price: number; calories: number | null }[] | null;
   } | null;
   customer_profile?: { full_name: string | null; phone: string | null } | null;
 };
@@ -49,8 +56,10 @@ export default function AssistedOrdersList() {
       .select(`
         id, order_id, customer_channel, payment_status, payment_method, payment_link, bank_transfer_instructions, created_at,
         orders:order_id (
-          order_number, status, total, receiver_name, receiver_phone, delivery_address_text, vendor_id, user_id,
-          vendors:vendor_id ( name )
+          id, order_number, status, total, subtotal, delivery_fee, service_fee, packaging_fee, confirmation_code,
+          receiver_name, receiver_phone, delivery_address_text, vendor_id, user_id,
+          vendors:vendor_id ( name ),
+          order_items ( product_name, quantity, unit_price, total_price, calories )
         )
       `)
       .order('created_at', { ascending: false })
@@ -102,13 +111,24 @@ export default function AssistedOrdersList() {
     const name = r.customer_profile?.full_name || r.orders?.receiver_name || 'there';
     const trackingUrl = `${window.location.origin}/track/${r.orders?.order_number}`;
     const total = `₦${Number(r.orders?.total || 0).toLocaleString()}`;
+    const items = r.orders?.order_items || [];
+    const itemsLines = items.map(it => {
+      const cal = it.calories != null ? ` (${Number(it.calories) * Number(it.quantity)} kcal)` : '';
+      return `• ${it.quantity} × ${it.product_name} — ₦${Number(it.total_price).toLocaleString()}${cal}`;
+    }).join('\n');
+    const totalCal = items.reduce((s, it) => s + (Number(it.calories || 0) * Number(it.quantity || 0)), 0);
+    const calorieLine = totalCal > 0
+      ? `\n🔥 Total calories: ${Math.round(totalCal)} kcal — about ${Math.round(totalCal/500)} meal portion${totalCal>1000?'s':''}. Enjoy mindfully!`
+      : '';
+    const otpLine = r.orders?.confirmation_code ? `\n🔐 Delivery OTP: *${r.orders.confirmation_code}* (share only with our rider on arrival)` : '';
+    const receiptBlock = items.length ? `\n\n🧾 Order ${r.orders?.order_number}\n${itemsLines}\n— *Total: ${total}*${calorieLine}${otpLine}` : `\n\nOrder: ${r.orders?.order_number}\nTotal: ${total}${otpLine}`;
     if (r.payment_method === 'paystack_link' && r.payment_link) {
-      return `Hi ${name}, thanks for ordering with FastCalories! 🍱\n\nOrder: ${r.orders?.order_number}\nTotal: ${total}\n\nPlease complete payment here:\n${r.payment_link}\n\nTrack your order anytime:\n${trackingUrl}\n\nReply to this message if you need anything. – FastCalories`;
+      return `Hi ${name}, thanks for ordering with FastCalories! 🍱${receiptBlock}\n\n💳 Pay securely here:\n${r.payment_link}\n\n📍 Track live:\n${trackingUrl}\n\n– FastCalories`;
     }
     if (r.payment_method === 'bank_transfer') {
-      return `Hi ${name}, thanks for ordering with FastCalories! 🍱\n\nOrder: ${r.orders?.order_number}\nTotal: ${total}\n\n${r.bank_transfer_instructions || ''}\n\nOnce paid, send proof so we can release your order. Track here:\n${trackingUrl}\n\n– FastCalories`;
+      return `Hi ${name}, thanks for ordering with FastCalories! 🍱${receiptBlock}\n\n🏦 ${r.bank_transfer_instructions || ''}\n\nReply with proof of payment.\n📍 Track: ${trackingUrl}`;
     }
-    return `Hi ${name}, your FastCalories order ${r.orders?.order_number} (${total}) has been placed. Track here:\n${trackingUrl}`;
+    return `Hi ${name}, your FastCalories order has been placed.${receiptBlock}\n📍 Track: ${trackingUrl}`;
   };
 
   const copyText = async (txt: string, label = 'Copied') => {
