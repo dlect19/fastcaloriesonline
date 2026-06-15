@@ -58,8 +58,7 @@ export default function AssistedOrdersList() {
         orders:order_id (
           id, order_number, status, total, subtotal, delivery_fee, service_fee, packaging_fee, confirmation_code,
           receiver_name, receiver_phone, delivery_address_text, vendor_id, user_id,
-          vendors:vendor_id ( name ),
-          order_items ( product_name, quantity, unit_price, total_price, calories )
+          vendors:vendor_id ( name )
         )
       `)
       .order('created_at', { ascending: false })
@@ -69,7 +68,23 @@ export default function AssistedOrdersList() {
 
     const { data, error } = await q;
     if (error) console.error(error);
-    const baseRows = (data || []) as Row[];
+    const baseRows = (data || []) as unknown as Row[];
+
+    // Fetch order items separately (no nested FK hint available)
+    const orderIds = baseRows.map((r) => r.orders?.id).filter(Boolean) as string[];
+    const itemsByOrder = new Map<string, any[]>();
+    if (orderIds.length > 0) {
+      const { data: items } = await supabase
+        .from('order_items')
+        .select('order_id, product_name, quantity, unit_price, total_price, calories')
+        .in('order_id', orderIds);
+      (items || []).forEach((it: any) => {
+        const arr = itemsByOrder.get(it.order_id) || [];
+        arr.push(it);
+        itemsByOrder.set(it.order_id, arr);
+      });
+    }
+
     const userIds = [...new Set(baseRows.map((r) => r.orders?.user_id).filter(Boolean))] as string[];
     let profileMap = new Map<string, { full_name: string | null; phone: string | null }>();
     if (userIds.length > 0) {
