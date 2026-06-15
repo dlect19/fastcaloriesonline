@@ -276,7 +276,14 @@ export default function AssistedOrdersList() {
                         <td className="p-3 capitalize">{r.orders?.status || '—'}</td>
                         <td className="p-3 text-right whitespace-nowrap">₦{Number(r.orders?.total || 0).toLocaleString()}</td>
                         <td className="p-3 text-xs whitespace-nowrap">{format(new Date(r.created_at), 'PP p')}</td>
-                        <td className="p-3"><Link className="text-primary hover:underline" to={`/admin/assisted-orders/${r.order_id}`}>View</Link></td>
+                        <td className="p-3 space-y-1 whitespace-nowrap">
+                          <Link className="text-primary hover:underline block" to={`/admin/assisted-orders/${r.order_id}`}>View</Link>
+                          {r.payment_status === 'awaiting' && (
+                            <Button size="sm" variant="ghost" className="h-6 px-1 text-destructive" onClick={() => cancelOrder(r)}>
+                              <XCircle className="w-3 h-3 mr-1" />Cancel
+                            </Button>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
