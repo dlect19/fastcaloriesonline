@@ -168,6 +168,24 @@ serve(async (req) => {
       return json({ error: orderErr?.message || 'Order insert failed' }, 500);
     }
 
+    // Insert packages (when multi-pack)
+    const packCount = Math.max(1, Math.min(5, Number(packs_count) || 1));
+    const packIdByNumber = new Map<number, string>();
+    if (packCount > 1) {
+      const pkgRows = Array.from({ length: packCount }).map((_, idx) => ({
+        order_id: order.id,
+        sort_order: idx + 1,
+      }));
+      const { data: pkgs, error: pkgErr } = await supabase
+        .from('order_packages').insert(pkgRows).select('id, sort_order');
+      if (pkgErr) {
+        console.error('Packages insert error', pkgErr);
+        await supabase.from('orders').delete().eq('id', order.id);
+        return json({ error: 'Failed to create packages: ' + pkgErr.message }, 500);
+      }
+      (pkgs || []).forEach((p: any) => packIdByNumber.set(p.sort_order, p.id));
+    }
+
     // Insert items
     const itemRows = items.map((i: any) => ({
       order_id: order.id,
@@ -177,6 +195,8 @@ serve(async (req) => {
       unit_price: Number(i.unit_price),
       total_price: Number(i.unit_price) * Number(i.quantity),
       special_instructions: i.special_instructions || null,
+      calories: i.calories != null ? Number(i.calories) : null,
+      package_id: packCount > 1 ? (packIdByNumber.get(Number(i.pack) || 1) || null) : null,
     }));
     const { error: itemsErr } = await supabase.from('order_items').insert(itemRows);
     if (itemsErr) {
