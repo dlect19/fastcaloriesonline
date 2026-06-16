@@ -19,7 +19,9 @@ import { useTakeawayPacks } from '@/hooks/useTakeawayPacks';
 type Vendor = { id: string; name: string; latitude: number | null; longitude: number | null };
 type Outlet = { id: string; vendor_id: string; outlet_name: string | null; latitude: number | null; longitude: number | null; is_active: boolean };
 type Product = { id: string; name: string; price: number; vendor_id: string; outlet_id: string | null; is_available: boolean; calories: number | null };
-type CartItem = { product: Product; quantity: number; special_instructions?: string; pack: number };
+type AddonItem = { id: string; addon_group_id: string; name: string; additional_price: number; calories: number | null; is_available: boolean; group_name: string };
+type SelectedAddon = { addon_group_name: string; addon_item_name: string; additional_price: number; calories: number | null };
+type CartItem = { product: Product; quantity: number; special_instructions?: string; pack: number; addons?: SelectedAddon[] };
 
 const MAX_PACKS = 5;
 
