@@ -771,8 +771,26 @@ export default function AssistedOrderCreate() {
                 <p className="text-xs text-muted-foreground mt-1">Auto: ₦{Math.round(calculateServiceFee(subtotal, deliveryType)).toLocaleString()}</p>
               </div>
             </div>
+            <div className="border-t pt-3 space-y-2">
+              <Label className="text-xs">Promo Code (optional)</Label>
+              {!promoCode ? (
+                <div className="flex gap-2">
+                  <Input value={promoInput} onChange={(e) => setPromoInput(e.target.value.toUpperCase())} placeholder="e.g. WELCOME10" />
+                  <Button type="button" variant="outline" onClick={validatePromo} disabled={validatingPromo || !promoInput.trim() || !vendorId}>
+                    {validatingPromo ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Apply'}
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-2 rounded border border-green-500/40 bg-green-500/5 p-2 text-xs">
+                  <span>✓ {promoCode} — ₦{effectiveDiscount.toLocaleString()} off</span>
+                  <Button size="sm" variant="ghost" onClick={clearPromo}>Remove</Button>
+                </div>
+              )}
+              {promoMsg && !promoCode && <p className="text-xs text-destructive">{promoMsg}</p>}
+            </div>
             <div className="border-t pt-3 space-y-1 text-sm">
               <div className="flex justify-between"><span>Subtotal</span><span>₦{subtotal.toLocaleString()}</span></div>
+              {effectiveDiscount > 0 && <div className="flex justify-between text-success"><span>Discount {promoCode ? `(${promoCode})` : ''}</span><span>−₦{effectiveDiscount.toLocaleString()}</span></div>}
               {packagingFee > 0 && <div className="flex justify-between"><span>Takeaway Pack</span><span>₦{Number(packagingFee).toLocaleString()}</span></div>}
               {deliveryType === 'delivery' && <div className="flex justify-between"><span>Delivery Fee</span><span>₦{Number(deliveryFee).toLocaleString()}</span></div>}
               <div className="flex justify-between"><span>Service Fee</span><span>₦{Number(serviceFee).toLocaleString()}</span></div>
@@ -787,11 +805,25 @@ export default function AssistedOrderCreate() {
             <Select value={paymentMethod} onValueChange={(v: any) => setPaymentMethod(v)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
+                {existingCustomer?.user_id && (
+                  <SelectItem value="wallet">Customer Wallet (₦{walletBalance.toLocaleString()} available)</SelectItem>
+                )}
                 <SelectItem value="paystack_link">Send Paystack payment link</SelectItem>
                 <SelectItem value="bank_transfer">Bank transfer instructions</SelectItem>
                 <SelectItem value="cash">Cash (mark paid manually)</SelectItem>
               </SelectContent>
             </Select>
+            {paymentMethod === 'wallet' && existingCustomer && (
+              <div className={`rounded p-2 text-xs ${walletShortfall > 0 ? 'bg-yellow-500/10 border border-yellow-500/40 text-yellow-800' : 'bg-green-500/10 border border-green-500/40 text-green-800'}`}>
+                {walletShortfall > 0 ? (
+                  <>
+                    <strong>Wallet short by ₦{walletShortfall.toLocaleString()}.</strong> A Paystack top-up link for the shortfall will be generated automatically for the customer.
+                  </>
+                ) : (
+                  <>✓ Wallet has enough funds. Order will be paid & confirmed instantly.</>
+                )}
+              </div>
+            )}
             <p className="text-xs text-muted-foreground">The order will be created in <strong>Awaiting Payment</strong>. Once payment is verified it enters the normal vendor → rider workflow automatically.</p>
           </CardContent>
         </Card>
