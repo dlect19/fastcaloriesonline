@@ -122,7 +122,7 @@ export default function AssistedOrderCreate() {
   const { calculateServiceFee } = useServiceFee();
 
   // Payment
-  const [paymentMethod, setPaymentMethod] = useState<'paystack_link' | 'bank_transfer' | 'cash'>('paystack_link');
+  const [paymentMethod, setPaymentMethod] = useState<'paystack_link' | 'bank_transfer' | 'cash' | 'wallet'>('paystack_link');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
