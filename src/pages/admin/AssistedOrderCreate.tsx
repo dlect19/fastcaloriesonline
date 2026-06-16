@@ -638,10 +638,27 @@ export default function AssistedOrderCreate() {
                   </div>
                 </div>
                 {packsCount > 1 && (
-                  <p className="text-xs text-muted-foreground">Assign each item to a pack below. A ₦200 multi-pack fee will be applied automatically by the system for orders with 2+ packs.</p>
+                  <div className="rounded-md bg-primary/5 border border-primary/30 p-2 text-xs space-y-2">
+                    <p className="text-muted-foreground">Each pack can hold <strong>different menu items</strong>. New items will go into the active pack — change it before clicking items, or re-assign per row below.</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium">Adding to:</span>
+                      {Array.from({ length: packsCount }).map((_, n) => (
+                        <button key={n} type="button" onClick={() => setCurrentPack(n+1)}
+                          className={`px-2 py-1 rounded border text-xs ${currentPack === n+1 ? 'bg-primary text-primary-foreground border-primary' : 'bg-background hover:bg-muted'}`}>
+                          Pack {n+1}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 )}
 
-                {cart.map((i, idx) => (
+                {cart.map((i, idx) => {
+                  const productAddons = addonsByProduct[i.product.id] || [];
+                  const isSelected = (a: AddonItem) => (i.addons || []).some(x => x.addon_item_name === a.name && x.addon_group_name === a.group_name);
+                  // Group addons by group name for display
+                  const addonsByGroupName: Record<string, AddonItem[]> = {};
+                  productAddons.forEach(a => { (addonsByGroupName[a.group_name] ||= []).push(a); });
+                  return (
                   <div key={idx} className="border-b last:border-0 pb-3 last:pb-0 space-y-2">
                     <div className="flex items-center justify-between gap-2 flex-wrap">
                       <div className="font-medium text-sm">
@@ -662,13 +679,45 @@ export default function AssistedOrderCreate() {
                         <Button size="icon" variant="outline" onClick={() => setQty(idx, -1)}><Minus className="w-3 h-3" /></Button>
                         <span className="w-6 text-center text-sm">{i.quantity}</span>
                         <Button size="icon" variant="outline" onClick={() => setQty(idx, +1)}><Plus className="w-3 h-3" /></Button>
-                        <div className="w-20 text-right text-sm">₦{(i.product.price * i.quantity).toLocaleString()}</div>
+                        <div className="w-24 text-right text-sm">₦{itemLineTotal(i).toLocaleString()}</div>
                         <Button size="icon" variant="ghost" onClick={() => removeItem(idx)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
                       </div>
                     </div>
+                    {Object.keys(addonsByGroupName).length > 0 && (
+                      <details className="border rounded bg-muted/30">
+                        <summary className="cursor-pointer text-xs font-medium p-2 text-primary">
+                          + Add-ons ({Object.values(addonsByGroupName).reduce((s, arr) => s + arr.length, 0)} available
+                          {(i.addons?.length || 0) > 0 ? ` · ${i.addons!.length} selected` : ''})
+                        </summary>
+                        <div className="p-2 pt-0 space-y-2">
+                          {Object.entries(addonsByGroupName).map(([gname, items]) => (
+                            <div key={gname}>
+                              <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mt-1">{gname}</div>
+                              <div className="grid grid-cols-2 gap-1 mt-1">
+                                {items.map((a) => (
+                                  <label key={a.id} className={`flex items-center gap-2 text-xs p-1 rounded border cursor-pointer ${isSelected(a) ? 'bg-primary/10 border-primary' : 'hover:bg-muted'}`}>
+                                    <input type="checkbox" checked={isSelected(a)} onChange={() => toggleItemAddon(idx, a)} />
+                                    <span className="flex-1">{a.name}</span>
+                                    <span className="text-muted-foreground">+₦{Number(a.additional_price || 0).toLocaleString()}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
+                    {(i.addons?.length || 0) > 0 && (
+                      <div className="text-[11px] text-muted-foreground pl-2 border-l-2 border-primary/40">
+                        {i.addons!.map((a, k) => (
+                          <div key={k}>+ {a.addon_item_name} <span className="opacity-70">({a.addon_group_name}) · +₦{Number(a.additional_price).toLocaleString()}</span></div>
+                        ))}
+                      </div>
+                    )}
                     <Input value={i.special_instructions || ''} onChange={(e) => updateInstructions(idx, e.target.value)} placeholder="Special instructions (e.g. No pepper)" />
                   </div>
-                ))}
+                  );
+                })}
                 {applicablePacks.length > 0 && (
                   <div className="rounded-md bg-muted/40 p-2 text-sm space-y-1">
                     <div className="font-medium">Takeaway Pack (Auto-added)</div>
