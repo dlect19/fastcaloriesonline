@@ -198,23 +198,47 @@ serve(async (req) => {
       (pkgs || []).forEach((p: any) => packIdByNumber.set(p.sort_order, p.id));
     }
 
-    // Insert items
-    const itemRows = items.map((i: any) => ({
-      order_id: order.id,
-      product_id: i.product_id || null,
-      product_name: i.product_name,
-      quantity: i.quantity,
-      unit_price: Number(i.unit_price),
-      total_price: Number(i.unit_price) * Number(i.quantity),
-      special_instructions: i.special_instructions || null,
-      calories: i.calories != null ? Number(i.calories) : null,
-      package_id: packCount > 1 ? (packIdByNumber.get(Number(i.pack) || 1) || null) : null,
+    // Insert items (and capture per-item ids so we can attach addons)
+    const itemRowsIn = items.map((i: any) => ({
+      _client: i,
+      row: {
+        order_id: order.id,
+        product_id: i.product_id || null,
+        product_name: i.product_name,
+        quantity: i.quantity,
+        unit_price: Number(i.unit_price),
+        total_price: (Number(i.unit_price) + (Array.isArray(i.addons) ? i.addons.reduce((a:number,x:any)=>a+(Number(x.additional_price)||0),0) : 0)) * Number(i.quantity),
+        special_instructions: i.special_instructions || null,
+        calories: i.calories != null ? Number(i.calories) : null,
+        package_id: packCount > 1 ? (packIdByNumber.get(Number(i.pack) || 1) || null) : null,
+      },
     }));
-    const { error: itemsErr } = await supabase.from('order_items').insert(itemRows);
-    if (itemsErr) {
+    const { data: insertedItems, error: itemsErr } = await supabase
+      .from('order_items').insert(itemRowsIn.map(x => x.row)).select('id');
+    if (itemsErr || !insertedItems) {
       console.error('Items insert error', itemsErr);
       await supabase.from('orders').delete().eq('id', order.id);
-      return json({ error: 'Failed to insert items: ' + itemsErr.message }, 500);
+      return json({ error: 'Failed to insert items: ' + (itemsErr?.message || 'unknown') }, 500);
+    }
+    // Insert addons for each item
+    const addonRows: any[] = [];
+    insertedItems.forEach((row: any, idx: number) => {
+      const client = itemRowsIn[idx]?._client;
+      if (Array.isArray(client?.addons)) {
+        client.addons.forEach((a: any) => {
+          addonRows.push({
+            order_item_id: row.id,
+            addon_group_name: a.addon_group_name || 'Addons',
+            addon_item_name: a.addon_item_name,
+            additional_price: Number(a.additional_price) || 0,
+            calories: a.calories != null ? Number(a.calories) : 0,
+          });
+        });
+      }
+    });
+    if (addonRows.length > 0) {
+      const { error: addonErr } = await supabase.from('order_item_addons').insert(addonRows);
+      if (addonErr) console.error('Addons insert error (non-fatal)', addonErr);
     }
 
     // Generate payment link (paystack)
