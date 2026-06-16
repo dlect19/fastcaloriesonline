@@ -174,7 +174,7 @@ export default function AdminDashboard() {
       // Fetch orders filtered by environment and date range
       let orderQuery = supabase
         .from('orders')
-        .select('total, subtotal, delivery_fee, service_fee, vendor_id, channel')
+        .select('total, subtotal, delivery_fee, service_fee, vendor_id, channel, payment_method')
         .eq('environment', envFilter)
         .eq('payment_status', 'paid')
         .not('status', 'eq', 'cancelled');
@@ -278,21 +278,27 @@ export default function AdminDashboard() {
       const vendorMap = new Map<string, VendorBreakdown>();
 
       orders?.forEach(order => {
-        grossRevenue += Number(order.total) || 0;
-        serviceFees += Number(order.service_fee) || 0;
-        
+        const isPos = (order as any).channel === 'pos';
+        const posPaidViaWallet = isPos && (order as any).payment_method === 'wallet';
+        // POS revenue does NOT flow through us unless customer paid via their FastCalories wallet.
+        const countsForPlatformRevenue = !isPos || posPaidViaWallet;
+
         const vendor = vendors?.find(v => v.id === order.vendor_id);
         const commissionRate = vendor?.commission_rate || 15;
         const orderSubtotal = Number(order.subtotal) || 0;
-        const commission = orderSubtotal * (commissionRate / 100);
-        platformCommission += commission;
-        
-        const deliveryFee = Number(order.delivery_fee) || 0;
-        deliveryRevenue += deliveryFee * ((100 - riderSharePercent) / 100);
+        // No commission is collected on POS sales yet (wallet-paid POS included only in revenue, not commission).
+        const commission = isPos ? 0 : orderSubtotal * (commissionRate / 100);
 
-        // Build per-vendor breakdown
+        if (countsForPlatformRevenue) {
+          grossRevenue += Number(order.total) || 0;
+          serviceFees += Number(order.service_fee) || 0;
+          platformCommission += commission;
+          const deliveryFee = Number(order.delivery_fee) || 0;
+          deliveryRevenue += deliveryFee * ((100 - riderSharePercent) / 100);
+        }
+
+        // Build per-vendor breakdown (commission is 0 for POS rows)
         if (order.vendor_id) {
-          const isPos = (order as any).channel === 'pos';
           const netForOrder = orderSubtotal - commission;
           const existing = vendorMap.get(order.vendor_id);
           if (existing) {
@@ -473,7 +479,7 @@ export default function AdminDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{formatCurrency(financialStats.grossRevenue)}</div>
-                <p className="text-xs text-muted-foreground">Total order amounts</p>
+                <p className="text-xs text-muted-foreground">Online orders + wallet-paid POS (excludes cash/card POS)</p>
               </CardContent>
             </Card>
 
@@ -535,7 +541,7 @@ export default function AdminDashboard() {
               {vendorBreakdowns.length > 0 ? (
                 <Card>
                   <CardContent className="p-0">
-                    <div className="flex items-center gap-2 p-3 border-b">
+                    <div className="flex items-center gap-2 p-3 border-b flex-wrap">
                       <span className="text-xs text-muted-foreground mr-1">Channel:</span>
                       {(['all', 'online', 'pos'] as const).map((c) => (
                         <button
@@ -546,6 +552,9 @@ export default function AdminDashboard() {
                           {c === 'all' ? 'All' : c === 'online' ? 'Online Sales' : 'POS'}
                         </button>
                       ))}
+                      {vendorChannel === 'pos' && (
+                        <span className="text-[11px] text-muted-foreground ml-auto">POS commission is not collected yet — shown as ₦0.</span>
+                      )}
                     </div>
                     <Table>
                       <TableHeader>

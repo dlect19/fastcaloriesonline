@@ -19,7 +19,9 @@ import { useTakeawayPacks } from '@/hooks/useTakeawayPacks';
 type Vendor = { id: string; name: string; latitude: number | null; longitude: number | null };
 type Outlet = { id: string; vendor_id: string; outlet_name: string | null; latitude: number | null; longitude: number | null; is_active: boolean };
 type Product = { id: string; name: string; price: number; vendor_id: string; outlet_id: string | null; is_available: boolean; calories: number | null };
-type CartItem = { product: Product; quantity: number; special_instructions?: string; pack: number };
+type AddonItem = { id: string; addon_group_id: string; name: string; additional_price: number; calories: number | null; is_available: boolean; group_name: string };
+type SelectedAddon = { addon_group_name: string; addon_item_name: string; additional_price: number; calories: number | null };
+type CartItem = { product: Product; quantity: number; special_instructions?: string; pack: number; addons?: SelectedAddon[] };
 
 const MAX_PACKS = 5;
 
@@ -87,8 +89,16 @@ export default function AssistedOrderCreate() {
   const [outletId, setOutletId] = useState<string>('');
   const [productSearch, setProductSearch] = useState('');
   const [products, setProducts] = useState<Product[]>([]);
+  const [addonsByProduct, setAddonsByProduct] = useState<Record<string, AddonItem[]>>({});
   const [cart, setCart] = useState<CartItem[]>([]);
   const [packsCount, setPacksCount] = useState<number>(1);
+  const [currentPack, setCurrentPack] = useState<number>(1);
+  // Promo code
+  const [promoInput, setPromoInput] = useState('');
+  const [promoCode, setPromoCode] = useState<string | null>(null);
+  const [discount, setDiscount] = useState<number>(0);
+  const [promoMsg, setPromoMsg] = useState<string>('');
+  const [validatingPromo, setValidatingPromo] = useState(false);
 
   // Pricing extras
   const [deliveryFee, setDeliveryFee] = useState<number>(0);
@@ -112,7 +122,7 @@ export default function AssistedOrderCreate() {
   const { calculateServiceFee } = useServiceFee();
 
   // Payment
-  const [paymentMethod, setPaymentMethod] = useState<'paystack_link' | 'bank_transfer' | 'cash'>('paystack_link');
+  const [paymentMethod, setPaymentMethod] = useState<'paystack_link' | 'bank_transfer' | 'cash' | 'wallet'>('paystack_link');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -141,7 +151,7 @@ export default function AssistedOrderCreate() {
 
   // Load products (all, then split available/unavailable) for selected outlet/vendor
   useEffect(() => {
-    if (!vendorId) { setProducts([]); return; }
+    if (!vendorId) { setProducts([]); setAddonsByProduct({}); return; }
     let q = supabase
       .from('products')
       .select('id, name, price, vendor_id, outlet_id, is_available, calories')
@@ -149,10 +159,45 @@ export default function AssistedOrderCreate() {
       .order('name')
       .limit(400);
     if (outletId) {
-      // Include products for this outlet OR vendor-wide products (outlet_id null)
       q = q.or(`outlet_id.eq.${outletId},outlet_id.is.null`);
     }
-    q.then(({ data }) => setProducts((data || []) as Product[]));
+    q.then(async ({ data }) => {
+      const prods = (data || []) as Product[];
+      setProducts(prods);
+      const ids = prods.map(p => p.id);
+      if (ids.length === 0) { setAddonsByProduct({}); return; }
+      // Load addon groups + items linked to these products via product_addon_groups OR addon_groups.product_id
+      const [{ data: links }, { data: directGroups }] = await Promise.all([
+        supabase.from('product_addon_groups').select('product_id, addon_group_id').in('product_id', ids),
+        supabase.from('addon_groups').select('id, name, product_id').in('product_id', ids),
+      ]);
+      const groupIds = Array.from(new Set([
+        ...((links || []).map((l: any) => l.addon_group_id)),
+        ...((directGroups || []).map((g: any) => g.id)),
+      ]));
+      if (groupIds.length === 0) { setAddonsByProduct({}); return; }
+      const { data: groups } = await supabase
+        .from('addon_groups').select('id, name').in('id', groupIds);
+      const groupNameById: Record<string, string> = {};
+      (groups || []).forEach((g: any) => { groupNameById[g.id] = g.name; });
+      const { data: items } = await supabase
+        .from('addon_items').select('id, addon_group_id, name, additional_price, calories, is_available')
+        .in('addon_group_id', groupIds).eq('is_available', true).order('sort_order');
+      const itemsByGroup: Record<string, AddonItem[]> = {};
+      (items || []).forEach((it: any) => {
+        const gname = groupNameById[it.addon_group_id] || 'Addons';
+        (itemsByGroup[it.addon_group_id] ||= []).push({ ...it, group_name: gname });
+      });
+      // Map product -> addon items (merge via links + direct)
+      const byProd: Record<string, AddonItem[]> = {};
+      (links || []).forEach((l: any) => {
+        (byProd[l.product_id] ||= []).push(...(itemsByGroup[l.addon_group_id] || []));
+      });
+      (directGroups || []).forEach((g: any) => {
+        (byProd[g.product_id] ||= []).push(...(itemsByGroup[g.id] || []));
+      });
+      setAddonsByProduct(byProd);
+    });
   }, [vendorId, outletId]);
 
   const handlePasteCoords = () => {
@@ -173,10 +218,12 @@ export default function AssistedOrderCreate() {
       toast({ title: 'Item unavailable', description: `${p.name} is currently turned off by the vendor.`, variant: 'destructive' });
       return;
     }
+    const pack = Math.min(Math.max(1, currentPack), Math.max(1, packsCount));
     setCart((c) => {
-      const existing = c.find((i) => i.product.id === p.id && i.pack === 1);
+      // Merge only when same product AND same pack AND no addons (otherwise treat as separate line)
+      const existing = c.find((i) => i.product.id === p.id && i.pack === pack && !(i.addons && i.addons.length));
       if (existing) return c.map((i) => i === existing ? { ...i, quantity: i.quantity + 1 } : i);
-      return [...c, { product: p, quantity: 1, pack: 1 }];
+      return [...c, { product: p, quantity: 1, pack, addons: [] }];
     });
   };
   const setQty = (idx: number, delta: number) => {
@@ -187,10 +234,29 @@ export default function AssistedOrderCreate() {
     setCart((c) => c.map((it, i) => i === idx ? { ...it, special_instructions: txt } : it));
   const setItemPack = (idx: number, pack: number) =>
     setCart((c) => c.map((it, i) => i === idx ? { ...it, pack } : it));
+  const toggleItemAddon = (idx: number, addon: AddonItem) => {
+    setCart((c) => c.map((it, i) => {
+      if (i !== idx) return it;
+      const cur = it.addons || [];
+      const exists = cur.find(a => a.addon_item_name === addon.name && a.addon_group_name === addon.group_name);
+      const next = exists
+        ? cur.filter(a => !(a.addon_item_name === addon.name && a.addon_group_name === addon.group_name))
+        : [...cur, { addon_group_name: addon.group_name, addon_item_name: addon.name, additional_price: Number(addon.additional_price) || 0, calories: addon.calories }];
+      return { ...it, addons: next };
+    }));
+  };
 
-  const subtotal = useMemo(() => cart.reduce((s, i) => s + i.product.price * i.quantity, 0), [cart]);
+  const itemLineTotal = (i: CartItem) => {
+    const addonSum = (i.addons || []).reduce((s, a) => s + Number(a.additional_price || 0), 0);
+    return (i.product.price + addonSum) * i.quantity;
+  };
+
+  const subtotal = useMemo(() => cart.reduce((s, i) => s + itemLineTotal(i), 0), [cart]);
   const totalCalories = useMemo(
-    () => cart.reduce((s, i) => s + Number(i.product.calories || 0) * i.quantity, 0),
+    () => cart.reduce((s, i) => {
+      const addonCals = (i.addons || []).reduce((a, x) => a + Number(x.calories || 0), 0);
+      return s + (Number(i.product.calories || 0) + addonCals) * i.quantity;
+    }, 0),
     [cart],
   );
   const applicablePacks = useMemo(
@@ -211,7 +277,62 @@ export default function AssistedOrderCreate() {
     setServiceFee(Math.round(calculateServiceFee(subtotal, deliveryType)));
   }, [subtotal, deliveryType, calculateServiceFee, serviceFeeOverridden]);
 
-  const total = subtotal + packagingFee + (deliveryType === 'delivery' ? deliveryFee : 0) + serviceFee;
+  const effectiveDiscount = Math.min(discount, subtotal);
+  const total = Math.max(0, subtotal - effectiveDiscount + packagingFee + (deliveryType === 'delivery' ? deliveryFee : 0) + serviceFee);
+  const walletBalance = existingCustomer?.wallet_balance || 0;
+  const walletShortfall = paymentMethod === 'wallet' ? Math.max(0, total - walletBalance) : 0;
+
+  const validatePromo = async () => {
+    const code = promoInput.trim();
+    if (!code) return;
+    setValidatingPromo(true);
+    setPromoMsg('');
+    try {
+      // Lookup ambassador first
+      const { data: amb } = await supabase
+        .from('ambassadors').select('name, promo_code, discount_percentage, is_active')
+        .ilike('promo_code', code).eq('is_active', true).maybeSingle();
+      if (amb) {
+        const pct = Number(amb.discount_percentage ?? 10);
+        const d = Math.min(subtotal, Math.round((subtotal * pct) / 100));
+        setPromoCode(amb.promo_code); setDiscount(d);
+        setPromoMsg(`✓ Ambassador ${amb.name}: ${pct}% off → ₦${d.toLocaleString()}`);
+        setValidatingPromo(false);
+        return;
+      }
+      const { data: promos } = await supabase
+        .from('promo_codes').select('*').eq('code', code.toUpperCase()).eq('is_active', true);
+      if (!promos || promos.length === 0) {
+        setPromoMsg('Invalid promo code'); setPromoCode(null); setDiscount(0); setValidatingPromo(false); return;
+      }
+      const promo = promos.find((p: any) => p.vendor_id === vendorId) || promos.find((p: any) => !p.vendor_id) || promos[0];
+      if (promo.vendor_id && promo.vendor_id !== vendorId) {
+        setPromoMsg('Not valid for this vendor'); setPromoCode(null); setDiscount(0); setValidatingPromo(false); return;
+      }
+      const now = new Date();
+      if (promo.valid_from && new Date(promo.valid_from) > now) { setPromoMsg('Not yet active'); setPromoCode(null); setDiscount(0); setValidatingPromo(false); return; }
+      if (promo.valid_until && new Date(promo.valid_until) < now) { setPromoMsg('Expired'); setPromoCode(null); setDiscount(0); setValidatingPromo(false); return; }
+      if (promo.min_order_amount && subtotal < Number(promo.min_order_amount)) {
+        setPromoMsg(`Min order ₦${Number(promo.min_order_amount).toLocaleString()}`); setPromoCode(null); setDiscount(0); setValidatingPromo(false); return;
+      }
+      let d = 0;
+      if (promo.discount_type === 'percentage') {
+        d = Math.round((subtotal * Number(promo.discount_value)) / 100);
+        if (promo.max_discount) d = Math.min(d, Number(promo.max_discount));
+      } else {
+        d = Number(promo.discount_value);
+      }
+      d = Math.min(d, subtotal);
+      setPromoCode(promo.code); setDiscount(d);
+      setPromoMsg(`✓ ₦${d.toLocaleString()} discount applied`);
+    } catch (e: any) {
+      setPromoMsg('Error validating: ' + (e.message || ''));
+    } finally {
+      setValidatingPromo(false);
+    }
+  };
+  const clearPromo = () => { setPromoCode(null); setDiscount(0); setPromoInput(''); setPromoMsg(''); };
+
 
   const availableProducts = products.filter(p => p.is_available);
   const unavailableProducts = products.filter(p => !p.is_available);
@@ -236,8 +357,12 @@ export default function AssistedOrderCreate() {
       if (!addressText.trim()) return 'Delivery address is required';
       if (!lat || !lng) return 'Pin the delivery location on the map';
     }
+    if (paymentMethod === 'wallet' && !existingCustomer?.user_id) {
+      return 'Wallet payment requires a registered FastCalories customer (lookup by phone first).';
+    }
     return null;
   };
+
 
   const submit = async () => {
     const err = validate();
@@ -273,16 +398,30 @@ export default function AssistedOrderCreate() {
             calories: i.product.calories ?? null,
             pack: i.pack,
             special_instructions: i.special_instructions || null,
+            addons: (i.addons || []).map(a => ({
+              addon_group_name: a.addon_group_name,
+              addon_item_name: a.addon_item_name,
+              additional_price: a.additional_price,
+              calories: a.calories,
+            })),
           })),
           packaging_fee: Number(packagingFee),
           delivery_fee: deliveryType === 'delivery' ? Number(deliveryFee) : 0,
           service_fee: Number(serviceFee),
+          discount: Number(effectiveDiscount),
+          promo_code: promoCode,
           payment_method: paymentMethod,
         },
       });
       if (error) throw error;
       if (!data?.order_id) throw new Error(data?.error || 'No order id returned');
-      toast({ title: 'Order created', description: `Order #${data.order_number}` });
+      if (data?.wallet_paid) {
+        toast({ title: 'Order paid via wallet', description: `Order #${data.order_number} confirmed.` });
+      } else if (data?.wallet_shortfall) {
+        toast({ title: 'Wallet short — Paystack link generated', description: `Customer owes ₦${Number(data.wallet_shortfall).toLocaleString()}. Share the link to complete payment.` });
+      } else {
+        toast({ title: 'Order created', description: `Order #${data.order_number}` });
+      }
       navigate(`/admin/assisted-orders/${data.order_id}`);
     } catch (e: any) {
       toast({ title: 'Failed to create order', description: e.message || String(e), variant: 'destructive' });
@@ -466,19 +605,20 @@ export default function AssistedOrderCreate() {
                 </div>
 
                 {filteredUnavailable.length > 0 && (
-                  <details className="rounded border border-yellow-500/30 bg-yellow-500/5">
-                    <summary className="cursor-pointer p-2 text-sm font-medium text-yellow-700 flex items-center gap-2">
-                      <AlertCircle className="w-4 h-4" /> {filteredUnavailable.length} item{filteredUnavailable.length>1?'s':''} unavailable right now — tell the customer
-                    </summary>
-                    <ul className="p-2 pt-0 space-y-1 max-h-48 overflow-y-auto">
+                  <div className="rounded border-2 border-yellow-500/60 bg-yellow-500/10 p-3 space-y-1">
+                    <div className="text-sm font-semibold text-yellow-800 flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4" />
+                      ⚠️ {filteredUnavailable.length} menu item{filteredUnavailable.length>1?'s are':' is'} UNAVAILABLE right now — let the customer know
+                    </div>
+                    <ul className="space-y-0.5 max-h-48 overflow-y-auto pl-6 pt-1">
                       {filteredUnavailable.map((p) => (
-                        <li key={p.id} className="text-xs text-muted-foreground flex justify-between p-1 border-b last:border-0">
+                        <li key={p.id} className="text-xs text-yellow-900/80 flex justify-between border-b border-yellow-500/20 py-1 last:border-0">
                           <span className="line-through">{p.name}</span>
                           <span>₦{Number(p.price).toLocaleString()}</span>
                         </li>
                       ))}
                     </ul>
-                  </details>
+                  </div>
                 )}
               </>
             )}
@@ -498,10 +638,27 @@ export default function AssistedOrderCreate() {
                   </div>
                 </div>
                 {packsCount > 1 && (
-                  <p className="text-xs text-muted-foreground">Assign each item to a pack below. A ₦200 multi-pack fee will be applied automatically by the system for orders with 2+ packs.</p>
+                  <div className="rounded-md bg-primary/5 border border-primary/30 p-2 text-xs space-y-2">
+                    <p className="text-muted-foreground">Each pack can hold <strong>different menu items</strong>. New items will go into the active pack — change it before clicking items, or re-assign per row below.</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium">Adding to:</span>
+                      {Array.from({ length: packsCount }).map((_, n) => (
+                        <button key={n} type="button" onClick={() => setCurrentPack(n+1)}
+                          className={`px-2 py-1 rounded border text-xs ${currentPack === n+1 ? 'bg-primary text-primary-foreground border-primary' : 'bg-background hover:bg-muted'}`}>
+                          Pack {n+1}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 )}
 
-                {cart.map((i, idx) => (
+                {cart.map((i, idx) => {
+                  const productAddons = addonsByProduct[i.product.id] || [];
+                  const isSelected = (a: AddonItem) => (i.addons || []).some(x => x.addon_item_name === a.name && x.addon_group_name === a.group_name);
+                  // Group addons by group name for display
+                  const addonsByGroupName: Record<string, AddonItem[]> = {};
+                  productAddons.forEach(a => { (addonsByGroupName[a.group_name] ||= []).push(a); });
+                  return (
                   <div key={idx} className="border-b last:border-0 pb-3 last:pb-0 space-y-2">
                     <div className="flex items-center justify-between gap-2 flex-wrap">
                       <div className="font-medium text-sm">
@@ -522,13 +679,45 @@ export default function AssistedOrderCreate() {
                         <Button size="icon" variant="outline" onClick={() => setQty(idx, -1)}><Minus className="w-3 h-3" /></Button>
                         <span className="w-6 text-center text-sm">{i.quantity}</span>
                         <Button size="icon" variant="outline" onClick={() => setQty(idx, +1)}><Plus className="w-3 h-3" /></Button>
-                        <div className="w-20 text-right text-sm">₦{(i.product.price * i.quantity).toLocaleString()}</div>
+                        <div className="w-24 text-right text-sm">₦{itemLineTotal(i).toLocaleString()}</div>
                         <Button size="icon" variant="ghost" onClick={() => removeItem(idx)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
                       </div>
                     </div>
+                    {Object.keys(addonsByGroupName).length > 0 && (
+                      <details className="border rounded bg-muted/30">
+                        <summary className="cursor-pointer text-xs font-medium p-2 text-primary">
+                          + Add-ons ({Object.values(addonsByGroupName).reduce((s, arr) => s + arr.length, 0)} available
+                          {(i.addons?.length || 0) > 0 ? ` · ${i.addons!.length} selected` : ''})
+                        </summary>
+                        <div className="p-2 pt-0 space-y-2">
+                          {Object.entries(addonsByGroupName).map(([gname, items]) => (
+                            <div key={gname}>
+                              <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mt-1">{gname}</div>
+                              <div className="grid grid-cols-2 gap-1 mt-1">
+                                {items.map((a) => (
+                                  <label key={a.id} className={`flex items-center gap-2 text-xs p-1 rounded border cursor-pointer ${isSelected(a) ? 'bg-primary/10 border-primary' : 'hover:bg-muted'}`}>
+                                    <input type="checkbox" checked={isSelected(a)} onChange={() => toggleItemAddon(idx, a)} />
+                                    <span className="flex-1">{a.name}</span>
+                                    <span className="text-muted-foreground">+₦{Number(a.additional_price || 0).toLocaleString()}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
+                    {(i.addons?.length || 0) > 0 && (
+                      <div className="text-[11px] text-muted-foreground pl-2 border-l-2 border-primary/40">
+                        {i.addons!.map((a, k) => (
+                          <div key={k}>+ {a.addon_item_name} <span className="opacity-70">({a.addon_group_name}) · +₦{Number(a.additional_price).toLocaleString()}</span></div>
+                        ))}
+                      </div>
+                    )}
                     <Input value={i.special_instructions || ''} onChange={(e) => updateInstructions(idx, e.target.value)} placeholder="Special instructions (e.g. No pepper)" />
                   </div>
-                ))}
+                  );
+                })}
                 {applicablePacks.length > 0 && (
                   <div className="rounded-md bg-muted/40 p-2 text-sm space-y-1">
                     <div className="font-medium">Takeaway Pack (Auto-added)</div>
@@ -582,8 +771,26 @@ export default function AssistedOrderCreate() {
                 <p className="text-xs text-muted-foreground mt-1">Auto: ₦{Math.round(calculateServiceFee(subtotal, deliveryType)).toLocaleString()}</p>
               </div>
             </div>
+            <div className="border-t pt-3 space-y-2">
+              <Label className="text-xs">Promo Code (optional)</Label>
+              {!promoCode ? (
+                <div className="flex gap-2">
+                  <Input value={promoInput} onChange={(e) => setPromoInput(e.target.value.toUpperCase())} placeholder="e.g. WELCOME10" />
+                  <Button type="button" variant="outline" onClick={validatePromo} disabled={validatingPromo || !promoInput.trim() || !vendorId}>
+                    {validatingPromo ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Apply'}
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-2 rounded border border-green-500/40 bg-green-500/5 p-2 text-xs">
+                  <span>✓ {promoCode} — ₦{effectiveDiscount.toLocaleString()} off</span>
+                  <Button size="sm" variant="ghost" onClick={clearPromo}>Remove</Button>
+                </div>
+              )}
+              {promoMsg && !promoCode && <p className="text-xs text-destructive">{promoMsg}</p>}
+            </div>
             <div className="border-t pt-3 space-y-1 text-sm">
               <div className="flex justify-between"><span>Subtotal</span><span>₦{subtotal.toLocaleString()}</span></div>
+              {effectiveDiscount > 0 && <div className="flex justify-between text-success"><span>Discount {promoCode ? `(${promoCode})` : ''}</span><span>−₦{effectiveDiscount.toLocaleString()}</span></div>}
               {packagingFee > 0 && <div className="flex justify-between"><span>Takeaway Pack</span><span>₦{Number(packagingFee).toLocaleString()}</span></div>}
               {deliveryType === 'delivery' && <div className="flex justify-between"><span>Delivery Fee</span><span>₦{Number(deliveryFee).toLocaleString()}</span></div>}
               <div className="flex justify-between"><span>Service Fee</span><span>₦{Number(serviceFee).toLocaleString()}</span></div>
@@ -598,11 +805,25 @@ export default function AssistedOrderCreate() {
             <Select value={paymentMethod} onValueChange={(v: any) => setPaymentMethod(v)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
+                {existingCustomer?.user_id && (
+                  <SelectItem value="wallet">Customer Wallet (₦{walletBalance.toLocaleString()} available)</SelectItem>
+                )}
                 <SelectItem value="paystack_link">Send Paystack payment link</SelectItem>
                 <SelectItem value="bank_transfer">Bank transfer instructions</SelectItem>
                 <SelectItem value="cash">Cash (mark paid manually)</SelectItem>
               </SelectContent>
             </Select>
+            {paymentMethod === 'wallet' && existingCustomer && (
+              <div className={`rounded p-2 text-xs ${walletShortfall > 0 ? 'bg-yellow-500/10 border border-yellow-500/40 text-yellow-800' : 'bg-green-500/10 border border-green-500/40 text-green-800'}`}>
+                {walletShortfall > 0 ? (
+                  <>
+                    <strong>Wallet short by ₦{walletShortfall.toLocaleString()}.</strong> A Paystack top-up link for the shortfall will be generated automatically for the customer.
+                  </>
+                ) : (
+                  <>✓ Wallet has enough funds. Order will be paid & confirmed instantly.</>
+                )}
+              </div>
+            )}
             <p className="text-xs text-muted-foreground">The order will be created in <strong>Awaiting Payment</strong>. Once payment is verified it enters the normal vendor → rider workflow automatically.</p>
           </CardContent>
         </Card>

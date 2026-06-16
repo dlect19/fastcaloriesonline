@@ -48,6 +48,7 @@ serve(async (req) => {
       vendor_id, outlet_id = null, packs_count = 1,
       delivery_type, delivery_address, items,
       delivery_fee = 0, service_fee = 0, packaging_fee = 0, payment_method, order_note,
+      discount = 0, promo_code = null,
     } = body;
 
     // Basic validation
@@ -56,7 +57,7 @@ serve(async (req) => {
     if (!vendor_id) return json({ error: 'vendor_id required' }, 400);
     if (!Array.isArray(items) || items.length === 0) return json({ error: 'items required' }, 400);
     if (!['phone','whatsapp','sms','facebook','instagram','other'].includes(channel)) return json({ error: 'Invalid channel' }, 400);
-    if (!['paystack_link','bank_transfer','cash'].includes(payment_method)) return json({ error: 'Invalid payment_method' }, 400);
+    if (!['paystack_link','bank_transfer','cash','wallet'].includes(payment_method)) return json({ error: 'Invalid payment_method' }, 400);
     if (!['delivery','self_pickup'].includes(delivery_type)) return json({ error: 'Invalid delivery_type' }, 400);
     if (delivery_type === 'delivery') {
       if (!delivery_address?.text) return json({ error: 'Delivery address required' }, 400);
@@ -109,9 +110,18 @@ serve(async (req) => {
       outlet = o;
     }
 
-    // Totals
-    const subtotal = items.reduce((s: number, i: any) => s + Number(i.unit_price) * Number(i.quantity), 0);
-    const total = subtotal + Number(packaging_fee) + (delivery_type === 'delivery' ? Number(delivery_fee) : 0) + Number(service_fee);
+    // Totals — items include addons in unit pricing (already captured by client) but we recompute defensively
+    const subtotal = items.reduce((s: number, i: any) => {
+      const addonSum = Array.isArray(i.addons) ? i.addons.reduce((a: number, x: any) => a + (Number(x.additional_price) || 0), 0) : 0;
+      return s + (Number(i.unit_price) + addonSum) * Number(i.quantity);
+    }, 0);
+    const discountAmt = Math.min(Number(discount) || 0, subtotal);
+    const total = Math.max(0, subtotal - discountAmt) + Number(packaging_fee) + (delivery_type === 'delivery' ? Number(delivery_fee) : 0) + Number(service_fee);
+
+    // Wallet payment requires a registered customer
+    if (payment_method === 'wallet' && !userId) {
+      return json({ error: 'Wallet payment requires the customer to have a FastCalories account.' }, 400);
+    }
 
     // Confirmation code (delivery OTP) — 6 digits
     const confirmationCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -132,13 +142,14 @@ serve(async (req) => {
     const recvPhone = receiver?.phone || customer.phone;
 
     // Insert order
+    const storedPaymentMethod = payment_method === 'cash' ? 'cash' : payment_method === 'wallet' ? 'wallet' : 'paystack';
     const { data: order, error: orderErr } = await supabase
       .from('orders')
       .insert({
         user_id: userId,
         vendor_id,
         outlet_id: outlet?.id || null,
-        status: 'pending', // becomes vendor-visible after payment received
+        status: 'pending',
         delivery_type,
         delivery_address_id: deliveryAddressId,
         delivery_address_text: delivery_type === 'delivery' ? delivery_address.text : null,
@@ -147,9 +158,10 @@ serve(async (req) => {
         packaging_fee: Number(packaging_fee),
         delivery_fee: delivery_type === 'delivery' ? Number(delivery_fee) : 0,
         service_fee: Number(service_fee),
-        discount: 0,
+        discount: discountAmt,
+        promo_code: promo_code || null,
         total,
-        payment_method: payment_method === 'cash' ? 'cash' : 'paystack',
+        payment_method: storedPaymentMethod,
         payment_status: 'pending',
         confirmation_code: confirmationCode,
         environment,
@@ -186,67 +198,119 @@ serve(async (req) => {
       (pkgs || []).forEach((p: any) => packIdByNumber.set(p.sort_order, p.id));
     }
 
-    // Insert items
-    const itemRows = items.map((i: any) => ({
-      order_id: order.id,
-      product_id: i.product_id || null,
-      product_name: i.product_name,
-      quantity: i.quantity,
-      unit_price: Number(i.unit_price),
-      total_price: Number(i.unit_price) * Number(i.quantity),
-      special_instructions: i.special_instructions || null,
-      calories: i.calories != null ? Number(i.calories) : null,
-      package_id: packCount > 1 ? (packIdByNumber.get(Number(i.pack) || 1) || null) : null,
+    // Insert items (and capture per-item ids so we can attach addons)
+    const itemRowsIn = items.map((i: any) => ({
+      _client: i,
+      row: {
+        order_id: order.id,
+        product_id: i.product_id || null,
+        product_name: i.product_name,
+        quantity: i.quantity,
+        unit_price: Number(i.unit_price),
+        total_price: (Number(i.unit_price) + (Array.isArray(i.addons) ? i.addons.reduce((a:number,x:any)=>a+(Number(x.additional_price)||0),0) : 0)) * Number(i.quantity),
+        special_instructions: i.special_instructions || null,
+        calories: i.calories != null ? Number(i.calories) : null,
+        package_id: packCount > 1 ? (packIdByNumber.get(Number(i.pack) || 1) || null) : null,
+      },
     }));
-    const { error: itemsErr } = await supabase.from('order_items').insert(itemRows);
-    if (itemsErr) {
+    const { data: insertedItems, error: itemsErr } = await supabase
+      .from('order_items').insert(itemRowsIn.map(x => x.row)).select('id');
+    if (itemsErr || !insertedItems) {
       console.error('Items insert error', itemsErr);
       await supabase.from('orders').delete().eq('id', order.id);
-      return json({ error: 'Failed to insert items: ' + itemsErr.message }, 500);
+      return json({ error: 'Failed to insert items: ' + (itemsErr?.message || 'unknown') }, 500);
+    }
+    // Insert addons for each item
+    const addonRows: any[] = [];
+    insertedItems.forEach((row: any, idx: number) => {
+      const client = itemRowsIn[idx]?._client;
+      if (Array.isArray(client?.addons)) {
+        client.addons.forEach((a: any) => {
+          addonRows.push({
+            order_item_id: row.id,
+            addon_group_name: a.addon_group_name || 'Addons',
+            addon_item_name: a.addon_item_name,
+            additional_price: Number(a.additional_price) || 0,
+            calories: a.calories != null ? Number(a.calories) : 0,
+          });
+        });
+      }
+    });
+    if (addonRows.length > 0) {
+      const { error: addonErr } = await supabase.from('order_item_addons').insert(addonRows);
+      if (addonErr) console.error('Addons insert error (non-fatal)', addonErr);
     }
 
     // Generate payment link (paystack)
     let paymentLink: string | null = null;
     let paymentReference: string | null = null;
     let bankInstructions: string | null = null;
+    let walletPaid = false;
+    let walletShortfall = 0;
 
-    if (payment_method === 'paystack_link') {
-      try {
-        const paystackKey = environment === 'production'
-          ? Deno.env.get('PAYSTACK_LIVE_SECRET_KEY') || Deno.env.get('PAYSTACK_SECRET_KEY')
-          : Deno.env.get('PAYSTACK_TEST_SECRET_KEY') || Deno.env.get('PAYSTACK_SECRET_KEY');
-
-        if (paystackKey) {
-          const ref = `FCM-${order.order_number}-${Date.now()}`;
-          const origin = req.headers.get('origin') || 'https://app.fastcalories.online';
-          const psRes = await fetch('https://api.paystack.co/transaction/initialize', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${paystackKey}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              email: customer.email || `${customer.phone}@fastcalories.local`,
-              amount: Math.round(total * 100),
-              reference: ref,
-              callback_url: `${origin}/track/${order.order_number}`,
-              metadata: { order_id: order.id, order_number: order.order_number, environment, assisted: true },
-            }),
-          });
-          const psData = await psRes.json();
-          if (psData?.status && psData.data?.authorization_url) {
-            paymentLink = psData.data.authorization_url;
-            paymentReference = psData.data.reference;
-            await supabase.from('orders').update({ payment_reference: paymentReference }).eq('id', order.id);
-          } else {
-            console.error('Paystack init failed', psData);
-          }
-        }
-      } catch (e) {
-        console.error('Paystack error', e);
+    const initPaystackLink = async (amount: number, suffix = '') => {
+      const paystackKey = environment === 'production'
+        ? Deno.env.get('PAYSTACK_LIVE_SECRET_KEY') || Deno.env.get('PAYSTACK_SECRET_KEY')
+        : Deno.env.get('PAYSTACK_TEST_SECRET_KEY') || Deno.env.get('PAYSTACK_SECRET_KEY');
+      if (!paystackKey) return null;
+      const ref = `FCM-${order.order_number}-${suffix || ''}${Date.now()}`;
+      const origin = req.headers.get('origin') || 'https://app.fastcalories.online';
+      const psRes = await fetch('https://api.paystack.co/transaction/initialize', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${paystackKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: customer.email || `${customer.phone}@fastcalories.local`,
+          amount: Math.round(amount * 100),
+          reference: ref,
+          callback_url: `${origin}/track/${order.order_number}`,
+          metadata: { order_id: order.id, order_number: order.order_number, environment, assisted: true, top_up: suffix === 'topup' },
+        }),
+      });
+      const psData = await psRes.json();
+      if (psData?.status && psData.data?.authorization_url) {
+        return { url: psData.data.authorization_url as string, reference: psData.data.reference as string };
       }
+      console.error('Paystack init failed', psData);
+      return null;
+    };
 
-      if (!paymentLink) {
+    if (payment_method === 'wallet') {
+      // Check current wallet balance
+      const { data: wallet } = await supabase
+        .from('wallets').select('id, balance, test_balance')
+        .eq('user_id', userId).eq('wallet_type', 'customer').maybeSingle();
+      const bal = Number((environment === 'production' ? wallet?.balance : wallet?.test_balance) ?? wallet?.balance ?? 0);
+      if (bal >= total) {
+        // Sufficient — debit via process-wallet-payment
+        const { data: payRes, error: payErr } = await supabase.functions.invoke('process-wallet-payment', {
+          body: { orderId: order.id },
+        });
+        if (payErr || payRes?.error) {
+          console.error('Wallet debit failed', payErr || payRes?.error);
+          await supabase.from('orders').delete().eq('id', order.id);
+          return json({ error: 'Wallet debit failed: ' + (payErr?.message || payRes?.error || 'unknown') }, 502);
+        }
+        walletPaid = true;
+      } else {
+        // Shortfall — generate Paystack top-up link for the difference
+        walletShortfall = Math.round(total - bal);
+        const res = await initPaystackLink(walletShortfall, 'topup');
+        if (!res) {
+          await supabase.from('orders').delete().eq('id', order.id);
+          return json({ error: 'Could not generate Paystack top-up link for wallet shortfall.' }, 502);
+        }
+        paymentLink = res.url;
+        paymentReference = res.reference;
+        await supabase.from('orders').update({ payment_reference: paymentReference }).eq('id', order.id);
+      }
+    } else if (payment_method === 'paystack_link') {
+      const res = await initPaystackLink(total);
+      if (!res) {
         await supabase.from('orders').delete().eq('id', order.id);
         return json({ error: 'Paystack payment link could not be generated. Please check the active payment environment and Paystack keys, then try again.' }, 502);
       }
+      paymentLink = res.url; paymentReference = res.reference;
+      await supabase.from('orders').update({ payment_reference: paymentReference }).eq('id', order.id);
     } else if (payment_method === 'bank_transfer') {
       const { data: settings } = await supabase
         .from('platform_settings').select('value').eq('key', 'bank_transfer_instructions').maybeSingle();
@@ -263,7 +327,7 @@ serve(async (req) => {
       payment_link: paymentLink,
       payment_reference: paymentReference,
       bank_transfer_instructions: bankInstructions,
-      payment_status: payment_method === 'cash' ? 'awaiting' : 'awaiting',
+      payment_status: walletPaid ? 'received' : 'awaiting',
       created_by: adminId,
       last_modified_by: adminId,
     });
@@ -274,7 +338,7 @@ serve(async (req) => {
       order_id: order.id,
       actor_id: adminId,
       action: 'order_created',
-      details: { customer_phone: customer.phone, vendor_id, total, payment_method, channel },
+      details: { customer_phone: customer.phone, vendor_id, total, payment_method, channel, wallet_paid: walletPaid, wallet_shortfall: walletShortfall, promo_code, discount: discountAmt },
     });
 
     return json({
@@ -283,6 +347,8 @@ serve(async (req) => {
       order_number: order.order_number,
       payment_link: paymentLink,
       bank_transfer_instructions: bankInstructions,
+      wallet_paid: walletPaid,
+      wallet_shortfall: walletShortfall,
       tracking_url: `${req.headers.get('origin') || ''}/track/${order.order_number}`,
     });
   } catch (e: any) {
