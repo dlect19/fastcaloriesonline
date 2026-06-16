@@ -278,21 +278,27 @@ export default function AdminDashboard() {
       const vendorMap = new Map<string, VendorBreakdown>();
 
       orders?.forEach(order => {
-        grossRevenue += Number(order.total) || 0;
-        serviceFees += Number(order.service_fee) || 0;
-        
+        const isPos = (order as any).channel === 'pos';
+        const posPaidViaWallet = isPos && (order as any).payment_method === 'wallet';
+        // POS revenue does NOT flow through us unless customer paid via their FastCalories wallet.
+        const countsForPlatformRevenue = !isPos || posPaidViaWallet;
+
         const vendor = vendors?.find(v => v.id === order.vendor_id);
         const commissionRate = vendor?.commission_rate || 15;
         const orderSubtotal = Number(order.subtotal) || 0;
-        const commission = orderSubtotal * (commissionRate / 100);
-        platformCommission += commission;
-        
-        const deliveryFee = Number(order.delivery_fee) || 0;
-        deliveryRevenue += deliveryFee * ((100 - riderSharePercent) / 100);
+        // No commission is collected on POS sales yet (wallet-paid POS included only in revenue, not commission).
+        const commission = isPos ? 0 : orderSubtotal * (commissionRate / 100);
 
-        // Build per-vendor breakdown
+        if (countsForPlatformRevenue) {
+          grossRevenue += Number(order.total) || 0;
+          serviceFees += Number(order.service_fee) || 0;
+          platformCommission += commission;
+          const deliveryFee = Number(order.delivery_fee) || 0;
+          deliveryRevenue += deliveryFee * ((100 - riderSharePercent) / 100);
+        }
+
+        // Build per-vendor breakdown (commission is 0 for POS rows)
         if (order.vendor_id) {
-          const isPos = (order as any).channel === 'pos';
           const netForOrder = orderSubtotal - commission;
           const existing = vendorMap.get(order.vendor_id);
           if (existing) {
