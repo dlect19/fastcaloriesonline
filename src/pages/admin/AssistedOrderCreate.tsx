@@ -218,10 +218,12 @@ export default function AssistedOrderCreate() {
       toast({ title: 'Item unavailable', description: `${p.name} is currently turned off by the vendor.`, variant: 'destructive' });
       return;
     }
+    const pack = Math.min(Math.max(1, currentPack), Math.max(1, packsCount));
     setCart((c) => {
-      const existing = c.find((i) => i.product.id === p.id && i.pack === 1);
+      // Merge only when same product AND same pack AND no addons (otherwise treat as separate line)
+      const existing = c.find((i) => i.product.id === p.id && i.pack === pack && !(i.addons && i.addons.length));
       if (existing) return c.map((i) => i === existing ? { ...i, quantity: i.quantity + 1 } : i);
-      return [...c, { product: p, quantity: 1, pack: 1 }];
+      return [...c, { product: p, quantity: 1, pack, addons: [] }];
     });
   };
   const setQty = (idx: number, delta: number) => {
@@ -232,10 +234,29 @@ export default function AssistedOrderCreate() {
     setCart((c) => c.map((it, i) => i === idx ? { ...it, special_instructions: txt } : it));
   const setItemPack = (idx: number, pack: number) =>
     setCart((c) => c.map((it, i) => i === idx ? { ...it, pack } : it));
+  const toggleItemAddon = (idx: number, addon: AddonItem) => {
+    setCart((c) => c.map((it, i) => {
+      if (i !== idx) return it;
+      const cur = it.addons || [];
+      const exists = cur.find(a => a.addon_item_name === addon.name && a.addon_group_name === addon.group_name);
+      const next = exists
+        ? cur.filter(a => !(a.addon_item_name === addon.name && a.addon_group_name === addon.group_name))
+        : [...cur, { addon_group_name: addon.group_name, addon_item_name: addon.name, additional_price: Number(addon.additional_price) || 0, calories: addon.calories }];
+      return { ...it, addons: next };
+    }));
+  };
 
-  const subtotal = useMemo(() => cart.reduce((s, i) => s + i.product.price * i.quantity, 0), [cart]);
+  const itemLineTotal = (i: CartItem) => {
+    const addonSum = (i.addons || []).reduce((s, a) => s + Number(a.additional_price || 0), 0);
+    return (i.product.price + addonSum) * i.quantity;
+  };
+
+  const subtotal = useMemo(() => cart.reduce((s, i) => s + itemLineTotal(i), 0), [cart]);
   const totalCalories = useMemo(
-    () => cart.reduce((s, i) => s + Number(i.product.calories || 0) * i.quantity, 0),
+    () => cart.reduce((s, i) => {
+      const addonCals = (i.addons || []).reduce((a, x) => a + Number(x.calories || 0), 0);
+      return s + (Number(i.product.calories || 0) + addonCals) * i.quantity;
+    }, 0),
     [cart],
   );
   const applicablePacks = useMemo(
