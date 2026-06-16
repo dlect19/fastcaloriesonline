@@ -151,7 +151,7 @@ export default function AssistedOrderCreate() {
 
   // Load products (all, then split available/unavailable) for selected outlet/vendor
   useEffect(() => {
-    if (!vendorId) { setProducts([]); return; }
+    if (!vendorId) { setProducts([]); setAddonsByProduct({}); return; }
     let q = supabase
       .from('products')
       .select('id, name, price, vendor_id, outlet_id, is_available, calories')
@@ -159,10 +159,45 @@ export default function AssistedOrderCreate() {
       .order('name')
       .limit(400);
     if (outletId) {
-      // Include products for this outlet OR vendor-wide products (outlet_id null)
       q = q.or(`outlet_id.eq.${outletId},outlet_id.is.null`);
     }
-    q.then(({ data }) => setProducts((data || []) as Product[]));
+    q.then(async ({ data }) => {
+      const prods = (data || []) as Product[];
+      setProducts(prods);
+      const ids = prods.map(p => p.id);
+      if (ids.length === 0) { setAddonsByProduct({}); return; }
+      // Load addon groups + items linked to these products via product_addon_groups OR addon_groups.product_id
+      const [{ data: links }, { data: directGroups }] = await Promise.all([
+        supabase.from('product_addon_groups').select('product_id, addon_group_id').in('product_id', ids),
+        supabase.from('addon_groups').select('id, name, product_id').in('product_id', ids),
+      ]);
+      const groupIds = Array.from(new Set([
+        ...((links || []).map((l: any) => l.addon_group_id)),
+        ...((directGroups || []).map((g: any) => g.id)),
+      ]));
+      if (groupIds.length === 0) { setAddonsByProduct({}); return; }
+      const { data: groups } = await supabase
+        .from('addon_groups').select('id, name').in('id', groupIds);
+      const groupNameById: Record<string, string> = {};
+      (groups || []).forEach((g: any) => { groupNameById[g.id] = g.name; });
+      const { data: items } = await supabase
+        .from('addon_items').select('id, addon_group_id, name, additional_price, calories, is_available')
+        .in('addon_group_id', groupIds).eq('is_available', true).order('sort_order');
+      const itemsByGroup: Record<string, AddonItem[]> = {};
+      (items || []).forEach((it: any) => {
+        const gname = groupNameById[it.addon_group_id] || 'Addons';
+        (itemsByGroup[it.addon_group_id] ||= []).push({ ...it, group_name: gname });
+      });
+      // Map product -> addon items (merge via links + direct)
+      const byProd: Record<string, AddonItem[]> = {};
+      (links || []).forEach((l: any) => {
+        (byProd[l.product_id] ||= []).push(...(itemsByGroup[l.addon_group_id] || []));
+      });
+      (directGroups || []).forEach((g: any) => {
+        (byProd[g.product_id] ||= []).push(...(itemsByGroup[g.id] || []));
+      });
+      setAddonsByProduct(byProd);
+    });
   }, [vendorId, outletId]);
 
   const handlePasteCoords = () => {
