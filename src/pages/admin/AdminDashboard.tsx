@@ -541,7 +541,7 @@ export default function AdminDashboard() {
               {vendorBreakdowns.length > 0 ? (
                 <Card>
                   <CardContent className="p-0">
-                    <div className="flex items-center gap-2 p-3 border-b">
+                    <div className="flex items-center gap-2 p-3 border-b flex-wrap">
                       <span className="text-xs text-muted-foreground mr-1">Channel:</span>
                       {(['all', 'online', 'pos'] as const).map((c) => (
                         <button
@@ -552,6 +552,9 @@ export default function AdminDashboard() {
                           {c === 'all' ? 'All' : c === 'online' ? 'Online Sales' : 'POS'}
                         </button>
                       ))}
+                      {vendorChannel === 'pos' && (
+                        <span className="text-[11px] text-muted-foreground ml-auto">POS commission is not collected yet — shown as ₦0.</span>
+                      )}
                     </div>
                     <Table>
                       <TableHeader>
