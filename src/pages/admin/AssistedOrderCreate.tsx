@@ -277,7 +277,62 @@ export default function AssistedOrderCreate() {
     setServiceFee(Math.round(calculateServiceFee(subtotal, deliveryType)));
   }, [subtotal, deliveryType, calculateServiceFee, serviceFeeOverridden]);
 
-  const total = subtotal + packagingFee + (deliveryType === 'delivery' ? deliveryFee : 0) + serviceFee;
+  const effectiveDiscount = Math.min(discount, subtotal);
+  const total = Math.max(0, subtotal - effectiveDiscount + packagingFee + (deliveryType === 'delivery' ? deliveryFee : 0) + serviceFee);
+  const walletBalance = existingCustomer?.wallet_balance || 0;
+  const walletShortfall = paymentMethod === 'wallet' ? Math.max(0, total - walletBalance) : 0;
+
+  const validatePromo = async () => {
+    const code = promoInput.trim();
+    if (!code) return;
+    setValidatingPromo(true);
+    setPromoMsg('');
+    try {
+      // Lookup ambassador first
+      const { data: amb } = await supabase
+        .from('ambassadors').select('name, promo_code, discount_percentage, is_active')
+        .ilike('promo_code', code).eq('is_active', true).maybeSingle();
+      if (amb) {
+        const pct = Number(amb.discount_percentage ?? 10);
+        const d = Math.min(subtotal, Math.round((subtotal * pct) / 100));
+        setPromoCode(amb.promo_code); setDiscount(d);
+        setPromoMsg(`✓ Ambassador ${amb.name}: ${pct}% off → ₦${d.toLocaleString()}`);
+        setValidatingPromo(false);
+        return;
+      }
+      const { data: promos } = await supabase
+        .from('promo_codes').select('*').eq('code', code.toUpperCase()).eq('is_active', true);
+      if (!promos || promos.length === 0) {
+        setPromoMsg('Invalid promo code'); setPromoCode(null); setDiscount(0); setValidatingPromo(false); return;
+      }
+      const promo = promos.find((p: any) => p.vendor_id === vendorId) || promos.find((p: any) => !p.vendor_id) || promos[0];
+      if (promo.vendor_id && promo.vendor_id !== vendorId) {
+        setPromoMsg('Not valid for this vendor'); setPromoCode(null); setDiscount(0); setValidatingPromo(false); return;
+      }
+      const now = new Date();
+      if (promo.valid_from && new Date(promo.valid_from) > now) { setPromoMsg('Not yet active'); setPromoCode(null); setDiscount(0); setValidatingPromo(false); return; }
+      if (promo.valid_until && new Date(promo.valid_until) < now) { setPromoMsg('Expired'); setPromoCode(null); setDiscount(0); setValidatingPromo(false); return; }
+      if (promo.min_order_amount && subtotal < Number(promo.min_order_amount)) {
+        setPromoMsg(`Min order ₦${Number(promo.min_order_amount).toLocaleString()}`); setPromoCode(null); setDiscount(0); setValidatingPromo(false); return;
+      }
+      let d = 0;
+      if (promo.discount_type === 'percentage') {
+        d = Math.round((subtotal * Number(promo.discount_value)) / 100);
+        if (promo.max_discount) d = Math.min(d, Number(promo.max_discount));
+      } else {
+        d = Number(promo.discount_value);
+      }
+      d = Math.min(d, subtotal);
+      setPromoCode(promo.code); setDiscount(d);
+      setPromoMsg(`✓ ₦${d.toLocaleString()} discount applied`);
+    } catch (e: any) {
+      setPromoMsg('Error validating: ' + (e.message || ''));
+    } finally {
+      setValidatingPromo(false);
+    }
+  };
+  const clearPromo = () => { setPromoCode(null); setDiscount(0); setPromoInput(''); setPromoMsg(''); };
+
 
   const availableProducts = products.filter(p => p.is_available);
   const unavailableProducts = products.filter(p => !p.is_available);
