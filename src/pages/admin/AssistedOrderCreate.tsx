@@ -398,16 +398,30 @@ export default function AssistedOrderCreate() {
             calories: i.product.calories ?? null,
             pack: i.pack,
             special_instructions: i.special_instructions || null,
+            addons: (i.addons || []).map(a => ({
+              addon_group_name: a.addon_group_name,
+              addon_item_name: a.addon_item_name,
+              additional_price: a.additional_price,
+              calories: a.calories,
+            })),
           })),
           packaging_fee: Number(packagingFee),
           delivery_fee: deliveryType === 'delivery' ? Number(deliveryFee) : 0,
           service_fee: Number(serviceFee),
+          discount: Number(effectiveDiscount),
+          promo_code: promoCode,
           payment_method: paymentMethod,
         },
       });
       if (error) throw error;
       if (!data?.order_id) throw new Error(data?.error || 'No order id returned');
-      toast({ title: 'Order created', description: `Order #${data.order_number}` });
+      if (data?.wallet_paid) {
+        toast({ title: 'Order paid via wallet', description: `Order #${data.order_number} confirmed.` });
+      } else if (data?.wallet_shortfall) {
+        toast({ title: 'Wallet short — Paystack link generated', description: `Customer owes ₦${Number(data.wallet_shortfall).toLocaleString()}. Share the link to complete payment.` });
+      } else {
+        toast({ title: 'Order created', description: `Order #${data.order_number}` });
+      }
       navigate(`/admin/assisted-orders/${data.order_id}`);
     } catch (e: any) {
       toast({ title: 'Failed to create order', description: e.message || String(e), variant: 'destructive' });
