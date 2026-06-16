@@ -48,6 +48,7 @@ serve(async (req) => {
       vendor_id, outlet_id = null, packs_count = 1,
       delivery_type, delivery_address, items,
       delivery_fee = 0, service_fee = 0, packaging_fee = 0, payment_method, order_note,
+      discount = 0, promo_code = null,
     } = body;
 
     // Basic validation
@@ -56,7 +57,7 @@ serve(async (req) => {
     if (!vendor_id) return json({ error: 'vendor_id required' }, 400);
     if (!Array.isArray(items) || items.length === 0) return json({ error: 'items required' }, 400);
     if (!['phone','whatsapp','sms','facebook','instagram','other'].includes(channel)) return json({ error: 'Invalid channel' }, 400);
-    if (!['paystack_link','bank_transfer','cash'].includes(payment_method)) return json({ error: 'Invalid payment_method' }, 400);
+    if (!['paystack_link','bank_transfer','cash','wallet'].includes(payment_method)) return json({ error: 'Invalid payment_method' }, 400);
     if (!['delivery','self_pickup'].includes(delivery_type)) return json({ error: 'Invalid delivery_type' }, 400);
     if (delivery_type === 'delivery') {
       if (!delivery_address?.text) return json({ error: 'Delivery address required' }, 400);
