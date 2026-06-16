@@ -605,19 +605,20 @@ export default function AssistedOrderCreate() {
                 </div>
 
                 {filteredUnavailable.length > 0 && (
-                  <details className="rounded border border-yellow-500/30 bg-yellow-500/5">
-                    <summary className="cursor-pointer p-2 text-sm font-medium text-yellow-700 flex items-center gap-2">
-                      <AlertCircle className="w-4 h-4" /> {filteredUnavailable.length} item{filteredUnavailable.length>1?'s':''} unavailable right now — tell the customer
-                    </summary>
-                    <ul className="p-2 pt-0 space-y-1 max-h-48 overflow-y-auto">
+                  <div className="rounded border-2 border-yellow-500/60 bg-yellow-500/10 p-3 space-y-1">
+                    <div className="text-sm font-semibold text-yellow-800 flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4" />
+                      ⚠️ {filteredUnavailable.length} menu item{filteredUnavailable.length>1?'s are':' is'} UNAVAILABLE right now — let the customer know
+                    </div>
+                    <ul className="space-y-0.5 max-h-48 overflow-y-auto pl-6 pt-1">
                       {filteredUnavailable.map((p) => (
-                        <li key={p.id} className="text-xs text-muted-foreground flex justify-between p-1 border-b last:border-0">
+                        <li key={p.id} className="text-xs text-yellow-900/80 flex justify-between border-b border-yellow-500/20 py-1 last:border-0">
                           <span className="line-through">{p.name}</span>
                           <span>₦{Number(p.price).toLocaleString()}</span>
                         </li>
                       ))}
                     </ul>
-                  </details>
+                  </div>
                 )}
               </>
             )}
