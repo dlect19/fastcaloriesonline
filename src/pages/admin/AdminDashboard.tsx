@@ -174,7 +174,7 @@ export default function AdminDashboard() {
       // Fetch orders filtered by environment and date range
       let orderQuery = supabase
         .from('orders')
-        .select('total, subtotal, delivery_fee, service_fee, vendor_id, channel')
+        .select('total, subtotal, delivery_fee, service_fee, vendor_id, channel, payment_method')
         .eq('environment', envFilter)
         .eq('payment_status', 'paid')
         .not('status', 'eq', 'cancelled');
