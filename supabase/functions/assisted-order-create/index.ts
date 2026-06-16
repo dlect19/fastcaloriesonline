@@ -142,13 +142,14 @@ serve(async (req) => {
     const recvPhone = receiver?.phone || customer.phone;
 
     // Insert order
+    const storedPaymentMethod = payment_method === 'cash' ? 'cash' : payment_method === 'wallet' ? 'wallet' : 'paystack';
     const { data: order, error: orderErr } = await supabase
       .from('orders')
       .insert({
         user_id: userId,
         vendor_id,
         outlet_id: outlet?.id || null,
-        status: 'pending', // becomes vendor-visible after payment received
+        status: 'pending',
         delivery_type,
         delivery_address_id: deliveryAddressId,
         delivery_address_text: delivery_type === 'delivery' ? delivery_address.text : null,
@@ -157,9 +158,10 @@ serve(async (req) => {
         packaging_fee: Number(packaging_fee),
         delivery_fee: delivery_type === 'delivery' ? Number(delivery_fee) : 0,
         service_fee: Number(service_fee),
-        discount: 0,
+        discount: discountAmt,
+        promo_code: promo_code || null,
         total,
-        payment_method: payment_method === 'cash' ? 'cash' : 'paystack',
+        payment_method: storedPaymentMethod,
         payment_status: 'pending',
         confirmation_code: confirmationCode,
         environment,
