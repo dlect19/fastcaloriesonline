@@ -110,9 +110,18 @@ serve(async (req) => {
       outlet = o;
     }
 
-    // Totals
-    const subtotal = items.reduce((s: number, i: any) => s + Number(i.unit_price) * Number(i.quantity), 0);
-    const total = subtotal + Number(packaging_fee) + (delivery_type === 'delivery' ? Number(delivery_fee) : 0) + Number(service_fee);
+    // Totals — items include addons in unit pricing (already captured by client) but we recompute defensively
+    const subtotal = items.reduce((s: number, i: any) => {
+      const addonSum = Array.isArray(i.addons) ? i.addons.reduce((a: number, x: any) => a + (Number(x.additional_price) || 0), 0) : 0;
+      return s + (Number(i.unit_price) + addonSum) * Number(i.quantity);
+    }, 0);
+    const discountAmt = Math.min(Number(discount) || 0, subtotal);
+    const total = Math.max(0, subtotal - discountAmt) + Number(packaging_fee) + (delivery_type === 'delivery' ? Number(delivery_fee) : 0) + Number(service_fee);
+
+    // Wallet payment requires a registered customer
+    if (payment_method === 'wallet' && !userId) {
+      return json({ error: 'Wallet payment requires the customer to have a FastCalories account.' }, 400);
+    }
 
     // Confirmation code (delivery OTP) — 6 digits
     const confirmationCode = Math.floor(100000 + Math.random() * 900000).toString();
