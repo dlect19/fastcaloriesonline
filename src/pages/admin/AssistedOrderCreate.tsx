@@ -357,8 +357,12 @@ export default function AssistedOrderCreate() {
       if (!addressText.trim()) return 'Delivery address is required';
       if (!lat || !lng) return 'Pin the delivery location on the map';
     }
+    if (paymentMethod === 'wallet' && !existingCustomer?.user_id) {
+      return 'Wallet payment requires a registered FastCalories customer (lookup by phone first).';
+    }
     return null;
   };
+
 
   const submit = async () => {
     const err = validate();
