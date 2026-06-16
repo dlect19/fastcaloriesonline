@@ -479,7 +479,7 @@ export default function AdminDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{formatCurrency(financialStats.grossRevenue)}</div>
-                <p className="text-xs text-muted-foreground">Total order amounts</p>
+                <p className="text-xs text-muted-foreground">Online orders + wallet-paid POS (excludes cash/card POS)</p>
               </CardContent>
             </Card>
 
