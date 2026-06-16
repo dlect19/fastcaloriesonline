@@ -89,8 +89,16 @@ export default function AssistedOrderCreate() {
   const [outletId, setOutletId] = useState<string>('');
   const [productSearch, setProductSearch] = useState('');
   const [products, setProducts] = useState<Product[]>([]);
+  const [addonsByProduct, setAddonsByProduct] = useState<Record<string, AddonItem[]>>({});
   const [cart, setCart] = useState<CartItem[]>([]);
   const [packsCount, setPacksCount] = useState<number>(1);
+  const [currentPack, setCurrentPack] = useState<number>(1);
+  // Promo code
+  const [promoInput, setPromoInput] = useState('');
+  const [promoCode, setPromoCode] = useState<string | null>(null);
+  const [discount, setDiscount] = useState<number>(0);
+  const [promoMsg, setPromoMsg] = useState<string>('');
+  const [validatingPromo, setValidatingPromo] = useState(false);
 
   // Pricing extras
   const [deliveryFee, setDeliveryFee] = useState<number>(0);
