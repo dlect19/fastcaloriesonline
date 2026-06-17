@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, BarChart, Bar, Cell,
 } from 'recharts';
+import OrganizerWalletSection from '@/components/organizer/OrganizerWalletSection';
 
 const COLORS = ['hsl(var(--primary))', 'hsl(var(--accent))', '#f59e0b', '#10b981', '#8b5cf6', '#ec4899'];
 
@@ -163,6 +164,8 @@ export default function OrganizerPortal() {
           <Kpi icon={<CheckCircle2 className="w-4 h-4" />} label="Checked In" value={totals.checked.toLocaleString()} sub={`${totals.sold ? Math.round((totals.checked / totals.sold) * 100) : 0}%`} />
           <Kpi icon={<Gift className="w-4 h-4" />} label="Vouchers" value={`${voucherStats.redeemed}/${voucherStats.total}`} sub={`${voucherStats.rate}% redeemed`} />
         </div>
+        {token && <OrganizerWalletSection token={token} />}
+
 
         <div className="grid lg:grid-cols-2 gap-4">
           <Card title="Sales Over Time">

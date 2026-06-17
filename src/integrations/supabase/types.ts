@@ -2596,6 +2596,9 @@ export type Database = {
       }
       event_organizers: {
         Row: {
+          bank_account_name: string | null
+          bank_account_number: string | null
+          bank_name: string | null
           bio: string | null
           contact_email: string | null
           contact_phone: string | null
@@ -2608,12 +2611,17 @@ export type Database = {
           name: string
           owner_user_id: string | null
           payout_account: Json | null
+          payout_period_hours: number | null
+          paystack_recipient_code: string | null
           slug: string | null
           social_links: Json
           updated_at: string
           website_url: string | null
         }
         Insert: {
+          bank_account_name?: string | null
+          bank_account_number?: string | null
+          bank_name?: string | null
           bio?: string | null
           contact_email?: string | null
           contact_phone?: string | null
@@ -2626,12 +2634,17 @@ export type Database = {
           name: string
           owner_user_id?: string | null
           payout_account?: Json | null
+          payout_period_hours?: number | null
+          paystack_recipient_code?: string | null
           slug?: string | null
           social_links?: Json
           updated_at?: string
           website_url?: string | null
         }
         Update: {
+          bank_account_name?: string | null
+          bank_account_number?: string | null
+          bank_name?: string | null
           bio?: string | null
           contact_email?: string | null
           contact_phone?: string | null
@@ -2644,6 +2657,8 @@ export type Database = {
           name?: string
           owner_user_id?: string | null
           payout_account?: Json | null
+          payout_period_hours?: number | null
+          paystack_recipient_code?: string | null
           slug?: string | null
           social_links?: Json
           updated_at?: string
@@ -7944,6 +7959,7 @@ export type Database = {
           is_disabled: boolean | null
           menu_earnings_balance: number | null
           menu_earnings_pending: number | null
+          organizer_id: string | null
           outlet_id: string | null
           paystack_customer_code: string | null
           paystack_customer_id: number | null
@@ -7985,6 +8001,7 @@ export type Database = {
           is_disabled?: boolean | null
           menu_earnings_balance?: number | null
           menu_earnings_pending?: number | null
+          organizer_id?: string | null
           outlet_id?: string | null
           paystack_customer_code?: string | null
           paystack_customer_id?: number | null
@@ -8026,6 +8043,7 @@ export type Database = {
           is_disabled?: boolean | null
           menu_earnings_balance?: number | null
           menu_earnings_pending?: number | null
+          organizer_id?: string | null
           outlet_id?: string | null
           paystack_customer_code?: string | null
           paystack_customer_id?: number | null
@@ -8049,6 +8067,13 @@ export type Database = {
           wallet_type?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "wallets_organizer_id_fkey"
+            columns: ["organizer_id"]
+            isOneToOne: false
+            referencedRelation: "event_organizers"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "wallets_outlet_id_fkey"
             columns: ["outlet_id"]
@@ -8507,6 +8532,10 @@ export type Database = {
         Args: { p_amount: number; p_order_id: string; p_wallet_id: string }
         Returns: string
       }
+      ensure_event_organizer_wallet: {
+        Args: { _organizer_id: string }
+        Returns: string
+      }
       full_reconcile_wallets: {
         Args: { p_dry_run?: boolean; p_environment?: string }
         Returns: Json
@@ -8758,6 +8787,10 @@ export type Database = {
         Args: { p_wallet_id: string }
         Returns: undefined
       }
+      reconcile_event_organizer_wallet: {
+        Args: { _wallet_id: string }
+        Returns: undefined
+      }
       reconcile_rider_wallet: {
         Args: { p_wallet_id: string }
         Returns: undefined
@@ -8786,6 +8819,7 @@ export type Database = {
         Args: { _prescription_id: string; _reason: string }
         Returns: undefined
       }
+      release_event_organizer_matured_holds: { Args: never; Returns: number }
       release_pending_payouts: { Args: never; Returns: number }
       release_pending_vendor_earnings: { Args: never; Returns: number }
       release_voucher_reservation: {
