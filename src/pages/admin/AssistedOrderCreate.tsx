@@ -600,6 +600,38 @@ export default function AssistedOrderCreate() {
 
             {vendorId && (
               <>
+                {/* PACK SELECTOR — always visible before adding menu items */}
+                <div className="rounded-md border-2 border-primary/40 bg-primary/5 p-3 space-y-2">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <Label className="m-0 flex items-center gap-1 text-sm font-semibold"><PackagePlus className="w-4 h-4" /> Number of packs (takeaway boxes)</Label>
+                    <div className="flex items-center gap-2">
+                      <Button size="icon" variant="outline" type="button" onClick={() => setPacksCount(Math.max(1, packsCount - 1))}>
+                        <Minus className="w-3 h-3" />
+                      </Button>
+                      <span className="w-8 text-center font-medium">{packsCount}</span>
+                      <Button size="icon" variant="outline" type="button" onClick={() => { const n = Math.min(MAX_PACKS, packsCount + 1); setPacksCount(n); setCurrentPack(n); }}>
+                        <Plus className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </div>
+                  {packsCount > 1 && (
+                    <>
+                      <p className="text-xs text-muted-foreground">👉 <strong>First pick a pack below</strong>, then click menu items — they'll go into that pack. Each pack auto-charges its own takeaway packaging fee.</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {Array.from({ length: packsCount }).map((_, n) => (
+                          <button key={n} type="button" onClick={() => setCurrentPack(n+1)}
+                            className={`px-3 py-1.5 rounded-md border text-xs font-medium transition ${currentPack === n+1 ? 'bg-primary text-primary-foreground border-primary shadow-sm' : 'bg-background hover:bg-muted'}`}>
+                            🛍️ Pack {n+1}
+                            {cart.filter(c => c.pack === n+1).length > 0 && (
+                              <span className="ml-1 opacity-75">({cart.filter(c => c.pack === n+1).reduce((s,c)=>s+c.quantity,0)})</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input value={productSearch} onChange={(e) => setProductSearch(e.target.value)} placeholder="Search products" className="pl-9" />
