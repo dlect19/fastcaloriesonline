@@ -427,7 +427,20 @@ export default function AssistedOrderCreate() {
           payment_method: paymentMethod,
         },
       });
-      if (error) throw error;
+      if (error) {
+        // supabase.functions.invoke returns a FunctionsHttpError whose body holds the real message
+        let detail = error.message || String(error);
+        try {
+          const ctx: any = (error as any).context;
+          if (ctx && typeof ctx.text === 'function') {
+            const body = await ctx.text();
+            if (body) {
+              try { const j = JSON.parse(body); detail = j.error || j.message || body; } catch { detail = body; }
+            }
+          }
+        } catch { /* ignore */ }
+        throw new Error(detail);
+      }
       if (!data?.order_id) throw new Error(data?.error || 'No order id returned');
       if (data?.wallet_paid) {
         toast({ title: 'Order paid via wallet', description: `Order #${data.order_number} confirmed.` });
