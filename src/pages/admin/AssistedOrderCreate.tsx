@@ -671,32 +671,18 @@ export default function AssistedOrderCreate() {
 
             {cart.length > 0 && (
               <div className="border rounded p-3 space-y-3">
-                <div className="flex items-center gap-2 justify-between flex-wrap">
-                  <Label className="m-0 flex items-center gap-1"><PackagePlus className="w-4 h-4" /> Number of packs</Label>
-                  <div className="flex items-center gap-2">
-                    <Button size="icon" variant="outline" type="button" onClick={() => setPacksCount(Math.max(1, packsCount - 1))}>
-                      <Minus className="w-3 h-3" />
-                    </Button>
-                    <span className="w-8 text-center font-medium">{packsCount}</span>
-                    <Button size="icon" variant="outline" type="button" onClick={() => setPacksCount(Math.min(MAX_PACKS, packsCount + 1))}>
-                      <Plus className="w-3 h-3" />
-                    </Button>
-                  </div>
-                </div>
-                {packsCount > 1 && (
-                  <div className="rounded-md bg-primary/5 border border-primary/30 p-2 text-xs space-y-2">
-                    <p className="text-muted-foreground">Each pack can hold <strong>different menu items</strong>. New items will go into the active pack — change it before clicking items, or re-assign per row below.</p>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium">Adding to:</span>
-                      {Array.from({ length: packsCount }).map((_, n) => (
-                        <button key={n} type="button" onClick={() => setCurrentPack(n+1)}
-                          className={`px-2 py-1 rounded border text-xs ${currentPack === n+1 ? 'bg-primary text-primary-foreground border-primary' : 'bg-background hover:bg-muted'}`}>
-                          Pack {n+1}
-                        </button>
-                      ))}
-                    </div>
+                {packBreakdown.length > 0 && packBreakdown.some(r => r.fee > 0) && (
+                  <div className="rounded-md bg-amber-50 border border-amber-300 p-2 text-xs space-y-1">
+                    <div className="font-semibold text-amber-900">📦 Auto takeaway packaging per pack:</div>
+                    {packBreakdown.filter(r => r.fee > 0).map(r => (
+                      <div key={r.pack} className="flex justify-between text-amber-900">
+                        <span>Pack {r.pack}: {r.packs.map(p => p.name).join(', ')}</span>
+                        <span>+₦{r.fee.toLocaleString()}</span>
+                      </div>
+                    ))}
                   </div>
                 )}
+
 
                 {cart.map((i, idx) => {
                   const productAddons = addonsByProduct[i.product.id] || [];
