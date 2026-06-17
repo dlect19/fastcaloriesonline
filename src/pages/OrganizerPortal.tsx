@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, BarChart, Bar, Cell,
 } from 'recharts';
+import OrganizerWalletSection from '@/components/organizer/OrganizerWalletSection';
 
 const COLORS = ['hsl(var(--primary))', 'hsl(var(--accent))', '#f59e0b', '#10b981', '#8b5cf6', '#ec4899'];
 
