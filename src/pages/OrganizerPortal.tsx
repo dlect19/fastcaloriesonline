@@ -164,6 +164,8 @@ export default function OrganizerPortal() {
           <Kpi icon={<CheckCircle2 className="w-4 h-4" />} label="Checked In" value={totals.checked.toLocaleString()} sub={`${totals.sold ? Math.round((totals.checked / totals.sold) * 100) : 0}%`} />
           <Kpi icon={<Gift className="w-4 h-4" />} label="Vouchers" value={`${voucherStats.redeemed}/${voucherStats.total}`} sub={`${voucherStats.rate}% redeemed`} />
         </div>
+        {token && <OrganizerWalletSection token={token} />}
+
 
         <div className="grid lg:grid-cols-2 gap-4">
           <Card title="Sales Over Time">
