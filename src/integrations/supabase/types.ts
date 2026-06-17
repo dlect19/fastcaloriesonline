@@ -8787,6 +8787,10 @@ export type Database = {
         Args: { p_wallet_id: string }
         Returns: undefined
       }
+      reconcile_event_organizer_wallet: {
+        Args: { _wallet_id: string }
+        Returns: undefined
+      }
       reconcile_rider_wallet: {
         Args: { p_wallet_id: string }
         Returns: undefined
