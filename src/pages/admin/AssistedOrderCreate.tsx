@@ -259,11 +259,25 @@ export default function AssistedOrderCreate() {
     }, 0),
     [cart],
   );
-  const applicablePacks = useMemo(
-    () => getApplicablePacks(cart.map((i) => ({ productId: i.product.id, quantity: i.quantity }))),
-    [cart, getApplicablePacks],
-  );
-  const packagingFee = useMemo(() => applicablePacks.reduce((s, p) => s + Number(p.price || 0), 0), [applicablePacks]);
+  // Per-pack takeaway: compute applicable pack(s) for EACH pack separately, then sum.
+  // This ensures that each physical pack with food in it gets its own takeaway pack fee.
+  const packBreakdown = useMemo(() => {
+    const groups = new Map<number, { productId: string; quantity: number }[]>();
+    cart.forEach((i) => {
+      const list = groups.get(i.pack) || [];
+      list.push({ productId: i.product.id, quantity: i.quantity });
+      groups.set(i.pack, list);
+    });
+    const rows: { pack: number; packs: ReturnType<typeof getApplicablePacks>; fee: number }[] = [];
+    Array.from(groups.entries()).sort((a, b) => a[0] - b[0]).forEach(([pack, items]) => {
+      const applicable = getApplicablePacks(items);
+      const fee = applicable.reduce((s, p) => s + Number(p.price || 0), 0);
+      rows.push({ pack, packs: applicable, fee });
+    });
+    return rows;
+  }, [cart, getApplicablePacks]);
+  const applicablePacks = useMemo(() => packBreakdown.flatMap(r => r.packs), [packBreakdown]);
+  const packagingFee = useMemo(() => packBreakdown.reduce((s, r) => s + r.fee, 0), [packBreakdown]);
 
   useEffect(() => {
     if (deliveryFeeOverridden) return;
@@ -413,7 +427,20 @@ export default function AssistedOrderCreate() {
           payment_method: paymentMethod,
         },
       });
-      if (error) throw error;
+      if (error) {
+        // supabase.functions.invoke returns a FunctionsHttpError whose body holds the real message
+        let detail = error.message || String(error);
+        try {
+          const ctx: any = (error as any).context;
+          if (ctx && typeof ctx.text === 'function') {
+            const body = await ctx.text();
+            if (body) {
+              try { const j = JSON.parse(body); detail = j.error || j.message || body; } catch { detail = body; }
+            }
+          }
+        } catch { /* ignore */ }
+        throw new Error(detail);
+      }
       if (!data?.order_id) throw new Error(data?.error || 'No order id returned');
       if (data?.wallet_paid) {
         toast({ title: 'Order paid via wallet', description: `Order #${data.order_number} confirmed.` });
@@ -586,6 +613,38 @@ export default function AssistedOrderCreate() {
 
             {vendorId && (
               <>
+                {/* PACK SELECTOR — always visible before adding menu items */}
+                <div className="rounded-md border-2 border-primary/40 bg-primary/5 p-3 space-y-2">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <Label className="m-0 flex items-center gap-1 text-sm font-semibold"><PackagePlus className="w-4 h-4" /> Number of packs (takeaway boxes)</Label>
+                    <div className="flex items-center gap-2">
+                      <Button size="icon" variant="outline" type="button" onClick={() => setPacksCount(Math.max(1, packsCount - 1))}>
+                        <Minus className="w-3 h-3" />
+                      </Button>
+                      <span className="w-8 text-center font-medium">{packsCount}</span>
+                      <Button size="icon" variant="outline" type="button" onClick={() => { const n = Math.min(MAX_PACKS, packsCount + 1); setPacksCount(n); setCurrentPack(n); }}>
+                        <Plus className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </div>
+                  {packsCount > 1 && (
+                    <>
+                      <p className="text-xs text-muted-foreground">👉 <strong>First pick a pack below</strong>, then click menu items — they'll go into that pack. Each pack auto-charges its own takeaway packaging fee.</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {Array.from({ length: packsCount }).map((_, n) => (
+                          <button key={n} type="button" onClick={() => setCurrentPack(n+1)}
+                            className={`px-3 py-1.5 rounded-md border text-xs font-medium transition ${currentPack === n+1 ? 'bg-primary text-primary-foreground border-primary shadow-sm' : 'bg-background hover:bg-muted'}`}>
+                            🛍️ Pack {n+1}
+                            {cart.filter(c => c.pack === n+1).length > 0 && (
+                              <span className="ml-1 opacity-75">({cart.filter(c => c.pack === n+1).reduce((s,c)=>s+c.quantity,0)})</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input value={productSearch} onChange={(e) => setProductSearch(e.target.value)} placeholder="Search products" className="pl-9" />
@@ -625,32 +684,18 @@ export default function AssistedOrderCreate() {
 
             {cart.length > 0 && (
               <div className="border rounded p-3 space-y-3">
-                <div className="flex items-center gap-2 justify-between flex-wrap">
-                  <Label className="m-0 flex items-center gap-1"><PackagePlus className="w-4 h-4" /> Number of packs</Label>
-                  <div className="flex items-center gap-2">
-                    <Button size="icon" variant="outline" type="button" onClick={() => setPacksCount(Math.max(1, packsCount - 1))}>
-                      <Minus className="w-3 h-3" />
-                    </Button>
-                    <span className="w-8 text-center font-medium">{packsCount}</span>
-                    <Button size="icon" variant="outline" type="button" onClick={() => setPacksCount(Math.min(MAX_PACKS, packsCount + 1))}>
-                      <Plus className="w-3 h-3" />
-                    </Button>
-                  </div>
-                </div>
-                {packsCount > 1 && (
-                  <div className="rounded-md bg-primary/5 border border-primary/30 p-2 text-xs space-y-2">
-                    <p className="text-muted-foreground">Each pack can hold <strong>different menu items</strong>. New items will go into the active pack — change it before clicking items, or re-assign per row below.</p>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium">Adding to:</span>
-                      {Array.from({ length: packsCount }).map((_, n) => (
-                        <button key={n} type="button" onClick={() => setCurrentPack(n+1)}
-                          className={`px-2 py-1 rounded border text-xs ${currentPack === n+1 ? 'bg-primary text-primary-foreground border-primary' : 'bg-background hover:bg-muted'}`}>
-                          Pack {n+1}
-                        </button>
-                      ))}
-                    </div>
+                {packBreakdown.length > 0 && packBreakdown.some(r => r.fee > 0) && (
+                  <div className="rounded-md bg-amber-50 border border-amber-300 p-2 text-xs space-y-1">
+                    <div className="font-semibold text-amber-900">📦 Auto takeaway packaging per pack:</div>
+                    {packBreakdown.filter(r => r.fee > 0).map(r => (
+                      <div key={r.pack} className="flex justify-between text-amber-900">
+                        <span>Pack {r.pack}: {r.packs.map(p => p.name).join(', ')}</span>
+                        <span>+₦{r.fee.toLocaleString()}</span>
+                      </div>
+                    ))}
                   </div>
                 )}
+
 
                 {cart.map((i, idx) => {
                   const productAddons = addonsByProduct[i.product.id] || [];
