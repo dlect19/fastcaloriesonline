@@ -34,8 +34,9 @@ Deno.serve(async (req) => {
     const { data: walletIdRes } = await supabase.rpc("ensure_event_organizer_wallet", { _organizer_id: organizerId });
     const walletId = walletIdRes as string;
 
-    // Run maturity release once per call (cheap, idempotent)
+    // Run maturity release + reconcile (cheap, idempotent)
     await supabase.rpc("release_event_organizer_matured_holds");
+    await supabase.rpc("reconcile_event_organizer_wallet", { _wallet_id: walletId });
 
     const { data: wallet } = await supabase
       .from("wallets")
