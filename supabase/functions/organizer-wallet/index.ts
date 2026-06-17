@@ -156,6 +156,7 @@ Deno.serve(async (req) => {
         reference_id: pr.id,
         environment,
       });
+      await supabase.rpc("reconcile_event_organizer_wallet", { _wallet_id: walletId });
 
       return json({ ok: true, payout_request_id: pr.id });
     }
