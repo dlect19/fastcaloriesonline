@@ -259,11 +259,25 @@ export default function AssistedOrderCreate() {
     }, 0),
     [cart],
   );
-  const applicablePacks = useMemo(
-    () => getApplicablePacks(cart.map((i) => ({ productId: i.product.id, quantity: i.quantity }))),
-    [cart, getApplicablePacks],
-  );
-  const packagingFee = useMemo(() => applicablePacks.reduce((s, p) => s + Number(p.price || 0), 0), [applicablePacks]);
+  // Per-pack takeaway: compute applicable pack(s) for EACH pack separately, then sum.
+  // This ensures that each physical pack with food in it gets its own takeaway pack fee.
+  const packBreakdown = useMemo(() => {
+    const groups = new Map<number, { productId: string; quantity: number }[]>();
+    cart.forEach((i) => {
+      const list = groups.get(i.pack) || [];
+      list.push({ productId: i.product.id, quantity: i.quantity });
+      groups.set(i.pack, list);
+    });
+    const rows: { pack: number; packs: ReturnType<typeof getApplicablePacks>; fee: number }[] = [];
+    Array.from(groups.entries()).sort((a, b) => a[0] - b[0]).forEach(([pack, items]) => {
+      const applicable = getApplicablePacks(items);
+      const fee = applicable.reduce((s, p) => s + Number(p.price || 0), 0);
+      rows.push({ pack, packs: applicable, fee });
+    });
+    return rows;
+  }, [cart, getApplicablePacks]);
+  const applicablePacks = useMemo(() => packBreakdown.flatMap(r => r.packs), [packBreakdown]);
+  const packagingFee = useMemo(() => packBreakdown.reduce((s, r) => s + r.fee, 0), [packBreakdown]);
 
   useEffect(() => {
     if (deliveryFeeOverridden) return;
