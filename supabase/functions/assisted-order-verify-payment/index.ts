@@ -53,6 +53,51 @@ serve(async (req) => {
     if (action === 'cancel') {
       // Clear payment link so admin can't accidentally re-share, and so paystack-webhook
       // skips any late callback for this order (it also checks order.status === 'cancelled').
+
+      // If the order was paid via wallet, refund it to the customer wallet now.
+      const { data: ord } = await supabase
+        .from('orders')
+        .select('id, user_id, total, payment_method, payment_status, order_number, environment')
+        .eq('id', order_id).maybeSingle();
+
+      let refundInfo: { refunded: number; new_balance: number } | null = null;
+      if (
+        ord && ord.user_id &&
+        ord.payment_method === 'wallet' &&
+        ord.payment_status === 'paid'
+      ) {
+        const { data: w } = await supabase
+          .from('wallets')
+          .select('id, balance, test_balance')
+          .eq('user_id', ord.user_id).eq('wallet_type', 'customer').maybeSingle();
+        if (w) {
+          const isTest = (ord.environment || 'development') !== 'production';
+          const current = Number((isTest ? w.test_balance : w.balance) ?? 0);
+          const refundAmount = Number(ord.total) || 0;
+          const newBal = current + refundAmount;
+          const ref = `RF-${order_id.slice(0, 8)}-${Date.now()}`;
+          await supabase.from('wallet_transactions').insert({
+            wallet_id: w.id,
+            wallet_type: 'customer',
+            transaction_type: 'credit',
+            category: 'refund',
+            amount: refundAmount,
+            balance_after: newBal,
+            reference: ref,
+            order_id,
+            status: 'completed',
+            environment: ord.environment || 'development',
+            notes: `Refund for cancelled assisted order #${ord.order_number}`,
+          });
+          await supabase.from('wallets').update(
+            isTest
+              ? { test_balance: newBal, updated_at: new Date().toISOString() }
+              : { balance: newBal, updated_at: new Date().toISOString() }
+          ).eq('id', w.id);
+          refundInfo = { refunded: refundAmount, new_balance: newBal };
+        }
+      }
+
       await supabase.from('assisted_orders').update({
         payment_status: 'cancelled',
         payment_link: null,
@@ -63,9 +108,19 @@ serve(async (req) => {
         status: 'cancelled',
         cancelled_at: new Date().toISOString(),
         cancellation_reason: 'Assisted order cancelled by admin',
+        payment_status: refundInfo ? 'refunded' : (ord?.payment_status || 'pending'),
       }).eq('id', order_id);
-      await supabase.from('assisted_order_audit').insert({ order_id, actor_id: adminId, action: 'order_cancelled' });
-      return json({ ok: true, message: 'Order cancelled and payment link deactivated.' });
+      await supabase.from('assisted_order_audit').insert({
+        order_id, actor_id: adminId, action: 'order_cancelled',
+        details: refundInfo || {},
+      });
+      return json({
+        ok: true,
+        message: refundInfo
+          ? `Order cancelled. ₦${refundInfo.refunded.toLocaleString()} refunded to customer wallet.`
+          : 'Order cancelled and payment link deactivated.',
+        refund: refundInfo,
+      });
     }
 
     return json({ error: 'Unknown action' }, 400);
