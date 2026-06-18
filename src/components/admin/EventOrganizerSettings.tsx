@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -7,16 +8,15 @@ import { CalendarClock, Save, Loader2 } from 'lucide-react';
 interface Props {
   settings: Record<string, string>;
   onSettingChange: (key: string, value: string) => void;
-  onSave: (key: string) => void;
-  saving: boolean;
+  onImmediateSave: (key: string, value: string) => Promise<void>;
 }
 
 const FIELDS = [
   {
     key: 'event_organizer_payout_period_hours',
-    label: 'Settlement Hold (hours)',
+    label: 'Settlement Hold',
     description: 'Hours to hold ticket-sale credits before they become withdrawable by the event organizer.',
-    unit: 'hrs',
+    unit: 'hours',
     placeholder: '48',
   },
   {
@@ -35,7 +35,12 @@ const FIELDS = [
   },
 ];
 
-export function EventOrganizerSettings({ settings, onSettingChange, onSave, saving }: Props) {
+export function EventOrganizerSettings({ settings, onSettingChange, onImmediateSave }: Props) {
+  const [savingKey, setSavingKey] = useState<string | null>(null);
+  const save = async (key: string) => {
+    setSavingKey(key);
+    try { await onImmediateSave(key, settings[key] ?? ''); } finally { setSavingKey(null); }
+  };
   return (
     <Card>
       <CardHeader>
@@ -44,7 +49,7 @@ export function EventOrganizerSettings({ settings, onSettingChange, onSave, savi
           Event Organizer Settlement
         </CardTitle>
         <CardDescription>
-          Controls the wallet, fees, and withdrawal rules for event organizers selling tickets on the platform.
+          Wallet, fee, and withdrawal rules for event organizers selling tickets on the platform.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -62,8 +67,8 @@ export function EventOrganizerSettings({ settings, onSettingChange, onSave, savi
                 value={settings[f.key] ?? ''}
                 onChange={(e) => onSettingChange(f.key, e.target.value)}
               />
-              <Button size="sm" variant="outline" onClick={() => onSave(f.key)} disabled={saving}>
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              <Button size="sm" variant="outline" onClick={() => save(f.key)} disabled={savingKey === f.key}>
+                {savingKey === f.key ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">{f.description}</p>
