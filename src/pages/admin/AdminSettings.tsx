@@ -21,6 +21,7 @@ import { VehicleTypeSettings } from '@/components/admin/VehicleTypeSettings';
 import { CommissionOverrideManager } from '@/components/admin/CommissionOverrideManager';
 import { RiderOperationsSettings } from '@/components/admin/RiderOperationsSettings';
 import { SocialLogoSettings } from '@/components/admin/SocialLogoSettings';
+import { EventOrganizerSettings } from '@/components/admin/EventOrganizerSettings';
 
 interface DeliverySetting {
   key: string;
