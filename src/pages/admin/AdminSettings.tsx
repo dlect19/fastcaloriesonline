@@ -987,6 +987,25 @@ export default function AdminSettings() {
                 }
               }}
             />
+
+            {/* Event Organizer Wallet & Settlement */}
+            <EventOrganizerSettings
+              settings={settings}
+              onSettingChange={handleSettingChange}
+              onImmediateSave={async (key, value) => {
+                try {
+                  await supabase.from('platform_settings').upsert({
+                    key,
+                    value,
+                    updated_at: new Date().toISOString(),
+                  }, { onConflict: 'key' });
+                  toast({ title: 'Saved', description: `${key.replace(/_/g, ' ')} updated.` });
+                } catch (err) {
+                  console.error('Event organizer setting save error:', err);
+                  toast({ title: 'Save failed', description: 'Please try again.', variant: 'destructive' });
+                }
+              }}
+            />
           </div>
         )}
     </AdminLayout>
