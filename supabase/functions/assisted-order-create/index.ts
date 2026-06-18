@@ -275,29 +275,68 @@ serve(async (req) => {
     };
 
     if (payment_method === 'wallet') {
-      // Check current wallet balance
-      const { data: wallet } = await supabase
-        .from('wallets').select('id, balance, test_balance')
+      // Inline wallet debit (process-wallet-payment requires a user JWT, which we don't have here).
+      const { data: wallet, error: wErr } = await supabase
+        .from('wallets')
+        .select('id, balance, test_balance, is_disabled')
         .eq('user_id', userId).eq('wallet_type', 'customer').maybeSingle();
-      const bal = Number((environment === 'production' ? wallet?.balance : wallet?.test_balance) ?? wallet?.balance ?? 0);
-      if (bal >= total) {
-        // Sufficient — debit via process-wallet-payment
-        const { data: payRes, error: payErr } = await supabase.functions.invoke('process-wallet-payment', {
-          body: { orderId: order.id },
-        });
-        if (payErr || payRes?.error) {
-          console.error('Wallet debit failed', payErr || payRes?.error);
+
+      if (wErr || !wallet) {
+        await supabase.from('orders').delete().eq('id', order.id);
+        return json({ error: 'Customer wallet not found. Ask them to open the app once to initialize their wallet.' }, 400);
+      }
+      if (wallet.is_disabled) {
+        await supabase.from('orders').delete().eq('id', order.id);
+        return json({ error: 'Customer wallet is disabled. Contact support.' }, 403);
+      }
+
+      const isTestMode = environment !== 'production';
+      const currentBalance = Number((isTestMode ? wallet.test_balance : wallet.balance) ?? 0);
+
+      if (currentBalance >= total) {
+        // Sufficient — debit inline
+        const reference = `WP-${order.id.slice(0, 8)}-${Date.now()}`;
+        const { error: updErr } = await supabase
+          .from('orders')
+          .update({
+            payment_status: 'paid',
+            status: 'confirmed',
+            payment_method: 'wallet',
+            payment_reference: reference,
+            environment,
+          })
+          .eq('id', order.id);
+        if (updErr) {
           await supabase.from('orders').delete().eq('id', order.id);
-          return json({ error: 'Wallet debit failed: ' + (payErr?.message || payRes?.error || 'unknown') }, 502);
+          return json({ error: 'Failed to mark order paid: ' + updErr.message }, 500);
         }
+        const newBalance = currentBalance - total;
+        await supabase.from('wallet_transactions').insert({
+          wallet_id: wallet.id,
+          wallet_type: 'customer',
+          transaction_type: 'debit',
+          category: 'wallet_payment',
+          amount: total,
+          balance_after: newBalance,
+          reference,
+          order_id: order.id,
+          status: 'completed',
+          environment,
+          notes: `Assisted order payment for #${order.order_number}`,
+        });
+        await supabase.from('wallets')
+          .update(isTestMode
+            ? { test_balance: newBalance, updated_at: new Date().toISOString() }
+            : { balance: newBalance, updated_at: new Date().toISOString() })
+          .eq('id', wallet.id);
         walletPaid = true;
       } else {
         // Shortfall — generate Paystack top-up link for the difference
-        walletShortfall = Math.round(total - bal);
+        walletShortfall = Math.round(total - currentBalance);
         const res = await initPaystackLink(walletShortfall, 'topup');
         if (!res) {
           await supabase.from('orders').delete().eq('id', order.id);
-          return json({ error: 'Could not generate Paystack top-up link for wallet shortfall.' }, 502);
+          return json({ error: 'Could not generate Paystack top-up link for wallet shortfall. Check Paystack keys for the active environment.' }, 502);
         }
         paymentLink = res.url;
         paymentReference = res.reference;

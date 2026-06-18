@@ -21,6 +21,7 @@ import { VehicleTypeSettings } from '@/components/admin/VehicleTypeSettings';
 import { CommissionOverrideManager } from '@/components/admin/CommissionOverrideManager';
 import { RiderOperationsSettings } from '@/components/admin/RiderOperationsSettings';
 import { SocialLogoSettings } from '@/components/admin/SocialLogoSettings';
+import { EventOrganizerSettings } from '@/components/admin/EventOrganizerSettings';
 
 interface DeliverySetting {
   key: string;
@@ -983,6 +984,25 @@ export default function AdminSettings() {
                   toast({ title: 'Saved', description: `${key.replace(/_/g, ' ')} updated.` });
                 } catch (err) {
                   console.error('Immediate save error:', err);
+                }
+              }}
+            />
+
+            {/* Event Organizer Wallet & Settlement */}
+            <EventOrganizerSettings
+              settings={settings}
+              onSettingChange={handleSettingChange}
+              onImmediateSave={async (key, value) => {
+                try {
+                  await supabase.from('platform_settings').upsert({
+                    key,
+                    value,
+                    updated_at: new Date().toISOString(),
+                  }, { onConflict: 'key' });
+                  toast({ title: 'Saved', description: `${key.replace(/_/g, ' ')} updated.` });
+                } catch (err) {
+                  console.error('Event organizer setting save error:', err);
+                  toast({ title: 'Save failed', description: 'Please try again.', variant: 'destructive' });
                 }
               }}
             />
