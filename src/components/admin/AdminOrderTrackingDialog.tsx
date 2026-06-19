@@ -157,6 +157,7 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
     vendor_payout: number;
     vendor_commission_amount: number;
     rider_commission_amount: number | null;
+    logistics_commission_amount: number | null;
     rider_share: number | null;
     company_revenue: number;
     service_fee_amount: number | null;
