@@ -9,6 +9,8 @@ import { BankAccountForm } from '@/components/BankAccountForm';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export default function OrganizerWalletSection({ token }: { token: string }) {
+  // token === 'self' means use the authenticated user's JWT (organizer self-service dashboard)
+
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
