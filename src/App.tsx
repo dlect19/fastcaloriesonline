@@ -305,6 +305,11 @@ const App = () => {
               {/* Organizer Portal (public via secret token) */}
               <Route path="/organizer/:token" element={<OrganizerPortal />} />
               <Route path="/organizer/:token/verify" element={<OrganizerVerify />} />
+              {/* Event planner self-service portal */}
+              <Route path="/organizer/auth" element={<OrganizerAuth />} />
+              <Route path="/organizer/dashboard" element={<OrganizerDashboard />} />
+              {/* Public marketing page */}
+              <Route path="/event-planners" element={<EventPlannersLanding />} />
               {/* Public Pages */}
               <Route path="/delete-account" element={<DeleteAccount />} />
               {/* Legal Pages (public) */}
