@@ -1045,7 +1045,21 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
                       )}
                       <div>
                         <span className="text-muted-foreground">Platform Revenue</span>
-                        <p className="font-semibold text-primary">₦{Number(orderFinancials.company_revenue).toLocaleString()}</p>
+                        {(() => {
+                          const vendorCut = Number(orderFinancials.vendor_commission_amount || 0);
+                          const serviceFee = Number(orderFinancials.service_fee_amount || 0);
+                          const riderCut = Number(orderFinancials.rider_commission_amount || 0);
+                          const logisticsCut = Number(orderFinancials.logistics_commission_amount || 0);
+                          const total = vendorCut + serviceFee + riderCut + logisticsCut;
+                          return (
+                            <>
+                              <p className="font-semibold text-primary">₦{total.toLocaleString()}</p>
+                              <p className="text-[10px] text-muted-foreground">
+                                Vendor ₦{vendorCut.toLocaleString()} + Service ₦{serviceFee.toLocaleString()} + Delivery ₦{(riderCut + logisticsCut).toLocaleString()}
+                              </p>
+                            </>
+                          );
+                        })()}
                       </div>
                     </div>
                   </>
