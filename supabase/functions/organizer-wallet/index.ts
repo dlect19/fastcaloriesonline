@@ -16,13 +16,28 @@ Deno.serve(async (req) => {
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const body = await req.json().catch(() => ({}));
     const { token, action } = body;
-    if (!token || typeof token !== "string") return json({ error: "Missing token" }, 401);
 
-    // Resolve organizer from event token
-    const { data: ev } = await supabase
-      .from("events").select("id, organizer_id").eq("organizer_access_token", token).maybeSingle();
-    if (!ev?.organizer_id) return json({ error: "Invalid organizer link" }, 404);
-    const organizerId = ev.organizer_id as string;
+    // Resolve organizer: either via event token (link-based portal) OR via authenticated owner (self-service dashboard)
+    let organizerId: string | null = null;
+    if (token && typeof token === "string" && token !== "self") {
+      const { data: ev } = await supabase
+        .from("events").select("id, organizer_id").eq("organizer_access_token", token).maybeSingle();
+      if (!ev?.organizer_id) return json({ error: "Invalid organizer link" }, 404);
+      organizerId = ev.organizer_id as string;
+    } else {
+      // Self-service: derive user from Authorization header
+      const authHeader = req.headers.get("Authorization") || "";
+      const jwt = authHeader.replace(/^Bearer\s+/i, "");
+      if (!jwt) return json({ error: "Not authenticated" }, 401);
+      const { data: userRes } = await supabase.auth.getUser(jwt);
+      const userId = userRes?.user?.id;
+      if (!userId) return json({ error: "Invalid session" }, 401);
+      const { data: org } = await supabase
+        .from("event_organizers").select("id").eq("owner_user_id", userId).maybeSingle();
+      if (!org?.id) return json({ error: "No organizer profile linked to this account" }, 404);
+      organizerId = org.id as string;
+    }
+
 
     const { data: organizer } = await supabase
       .from("event_organizers")
