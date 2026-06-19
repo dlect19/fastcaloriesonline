@@ -1127,7 +1127,7 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
                         // Refresh financials display
                         const { data: fin } = await supabase
                           .from('order_financials')
-                          .select('vendor_payout, vendor_commission_amount, rider_commission_amount, company_revenue, service_fee_amount')
+                          .select('vendor_payout, vendor_commission_amount, rider_commission_amount, logistics_commission_amount, company_revenue, service_fee_amount')
                           .eq('order_id', activeOrder.id)
                           .maybeSingle();
 
@@ -1146,6 +1146,7 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
                             vendor_payout: fin.vendor_payout,
                             vendor_commission_amount: fin.vendor_commission_amount,
                             rider_commission_amount: fin.rider_commission_amount,
+                            logistics_commission_amount: (fin as any).logistics_commission_amount ?? null,
                             rider_share: riderTx?.amount ?? null,
                             company_revenue: fin.company_revenue,
                             service_fee_amount: fin.service_fee_amount,
