@@ -157,6 +157,7 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
     vendor_payout: number;
     vendor_commission_amount: number;
     rider_commission_amount: number | null;
+    logistics_commission_amount: number | null;
     rider_share: number | null;
     company_revenue: number;
     service_fee_amount: number | null;
@@ -288,7 +289,7 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
     // Order financials (vendor payout, rider share, commissions)
     const { data: fin } = await supabase
       .from('order_financials')
-      .select('vendor_payout, vendor_commission_amount, rider_commission_amount, company_revenue, service_fee_amount')
+      .select('vendor_payout, vendor_commission_amount, rider_commission_amount, logistics_commission_amount, company_revenue, service_fee_amount')
       .eq('order_id', o.id)
       .maybeSingle();
 
@@ -308,6 +309,7 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
         vendor_payout: fin.vendor_payout,
         vendor_commission_amount: fin.vendor_commission_amount,
         rider_commission_amount: fin.rider_commission_amount,
+        logistics_commission_amount: (fin as any).logistics_commission_amount ?? null,
         rider_share: riderTx?.amount ?? null,
         company_revenue: fin.company_revenue,
         service_fee_amount: fin.service_fee_amount,
@@ -1043,7 +1045,21 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
                       )}
                       <div>
                         <span className="text-muted-foreground">Platform Revenue</span>
-                        <p className="font-semibold text-primary">₦{Number(orderFinancials.company_revenue).toLocaleString()}</p>
+                        {(() => {
+                          const vendorCut = Number(orderFinancials.vendor_commission_amount || 0);
+                          const serviceFee = Number(orderFinancials.service_fee_amount || 0);
+                          const riderCut = Number(orderFinancials.rider_commission_amount || 0);
+                          const logisticsCut = Number(orderFinancials.logistics_commission_amount || 0);
+                          const total = vendorCut + serviceFee + riderCut + logisticsCut;
+                          return (
+                            <>
+                              <p className="font-semibold text-primary">₦{total.toLocaleString()}</p>
+                              <p className="text-[10px] text-muted-foreground">
+                                Vendor ₦{vendorCut.toLocaleString()} + Service ₦{serviceFee.toLocaleString()} + Delivery ₦{(riderCut + logisticsCut).toLocaleString()}
+                              </p>
+                            </>
+                          );
+                        })()}
                       </div>
                     </div>
                   </>
@@ -1125,7 +1141,7 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
                         // Refresh financials display
                         const { data: fin } = await supabase
                           .from('order_financials')
-                          .select('vendor_payout, vendor_commission_amount, rider_commission_amount, company_revenue, service_fee_amount')
+                          .select('vendor_payout, vendor_commission_amount, rider_commission_amount, logistics_commission_amount, company_revenue, service_fee_amount')
                           .eq('order_id', activeOrder.id)
                           .maybeSingle();
 
@@ -1144,6 +1160,7 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
                             vendor_payout: fin.vendor_payout,
                             vendor_commission_amount: fin.vendor_commission_amount,
                             rider_commission_amount: fin.rider_commission_amount,
+                            logistics_commission_amount: (fin as any).logistics_commission_amount ?? null,
                             rider_share: riderTx?.amount ?? null,
                             company_revenue: fin.company_revenue,
                             service_fee_amount: fin.service_fee_amount,
