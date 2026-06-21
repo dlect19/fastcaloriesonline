@@ -4270,7 +4270,14 @@ export type Database = {
           created_at: string
           id: string
           image_url: string | null
+          is_refunded: boolean
           order_item_id: string
+          refund_amount: number | null
+          refund_reference: string | null
+          refunded_at: string | null
+          substitute_note: string | null
+          substituted_at: string | null
+          substituted_with: string | null
         }
         Insert: {
           additional_price?: number
@@ -4280,7 +4287,14 @@ export type Database = {
           created_at?: string
           id?: string
           image_url?: string | null
+          is_refunded?: boolean
           order_item_id: string
+          refund_amount?: number | null
+          refund_reference?: string | null
+          refunded_at?: string | null
+          substitute_note?: string | null
+          substituted_at?: string | null
+          substituted_with?: string | null
         }
         Update: {
           additional_price?: number
@@ -4290,7 +4304,14 @@ export type Database = {
           created_at?: string
           id?: string
           image_url?: string | null
+          is_refunded?: boolean
           order_item_id?: string
+          refund_amount?: number | null
+          refund_reference?: string | null
+          refunded_at?: string | null
+          substitute_note?: string | null
+          substituted_at?: string | null
+          substituted_with?: string | null
         }
         Relationships: [
           {
@@ -4323,6 +4344,10 @@ export type Database = {
           refund_reference: string | null
           refunded_at: string | null
           special_instructions: string | null
+          substitute_note: string | null
+          substitute_refund_amount: number | null
+          substituted_at: string | null
+          substituted_with: string | null
           total_price: number
           unit_multiplier: number
           unit_price: number
@@ -4347,6 +4372,10 @@ export type Database = {
           refund_reference?: string | null
           refunded_at?: string | null
           special_instructions?: string | null
+          substitute_note?: string | null
+          substitute_refund_amount?: number | null
+          substituted_at?: string | null
+          substituted_with?: string | null
           total_price: number
           unit_multiplier?: number
           unit_price: number
@@ -4371,6 +4400,10 @@ export type Database = {
           refund_reference?: string | null
           refunded_at?: string | null
           special_instructions?: string | null
+          substitute_note?: string | null
+          substitute_refund_amount?: number | null
+          substituted_at?: string | null
+          substituted_with?: string | null
           total_price?: number
           unit_multiplier?: number
           unit_price?: number
