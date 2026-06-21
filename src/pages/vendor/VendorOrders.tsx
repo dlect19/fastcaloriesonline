@@ -575,7 +575,7 @@ export default function VendorOrders() {
     if (!ok) return;
     try {
       const { data, error } = await supabase.functions.invoke('vendor-refund-item', {
-        body: { orderItemId: item.id, reason: 'Item unavailable' },
+        body: { orderItemId: item.id, action: 'refund', reason: 'Item unavailable' },
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
@@ -588,6 +588,69 @@ export default function VendorOrders() {
       toast({ title: 'Refund failed', description: err.message, variant: 'destructive' });
     }
   };
+
+  const handleRefundAddon = async (addon: any, orderNumber: string) => {
+    if (addon.is_refunded) return;
+    const ok = confirm(
+      `Refund add-on "${addon.addon_item_name}" to the customer?\n\nOrder #${orderNumber}`
+    );
+    if (!ok) return;
+    try {
+      const { data, error } = await supabase.functions.invoke('vendor-refund-item', {
+        body: { addonId: addon.id, action: 'refund', reason: 'Add-on unavailable' },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      toast({
+        title: 'Add-on refunded',
+        description: `₦${Number((data as any).refund_amount).toLocaleString()} refunded to customer wallet.`,
+      });
+      fetchData();
+    } catch (err: any) {
+      toast({ title: 'Refund failed', description: err.message, variant: 'destructive' });
+    }
+  };
+
+  const openSubstitute = (scope: 'item' | 'addon', id: string, originalName: string, orderNumber: string) => {
+    setSubForm({ name: '', note: '', refund: '' });
+    setSubstituteDialog({ open: true, scope, id, originalName, orderNumber });
+  };
+
+  const submitSubstitute = async () => {
+    if (!substituteDialog) return;
+    if (!subForm.name.trim()) {
+      toast({ title: 'Substitute name required', variant: 'destructive' });
+      return;
+    }
+    setSubSubmitting(true);
+    try {
+      const body: any = {
+        action: 'substitute',
+        substituteName: subForm.name.trim(),
+        substituteNote: subForm.note.trim() || undefined,
+        substituteRefundAmount: subForm.refund ? Number(subForm.refund) : 0,
+      };
+      if (substituteDialog.scope === 'item') body.orderItemId = substituteDialog.id;
+      else body.addonId = substituteDialog.id;
+
+      const { data, error } = await supabase.functions.invoke('vendor-refund-item', { body });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      toast({
+        title: 'Substitute applied',
+        description: (data as any).refund_amount > 0
+          ? `Customer notified. ₦${Number((data as any).refund_amount).toLocaleString()} partial refund issued.`
+          : 'Customer notified in chat (same price, no refund).',
+      });
+      setSubstituteDialog(null);
+      fetchData();
+    } catch (err: any) {
+      toast({ title: 'Substitute failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setSubSubmitting(false);
+    }
+  };
+
 
   const renderItemContent = (item: OrderItemWithAddons, orderNumber?: string) => {
     const itemAny = item as any;
