@@ -82,41 +82,23 @@ Format your response as JSON with this structure:
 
 Please suggest 3 Nigerian meals that fit my remaining calorie budget and health goals. Include nutritional analysis for each and a recipe search query.`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-      }),
+    const result = await chatCompletionWithFallback({
+      model: "google/gemini-3-flash-preview",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
     });
 
-    if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again later." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "AI usage limit reached. Please try again later." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
-      throw new Error("AI gateway error");
+    if (!result.ok) {
+      console.error("AI gateway error:", result.status, result.errorText);
+      return new Response(JSON.stringify({ error: result.errorText || "AI gateway error" }), {
+        status: result.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
+    console.log(`[ai-meal-recommendation] provider=${result.provider}`);
+    const content = result.data.choices?.[0]?.message?.content;
 
     let parsedContent;
     try {
