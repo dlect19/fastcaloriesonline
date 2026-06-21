@@ -38,6 +38,7 @@ import { useRepeatingNotificationSound } from '@/hooks/useRepeatingNotificationS
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables, Database } from '@/integrations/supabase/types';
 import { usePersistedOutletId } from '@/hooks/usePersistedOutletId';
+import { cn } from '@/lib/utils';
 
 function PrepCountdown({ estimatedAt, prepMinutes }: { estimatedAt: string; prepMinutes?: number | null }) {
   const [timeLeft, setTimeLeft] = useState('');
@@ -573,7 +574,7 @@ export default function VendorOrders() {
         title: 'Refund processed',
         description: `₦${Number((data as any).refund_amount).toLocaleString()} refunded to customer wallet. Item marked unavailable.`,
       });
-      fetchOrders();
+      fetchData();
     } catch (err: any) {
       toast({ title: 'Refund failed', description: err.message, variant: 'destructive' });
     }
