@@ -683,13 +683,28 @@ export default function VendorOrders() {
             <p className="text-xs text-muted-foreground">{item.calories} cal</p>
           )}
           {!isRefunded && orderNumber && (
-            <button
-              type="button"
-              onClick={() => handleRefundItem(item, orderNumber)}
-              className="mt-1 text-[11px] text-destructive hover:underline font-medium"
-            >
-              Unavailable? Refund this item
-            </button>
+            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+              <button
+                type="button"
+                onClick={() => handleRefundItem(item, orderNumber)}
+                className="text-[11px] text-destructive hover:underline font-medium"
+              >
+                Unavailable? Refund this item
+              </button>
+              <button
+                type="button"
+                onClick={() => openSubstitute('item', item.id, item.product_name, orderNumber)}
+                className="text-[11px] text-primary hover:underline font-medium"
+              >
+                Offer substitute
+              </button>
+            </div>
+          )}
+          {(item as any).substituted_with && (
+            <p className="mt-1 text-[11px] text-primary">
+              🔄 Substituted with <strong>{(item as any).substituted_with}</strong>
+              {(item as any).substitute_note ? ` — ${(item as any).substitute_note}` : ''}
+            </p>
           )}
         </div>
         <p className={cn("font-medium text-foreground", isRefunded && "line-through opacity-60")}>
@@ -697,26 +712,61 @@ export default function VendorOrders() {
         </p>
       </div>
       {item.addons && item.addons.length > 0 && (
-        <div className="ml-4 mt-1 space-y-0.5 border-l-2 border-primary/30 pl-3">
+        <div className="ml-4 mt-1 space-y-1 border-l-2 border-primary/30 pl-3">
           <p className="text-xs font-semibold text-primary uppercase tracking-wide">Add-ons:</p>
-          {item.addons.map((addon) => (
-            <div key={addon.id} className="flex justify-between items-center text-xs">
-              <span className="text-foreground flex items-center gap-1.5">
-                {addon.image_url && (
-                  <img src={addon.image_url} alt={addon.addon_item_name} className="w-6 h-6 rounded object-cover shrink-0" />
+          {item.addons.map((addon) => {
+            const a = addon as any;
+            const addonRefunded = !!a.is_refunded;
+            return (
+              <div key={addon.id} className="text-xs">
+                <div className="flex justify-between items-center">
+                  <span className={cn("text-foreground flex items-center gap-1.5", addonRefunded && "line-through opacity-60")}>
+                    {addon.image_url && (
+                      <img src={addon.image_url} alt={addon.addon_item_name} className="w-6 h-6 rounded object-cover shrink-0" />
+                    )}
+                    + {addon.addon_item_name}
+                    {addon.calories && addon.calories > 0 && (
+                      <span className="text-muted-foreground ml-1">({addon.calories} cal)</span>
+                    )}
+                    {addonRefunded && (
+                      <span className="inline-flex items-center bg-destructive/15 text-destructive border border-destructive/30 rounded-full px-1.5 py-0 text-[10px] font-semibold">
+                        Refunded
+                      </span>
+                    )}
+                  </span>
+                  {addon.additional_price > 0 && (
+                    <span className={cn("text-primary font-medium", addonRefunded && "line-through opacity-60")}>
+                      +₦{Number(addon.additional_price).toLocaleString()}
+                    </span>
+                  )}
+                </div>
+                {!addonRefunded && !isRefunded && orderNumber && (
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5 ml-1">
+                    <button
+                      type="button"
+                      onClick={() => handleRefundAddon(addon, orderNumber)}
+                      className="text-[10px] text-destructive hover:underline font-medium"
+                    >
+                      Unavailable? Refund add-on
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openSubstitute('addon', addon.id, addon.addon_item_name, orderNumber)}
+                      className="text-[10px] text-primary hover:underline font-medium"
+                    >
+                      Offer substitute
+                    </button>
+                  </div>
                 )}
-                + {addon.addon_item_name}
-                {addon.calories && addon.calories > 0 && (
-                  <span className="text-muted-foreground ml-1">({addon.calories} cal)</span>
+                {a.substituted_with && (
+                  <p className="ml-1 text-[10px] text-primary">
+                    🔄 Substituted with <strong>{a.substituted_with}</strong>
+                    {a.substitute_note ? ` — ${a.substitute_note}` : ''}
+                  </p>
                 )}
-              </span>
-              {addon.additional_price > 0 && (
-                <span className="text-primary font-medium">
-                  +₦{Number(addon.additional_price).toLocaleString()}
-                </span>
-              )}
-            </div>
-          ))}
+              </div>
+            );
+          })}
         </div>
       )}
     </>
