@@ -31,6 +31,10 @@ import { VendorOrderChat } from '@/components/vendor/VendorOrderChat';
 import { PrepTimeDialog } from '@/components/vendor/PrepTimeDialog';
 import { OrderProofPhotoUpload } from '@/components/vendor/OrderProofPhotoUpload';
 import { PaginationControls } from '@/components/shared/PaginationControls';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/hooks/useAuth';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
 import { useToast } from '@/hooks/use-toast';
@@ -158,6 +162,15 @@ export default function VendorOrders() {
   const [prepTimeSettings, setPrepTimeSettings] = useState<{ enabled: boolean; restaurantOptions?: number[]; otherOptions?: number[] }>({ enabled: true });
   const [showManualAssignForOrder, setShowManualAssignForOrder] = useState<string | null>(null);
   const [riderAssignDialog, setRiderAssignDialog] = useState<{ open: boolean; order: OrderWithItems | null }>({ open: false, order: null });
+  const [substituteDialog, setSubstituteDialog] = useState<{
+    open: boolean;
+    scope: 'item' | 'addon';
+    id: string;
+    originalName: string;
+    orderNumber: string;
+  } | null>(null);
+  const [subForm, setSubForm] = useState<{ name: string; note: string; refund: string }>({ name: '', note: '', refund: '' });
+  const [subSubmitting, setSubSubmitting] = useState(false);
   const [completedPage, setCompletedPage] = useState(1);
   const { selectedOutletId, setSelectedOutletId, ready: outletReady } = usePersistedOutletId();
   const ITEMS_PER_PAGE = 10;
@@ -566,7 +579,7 @@ export default function VendorOrders() {
     if (!ok) return;
     try {
       const { data, error } = await supabase.functions.invoke('vendor-refund-item', {
-        body: { orderItemId: item.id, reason: 'Item unavailable' },
+        body: { orderItemId: item.id, action: 'refund', reason: 'Item unavailable' },
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
@@ -579,6 +592,69 @@ export default function VendorOrders() {
       toast({ title: 'Refund failed', description: err.message, variant: 'destructive' });
     }
   };
+
+  const handleRefundAddon = async (addon: any, orderNumber: string) => {
+    if (addon.is_refunded) return;
+    const ok = confirm(
+      `Refund add-on "${addon.addon_item_name}" to the customer?\n\nOrder #${orderNumber}`
+    );
+    if (!ok) return;
+    try {
+      const { data, error } = await supabase.functions.invoke('vendor-refund-item', {
+        body: { addonId: addon.id, action: 'refund', reason: 'Add-on unavailable' },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      toast({
+        title: 'Add-on refunded',
+        description: `₦${Number((data as any).refund_amount).toLocaleString()} refunded to customer wallet.`,
+      });
+      fetchData();
+    } catch (err: any) {
+      toast({ title: 'Refund failed', description: err.message, variant: 'destructive' });
+    }
+  };
+
+  const openSubstitute = (scope: 'item' | 'addon', id: string, originalName: string, orderNumber: string) => {
+    setSubForm({ name: '', note: '', refund: '' });
+    setSubstituteDialog({ open: true, scope, id, originalName, orderNumber });
+  };
+
+  const submitSubstitute = async () => {
+    if (!substituteDialog) return;
+    if (!subForm.name.trim()) {
+      toast({ title: 'Substitute name required', variant: 'destructive' });
+      return;
+    }
+    setSubSubmitting(true);
+    try {
+      const body: any = {
+        action: 'substitute',
+        substituteName: subForm.name.trim(),
+        substituteNote: subForm.note.trim() || undefined,
+        substituteRefundAmount: subForm.refund ? Number(subForm.refund) : 0,
+      };
+      if (substituteDialog.scope === 'item') body.orderItemId = substituteDialog.id;
+      else body.addonId = substituteDialog.id;
+
+      const { data, error } = await supabase.functions.invoke('vendor-refund-item', { body });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      toast({
+        title: 'Substitute applied',
+        description: (data as any).refund_amount > 0
+          ? `Customer notified. ₦${Number((data as any).refund_amount).toLocaleString()} partial refund issued.`
+          : 'Customer notified in chat (same price, no refund).',
+      });
+      setSubstituteDialog(null);
+      fetchData();
+    } catch (err: any) {
+      toast({ title: 'Substitute failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setSubSubmitting(false);
+    }
+  };
+
 
   const renderItemContent = (item: OrderItemWithAddons, orderNumber?: string) => {
     const itemAny = item as any;
@@ -611,13 +687,28 @@ export default function VendorOrders() {
             <p className="text-xs text-muted-foreground">{item.calories} cal</p>
           )}
           {!isRefunded && orderNumber && (
-            <button
-              type="button"
-              onClick={() => handleRefundItem(item, orderNumber)}
-              className="mt-1 text-[11px] text-destructive hover:underline font-medium"
-            >
-              Unavailable? Refund this item
-            </button>
+            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+              <button
+                type="button"
+                onClick={() => handleRefundItem(item, orderNumber)}
+                className="text-[11px] text-destructive hover:underline font-medium"
+              >
+                Unavailable? Refund this item
+              </button>
+              <button
+                type="button"
+                onClick={() => openSubstitute('item', item.id, item.product_name, orderNumber)}
+                className="text-[11px] text-primary hover:underline font-medium"
+              >
+                Offer substitute
+              </button>
+            </div>
+          )}
+          {(item as any).substituted_with && (
+            <p className="mt-1 text-[11px] text-primary">
+              🔄 Substituted with <strong>{(item as any).substituted_with}</strong>
+              {(item as any).substitute_note ? ` — ${(item as any).substitute_note}` : ''}
+            </p>
           )}
         </div>
         <p className={cn("font-medium text-foreground", isRefunded && "line-through opacity-60")}>
@@ -625,26 +716,61 @@ export default function VendorOrders() {
         </p>
       </div>
       {item.addons && item.addons.length > 0 && (
-        <div className="ml-4 mt-1 space-y-0.5 border-l-2 border-primary/30 pl-3">
+        <div className="ml-4 mt-1 space-y-1 border-l-2 border-primary/30 pl-3">
           <p className="text-xs font-semibold text-primary uppercase tracking-wide">Add-ons:</p>
-          {item.addons.map((addon) => (
-            <div key={addon.id} className="flex justify-between items-center text-xs">
-              <span className="text-foreground flex items-center gap-1.5">
-                {addon.image_url && (
-                  <img src={addon.image_url} alt={addon.addon_item_name} className="w-6 h-6 rounded object-cover shrink-0" />
+          {item.addons.map((addon) => {
+            const a = addon as any;
+            const addonRefunded = !!a.is_refunded;
+            return (
+              <div key={addon.id} className="text-xs">
+                <div className="flex justify-between items-center">
+                  <span className={cn("text-foreground flex items-center gap-1.5", addonRefunded && "line-through opacity-60")}>
+                    {addon.image_url && (
+                      <img src={addon.image_url} alt={addon.addon_item_name} className="w-6 h-6 rounded object-cover shrink-0" />
+                    )}
+                    + {addon.addon_item_name}
+                    {addon.calories && addon.calories > 0 && (
+                      <span className="text-muted-foreground ml-1">({addon.calories} cal)</span>
+                    )}
+                    {addonRefunded && (
+                      <span className="inline-flex items-center bg-destructive/15 text-destructive border border-destructive/30 rounded-full px-1.5 py-0 text-[10px] font-semibold">
+                        Refunded
+                      </span>
+                    )}
+                  </span>
+                  {addon.additional_price > 0 && (
+                    <span className={cn("text-primary font-medium", addonRefunded && "line-through opacity-60")}>
+                      +₦{Number(addon.additional_price).toLocaleString()}
+                    </span>
+                  )}
+                </div>
+                {!addonRefunded && !isRefunded && orderNumber && (
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5 ml-1">
+                    <button
+                      type="button"
+                      onClick={() => handleRefundAddon(addon, orderNumber)}
+                      className="text-[10px] text-destructive hover:underline font-medium"
+                    >
+                      Unavailable? Refund add-on
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openSubstitute('addon', addon.id, addon.addon_item_name, orderNumber)}
+                      className="text-[10px] text-primary hover:underline font-medium"
+                    >
+                      Offer substitute
+                    </button>
+                  </div>
                 )}
-                + {addon.addon_item_name}
-                {addon.calories && addon.calories > 0 && (
-                  <span className="text-muted-foreground ml-1">({addon.calories} cal)</span>
+                {a.substituted_with && (
+                  <p className="ml-1 text-[10px] text-primary">
+                    🔄 Substituted with <strong>{a.substituted_with}</strong>
+                    {a.substitute_note ? ` — ${a.substitute_note}` : ''}
+                  </p>
                 )}
-              </span>
-              {addon.additional_price > 0 && (
-                <span className="text-primary font-medium">
-                  +₦{Number(addon.additional_price).toLocaleString()}
-                </span>
-              )}
-            </div>
-          ))}
+              </div>
+            );
+          })}
         </div>
       )}
     </>
@@ -1161,6 +1287,63 @@ export default function VendorOrders() {
               setRiderAssignDialog({ open: false, order: null });
             }}
           />
+
+          {/* Substitute item / add-on dialog */}
+          <Dialog open={!!substituteDialog?.open} onOpenChange={(o) => !o && setSubstituteDialog(null)}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Offer substitute</DialogTitle>
+                <DialogDescription>
+                  Replace <strong>{substituteDialog?.originalName}</strong> in order #{substituteDialog?.orderNumber} with something else.
+                  The customer will be notified in chat.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3 py-2">
+                <div className="space-y-1">
+                  <Label htmlFor="sub-name">Replacement name *</Label>
+                  <Input
+                    id="sub-name"
+                    placeholder="e.g. fried rice"
+                    value={subForm.name}
+                    onChange={(e) => setSubForm((p) => ({ ...p, name: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="sub-note">Note for customer (optional)</Label>
+                  <Textarea
+                    id="sub-note"
+                    placeholder="e.g. similar portion, same protein"
+                    rows={2}
+                    value={subForm.note}
+                    onChange={(e) => setSubForm((p) => ({ ...p, note: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="sub-refund">Partial refund amount (₦) — leave 0 if same price</Label>
+                  <Input
+                    id="sub-refund"
+                    type="number"
+                    min="0"
+                    step="50"
+                    placeholder="0"
+                    value={subForm.refund}
+                    onChange={(e) => setSubForm((p) => ({ ...p, refund: e.target.value }))}
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Use this only if the substitute is cheaper. Amount is credited to the customer's wallet.
+                  </p>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setSubstituteDialog(null)} disabled={subSubmitting}>
+                  Cancel
+                </Button>
+                <Button onClick={submitSubstitute} disabled={subSubmitting || !subForm.name.trim()}>
+                  {subSubmitting ? 'Applying…' : 'Apply substitute'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
       </div>
     </VendorLayout>
   );
