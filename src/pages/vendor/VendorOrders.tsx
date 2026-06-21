@@ -556,17 +556,48 @@ export default function VendorOrders() {
     });
   };
 
-  const renderItemContent = (item: OrderItemWithAddons) => (
+  const handleRefundItem = async (item: OrderItemWithAddons, orderNumber: string) => {
+    const itemAny = item as any;
+    if (itemAny.is_refunded) return;
+    const ok = confirm(
+      `Refund "${item.product_name}" (₦${Number(item.total_price).toLocaleString()}) to the customer and mark this menu item as Unavailable?\n\nOrder #${orderNumber}`
+    );
+    if (!ok) return;
+    try {
+      const { data, error } = await supabase.functions.invoke('vendor-refund-item', {
+        body: { orderItemId: item.id, reason: 'Item unavailable' },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      toast({
+        title: 'Refund processed',
+        description: `₦${Number((data as any).refund_amount).toLocaleString()} refunded to customer wallet. Item marked unavailable.`,
+      });
+      fetchOrders();
+    } catch (err: any) {
+      toast({ title: 'Refund failed', description: err.message, variant: 'destructive' });
+    }
+  };
+
+  const renderItemContent = (item: OrderItemWithAddons, orderNumber?: string) => {
+    const itemAny = item as any;
+    const isRefunded = !!itemAny.is_refunded;
+    return (
     <>
       <div className="flex justify-between items-start">
         <div className="flex-1">
-          <div className="flex items-center gap-1.5">
-            <p className="font-medium text-foreground">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <p className={cn("font-medium text-foreground", isRefunded && "line-through opacity-60")}>
               {item.quantity}x {item.product_name}
             </p>
-            {(item as any).is_free_meal_item && (
+            {itemAny.is_free_meal_item && (
               <span className="inline-flex items-center gap-0.5 bg-green-500/15 text-green-700 dark:text-green-400 border border-green-500/30 rounded-full px-1.5 py-0 text-[10px] font-semibold">
                 🎁 Free Meal
+              </span>
+            )}
+            {isRefunded && (
+              <span className="inline-flex items-center bg-destructive/15 text-destructive border border-destructive/30 rounded-full px-1.5 py-0 text-[10px] font-semibold">
+                Refunded
               </span>
             )}
           </div>
@@ -578,8 +609,17 @@ export default function VendorOrders() {
           {item.calories && item.calories > 0 && (
             <p className="text-xs text-muted-foreground">{item.calories} cal</p>
           )}
+          {!isRefunded && orderNumber && (
+            <button
+              type="button"
+              onClick={() => handleRefundItem(item, orderNumber)}
+              className="mt-1 text-[11px] text-destructive hover:underline font-medium"
+            >
+              Unavailable? Refund this item
+            </button>
+          )}
         </div>
-        <p className="font-medium text-foreground">
+        <p className={cn("font-medium text-foreground", isRefunded && "line-through opacity-60")}>
           ₦{Number(item.total_price).toLocaleString()}
         </p>
       </div>
@@ -608,6 +648,7 @@ export default function VendorOrders() {
       )}
     </>
   );
+  };
 
   const renderOrderCard = (order: OrderWithItems) => {
     const status = statusConfig[order.status] || statusConfig.pending;
