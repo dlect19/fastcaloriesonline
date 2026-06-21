@@ -15,10 +15,7 @@ serve(async (req) => {
   try {
     const { calorieTarget, caloriesConsumed, healthGoal, mealType, orderHistory } = await req.json();
     
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
-    }
+    // Keys handled by chatCompletionWithFallback (Lovable AI → Gemini fallback)
 
     const remainingCalories = calorieTarget - caloriesConsumed;
     const currentTime = new Date().getHours();
