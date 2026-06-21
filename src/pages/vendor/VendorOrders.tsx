@@ -1283,6 +1283,63 @@ export default function VendorOrders() {
               setRiderAssignDialog({ open: false, order: null });
             }}
           />
+
+          {/* Substitute item / add-on dialog */}
+          <Dialog open={!!substituteDialog?.open} onOpenChange={(o) => !o && setSubstituteDialog(null)}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Offer substitute</DialogTitle>
+                <DialogDescription>
+                  Replace <strong>{substituteDialog?.originalName}</strong> in order #{substituteDialog?.orderNumber} with something else.
+                  The customer will be notified in chat.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3 py-2">
+                <div className="space-y-1">
+                  <Label htmlFor="sub-name">Replacement name *</Label>
+                  <Input
+                    id="sub-name"
+                    placeholder="e.g. fried rice"
+                    value={subForm.name}
+                    onChange={(e) => setSubForm((p) => ({ ...p, name: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="sub-note">Note for customer (optional)</Label>
+                  <Textarea
+                    id="sub-note"
+                    placeholder="e.g. similar portion, same protein"
+                    rows={2}
+                    value={subForm.note}
+                    onChange={(e) => setSubForm((p) => ({ ...p, note: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="sub-refund">Partial refund amount (₦) — leave 0 if same price</Label>
+                  <Input
+                    id="sub-refund"
+                    type="number"
+                    min="0"
+                    step="50"
+                    placeholder="0"
+                    value={subForm.refund}
+                    onChange={(e) => setSubForm((p) => ({ ...p, refund: e.target.value }))}
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Use this only if the substitute is cheaper. Amount is credited to the customer's wallet.
+                  </p>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setSubstituteDialog(null)} disabled={subSubmitting}>
+                  Cancel
+                </Button>
+                <Button onClick={submitSubstitute} disabled={subSubmitting || !subForm.name.trim()}>
+                  {subSubmitting ? 'Applying…' : 'Apply substitute'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
       </div>
     </VendorLayout>
   );
