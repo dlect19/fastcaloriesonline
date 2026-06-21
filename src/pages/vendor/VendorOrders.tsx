@@ -158,6 +158,15 @@ export default function VendorOrders() {
   const [prepTimeSettings, setPrepTimeSettings] = useState<{ enabled: boolean; restaurantOptions?: number[]; otherOptions?: number[] }>({ enabled: true });
   const [showManualAssignForOrder, setShowManualAssignForOrder] = useState<string | null>(null);
   const [riderAssignDialog, setRiderAssignDialog] = useState<{ open: boolean; order: OrderWithItems | null }>({ open: false, order: null });
+  const [substituteDialog, setSubstituteDialog] = useState<{
+    open: boolean;
+    scope: 'item' | 'addon';
+    id: string;
+    originalName: string;
+    orderNumber: string;
+  } | null>(null);
+  const [subForm, setSubForm] = useState<{ name: string; note: string; refund: string }>({ name: '', note: '', refund: '' });
+  const [subSubmitting, setSubSubmitting] = useState(false);
   const [completedPage, setCompletedPage] = useState(1);
   const { selectedOutletId, setSelectedOutletId, ready: outletReady } = usePersistedOutletId();
   const ITEMS_PER_PAGE = 10;
