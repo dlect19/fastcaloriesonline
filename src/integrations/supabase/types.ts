@@ -4311,6 +4311,7 @@ export type Database = {
           free_qty: number | null
           id: string
           is_free_meal_item: boolean | null
+          is_refunded: boolean
           order_id: string
           original_unit_price: number | null
           package_id: string | null
@@ -4318,6 +4319,9 @@ export type Database = {
           product_name: string
           purchase_unit: string
           quantity: number
+          refund_amount: number | null
+          refund_reference: string | null
+          refunded_at: string | null
           special_instructions: string | null
           total_price: number
           unit_multiplier: number
@@ -4331,6 +4335,7 @@ export type Database = {
           free_qty?: number | null
           id?: string
           is_free_meal_item?: boolean | null
+          is_refunded?: boolean
           order_id: string
           original_unit_price?: number | null
           package_id?: string | null
@@ -4338,6 +4343,9 @@ export type Database = {
           product_name: string
           purchase_unit?: string
           quantity?: number
+          refund_amount?: number | null
+          refund_reference?: string | null
+          refunded_at?: string | null
           special_instructions?: string | null
           total_price: number
           unit_multiplier?: number
@@ -4351,6 +4359,7 @@ export type Database = {
           free_qty?: number | null
           id?: string
           is_free_meal_item?: boolean | null
+          is_refunded?: boolean
           order_id?: string
           original_unit_price?: number | null
           package_id?: string | null
@@ -4358,6 +4367,9 @@ export type Database = {
           product_name?: string
           purchase_unit?: string
           quantity?: number
+          refund_amount?: number | null
+          refund_reference?: string | null
+          refunded_at?: string | null
           special_instructions?: string | null
           total_price?: number
           unit_multiplier?: number

@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { MessageSquare, Send, Image as ImageIcon, Mic, MicOff, Loader2, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { playChatSound } from '@/lib/chatSound';
 
 interface OrderChatProps {
   orderId: string;
@@ -50,12 +51,13 @@ export function OrderChat({ orderId, orderStatus, riderId, vendorId, senderRole 
   // Chat is enabled from "preparing" onwards until "delivered"
   const isChatEnabled = ['confirmed', 'preparing', 'ready_for_pickup', 'picked_up', 'on_the_way'].includes(orderStatus);
 
+  // Always-on realtime subscription (works whether chat is open or closed) so
+  // we can play the chat sound + increment unread badge in the background.
   useEffect(() => {
-    if (!orderId || !isOpen) return;
-    fetchMessages();
+    if (!orderId) return;
 
     const channel = supabase
-      .channel(`chat-${orderId}`)
+      .channel(`chat-${orderId}-${senderRole}`)
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
@@ -63,30 +65,31 @@ export function OrderChat({ orderId, orderStatus, riderId, vendorId, senderRole 
         filter: `order_id=eq.${orderId}`,
       }, (payload) => {
         const newMsg = payload.new as ChatMessage;
-        setMessages(prev => [...prev, newMsg]);
+        setMessages(prev => prev.some(m => m.id === newMsg.id) ? prev : [...prev, newMsg]);
+        if (newMsg.sender_id !== user?.id) {
+          playChatSound();
+          if (!isOpen) setUnreadCount(prev => prev + 1);
+        }
         scrollToBottom();
       })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [orderId, isOpen]);
+  }, [orderId, isOpen, user?.id, senderRole]);
 
-  // Count unread when closed
+  // Initial fetch + unread count
   useEffect(() => {
-    if (!orderId || isOpen) return;
-    const fetchUnread = async () => {
-      const { count } = await supabase
-        .from('order_chat_messages')
-        .select('id', { count: 'exact', head: true })
-        .eq('order_id', orderId)
-        .eq('is_read', false)
-        .neq('sender_id', user?.id || '');
-      setUnreadCount(count || 0);
-    };
-    fetchUnread();
-    const interval = setInterval(fetchUnread, 10000);
-    return () => clearInterval(interval);
-  }, [orderId, isOpen, user?.id]);
+    if (!orderId) return;
+    fetchMessages();
+    if (isOpen || !user?.id) return;
+    supabase
+      .from('order_chat_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('order_id', orderId)
+      .eq('is_read', false)
+      .neq('sender_id', user.id)
+      .then(({ count }) => setUnreadCount(count || 0));
+  }, [orderId, user?.id]);
 
   // Mark messages as read when opened
   useEffect(() => {

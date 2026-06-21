@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { chatCompletionWithFallback } from "../_shared/ai-call.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -20,14 +21,6 @@ serve(async (req: Request) => {
       );
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      return new Response(
-        JSON.stringify({ error: "AI service not configured" }),
-        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
-    }
-
     const prompt = `Estimate the nutritional information for this Nigerian/African food item:
 Name: ${name}
 ${description ? `Description: ${description}` : ""}
@@ -36,69 +29,51 @@ ${category ? `Category: ${category}` : ""}
 
 Provide accurate estimates based on standard Nigerian food portion sizes and common recipes.`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          {
-            role: "system",
-            content: "You are a nutrition expert specializing in Nigerian and African cuisine. You estimate accurate nutritional values based on standard portion sizes and common recipes. Always provide realistic estimates."
-          },
-          { role: "user", content: prompt }
-        ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "estimate_nutrition",
-              description: "Return estimated nutritional information for a food item per serving",
-              parameters: {
-                type: "object",
-                properties: {
-                  calories: { type: "number", description: "Estimated calories per serving (kcal)" },
-                  protein_grams: { type: "number", description: "Estimated protein in grams per serving" },
-                  carbs_grams: { type: "number", description: "Estimated carbohydrates in grams per serving" },
-                  fats_grams: { type: "number", description: "Estimated fats in grams per serving" },
-                  fiber_grams: { type: "number", description: "Estimated fiber in grams per serving" },
-                  serving_size_grams: { type: "number", description: "Estimated weight of one serving in grams" },
-                  confidence: { type: "string", enum: ["high", "medium", "low"], description: "Confidence level of the estimate" },
-                  notes: { type: "string", description: "Brief explanation of the estimate basis" }
-                },
-                required: ["calories", "protein_grams", "carbs_grams", "fats_grams", "serving_size_grams", "confidence"],
-                additionalProperties: false
-              }
+    const result = await chatCompletionWithFallback({
+      model: "google/gemini-3-flash-preview",
+      messages: [
+        {
+          role: "system",
+          content: "You are a nutrition expert specializing in Nigerian and African cuisine. You estimate accurate nutritional values based on standard portion sizes and common recipes. Always provide realistic estimates."
+        },
+        { role: "user", content: prompt }
+      ],
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "estimate_nutrition",
+            description: "Return estimated nutritional information for a food item per serving",
+            parameters: {
+              type: "object",
+              properties: {
+                calories: { type: "number" },
+                protein_grams: { type: "number" },
+                carbs_grams: { type: "number" },
+                fats_grams: { type: "number" },
+                fiber_grams: { type: "number" },
+                serving_size_grams: { type: "number" },
+                confidence: { type: "string", enum: ["high", "medium", "low"] },
+                notes: { type: "string" }
+              },
+              required: ["calories", "protein_grams", "carbs_grams", "fats_grams", "serving_size_grams", "confidence"],
+              additionalProperties: false
             }
           }
-        ],
-        tool_choice: { type: "function", function: { name: "estimate_nutrition" } },
-      }),
+        }
+      ],
+      tool_choice: { type: "function", function: { name: "estimate_nutrition" } },
     });
 
-    if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded, try again later" }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" }
-        });
-      }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "AI credits exhausted" }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" }
-        });
-      }
-      const errText = await response.text();
-      console.error("AI error:", response.status, errText);
-      return new Response(JSON.stringify({ error: "AI estimation failed" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" }
+    if (!result.ok) {
+      console.error("AI error:", result.status, result.errorText);
+      return new Response(JSON.stringify({ error: result.errorText || "AI estimation failed" }), {
+        status: result.status, headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
     }
 
-    const data = await response.json();
-    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+    console.log(`[estimate-nutrition] provider=${result.provider}`);
+    const toolCall = result.data.choices?.[0]?.message?.tool_calls?.[0];
 
     if (!toolCall?.function?.arguments) {
       return new Response(JSON.stringify({ error: "No estimation returned" }), {

@@ -7,6 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { MessageSquare, Send, Image as ImageIcon, Mic, MicOff, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { playChatSound } from '@/lib/chatSound';
 
 interface RiderOrderChatProps {
   orderId: string;
@@ -61,9 +62,10 @@ export function RiderOrderChat({ orderId, orderNumber }: RiderOrderChatProps) {
         filter: `order_id=eq.${orderId}`,
       }, (payload) => {
         const newMsg = payload.new as ChatMessage;
-        setMessages(prev => [...prev, newMsg]);
-        if (!isOpen && newMsg.sender_role !== 'rider') {
-          setUnreadCount(prev => prev + 1);
+        setMessages(prev => prev.some(m => m.id === newMsg.id) ? prev : [...prev, newMsg]);
+        if (newMsg.sender_role !== 'rider') {
+          playChatSound();
+          if (!isOpen) setUnreadCount(prev => prev + 1);
         }
         scrollToBottom();
       })
