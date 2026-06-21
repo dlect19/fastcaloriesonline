@@ -7,6 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { MessageSquare, Send, Image as ImageIcon, Mic, MicOff, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { playChatSound } from '@/lib/chatSound';
 
 interface VendorOrderChatProps {
   orderId: string;
@@ -63,9 +64,10 @@ export function VendorOrderChat({ orderId, orderNumber, vendorId }: VendorOrderC
         filter: `order_id=eq.${orderId}`,
       }, (payload) => {
         const newMsg = payload.new as ChatMessage;
-        setMessages(prev => [...prev, newMsg]);
-        if (!isOpen && newMsg.sender_role !== 'vendor') {
-          setUnreadCount(prev => prev + 1);
+        setMessages(prev => prev.some(m => m.id === newMsg.id) ? prev : [...prev, newMsg]);
+        if (newMsg.sender_role !== 'vendor') {
+          playChatSound();
+          if (!isOpen) setUnreadCount(prev => prev + 1);
         }
         scrollToBottom();
       })
