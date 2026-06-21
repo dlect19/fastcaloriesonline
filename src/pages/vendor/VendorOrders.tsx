@@ -740,7 +740,7 @@ export default function VendorOrders() {
                         )}
                         {pkgItems.map((item) => (
                           <div key={item.id} className="text-sm ml-2">
-                            {renderItemContent(item)}
+                            {renderItemContent(item, order.order_number)}
                           </div>
                         ))}
                       </div>
@@ -750,7 +750,7 @@ export default function VendorOrders() {
                   // Single package or legacy view
                   order.items.map((item) => (
                     <div key={item.id} className="text-sm">
-                      {renderItemContent(item)}
+                      {renderItemContent(item, order.order_number)}
                     </div>
                   ))
                 ) : (
