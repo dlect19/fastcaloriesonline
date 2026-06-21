@@ -73,21 +73,29 @@ export async function chatCompletionWithFallback(
     try {
       const resp = await callLovable(body, lovableKey);
       if (resp.ok) {
-        return { ok: true, status: resp.status, data: await resp.json(), provider: "lovable" };
+        const data = await resp.json();
+        // Validate response shape; some failures return 200 with error body
+        if (data?.choices?.length) {
+          return { ok: true, status: resp.status, data, provider: "lovable" };
+        }
+        console.log(
+          `[ai-call] Lovable returned 200 but no choices (likely credit/quota issue):`,
+          JSON.stringify(data).slice(0, 300),
+        );
+        // fall through to Gemini
+      } else {
+        const errText = await resp.text();
+        console.log(
+          `[ai-call] Lovable returned ${resp.status}: ${errText.slice(0, 300)} — falling back to Gemini`,
+        );
+        // Only surface error directly for clear non-quota client errors (400 with no key issue)
+        // Otherwise fall back to Gemini for any failure
       }
-      // Fall back only on credit/rate-limit failures
-      if (resp.status !== 402 && resp.status !== 429) {
-        return {
-          ok: false,
-          status: resp.status,
-          errorText: await resp.text(),
-          provider: "lovable",
-        };
-      }
-      console.log(`[ai-call] Lovable returned ${resp.status}, falling back to Gemini`);
     } catch (e) {
       console.error("[ai-call] Lovable AI exception, trying Gemini:", e);
     }
+  } else {
+    console.log("[ai-call] No LOVABLE_API_KEY set, going straight to Gemini");
   }
 
   if (!geminiKey) {
@@ -99,6 +107,8 @@ export async function chatCompletionWithFallback(
       provider: "lovable",
     };
   }
+
+  console.log("[ai-call] Calling Gemini fallback...");
 
   try {
     const resp = await callGemini(body, geminiKey);
