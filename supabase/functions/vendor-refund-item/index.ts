@@ -288,8 +288,9 @@ serve(async (req: Request) => {
           additional_price: newAddonUnit,
         }).eq("id", addon.id);
 
-        // Recompute parent total with the new addon price
-        const newAddonSum = liveAddons.reduce(
+        // Recompute parent total with the new addon price. Include refunded
+        // add-ons too (see addonSumPerPortion note above) so we don't double-subtract.
+        const newAddonSum = allAddons.reduce(
           (s: number, a: any) => s + (a.id === addon.id ? newAddonUnit : Number(a.additional_price || 0)),
           0,
         );
