@@ -247,6 +247,9 @@ serve(async (req) => {
     let bankInstructions: string | null = null;
     let walletPaid = false;
     let walletShortfall = 0;
+    let shadowPaid = false;
+    let shadowConsumed = 0;
+    let shadowShortfall = 0;
 
     const initPaystackLink = async (amount: number, suffix = '') => {
       const paystackKey = environment === 'production'
