@@ -693,6 +693,15 @@ export default function VendorOrders() {
   const renderItemContent = (item: OrderItemWithAddons, orderNumber?: string) => {
     const itemAny = item as any;
     const isRefunded = !!itemAny.is_refunded;
+    const lineQty = Math.max(1, Number(item.quantity || 1));
+    // Effective line price = stored total minus any refunded add-ons (qty × addon price),
+    // because the backend only recomputes order-level totals, not item.total_price.
+    const refundedAddonsTotal = (item.addons || []).reduce((s: number, a: any) => {
+      return s + (a.is_refunded ? Number(a.additional_price || 0) * lineQty : 0);
+    }, 0);
+    const originalLineTotal = Number(item.total_price || 0);
+    const effectiveLineTotal = Math.max(0, originalLineTotal - refundedAddonsTotal);
+    const lineTotalChanged = !isRefunded && refundedAddonsTotal > 0;
     return (
     <>
       <div className="flex justify-between items-start">
@@ -772,9 +781,16 @@ export default function VendorOrders() {
             </p>
           )}
         </div>
-        <p className={cn("font-medium text-foreground", isRefunded && "line-through opacity-60")}>
-          ₦{Number(item.total_price).toLocaleString()}
-        </p>
+        <div className={cn("text-right", isRefunded && "line-through opacity-60")}>
+          {lineTotalChanged && (
+            <p className="text-xs text-muted-foreground line-through">
+              ₦{originalLineTotal.toLocaleString()}
+            </p>
+          )}
+          <p className="font-medium text-foreground">
+            ₦{effectiveLineTotal.toLocaleString()}
+          </p>
+        </div>
       </div>
       {item.addons && item.addons.length > 0 && (
         <div className="ml-4 mt-1 space-y-1 border-l-2 border-primary/30 pl-3">
@@ -789,7 +805,10 @@ export default function VendorOrders() {
                     {addon.image_url && (
                       <img src={addon.image_url} alt={addon.addon_item_name} className="w-6 h-6 rounded object-cover shrink-0" />
                     )}
-                    + {addon.addon_item_name}
+                  + {addon.addon_item_name}
+                    {lineQty > 1 && (
+                      <span className="text-muted-foreground">× {lineQty}</span>
+                    )}
                     {addon.calories && addon.calories > 0 && (
                       <span className="text-muted-foreground ml-1">({addon.calories} cal)</span>
                     )}
@@ -800,8 +819,17 @@ export default function VendorOrders() {
                     )}
                   </span>
                   {addon.additional_price > 0 && (
-                    <span className={cn("text-primary font-medium", addonRefunded && "line-through opacity-60")}>
-                      +₦{Number(addon.additional_price).toLocaleString()}
+                    <span className={cn("text-primary font-medium text-right", addonRefunded && "line-through opacity-60")}>
+                      {lineQty > 1 ? (
+                        <>
+                          <span className="text-[10px] text-muted-foreground block leading-none">
+                            ₦{Number(addon.additional_price).toLocaleString()} ea
+                          </span>
+                          +₦{(Number(addon.additional_price) * lineQty).toLocaleString()}
+                        </>
+                      ) : (
+                        <>+₦{Number(addon.additional_price).toLocaleString()}</>
+                      )}
                     </span>
                   )}
                 </div>
