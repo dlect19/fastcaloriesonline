@@ -51,7 +51,7 @@ export default function AdminLedgerAudit() {
   useEffect(() => {
     fetchAudit();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateRange, environment]);
+  }, [dateRange, envFilter]);
 
   const fetchAudit = async () => {
     setLoading(true);
@@ -59,9 +59,10 @@ export default function AdminLedgerAudit() {
       let q = (supabase as any)
         .from('ledger_adjustments_audit')
         .select('*')
-        .eq('environment', environment)
         .order('created_at', { ascending: false })
         .limit(500);
+
+      if (envFilter !== 'all') q = q.eq('environment', envFilter);
 
       if (dateRange.from) q = q.gte('created_at', dateRange.from.toISOString());
       if (dateRange.to) {
