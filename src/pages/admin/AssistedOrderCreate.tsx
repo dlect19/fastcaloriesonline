@@ -42,16 +42,25 @@ export default function AssistedOrderCreate() {
     email: string | null;
     wallet_balance: number;
   }>(null);
+  const [shadowCreditAvailable, setShadowCreditAvailable] = useState<number>(0);
   const [lookingUp, setLookingUp] = useState(false);
 
   useEffect(() => {
-    if (!isValidNgPhone(customerPhone)) { setExistingCustomer(null); return; }
+    if (!isValidNgPhone(customerPhone)) { setExistingCustomer(null); setShadowCreditAvailable(0); return; }
     let cancelled = false;
     setLookingUp(true);
     (async () => {
       const { data: profile } = await supabase
         .from('profiles').select('user_id, full_name, phone').eq('phone', customerPhone).maybeSingle();
+      // Shadow credits are keyed by phone, regardless of whether the customer has signed up.
+      const { data: credits } = await supabase
+        .from('shadow_customer_credits')
+        .select('amount')
+        .eq('phone', customerPhone)
+        .eq('status', 'pending');
+      const totalShadow = (credits || []).reduce((s, r: any) => s + Number(r.amount || 0), 0);
       if (cancelled) return;
+      setShadowCreditAvailable(totalShadow);
       if (!profile?.user_id) { setExistingCustomer(null); setLookingUp(false); return; }
       const { data: wallet } = await supabase
         .from('wallets').select('balance').eq('user_id', profile.user_id).eq('wallet_type', 'customer').maybeSingle();
