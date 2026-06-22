@@ -212,12 +212,96 @@ serve(async (req: Request) => {
         substitute_note: body.substituteNote || null,
         substituted_at: new Date().toISOString(),
       };
-      if (scope === "addon") {
-        await admin.from("order_item_addons").update(subFields).eq("id", addon.id);
-      } else {
-        const lineQty = Math.max(1, Number(item.quantity || 1));
-        const subQty = Math.max(1, Math.min(lineQty, Math.floor(Number(body.substituteQuantity || lineQty))));
 
+      const lineQty = Math.max(1, Number(item.quantity || 1));
+      const subQty = Math.max(1, Math.min(lineQty, Math.floor(Number(body.substituteQuantity || lineQty))));
+      const origUnit = Number(item.unit_price || 0);
+      const origCalPerUnit = Number(item.calories || 0) / lineQty;
+
+      // Fetch all add-ons attached to the parent item (needed for split math + addon scope)
+      const { data: parentAddons } = await admin
+        .from("order_item_addons")
+        .select("*")
+        .eq("order_item_id", item.id);
+      const liveAddons = (parentAddons || []).filter((a: any) => !a.is_refunded);
+      const addonSumPerPortion = liveAddons.reduce((s: number, a: any) => s + Number(a.additional_price || 0), 0);
+
+      if (scope === "addon") {
+        if (subQty >= lineQty) {
+          // Whole line: just flip this add-on to substituted; price stays per existing model.
+          // Optionally lower this addon's additional_price if a refund implies a cheaper sub.
+          const subbedAddonUnit = Math.max(
+            0,
+            Number(addon.additional_price || 0) - (refundAmount > 0 ? refundAmount / lineQty : 0),
+          );
+          await admin.from("order_item_addons").update({
+            ...subFields,
+            additional_price: subbedAddonUnit,
+          }).eq("id", addon.id);
+          // Recompute parent total to reflect new addon price
+          const newAddonSum = liveAddons.reduce(
+            (s: number, a: any) => s + (a.id === addon.id ? subbedAddonUnit : Number(a.additional_price || 0)),
+            0,
+          );
+          await admin.from("order_items").update({
+            total_price: +((origUnit + newAddonSum) * lineQty).toFixed(2),
+          }).eq("id", item.id);
+        } else {
+          // Split parent: shrink original (keeps original add-ons), insert new parent row for subQty
+          // with cloned add-ons, but the targeted add-on replaced with the substituted version.
+          const remainingQty = lineQty - subQty;
+          const origAddonUnit = Number(addon.additional_price || 0);
+          const subbedAddonUnit = Math.max(
+            0,
+            origAddonUnit - (refundAmount > 0 ? refundAmount / subQty : 0),
+          );
+          const newAddonSumForSplit = liveAddons.reduce(
+            (s: number, a: any) => s + (a.id === addon.id ? subbedAddonUnit : Number(a.additional_price || 0)),
+            0,
+          );
+          const remainingTotal = +((origUnit + addonSumPerPortion) * remainingQty).toFixed(2);
+          const subbedTotal = +((origUnit + newAddonSumForSplit) * subQty).toFixed(2);
+
+          // 1) Shrink original parent
+          await admin.from("order_items").update({
+            quantity: remainingQty,
+            total_price: remainingTotal,
+            calories: Math.round(origCalPerUnit * remainingQty),
+          }).eq("id", item.id);
+
+          // 2) Insert new parent row for substituted portions
+          const { data: newParent, error: newParentErr } = await admin.from("order_items").insert({
+            order_id: item.order_id,
+            product_id: item.product_id,
+            product_name: item.product_name,
+            quantity: subQty,
+            unit_price: origUnit,
+            total_price: subbedTotal,
+            calories: Math.round(origCalPerUnit * subQty),
+            special_instructions: item.special_instructions,
+            package_id: item.package_id,
+            original_unit_price: item.original_unit_price ?? origUnit,
+            purchase_unit: item.purchase_unit,
+            unit_multiplier: item.unit_multiplier,
+          }).select().single();
+          if (newParentErr || !newParent) throw newParentErr || new Error("Failed to split parent item");
+
+          // 3) Clone add-ons onto the new parent (substituted addon gets subFields + new price)
+          const cloneRows = liveAddons.map((a: any) => ({
+            order_item_id: newParent.id,
+            addon_group_name: a.addon_group_name,
+            addon_item_name: a.id === addon.id ? (body.substituteName || a.addon_item_name) : a.addon_item_name,
+            additional_price: a.id === addon.id ? subbedAddonUnit : Number(a.additional_price || 0),
+            calories: a.calories || 0,
+            image_url: a.image_url,
+            ...(a.id === addon.id ? subFields : {}),
+          }));
+          if (cloneRows.length > 0) {
+            await admin.from("order_item_addons").insert(cloneRows);
+          }
+        }
+      } else {
+        // scope === "item"
         if (subQty >= lineQty) {
           // Whole line substituted in place
           await admin.from("order_items").update({
@@ -225,32 +309,25 @@ serve(async (req: Request) => {
             substitute_refund_amount: refundAmount || null,
           }).eq("id", item.id);
         } else {
-          // Split the line: shrink original, insert a new substituted row for subQty
-          const origUnit = Number(item.unit_price || 0);
-          const origCalPerUnit = Number(item.calories || 0) / lineQty;
+          // Split: shrink original (keeps add-ons), insert new substituted row (no add-ons)
           const remainingQty = lineQty - subQty;
-
-          // Subbed unit price = origUnit - (refund / subQty) ; if no refund, same unit price
           const subbedUnitPrice = Math.max(
             0,
             origUnit - (refundAmount > 0 ? refundAmount / subQty : 0),
           );
+          const remainingTotal = +((origUnit + addonSumPerPortion) * remainingQty).toFixed(2);
           const subbedTotal = +(subbedUnitPrice * subQty).toFixed(2);
-          const remainingTotal = +(origUnit * remainingQty).toFixed(2);
 
-          // 1) Shrink the original line (keep add-ons attached to it for the remaining portions)
           await admin.from("order_items").update({
             quantity: remainingQty,
             total_price: remainingTotal,
             calories: Math.round(origCalPerUnit * remainingQty),
-            updated_at: new Date().toISOString?.() ?? undefined,
           }).eq("id", item.id);
 
-          // 2) Insert a new substituted row for the subQty portions
           await admin.from("order_items").insert({
             order_id: item.order_id,
             product_id: item.product_id,
-            product_name: item.product_name, // original name; substituted_with shows the swap
+            product_name: item.product_name,
             quantity: subQty,
             unit_price: subbedUnitPrice,
             total_price: subbedTotal,
