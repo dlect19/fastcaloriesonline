@@ -319,7 +319,14 @@ serve(async (req: Request) => {
         const refundLine = refundAmount > 0
           ? ` A partial refund of ₦${refundAmount.toLocaleString()} has been credited to your wallet.`
           : " (Same price, no charge difference.)";
-        msg = `🔄 We've replaced "${displayName}"${sub}${note}.${refundLine} Reply here if this doesn't work for you.`;
+        const lineQty = Math.max(1, Number(item.quantity || 1));
+        const subQty = scope === "item"
+          ? Math.max(1, Math.min(lineQty, Math.floor(Number(body.substituteQuantity || lineQty))))
+          : lineQty;
+        const portionPrefix = scope === "item" && subQty < lineQty
+          ? `${subQty} of ${lineQty} portion(s) of `
+          : "";
+        msg = `🔄 We've replaced ${portionPrefix}"${displayName}"${sub}${note}.${refundLine} Reply here if this doesn't work for you.`;
       }
       await admin.from("order_chat_messages").insert({
         order_id: order.id,
