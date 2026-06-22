@@ -114,11 +114,12 @@ export default function Explore() {
     try {
       const { data: productsRes, error } = await supabase
         .from('products')
-        .select('*')
-        .eq('is_available', true);
+        .select('id, name, description, price, image_url, calories, vendor_id, cuisine_category_id, is_available, is_hidden')
+        .eq('is_available', true)
+        .eq('is_hidden', false);
 
       if (error) throw error;
-      if (productsRes) setProducts(productsRes);
+      if (productsRes) setProducts(productsRes as any);
     } catch (error) {
       console.error('Error fetching products:', error);
     } finally {
