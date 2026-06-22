@@ -62,10 +62,10 @@ export function useCustomerChatNotifications() {
                 : (msg.message || 'New message');
           toast({
             title: `💬 New message from ${who}`,
-            description: `Order #${order.order_number}: ${preview.slice(0, 80)}`,
+            description: `Order #${order.order_number}: ${preview.slice(0, 80)} — tap Orders to reply`,
             duration: 6000,
-            onClick: () => navigate(`/orders/${order.id}`),
-          } as any);
+          });
+          void navigate;
         }
       )
       .subscribe();
