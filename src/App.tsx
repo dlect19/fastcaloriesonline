@@ -189,6 +189,7 @@ const App = () => {
           <Sonner />
           <BrowserRouter>
             <PortalTracker />
+            <CustomerChatNotifier />
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/auth" element={<Auth />} />
