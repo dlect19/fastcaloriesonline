@@ -770,21 +770,27 @@ export default function VendorOrders() {
                   )}
                 </div>
                 {!addonRefunded && !isRefunded && orderNumber && (
-                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5 ml-1">
-                    <button
+                  <div className="flex flex-wrap gap-2 mt-1.5 ml-1">
+                    <Button
                       type="button"
+                      variant="outline"
+                      size="sm"
                       onClick={() => handleRefundAddon(addon, orderNumber)}
-                      className="text-[10px] text-destructive hover:underline font-medium"
+                      className="h-6 px-2 text-[11px] gap-1 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
                     >
-                      Unavailable? Refund add-on
-                    </button>
-                    <button
+                      <RefreshCcw className="w-2.5 h-2.5" />
+                      Refund add-on
+                    </Button>
+                    <Button
                       type="button"
+                      variant="outline"
+                      size="sm"
                       onClick={() => openSubstitute('addon', addon.id, addon.addon_item_name, Number(addon.additional_price || 0), orderNumber)}
-                      className="text-[10px] text-primary hover:underline font-medium"
+                      className="h-6 px-2 text-[11px] gap-1 border-primary/40 text-primary hover:bg-primary/10 hover:text-primary"
                     >
+                      <Repeat className="w-2.5 h-2.5" />
                       Offer substitute
-                    </button>
+                    </Button>
                   </div>
                 )}
                 {a.substituted_with && (
