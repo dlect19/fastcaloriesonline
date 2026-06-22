@@ -215,8 +215,8 @@ export default function AssistedOrderDetail() {
                 : '';
               const otpLine = o.confirmation_code ? `\n🔐 Delivery OTP: *${o.confirmation_code}* (share only with our rider on arrival)` : '';
               const receiptBlock = `\n\n🧾 Your order ${o.order_number}\n${itemsLines}\n— Subtotal: ₦${Number(o.subtotal).toLocaleString()}${Number(o.delivery_fee)>0?`\n— Delivery: ₦${Number(o.delivery_fee).toLocaleString()}`:''}${Number(o.service_fee)>0?`\n— Service: ₦${Number(o.service_fee).toLocaleString()}`:''}${Number(o.packaging_fee)>0?`\n— Pack: ₦${Number(o.packaging_fee).toLocaleString()}`:''}\n— *Total: ${totalNgn}*${calorieLine}${otpLine}`;
-              const payHeader = data.payment_method === 'paystack_link' && data.payment_link
-                ? `\n\n💳 Pay securely here:\n${data.payment_link}`
+              const payHeader = data.payment_link
+                ? `\n\n💳 Pay the${['wallet','shadow_credit','combined'].includes(data.payment_method) ? ' remaining balance' : ''} securely here:\n${data.payment_link}`
                 : data.payment_method === 'bank_transfer'
                 ? `\n\n🏦 Bank transfer:\n${data.bank_transfer_instructions || ''}\nReply with your proof of payment.`
                 : '';
