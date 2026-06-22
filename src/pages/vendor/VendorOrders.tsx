@@ -781,9 +781,16 @@ export default function VendorOrders() {
             </p>
           )}
         </div>
-        <p className={cn("font-medium text-foreground", isRefunded && "line-through opacity-60")}>
-          ₦{Number(item.total_price).toLocaleString()}
-        </p>
+        <div className={cn("text-right", isRefunded && "line-through opacity-60")}>
+          {lineTotalChanged && (
+            <p className="text-xs text-muted-foreground line-through">
+              ₦{originalLineTotal.toLocaleString()}
+            </p>
+          )}
+          <p className="font-medium text-foreground">
+            ₦{effectiveLineTotal.toLocaleString()}
+          </p>
+        </div>
       </div>
       {item.addons && item.addons.length > 0 && (
         <div className="ml-4 mt-1 space-y-1 border-l-2 border-primary/30 pl-3">
