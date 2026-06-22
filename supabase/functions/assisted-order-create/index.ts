@@ -250,6 +250,10 @@ serve(async (req) => {
     let shadowPaid = false;
     let shadowConsumed = 0;
     let shadowShortfall = 0;
+    let combinedPaid = false;
+    let combinedWalletUsed = 0;
+    let combinedShadowUsed = 0;
+    let combinedShortfall = 0;
 
     const initPaystackLink = async (amount: number, suffix = '') => {
       const paystackKey = environment === 'production'
