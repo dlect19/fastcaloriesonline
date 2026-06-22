@@ -248,12 +248,11 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
           .maybeSingle()
       : { data: null as any };
 
-    // Assisted-order fallback (unregistered customer) — receiver name/phone live here
-    const { data: assisted } = await supabase
-      .from('assisted_orders')
-      .select('receiver_name, receiver_phone')
-      .eq('order_id', o.id)
-      .maybeSingle();
+    // Assisted-order fallback (unregistered customer) — receiver name/phone live on orders
+    const assisted = {
+      receiver_name: (o as any).receiver_name as string | null,
+      receiver_phone: (o as any).receiver_phone as string | null,
+    };
 
     // Customer delivery address (full lookup with coords)
     let addrLine: string | null = null;
