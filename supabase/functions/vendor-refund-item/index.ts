@@ -134,12 +134,50 @@ serve(async (req: Request) => {
       return json({ error: "Nothing refundable for this selection" }, 400);
     }
 
-    // ---- Credit wallet (only if paid order, has customer, refund > 0) ----
+    // ---- Detect assisted order — refunds go to shadow_customer_credits ----
+    const { data: assisted } = await admin
+      .from("assisted_orders").select("id, payment_status").eq("order_id", order.id).maybeSingle();
+    const isAssisted = !!assisted;
+
+    // ---- Credit destination ----
     let refundedToWallet = false;
+    let refundedToShadow = false;
+    let shadowCreditId: string | null = null;
     let newBalance: number | null = null;
     const reference = `${scope === "addon" ? "RA" : "RI"}-${(addon?.id || item.id).slice(0, 8)}-${Date.now()}`;
 
-    if (refundAmount > 0 && order.payment_status === "paid" && order.user_id) {
+    const orderPaid = order.payment_status === "paid" || (isAssisted && assisted?.payment_status === "received");
+
+    if (refundAmount > 0 && orderPaid && isAssisted) {
+      // Route to shadow credit (auto-claimed when customer signs up with same phone)
+      const phone = String((order as any).receiver_phone || "").trim();
+      if (phone) {
+        const { data: shadow, error: shadowErr } = await admin.from("shadow_customer_credits").insert({
+          phone,
+          customer_name: (order as any).receiver_name || null,
+          amount: refundAmount,
+          environment,
+          status: "pending",
+          source: "assisted_refund",
+          order_id: order.id,
+          reason: action === "substitute" ? "Substitute partial refund" : `${scope === "addon" ? "Add-on" : "Item"} refund`,
+          notes: body.reason || `${displayName} (#${order.order_number})${body.substituteName ? ` → ${body.substituteName}` : ""}`,
+          created_by: user.id,
+        }).select("id").maybeSingle();
+        if (!shadowErr && shadow) {
+          shadowCreditId = shadow.id;
+          refundedToShadow = true;
+          if (order.user_id) {
+            // Nudge auto-claim trigger if customer already has a profile
+            await admin.from("profiles").update({ updated_at: new Date().toISOString() }).eq("user_id", order.user_id);
+          }
+        } else if (shadowErr) {
+          console.error("[vendor-refund-item] shadow insert failed:", shadowErr.message);
+        }
+      } else {
+        console.warn("[vendor-refund-item] assisted order missing receiver_phone — refund not credited");
+      }
+    } else if (refundAmount > 0 && orderPaid && order.user_id) {
       let { data: wallet } = await admin
         .from("wallets").select("*").eq("user_id", order.user_id).eq("wallet_type", "customer").maybeSingle();
       if (!wallet) {
