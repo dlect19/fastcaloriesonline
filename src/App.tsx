@@ -148,6 +148,7 @@ import { playGlobalNotificationSound } from '@/lib/globalAudio';
 import { useFcmNotifications } from '@/hooks/useFcmNotifications';
 import { usePortalMemory } from '@/hooks/usePortalMemory';
 import { useNativeOAuthHandler } from '@/hooks/useNativeOAuthHandler';
+import { useCustomerChatNotifications } from '@/hooks/useCustomerChatNotifications';
 
 const queryClient = new QueryClient();
 
