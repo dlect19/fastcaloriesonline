@@ -1352,7 +1352,7 @@ export default function VendorOrders() {
                     const orig = substituteDialog?.originalPrice || 0;
                     const lineQty = substituteDialog?.totalQuantity || 1;
                     const rawQ = Math.max(1, parseInt(subForm.quantity || '1', 10) || 1);
-                    const subQty = substituteDialog?.scope === 'addon' ? Math.min(lineQty, rawQ) : rawQ;
+                    const subQty = rawQ;
                     const matches = menuOptions
                       .filter((m) => m.is_available && m.name.toLowerCase().includes(q) && m.name.toLowerCase() !== (substituteDialog?.originalName || '').toLowerCase())
                       .slice(0, 6);
@@ -1366,11 +1366,9 @@ export default function VendorOrders() {
                     return (
                       <div className="border rounded-md divide-y bg-background max-h-48 overflow-y-auto shadow-sm">
                         {matches.map((m) => {
-                          // Item: full-line replace → refund = origTotal − newTotal.
-                          // Addon: per-portion swap → refund = unitDiff × subQty.
-                          const totalRefund = substituteDialog?.scope === 'item'
-                            ? (lineQty * orig) - (subQty * m.price)
-                            : (orig - m.price) * subQty;
+                          // Full-line replace (item AND addon):
+                          // refund = (lineQty × origUnit) − (subQty × newUnit)
+                          const totalRefund = (lineQty * orig) - (subQty * m.price);
                           return (
                             <button
                               key={m.id}
@@ -1403,17 +1401,13 @@ export default function VendorOrders() {
                   {subForm.matchedPrice !== null && substituteDialog && (() => {
                     const lineQty = substituteDialog.totalQuantity;
                     const rawQ = Math.max(1, parseInt(subForm.quantity || '1', 10) || 1);
-                    const subQty = substituteDialog.scope === 'addon' ? Math.min(lineQty, rawQ) : rawQ;
+                    const subQty = rawQ;
                     const origTotal = lineQty * substituteDialog.originalPrice;
                     const subTotal = subQty * subForm.matchedPrice;
                     return (
                       <p className="text-[11px] text-primary">
-                        {substituteDialog.scope === 'item' ? (
-                          <>Replacing {lineQty} × {substituteDialog.originalName} (₦{origTotal.toLocaleString()}) with {subQty} × {subForm.name} (₦{subTotal.toLocaleString()}).</>
-                        ) : (
-                          <>Selected from menu — ₦{subForm.matchedPrice.toLocaleString()} vs original ₦{substituteDialog.originalPrice.toLocaleString()}. Substituting {subQty} of {lineQty} portion(s).</>
-                        )}
-                        {subTotal > origTotal && substituteDialog.scope === 'item' && (
+                        Replacing {lineQty} × {substituteDialog.originalName} (₦{origTotal.toLocaleString()}) with {subQty} × {subForm.name} (₦{subTotal.toLocaleString()}).
+                        {subTotal > origTotal && (
                           <span className="text-red-700"> Replacement costs more; refund kept at 0 (extra charge isn't auto-billed).</span>
                         )}
                       </p>
