@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clock, CheckCircle, XCircle, Package, ChevronDown, ChevronUp, ShoppingBag, Store, Search, Bike, MessageSquare } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, Package, ChevronDown, ChevronUp, ShoppingBag, Store, Search, Bike, MessageSquare, RefreshCcw, Repeat } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -706,21 +706,27 @@ export default function VendorOrders() {
             <p className="text-xs text-muted-foreground">{item.calories} cal</p>
           )}
           {!isRefunded && orderNumber && (
-            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
-              <button
+            <div className="mt-1.5 flex flex-wrap gap-2">
+              <Button
                 type="button"
+                variant="outline"
+                size="sm"
                 onClick={() => handleRefundItem(item, orderNumber)}
-                className="text-[11px] text-destructive hover:underline font-medium"
+                className="h-7 px-2.5 text-xs gap-1 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
               >
-                Unavailable? Refund this item
-              </button>
-              <button
+                <RefreshCcw className="w-3 h-3" />
+                Refund item
+              </Button>
+              <Button
                 type="button"
+                variant="outline"
+                size="sm"
                 onClick={() => openSubstitute('item', item.id, item.product_name, Number((item as any).unit_price ?? (Number(item.total_price) / Math.max(1, item.quantity))), orderNumber)}
-                className="text-[11px] text-primary hover:underline font-medium"
+                className="h-7 px-2.5 text-xs gap-1 border-primary/40 text-primary hover:bg-primary/10 hover:text-primary"
               >
+                <Repeat className="w-3 h-3" />
                 Offer substitute
-              </button>
+              </Button>
             </div>
           )}
           {(item as any).substituted_with && (
@@ -764,21 +770,27 @@ export default function VendorOrders() {
                   )}
                 </div>
                 {!addonRefunded && !isRefunded && orderNumber && (
-                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5 ml-1">
-                    <button
+                  <div className="flex flex-wrap gap-2 mt-1.5 ml-1">
+                    <Button
                       type="button"
+                      variant="outline"
+                      size="sm"
                       onClick={() => handleRefundAddon(addon, orderNumber)}
-                      className="text-[10px] text-destructive hover:underline font-medium"
+                      className="h-6 px-2 text-[11px] gap-1 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
                     >
-                      Unavailable? Refund add-on
-                    </button>
-                    <button
+                      <RefreshCcw className="w-2.5 h-2.5" />
+                      Refund add-on
+                    </Button>
+                    <Button
                       type="button"
+                      variant="outline"
+                      size="sm"
                       onClick={() => openSubstitute('addon', addon.id, addon.addon_item_name, Number(addon.additional_price || 0), orderNumber)}
-                      className="text-[10px] text-primary hover:underline font-medium"
+                      className="h-6 px-2 text-[11px] gap-1 border-primary/40 text-primary hover:bg-primary/10 hover:text-primary"
                     >
+                      <Repeat className="w-2.5 h-2.5" />
                       Offer substitute
-                    </button>
+                    </Button>
                   </div>
                 )}
                 {a.substituted_with && (
