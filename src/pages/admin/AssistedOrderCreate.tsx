@@ -131,7 +131,7 @@ export default function AssistedOrderCreate() {
   const { calculateServiceFee } = useServiceFee();
 
   // Payment
-  const [paymentMethod, setPaymentMethod] = useState<'paystack_link' | 'bank_transfer' | 'cash' | 'wallet' | 'shadow_credit'>('paystack_link');
+  const [paymentMethod, setPaymentMethod] = useState<'paystack_link' | 'bank_transfer' | 'cash' | 'wallet' | 'shadow_credit' | 'combined'>('paystack_link');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -305,6 +305,8 @@ export default function AssistedOrderCreate() {
   const walletBalance = existingCustomer?.wallet_balance || 0;
   const walletShortfall = paymentMethod === 'wallet' ? Math.max(0, total - walletBalance) : 0;
   const shadowShortfall = paymentMethod === 'shadow_credit' ? Math.max(0, total - shadowCreditAvailable) : 0;
+  const combinedCovered = paymentMethod === 'combined' ? Math.min(total, walletBalance + shadowCreditAvailable) : 0;
+  const combinedShortfall = paymentMethod === 'combined' ? Math.max(0, total - walletBalance - shadowCreditAvailable) : 0;
 
   const validatePromo = async () => {
     const code = promoInput.trim();
@@ -384,6 +386,12 @@ export default function AssistedOrderCreate() {
     if (paymentMethod === 'wallet' && !existingCustomer?.user_id) {
       return 'Wallet payment requires a registered FastCalories customer (lookup by phone first).';
     }
+    if (paymentMethod === 'combined' && !existingCustomer?.user_id) {
+      return 'Combined payment requires a registered customer wallet.';
+    }
+    if (paymentMethod === 'combined' && shadowCreditAvailable <= 0) {
+      return 'Combined payment requires available shadow credit for this phone.';
+    }
     return null;
   };
 
@@ -454,6 +462,10 @@ export default function AssistedOrderCreate() {
       if (!data?.order_id) throw new Error(data?.error || 'No order id returned');
       if (data?.wallet_paid) {
         toast({ title: 'Order paid via wallet', description: `Order #${data.order_number} confirmed.` });
+      } else if (data?.combined_paid) {
+        toast({ title: 'Order paid (wallet + shadow credit)', description: `Order #${data.order_number} confirmed.` });
+      } else if (data?.combined_shortfall) {
+        toast({ title: 'Combined short — Paystack link generated', description: `Wallet + credit reserved. Customer owes ₦${Number(data.combined_shortfall).toLocaleString()}.` });
       } else if (data?.shadow_paid) {
         toast({ title: 'Order paid with shadow credit', description: `Order #${data.order_number} confirmed. ₦${Number(data.shadow_consumed || 0).toLocaleString()} credit redeemed.` });
       } else if (data?.shadow_shortfall) {
@@ -894,11 +906,24 @@ export default function AssistedOrderCreate() {
                 {shadowCreditAvailable > 0 && (
                   <SelectItem value="shadow_credit">Apply Shadow Credit (₦{shadowCreditAvailable.toLocaleString()} available)</SelectItem>
                 )}
+                {existingCustomer?.user_id && shadowCreditAvailable > 0 && (
+                  <SelectItem value="combined">Wallet + Shadow Credit (+ Paystack for balance)</SelectItem>
+                )}
                 <SelectItem value="paystack_link">Send Paystack payment link</SelectItem>
                 <SelectItem value="bank_transfer">Bank transfer instructions</SelectItem>
                 <SelectItem value="cash">Cash (mark paid manually)</SelectItem>
               </SelectContent>
             </Select>
+            {paymentMethod === 'combined' && existingCustomer && (
+              <div className={`rounded p-2 text-xs ${combinedShortfall > 0 ? 'bg-yellow-500/10 border border-yellow-500/40 text-yellow-800' : 'bg-green-500/10 border border-green-500/40 text-green-800'}`}>
+                <div>Wallet: ₦{walletBalance.toLocaleString()} + Shadow credit: ₦{shadowCreditAvailable.toLocaleString()} = ₦{(walletBalance + shadowCreditAvailable).toLocaleString()}</div>
+                {combinedShortfall > 0 ? (
+                  <div className="mt-1"><strong>Short by ₦{combinedShortfall.toLocaleString()}.</strong> Wallet & shadow credit will be reserved; a Paystack link for the balance will be generated.</div>
+                ) : (
+                  <div className="mt-1">✓ Covers full order (uses ₦{combinedCovered.toLocaleString()}). Wallet first, then shadow credit; order paid instantly.</div>
+                )}
+              </div>
+            )}
             {paymentMethod === 'wallet' && existingCustomer && (
               <div className={`rounded p-2 text-xs ${walletShortfall > 0 ? 'bg-yellow-500/10 border border-yellow-500/40 text-yellow-800' : 'bg-green-500/10 border border-green-500/40 text-green-800'}`}>
                 {walletShortfall > 0 ? (
