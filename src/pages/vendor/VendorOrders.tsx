@@ -636,7 +636,7 @@ export default function VendorOrders() {
   };
 
   const openSubstitute = (scope: 'item' | 'addon', id: string, originalName: string, originalPrice: number, orderNumber: string, totalQuantity: number) => {
-    setSubForm({ name: '', note: '', refund: '', matchedPrice: null, quantity: String(Math.max(1, totalQuantity || 1)) });
+    setSubForm({ name: '', note: '', refund: '', matchedPrice: null, quantity: String(Math.max(1, totalQuantity || 1)), agreed: false });
     setSubstituteDialog({ open: true, scope, id, originalName, originalPrice, orderNumber, totalQuantity: Math.max(1, totalQuantity || 1) });
   };
 
