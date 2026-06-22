@@ -25,8 +25,12 @@ type Body = {
   // Substitute fields
   substituteName?: string;
   substituteNote?: string;
-  // Optional partial refund alongside substitute (e.g. cheaper replacement)
+  // Optional partial refund alongside substitute (e.g. cheaper replacement) — total amount
   substituteRefundAmount?: number;
+  // For item substitutes only: how many portions of the line to substitute.
+  // Defaults to the full line quantity. When < line quantity, the row is split
+  // so the remaining portions stay as the original item.
+  substituteQuantity?: number;
   reason?: string;
 };
 
@@ -211,10 +215,55 @@ serve(async (req: Request) => {
       if (scope === "addon") {
         await admin.from("order_item_addons").update(subFields).eq("id", addon.id);
       } else {
-        await admin.from("order_items").update({
-          ...subFields,
-          substitute_refund_amount: refundAmount || null,
-        }).eq("id", item.id);
+        const lineQty = Math.max(1, Number(item.quantity || 1));
+        const subQty = Math.max(1, Math.min(lineQty, Math.floor(Number(body.substituteQuantity || lineQty))));
+
+        if (subQty >= lineQty) {
+          // Whole line substituted in place
+          await admin.from("order_items").update({
+            ...subFields,
+            substitute_refund_amount: refundAmount || null,
+          }).eq("id", item.id);
+        } else {
+          // Split the line: shrink original, insert a new substituted row for subQty
+          const origUnit = Number(item.unit_price || 0);
+          const origCalPerUnit = Number(item.calories || 0) / lineQty;
+          const remainingQty = lineQty - subQty;
+
+          // Subbed unit price = origUnit - (refund / subQty) ; if no refund, same unit price
+          const subbedUnitPrice = Math.max(
+            0,
+            origUnit - (refundAmount > 0 ? refundAmount / subQty : 0),
+          );
+          const subbedTotal = +(subbedUnitPrice * subQty).toFixed(2);
+          const remainingTotal = +(origUnit * remainingQty).toFixed(2);
+
+          // 1) Shrink the original line (keep add-ons attached to it for the remaining portions)
+          await admin.from("order_items").update({
+            quantity: remainingQty,
+            total_price: remainingTotal,
+            calories: Math.round(origCalPerUnit * remainingQty),
+            updated_at: new Date().toISOString?.() ?? undefined,
+          }).eq("id", item.id);
+
+          // 2) Insert a new substituted row for the subQty portions
+          await admin.from("order_items").insert({
+            order_id: item.order_id,
+            product_id: item.product_id,
+            product_name: item.product_name, // original name; substituted_with shows the swap
+            quantity: subQty,
+            unit_price: subbedUnitPrice,
+            total_price: subbedTotal,
+            calories: Math.round(origCalPerUnit * subQty),
+            special_instructions: item.special_instructions,
+            package_id: item.package_id,
+            original_unit_price: item.original_unit_price ?? origUnit,
+            purchase_unit: item.purchase_unit,
+            unit_multiplier: item.unit_multiplier,
+            ...subFields,
+            substitute_refund_amount: refundAmount || null,
+          });
+        }
       }
     }
 
@@ -270,7 +319,14 @@ serve(async (req: Request) => {
         const refundLine = refundAmount > 0
           ? ` A partial refund of ₦${refundAmount.toLocaleString()} has been credited to your wallet.`
           : " (Same price, no charge difference.)";
-        msg = `🔄 We've replaced "${displayName}"${sub}${note}.${refundLine} Reply here if this doesn't work for you.`;
+        const lineQty = Math.max(1, Number(item.quantity || 1));
+        const subQty = scope === "item"
+          ? Math.max(1, Math.min(lineQty, Math.floor(Number(body.substituteQuantity || lineQty))))
+          : lineQty;
+        const portionPrefix = scope === "item" && subQty < lineQty
+          ? `${subQty} of ${lineQty} portion(s) of `
+          : "";
+        msg = `🔄 We've replaced ${portionPrefix}"${displayName}"${sub}${note}.${refundLine} Reply here if this doesn't work for you.`;
       }
       await admin.from("order_chat_messages").insert({
         order_id: order.id,
