@@ -1347,6 +1347,7 @@ export default function VendorOrders() {
                     const q = subForm.name.trim().toLowerCase();
                     if (!q || q.length < 1 || subForm.matchedPrice !== null) return null;
                     const orig = substituteDialog?.originalPrice || 0;
+                    const subQty = Math.max(1, Math.min(substituteDialog?.totalQuantity || 1, parseInt(subForm.quantity || '1', 10) || 1));
                     const matches = menuOptions
                       .filter((m) => m.is_available && m.name.toLowerCase().includes(q) && m.name.toLowerCase() !== (substituteDialog?.originalName || '').toLowerCase())
                       .slice(0, 6);
@@ -1360,27 +1361,28 @@ export default function VendorOrders() {
                     return (
                       <div className="border rounded-md divide-y bg-background max-h-48 overflow-y-auto shadow-sm">
                         {matches.map((m) => {
-                          const diff = orig - m.price;
+                          const unitDiff = orig - m.price;
+                          const totalRefund = unitDiff * subQty;
                           return (
                             <button
                               key={m.id}
                               type="button"
                               className="w-full flex justify-between items-center px-2 py-1.5 text-left hover:bg-muted text-xs"
                               onClick={() => {
-                                setSubForm({
+                                setSubForm((p) => ({
+                                  ...p,
                                   name: m.name,
-                                  note: subForm.note,
-                                  refund: diff > 0 ? String(diff) : '',
+                                  refund: totalRefund > 0 ? String(totalRefund) : '',
                                   matchedPrice: m.price,
-                                });
+                                }));
                               }}
                             >
                               <span className="font-medium">{m.name}</span>
                               <span className="flex items-center gap-2">
                                 <span className="text-muted-foreground">₦{m.price.toLocaleString()}</span>
                                 {orig > 0 && (
-                                  diff > 0 ? <span className="text-green-700">↓ ₦{diff.toLocaleString()} refund</span>
-                                  : diff < 0 ? <span className="text-red-700">+₦{Math.abs(diff).toLocaleString()} more</span>
+                                  totalRefund > 0 ? <span className="text-green-700">↓ ₦{totalRefund.toLocaleString()} refund ({subQty}×)</span>
+                                  : totalRefund < 0 ? <span className="text-red-700">+₦{Math.abs(totalRefund).toLocaleString()} more</span>
                                   : <span className="text-muted-foreground">same price</span>
                                 )}
                               </span>
@@ -1390,15 +1392,49 @@ export default function VendorOrders() {
                       </div>
                     );
                   })()}
-                  {subForm.matchedPrice !== null && substituteDialog && (
-                    <p className="text-[11px] text-primary">
-                      Selected from menu — ₦{subForm.matchedPrice.toLocaleString()} vs original ₦{substituteDialog.originalPrice.toLocaleString()}.
-                      {substituteDialog.originalPrice - subForm.matchedPrice < 0 && (
-                        <span className="text-red-700"> Replacement costs more; partial refund kept at 0 (extra charge isn't auto-billed).</span>
-                      )}
-                    </p>
-                  )}
+                  {subForm.matchedPrice !== null && substituteDialog && (() => {
+                    const subQty = Math.max(1, Math.min(substituteDialog.totalQuantity, parseInt(subForm.quantity || '1', 10) || 1));
+                    const unitDiff = substituteDialog.originalPrice - subForm.matchedPrice;
+                    return (
+                      <p className="text-[11px] text-primary">
+                        Selected from menu — ₦{subForm.matchedPrice.toLocaleString()} vs original ₦{substituteDialog.originalPrice.toLocaleString()}.
+                        Substituting {subQty} of {substituteDialog.totalQuantity} portion(s).
+                        {unitDiff < 0 && (
+                          <span className="text-red-700"> Replacement costs more; partial refund kept at 0 (extra charge isn't auto-billed).</span>
+                        )}
+                      </p>
+                    );
+                  })()}
                 </div>
+
+                {substituteDialog?.scope === 'item' && substituteDialog.totalQuantity > 1 && (
+                  <div className="space-y-1">
+                    <Label htmlFor="sub-qty">Quantity to substitute (of {substituteDialog.totalQuantity})</Label>
+                    <Input
+                      id="sub-qty"
+                      type="number"
+                      min="1"
+                      max={substituteDialog.totalQuantity}
+                      step="1"
+                      value={subForm.quantity}
+                      onChange={(e) => {
+                        const newQty = e.target.value;
+                        setSubForm((p) => {
+                          // re-suggest refund if a menu match is locked in
+                          if (p.matchedPrice !== null && substituteDialog) {
+                            const q = Math.max(1, Math.min(substituteDialog.totalQuantity, parseInt(newQty || '1', 10) || 1));
+                            const total = (substituteDialog.originalPrice - p.matchedPrice) * q;
+                            return { ...p, quantity: newQty, refund: total > 0 ? String(total) : '' };
+                          }
+                          return { ...p, quantity: newQty };
+                        });
+                      }}
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      The other {Math.max(0, substituteDialog.totalQuantity - (parseInt(subForm.quantity || '1', 10) || 1))} portion(s) stay as <strong>{substituteDialog.originalName}</strong>. Use this when you only need to swap part of the line (e.g. ran out of some, not all).
+                    </p>
+                  </div>
+                )}
 
                 <div className="space-y-1">
                   <Label htmlFor="sub-note">Note for customer (optional)</Label>
