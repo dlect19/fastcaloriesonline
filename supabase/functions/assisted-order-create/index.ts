@@ -464,7 +464,7 @@ serve(async (req) => {
       payment_link: paymentLink,
       payment_reference: paymentReference,
       bank_transfer_instructions: bankInstructions,
-      payment_status: walletPaid ? 'received' : 'awaiting',
+      payment_status: (walletPaid || shadowPaid) ? 'received' : 'awaiting',
       created_by: adminId,
       last_modified_by: adminId,
     });
