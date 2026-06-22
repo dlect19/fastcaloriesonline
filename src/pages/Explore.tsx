@@ -114,11 +114,12 @@ export default function Explore() {
     try {
       const { data: productsRes, error } = await supabase
         .from('products')
-        .select('*')
-        .eq('is_available', true);
+        .select('id, name, description, price, image_url, calories, vendor_id, cuisine_category_id, is_available, is_hidden')
+        .eq('is_available', true)
+        .eq('is_hidden', false);
 
       if (error) throw error;
-      if (productsRes) setProducts(productsRes);
+      if (productsRes) setProducts(productsRes as any);
     } catch (error) {
       console.error('Error fetching products:', error);
     } finally {
@@ -143,6 +144,7 @@ export default function Explore() {
   // Filter products based on search and calorie filter
   // Only show products from nearby vendors
   const nearbyVendorIds = new Set(vendors.map(v => v.id));
+  const vendorNameById = new Map(vendors.map(v => [v.id, (v as any).display_name || v.name]));
   const calorieRange = calorieFilters.find((f) => f.id === selectedCalorieFilter);
   const filteredProducts = products.filter((product) => {
     // Only show products from nearby vendors
@@ -161,6 +163,18 @@ export default function Explore() {
 
     return matchesSearch && matchesCalories;
   });
+
+  // When a cuisine is selected, show menu items from that cuisine across all
+  // nearby vendors (cross-vendor menu browsing).
+  const cuisineProducts = cuisineId
+    ? products.filter((p) =>
+        (p as any).cuisine_category_id === cuisineId &&
+        nearbyVendorIds.has(p.vendor_id) &&
+        (searchQuery === '' ||
+          p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          p.description?.toLowerCase().includes(searchQuery.toLowerCase()))
+      )
+    : [];
 
   const clearFilters = () => {
     setSelectedCategory('all');
@@ -361,6 +375,72 @@ export default function Explore() {
           </div>
         ) : !noLocationError && (
           <>
+            {/* Cuisine-filtered menu items across vendors (shown FIRST when a category is selected) */}
+            {cuisineId && (
+              <section>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-bold text-foreground">
+                    {selectedCuisine?.icon} {selectedCuisine?.name} near you
+                    {cuisineProducts.length > 0 && ` (${cuisineProducts.length})`}
+                  </h2>
+                </div>
+                {cuisineProducts.length === 0 ? (
+                  <div className="text-center py-8 bg-card rounded-2xl border border-border">
+                    <UtensilsCrossed className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                    <p className="text-muted-foreground text-sm">
+                      No menu items in this category from nearby vendors yet.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {cuisineProducts.map((product) => {
+                      const vendorName = vendorNameById.get(product.vendor_id) || 'Vendor';
+                      return (
+                        <button
+                          key={product.id}
+                          onClick={() => navigate(`/vendor/${product.vendor_id}`)}
+                          className="text-left bg-card rounded-2xl p-4 border border-border hover:shadow-card hover:border-primary/40 transition-all"
+                        >
+                          <div className="flex gap-3">
+                            {product.image_url ? (
+                              <img
+                                src={product.image_url}
+                                alt={product.name}
+                                className="w-20 h-20 rounded-xl object-cover shrink-0"
+                              />
+                            ) : (
+                              <div className="w-20 h-20 rounded-xl bg-muted flex items-center justify-center text-2xl shrink-0">
+                                🍽️
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold text-foreground truncate">{product.name}</h3>
+                              <p className="text-xs text-muted-foreground truncate">from {vendorName}</p>
+                              {product.description && (
+                                <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
+                                  {product.description}
+                                </p>
+                              )}
+                              <div className="flex items-center justify-between mt-2">
+                                <span className="font-bold text-primary">
+                                  ₦{Number(product.price).toLocaleString()}
+                                </span>
+                                {product.calories && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    {product.calories} cal
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+            )}
+
             {/* Vendors Section */}
             <section>
               <div className="flex items-center justify-between mb-4">

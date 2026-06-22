@@ -171,8 +171,17 @@ export default function VendorOrders() {
     orderNumber: string;
     totalQuantity: number;
   } | null>(null);
-  const [subForm, setSubForm] = useState<{ name: string; note: string; refund: string; matchedPrice: number | null; quantity: string }>({ name: '', note: '', refund: '', matchedPrice: null, quantity: '1' });
+  const [subForm, setSubForm] = useState<{ name: string; note: string; refund: string; matchedPrice: number | null; quantity: string; agreed: boolean }>({ name: '', note: '', refund: '', matchedPrice: null, quantity: '1', agreed: false });
   const [subSubmitting, setSubSubmitting] = useState(false);
+  // Per-line agreement: vendor must confirm they've spoken to the customer before
+  // Refund / Offer substitute buttons unlock for that line.
+  const [agreedLines, setAgreedLines] = useState<Set<string>>(new Set());
+  const toggleAgreedLine = (id: string) =>
+    setAgreedLines((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
   const [menuOptions, setMenuOptions] = useState<{ id: string; name: string; price: number; is_available: boolean }[]>([]);
   const [completedPage, setCompletedPage] = useState(1);
   const { selectedOutletId, setSelectedOutletId, ready: outletReady } = usePersistedOutletId();
@@ -636,7 +645,7 @@ export default function VendorOrders() {
   };
 
   const openSubstitute = (scope: 'item' | 'addon', id: string, originalName: string, originalPrice: number, orderNumber: string, totalQuantity: number) => {
-    setSubForm({ name: '', note: '', refund: '', matchedPrice: null, quantity: String(Math.max(1, totalQuantity || 1)) });
+    setSubForm({ name: '', note: '', refund: '', matchedPrice: null, quantity: String(Math.max(1, totalQuantity || 1)), agreed: false });
     setSubstituteDialog({ open: true, scope, id, originalName, originalPrice, orderNumber, totalQuantity: Math.max(1, totalQuantity || 1) });
   };
 
@@ -646,12 +655,10 @@ export default function VendorOrders() {
       toast({ title: 'Substitute name required', variant: 'destructive' });
       return;
     }
-    // For items, subQty is the quantity of the REPLACEMENT item (unbounded).
-    // For addons, it's how many of the parent portions get the new addon (bounded by line qty).
+    // Full-line replace for both item and addon: subQty is the REPLACEMENT
+    // quantity — unbounded by parent line quantity. Math mirrors items.
     const rawQty = Math.max(1, parseInt(subForm.quantity || '1', 10) || 1);
-    const subQty = substituteDialog.scope === 'addon'
-      ? Math.min(substituteDialog.totalQuantity, rawQty)
-      : rawQty;
+    const subQty = rawQty;
     setSubSubmitting(true);
     try {
       const body: any = {
@@ -714,27 +721,48 @@ export default function VendorOrders() {
             <p className="text-xs text-muted-foreground">{item.calories} cal</p>
           )}
           {!isRefunded && orderNumber && (
-            <div className="mt-1.5 flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => handleRefundItem(item, orderNumber)}
-                className="h-7 px-2.5 text-xs gap-1 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-              >
-                <RefreshCcw className="w-3 h-3" />
-                Refund item
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => openSubstitute('item', item.id, item.product_name, Number((item as any).unit_price ?? (Number(item.total_price) / Math.max(1, item.quantity))), orderNumber, Number(item.quantity || 1))}
-                className="h-7 px-2.5 text-xs gap-1 border-primary/40 text-primary hover:bg-primary/10 hover:text-primary"
-              >
-                <Repeat className="w-3 h-3" />
-                Offer substitute
-              </Button>
+            <div className="mt-2">
+              {/* Agreement gate — bold warning + checkbox to unlock buttons */}
+              <div className="rounded-md border-2 border-amber-400 bg-amber-50 dark:bg-amber-950/30 p-2 mb-2">
+                <p className="text-[11px] font-bold text-amber-900 dark:text-amber-200 leading-snug">
+                  ⚠️ Call or chat the customer FIRST. Agree on a refund or replacement before tapping these buttons.
+                </p>
+                <label className="flex items-start gap-1.5 mt-1 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={agreedLines.has(item.id)}
+                    onChange={() => toggleAgreedLine(item.id)}
+                    className="mt-0.5 w-3.5 h-3.5 accent-primary shrink-0"
+                  />
+                  <span className="text-[11px] text-amber-900 dark:text-amber-200">
+                    Customer has been contacted and <strong>agreed</strong>.
+                  </span>
+                </label>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={!agreedLines.has(item.id)}
+                  onClick={() => handleRefundItem(item, orderNumber)}
+                  className="h-7 px-2.5 text-xs gap-1 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <RefreshCcw className="w-3 h-3" />
+                  Refund item
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={!agreedLines.has(item.id)}
+                  onClick={() => openSubstitute('item', item.id, item.product_name, Number((item as any).unit_price ?? (Number(item.total_price) / Math.max(1, item.quantity))), orderNumber, Number(item.quantity || 1))}
+                  className="h-7 px-2.5 text-xs gap-1 border-primary/40 text-primary hover:bg-primary/10 hover:text-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Repeat className="w-3 h-3" />
+                  Offer substitute
+                </Button>
+              </div>
             </div>
           )}
           {(item as any).substituted_with && (
@@ -783,8 +811,10 @@ export default function VendorOrders() {
                       type="button"
                       variant="outline"
                       size="sm"
+                      disabled={!agreedLines.has(item.id)}
                       onClick={() => handleRefundAddon(addon, orderNumber)}
-                      className="h-6 px-2 text-[11px] gap-1 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      className="h-6 px-2 text-[11px] gap-1 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={!agreedLines.has(item.id) ? 'Confirm customer agreement above first' : undefined}
                     >
                       <RefreshCcw className="w-2.5 h-2.5" />
                       Refund add-on
@@ -793,8 +823,10 @@ export default function VendorOrders() {
                       type="button"
                       variant="outline"
                       size="sm"
+                      disabled={!agreedLines.has(item.id)}
                       onClick={() => openSubstitute('addon', addon.id, addon.addon_item_name, Number(addon.additional_price || 0), orderNumber, Number(item.quantity || 1))}
-                      className="h-6 px-2 text-[11px] gap-1 border-primary/40 text-primary hover:bg-primary/10 hover:text-primary"
+                      className="h-6 px-2 text-[11px] gap-1 border-primary/40 text-primary hover:bg-primary/10 hover:text-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={!agreedLines.has(item.id) ? 'Confirm customer agreement above first' : undefined}
                     >
                       <Repeat className="w-2.5 h-2.5" />
                       Offer substitute
@@ -1354,7 +1386,7 @@ export default function VendorOrders() {
                     const orig = substituteDialog?.originalPrice || 0;
                     const lineQty = substituteDialog?.totalQuantity || 1;
                     const rawQ = Math.max(1, parseInt(subForm.quantity || '1', 10) || 1);
-                    const subQty = substituteDialog?.scope === 'addon' ? Math.min(lineQty, rawQ) : rawQ;
+                    const subQty = rawQ;
                     const matches = menuOptions
                       .filter((m) => m.is_available && m.name.toLowerCase().includes(q) && m.name.toLowerCase() !== (substituteDialog?.originalName || '').toLowerCase())
                       .slice(0, 6);
@@ -1368,11 +1400,9 @@ export default function VendorOrders() {
                     return (
                       <div className="border rounded-md divide-y bg-background max-h-48 overflow-y-auto shadow-sm">
                         {matches.map((m) => {
-                          // Item: full-line replace → refund = origTotal − newTotal.
-                          // Addon: per-portion swap → refund = unitDiff × subQty.
-                          const totalRefund = substituteDialog?.scope === 'item'
-                            ? (lineQty * orig) - (subQty * m.price)
-                            : (orig - m.price) * subQty;
+                          // Full-line replace (item AND addon):
+                          // refund = (lineQty × origUnit) − (subQty × newUnit)
+                          const totalRefund = (lineQty * orig) - (subQty * m.price);
                           return (
                             <button
                               key={m.id}
@@ -1405,17 +1435,13 @@ export default function VendorOrders() {
                   {subForm.matchedPrice !== null && substituteDialog && (() => {
                     const lineQty = substituteDialog.totalQuantity;
                     const rawQ = Math.max(1, parseInt(subForm.quantity || '1', 10) || 1);
-                    const subQty = substituteDialog.scope === 'addon' ? Math.min(lineQty, rawQ) : rawQ;
+                    const subQty = rawQ;
                     const origTotal = lineQty * substituteDialog.originalPrice;
                     const subTotal = subQty * subForm.matchedPrice;
                     return (
                       <p className="text-[11px] text-primary">
-                        {substituteDialog.scope === 'item' ? (
-                          <>Replacing {lineQty} × {substituteDialog.originalName} (₦{origTotal.toLocaleString()}) with {subQty} × {subForm.name} (₦{subTotal.toLocaleString()}).</>
-                        ) : (
-                          <>Selected from menu — ₦{subForm.matchedPrice.toLocaleString()} vs original ₦{substituteDialog.originalPrice.toLocaleString()}. Substituting {subQty} of {lineQty} portion(s).</>
-                        )}
-                        {subTotal > origTotal && substituteDialog.scope === 'item' && (
+                        Replacing {lineQty} × {substituteDialog.originalName} (₦{origTotal.toLocaleString()}) with {subQty} × {subForm.name} (₦{subTotal.toLocaleString()}).
+                        {subTotal > origTotal && (
                           <span className="text-red-700"> Replacement costs more; refund kept at 0 (extra charge isn't auto-billed).</span>
                         )}
                       </p>
@@ -1425,16 +1451,11 @@ export default function VendorOrders() {
 
                 {substituteDialog && (
                   <div className="space-y-1">
-                    <Label htmlFor="sub-qty">
-                      {substituteDialog.scope === 'item'
-                        ? 'Quantity of replacement item'
-                        : `Quantity to substitute (of ${substituteDialog.totalQuantity} parent portion(s))`}
-                    </Label>
+                    <Label htmlFor="sub-qty">Quantity of replacement {substituteDialog.scope === 'addon' ? 'add-on' : 'item'}</Label>
                     <Input
                       id="sub-qty"
                       type="number"
                       min="1"
-                      {...(substituteDialog.scope === 'addon' ? { max: substituteDialog.totalQuantity } : {})}
                       step="1"
                       value={subForm.quantity}
                       onChange={(e) => {
@@ -1442,11 +1463,8 @@ export default function VendorOrders() {
                         setSubForm((p) => {
                           if (p.matchedPrice !== null && substituteDialog) {
                             const lineQty = substituteDialog.totalQuantity;
-                            const raw = Math.max(1, parseInt(newQty || '1', 10) || 1);
-                            const q = substituteDialog.scope === 'addon' ? Math.min(lineQty, raw) : raw;
-                            const total = substituteDialog.scope === 'item'
-                              ? (lineQty * substituteDialog.originalPrice) - (q * p.matchedPrice)
-                              : (substituteDialog.originalPrice - p.matchedPrice) * q;
+                            const q = Math.max(1, parseInt(newQty || '1', 10) || 1);
+                            const total = (lineQty * substituteDialog.originalPrice) - (q * p.matchedPrice);
                             return { ...p, quantity: newQty, refund: total > 0 ? String(total) : '' };
                           }
                           return { ...p, quantity: newQty };
@@ -1454,11 +1472,7 @@ export default function VendorOrders() {
                       }}
                     />
                     <p className="text-[11px] text-muted-foreground">
-                      {substituteDialog.scope === 'addon' ? (
-                        <>The other {Math.max(0, substituteDialog.totalQuantity - (parseInt(subForm.quantity || '1', 10) || 1))} portion(s) keep the original <strong>{substituteDialog.originalName}</strong> add-on. The parent line will be split so only the swapped portions get the new add-on.</>
-                      ) : (
-                        <>The entire line of {substituteDialog.totalQuantity} × <strong>{substituteDialog.originalName}</strong> will be replaced with {Math.max(1, parseInt(subForm.quantity || '1', 10) || 1)} × the replacement item. Refund = original total − new total.</>
-                      )}
+                      The entire {substituteDialog.scope === 'addon' ? 'add-on' : 'line'} of {substituteDialog.totalQuantity} × <strong>{substituteDialog.originalName}</strong> will be replaced with {Math.max(1, parseInt(subForm.quantity || '1', 10) || 1)} × the replacement{substituteDialog.scope === 'addon' ? ' add-on' : ''}. Refund = original total − new total.
                     </p>
                   </div>
                 )}
@@ -1489,12 +1503,30 @@ export default function VendorOrders() {
                   </p>
                 </div>
 
+                {/* Agreement gate */}
+                <div className="rounded-md border-2 border-amber-400 bg-amber-50 dark:bg-amber-950/30 p-3 space-y-2">
+                  <p className="text-xs font-bold text-amber-900 dark:text-amber-200 leading-snug">
+                    ⚠️ Call or chat the customer FIRST. Get their agreement on the replacement and refund before you apply this change.
+                  </p>
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={subForm.agreed}
+                      onChange={(e) => setSubForm((p) => ({ ...p, agreed: e.target.checked }))}
+                      className="mt-0.5 w-4 h-4 accent-primary shrink-0"
+                    />
+                    <span className="text-xs text-amber-900 dark:text-amber-200">
+                      I have contacted the customer and they <strong>agreed</strong> to this substitute.
+                    </span>
+                  </label>
+                </div>
+
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setSubstituteDialog(null)} disabled={subSubmitting}>
                   Cancel
                 </Button>
-                <Button onClick={submitSubstitute} disabled={subSubmitting || !subForm.name.trim()}>
+                <Button onClick={submitSubstitute} disabled={subSubmitting || !subForm.name.trim() || !subForm.agreed}>
                   {subSubmitting ? 'Applying…' : 'Apply substitute'}
                 </Button>
               </DialogFooter>
