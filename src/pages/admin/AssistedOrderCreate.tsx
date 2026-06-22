@@ -305,6 +305,8 @@ export default function AssistedOrderCreate() {
   const walletBalance = existingCustomer?.wallet_balance || 0;
   const walletShortfall = paymentMethod === 'wallet' ? Math.max(0, total - walletBalance) : 0;
   const shadowShortfall = paymentMethod === 'shadow_credit' ? Math.max(0, total - shadowCreditAvailable) : 0;
+  const combinedCovered = paymentMethod === 'combined' ? Math.min(total, walletBalance + shadowCreditAvailable) : 0;
+  const combinedShortfall = paymentMethod === 'combined' ? Math.max(0, total - walletBalance - shadowCreditAvailable) : 0;
 
   const validatePromo = async () => {
     const code = promoInput.trim();
