@@ -580,41 +580,88 @@ export default function OrderDetail() {
             <CardTitle className="text-lg">Order Items</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {orderItems.map((item) => (
-              <div key={item.id}>
+            {orderItems.map((item) => {
+              const lineQty = Math.max(1, Number(item.quantity || 1));
+              const addons = orderItemAddons[item.id] || [];
+              const refundedAddonsTotal = addons.reduce(
+                (s: number, a: any) => s + (a.is_refunded ? Number(a.additional_price || 0) * lineQty : 0),
+                0,
+              );
+              const originalLineTotal = Number(item.total_price || 0);
+              const effectiveLineTotal = item.is_refunded
+                ? 0
+                : Math.max(0, originalLineTotal - refundedAddonsTotal);
+              const lineChanged = !item.is_refunded && refundedAddonsTotal > 0;
+              return (
+              <div key={item.id} className={item.is_refunded ? 'opacity-70' : ''}>
                 <div className="flex justify-between">
                   <div>
-                    <p className="font-medium">{item.quantity}x {item.product_name}</p>
+                    <p className="font-medium">
+                      {item.quantity}x {item.product_name}
+                      {item.is_refunded && (
+                        <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-destructive/10 text-destructive font-semibold">Refunded</span>
+                      )}
+                      {!item.is_refunded && item.substituted_with && (
+                        <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-700 font-semibold">Substituted</span>
+                      )}
+                    </p>
+                    {!item.is_refunded && item.substituted_with && (
+                      <p className="text-xs text-amber-700 mt-0.5">
+                        Replaces original item{item.substitute_note ? ` — ${item.substitute_note}` : ''}
+                        {Number(item.substitute_refund_amount || 0) > 0 && (
+                          <> · Refunded ₦{Number(item.substitute_refund_amount).toLocaleString()}</>
+                        )}
+                      </p>
+                    )}
+                    {item.is_refunded && Number(item.refund_amount || 0) > 0 && (
+                      <p className="text-xs text-destructive mt-0.5">
+                        ₦{Number(item.refund_amount).toLocaleString()} refunded to your wallet
+                      </p>
+                    )}
                     {item.special_instructions && !item.special_instructions.startsWith('Takeaway') && (
                       <p className="text-xs text-primary/80 mt-0.5">🛠 {item.special_instructions}</p>
                     )}
-                    {item.calories > 0 && (
+                    {item.calories > 0 && !item.is_refunded && (
                       <p className="text-sm text-muted-foreground">{item.calories} kcal</p>
                     )}
                   </div>
-                  <p className="font-medium">₦{Number(item.total_price).toLocaleString()}</p>
+                  <div className="text-right">
+                    {(item.is_refunded || lineChanged) && (
+                      <p className="text-xs text-muted-foreground line-through">₦{originalLineTotal.toLocaleString()}</p>
+                    )}
+                    <p className="font-medium">₦{effectiveLineTotal.toLocaleString()}</p>
+                  </div>
                 </div>
                 {/* Order item addons */}
-                {orderItemAddons[item.id] && orderItemAddons[item.id].length > 0 && (
+                {addons.length > 0 && (
                   <div className="ml-4 mt-1 space-y-0.5 border-l-2 border-primary/30 pl-3 mb-2">
-                    {orderItemAddons[item.id].map((addon: any) => (
-                      <div key={addon.id} className="flex justify-between items-center text-xs">
-                        <span className="text-muted-foreground flex items-center gap-1.5">
+                    {addons.map((addon: any) => (
+                      <div key={addon.id} className={`flex justify-between items-center text-xs ${addon.is_refunded ? 'opacity-60' : ''}`}>
+                        <span className="text-muted-foreground flex items-center gap-1.5 flex-wrap">
                           {addon.image_url && (
                             <img src={addon.image_url} alt={addon.addon_item_name} className="w-6 h-6 rounded object-cover shrink-0" />
                           )}
-                          + {addon.addon_item_name}
+                          <span className={addon.is_refunded ? 'line-through' : ''}>+ {addon.addon_item_name}</span>
                           {addon.calories > 0 && <span className="ml-1">({addon.calories} cal)</span>}
+                          {addon.is_refunded && (
+                            <span className="text-destructive font-semibold">Refunded ₦{Number(addon.refund_amount || 0).toLocaleString()}</span>
+                          )}
+                          {!addon.is_refunded && addon.substituted_with && (
+                            <span className="text-amber-700 font-semibold">Substituted</span>
+                          )}
                         </span>
                         {addon.additional_price > 0 && (
-                          <span className="text-primary font-medium">+₦{Number(addon.additional_price).toLocaleString()}</span>
+                          <span className={`font-medium ${addon.is_refunded ? 'text-muted-foreground line-through' : 'text-primary'}`}>
+                            +₦{(Number(addon.additional_price) * lineQty).toLocaleString()}
+                          </span>
                         )}
                       </div>
                     ))}
                   </div>
                 )}
               </div>
-            ))}
+              );
+            })}
 
             <div className="border-t pt-4 space-y-2">
               <div className="flex justify-between text-muted-foreground">
