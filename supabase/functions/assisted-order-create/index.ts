@@ -338,12 +338,33 @@ serve(async (req) => {
           .eq('id', wallet.id);
         walletPaid = true;
       } else {
-        // Shortfall — generate Paystack top-up link for the difference
+        // Shortfall — debit whatever wallet has now, generate Paystack link for the remainder
         walletShortfall = Math.round(total - currentBalance);
+        if (currentBalance > 0) {
+          const reference = `WP-PART-${order.id.slice(0, 8)}-${Date.now()}`;
+          const newBalance = 0;
+          await supabase.from('wallet_transactions').insert({
+            wallet_id: wallet.id,
+            wallet_type: 'customer',
+            transaction_type: 'debit',
+            category: 'wallet_payment',
+            amount: currentBalance,
+            balance_after: newBalance,
+            reference,
+            order_id: order.id,
+            status: 'completed',
+            environment,
+            notes: `Partial wallet payment for #${order.order_number} (Paystack covers the rest)`,
+          });
+          await supabase.from('wallets')
+            .update(isTestMode
+              ? { test_balance: newBalance, updated_at: new Date().toISOString() }
+              : { balance: newBalance, updated_at: new Date().toISOString() })
+            .eq('id', wallet.id);
+        }
         const res = await initPaystackLink(walletShortfall, 'topup');
         if (!res) {
-          await supabase.from('orders').delete().eq('id', order.id);
-          return json({ error: 'Could not generate Paystack top-up link for wallet shortfall. Check Paystack keys for the active environment.' }, 502);
+          return json({ error: 'Order created and wallet portion reserved, but Paystack top-up link generation failed. Retry from order page.' }, 502);
         }
         paymentLink = res.url;
         paymentReference = res.reference;
