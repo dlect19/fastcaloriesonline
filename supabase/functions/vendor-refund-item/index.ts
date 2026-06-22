@@ -214,7 +214,11 @@ serve(async (req: Request) => {
       };
 
       const lineQty = Math.max(1, Number(item.quantity || 1));
-      const subQty = Math.max(1, Math.min(lineQty, Math.floor(Number(body.substituteQuantity || lineQty))));
+      // For items, subQty is the REPLACEMENT quantity (unbounded by lineQty —
+      // vendor may give fewer/more portions of the substitute).
+      // For addons, it's how many parent portions get the new addon (capped by lineQty).
+      const rawSubQty = Math.max(1, Math.floor(Number(body.substituteQuantity || lineQty)));
+      const subQty = scope === "addon" ? Math.min(lineQty, rawSubQty) : rawSubQty;
       const origUnit = Number(item.unit_price || 0);
       const origCalPerUnit = Number(item.calories || 0) / lineQty;
 
