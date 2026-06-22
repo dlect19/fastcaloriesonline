@@ -173,6 +173,15 @@ export default function VendorOrders() {
   } | null>(null);
   const [subForm, setSubForm] = useState<{ name: string; note: string; refund: string; matchedPrice: number | null; quantity: string; agreed: boolean }>({ name: '', note: '', refund: '', matchedPrice: null, quantity: '1', agreed: false });
   const [subSubmitting, setSubSubmitting] = useState(false);
+  // Per-line agreement: vendor must confirm they've spoken to the customer before
+  // Refund / Offer substitute buttons unlock for that line.
+  const [agreedLines, setAgreedLines] = useState<Set<string>>(new Set());
+  const toggleAgreedLine = (id: string) =>
+    setAgreedLines((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
   const [menuOptions, setMenuOptions] = useState<{ id: string; name: string; price: number; is_available: boolean }[]>([]);
   const [completedPage, setCompletedPage] = useState(1);
   const { selectedOutletId, setSelectedOutletId, ready: outletReady } = usePersistedOutletId();
