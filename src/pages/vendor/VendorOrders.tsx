@@ -978,7 +978,7 @@ export default function VendorOrders() {
                   )}
                   <div className="flex justify-between text-sm font-semibold pt-1 border-t border-border">
                     <span>Your Revenue</span>
-                    <span className="text-primary">₦{Number(order.subtotal - (order.discount || 0)).toLocaleString()}</span>
+                    <span className="text-primary">₦{(Number(order.subtotal || 0) - Number(order.discount || 0) + Number(order.packaging_fee || 0)).toLocaleString()}</span>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
                     Delivery fees and service charges go to riders/platform
