@@ -54,6 +54,7 @@ import AdminDashboard from "./pages/admin/AdminDashboard";
 import AssistedOrdersList from "./pages/admin/AssistedOrdersList";
 import AssistedOrderCreate from "./pages/admin/AssistedOrderCreate";
 import AssistedOrderDetail from "./pages/admin/AssistedOrderDetail";
+import AdminShadowCredits from "./pages/admin/AdminShadowCredits";
 import Track from "./pages/Track";
 import AdminOrders from "./pages/admin/AdminOrders";
 import AdminPosReports from "./pages/admin/AdminPosReports";
