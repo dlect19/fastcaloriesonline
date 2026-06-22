@@ -8571,6 +8571,10 @@ export type Database = {
         }
         Returns: Json
       }
+      adjust_vendor_payout_after_refund: {
+        Args: { p_order_id: string }
+        Returns: Json
+      }
       admin_adjust_wallet_balance: {
         Args: {
           p_adjust_type: string
