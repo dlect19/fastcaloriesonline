@@ -4047,6 +4047,60 @@ export type Database = {
           },
         ]
       }
+      ledger_adjustments_audit: {
+        Row: {
+          after_amount: number | null
+          before_amount: number | null
+          created_at: string
+          delta: number | null
+          environment: string
+          id: string
+          metadata: Json | null
+          order_id: string | null
+          order_number: string | null
+          performed_by: string | null
+          reason: string | null
+          scope: string
+          transaction_id: string | null
+          wallet_id: string | null
+          wallet_kind: string | null
+        }
+        Insert: {
+          after_amount?: number | null
+          before_amount?: number | null
+          created_at?: string
+          delta?: number | null
+          environment?: string
+          id?: string
+          metadata?: Json | null
+          order_id?: string | null
+          order_number?: string | null
+          performed_by?: string | null
+          reason?: string | null
+          scope: string
+          transaction_id?: string | null
+          wallet_id?: string | null
+          wallet_kind?: string | null
+        }
+        Update: {
+          after_amount?: number | null
+          before_amount?: number | null
+          created_at?: string
+          delta?: number | null
+          environment?: string
+          id?: string
+          metadata?: Json | null
+          order_id?: string | null
+          order_number?: string | null
+          performed_by?: string | null
+          reason?: string | null
+          scope?: string
+          transaction_id?: string | null
+          wallet_id?: string | null
+          wallet_kind?: string | null
+        }
+        Relationships: []
+      }
       legal_acceptances: {
         Row: {
           accepted_at: string
