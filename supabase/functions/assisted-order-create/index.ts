@@ -457,6 +457,118 @@ serve(async (req) => {
         paymentReference = res.reference;
         await supabase.from('orders').update({ payment_reference: paymentReference }).eq('id', order.id);
       }
+    } else if (payment_method === 'combined') {
+      // 1) Debit wallet first (up to total)
+      const { data: wallet, error: wErr } = await supabase
+        .from('wallets')
+        .select('id, balance, test_balance, is_disabled')
+        .eq('user_id', userId).eq('wallet_type', 'customer').maybeSingle();
+      if (wErr || !wallet) {
+        await supabase.from('orders').delete().eq('id', order.id);
+        return json({ error: 'Customer wallet not found.' }, 400);
+      }
+      if (wallet.is_disabled) {
+        await supabase.from('orders').delete().eq('id', order.id);
+        return json({ error: 'Customer wallet is disabled.' }, 403);
+      }
+      const isTestMode = environment !== 'production';
+      const currentBalance = Number((isTestMode ? wallet.test_balance : wallet.balance) ?? 0);
+      let remaining = total;
+      combinedWalletUsed = Math.min(currentBalance, remaining);
+      remaining -= combinedWalletUsed;
+
+      if (combinedWalletUsed > 0) {
+        const reference = `CMB-W-${order.id.slice(0, 8)}-${Date.now()}`;
+        const newBalance = currentBalance - combinedWalletUsed;
+        await supabase.from('wallet_transactions').insert({
+          wallet_id: wallet.id,
+          wallet_type: 'customer',
+          transaction_type: 'debit',
+          category: 'wallet_payment',
+          amount: combinedWalletUsed,
+          balance_after: newBalance,
+          reference,
+          order_id: order.id,
+          status: 'completed',
+          environment,
+          notes: `Combined payment (wallet portion) for #${order.order_number}`,
+        });
+        await supabase.from('wallets')
+          .update(isTestMode
+            ? { test_balance: newBalance, updated_at: new Date().toISOString() }
+            : { balance: newBalance, updated_at: new Date().toISOString() })
+          .eq('id', wallet.id);
+      }
+
+      // 2) Consume shadow credits next
+      if (remaining > 0) {
+        const { data: credits } = await supabase
+          .from('shadow_customer_credits')
+          .select('id, amount')
+          .eq('phone', customer.phone)
+          .eq('status', 'pending')
+          .order('created_at', { ascending: true });
+        const consumedIds: string[] = [];
+        for (const c of credits || []) {
+          const amt = Number((c as any).amount || 0);
+          if (amt <= remaining) {
+            consumedIds.push((c as any).id);
+            combinedShadowUsed += amt;
+            remaining -= amt;
+            if (remaining <= 0) break;
+          }
+        }
+        // If nothing fit but credits exist, consume smallest and split remainder
+        if (consumedIds.length === 0 && (credits || []).length > 0) {
+          const smallest = [...(credits || [])].sort((a: any, b: any) => Number(a.amount) - Number(b.amount))[0] as any;
+          const used = Math.min(Number(smallest.amount), remaining);
+          consumedIds.push(smallest.id);
+          combinedShadowUsed += used;
+          const leftover = Number(smallest.amount) - used;
+          remaining = Math.max(0, remaining - used);
+          if (leftover > 0) {
+            await supabase.from('shadow_customer_credits').insert({
+              phone: customer.phone,
+              customer_name: customer.name,
+              amount: leftover,
+              environment,
+              status: 'pending',
+              source: 'split_remainder',
+              reason: `Remainder after combined redemption on assisted order #${order.order_number}`,
+              created_by: adminId,
+            });
+          }
+        }
+        if (consumedIds.length > 0) {
+          await supabase.from('shadow_customer_credits').update({
+            status: 'settled_offline',
+            order_id: order.id,
+            notes: `Redeemed (combined) on assisted order #${order.order_number}`,
+            updated_at: new Date().toISOString(),
+          }).in('id', consumedIds);
+        }
+      }
+
+      combinedShortfall = Math.max(0, Math.round(remaining));
+      if (combinedShortfall === 0) {
+        const reference = `CMB-${order.id.slice(0, 8)}-${Date.now()}`;
+        await supabase.from('orders').update({
+          payment_status: 'paid',
+          status: 'confirmed',
+          payment_method: 'combined',
+          payment_reference: reference,
+          environment,
+        }).eq('id', order.id);
+        combinedPaid = true;
+      } else {
+        const res = await initPaystackLink(combinedShortfall, 'combinedtopup');
+        if (!res) {
+          return json({ error: 'Order created and wallet/credit reserved, but Paystack link generation failed. Retry from order page.' }, 502);
+        }
+        paymentLink = res.url;
+        paymentReference = res.reference;
+        await supabase.from('orders').update({ payment_reference: paymentReference }).eq('id', order.id);
+      }
     }
 
     // Insert assisted_orders meta
