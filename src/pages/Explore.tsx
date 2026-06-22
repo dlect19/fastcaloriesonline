@@ -144,6 +144,7 @@ export default function Explore() {
   // Filter products based on search and calorie filter
   // Only show products from nearby vendors
   const nearbyVendorIds = new Set(vendors.map(v => v.id));
+  const vendorNameById = new Map(vendors.map(v => [v.id, (v as any).display_name || v.name]));
   const calorieRange = calorieFilters.find((f) => f.id === selectedCalorieFilter);
   const filteredProducts = products.filter((product) => {
     // Only show products from nearby vendors
@@ -162,6 +163,18 @@ export default function Explore() {
 
     return matchesSearch && matchesCalories;
   });
+
+  // When a cuisine is selected, show menu items from that cuisine across all
+  // nearby vendors (cross-vendor menu browsing).
+  const cuisineProducts = cuisineId
+    ? products.filter((p) =>
+        (p as any).cuisine_category_id === cuisineId &&
+        nearbyVendorIds.has(p.vendor_id) &&
+        (searchQuery === '' ||
+          p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          p.description?.toLowerCase().includes(searchQuery.toLowerCase()))
+      )
+    : [];
 
   const clearFilters = () => {
     setSelectedCategory('all');
