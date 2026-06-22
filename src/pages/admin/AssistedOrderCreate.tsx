@@ -589,9 +589,23 @@ export default function AssistedOrderCreate() {
                 <Select value={vendorId} onValueChange={setVendorId}>
                   <SelectTrigger><SelectValue placeholder="Select vendor" /></SelectTrigger>
                   <SelectContent>
-                    {vendors.map((v) => <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>)}
+                    {vendors.map((v) => (
+                      <SelectItem key={v.id} value={v.id}>
+                        <span className="flex items-center gap-2">
+                          <span className={`inline-block w-2 h-2 rounded-full ${v.is_open ? 'bg-green-500' : 'bg-red-500'}`} />
+                          {v.name}
+                          <span className={`text-[10px] ml-1 ${v.is_open ? 'text-green-600' : 'text-red-600'}`}>{v.is_open ? 'Open' : 'Closed'}</span>
+                        </span>
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
+                {selectedVendor && (
+                  <p className={`text-xs mt-1 font-medium flex items-center gap-1 ${selectedVendor.is_open ? 'text-green-700' : 'text-red-700'}`}>
+                    <span className={`inline-block w-2 h-2 rounded-full ${selectedVendor.is_open ? 'bg-green-500' : 'bg-red-500'}`} />
+                    {selectedVendor.is_open ? 'Vendor is OPEN — accepting orders' : 'Vendor is CLOSED — order may be delayed; confirm with vendor first'}
+                  </p>
+                )}
               </div>
               {vendorId && outlets.length > 0 && (
                 <div>
