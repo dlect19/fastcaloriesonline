@@ -386,6 +386,12 @@ export default function AssistedOrderCreate() {
     if (paymentMethod === 'wallet' && !existingCustomer?.user_id) {
       return 'Wallet payment requires a registered FastCalories customer (lookup by phone first).';
     }
+    if (paymentMethod === 'combined' && !existingCustomer?.user_id) {
+      return 'Combined payment requires a registered customer wallet.';
+    }
+    if (paymentMethod === 'combined' && shadowCreditAvailable <= 0) {
+      return 'Combined payment requires available shadow credit for this phone.';
+    }
     return null;
   };
 
