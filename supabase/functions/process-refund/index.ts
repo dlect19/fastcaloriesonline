@@ -149,9 +149,21 @@ serve(async (req: Request) => {
 
       const phone = String(assisted?.receiver_phone || order.delivery_phone || "").trim();
       if (!phone) {
+        // No phone on file — record as offline refund (audit only) and mark order refunded
+        await supabaseAdmin.from("assisted_order_audit").insert({
+          order_id: orderId,
+          actor_id: user.id,
+          action: "refund_offline_auto",
+          details: { amount: amt, reason: reason || "Order refund", note: "No phone on file; recorded as offline refund" },
+        });
+        await supabaseAdmin.from("orders").update({ payment_status: "refunded" }).eq("id", orderId);
         return new Response(
-          JSON.stringify({ error: "Order has no associated customer and no phone on file. Use the Assisted Order refund dialog to record an offline refund." }),
-          { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+          JSON.stringify({
+            success: true,
+            offline: true,
+            message: `₦${amt.toLocaleString()} recorded as offline refund (no phone on file to hold shadow credit).`,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
         );
       }
 
