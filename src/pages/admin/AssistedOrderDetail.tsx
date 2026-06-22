@@ -25,6 +25,11 @@ export default function AssistedOrderDetail() {
   const [audit, setAudit] = useState<any[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [customerProfile, setCustomerProfile] = useState<CustomerProfile>(null);
+  const [refundOpen, setRefundOpen] = useState(false);
+  const [refundMode, setRefundMode] = useState<'wallet' | 'shadow' | 'offline'>('shadow');
+  const [refundAmount, setRefundAmount] = useState('');
+  const [refundReason, setRefundReason] = useState('');
+  const [refundNotes, setRefundNotes] = useState('');
 
   const load = async () => {
     if (!orderId) return;
