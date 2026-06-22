@@ -788,7 +788,7 @@ export default function VendorOrders() {
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => openSubstitute('addon', addon.id, addon.addon_item_name, Number(addon.additional_price || 0), orderNumber, 1)}
+                      onClick={() => openSubstitute('addon', addon.id, addon.addon_item_name, Number(addon.additional_price || 0), orderNumber, Number(item.quantity || 1))}
                       className="h-6 px-2 text-[11px] gap-1 border-primary/40 text-primary hover:bg-primary/10 hover:text-primary"
                     >
                       <Repeat className="w-2.5 h-2.5" />
@@ -1407,9 +1407,12 @@ export default function VendorOrders() {
                   })()}
                 </div>
 
-                {substituteDialog?.scope === 'item' && substituteDialog.totalQuantity > 1 && (
+                {substituteDialog && substituteDialog.totalQuantity > 1 && (
                   <div className="space-y-1">
-                    <Label htmlFor="sub-qty">Quantity to substitute (of {substituteDialog.totalQuantity})</Label>
+                    <Label htmlFor="sub-qty">
+                      Quantity to substitute (of {substituteDialog.totalQuantity}
+                      {substituteDialog.scope === 'addon' ? ' parent portion(s)' : ''})
+                    </Label>
                     <Input
                       id="sub-qty"
                       type="number"
@@ -1420,7 +1423,6 @@ export default function VendorOrders() {
                       onChange={(e) => {
                         const newQty = e.target.value;
                         setSubForm((p) => {
-                          // re-suggest refund if a menu match is locked in
                           if (p.matchedPrice !== null && substituteDialog) {
                             const q = Math.max(1, Math.min(substituteDialog.totalQuantity, parseInt(newQty || '1', 10) || 1));
                             const total = (substituteDialog.originalPrice - p.matchedPrice) * q;
@@ -1431,7 +1433,11 @@ export default function VendorOrders() {
                       }}
                     />
                     <p className="text-[11px] text-muted-foreground">
-                      The other {Math.max(0, substituteDialog.totalQuantity - (parseInt(subForm.quantity || '1', 10) || 1))} portion(s) stay as <strong>{substituteDialog.originalName}</strong>. Use this when you only need to swap part of the line (e.g. ran out of some, not all).
+                      {substituteDialog.scope === 'addon' ? (
+                        <>The other {Math.max(0, substituteDialog.totalQuantity - (parseInt(subForm.quantity || '1', 10) || 1))} portion(s) keep the original <strong>{substituteDialog.originalName}</strong> add-on. The parent line will be split so only the swapped portions get the new add-on.</>
+                      ) : (
+                        <>The other {Math.max(0, substituteDialog.totalQuantity - (parseInt(subForm.quantity || '1', 10) || 1))} portion(s) stay as <strong>{substituteDialog.originalName}</strong>. Use this when you only need to swap part of the line (e.g. ran out of some, not all).</>
+                      )}
                     </p>
                   </div>
                 )}
