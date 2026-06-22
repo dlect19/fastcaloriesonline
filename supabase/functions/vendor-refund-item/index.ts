@@ -301,46 +301,26 @@ serve(async (req: Request) => {
           }
         }
       } else {
-        // scope === "item"
-        if (subQty >= lineQty) {
-          // Whole line substituted in place
-          await admin.from("order_items").update({
-            ...subFields,
-            substitute_refund_amount: refundAmount || null,
-          }).eq("id", item.id);
-        } else {
-          // Split: shrink original (keeps add-ons), insert new substituted row (no add-ons)
-          const remainingQty = lineQty - subQty;
-          const subbedUnitPrice = Math.max(
-            0,
-            origUnit - (refundAmount > 0 ? refundAmount / subQty : 0),
-          );
-          const remainingTotal = +((origUnit + addonSumPerPortion) * remainingQty).toFixed(2);
-          const subbedTotal = +(subbedUnitPrice * subQty).toFixed(2);
+        // scope === "item" — full-line replace.
+        // Vendor specifies the REPLACEMENT quantity (subQty), not how many of the
+        // original to swap. The whole original line becomes subQty × substitute.
+        // Refund = (lineQty × origUnit) − (subQty × subbedUnitPrice).
+        // We derive the substitute unit price from refundAmount so the math is consistent:
+        //   subbedUnitPrice = (lineQty × origUnit − refundAmount) / subQty
+        const origLineTotal = lineQty * origUnit;
+        const newLineTotal = Math.max(0, origLineTotal - refundAmount);
+        const subbedUnitPrice = subQty > 0 ? +(newLineTotal / subQty).toFixed(2) : 0;
+        // Keep existing add-ons but recompute parent total to reflect new qty + new unit price.
+        const newTotalWithAddons = +(((subbedUnitPrice + addonSumPerPortion) * subQty)).toFixed(2);
 
-          await admin.from("order_items").update({
-            quantity: remainingQty,
-            total_price: remainingTotal,
-            calories: Math.round(origCalPerUnit * remainingQty),
-          }).eq("id", item.id);
-
-          await admin.from("order_items").insert({
-            order_id: item.order_id,
-            product_id: item.product_id,
-            product_name: item.product_name,
-            quantity: subQty,
-            unit_price: subbedUnitPrice,
-            total_price: subbedTotal,
-            calories: Math.round(origCalPerUnit * subQty),
-            special_instructions: item.special_instructions,
-            package_id: item.package_id,
-            original_unit_price: item.original_unit_price ?? origUnit,
-            purchase_unit: item.purchase_unit,
-            unit_multiplier: item.unit_multiplier,
-            ...subFields,
-            substitute_refund_amount: refundAmount || null,
-          });
-        }
+        await admin.from("order_items").update({
+          quantity: subQty,
+          unit_price: subbedUnitPrice,
+          total_price: newTotalWithAddons,
+          calories: Math.round(origCalPerUnit * subQty),
+          ...subFields,
+          substitute_refund_amount: refundAmount || null,
+        }).eq("id", item.id);
       }
     }
 
