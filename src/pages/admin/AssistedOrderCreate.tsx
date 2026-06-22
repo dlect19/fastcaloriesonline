@@ -16,9 +16,9 @@ import { useDeliveryFee } from '@/hooks/useDeliveryFee';
 import { useServiceFee } from '@/hooks/useServiceFee';
 import { useTakeawayPacks } from '@/hooks/useTakeawayPacks';
 
-type Vendor = { id: string; name: string; latitude: number | null; longitude: number | null };
+type Vendor = { id: string; name: string; latitude: number | null; longitude: number | null; is_open: boolean | null };
 type Outlet = { id: string; vendor_id: string; outlet_name: string | null; latitude: number | null; longitude: number | null; is_active: boolean };
-type Product = { id: string; name: string; price: number; vendor_id: string; outlet_id: string | null; is_available: boolean; calories: number | null };
+type Product = { id: string; name: string; price: number; vendor_id: string; outlet_id: string | null; is_available: boolean; calories: number | null; image_url: string | null };
 type AddonItem = { id: string; addon_group_id: string; name: string; additional_price: number; calories: number | null; is_available: boolean; group_name: string };
 type SelectedAddon = { addon_group_name: string; addon_item_name: string; additional_price: number; calories: number | null };
 type CartItem = { product: Product; quantity: number; special_instructions?: string; pack: number; addons?: SelectedAddon[] };
@@ -126,7 +126,7 @@ export default function AssistedOrderCreate() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    supabase.from('vendors').select('id, name, latitude, longitude').eq('is_active', true).order('name')
+    supabase.from('vendors').select('id, name, latitude, longitude, is_open').eq('is_active', true).order('name')
       .then(({ data }) => setVendors((data as Vendor[]) || []));
   }, []);
 
@@ -154,7 +154,7 @@ export default function AssistedOrderCreate() {
     if (!vendorId) { setProducts([]); setAddonsByProduct({}); return; }
     let q = supabase
       .from('products')
-      .select('id, name, price, vendor_id, outlet_id, is_available, calories')
+      .select('id, name, price, vendor_id, outlet_id, is_available, calories, image_url')
       .eq('vendor_id', vendorId)
       .order('name')
       .limit(400);
