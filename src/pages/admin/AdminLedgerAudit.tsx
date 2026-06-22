@@ -46,7 +46,7 @@ export default function AdminLedgerAudit() {
   const [search, setSearch] = useState('');
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const { isAdminTestMode } = useAdminTestMode();
-  const environment = isAdminTestMode ? 'development' : 'production';
+  const [envFilter, setEnvFilter] = useState<'all' | 'production' | 'development'>('all');
 
   useEffect(() => {
     fetchAudit();
