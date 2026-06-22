@@ -788,7 +788,7 @@ export default function VendorOrders() {
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => openSubstitute('addon', addon.id, addon.addon_item_name, Number(addon.additional_price || 0), orderNumber, 1)}
+                      onClick={() => openSubstitute('addon', addon.id, addon.addon_item_name, Number(addon.additional_price || 0), orderNumber, Number(item.quantity || 1))}
                       className="h-6 px-2 text-[11px] gap-1 border-primary/40 text-primary hover:bg-primary/10 hover:text-primary"
                     >
                       <Repeat className="w-2.5 h-2.5" />
