@@ -359,27 +359,31 @@ serve(async (req: Request) => {
     }).eq("id", order.id);
 
     // ---- Post a chat message to the customer ----
+    // For assisted orders we credit a shadow credit (held by phone) instead of a wallet.
+    const creditDestLabel = refundedToShadow
+      ? "held as credit on your phone number (it will auto-credit your wallet when you sign up)"
+      : "refunded to your wallet";
+    const creditDestLabelShort = refundedToShadow ? "held as credit on your phone number" : "credited to your wallet";
+
     try {
       let msg = "";
       if (action === "refund") {
         msg = scope === "addon"
-          ? `⚠️ The add-on "${displayName}" is unavailable. ₦${refundAmount.toLocaleString()} has been refunded to your wallet.`
-          : `⚠️ "${displayName}" is unavailable. ₦${refundAmount.toLocaleString()} has been refunded to your wallet. The rest of your order is being prepared.`;
+          ? `⚠️ The add-on "${displayName}" is unavailable. ₦${refundAmount.toLocaleString()} has been ${creditDestLabel}.`
+          : `⚠️ "${displayName}" is unavailable. ₦${refundAmount.toLocaleString()} has been ${creditDestLabel}. The rest of your order is being prepared.`;
       } else {
         const sub = body.substituteName ? ` with "${body.substituteName}"` : "";
         const note = body.substituteNote ? ` — ${body.substituteNote}` : "";
         const refundLine = refundAmount > 0
-          ? ` A partial refund of ₦${refundAmount.toLocaleString()} has been credited to your wallet.`
+          ? ` A partial refund of ₦${refundAmount.toLocaleString()} has been ${creditDestLabelShort}.`
           : " (Same price, no charge difference.)";
         const lineQty = Math.max(1, Number(item.quantity || 1));
         const rawQ = Math.max(1, Math.floor(Number(body.substituteQuantity || lineQty)));
         const subQty = scope === "addon" ? Math.min(lineQty, rawQ) : rawQ;
         let portionPrefix = "";
         if (scope === "addon") {
-          // Mirror item: full-line replace. State the swap across all parent portions.
           portionPrefix = `the add-on on your ${lineQty} × `;
         } else {
-          // item: full-line replace with subQty of the new item
           portionPrefix = `your ${lineQty} × `;
         }
         const itemSuffix = body.substituteName
@@ -398,7 +402,7 @@ serve(async (req: Request) => {
       console.warn("[vendor-refund-item] chat insert failed:", e);
     }
 
-    console.log(`[vendor-refund-item] ${reference} order=${order.order_number} scope=${scope} action=${action} amount=₦${refundAmount}`);
+    console.log(`[vendor-refund-item] ${reference} order=${order.order_number} scope=${scope} action=${action} amount=₦${refundAmount} dest=${refundedToShadow ? "shadow" : refundedToWallet ? "wallet" : "none"}`);
 
     return json({
       success: true,
@@ -407,6 +411,9 @@ serve(async (req: Request) => {
       action,
       refund_amount: refundAmount,
       refunded_to_wallet: refundedToWallet,
+      refunded_to_shadow: refundedToShadow,
+      shadow_credit_id: shadowCreditId,
+      assisted_order: isAssisted,
       new_balance: newBalance,
       new_order_subtotal: newSubtotal,
       new_order_total: newTotal,
