@@ -6,7 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, ArrowLeft, Copy, CheckCircle2, RefreshCw, MessageCircle, XCircle } from 'lucide-react';
+import { Loader2, ArrowLeft, Copy, CheckCircle2, RefreshCw, MessageCircle, XCircle, Banknote } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 
@@ -21,6 +25,11 @@ export default function AssistedOrderDetail() {
   const [audit, setAudit] = useState<any[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [customerProfile, setCustomerProfile] = useState<CustomerProfile>(null);
+  const [refundOpen, setRefundOpen] = useState(false);
+  const [refundMode, setRefundMode] = useState<'wallet' | 'shadow' | 'offline'>('shadow');
+  const [refundAmount, setRefundAmount] = useState('');
+  const [refundReason, setRefundReason] = useState('');
+  const [refundNotes, setRefundNotes] = useState('');
 
   const load = async () => {
     if (!orderId) return;
@@ -259,9 +268,86 @@ export default function AssistedOrderDetail() {
               <Button variant="outline" onClick={() => callFn('assisted-order-notify', { order_id: orderId, action: 'send_tracking' })} disabled={busy !== null}>
                 <RefreshCw className="w-4 h-4 mr-2" /> Resend Tracking Link
               </Button>
+              <Button
+                variant="outline"
+                className="border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                onClick={() => { setRefundAmount(String(o.total)); setRefundMode(o.user_id ? 'wallet' : 'shadow'); setRefundOpen(true); }}
+                disabled={busy !== null}
+              >
+                <Banknote className="w-4 h-4 mr-2" /> Issue Refund
+              </Button>
             </div>
           </CardContent>
         </Card>
+
+        <Dialog open={refundOpen} onOpenChange={setRefundOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader><DialogTitle>Issue Refund</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>Refund method</Label>
+                <RadioGroup value={refundMode} onValueChange={(v) => setRefundMode(v as any)} className="mt-2 space-y-2">
+                  <label className={`flex items-start gap-2 border rounded p-2 cursor-pointer ${!o.user_id ? 'opacity-50' : ''}`}>
+                    <RadioGroupItem value="wallet" disabled={!o.user_id} className="mt-1" />
+                    <div className="text-sm">
+                      <div className="font-medium">Customer wallet</div>
+                      <div className="text-xs text-muted-foreground">
+                        {o.user_id ? 'Credit instantly to their FastCalories wallet.' : 'Unavailable — customer has no account.'}
+                      </div>
+                    </div>
+                  </label>
+                  <label className="flex items-start gap-2 border rounded p-2 cursor-pointer">
+                    <RadioGroupItem value="shadow" className="mt-1" />
+                    <div className="text-sm">
+                      <div className="font-medium">Hold as shadow credit (by phone)</div>
+                      <div className="text-xs text-muted-foreground">Auto-credits their wallet when they sign up with {o.receiver_phone || 'their phone'}.</div>
+                    </div>
+                  </label>
+                  <label className="flex items-start gap-2 border rounded p-2 cursor-pointer">
+                    <RadioGroupItem value="offline" className="mt-1" />
+                    <div className="text-sm">
+                      <div className="font-medium">Settled offline (cash / bank)</div>
+                      <div className="text-xs text-muted-foreground">Records the refund in the audit log only. No wallet is touched.</div>
+                    </div>
+                  </label>
+                </RadioGroup>
+              </div>
+              <div>
+                <Label>Amount (₦)</Label>
+                <Input type="number" value={refundAmount} onChange={(e) => setRefundAmount(e.target.value)} max={o.total} min={0} />
+                <div className="text-xs text-muted-foreground mt-1">Max ₦{Number(o.total).toLocaleString()}</div>
+              </div>
+              <div>
+                <Label>Reason</Label>
+                <Input value={refundReason} onChange={(e) => setRefundReason(e.target.value)} placeholder="e.g. Order cancelled, item unavailable" />
+              </div>
+              <div>
+                <Label>Notes (optional)</Label>
+                <Input value={refundNotes} onChange={(e) => setRefundNotes(e.target.value)} placeholder="Internal notes" />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setRefundOpen(false)}>Cancel</Button>
+              <Button
+                onClick={async () => {
+                  await callFn('assisted-order-refund', {
+                    order_id: orderId,
+                    mode: refundMode,
+                    amount: Number(refundAmount),
+                    reason: refundReason,
+                    notes: refundNotes,
+                    phone: o.receiver_phone,
+                  });
+                  setRefundOpen(false);
+                }}
+                disabled={busy !== null || !refundAmount || Number(refundAmount) <= 0}
+              >
+                {busy === 'assisted-order-refund' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Banknote className="w-4 h-4 mr-2" />}
+                Issue Refund
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <Card>
           <CardHeader><CardTitle>Audit Trail</CardTitle></CardHeader>

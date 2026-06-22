@@ -6583,6 +6583,80 @@ export type Database = {
           },
         ]
       }
+      shadow_customer_credits: {
+        Row: {
+          amount: number
+          cancelled_at: string | null
+          cancelled_by: string | null
+          claimed_at: string | null
+          claimed_user_id: string | null
+          created_at: string
+          created_by: string | null
+          currency: string
+          customer_email: string | null
+          customer_name: string | null
+          environment: string
+          id: string
+          notes: string | null
+          order_id: string | null
+          phone: string
+          reason: string | null
+          source: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          claimed_at?: string | null
+          claimed_user_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          customer_email?: string | null
+          customer_name?: string | null
+          environment?: string
+          id?: string
+          notes?: string | null
+          order_id?: string | null
+          phone: string
+          reason?: string | null
+          source?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          claimed_at?: string | null
+          claimed_user_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          customer_email?: string | null
+          customer_name?: string | null
+          environment?: string
+          id?: string
+          notes?: string | null
+          order_id?: string | null
+          phone?: string
+          reason?: string | null
+          source?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shadow_customer_credits_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       spin_results: {
         Row: {
           created_at: string | null
