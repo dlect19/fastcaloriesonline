@@ -1447,7 +1447,7 @@ export default function VendorOrders() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="sub-refund">Partial refund amount (₦) — leave 0 if same price</Label>
+                  <Label htmlFor="sub-refund">Total partial refund (₦) — leave 0 if same price</Label>
                   <Input
                     id="sub-refund"
                     type="number"
@@ -1458,7 +1458,7 @@ export default function VendorOrders() {
                     onChange={(e) => setSubForm((p) => ({ ...p, refund: e.target.value }))}
                   />
                   <p className="text-[11px] text-muted-foreground">
-                    Use this only if the substitute is cheaper. Amount is credited to the customer's wallet.
+                    This is the total refund for the substituted portion(s) — e.g. 3 portions × ₦1,300 difference = ₦3,900. Use only if the substitute is cheaper. Credited to the customer's wallet.
                   </p>
                 </div>
               </div>
