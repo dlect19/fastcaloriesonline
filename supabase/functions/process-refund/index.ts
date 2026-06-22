@@ -171,9 +171,9 @@ serve(async (req: Request) => {
         .from("shadow_customer_credits")
         .insert({
           phone,
-          customer_name: assisted?.receiver_name || null,
+          customer_name: assisted.receiver_name || null,
           amount: amt,
-          environment: assisted?.environment || "development",
+          environment: assisted.environment || "development",
           status: "pending",
           source: "order_refund",
           order_id: orderId,
