@@ -397,12 +397,12 @@ serve(async (req: Request) => {
           ? ` A partial refund of ₦${refundAmount.toLocaleString()} has been credited to your wallet.`
           : " (Same price, no charge difference.)";
         const lineQty = Math.max(1, Number(item.quantity || 1));
-        const subQty = scope === "item"
-          ? Math.max(1, Math.min(lineQty, Math.floor(Number(body.substituteQuantity || lineQty))))
-          : lineQty;
-        const portionPrefix = scope === "item" && subQty < lineQty
-          ? `${subQty} of ${lineQty} portion(s) of `
-          : "";
+        const subQty = Math.max(1, Math.min(lineQty, Math.floor(Number(body.substituteQuantity || lineQty))));
+        const portionPrefix = subQty < lineQty
+          ? (scope === "addon"
+              ? `the add-on on ${subQty} of ${lineQty} portion(s) — `
+              : `${subQty} of ${lineQty} portion(s) of `)
+          : (scope === "addon" ? "the add-on " : "");
         msg = `🔄 We've replaced ${portionPrefix}"${displayName}"${sub}${note}.${refundLine} Reply here if this doesn't work for you.`;
       }
       await admin.from("order_chat_messages").insert({
