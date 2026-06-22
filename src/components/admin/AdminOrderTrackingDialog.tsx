@@ -239,11 +239,20 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
       longitude: oLng,
     });
 
-    // Customer profile
-    const { data: cp } = await supabase
-      .from('profiles')
-      .select('full_name, phone')
-      .eq('user_id', o.user_id)
+    // Customer profile (registered customer)
+    const { data: cp } = o.user_id
+      ? await supabase
+          .from('profiles')
+          .select('full_name, phone')
+          .eq('user_id', o.user_id)
+          .maybeSingle()
+      : { data: null as any };
+
+    // Assisted-order fallback (unregistered customer) — receiver name/phone live here
+    const { data: assisted } = await supabase
+      .from('assisted_orders')
+      .select('receiver_name, receiver_phone')
+      .eq('order_id', o.id)
       .maybeSingle();
 
     // Customer delivery address (full lookup with coords)
@@ -269,8 +278,8 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
     }
 
     setCustomer({
-      name: cp?.full_name || 'Customer',
-      phone: cp?.phone || null,
+      name: cp?.full_name || assisted?.receiver_name || 'Customer',
+      phone: cp?.phone || assisted?.receiver_phone || null,
       email: null,
       addressLine: addrLine,
       city: addrCity,
