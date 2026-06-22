@@ -580,7 +580,7 @@ serve(async (req) => {
       payment_link: paymentLink,
       payment_reference: paymentReference,
       bank_transfer_instructions: bankInstructions,
-      payment_status: (walletPaid || shadowPaid) ? 'received' : 'awaiting',
+      payment_status: (walletPaid || shadowPaid || combinedPaid) ? 'received' : 'awaiting',
       created_by: adminId,
       last_modified_by: adminId,
     });
@@ -591,7 +591,7 @@ serve(async (req) => {
       order_id: order.id,
       actor_id: adminId,
       action: 'order_created',
-      details: { customer_phone: customer.phone, vendor_id, total, payment_method, channel, wallet_paid: walletPaid, wallet_shortfall: walletShortfall, shadow_paid: shadowPaid, shadow_consumed: shadowConsumed, shadow_shortfall: shadowShortfall, promo_code, discount: discountAmt },
+      details: { customer_phone: customer.phone, vendor_id, total, payment_method, channel, wallet_paid: walletPaid, wallet_shortfall: walletShortfall, shadow_paid: shadowPaid, shadow_consumed: shadowConsumed, shadow_shortfall: shadowShortfall, combined_paid: combinedPaid, combined_wallet_used: combinedWalletUsed, combined_shadow_used: combinedShadowUsed, combined_shortfall: combinedShortfall, promo_code, discount: discountAmt },
     });
 
     return json({
@@ -606,6 +606,10 @@ serve(async (req) => {
       shadow_consumed: shadowConsumed,
       shadow_consumed_pending: shadowConsumed,
       shadow_shortfall: shadowShortfall,
+      combined_paid: combinedPaid,
+      combined_wallet_used: combinedWalletUsed,
+      combined_shadow_used: combinedShadowUsed,
+      combined_shortfall: combinedShortfall,
       tracking_url: `${req.headers.get('origin') || ''}/track/${order.order_number}`,
     });
   } catch (e: any) {
