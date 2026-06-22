@@ -134,12 +134,50 @@ serve(async (req: Request) => {
       return json({ error: "Nothing refundable for this selection" }, 400);
     }
 
-    // ---- Credit wallet (only if paid order, has customer, refund > 0) ----
+    // ---- Detect assisted order — refunds go to shadow_customer_credits ----
+    const { data: assisted } = await admin
+      .from("assisted_orders").select("id, payment_status").eq("order_id", order.id).maybeSingle();
+    const isAssisted = !!assisted;
+
+    // ---- Credit destination ----
     let refundedToWallet = false;
+    let refundedToShadow = false;
+    let shadowCreditId: string | null = null;
     let newBalance: number | null = null;
     const reference = `${scope === "addon" ? "RA" : "RI"}-${(addon?.id || item.id).slice(0, 8)}-${Date.now()}`;
 
-    if (refundAmount > 0 && order.payment_status === "paid" && order.user_id) {
+    const orderPaid = order.payment_status === "paid" || (isAssisted && assisted?.payment_status === "received");
+
+    if (refundAmount > 0 && orderPaid && isAssisted) {
+      // Route to shadow credit (auto-claimed when customer signs up with same phone)
+      const phone = String((order as any).receiver_phone || "").trim();
+      if (phone) {
+        const { data: shadow, error: shadowErr } = await admin.from("shadow_customer_credits").insert({
+          phone,
+          customer_name: (order as any).receiver_name || null,
+          amount: refundAmount,
+          environment,
+          status: "pending",
+          source: "assisted_refund",
+          order_id: order.id,
+          reason: action === "substitute" ? "Substitute partial refund" : `${scope === "addon" ? "Add-on" : "Item"} refund`,
+          notes: body.reason || `${displayName} (#${order.order_number})${body.substituteName ? ` → ${body.substituteName}` : ""}`,
+          created_by: user.id,
+        }).select("id").maybeSingle();
+        if (!shadowErr && shadow) {
+          shadowCreditId = shadow.id;
+          refundedToShadow = true;
+          if (order.user_id) {
+            // Nudge auto-claim trigger if customer already has a profile
+            await admin.from("profiles").update({ updated_at: new Date().toISOString() }).eq("user_id", order.user_id);
+          }
+        } else if (shadowErr) {
+          console.error("[vendor-refund-item] shadow insert failed:", shadowErr.message);
+        }
+      } else {
+        console.warn("[vendor-refund-item] assisted order missing receiver_phone — refund not credited");
+      }
+    } else if (refundAmount > 0 && orderPaid && order.user_id) {
       let { data: wallet } = await admin
         .from("wallets").select("*").eq("user_id", order.user_id).eq("wallet_type", "customer").maybeSingle();
       if (!wallet) {
@@ -272,6 +310,9 @@ serve(async (req: Request) => {
           unit_price: subbedUnitPrice,
           total_price: newTotalWithAddons,
           calories: Math.round(origCalPerUnit * subQty),
+          // Rename the line so receipts/chat/customer view show the actual item served.
+          // Original name is preserved on substituted_with for audit.
+          product_name: body.substituteName || item.product_name,
           ...subFields,
           substitute_refund_amount: refundAmount || null,
         }).eq("id", item.id);
@@ -318,27 +359,31 @@ serve(async (req: Request) => {
     }).eq("id", order.id);
 
     // ---- Post a chat message to the customer ----
+    // For assisted orders we credit a shadow credit (held by phone) instead of a wallet.
+    const creditDestLabel = refundedToShadow
+      ? "held as credit on your phone number (it will auto-credit your wallet when you sign up)"
+      : "refunded to your wallet";
+    const creditDestLabelShort = refundedToShadow ? "held as credit on your phone number" : "credited to your wallet";
+
     try {
       let msg = "";
       if (action === "refund") {
         msg = scope === "addon"
-          ? `⚠️ The add-on "${displayName}" is unavailable. ₦${refundAmount.toLocaleString()} has been refunded to your wallet.`
-          : `⚠️ "${displayName}" is unavailable. ₦${refundAmount.toLocaleString()} has been refunded to your wallet. The rest of your order is being prepared.`;
+          ? `⚠️ The add-on "${displayName}" is unavailable. ₦${refundAmount.toLocaleString()} has been ${creditDestLabel}.`
+          : `⚠️ "${displayName}" is unavailable. ₦${refundAmount.toLocaleString()} has been ${creditDestLabel}. The rest of your order is being prepared.`;
       } else {
         const sub = body.substituteName ? ` with "${body.substituteName}"` : "";
         const note = body.substituteNote ? ` — ${body.substituteNote}` : "";
         const refundLine = refundAmount > 0
-          ? ` A partial refund of ₦${refundAmount.toLocaleString()} has been credited to your wallet.`
+          ? ` A partial refund of ₦${refundAmount.toLocaleString()} has been ${creditDestLabelShort}.`
           : " (Same price, no charge difference.)";
         const lineQty = Math.max(1, Number(item.quantity || 1));
         const rawQ = Math.max(1, Math.floor(Number(body.substituteQuantity || lineQty)));
         const subQty = scope === "addon" ? Math.min(lineQty, rawQ) : rawQ;
         let portionPrefix = "";
         if (scope === "addon") {
-          // Mirror item: full-line replace. State the swap across all parent portions.
           portionPrefix = `the add-on on your ${lineQty} × `;
         } else {
-          // item: full-line replace with subQty of the new item
           portionPrefix = `your ${lineQty} × `;
         }
         const itemSuffix = body.substituteName
@@ -357,7 +402,7 @@ serve(async (req: Request) => {
       console.warn("[vendor-refund-item] chat insert failed:", e);
     }
 
-    console.log(`[vendor-refund-item] ${reference} order=${order.order_number} scope=${scope} action=${action} amount=₦${refundAmount}`);
+    console.log(`[vendor-refund-item] ${reference} order=${order.order_number} scope=${scope} action=${action} amount=₦${refundAmount} dest=${refundedToShadow ? "shadow" : refundedToWallet ? "wallet" : "none"}`);
 
     return json({
       success: true,
@@ -366,6 +411,9 @@ serve(async (req: Request) => {
       action,
       refund_amount: refundAmount,
       refunded_to_wallet: refundedToWallet,
+      refunded_to_shadow: refundedToShadow,
+      shadow_credit_id: shadowCreditId,
+      assisted_order: isAssisted,
       new_balance: newBalance,
       new_order_subtotal: newSubtotal,
       new_order_total: newTotal,
