@@ -85,7 +85,18 @@ export function AdminCancelOrderDialog({
         if (refundError) {
           toast({ title: 'Order Cancelled', description: 'Refund failed — please process manually.', variant: 'destructive' });
         } else if (refundData?.success) {
-          toast({ title: 'Order Cancelled & Refunded', description: `₦${refundData.refund_amount?.toLocaleString()} refunded to customer wallet` });
+          const desc = refundData.message
+            || (refundData.refund_amount
+              ? `₦${Number(refundData.refund_amount).toLocaleString()} refunded to customer wallet`
+              : 'Refund processed');
+          toast({
+            title: refundData.shadow
+              ? 'Order Cancelled — Shadow Credit Held'
+              : refundData.offline
+                ? 'Order Cancelled — Offline Refund Recorded'
+                : 'Order Cancelled & Refunded',
+            description: desc,
+          });
         } else {
           toast({ title: 'Order Cancelled', description: refundData?.error || 'Refund status unknown' });
         }
