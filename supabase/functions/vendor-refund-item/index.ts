@@ -310,6 +310,9 @@ serve(async (req: Request) => {
           unit_price: subbedUnitPrice,
           total_price: newTotalWithAddons,
           calories: Math.round(origCalPerUnit * subQty),
+          // Rename the line so receipts/chat/customer view show the actual item served.
+          // Original name is preserved on substituted_with for audit.
+          product_name: body.substituteName || item.product_name,
           ...subFields,
           substitute_refund_amount: refundAmount || null,
         }).eq("id", item.id);
