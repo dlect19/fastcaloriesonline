@@ -142,7 +142,7 @@ serve(async (req) => {
     const recvPhone = receiver?.phone || customer.phone;
 
     // Insert order
-    const storedPaymentMethod = payment_method === 'cash' ? 'cash' : payment_method === 'wallet' ? 'wallet' : payment_method === 'shadow_credit' ? 'shadow_credit' : 'paystack';
+    const storedPaymentMethod = payment_method === 'cash' ? 'cash' : payment_method === 'wallet' ? 'wallet' : payment_method === 'shadow_credit' ? 'shadow_credit' : payment_method === 'combined' ? 'combined' : 'paystack';
     const { data: order, error: orderErr } = await supabase
       .from('orders')
       .insert({
