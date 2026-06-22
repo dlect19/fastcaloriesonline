@@ -118,9 +118,9 @@ serve(async (req) => {
     const discountAmt = Math.min(Number(discount) || 0, subtotal);
     const total = Math.max(0, subtotal - discountAmt) + Number(packaging_fee) + (delivery_type === 'delivery' ? Number(delivery_fee) : 0) + Number(service_fee);
 
-    // Wallet payment requires a registered customer
-    if (payment_method === 'wallet' && !userId) {
-      return json({ error: 'Wallet payment requires the customer to have a FastCalories account.' }, 400);
+    // Wallet / combined payment requires a registered customer
+    if ((payment_method === 'wallet' || payment_method === 'combined') && !userId) {
+      return json({ error: 'Wallet/combined payment requires the customer to have a FastCalories account.' }, 400);
     }
 
     // Confirmation code (delivery OTP) — 6 digits
