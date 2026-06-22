@@ -646,12 +646,10 @@ export default function VendorOrders() {
       toast({ title: 'Substitute name required', variant: 'destructive' });
       return;
     }
-    // For items, subQty is the quantity of the REPLACEMENT item (unbounded).
-    // For addons, it's how many of the parent portions get the new addon (bounded by line qty).
+    // Full-line replace for both item and addon: subQty is the REPLACEMENT
+    // quantity — unbounded by parent line quantity. Math mirrors items.
     const rawQty = Math.max(1, parseInt(subForm.quantity || '1', 10) || 1);
-    const subQty = substituteDialog.scope === 'addon'
-      ? Math.min(substituteDialog.totalQuantity, rawQty)
-      : rawQty;
+    const subQty = rawQty;
     setSubSubmitting(true);
     try {
       const body: any = {
