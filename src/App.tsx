@@ -165,6 +165,14 @@ const PortalTracker = () => {
   return null;
 };
 
+const CustomerChatNotifier = () => {
+  // Inside BrowserRouter so it can use navigate/location
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { useCustomerChatNotifications } = require('@/hooks/useCustomerChatNotifications');
+  useCustomerChatNotifications();
+  return null;
+};
+
 const App = () => {
   // Register FCM token on native Capacitor platforms
   useFcmNotifications();
