@@ -699,7 +699,7 @@ export default function VendorOrders() {
               </button>
               <button
                 type="button"
-                onClick={() => openSubstitute('item', item.id, item.product_name, orderNumber)}
+                onClick={() => openSubstitute('item', item.id, item.product_name, Number((item as any).unit_price ?? (Number(item.total_price) / Math.max(1, item.quantity))), orderNumber)}
                 className="text-[11px] text-primary hover:underline font-medium"
               >
                 Offer substitute
@@ -757,7 +757,7 @@ export default function VendorOrders() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => openSubstitute('addon', addon.id, addon.addon_item_name, orderNumber)}
+                      onClick={() => openSubstitute('addon', addon.id, addon.addon_item_name, Number(addon.additional_price || 0), orderNumber)}
                       className="text-[10px] text-primary hover:underline font-medium"
                     >
                       Offer substitute
