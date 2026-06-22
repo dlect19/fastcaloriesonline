@@ -1417,16 +1417,11 @@ export default function VendorOrders() {
 
                 {substituteDialog && (
                   <div className="space-y-1">
-                    <Label htmlFor="sub-qty">
-                      {substituteDialog.scope === 'item'
-                        ? 'Quantity of replacement item'
-                        : `Quantity to substitute (of ${substituteDialog.totalQuantity} parent portion(s))`}
-                    </Label>
+                    <Label htmlFor="sub-qty">Quantity of replacement {substituteDialog.scope === 'addon' ? 'add-on' : 'item'}</Label>
                     <Input
                       id="sub-qty"
                       type="number"
                       min="1"
-                      {...(substituteDialog.scope === 'addon' ? { max: substituteDialog.totalQuantity } : {})}
                       step="1"
                       value={subForm.quantity}
                       onChange={(e) => {
@@ -1434,11 +1429,8 @@ export default function VendorOrders() {
                         setSubForm((p) => {
                           if (p.matchedPrice !== null && substituteDialog) {
                             const lineQty = substituteDialog.totalQuantity;
-                            const raw = Math.max(1, parseInt(newQty || '1', 10) || 1);
-                            const q = substituteDialog.scope === 'addon' ? Math.min(lineQty, raw) : raw;
-                            const total = substituteDialog.scope === 'item'
-                              ? (lineQty * substituteDialog.originalPrice) - (q * p.matchedPrice)
-                              : (substituteDialog.originalPrice - p.matchedPrice) * q;
+                            const q = Math.max(1, parseInt(newQty || '1', 10) || 1);
+                            const total = (lineQty * substituteDialog.originalPrice) - (q * p.matchedPrice);
                             return { ...p, quantity: newQty, refund: total > 0 ? String(total) : '' };
                           }
                           return { ...p, quantity: newQty };
@@ -1446,11 +1438,7 @@ export default function VendorOrders() {
                       }}
                     />
                     <p className="text-[11px] text-muted-foreground">
-                      {substituteDialog.scope === 'addon' ? (
-                        <>The other {Math.max(0, substituteDialog.totalQuantity - (parseInt(subForm.quantity || '1', 10) || 1))} portion(s) keep the original <strong>{substituteDialog.originalName}</strong> add-on. The parent line will be split so only the swapped portions get the new add-on.</>
-                      ) : (
-                        <>The entire line of {substituteDialog.totalQuantity} × <strong>{substituteDialog.originalName}</strong> will be replaced with {Math.max(1, parseInt(subForm.quantity || '1', 10) || 1)} × the replacement item. Refund = original total − new total.</>
-                      )}
+                      The entire {substituteDialog.scope === 'addon' ? 'add-on' : 'line'} of {substituteDialog.totalQuantity} × <strong>{substituteDialog.originalName}</strong> will be replaced with {Math.max(1, parseInt(subForm.quantity || '1', 10) || 1)} × the replacement{substituteDialog.scope === 'addon' ? ' add-on' : ''}. Refund = original total − new total.
                     </p>
                   </div>
                 )}
@@ -1481,12 +1469,30 @@ export default function VendorOrders() {
                   </p>
                 </div>
 
+                {/* Agreement gate */}
+                <div className="rounded-md border-2 border-amber-400 bg-amber-50 dark:bg-amber-950/30 p-3 space-y-2">
+                  <p className="text-xs font-bold text-amber-900 dark:text-amber-200 leading-snug">
+                    ⚠️ Call or chat the customer FIRST. Get their agreement on the replacement and refund before you apply this change.
+                  </p>
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={subForm.agreed}
+                      onChange={(e) => setSubForm((p) => ({ ...p, agreed: e.target.checked }))}
+                      className="mt-0.5 w-4 h-4 accent-primary shrink-0"
+                    />
+                    <span className="text-xs text-amber-900 dark:text-amber-200">
+                      I have contacted the customer and they <strong>agreed</strong> to this substitute.
+                    </span>
+                  </label>
+                </div>
+
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setSubstituteDialog(null)} disabled={subSubmitting}>
                   Cancel
                 </Button>
-                <Button onClick={submitSubstitute} disabled={subSubmitting || !subForm.name.trim()}>
+                <Button onClick={submitSubstitute} disabled={subSubmitting || !subForm.name.trim() || !subForm.agreed}>
                   {subSubmitting ? 'Applying…' : 'Apply substitute'}
                 </Button>
               </DialogFooter>
