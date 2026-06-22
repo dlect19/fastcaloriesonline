@@ -139,9 +139,59 @@ serve(async (req: Request) => {
     }
 
     if (!order.user_id) {
+      // Assisted order without a registered customer — route to shadow credit by phone
+      const amt = customAmount ? Number(customAmount) : Number(order.total);
+      const { data: assisted } = await supabaseAdmin
+        .from("assisted_orders")
+        .select("receiver_phone, receiver_name, environment")
+        .eq("order_id", orderId)
+        .maybeSingle();
+
+      const phone = String(assisted?.receiver_phone || order.delivery_phone || "").trim();
+      if (!phone) {
+        return new Response(
+          JSON.stringify({ error: "Order has no associated customer and no phone on file. Use the Assisted Order refund dialog to record an offline refund." }),
+          { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+
+      const { data: shadowRow, error: shadowErr } = await supabaseAdmin
+        .from("shadow_customer_credits")
+        .insert({
+          phone,
+          customer_name: assisted?.receiver_name || null,
+          amount: amt,
+          environment: assisted?.environment || "development",
+          status: "pending",
+          source: "order_refund",
+          order_id: orderId,
+          reason: reason || "Order refund",
+          created_by: user.id,
+        })
+        .select("id")
+        .maybeSingle();
+
+      if (shadowErr) {
+        return new Response(
+          JSON.stringify({ error: `Failed to record shadow credit: ${shadowErr.message}` }),
+          { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+
+      // Mark order refunded for accounting consistency
+      await supabaseAdmin
+        .from("orders")
+        .update({ payment_status: "refunded" })
+        .eq("id", orderId);
+
       return new Response(
-        JSON.stringify({ error: "Order has no associated customer" }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        JSON.stringify({
+          success: true,
+          shadow: true,
+          shadow_id: shadowRow?.id,
+          message: `₦${amt.toLocaleString()} held as shadow credit for ${phone}. It will auto-credit their wallet when they sign up.`,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
