@@ -42,16 +42,25 @@ export default function AssistedOrderCreate() {
     email: string | null;
     wallet_balance: number;
   }>(null);
+  const [shadowCreditAvailable, setShadowCreditAvailable] = useState<number>(0);
   const [lookingUp, setLookingUp] = useState(false);
 
   useEffect(() => {
-    if (!isValidNgPhone(customerPhone)) { setExistingCustomer(null); return; }
+    if (!isValidNgPhone(customerPhone)) { setExistingCustomer(null); setShadowCreditAvailable(0); return; }
     let cancelled = false;
     setLookingUp(true);
     (async () => {
       const { data: profile } = await supabase
         .from('profiles').select('user_id, full_name, phone').eq('phone', customerPhone).maybeSingle();
+      // Shadow credits are keyed by phone, regardless of whether the customer has signed up.
+      const { data: credits } = await supabase
+        .from('shadow_customer_credits')
+        .select('amount')
+        .eq('phone', customerPhone)
+        .eq('status', 'pending');
+      const totalShadow = (credits || []).reduce((s, r: any) => s + Number(r.amount || 0), 0);
       if (cancelled) return;
+      setShadowCreditAvailable(totalShadow);
       if (!profile?.user_id) { setExistingCustomer(null); setLookingUp(false); return; }
       const { data: wallet } = await supabase
         .from('wallets').select('balance').eq('user_id', profile.user_id).eq('wallet_type', 'customer').maybeSingle();
@@ -122,7 +131,7 @@ export default function AssistedOrderCreate() {
   const { calculateServiceFee } = useServiceFee();
 
   // Payment
-  const [paymentMethod, setPaymentMethod] = useState<'paystack_link' | 'bank_transfer' | 'cash' | 'wallet'>('paystack_link');
+  const [paymentMethod, setPaymentMethod] = useState<'paystack_link' | 'bank_transfer' | 'cash' | 'wallet' | 'shadow_credit'>('paystack_link');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -295,6 +304,7 @@ export default function AssistedOrderCreate() {
   const total = Math.max(0, subtotal - effectiveDiscount + packagingFee + (deliveryType === 'delivery' ? deliveryFee : 0) + serviceFee);
   const walletBalance = existingCustomer?.wallet_balance || 0;
   const walletShortfall = paymentMethod === 'wallet' ? Math.max(0, total - walletBalance) : 0;
+  const shadowShortfall = paymentMethod === 'shadow_credit' ? Math.max(0, total - shadowCreditAvailable) : 0;
 
   const validatePromo = async () => {
     const code = promoInput.trim();
@@ -444,6 +454,10 @@ export default function AssistedOrderCreate() {
       if (!data?.order_id) throw new Error(data?.error || 'No order id returned');
       if (data?.wallet_paid) {
         toast({ title: 'Order paid via wallet', description: `Order #${data.order_number} confirmed.` });
+      } else if (data?.shadow_paid) {
+        toast({ title: 'Order paid with shadow credit', description: `Order #${data.order_number} confirmed. ₦${Number(data.shadow_consumed || 0).toLocaleString()} credit redeemed.` });
+      } else if (data?.shadow_shortfall) {
+        toast({ title: 'Shadow credit short — Paystack link generated', description: `Credit of ₦${Number(data.shadow_consumed_pending || 0).toLocaleString()} held. Customer owes ₦${Number(data.shadow_shortfall).toLocaleString()}.` });
       } else if (data?.wallet_shortfall) {
         toast({ title: 'Wallet short — Paystack link generated', description: `Customer owes ₦${Number(data.wallet_shortfall).toLocaleString()}. Share the link to complete payment.` });
       } else {
@@ -877,6 +891,9 @@ export default function AssistedOrderCreate() {
                 {existingCustomer?.user_id && (
                   <SelectItem value="wallet">Customer Wallet (₦{walletBalance.toLocaleString()} available)</SelectItem>
                 )}
+                {shadowCreditAvailable > 0 && (
+                  <SelectItem value="shadow_credit">Apply Shadow Credit (₦{shadowCreditAvailable.toLocaleString()} available)</SelectItem>
+                )}
                 <SelectItem value="paystack_link">Send Paystack payment link</SelectItem>
                 <SelectItem value="bank_transfer">Bank transfer instructions</SelectItem>
                 <SelectItem value="cash">Cash (mark paid manually)</SelectItem>
@@ -890,6 +907,17 @@ export default function AssistedOrderCreate() {
                   </>
                 ) : (
                   <>✓ Wallet has enough funds. Order will be paid & confirmed instantly.</>
+                )}
+              </div>
+            )}
+            {paymentMethod === 'shadow_credit' && (
+              <div className={`rounded p-2 text-xs ${shadowShortfall > 0 ? 'bg-yellow-500/10 border border-yellow-500/40 text-yellow-800' : 'bg-green-500/10 border border-green-500/40 text-green-800'}`}>
+                {shadowShortfall > 0 ? (
+                  <>
+                    <strong>Shadow credit short by ₦{shadowShortfall.toLocaleString()}.</strong> A Paystack link for the balance will be generated; the available ₦{shadowCreditAvailable.toLocaleString()} credit will be consumed once the balance is paid.
+                  </>
+                ) : (
+                  <>✓ Shadow credit covers the full order. It will be redeemed and the order marked paid instantly.</>
                 )}
               </div>
             )}
