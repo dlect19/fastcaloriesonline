@@ -887,6 +887,9 @@ export default function AssistedOrderCreate() {
                 {existingCustomer?.user_id && (
                   <SelectItem value="wallet">Customer Wallet (₦{walletBalance.toLocaleString()} available)</SelectItem>
                 )}
+                {shadowCreditAvailable > 0 && (
+                  <SelectItem value="shadow_credit">Apply Shadow Credit (₦{shadowCreditAvailable.toLocaleString()} available)</SelectItem>
+                )}
                 <SelectItem value="paystack_link">Send Paystack payment link</SelectItem>
                 <SelectItem value="bank_transfer">Bank transfer instructions</SelectItem>
                 <SelectItem value="cash">Cash (mark paid manually)</SelectItem>
@@ -900,6 +903,17 @@ export default function AssistedOrderCreate() {
                   </>
                 ) : (
                   <>✓ Wallet has enough funds. Order will be paid & confirmed instantly.</>
+                )}
+              </div>
+            )}
+            {paymentMethod === 'shadow_credit' && (
+              <div className={`rounded p-2 text-xs ${shadowShortfall > 0 ? 'bg-yellow-500/10 border border-yellow-500/40 text-yellow-800' : 'bg-green-500/10 border border-green-500/40 text-green-800'}`}>
+                {shadowShortfall > 0 ? (
+                  <>
+                    <strong>Shadow credit short by ₦{shadowShortfall.toLocaleString()}.</strong> A Paystack link for the balance will be generated; the available ₦{shadowCreditAvailable.toLocaleString()} credit will be consumed once the balance is paid.
+                  </>
+                ) : (
+                  <>✓ Shadow credit covers the full order. It will be redeemed and the order marked paid instantly.</>
                 )}
               </div>
             )}
