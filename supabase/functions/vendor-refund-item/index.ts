@@ -259,13 +259,17 @@ serve(async (req: Request) => {
       const origUnit = Number(item.unit_price || 0);
       const origCalPerUnit = Number(item.calories || 0) / lineQty;
 
-      // Fetch all add-ons attached to the parent item (needed for split math + addon scope)
+      // Fetch all add-ons attached to the parent item (needed for split math + addon scope).
+      // IMPORTANT: include refunded add-ons in addonSumPerPortion so the line's total_price
+      // mirrors the original pre-refund composition. The order-level subtotal recompute
+      // below is the *only* place refunded add-ons get subtracted — otherwise we'd deduct
+      // them twice and the vendor revenue would come up short.
       const { data: parentAddons } = await admin
         .from("order_item_addons")
         .select("*")
         .eq("order_item_id", item.id);
-      const liveAddons = (parentAddons || []).filter((a: any) => !a.is_refunded);
-      const addonSumPerPortion = liveAddons.reduce((s: number, a: any) => s + Number(a.additional_price || 0), 0);
+      const allAddons = parentAddons || [];
+      const addonSumPerPortion = allAddons.reduce((s: number, a: any) => s + Number(a.additional_price || 0), 0);
 
       if (scope === "addon") {
         // Full-line replace (mirrors item logic): the addon on every parent
