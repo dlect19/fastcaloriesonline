@@ -46,12 +46,12 @@ export default function AdminLedgerAudit() {
   const [search, setSearch] = useState('');
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const { isAdminTestMode } = useAdminTestMode();
-  const environment = isAdminTestMode ? 'development' : 'production';
+  const [envFilter, setEnvFilter] = useState<'all' | 'production' | 'development'>('all');
 
   useEffect(() => {
     fetchAudit();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateRange, environment]);
+  }, [dateRange, envFilter]);
 
   const fetchAudit = async () => {
     setLoading(true);
@@ -59,9 +59,10 @@ export default function AdminLedgerAudit() {
       let q = (supabase as any)
         .from('ledger_adjustments_audit')
         .select('*')
-        .eq('environment', environment)
         .order('created_at', { ascending: false })
         .limit(500);
+
+      if (envFilter !== 'all') q = q.eq('environment', envFilter);
 
       if (dateRange.from) q = q.gte('created_at', dateRange.from.toISOString());
       if (dateRange.to) {
@@ -106,7 +107,20 @@ export default function AdminLedgerAudit() {
               Every wallet/ledger change from refunds, substitutes, and pending payout updates with before/after values.
             </p>
           </div>
-          <DateRangeFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex rounded-md border bg-background overflow-hidden text-xs">
+              {(['all','production','development'] as const).map(opt => (
+                <button
+                  key={opt}
+                  onClick={() => setEnvFilter(opt)}
+                  className={`px-3 py-1.5 capitalize ${envFilter === opt ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+            <DateRangeFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -165,6 +179,7 @@ export default function AdminLedgerAudit() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Time</TableHead>
+                      <TableHead>Env</TableHead>
                       <TableHead>Order #</TableHead>
                       <TableHead>Scope</TableHead>
                       <TableHead>Wallet</TableHead>
@@ -181,6 +196,11 @@ export default function AdminLedgerAudit() {
                         <TableRow key={row.id}>
                           <TableCell className="text-sm whitespace-nowrap">
                             {format(new Date(row.created_at), 'dd MMM, HH:mm')}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={row.environment === 'production' ? 'default' : 'outline'} className="text-[10px] capitalize">
+                              {row.environment}
+                            </Badge>
                           </TableCell>
                           <TableCell>
                             {row.order_number ? (
