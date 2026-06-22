@@ -167,10 +167,12 @@ export default function VendorOrders() {
     scope: 'item' | 'addon';
     id: string;
     originalName: string;
+    originalPrice: number;
     orderNumber: string;
   } | null>(null);
-  const [subForm, setSubForm] = useState<{ name: string; note: string; refund: string }>({ name: '', note: '', refund: '' });
+  const [subForm, setSubForm] = useState<{ name: string; note: string; refund: string; matchedPrice: number | null }>({ name: '', note: '', refund: '', matchedPrice: null });
   const [subSubmitting, setSubSubmitting] = useState(false);
+  const [menuOptions, setMenuOptions] = useState<{ id: string; name: string; price: number; is_available: boolean }[]>([]);
   const [completedPage, setCompletedPage] = useState(1);
   const { selectedOutletId, setSelectedOutletId, ready: outletReady } = usePersistedOutletId();
   const ITEMS_PER_PAGE = 10;
