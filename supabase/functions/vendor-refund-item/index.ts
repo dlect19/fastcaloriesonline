@@ -214,7 +214,11 @@ serve(async (req: Request) => {
       };
 
       const lineQty = Math.max(1, Number(item.quantity || 1));
-      const subQty = Math.max(1, Math.min(lineQty, Math.floor(Number(body.substituteQuantity || lineQty))));
+      // For items, subQty is the REPLACEMENT quantity (unbounded by lineQty —
+      // vendor may give fewer/more portions of the substitute).
+      // For addons, it's how many parent portions get the new addon (capped by lineQty).
+      const rawSubQty = Math.max(1, Math.floor(Number(body.substituteQuantity || lineQty)));
+      const subQty = scope === "addon" ? Math.min(lineQty, rawSubQty) : rawSubQty;
       const origUnit = Number(item.unit_price || 0);
       const origCalPerUnit = Number(item.calories || 0) / lineQty;
 
@@ -301,46 +305,26 @@ serve(async (req: Request) => {
           }
         }
       } else {
-        // scope === "item"
-        if (subQty >= lineQty) {
-          // Whole line substituted in place
-          await admin.from("order_items").update({
-            ...subFields,
-            substitute_refund_amount: refundAmount || null,
-          }).eq("id", item.id);
-        } else {
-          // Split: shrink original (keeps add-ons), insert new substituted row (no add-ons)
-          const remainingQty = lineQty - subQty;
-          const subbedUnitPrice = Math.max(
-            0,
-            origUnit - (refundAmount > 0 ? refundAmount / subQty : 0),
-          );
-          const remainingTotal = +((origUnit + addonSumPerPortion) * remainingQty).toFixed(2);
-          const subbedTotal = +(subbedUnitPrice * subQty).toFixed(2);
+        // scope === "item" — full-line replace.
+        // Vendor specifies the REPLACEMENT quantity (subQty), not how many of the
+        // original to swap. The whole original line becomes subQty × substitute.
+        // Refund = (lineQty × origUnit) − (subQty × subbedUnitPrice).
+        // We derive the substitute unit price from refundAmount so the math is consistent:
+        //   subbedUnitPrice = (lineQty × origUnit − refundAmount) / subQty
+        const origLineTotal = lineQty * origUnit;
+        const newLineTotal = Math.max(0, origLineTotal - refundAmount);
+        const subbedUnitPrice = subQty > 0 ? +(newLineTotal / subQty).toFixed(2) : 0;
+        // Keep existing add-ons but recompute parent total to reflect new qty + new unit price.
+        const newTotalWithAddons = +(((subbedUnitPrice + addonSumPerPortion) * subQty)).toFixed(2);
 
-          await admin.from("order_items").update({
-            quantity: remainingQty,
-            total_price: remainingTotal,
-            calories: Math.round(origCalPerUnit * remainingQty),
-          }).eq("id", item.id);
-
-          await admin.from("order_items").insert({
-            order_id: item.order_id,
-            product_id: item.product_id,
-            product_name: item.product_name,
-            quantity: subQty,
-            unit_price: subbedUnitPrice,
-            total_price: subbedTotal,
-            calories: Math.round(origCalPerUnit * subQty),
-            special_instructions: item.special_instructions,
-            package_id: item.package_id,
-            original_unit_price: item.original_unit_price ?? origUnit,
-            purchase_unit: item.purchase_unit,
-            unit_multiplier: item.unit_multiplier,
-            ...subFields,
-            substitute_refund_amount: refundAmount || null,
-          });
-        }
+        await admin.from("order_items").update({
+          quantity: subQty,
+          unit_price: subbedUnitPrice,
+          total_price: newTotalWithAddons,
+          calories: Math.round(origCalPerUnit * subQty),
+          ...subFields,
+          substitute_refund_amount: refundAmount || null,
+        }).eq("id", item.id);
       }
     }
 
@@ -397,13 +381,23 @@ serve(async (req: Request) => {
           ? ` A partial refund of ₦${refundAmount.toLocaleString()} has been credited to your wallet.`
           : " (Same price, no charge difference.)";
         const lineQty = Math.max(1, Number(item.quantity || 1));
-        const subQty = Math.max(1, Math.min(lineQty, Math.floor(Number(body.substituteQuantity || lineQty))));
-        const portionPrefix = subQty < lineQty
-          ? (scope === "addon"
-              ? `the add-on on ${subQty} of ${lineQty} portion(s) — `
-              : `${subQty} of ${lineQty} portion(s) of `)
-          : (scope === "addon" ? "the add-on " : "");
-        msg = `🔄 We've replaced ${portionPrefix}"${displayName}"${sub}${note}.${refundLine} Reply here if this doesn't work for you.`;
+        const rawQ = Math.max(1, Math.floor(Number(body.substituteQuantity || lineQty)));
+        const subQty = scope === "addon" ? Math.min(lineQty, rawQ) : rawQ;
+        let portionPrefix = "";
+        if (scope === "addon") {
+          portionPrefix = subQty < lineQty
+            ? `the add-on on ${subQty} of ${lineQty} portion(s) — `
+            : "the add-on ";
+        } else {
+          // item: full-line replace with subQty of the new item
+          portionPrefix = `your ${lineQty} × `;
+        }
+        const itemSuffix = scope === "item" && body.substituteName
+          ? ` with ${subQty} × "${body.substituteName}"${note}`
+          : `${sub}${note}`;
+        msg = scope === "item"
+          ? `🔄 We've replaced ${portionPrefix}"${displayName}"${itemSuffix}.${refundLine} Reply here if this doesn't work for you.`
+          : `🔄 We've replaced ${portionPrefix}"${displayName}"${sub}${note}.${refundLine} Reply here if this doesn't work for you.`;
       }
       await admin.from("order_chat_messages").insert({
         order_id: order.id,
