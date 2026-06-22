@@ -25,8 +25,12 @@ type Body = {
   // Substitute fields
   substituteName?: string;
   substituteNote?: string;
-  // Optional partial refund alongside substitute (e.g. cheaper replacement)
+  // Optional partial refund alongside substitute (e.g. cheaper replacement) — total amount
   substituteRefundAmount?: number;
+  // For item substitutes only: how many portions of the line to substitute.
+  // Defaults to the full line quantity. When < line quantity, the row is split
+  // so the remaining portions stay as the original item.
+  substituteQuantity?: number;
   reason?: string;
 };
 
