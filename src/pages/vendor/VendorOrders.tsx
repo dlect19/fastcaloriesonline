@@ -222,6 +222,23 @@ export default function VendorOrders() {
     }
   };
 
+  // Load vendor menu (for substitute autocomplete)
+  useEffect(() => {
+    if (!vendor?.id) { setMenuOptions([]); return; }
+    let q = supabase.from('products')
+      .select('id, name, price, is_available, outlet_id')
+      .eq('vendor_id', vendor.id)
+      .order('name')
+      .limit(500);
+    if (selectedOutletId) q = q.or(`outlet_id.eq.${selectedOutletId},outlet_id.is.null`);
+    q.then(({ data }) => {
+      setMenuOptions((data || []).map((p: any) => ({
+        id: p.id, name: p.name, price: Number(p.price), is_available: p.is_available,
+      })));
+    });
+  }, [vendor?.id, selectedOutletId]);
+
+
   // Subscribe to real-time order updates — scoped to selected outlet
   useEffect(() => {
     if (!vendor || !selectedOutletId) return;
