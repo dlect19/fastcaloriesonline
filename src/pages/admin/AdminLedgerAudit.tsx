@@ -179,6 +179,7 @@ export default function AdminLedgerAudit() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Time</TableHead>
+                      <TableHead>Env</TableHead>
                       <TableHead>Order #</TableHead>
                       <TableHead>Scope</TableHead>
                       <TableHead>Wallet</TableHead>
@@ -195,6 +196,11 @@ export default function AdminLedgerAudit() {
                         <TableRow key={row.id}>
                           <TableCell className="text-sm whitespace-nowrap">
                             {format(new Date(row.created_at), 'dd MMM, HH:mm')}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={row.environment === 'production' ? 'default' : 'outline'} className="text-[10px] capitalize">
+                              {row.environment}
+                            </Badge>
                           </TableCell>
                           <TableCell>
                             {row.order_number ? (
