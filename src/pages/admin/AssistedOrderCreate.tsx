@@ -902,11 +902,24 @@ export default function AssistedOrderCreate() {
                 {shadowCreditAvailable > 0 && (
                   <SelectItem value="shadow_credit">Apply Shadow Credit (₦{shadowCreditAvailable.toLocaleString()} available)</SelectItem>
                 )}
+                {existingCustomer?.user_id && shadowCreditAvailable > 0 && (
+                  <SelectItem value="combined">Wallet + Shadow Credit (+ Paystack for balance)</SelectItem>
+                )}
                 <SelectItem value="paystack_link">Send Paystack payment link</SelectItem>
                 <SelectItem value="bank_transfer">Bank transfer instructions</SelectItem>
                 <SelectItem value="cash">Cash (mark paid manually)</SelectItem>
               </SelectContent>
             </Select>
+            {paymentMethod === 'combined' && existingCustomer && (
+              <div className={`rounded p-2 text-xs ${combinedShortfall > 0 ? 'bg-yellow-500/10 border border-yellow-500/40 text-yellow-800' : 'bg-green-500/10 border border-green-500/40 text-green-800'}`}>
+                <div>Wallet: ₦{walletBalance.toLocaleString()} + Shadow credit: ₦{shadowCreditAvailable.toLocaleString()} = ₦{(walletBalance + shadowCreditAvailable).toLocaleString()}</div>
+                {combinedShortfall > 0 ? (
+                  <div className="mt-1"><strong>Short by ₦{combinedShortfall.toLocaleString()}.</strong> Wallet & shadow credit will be reserved; a Paystack link for the balance will be generated.</div>
+                ) : (
+                  <div className="mt-1">✓ Covers full order (uses ₦{combinedCovered.toLocaleString()}). Wallet first, then shadow credit; order paid instantly.</div>
+                )}
+              </div>
+            )}
             {paymentMethod === 'wallet' && existingCustomer && (
               <div className={`rounded p-2 text-xs ${walletShortfall > 0 ? 'bg-yellow-500/10 border border-yellow-500/40 text-yellow-800' : 'bg-green-500/10 border border-green-500/40 text-green-800'}`}>
                 {walletShortfall > 0 ? (
