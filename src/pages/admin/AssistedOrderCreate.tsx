@@ -462,6 +462,10 @@ export default function AssistedOrderCreate() {
       if (!data?.order_id) throw new Error(data?.error || 'No order id returned');
       if (data?.wallet_paid) {
         toast({ title: 'Order paid via wallet', description: `Order #${data.order_number} confirmed.` });
+      } else if (data?.combined_paid) {
+        toast({ title: 'Order paid (wallet + shadow credit)', description: `Order #${data.order_number} confirmed.` });
+      } else if (data?.combined_shortfall) {
+        toast({ title: 'Combined short — Paystack link generated', description: `Wallet + credit reserved. Customer owes ₦${Number(data.combined_shortfall).toLocaleString()}.` });
       } else if (data?.shadow_paid) {
         toast({ title: 'Order paid with shadow credit', description: `Order #${data.order_number} confirmed. ₦${Number(data.shadow_consumed || 0).toLocaleString()} credit redeemed.` });
       } else if (data?.shadow_shortfall) {
