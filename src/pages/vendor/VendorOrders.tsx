@@ -635,9 +635,9 @@ export default function VendorOrders() {
     }
   };
 
-  const openSubstitute = (scope: 'item' | 'addon', id: string, originalName: string, originalPrice: number, orderNumber: string) => {
-    setSubForm({ name: '', note: '', refund: '', matchedPrice: null });
-    setSubstituteDialog({ open: true, scope, id, originalName, originalPrice, orderNumber });
+  const openSubstitute = (scope: 'item' | 'addon', id: string, originalName: string, originalPrice: number, orderNumber: string, totalQuantity: number) => {
+    setSubForm({ name: '', note: '', refund: '', matchedPrice: null, quantity: String(Math.max(1, totalQuantity || 1)) });
+    setSubstituteDialog({ open: true, scope, id, originalName, originalPrice, orderNumber, totalQuantity: Math.max(1, totalQuantity || 1) });
   };
 
   const submitSubstitute = async () => {
@@ -646,6 +646,7 @@ export default function VendorOrders() {
       toast({ title: 'Substitute name required', variant: 'destructive' });
       return;
     }
+    const subQty = Math.max(1, Math.min(substituteDialog.totalQuantity, parseInt(subForm.quantity || '1', 10) || 1));
     setSubSubmitting(true);
     try {
       const body: any = {
@@ -653,6 +654,7 @@ export default function VendorOrders() {
         substituteName: subForm.name.trim(),
         substituteNote: subForm.note.trim() || undefined,
         substituteRefundAmount: subForm.refund ? Number(subForm.refund) : 0,
+        substituteQuantity: subQty,
       };
       if (substituteDialog.scope === 'item') body.orderItemId = substituteDialog.id;
       else body.addonId = substituteDialog.id;
