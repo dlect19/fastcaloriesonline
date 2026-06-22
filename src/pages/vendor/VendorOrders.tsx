@@ -721,27 +721,48 @@ export default function VendorOrders() {
             <p className="text-xs text-muted-foreground">{item.calories} cal</p>
           )}
           {!isRefunded && orderNumber && (
-            <div className="mt-1.5 flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => handleRefundItem(item, orderNumber)}
-                className="h-7 px-2.5 text-xs gap-1 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-              >
-                <RefreshCcw className="w-3 h-3" />
-                Refund item
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => openSubstitute('item', item.id, item.product_name, Number((item as any).unit_price ?? (Number(item.total_price) / Math.max(1, item.quantity))), orderNumber, Number(item.quantity || 1))}
-                className="h-7 px-2.5 text-xs gap-1 border-primary/40 text-primary hover:bg-primary/10 hover:text-primary"
-              >
-                <Repeat className="w-3 h-3" />
-                Offer substitute
-              </Button>
+            <div className="mt-2">
+              {/* Agreement gate — bold warning + checkbox to unlock buttons */}
+              <div className="rounded-md border-2 border-amber-400 bg-amber-50 dark:bg-amber-950/30 p-2 mb-2">
+                <p className="text-[11px] font-bold text-amber-900 dark:text-amber-200 leading-snug">
+                  ⚠️ Call or chat the customer FIRST. Agree on a refund or replacement before tapping these buttons.
+                </p>
+                <label className="flex items-start gap-1.5 mt-1 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={agreedLines.has(item.id)}
+                    onChange={() => toggleAgreedLine(item.id)}
+                    className="mt-0.5 w-3.5 h-3.5 accent-primary shrink-0"
+                  />
+                  <span className="text-[11px] text-amber-900 dark:text-amber-200">
+                    Customer has been contacted and <strong>agreed</strong>.
+                  </span>
+                </label>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={!agreedLines.has(item.id)}
+                  onClick={() => handleRefundItem(item, orderNumber)}
+                  className="h-7 px-2.5 text-xs gap-1 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <RefreshCcw className="w-3 h-3" />
+                  Refund item
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={!agreedLines.has(item.id)}
+                  onClick={() => openSubstitute('item', item.id, item.product_name, Number((item as any).unit_price ?? (Number(item.total_price) / Math.max(1, item.quantity))), orderNumber, Number(item.quantity || 1))}
+                  className="h-7 px-2.5 text-xs gap-1 border-primary/40 text-primary hover:bg-primary/10 hover:text-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Repeat className="w-3 h-3" />
+                  Offer substitute
+                </Button>
+              </div>
             </div>
           )}
           {(item as any).substituted_with && (
