@@ -811,8 +811,10 @@ export default function VendorOrders() {
                       type="button"
                       variant="outline"
                       size="sm"
+                      disabled={!agreedLines.has(item.id)}
                       onClick={() => handleRefundAddon(addon, orderNumber)}
-                      className="h-6 px-2 text-[11px] gap-1 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      className="h-6 px-2 text-[11px] gap-1 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={!agreedLines.has(item.id) ? 'Confirm customer agreement above first' : undefined}
                     >
                       <RefreshCcw className="w-2.5 h-2.5" />
                       Refund add-on
@@ -821,8 +823,10 @@ export default function VendorOrders() {
                       type="button"
                       variant="outline"
                       size="sm"
+                      disabled={!agreedLines.has(item.id)}
                       onClick={() => openSubstitute('addon', addon.id, addon.addon_item_name, Number(addon.additional_price || 0), orderNumber, Number(item.quantity || 1))}
-                      className="h-6 px-2 text-[11px] gap-1 border-primary/40 text-primary hover:bg-primary/10 hover:text-primary"
+                      className="h-6 px-2 text-[11px] gap-1 border-primary/40 text-primary hover:bg-primary/10 hover:text-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={!agreedLines.has(item.id) ? 'Confirm customer agreement above first' : undefined}
                     >
                       <Repeat className="w-2.5 h-2.5" />
                       Offer substitute
