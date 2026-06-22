@@ -358,6 +358,101 @@ serve(async (req) => {
         .from('platform_settings').select('value').eq('key', 'bank_transfer_instructions').maybeSingle();
       bankInstructions = (settings?.value as string) ||
         `Pay ₦${total.toLocaleString()} to:\nBank: GTBank\nAccount: 0123456789\nName: Fast Calories Ltd\nReference: ${order.order_number}`;
+    } else if (payment_method === 'shadow_credit') {
+      // Redeem pending shadow credits for this phone, oldest first.
+      const { data: credits, error: cErr } = await supabase
+        .from('shadow_customer_credits')
+        .select('id, amount')
+        .eq('phone', customer.phone)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: true });
+      if (cErr) {
+        await supabase.from('orders').delete().eq('id', order.id);
+        return json({ error: 'Failed to read shadow credits: ' + cErr.message }, 500);
+      }
+      const totalAvail = (credits || []).reduce((s, r: any) => s + Number(r.amount || 0), 0);
+      if (totalAvail <= 0) {
+        await supabase.from('orders').delete().eq('id', order.id);
+        return json({ error: 'No pending shadow credit found for this phone.' }, 400);
+      }
+      // Consume credits up to `total`. Whole-row redemption (no partial splitting):
+      // a credit row is consumed in full as long as the running total <= order total.
+      // Any remaining smaller credits are left pending for next time.
+      let remaining = total;
+      const consumedIds: string[] = [];
+      for (const c of credits || []) {
+        const amt = Number((c as any).amount || 0);
+        if (amt <= remaining) {
+          consumedIds.push((c as any).id);
+          remaining -= amt;
+          shadowConsumed += amt;
+          if (remaining <= 0) break;
+        }
+      }
+      // If no credit row fits (all are larger than total), consume the smallest one fully
+      // (over-redemption preserved as a follow-up pending credit for the difference).
+      if (consumedIds.length === 0) {
+        const smallest = [...(credits || [])].sort((a: any, b: any) => Number(a.amount) - Number(b.amount))[0] as any;
+        consumedIds.push(smallest.id);
+        const used = Math.min(Number(smallest.amount), total);
+        shadowConsumed += used;
+        remaining = Math.max(0, total - Number(smallest.amount));
+        const leftover = Number(smallest.amount) - used;
+        if (leftover > 0) {
+          await supabase.from('shadow_customer_credits').insert({
+            phone: customer.phone,
+            customer_name: customer.name,
+            amount: leftover,
+            environment,
+            status: 'pending',
+            source: 'split_remainder',
+            reason: `Remainder after redeeming on assisted order #${order.order_number}`,
+            created_by: adminId,
+          });
+        }
+      }
+      // Mark consumed rows as settled_offline tied to this order
+      const { error: updErr } = await supabase
+        .from('shadow_customer_credits')
+        .update({
+          status: 'settled_offline',
+          order_id: order.id,
+          notes: `Redeemed on assisted order #${order.order_number}`,
+          updated_at: new Date().toISOString(),
+        })
+        .in('id', consumedIds);
+      if (updErr) {
+        await supabase.from('orders').delete().eq('id', order.id);
+        return json({ error: 'Failed to redeem shadow credit: ' + updErr.message }, 500);
+      }
+
+      shadowShortfall = Math.max(0, Math.round(remaining));
+      if (shadowShortfall === 0) {
+        // Fully covered — mark order paid
+        const reference = `SHADOW-${order.id.slice(0, 8)}-${Date.now()}`;
+        await supabase.from('orders').update({
+          payment_status: 'paid',
+          status: 'confirmed',
+          payment_method: 'shadow_credit',
+          payment_reference: reference,
+          environment,
+        }).eq('id', order.id);
+        shadowPaid = true;
+      } else {
+        // Partial — generate Paystack link for the shortfall
+        const res = await initPaystackLink(shadowShortfall, 'shadowtopup');
+        if (!res) {
+          // Roll back the credit consumption so it stays usable
+          await supabase.from('shadow_customer_credits')
+            .update({ status: 'pending', order_id: null, notes: null, updated_at: new Date().toISOString() })
+            .in('id', consumedIds);
+          await supabase.from('orders').delete().eq('id', order.id);
+          return json({ error: 'Could not generate Paystack link for shadow-credit shortfall.' }, 502);
+        }
+        paymentLink = res.url;
+        paymentReference = res.reference;
+        await supabase.from('orders').update({ payment_reference: paymentReference }).eq('id', order.id);
+      }
     }
 
     // Insert assisted_orders meta
