@@ -148,6 +148,7 @@ import { playGlobalNotificationSound } from '@/lib/globalAudio';
 import { useFcmNotifications } from '@/hooks/useFcmNotifications';
 import { usePortalMemory } from '@/hooks/usePortalMemory';
 import { useNativeOAuthHandler } from '@/hooks/useNativeOAuthHandler';
+import { useCustomerChatNotifications } from '@/hooks/useCustomerChatNotifications';
 
 const queryClient = new QueryClient();
 
@@ -162,6 +163,11 @@ if ('serviceWorker' in navigator) {
 
 const PortalTracker = () => {
   usePortalMemory();
+  return null;
+};
+
+const CustomerChatNotifier = () => {
+  useCustomerChatNotifications();
   return null;
 };
 
@@ -183,6 +189,7 @@ const App = () => {
           <Sonner />
           <BrowserRouter>
             <PortalTracker />
+            <CustomerChatNotifier />
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/auth" element={<Auth />} />
