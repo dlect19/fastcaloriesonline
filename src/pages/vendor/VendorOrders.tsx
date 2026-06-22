@@ -171,7 +171,7 @@ export default function VendorOrders() {
     orderNumber: string;
     totalQuantity: number;
   } | null>(null);
-  const [subForm, setSubForm] = useState<{ name: string; note: string; refund: string; matchedPrice: number | null; quantity: string }>({ name: '', note: '', refund: '', matchedPrice: null, quantity: '1' });
+  const [subForm, setSubForm] = useState<{ name: string; note: string; refund: string; matchedPrice: number | null; quantity: string; agreed: boolean }>({ name: '', note: '', refund: '', matchedPrice: null, quantity: '1', agreed: false });
   const [subSubmitting, setSubSubmitting] = useState(false);
   const [menuOptions, setMenuOptions] = useState<{ id: string; name: string; price: number; is_available: boolean }[]>([]);
   const [completedPage, setCompletedPage] = useState(1);
