@@ -617,9 +617,9 @@ export default function VendorOrders() {
     }
   };
 
-  const openSubstitute = (scope: 'item' | 'addon', id: string, originalName: string, orderNumber: string) => {
-    setSubForm({ name: '', note: '', refund: '' });
-    setSubstituteDialog({ open: true, scope, id, originalName, orderNumber });
+  const openSubstitute = (scope: 'item' | 'addon', id: string, originalName: string, originalPrice: number, orderNumber: string) => {
+    setSubForm({ name: '', note: '', refund: '', matchedPrice: null });
+    setSubstituteDialog({ open: true, scope, id, originalName, originalPrice, orderNumber });
   };
 
   const submitSubstitute = async () => {
