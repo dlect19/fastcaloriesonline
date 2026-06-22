@@ -475,7 +475,7 @@ serve(async (req) => {
       order_id: order.id,
       actor_id: adminId,
       action: 'order_created',
-      details: { customer_phone: customer.phone, vendor_id, total, payment_method, channel, wallet_paid: walletPaid, wallet_shortfall: walletShortfall, promo_code, discount: discountAmt },
+      details: { customer_phone: customer.phone, vendor_id, total, payment_method, channel, wallet_paid: walletPaid, wallet_shortfall: walletShortfall, shadow_paid: shadowPaid, shadow_consumed: shadowConsumed, shadow_shortfall: shadowShortfall, promo_code, discount: discountAmt },
     });
 
     return json({
@@ -486,6 +486,10 @@ serve(async (req) => {
       bank_transfer_instructions: bankInstructions,
       wallet_paid: walletPaid,
       wallet_shortfall: walletShortfall,
+      shadow_paid: shadowPaid,
+      shadow_consumed: shadowConsumed,
+      shadow_consumed_pending: shadowConsumed,
+      shadow_shortfall: shadowShortfall,
       tracking_url: `${req.headers.get('origin') || ''}/track/${order.order_number}`,
     });
   } catch (e: any) {
