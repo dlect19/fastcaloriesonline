@@ -336,19 +336,16 @@ serve(async (req: Request) => {
         const subQty = scope === "addon" ? Math.min(lineQty, rawQ) : rawQ;
         let portionPrefix = "";
         if (scope === "addon") {
-          portionPrefix = subQty < lineQty
-            ? `the add-on on ${subQty} of ${lineQty} portion(s) — `
-            : "the add-on ";
+          // Mirror item: full-line replace. State the swap across all parent portions.
+          portionPrefix = `the add-on on your ${lineQty} × `;
         } else {
           // item: full-line replace with subQty of the new item
           portionPrefix = `your ${lineQty} × `;
         }
-        const itemSuffix = scope === "item" && body.substituteName
+        const itemSuffix = body.substituteName
           ? ` with ${subQty} × "${body.substituteName}"${note}`
           : `${sub}${note}`;
-        msg = scope === "item"
-          ? `🔄 We've replaced ${portionPrefix}"${displayName}"${itemSuffix}.${refundLine} Reply here if this doesn't work for you.`
-          : `🔄 We've replaced ${portionPrefix}"${displayName}"${sub}${note}.${refundLine} Reply here if this doesn't work for you.`;
+        msg = `🔄 We've replaced ${portionPrefix}"${displayName}"${itemSuffix}.${refundLine} Reply here if this doesn't work for you.`;
       }
       await admin.from("order_chat_messages").insert({
         order_id: order.id,
