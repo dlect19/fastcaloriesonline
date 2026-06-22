@@ -222,12 +222,13 @@ export default function AdminCuisineCategories() {
             </div>
             <div>
               <Label>Icon (emoji)</Label>
-              <Input
+              <FoodEmojiPicker
                 value={form.icon}
-                onChange={(e) => setForm({ ...form, icon: e.target.value })}
-                placeholder="🍚"
-                maxLength={4}
+                onSelect={(emoji) => setForm({ ...form, icon: emoji })}
               />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Pick from the grid — no need to search.
+              </p>
             </div>
             <div>
               <Label>Parent (optional)</Label>
