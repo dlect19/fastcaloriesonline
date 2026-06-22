@@ -107,7 +107,20 @@ export default function AdminLedgerAudit() {
               Every wallet/ledger change from refunds, substitutes, and pending payout updates with before/after values.
             </p>
           </div>
-          <DateRangeFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex rounded-md border bg-background overflow-hidden text-xs">
+              {(['all','production','development'] as const).map(opt => (
+                <button
+                  key={opt}
+                  onClick={() => setEnvFilter(opt)}
+                  className={`px-3 py-1.5 capitalize ${envFilter === opt ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+            <DateRangeFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
