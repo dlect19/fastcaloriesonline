@@ -363,6 +363,19 @@ serve(async (req: Request) => {
       updated_at: new Date().toISOString(),
     }).eq("id", order.id);
 
+    // Re-sync vendor payout + platform commission to the new menu_subtotal.
+    // Without this the pending vendor_share keeps the pre-refund amount and the
+    // platform absorbs the loss when the hold releases.
+    try {
+      const { data: adj, error: adjErr } = await admin.rpc("adjust_vendor_payout_after_refund", {
+        p_order_id: order.id,
+      });
+      if (adjErr) console.warn("[vendor-refund-item] payout adjust failed:", adjErr.message);
+      else console.log("[vendor-refund-item] payout adjust:", adj);
+    } catch (e) {
+      console.warn("[vendor-refund-item] payout adjust threw:", e);
+    }
+
     // ---- Post a chat message to the customer ----
     // For assisted orders we credit a shadow credit (held by phone) instead of a wallet.
     const creditDestLabel = refundedToShadow
