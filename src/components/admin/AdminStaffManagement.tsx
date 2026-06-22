@@ -15,49 +15,78 @@ import { UserPlus, Shield, Users, Loader2, Trash2, Eye, EyeOff, KeyRound, Clock,
 import { format } from 'date-fns';
 import type { AdminStaffRole, AdminPermission } from '@/hooks/useAdminPermissions';
 
-// Map each sidebar tab to its required permission
+// Map each sidebar tab to its required permission (keep in sync with AdminSidebar)
 const SIDEBAR_TABS: { label: string; permission: AdminPermission }[] = [
   { label: 'Dashboard', permission: 'view_dashboard' },
   { label: 'Orders', permission: 'manage_vendors' },
+  { label: 'Assisted Orders', permission: 'manage_assisted_orders' },
+  { label: 'Shadow Credits', permission: 'manage_assisted_orders' },
+  { label: 'POS Sales', permission: 'view_reports' },
   { label: 'Vendors', permission: 'manage_vendors' },
   { label: 'Riders', permission: 'manage_riders' },
+  { label: 'Vendor Menus', permission: 'manage_vendors' },
+  { label: 'Cuisine Categories', permission: 'manage_vendors' },
   { label: 'Reviews', permission: 'manage_vendors' },
+  { label: 'Events', permission: 'manage_vendors' },
+  { label: 'Events Analytics', permission: 'manage_vendors' },
+  { label: 'Verify Tickets', permission: 'manage_vendors' },
   { label: 'Delivery Companies', permission: 'manage_vendors' },
   { label: 'Customers', permission: 'manage_users' },
   { label: 'Payouts', permission: 'process_withdrawals' },
+  { label: 'On-Hold Payments', permission: 'process_withdrawals' },
   { label: 'Customer Wallets', permission: 'manage_users' },
   { label: 'Wallet Funding', permission: 'manage_users' },
+  { label: 'Chargebacks', permission: 'process_withdrawals' },
+  { label: 'Refund Audit', permission: 'process_withdrawals' },
+  { label: 'Disputes', permission: 'process_withdrawals' },
   { label: 'Nutrition', permission: 'view_reports' },
   { label: 'Promo Codes', permission: 'manage_promos' },
+  { label: 'Commission Promos', permission: 'manage_promos' },
   { label: 'Rewards & Spins', permission: 'manage_promos' },
+  { label: 'Free Meals', permission: 'manage_promos' },
   { label: 'Carousel', permission: 'manage_vendors' },
+  { label: 'Campaigns', permission: 'manage_vendors' },
+  { label: 'Ad Placements', permission: 'manage_vendors' },
   { label: 'Users', permission: 'manage_users' },
   { label: 'Admin Staff', permission: 'manage_admin_staff' },
+  { label: 'Payroll', permission: 'manage_admin_staff' },
+  { label: 'Referrals', permission: 'manage_promos' },
+  { label: 'Expenses', permission: 'process_withdrawals' },
+  { label: 'Legal', permission: 'platform_settings' },
+  { label: 'FAQ', permission: 'platform_settings' },
   { label: 'Support', permission: 'handle_support' },
+  { label: 'WhatsApp', permission: 'platform_settings' },
+  { label: 'Notifications', permission: 'platform_settings' },
+  { label: 'Coverage Areas', permission: 'platform_settings' },
+  { label: 'Financial Tools', permission: 'process_withdrawals' },
+  { label: 'Ambassadors', permission: 'manage_promos' },
+  { label: 'Drug Database', permission: 'manage_vendors' },
+  { label: 'Pharmacy Analytics', permission: 'view_reports' },
   { label: 'Settings', permission: 'platform_settings' },
 ];
 
-// Unique permissions list
+// Unique permissions list shown when editing a role
 const ALL_PERMISSIONS: { key: AdminPermission; label: string }[] = [
   { key: 'view_dashboard', label: 'View Dashboard' },
-  { key: 'manage_vendors', label: 'Manage Vendors/Orders/Reviews/Carousel' },
+  { key: 'manage_vendors', label: 'Manage Vendors / Orders / Menus / Reviews / Events / Carousel' },
   { key: 'approve_vendors', label: 'Approve Vendors' },
   { key: 'manage_riders', label: 'Manage Riders' },
-  { key: 'process_withdrawals', label: 'Process Withdrawals (Payouts)' },
-  { key: 'manage_admin_staff', label: 'Manage Admin Staff' },
-  { key: 'platform_settings', label: 'Platform Settings' },
-  { key: 'view_reports', label: 'View Reports (Nutrition)' },
+  { key: 'manage_assisted_orders', label: 'Manage Assisted Orders & Shadow Credits' },
+  { key: 'process_withdrawals', label: 'Process Withdrawals / Disputes / Chargebacks / Expenses' },
+  { key: 'manage_admin_staff', label: 'Manage Admin Staff & Payroll' },
+  { key: 'platform_settings', label: 'Platform Settings / Legal / FAQ / Coverage' },
+  { key: 'view_reports', label: 'View Reports (Nutrition, POS, Pharmacy)' },
   { key: 'handle_support', label: 'Handle Support' },
-  { key: 'manage_promos', label: 'Manage Promos & Rewards' },
-  { key: 'manage_users', label: 'Manage Users/Customers/Wallets' },
+  { key: 'manage_promos', label: 'Manage Promos, Rewards, Referrals & Ambassadors' },
+  { key: 'manage_users', label: 'Manage Users / Customers / Wallets' },
 ];
 
 const DEFAULT_ROLE_PERMISSIONS: Record<string, AdminPermission[]> = {
   admin: [
     'view_dashboard', 'manage_vendors', 'approve_vendors', 'manage_riders',
-    'view_reports', 'handle_support', 'manage_promos', 'manage_users'
+    'manage_assisted_orders', 'view_reports', 'handle_support', 'manage_promos', 'manage_users'
   ],
-  support: ['view_dashboard', 'view_reports', 'handle_support'],
+  support: ['view_dashboard', 'view_reports', 'handle_support', 'manage_assisted_orders'],
   analyst: ['view_dashboard', 'view_reports']
 };
 
