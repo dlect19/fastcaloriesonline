@@ -141,13 +141,13 @@ serve(async (req: Request) => {
     if (!order.user_id) {
       // Assisted order without a registered customer — route to shadow credit by phone
       const amt = customAmount ? Number(customAmount) : Number(order.total);
-      const { data: assisted } = await supabaseAdmin
-        .from("assisted_orders")
-        .select("receiver_phone, receiver_name, environment")
-        .eq("order_id", orderId)
-        .maybeSingle();
+      const assisted = {
+        receiver_phone: (order as any).receiver_phone as string | null,
+        receiver_name: (order as any).receiver_name as string | null,
+        environment: (order as any).environment as string | null,
+      };
 
-      const phone = String(assisted?.receiver_phone || order.delivery_phone || "").trim();
+      const phone = String(assisted.receiver_phone || (order as any).delivery_phone || "").trim();
       if (!phone) {
         // No phone on file — record as offline refund (audit only) and mark order refunded
         await supabaseAdmin.from("assisted_order_audit").insert({
@@ -171,9 +171,9 @@ serve(async (req: Request) => {
         .from("shadow_customer_credits")
         .insert({
           phone,
-          customer_name: assisted?.receiver_name || null,
+          customer_name: assisted.receiver_name || null,
           amount: amt,
-          environment: assisted?.environment || "development",
+          environment: assisted.environment || "development",
           status: "pending",
           source: "order_refund",
           order_id: orderId,
