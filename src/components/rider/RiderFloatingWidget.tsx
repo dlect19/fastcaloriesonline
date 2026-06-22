@@ -143,7 +143,7 @@ export function RiderFloatingWidget({ isOnline, onToggleOnline }: RiderFloatingW
         {/* Notification bell with dispatch offer count */}
         {dispatchOfferCount > 0 && (
           <button
-            onClick={() => navigate('/rider/available')}
+            onClick={() => navigate('/rider/available-orders')}
             className="relative flex items-center justify-center w-12 h-12 rounded-full shadow-lg bg-destructive text-destructive-foreground animate-pulse"
           >
             <Bell className="w-5 h-5" />
