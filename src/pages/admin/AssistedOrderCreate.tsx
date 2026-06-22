@@ -666,12 +666,17 @@ export default function AssistedOrderCreate() {
                 <div className="grid md:grid-cols-2 gap-2 max-h-72 overflow-y-auto">
                   {filteredAvailable.map((p) => (
                     <button key={p.id} type="button" onClick={() => addProduct(p)}
-                      className="flex items-center justify-between p-2 rounded border hover:bg-muted text-left">
-                      <span className="text-sm">
+                      className="flex items-center gap-2 p-2 rounded border hover:bg-muted text-left">
+                      {p.image_url ? (
+                        <img src={p.image_url} alt={p.name} className="w-10 h-10 rounded object-cover shrink-0" />
+                      ) : (
+                        <div className="w-10 h-10 rounded bg-muted shrink-0 flex items-center justify-center text-[10px] text-muted-foreground">No img</div>
+                      )}
+                      <span className="text-sm flex-1 min-w-0 truncate">
                         {p.name}
                         {p.calories != null && <span className="text-[10px] text-muted-foreground ml-1">· {p.calories} kcal</span>}
                       </span>
-                      <span className="text-xs text-muted-foreground">₦{Number(p.price).toLocaleString()}</span>
+                      <span className="text-xs text-muted-foreground shrink-0">₦{Number(p.price).toLocaleString()}</span>
                     </button>
                   ))}
                   {filteredAvailable.length === 0 && <div className="text-xs text-muted-foreground p-2">No available products.</div>}
@@ -683,11 +688,16 @@ export default function AssistedOrderCreate() {
                       <AlertCircle className="w-4 h-4" />
                       ⚠️ {filteredUnavailable.length} menu item{filteredUnavailable.length>1?'s are':' is'} UNAVAILABLE right now — let the customer know
                     </div>
-                    <ul className="space-y-0.5 max-h-48 overflow-y-auto pl-6 pt-1">
+                    <ul className="space-y-1 max-h-48 overflow-y-auto pt-1">
                       {filteredUnavailable.map((p) => (
-                        <li key={p.id} className="text-xs text-yellow-900/80 flex justify-between border-b border-yellow-500/20 py-1 last:border-0">
-                          <span className="line-through">{p.name}</span>
-                          <span>₦{Number(p.price).toLocaleString()}</span>
+                        <li key={p.id} className="text-xs text-yellow-900/80 flex items-center gap-2 border-b border-yellow-500/20 py-1 last:border-0">
+                          {p.image_url ? (
+                            <img src={p.image_url} alt={p.name} className="w-8 h-8 rounded object-cover shrink-0 opacity-60" />
+                          ) : (
+                            <div className="w-8 h-8 rounded bg-yellow-500/20 shrink-0" />
+                          )}
+                          <span className="line-through flex-1 min-w-0 truncate">{p.name}</span>
+                          <span className="shrink-0">₦{Number(p.price).toLocaleString()}</span>
                         </li>
                       ))}
                     </ul>
