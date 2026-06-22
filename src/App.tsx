@@ -254,6 +254,7 @@ const App = () => {
               <Route path="/admin/assisted-orders" element={<AssistedOrdersList />} />
               <Route path="/admin/assisted-orders/new" element={<AssistedOrderCreate />} />
               <Route path="/admin/assisted-orders/:orderId" element={<AssistedOrderDetail />} />
+              <Route path="/admin/shadow-credits" element={<AdminShadowCredits />} />
               <Route path="/track/:orderNumber" element={<Track />} />
               <Route path="/admin/pos-reports" element={<AdminPosReports />} />
               <Route path="/admin/vendors" element={<AdminVendors />} />
