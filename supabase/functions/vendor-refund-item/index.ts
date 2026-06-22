@@ -381,13 +381,23 @@ serve(async (req: Request) => {
           ? ` A partial refund of ₦${refundAmount.toLocaleString()} has been credited to your wallet.`
           : " (Same price, no charge difference.)";
         const lineQty = Math.max(1, Number(item.quantity || 1));
-        const subQty = Math.max(1, Math.min(lineQty, Math.floor(Number(body.substituteQuantity || lineQty))));
-        const portionPrefix = subQty < lineQty
-          ? (scope === "addon"
-              ? `the add-on on ${subQty} of ${lineQty} portion(s) — `
-              : `${subQty} of ${lineQty} portion(s) of `)
-          : (scope === "addon" ? "the add-on " : "");
-        msg = `🔄 We've replaced ${portionPrefix}"${displayName}"${sub}${note}.${refundLine} Reply here if this doesn't work for you.`;
+        const rawQ = Math.max(1, Math.floor(Number(body.substituteQuantity || lineQty)));
+        const subQty = scope === "addon" ? Math.min(lineQty, rawQ) : rawQ;
+        let portionPrefix = "";
+        if (scope === "addon") {
+          portionPrefix = subQty < lineQty
+            ? `the add-on on ${subQty} of ${lineQty} portion(s) — `
+            : "the add-on ";
+        } else {
+          // item: full-line replace with subQty of the new item
+          portionPrefix = `your ${lineQty} × `;
+        }
+        const itemSuffix = scope === "item" && body.substituteName
+          ? ` with ${subQty} × "${body.substituteName}"${note}`
+          : `${sub}${note}`;
+        msg = scope === "item"
+          ? `🔄 We've replaced ${portionPrefix}"${displayName}"${itemSuffix}.${refundLine} Reply here if this doesn't work for you.`
+          : `🔄 We've replaced ${portionPrefix}"${displayName}"${sub}${note}.${refundLine} Reply here if this doesn't work for you.`;
       }
       await admin.from("order_chat_messages").insert({
         order_id: order.id,
