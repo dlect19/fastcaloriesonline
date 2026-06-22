@@ -26,6 +26,7 @@ import {
   useCuisineCategories,
   type CuisineCategory,
 } from '@/hooks/useCuisineCategories';
+import { FoodEmojiPicker } from '@/components/admin/FoodEmojiPicker';
 import {
   AlertDialog,
   AlertDialogAction,
