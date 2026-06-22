@@ -39,6 +39,7 @@ const menuItems: MenuItem[] = [
   { icon: ArrowDownLeft, label: 'Wallet Funding', path: '/admin/wallet-funding', requiredPermission: 'manage_users' },
   { icon: ShieldAlert, label: 'Chargebacks', path: '/admin/chargebacks', requiredPermission: 'process_withdrawals' },
   { icon: Receipt, label: 'Refund Audit', path: '/admin/refund-audit', requiredPermission: 'process_withdrawals' },
+  { icon: History, label: 'Ledger Audit', path: '/admin/ledger-audit', requiredPermission: 'process_withdrawals' },
   { icon: Gavel, label: 'Disputes', path: '/admin/disputes', requiredPermission: 'process_withdrawals' },
   { icon: Activity, label: 'Nutrition', path: '/admin/nutrition', requiredPermission: 'view_reports' },
   { icon: Ticket, label: 'Promo Codes', path: '/admin/promos', requiredPermission: 'manage_promos' },

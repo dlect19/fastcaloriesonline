@@ -82,6 +82,7 @@ import AdminCustomerWallets from "./pages/admin/AdminCustomerWallets";
 import AdminWalletFunding from "./pages/admin/AdminWalletFunding";
 import AdminChargebacks from "./pages/admin/AdminChargebacks";
 import AdminRefundAudit from "./pages/admin/AdminRefundAudit";
+import AdminLedgerAudit from "./pages/admin/AdminLedgerAudit";
 import AdminDisputes from "./pages/admin/AdminDisputes";
 import AdminDeliveryCompanies from "./pages/admin/AdminDeliveryCompanies";
 import AdminCustomers from "./pages/admin/AdminCustomers";
@@ -289,6 +290,7 @@ const App = () => {
               <Route path="/admin/wallet-funding" element={<AdminWalletFunding />} />
               <Route path="/admin/chargebacks" element={<AdminChargebacks />} />
               <Route path="/admin/refund-audit" element={<AdminRefundAudit />} />
+              <Route path="/admin/ledger-audit" element={<AdminLedgerAudit />} />
               <Route path="/admin/disputes" element={<AdminDisputes />} />
               <Route path="/admin/delivery-companies" element={<AdminDeliveryCompanies />} />
               <Route path="/admin/customers" element={<AdminCustomers />} />
