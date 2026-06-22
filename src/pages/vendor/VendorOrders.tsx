@@ -693,6 +693,15 @@ export default function VendorOrders() {
   const renderItemContent = (item: OrderItemWithAddons, orderNumber?: string) => {
     const itemAny = item as any;
     const isRefunded = !!itemAny.is_refunded;
+    const lineQty = Math.max(1, Number(item.quantity || 1));
+    // Effective line price = stored total minus any refunded add-ons (qty × addon price),
+    // because the backend only recomputes order-level totals, not item.total_price.
+    const refundedAddonsTotal = (item.addons || []).reduce((s: number, a: any) => {
+      return s + (a.is_refunded ? Number(a.additional_price || 0) * lineQty : 0);
+    }, 0);
+    const originalLineTotal = Number(item.total_price || 0);
+    const effectiveLineTotal = Math.max(0, originalLineTotal - refundedAddonsTotal);
+    const lineTotalChanged = !isRefunded && refundedAddonsTotal > 0;
     return (
     <>
       <div className="flex justify-between items-start">
