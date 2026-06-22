@@ -724,7 +724,7 @@ export default function VendorOrders() {
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => openSubstitute('item', item.id, item.product_name, Number((item as any).unit_price ?? (Number(item.total_price) / Math.max(1, item.quantity))), orderNumber)}
+                onClick={() => openSubstitute('item', item.id, item.product_name, Number((item as any).unit_price ?? (Number(item.total_price) / Math.max(1, item.quantity))), orderNumber, Number(item.quantity || 1))}
                 className="h-7 px-2.5 text-xs gap-1 border-primary/40 text-primary hover:bg-primary/10 hover:text-primary"
               >
                 <Repeat className="w-3 h-3" />
