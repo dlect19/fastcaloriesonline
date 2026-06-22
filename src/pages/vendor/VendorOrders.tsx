@@ -805,7 +805,10 @@ export default function VendorOrders() {
                     {addon.image_url && (
                       <img src={addon.image_url} alt={addon.addon_item_name} className="w-6 h-6 rounded object-cover shrink-0" />
                     )}
-                    + {addon.addon_item_name}
+                  + {addon.addon_item_name}
+                    {lineQty > 1 && (
+                      <span className="text-muted-foreground">× {lineQty}</span>
+                    )}
                     {addon.calories && addon.calories > 0 && (
                       <span className="text-muted-foreground ml-1">({addon.calories} cal)</span>
                     )}
@@ -816,8 +819,17 @@ export default function VendorOrders() {
                     )}
                   </span>
                   {addon.additional_price > 0 && (
-                    <span className={cn("text-primary font-medium", addonRefunded && "line-through opacity-60")}>
-                      +₦{Number(addon.additional_price).toLocaleString()}
+                    <span className={cn("text-primary font-medium text-right", addonRefunded && "line-through opacity-60")}>
+                      {lineQty > 1 ? (
+                        <>
+                          <span className="text-[10px] text-muted-foreground block leading-none">
+                            ₦{Number(addon.additional_price).toLocaleString()} ea
+                          </span>
+                          +₦{(Number(addon.additional_price) * lineQty).toLocaleString()}
+                        </>
+                      ) : (
+                        <>+₦{Number(addon.additional_price).toLocaleString()}</>
+                      )}
                     </span>
                   )}
                 </div>
