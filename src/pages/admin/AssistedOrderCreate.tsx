@@ -16,9 +16,9 @@ import { useDeliveryFee } from '@/hooks/useDeliveryFee';
 import { useServiceFee } from '@/hooks/useServiceFee';
 import { useTakeawayPacks } from '@/hooks/useTakeawayPacks';
 
-type Vendor = { id: string; name: string; latitude: number | null; longitude: number | null };
+type Vendor = { id: string; name: string; latitude: number | null; longitude: number | null; is_open: boolean | null };
 type Outlet = { id: string; vendor_id: string; outlet_name: string | null; latitude: number | null; longitude: number | null; is_active: boolean };
-type Product = { id: string; name: string; price: number; vendor_id: string; outlet_id: string | null; is_available: boolean; calories: number | null };
+type Product = { id: string; name: string; price: number; vendor_id: string; outlet_id: string | null; is_available: boolean; calories: number | null; image_url: string | null };
 type AddonItem = { id: string; addon_group_id: string; name: string; additional_price: number; calories: number | null; is_available: boolean; group_name: string };
 type SelectedAddon = { addon_group_name: string; addon_item_name: string; additional_price: number; calories: number | null };
 type CartItem = { product: Product; quantity: number; special_instructions?: string; pack: number; addons?: SelectedAddon[] };
@@ -126,7 +126,7 @@ export default function AssistedOrderCreate() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    supabase.from('vendors').select('id, name, latitude, longitude').eq('is_active', true).order('name')
+    supabase.from('vendors').select('id, name, latitude, longitude, is_open').eq('is_active', true).order('name')
       .then(({ data }) => setVendors((data as Vendor[]) || []));
   }, []);
 
@@ -154,7 +154,7 @@ export default function AssistedOrderCreate() {
     if (!vendorId) { setProducts([]); setAddonsByProduct({}); return; }
     let q = supabase
       .from('products')
-      .select('id, name, price, vendor_id, outlet_id, is_available, calories')
+      .select('id, name, price, vendor_id, outlet_id, is_available, calories, image_url')
       .eq('vendor_id', vendorId)
       .order('name')
       .limit(400);
@@ -589,9 +589,23 @@ export default function AssistedOrderCreate() {
                 <Select value={vendorId} onValueChange={setVendorId}>
                   <SelectTrigger><SelectValue placeholder="Select vendor" /></SelectTrigger>
                   <SelectContent>
-                    {vendors.map((v) => <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>)}
+                    {vendors.map((v) => (
+                      <SelectItem key={v.id} value={v.id}>
+                        <span className="flex items-center gap-2">
+                          <span className={`inline-block w-2 h-2 rounded-full ${v.is_open ? 'bg-green-500' : 'bg-red-500'}`} />
+                          {v.name}
+                          <span className={`text-[10px] ml-1 ${v.is_open ? 'text-green-600' : 'text-red-600'}`}>{v.is_open ? 'Open' : 'Closed'}</span>
+                        </span>
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
+                {selectedVendor && (
+                  <p className={`text-xs mt-1 font-medium flex items-center gap-1 ${selectedVendor.is_open ? 'text-green-700' : 'text-red-700'}`}>
+                    <span className={`inline-block w-2 h-2 rounded-full ${selectedVendor.is_open ? 'bg-green-500' : 'bg-red-500'}`} />
+                    {selectedVendor.is_open ? 'Vendor is OPEN — accepting orders' : 'Vendor is CLOSED — order may be delayed; confirm with vendor first'}
+                  </p>
+                )}
               </div>
               {vendorId && outlets.length > 0 && (
                 <div>
@@ -652,12 +666,17 @@ export default function AssistedOrderCreate() {
                 <div className="grid md:grid-cols-2 gap-2 max-h-72 overflow-y-auto">
                   {filteredAvailable.map((p) => (
                     <button key={p.id} type="button" onClick={() => addProduct(p)}
-                      className="flex items-center justify-between p-2 rounded border hover:bg-muted text-left">
-                      <span className="text-sm">
+                      className="flex items-center gap-2 p-2 rounded border hover:bg-muted text-left">
+                      {p.image_url ? (
+                        <img src={p.image_url} alt={p.name} className="w-10 h-10 rounded object-cover shrink-0" />
+                      ) : (
+                        <div className="w-10 h-10 rounded bg-muted shrink-0 flex items-center justify-center text-[10px] text-muted-foreground">No img</div>
+                      )}
+                      <span className="text-sm flex-1 min-w-0 truncate">
                         {p.name}
                         {p.calories != null && <span className="text-[10px] text-muted-foreground ml-1">· {p.calories} kcal</span>}
                       </span>
-                      <span className="text-xs text-muted-foreground">₦{Number(p.price).toLocaleString()}</span>
+                      <span className="text-xs text-muted-foreground shrink-0">₦{Number(p.price).toLocaleString()}</span>
                     </button>
                   ))}
                   {filteredAvailable.length === 0 && <div className="text-xs text-muted-foreground p-2">No available products.</div>}
@@ -669,11 +688,16 @@ export default function AssistedOrderCreate() {
                       <AlertCircle className="w-4 h-4" />
                       ⚠️ {filteredUnavailable.length} menu item{filteredUnavailable.length>1?'s are':' is'} UNAVAILABLE right now — let the customer know
                     </div>
-                    <ul className="space-y-0.5 max-h-48 overflow-y-auto pl-6 pt-1">
+                    <ul className="space-y-1 max-h-48 overflow-y-auto pt-1">
                       {filteredUnavailable.map((p) => (
-                        <li key={p.id} className="text-xs text-yellow-900/80 flex justify-between border-b border-yellow-500/20 py-1 last:border-0">
-                          <span className="line-through">{p.name}</span>
-                          <span>₦{Number(p.price).toLocaleString()}</span>
+                        <li key={p.id} className="text-xs text-yellow-900/80 flex items-center gap-2 border-b border-yellow-500/20 py-1 last:border-0">
+                          {p.image_url ? (
+                            <img src={p.image_url} alt={p.name} className="w-8 h-8 rounded object-cover shrink-0 opacity-60" />
+                          ) : (
+                            <div className="w-8 h-8 rounded bg-yellow-500/20 shrink-0" />
+                          )}
+                          <span className="line-through flex-1 min-w-0 truncate">{p.name}</span>
+                          <span className="shrink-0">₦{Number(p.price).toLocaleString()}</span>
                         </li>
                       ))}
                     </ul>

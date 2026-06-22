@@ -167,10 +167,12 @@ export default function VendorOrders() {
     scope: 'item' | 'addon';
     id: string;
     originalName: string;
+    originalPrice: number;
     orderNumber: string;
   } | null>(null);
-  const [subForm, setSubForm] = useState<{ name: string; note: string; refund: string }>({ name: '', note: '', refund: '' });
+  const [subForm, setSubForm] = useState<{ name: string; note: string; refund: string; matchedPrice: number | null }>({ name: '', note: '', refund: '', matchedPrice: null });
   const [subSubmitting, setSubSubmitting] = useState(false);
+  const [menuOptions, setMenuOptions] = useState<{ id: string; name: string; price: number; is_available: boolean }[]>([]);
   const [completedPage, setCompletedPage] = useState(1);
   const { selectedOutletId, setSelectedOutletId, ready: outletReady } = usePersistedOutletId();
   const ITEMS_PER_PAGE = 10;
@@ -219,6 +221,23 @@ export default function VendorOrders() {
       console.error('Error fetching prep time settings:', err);
     }
   };
+
+  // Load vendor menu (for substitute autocomplete)
+  useEffect(() => {
+    if (!vendor?.id) { setMenuOptions([]); return; }
+    let q = supabase.from('products')
+      .select('id, name, price, is_available, outlet_id')
+      .eq('vendor_id', vendor.id)
+      .order('name')
+      .limit(500);
+    if (selectedOutletId) q = q.or(`outlet_id.eq.${selectedOutletId},outlet_id.is.null`);
+    q.then(({ data }) => {
+      setMenuOptions((data || []).map((p: any) => ({
+        id: p.id, name: p.name, price: Number(p.price), is_available: p.is_available,
+      })));
+    });
+  }, [vendor?.id, selectedOutletId]);
+
 
   // Subscribe to real-time order updates — scoped to selected outlet
   useEffect(() => {
@@ -615,9 +634,9 @@ export default function VendorOrders() {
     }
   };
 
-  const openSubstitute = (scope: 'item' | 'addon', id: string, originalName: string, orderNumber: string) => {
-    setSubForm({ name: '', note: '', refund: '' });
-    setSubstituteDialog({ open: true, scope, id, originalName, orderNumber });
+  const openSubstitute = (scope: 'item' | 'addon', id: string, originalName: string, originalPrice: number, orderNumber: string) => {
+    setSubForm({ name: '', note: '', refund: '', matchedPrice: null });
+    setSubstituteDialog({ open: true, scope, id, originalName, originalPrice, orderNumber });
   };
 
   const submitSubstitute = async () => {
@@ -697,7 +716,7 @@ export default function VendorOrders() {
               </button>
               <button
                 type="button"
-                onClick={() => openSubstitute('item', item.id, item.product_name, orderNumber)}
+                onClick={() => openSubstitute('item', item.id, item.product_name, Number((item as any).unit_price ?? (Number(item.total_price) / Math.max(1, item.quantity))), orderNumber)}
                 className="text-[11px] text-primary hover:underline font-medium"
               >
                 Offer substitute
@@ -755,7 +774,7 @@ export default function VendorOrders() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => openSubstitute('addon', addon.id, addon.addon_item_name, orderNumber)}
+                      onClick={() => openSubstitute('addon', addon.id, addon.addon_item_name, Number(addon.additional_price || 0), orderNumber)}
                       className="text-[10px] text-primary hover:underline font-medium"
                     >
                       Offer substitute
@@ -1303,11 +1322,69 @@ export default function VendorOrders() {
                   <Label htmlFor="sub-name">Replacement name *</Label>
                   <Input
                     id="sub-name"
-                    placeholder="e.g. fried rice"
+                    placeholder="Start typing a menu item…"
                     value={subForm.name}
-                    onChange={(e) => setSubForm((p) => ({ ...p, name: e.target.value }))}
+                    onChange={(e) => setSubForm((p) => ({ ...p, name: e.target.value, matchedPrice: null }))}
+                    autoComplete="off"
                   />
+                  {/* Autocomplete suggestions from vendor's menu */}
+                  {(() => {
+                    const q = subForm.name.trim().toLowerCase();
+                    if (!q || q.length < 1 || subForm.matchedPrice !== null) return null;
+                    const orig = substituteDialog?.originalPrice || 0;
+                    const matches = menuOptions
+                      .filter((m) => m.is_available && m.name.toLowerCase().includes(q) && m.name.toLowerCase() !== (substituteDialog?.originalName || '').toLowerCase())
+                      .slice(0, 6);
+                    if (matches.length === 0) {
+                      return (
+                        <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-300 rounded px-2 py-1">
+                          ⚠️ No matching menu item. Type the name <strong>carefully</strong>, or proceed with this custom name if it's not on your menu.
+                        </p>
+                      );
+                    }
+                    return (
+                      <div className="border rounded-md divide-y bg-background max-h-48 overflow-y-auto shadow-sm">
+                        {matches.map((m) => {
+                          const diff = orig - m.price;
+                          return (
+                            <button
+                              key={m.id}
+                              type="button"
+                              className="w-full flex justify-between items-center px-2 py-1.5 text-left hover:bg-muted text-xs"
+                              onClick={() => {
+                                setSubForm({
+                                  name: m.name,
+                                  note: subForm.note,
+                                  refund: diff > 0 ? String(diff) : '',
+                                  matchedPrice: m.price,
+                                });
+                              }}
+                            >
+                              <span className="font-medium">{m.name}</span>
+                              <span className="flex items-center gap-2">
+                                <span className="text-muted-foreground">₦{m.price.toLocaleString()}</span>
+                                {orig > 0 && (
+                                  diff > 0 ? <span className="text-green-700">↓ ₦{diff.toLocaleString()} refund</span>
+                                  : diff < 0 ? <span className="text-red-700">+₦{Math.abs(diff).toLocaleString()} more</span>
+                                  : <span className="text-muted-foreground">same price</span>
+                                )}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                  {subForm.matchedPrice !== null && substituteDialog && (
+                    <p className="text-[11px] text-primary">
+                      Selected from menu — ₦{subForm.matchedPrice.toLocaleString()} vs original ₦{substituteDialog.originalPrice.toLocaleString()}.
+                      {substituteDialog.originalPrice - subForm.matchedPrice < 0 && (
+                        <span className="text-red-700"> Replacement costs more; partial refund kept at 0 (extra charge isn't auto-billed).</span>
+                      )}
+                    </p>
+                  )}
                 </div>
+
                 <div className="space-y-1">
                   <Label htmlFor="sub-note">Note for customer (optional)</Label>
                   <Textarea
