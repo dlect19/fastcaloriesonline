@@ -22,6 +22,7 @@ interface CoverageArea {
   polygon: LatLng[];
   color: string;
   is_active: boolean;
+  is_coming_soon: boolean;
   created_at: string;
 }
 
