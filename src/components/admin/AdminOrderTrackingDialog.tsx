@@ -1342,10 +1342,25 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
                       </p>
                     )}
                     {item.order_item_addons && item.order_item_addons.length > 0 && (
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        {item.order_item_addons.map((a, j) => (
-                          <span key={j} className="block">+ {a.addon_item_name} {a.additional_price > 0 ? `(₦${a.additional_price.toLocaleString()})` : ''}</span>
-                        ))}
+                      <div className="text-xs text-muted-foreground mt-0.5 space-y-0.5">
+                        {item.order_item_addons.map((a, j) => {
+                          const unit = Number(a.additional_price) || 0;
+                          const qty = Number(item.quantity) || 1;
+                          const total = unit * qty;
+                          return (
+                            <div key={j} className="flex items-baseline justify-between gap-2">
+                              <span className="block">
+                                + {qty}× {a.addon_item_name}
+                                {unit > 0 ? ` @ ₦${unit.toLocaleString()}` : ''}
+                              </span>
+                              {unit > 0 && (
+                                <span className="text-foreground/80 font-medium tabular-nums">
+                                  ₦{total.toLocaleString()}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                     {item.special_instructions && (
