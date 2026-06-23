@@ -122,13 +122,16 @@ export default function CoverageMap() {
           const coords = area.polygon as Array<{ lat: number; lng: number }>;
           if (!coords || !Array.isArray(coords) || coords.length < 3) return;
 
+          const isComingSoon = !!area.is_coming_soon && !area.is_active;
+          const baseColor = isComingSoon ? '#f59e0b' : (area.color || '#22c55e');
+
           const polygon = new google.maps.Polygon({
             paths: coords,
-            strokeColor: area.color || '#22c55e',
-            strokeOpacity: 0.8,
+            strokeColor: baseColor,
+            strokeOpacity: isComingSoon ? 0.9 : 0.8,
             strokeWeight: 2,
-            fillColor: area.color || '#22c55e',
-            fillOpacity: 0.15,
+            fillColor: baseColor,
+            fillOpacity: isComingSoon ? 0.08 : 0.15,
             clickable: true,
           });
           polygon.setMap(map);
@@ -139,7 +142,9 @@ export default function CoverageMap() {
             infoWindow.setContent(`
               <div style="padding:4px 8px;font-family:system-ui,sans-serif;">
                 <strong style="font-size:14px;">${area.name}</strong>
-                <p style="font-size:12px;color:#666;margin:4px 0 0;">Active delivery zone</p>
+                <p style="font-size:12px;color:${isComingSoon ? '#b45309' : '#666'};margin:4px 0 0;">
+                  ${isComingSoon ? '🚧 Coming soon — not yet serviced' : 'Active delivery zone'}
+                </p>
               </div>
             `);
             infoWindow.setPosition(e.latLng);
