@@ -282,8 +282,14 @@ export default function CoverageMap() {
                           setLegendOpen(false);
                         }}
                       >
-                        <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: area.color }} />
-                        <span className="truncate">{area.name}</span>
+                        <span
+                          className="w-3 h-3 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: area.is_coming_soon && !area.is_active ? '#f59e0b' : area.color }}
+                        />
+                        <span className="truncate flex-1">{area.name}</span>
+                        {area.is_coming_soon && !area.is_active && (
+                          <span className="text-[10px] font-medium text-amber-600 bg-amber-100 dark:bg-amber-950/40 px-1.5 py-0.5 rounded">Soon</span>
+                        )}
                       </button>
                     ))}
                   </div>
