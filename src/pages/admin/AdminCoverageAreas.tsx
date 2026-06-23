@@ -231,6 +231,7 @@ export default function AdminCoverageAreas() {
     setIsDrawing(true);
     setEditName(`Coverage Area ${areas.length + 1}`);
     setEditColor(PRESET_COLORS[areas.length % PRESET_COLORS.length]);
+    setEditComingSoon(false);
     toast({ title: 'Drawing mode', description: 'Click on the map to place polygon points. Click "Finish" when done.' });
   };
 
