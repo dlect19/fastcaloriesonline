@@ -67,6 +67,7 @@ export default function AdminCoverageAreas() {
   const [editDialog, setEditDialog] = useState<{ open: boolean; area: CoverageArea | null; isNew: boolean }>({ open: false, area: null, isNew: false });
   const [editName, setEditName] = useState('');
   const [editColor, setEditColor] = useState('#FF8C00');
+  const [editComingSoon, setEditComingSoon] = useState(false);
   const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchSuggestions, setSearchSuggestions] = useState<{ place_id: string; description: string }[]>([]);
