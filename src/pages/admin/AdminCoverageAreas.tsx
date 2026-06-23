@@ -448,8 +448,11 @@ export default function AdminCoverageAreas() {
                     <div className="flex items-center gap-2 mb-2">
                       <div className="w-4 h-4 rounded-full border" style={{ backgroundColor: area.color }} />
                       <span className="font-medium text-sm text-foreground flex-1">{area.name}</span>
-                      <Badge variant={area.is_active ? 'default' : 'secondary'} className="text-xs">
-                        {area.is_active ? 'Active' : 'Inactive'}
+                      <Badge
+                        variant={area.is_coming_soon ? 'outline' : area.is_active ? 'default' : 'secondary'}
+                        className={`text-xs ${area.is_coming_soon ? 'border-amber-500 text-amber-600' : ''}`}
+                      >
+                        {area.is_coming_soon ? 'Coming Soon' : area.is_active ? 'Active' : 'Inactive'}
                       </Badge>
                     </div>
                     <p className="text-xs text-muted-foreground mb-2">{area.polygon?.length || 0} points</p>
