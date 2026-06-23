@@ -310,6 +310,7 @@ export default function AdminCoverageAreas() {
   const editExisting = (area: CoverageArea) => {
     setEditName(area.name);
     setEditColor(area.color);
+    setEditComingSoon(!!area.is_coming_soon);
     setEditDialog({ open: true, area, isNew: false });
   };
 
