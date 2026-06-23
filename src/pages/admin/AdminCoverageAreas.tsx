@@ -502,6 +502,13 @@ export default function AdminCoverageAreas() {
                   ))}
                 </div>
               </div>
+              <div className="flex items-center justify-between rounded-lg border p-3 bg-amber-50 dark:bg-amber-950/20">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-medium">Coming Soon</Label>
+                  <p className="text-xs text-muted-foreground">Show this zone on the public map as a "Coming Soon" area (not yet serviced).</p>
+                </div>
+                <Switch checked={editComingSoon} onCheckedChange={setEditComingSoon} />
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => { setEditDialog({ open: false, area: null, isNew: false }); clearPreview(); }}>Cancel</Button>
