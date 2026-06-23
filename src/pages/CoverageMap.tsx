@@ -14,6 +14,7 @@ interface CoverageArea {
   color: string;
   polygon: Json;
   is_active: boolean;
+  is_coming_soon?: boolean;
 }
 
 interface SearchSuggestion {
