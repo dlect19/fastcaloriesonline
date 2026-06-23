@@ -1,0 +1,121 @@
+<!--
+  Fast Calories — Assisted Order section
+  Drop this snippet into your fastcalories.online landing page (e.g. after the hero
+  section and before the app-download / footer section). Styles are inline /
+  Tailwind-CDN compatible, so it works whether your landing site uses Tailwind
+  or plain CSS.
+
+  Update the number below in one place and every link updates automatically:
+-->
+
+<script>
+  window.ASSISTED_ORDER_NUMBER = '+2348127917744';
+</script>
+
+<section id="assisted-order" style="background:#fff;color:#0f172a;padding:80px 16px;border-top:1px solid #e5e7eb;">
+  <div style="max-width:1100px;margin:0 auto;">
+    <div style="display:grid;grid-template-columns:1fr;gap:48px;align-items:center;" class="ao-grid">
+      <!-- Text -->
+      <div>
+        <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:4px 10px;border-radius:999px;background:rgba(16,185,129,.1);color:#059669;font-weight:600;">
+          📞 Prefer to talk? We can help.
+        </span>
+        <h2 style="font-size:32px;line-height:1.2;font-weight:800;margin:14px 0 12px;">
+          Rather order by phone or <span style="color:#10b981;">WhatsApp</span>?
+        </h2>
+        <p style="font-size:16px;color:#475569;max-width:520px;margin-bottom:24px;">
+          Tell us what you want, and we’ll build your cart, apply the best available offers, and send it straight to your door. No app required.
+        </p>
+
+        <ul style="list-style:none;padding:0;margin:0 0 28px 0;display:grid;gap:10px;font-size:14px;color:#0f172a;">
+          <li>✅ Call or chat — we take your order for you.</li>
+          <li>✅ Delivery or carryout, whatever works best.</li>
+          <li>✅ Same prices and promos as the app.</li>
+          <li>✅ Pay on delivery, transfer, or wallet — you choose.</li>
+        </ul>
+
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+          <a id="ao-call-link"
+             href="tel:+2348127917744"
+             style="display:inline-flex;align-items:center;gap:8px;background:#0f172a;color:#fff;padding:12px 22px;border-radius:10px;font-weight:600;text-decoration:none;">
+            <span>📞</span> Call to Order
+          </a>
+          <a id="ao-whatsapp-link"
+             href="https://wa.me/2348127917744?text=Hi%20Fast%20Calories%2C%20I%27d%20like%20to%20place%20an%20order"
+             target="_blank" rel="noopener noreferrer"
+             style="display:inline-flex;align-items:center;gap:8px;border:1px solid #10b981;color:#10b981;padding:12px 22px;border-radius:10px;font-weight:600;text-decoration:none;">
+            <span>💬</span> Chat on WhatsApp
+          </a>
+        </div>
+
+        <p style="font-size:13px;color:#64748b;margin-top:18px;">
+          Assisted order line: <strong id="ao-number-display">+2348127917744</strong>
+        </p>
+      </div>
+
+      <!-- Visual card -->
+      <div style="background:linear-gradient(135deg,#ecfdf5,#f0fdfa);border:1px solid #d1fae5;border-radius:24px;padding:28px;">
+        <div style="display:grid;gap:12px;">
+          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:16px;">
+            <div style="font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">How it works</div>
+            <div style="display:grid;gap:10px;">
+              <div style="display:flex;align-items:flex-start;gap:10px;font-size:14px;color:#0f172a;">
+                <span style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:999px;background:#10b981;color:#fff;font-size:12px;font-weight:700;flex-shrink:0;">1</span>
+                Call or WhatsApp us your order.
+              </div>
+              <div style="display:flex;align-items:flex-start;gap:10px;font-size:14px;color:#0f172a;">
+                <span style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:999px;background:#10b981;color:#fff;font-size:12px;font-weight:700;flex-shrink:0;">2</span>
+                We confirm the menu, total, and delivery time.
+              </div>
+              <div style="display:flex;align-items:flex-start;gap:10px;font-size:14px;color:#0f172a;">
+                <span style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:999px;background:#10b981;color:#fff;font-size:12px;font-weight:700;flex-shrink:0;">3</span>
+                Sit back — your order is on the way.
+              </div>
+            </div>
+          </div>
+
+          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:16px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+              <div>
+                <div style="font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:.05em;">Available</div>
+                <div style="font-size:18px;font-weight:800;color:#0f172a;">9am — 9pm daily</div>
+              </div>
+              <span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:4px 10px;border-radius:999px;background:rgba(16,185,129,.1);color:#059669;font-weight:600;">
+                <span style="width:6px;height:6px;border-radius:50%;background:#10b981;"></span> Taking orders
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    @media (min-width: 900px) {
+      #assisted-order .ao-grid {
+        grid-template-columns: 1.1fr 1fr !important;
+      }
+    }
+  </style>
+
+  <!-- Optional: auto-update number from the single JS variable above -->
+  <script>
+    (function () {
+      var num = window.ASSISTED_ORDER_NUMBER || '+2348127917744';
+      var clean = num.replace(/\D/g, '');
+      var call = document.getElementById('ao-call-link');
+      var whatsapp = document.getElementById('ao-whatsapp-link');
+      var display = document.getElementById('ao-number-display');
+      if (call) call.href = 'tel:' + num;
+      if (whatsapp) whatsapp.href = 'https://wa.me/' + clean + '?text=Hi%20Fast%20Calories%2C%20I%27d%20like%20to%20place%20an%20order';
+      if (display) display.textContent = num;
+    })();
+  </script>
+</section>
+
+<!-- OPTIONAL: nav-bar tab link.
+     Add this anywhere in your main navigation:
+-->
+<!--
+<a href="#assisted-order" style="font-weight:600;color:#0f172a;text-decoration:none;">Order by Phone</a>
+-->
