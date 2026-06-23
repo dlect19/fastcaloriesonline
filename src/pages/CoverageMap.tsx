@@ -14,6 +14,7 @@ interface CoverageArea {
   color: string;
   polygon: Json;
   is_active: boolean;
+  is_coming_soon?: boolean;
 }
 
 interface SearchSuggestion {
@@ -46,11 +47,11 @@ export default function CoverageMap() {
       try {
         const { data, error: fetchErr } = await supabase
           .from('coverage_areas')
-          .select('id, name, color, polygon, is_active')
-          .eq('is_active', true);
+          .select('id, name, color, polygon, is_active, is_coming_soon')
+          .or('is_active.eq.true,is_coming_soon.eq.true');
 
         if (fetchErr) throw fetchErr;
-        setCoverageAreas(data || []);
+        setCoverageAreas((data || []) as any);
       } catch (err) {
         console.error('Error fetching coverage areas:', err);
         setError('Failed to load coverage areas');
@@ -121,13 +122,16 @@ export default function CoverageMap() {
           const coords = area.polygon as Array<{ lat: number; lng: number }>;
           if (!coords || !Array.isArray(coords) || coords.length < 3) return;
 
+          const isComingSoon = !!area.is_coming_soon && !area.is_active;
+          const baseColor = isComingSoon ? '#f59e0b' : (area.color || '#22c55e');
+
           const polygon = new google.maps.Polygon({
             paths: coords,
-            strokeColor: area.color || '#22c55e',
-            strokeOpacity: 0.8,
+            strokeColor: baseColor,
+            strokeOpacity: isComingSoon ? 0.9 : 0.8,
             strokeWeight: 2,
-            fillColor: area.color || '#22c55e',
-            fillOpacity: 0.15,
+            fillColor: baseColor,
+            fillOpacity: isComingSoon ? 0.08 : 0.15,
             clickable: true,
           });
           polygon.setMap(map);
@@ -138,7 +142,9 @@ export default function CoverageMap() {
             infoWindow.setContent(`
               <div style="padding:4px 8px;font-family:system-ui,sans-serif;">
                 <strong style="font-size:14px;">${area.name}</strong>
-                <p style="font-size:12px;color:#666;margin:4px 0 0;">Active delivery zone</p>
+                <p style="font-size:12px;color:${isComingSoon ? '#b45309' : '#666'};margin:4px 0 0;">
+                  ${isComingSoon ? '🚧 Coming soon — not yet serviced' : 'Active delivery zone'}
+                </p>
               </div>
             `);
             infoWindow.setPosition(e.latLng);
@@ -276,8 +282,14 @@ export default function CoverageMap() {
                           setLegendOpen(false);
                         }}
                       >
-                        <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: area.color }} />
-                        <span className="truncate">{area.name}</span>
+                        <span
+                          className="w-3 h-3 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: area.is_coming_soon && !area.is_active ? '#f59e0b' : area.color }}
+                        />
+                        <span className="truncate flex-1">{area.name}</span>
+                        {area.is_coming_soon && !area.is_active && (
+                          <span className="text-[10px] font-medium text-amber-600 bg-amber-100 dark:bg-amber-950/40 px-1.5 py-0.5 rounded">Soon</span>
+                        )}
                       </button>
                     ))}
                   </div>

@@ -1676,6 +1676,7 @@ export type Database = {
           created_by: string | null
           id: string
           is_active: boolean
+          is_coming_soon: boolean
           name: string
           polygon: Json
           updated_at: string
@@ -1686,6 +1687,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           is_active?: boolean
+          is_coming_soon?: boolean
           name: string
           polygon?: Json
           updated_at?: string
@@ -1696,6 +1698,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           is_active?: boolean
+          is_coming_soon?: boolean
           name?: string
           polygon?: Json
           updated_at?: string

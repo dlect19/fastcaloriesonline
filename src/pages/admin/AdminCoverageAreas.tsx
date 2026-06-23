@@ -22,6 +22,7 @@ interface CoverageArea {
   polygon: LatLng[];
   color: string;
   is_active: boolean;
+  is_coming_soon: boolean;
   created_at: string;
 }
 
@@ -66,6 +67,7 @@ export default function AdminCoverageAreas() {
   const [editDialog, setEditDialog] = useState<{ open: boolean; area: CoverageArea | null; isNew: boolean }>({ open: false, area: null, isNew: false });
   const [editName, setEditName] = useState('');
   const [editColor, setEditColor] = useState('#FF8C00');
+  const [editComingSoon, setEditComingSoon] = useState(false);
   const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchSuggestions, setSearchSuggestions] = useState<{ place_id: string; description: string }[]>([]);
@@ -229,6 +231,7 @@ export default function AdminCoverageAreas() {
     setIsDrawing(true);
     setEditName(`Coverage Area ${areas.length + 1}`);
     setEditColor(PRESET_COLORS[areas.length % PRESET_COLORS.length]);
+    setEditComingSoon(false);
     toast({ title: 'Drawing mode', description: 'Click on the map to place polygon points. Click "Finish" when done.' });
   };
 
@@ -264,13 +267,14 @@ export default function AdminCoverageAreas() {
           name: editName,
           polygon: drawingPointsRef.current as any,
           color: editColor,
-          is_active: true,
-        });
+          is_active: !editComingSoon,
+          is_coming_soon: editComingSoon,
+        } as any);
         if (error) throw error;
-        toast({ title: 'Coverage area created!' });
+        toast({ title: editComingSoon ? 'Coming-soon zone created!' : 'Coverage area created!' });
       } else if (editDialog.area) {
         const { error } = await supabase.from('coverage_areas')
-          .update({ name: editName, color: editColor, updated_at: new Date().toISOString() })
+          .update({ name: editName, color: editColor, is_coming_soon: editComingSoon, updated_at: new Date().toISOString() } as any)
           .eq('id', editDialog.area.id);
         if (error) throw error;
         toast({ title: 'Coverage area updated!' });
@@ -306,6 +310,7 @@ export default function AdminCoverageAreas() {
   const editExisting = (area: CoverageArea) => {
     setEditName(area.name);
     setEditColor(area.color);
+    setEditComingSoon(!!area.is_coming_soon);
     setEditDialog({ open: true, area, isNew: false });
   };
 
@@ -443,8 +448,11 @@ export default function AdminCoverageAreas() {
                     <div className="flex items-center gap-2 mb-2">
                       <div className="w-4 h-4 rounded-full border" style={{ backgroundColor: area.color }} />
                       <span className="font-medium text-sm text-foreground flex-1">{area.name}</span>
-                      <Badge variant={area.is_active ? 'default' : 'secondary'} className="text-xs">
-                        {area.is_active ? 'Active' : 'Inactive'}
+                      <Badge
+                        variant={area.is_coming_soon ? 'outline' : area.is_active ? 'default' : 'secondary'}
+                        className={`text-xs ${area.is_coming_soon ? 'border-amber-500 text-amber-600' : ''}`}
+                      >
+                        {area.is_coming_soon ? 'Coming Soon' : area.is_active ? 'Active' : 'Inactive'}
                       </Badge>
                     </div>
                     <p className="text-xs text-muted-foreground mb-2">{area.polygon?.length || 0} points</p>
@@ -493,6 +501,13 @@ export default function AdminCoverageAreas() {
                     />
                   ))}
                 </div>
+              </div>
+              <div className="flex items-center justify-between rounded-lg border p-3 bg-amber-50 dark:bg-amber-950/20">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-medium">Coming Soon</Label>
+                  <p className="text-xs text-muted-foreground">Show this zone on the public map as a "Coming Soon" area (not yet serviced).</p>
+                </div>
+                <Switch checked={editComingSoon} onCheckedChange={setEditComingSoon} />
               </div>
             </div>
             <DialogFooter>
