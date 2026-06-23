@@ -47,11 +47,11 @@ export default function CoverageMap() {
       try {
         const { data, error: fetchErr } = await supabase
           .from('coverage_areas')
-          .select('id, name, color, polygon, is_active')
-          .eq('is_active', true);
+          .select('id, name, color, polygon, is_active, is_coming_soon')
+          .or('is_active.eq.true,is_coming_soon.eq.true');
 
         if (fetchErr) throw fetchErr;
-        setCoverageAreas(data || []);
+        setCoverageAreas((data || []) as any);
       } catch (err) {
         console.error('Error fetching coverage areas:', err);
         setError('Failed to load coverage areas');
