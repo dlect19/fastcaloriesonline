@@ -267,13 +267,14 @@ export default function AdminCoverageAreas() {
           name: editName,
           polygon: drawingPointsRef.current as any,
           color: editColor,
-          is_active: true,
-        });
+          is_active: !editComingSoon,
+          is_coming_soon: editComingSoon,
+        } as any);
         if (error) throw error;
-        toast({ title: 'Coverage area created!' });
+        toast({ title: editComingSoon ? 'Coming-soon zone created!' : 'Coverage area created!' });
       } else if (editDialog.area) {
         const { error } = await supabase.from('coverage_areas')
-          .update({ name: editName, color: editColor, updated_at: new Date().toISOString() })
+          .update({ name: editName, color: editColor, is_coming_soon: editComingSoon, updated_at: new Date().toISOString() } as any)
           .eq('id', editDialog.area.id);
         if (error) throw error;
         toast({ title: 'Coverage area updated!' });
