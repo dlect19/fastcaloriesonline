@@ -23,6 +23,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { OrderPhotoEvidence } from '@/components/admin/OrderPhotoEvidence';
+import { logActivity } from '@/hooks/useAdminActivityLogger';
 
 import { restoreFreeMealOnCancel } from '@/lib/restoreFreeMealOnCancel';
 /* ------------------------------------------------------------------ */
@@ -715,17 +716,49 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
         {/* ── Vendor Countdown Alert ── */}
         {vendorOverdue && (
           <Card className="border-destructive/50 bg-destructive/5">
-            <CardContent className="py-3 flex items-center gap-3">
+            <CardContent className="py-3 flex items-center gap-3 flex-wrap">
               <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
-              <div className="flex-1">
+              <div className="flex-1 min-w-[200px]">
                 <p className="text-sm font-medium text-destructive">Vendor hasn't updated this order</p>
                 <p className="text-xs text-muted-foreground">
                   {fmtTime(vendorElapsed)} elapsed since order was placed
                 </p>
+                {(activeOrder as any)?.attended_by_staff_id && (
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    ✓ Attended by staff
+                    {(activeOrder as any)?.attended_at && (
+                      <> at {format(new Date((activeOrder as any).attended_at), 'p')}</>
+                    )}
+                  </p>
+                )}
               </div>
+              {!(activeOrder as any)?.attended_by_staff_id && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1"
+                  onClick={async () => {
+                    const { error } = await supabase.rpc('attend_order', { _order_id: activeOrder!.id });
+                    if (error) {
+                      toast({ title: 'Could not attend', description: error.message, variant: 'destructive' });
+                    } else {
+                      toast({ title: "You're on it", description: 'Marked as attended. Now call the vendor.' });
+                      onUpdated?.();
+                    }
+                  }}
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" /> I'm on it
+                </Button>
+              )}
               {vendor?.phone && (
                 <a href={`tel:${vendor.phone}`}>
-                  <Button size="sm" variant="destructive" className="gap-1">
+                  <Button size="sm" variant="destructive" className="gap-1"
+                    onClick={() => {
+                      logActivity('vendor_called', 'order', activeOrder?.id, {
+                        order_number: activeOrder?.order_number,
+                      });
+                    }}
+                  >
                     <Phone className="w-3.5 h-3.5" /> Call Vendor
                   </Button>
                 </a>

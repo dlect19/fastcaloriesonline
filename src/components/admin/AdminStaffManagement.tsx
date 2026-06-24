@@ -106,6 +106,7 @@ interface AdminStaffMember {
   invite_code: string | null;
   invite_accepted_at: string | null;
   created_at: string;
+  last_activity_at?: string | null;
   profile?: {
     full_name: string | null;
     phone: string | null;
@@ -202,7 +203,7 @@ export function AdminStaffManagement() {
     try {
       const { data, error } = await supabase
         .from('admin_staff')
-        .select('id, user_id, role, is_active, invite_email, invite_accepted_at, created_at')
+        .select('id, user_id, role, is_active, invite_email, invite_accepted_at, created_at, last_activity_at')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -560,6 +561,7 @@ export function AdminStaffManagement() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Member</TableHead>
+                  <TableHead>Presence</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Joined</TableHead>
@@ -580,6 +582,21 @@ export function AdminStaffManagement() {
                           </p>
                         )}
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {(() => {
+                        const last = member.last_activity_at ? new Date(member.last_activity_at) : null;
+                        const mins = last ? Math.floor((Date.now() - last.getTime()) / 60000) : null;
+                        const online = mins !== null && mins < 15;
+                        return (
+                          <div className="flex items-center gap-1.5">
+                            <span className={`inline-block w-2 h-2 rounded-full ${online ? 'bg-green-500 animate-pulse' : 'bg-muted-foreground/40'}`} />
+                            <span className="text-xs text-muted-foreground">
+                              {!last ? 'Never' : online ? 'Active now' : `${mins! < 60 ? mins + 'm' : Math.floor(mins!/60) + 'h'} ago`}
+                            </span>
+                          </div>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell>
                       <Select 

@@ -522,10 +522,18 @@ export default function AdminOrders() {
                           {format(new Date(order.created_at), 'PP')}
                         </td>
                         <td className="py-3 px-4">
-                          <div className="flex gap-1">
+                          <div className="flex gap-1 items-center">
                             <Button variant="ghost" size="sm" className="gap-1" onClick={() => setTrackOrder(order)}>
                               <Eye className="w-4 h-4" /> Track
                             </Button>
+                            {order.attended_by_staff_id && (
+                              <span
+                                className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/15 text-green-700 dark:text-green-400 border border-green-500/30"
+                                title={`Attended${order.attended_at ? ` at ${format(new Date(order.attended_at), 'p')}` : ''}`}
+                              >
+                                ✓ Attended
+                              </span>
+                            )}
                             {order.status !== 'cancelled' && order.status !== 'delivered' && (
                               <Button
                                 variant="ghost" size="sm"
