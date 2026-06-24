@@ -755,6 +755,7 @@ export type Database = {
           invite_email: string | null
           invited_by: string | null
           is_active: boolean | null
+          last_activity_at: string | null
           permissions: string[] | null
           role: Database["public"]["Enums"]["admin_staff_role"]
           updated_at: string | null
@@ -768,6 +769,7 @@ export type Database = {
           invite_email?: string | null
           invited_by?: string | null
           is_active?: boolean | null
+          last_activity_at?: string | null
           permissions?: string[] | null
           role?: Database["public"]["Enums"]["admin_staff_role"]
           updated_at?: string | null
@@ -781,6 +783,7 @@ export type Database = {
           invite_email?: string | null
           invited_by?: string | null
           is_active?: boolean | null
+          last_activity_at?: string | null
           permissions?: string[] | null
           role?: Database["public"]["Enums"]["admin_staff_role"]
           updated_at?: string | null
@@ -4619,6 +4622,8 @@ export type Database = {
       orders: {
         Row: {
           assisted_created_by: string | null
+          attended_at: string | null
+          attended_by_staff_id: string | null
           cancellation_reason: string | null
           cancelled_at: string | null
           channel: string
@@ -4663,10 +4668,13 @@ export type Database = {
           total_calories: number | null
           updated_at: string
           user_id: string | null
+          vendor_called_at: string | null
           vendor_id: string
         }
         Insert: {
           assisted_created_by?: string | null
+          attended_at?: string | null
+          attended_by_staff_id?: string | null
           cancellation_reason?: string | null
           cancelled_at?: string | null
           channel?: string
@@ -4711,10 +4719,13 @@ export type Database = {
           total_calories?: number | null
           updated_at?: string
           user_id?: string | null
+          vendor_called_at?: string | null
           vendor_id: string
         }
         Update: {
           assisted_created_by?: string | null
+          attended_at?: string | null
+          attended_by_staff_id?: string | null
           cancellation_reason?: string | null
           cancelled_at?: string | null
           channel?: string
@@ -4759,6 +4770,7 @@ export type Database = {
           total_calories?: number | null
           updated_at?: string
           user_id?: string | null
+          vendor_called_at?: string | null
           vendor_id?: string
         }
         Relationships: [
@@ -8686,6 +8698,66 @@ export type Database = {
         Args: { _notes?: string; _prescription_id: string }
         Returns: undefined
       }
+      attend_order: {
+        Args: { _order_id: string }
+        Returns: {
+          assisted_created_by: string | null
+          attended_at: string | null
+          attended_by_staff_id: string | null
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          channel: string
+          communication_notes: string | null
+          confirmation_code: string | null
+          created_at: string
+          delivered_at: string | null
+          delivery_address_id: string | null
+          delivery_address_text: string | null
+          delivery_fee: number | null
+          delivery_instructions: string | null
+          delivery_type: string | null
+          discount: number | null
+          environment: string | null
+          estimated_delivery_at: string | null
+          extra_package_fee: number
+          free_meal_promo_id: string | null
+          free_meal_value: number | null
+          id: string
+          is_free_meal: boolean | null
+          menu_subtotal: number | null
+          order_number: string
+          outlet_id: string | null
+          package_count: number
+          packaging_fee: number | null
+          payment_method: string | null
+          payment_reference: string | null
+          payment_status: string | null
+          pharmacy_review_status: string
+          pos_cashier_id: string | null
+          pos_payment_method: string | null
+          pos_session_id: string | null
+          prep_minutes: number | null
+          promo_code: string | null
+          receiver_name: string | null
+          receiver_phone: string | null
+          rider_id: string | null
+          service_fee: number | null
+          status: Database["public"]["Enums"]["order_status"]
+          subtotal: number
+          total: number
+          total_calories: number | null
+          updated_at: string
+          user_id: string | null
+          vendor_called_at: string | null
+          vendor_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "orders"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       bytea_to_text: { Args: { data: string }; Returns: string }
       can_manage_assisted_orders: {
         Args: { _user_id: string }
@@ -8914,6 +8986,15 @@ export type Database = {
       is_vendor_owner: {
         Args: { _user_id: string; _vendor_id: string }
         Returns: boolean
+      }
+      log_admin_activity: {
+        Args: {
+          _action: string
+          _details?: Json
+          _entity_id?: string
+          _entity_type: string
+        }
+        Returns: string
       }
       lookup_pos_wallet_customer: {
         Args: { _phone_variants: string[] }
