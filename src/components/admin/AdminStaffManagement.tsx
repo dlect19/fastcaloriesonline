@@ -106,6 +106,7 @@ interface AdminStaffMember {
   invite_code: string | null;
   invite_accepted_at: string | null;
   created_at: string;
+  last_activity_at?: string | null;
   profile?: {
     full_name: string | null;
     phone: string | null;
@@ -202,7 +203,7 @@ export function AdminStaffManagement() {
     try {
       const { data, error } = await supabase
         .from('admin_staff')
-        .select('id, user_id, role, is_active, invite_email, invite_accepted_at, created_at')
+        .select('id, user_id, role, is_active, invite_email, invite_accepted_at, created_at, last_activity_at')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -560,6 +561,7 @@ export function AdminStaffManagement() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Member</TableHead>
+                  <TableHead>Presence</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Joined</TableHead>
