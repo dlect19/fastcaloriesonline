@@ -125,7 +125,16 @@ export function CustomerCancelOrderDialog({
       setSelectedReason('');
       setCustomReason('');
     } catch (error: any) {
-      toast({ title: 'Error', description: error.message || 'Failed to cancel order', variant: 'destructive' });
+      const msg = String(error?.message || '');
+      const isLateCancel = msg.includes('preparation has started') || error?.code === '23514';
+      toast({
+        title: isLateCancel ? 'Cannot cancel anymore' : 'Error',
+        description: isLateCancel
+          ? 'The vendor has started preparing your order, so it can no longer be cancelled. Please contact support if you need help.'
+          : (msg || 'Failed to cancel order'),
+        variant: 'destructive',
+      });
+      if (isLateCancel) onOpenChange(false);
     } finally {
       setProcessing(false);
     }
