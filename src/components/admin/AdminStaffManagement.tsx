@@ -584,6 +584,21 @@ export function AdminStaffManagement() {
                       </div>
                     </TableCell>
                     <TableCell>
+                      {(() => {
+                        const last = member.last_activity_at ? new Date(member.last_activity_at) : null;
+                        const mins = last ? Math.floor((Date.now() - last.getTime()) / 60000) : null;
+                        const online = mins !== null && mins < 15;
+                        return (
+                          <div className="flex items-center gap-1.5">
+                            <span className={`inline-block w-2 h-2 rounded-full ${online ? 'bg-green-500 animate-pulse' : 'bg-muted-foreground/40'}`} />
+                            <span className="text-xs text-muted-foreground">
+                              {!last ? 'Never' : online ? 'Active now' : `${mins! < 60 ? mins + 'm' : Math.floor(mins!/60) + 'h'} ago`}
+                            </span>
+                          </div>
+                        );
+                      })()}
+                    </TableCell>
+                    <TableCell>
                       <Select 
                         value={member.role} 
                         onValueChange={(v) => handleUpdateRole(member.id, v as AdminStaffRole)}
