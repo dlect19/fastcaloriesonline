@@ -4,6 +4,7 @@ import { AdminSidebar } from './AdminSidebar';
 import { AdminNotificationBell } from './AdminNotificationBell';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { useStaffPresenceHeartbeat } from '@/hooks/useAdminActivityLogger';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -12,6 +13,7 @@ interface AdminLayoutProps {
 export function AdminLayout({ children }: AdminLayoutProps) {
   const isMobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  useStaffPresenceHeartbeat();
 
   return (
     <div className="min-h-screen bg-background">
