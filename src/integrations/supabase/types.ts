@@ -8628,6 +8628,9 @@ export type Database = {
       }
     }
     Functions: {
+      add_delivery_company_role: { Args: never; Returns: undefined }
+      add_event_organizer_role: { Args: never; Returns: undefined }
+      add_rider_role: { Args: never; Returns: undefined }
       add_vendor_role: { Args: never; Returns: undefined }
       adjust_product_stock: {
         Args: {
@@ -8995,6 +8998,10 @@ export type Database = {
           _entity_type: string
         }
         Returns: string
+      }
+      log_settings_change: {
+        Args: { _key: string; _new_value: string; _old_value: string }
+        Returns: undefined
       }
       lookup_pos_wallet_customer: {
         Args: { _phone_variants: string[] }
