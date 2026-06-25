@@ -40,6 +40,16 @@ export default function DeliveryCompanyAuth() {
   const [state, setState] = useState('');
   const [address, setAddress] = useState('');
 
+  // Link existing customer account
+  const [linkEmail, setLinkEmail] = useState('');
+  const [linkPassword, setLinkPassword] = useState('');
+  const [showLinkPassword, setShowLinkPassword] = useState(false);
+  const [linkCompanyName, setLinkCompanyName] = useState('');
+  const [linkPhone, setLinkPhone] = useState('');
+  const [linkCity, setLinkCity] = useState('');
+  const [linkState, setLinkState] = useState('');
+  const [linkAddress, setLinkAddress] = useState('');
+
   // Google OAuth: complete company profile after Google sign-in
   const [googleCompleteProfile, setGoogleCompleteProfile] = useState(false);
   const [googleUserId, setGoogleUserId] = useState<string | null>(null);
@@ -438,9 +448,10 @@ export default function DeliveryCompanyAuth() {
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="login">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="login">Login</TabsTrigger>
-              <TabsTrigger value="signup">Register Company</TabsTrigger>
+              <TabsTrigger value="signup">Register</TabsTrigger>
+              <TabsTrigger value="link">Link</TabsTrigger>
             </TabsList>
 
             <TabsContent value="login">
@@ -614,6 +625,80 @@ export default function DeliveryCompanyAuth() {
                 <Button type="submit" className="w-full" disabled={loading || !termsAccepted}>
                   {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                   Register Company
+                </Button>
+              </form>
+            </TabsContent>
+
+            <TabsContent value="link">
+              <div className="mb-3 rounded-md bg-primary/5 border border-primary/20 p-3 text-xs text-muted-foreground">
+                Already have a Fast Calories account? Sign in and register your delivery company without creating a new account. Profile will still be reviewed by admin.
+              </div>
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!isValidNgPhone(linkPhone)) {
+                    toast({ title: 'Invalid phone number', description: PHONE_ERROR_MESSAGE, variant: 'destructive' });
+                    return;
+                  }
+                  if (!linkCompanyName || !linkCity || !linkState) {
+                    toast({ title: 'All fields required', variant: 'destructive' });
+                    return;
+                  }
+                  setLoading(true);
+                  try {
+                    const { data, error } = await supabase.auth.signInWithPassword({ email: linkEmail, password: linkPassword });
+                    if (error) throw error;
+                    const { data: existing } = await supabase.from('delivery_companies').select('id').eq('user_id', data.user.id).limit(1);
+                    if (existing && existing.length > 0) {
+                      toast({ title: 'Already registered', description: 'This account already has a delivery company.' });
+                      navigate('/delivery/dashboard');
+                      return;
+                    }
+                    const { error: roleErr } = await supabase.rpc('add_delivery_company_role');
+                    if (roleErr) throw roleErr;
+                    const { error: insErr } = await supabase.from('delivery_companies').insert({
+                      user_id: data.user.id,
+                      name: linkCompanyName,
+                      email: linkEmail,
+                      phone: linkPhone,
+                      city: linkCity,
+                      state: linkState,
+                      address: linkAddress,
+                    });
+                    if (insErr) throw insErr;
+                    toast({ title: 'Company registered!', description: 'Pending admin verification.' });
+                    navigate('/delivery/dashboard');
+                  } catch (err: any) {
+                    toast({ title: 'Failed to link account', description: err.message, variant: 'destructive' });
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                className="space-y-4"
+              >
+                <div className="space-y-2"><Label>Email</Label><Input type="email" required value={linkEmail} onChange={(e) => setLinkEmail(e.target.value)} /></div>
+                <div className="space-y-2">
+                  <Label>Password</Label>
+                  <div className="relative">
+                    <Input type={showLinkPassword ? 'text' : 'password'} required value={linkPassword} onChange={(e) => setLinkPassword(e.target.value)} />
+                    <button type="button" onClick={() => setShowLinkPassword(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                      {showLinkPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-2"><Label className="flex items-center gap-2"><Building2 className="w-4 h-4" />Company Name</Label><Input required value={linkCompanyName} onChange={(e) => setLinkCompanyName(e.target.value)} placeholder="Swift Logistics Ltd" /></div>
+                <div className="space-y-2">
+                  <Label>Phone</Label>
+                  <Input type="tel" inputMode="numeric" required value={linkPhone} onChange={(e) => setLinkPhone(sanitizePhoneInput(e.target.value))} maxLength={PHONE_LENGTH} pattern="\d{11}" placeholder="08012345678" title={PHONE_ERROR_MESSAGE} />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>City</Label><Input required value={linkCity} onChange={(e) => setLinkCity(e.target.value)} /></div>
+                  <div className="space-y-2"><Label>State</Label><Input required value={linkState} onChange={(e) => setLinkState(e.target.value)} /></div>
+                </div>
+                <div className="space-y-2"><Label>Business Address</Label><Input required value={linkAddress} onChange={(e) => setLinkAddress(e.target.value)} /></div>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                  Link Account & Register Company
                 </Button>
               </form>
             </TabsContent>

@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 import { AdminDeleteUserButton } from '@/components/admin/AdminDeleteUserButton';
+import { logActivity } from '@/hooks/useAdminActivityLogger';
 
 interface DeliveryCompany {
   id: string;
@@ -89,6 +90,7 @@ export default function AdminDeliveryCompanies() {
 
       if (error) throw error;
 
+      await logActivity(company.is_verified ? 'rejected' : 'approved', 'delivery_company', company.id);
       toast({ title: company.is_verified ? 'Verification revoked' : 'Company verified!' });
       fetchCompanies();
     } catch (error: any) {
@@ -105,6 +107,7 @@ export default function AdminDeliveryCompanies() {
 
       if (error) throw error;
 
+      await logActivity(company.is_active ? 'deactivated' : 'activated', 'delivery_company', company.id);
       toast({ title: company.is_active ? 'Company suspended' : 'Company activated!' });
       fetchCompanies();
     } catch (error: any) {
@@ -130,6 +133,11 @@ export default function AdminDeliveryCompanies() {
 
       if (error) throw error;
 
+      await logActivity('updated', 'delivery_company', selectedCompany.id, {
+        field: 'commission_rate',
+        old_value: selectedCompany.commission_rate,
+        new_value: rate,
+      });
       toast({ title: 'Commission rate updated!' });
       setCommissionDialogOpen(false);
       fetchCompanies();
