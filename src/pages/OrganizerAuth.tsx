@@ -261,6 +261,71 @@ export default function OrganizerAuth() {
                 </Button>
               </form>
             </TabsContent>
+
+            <TabsContent value="link">
+              <div className="mb-3 rounded-md bg-primary/5 border border-primary/20 p-3 text-xs text-muted-foreground">
+                Already have a Fast Calories account? Sign in and add organizer access without creating a new one. Your profile will still be reviewed by admin.
+              </div>
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!lBrand.trim()) {
+                    toast({ title: 'Brand name required', variant: 'destructive' });
+                    return;
+                  }
+                  setBusy(true);
+                  try {
+                    const { data, error } = await supabase.auth.signInWithPassword({ email: lEmail.trim(), password: lPassword });
+                    if (error) throw error;
+                    const { data: existing } = await supabase.from('event_organizers').select('id').eq('owner_user_id', data.user!.id).maybeSingle();
+                    if (existing?.id) {
+                      toast({ title: 'Already an organizer', description: 'This account already has an organizer profile.' });
+                      navigate('/organizer/dashboard');
+                      return;
+                    }
+                    const { error: roleErr } = await supabase.rpc('add_event_organizer_role');
+                    if (roleErr) throw roleErr;
+                    const { error: orgErr } = await supabase.from('event_organizers').insert({
+                      name: lBrand.trim(),
+                      contact_email: lEmail.trim(),
+                      contact_phone: lPhone.trim() || null,
+                      owner_user_id: data.user!.id,
+                      is_active: false,
+                      is_verified: false,
+                    });
+                    if (orgErr) throw orgErr;
+                    toast({ title: 'Organizer profile created', description: 'Pending admin approval.' });
+                    navigate('/organizer/dashboard');
+                  } catch (err: any) {
+                    toast({ title: 'Failed to link account', description: err.message, variant: 'destructive' });
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+                className="space-y-3"
+              >
+                <Field label="Email" icon={Mail}>
+                  <Input type="email" required value={lEmail} onChange={(e) => setLEmail(e.target.value)} placeholder="you@brand.com" />
+                </Field>
+                <Field label="Password" icon={Lock}>
+                  <div className="relative">
+                    <Input type={showLPwd ? 'text' : 'password'} required value={lPassword} onChange={(e) => setLPassword(e.target.value)} className="pr-10" />
+                    <button type="button" onClick={() => setShowLPwd(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                      {showLPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </Field>
+                <Field label="Brand / Organizer Name" icon={Building2}>
+                  <Input required value={lBrand} onChange={(e) => setLBrand(e.target.value)} placeholder="Lagos Live Events" />
+                </Field>
+                <Field label="Phone" icon={Phone}>
+                  <Input type="tel" value={lPhone} onChange={(e) => setLPhone(e.target.value)} placeholder="+234 800 000 0000" />
+                </Field>
+                <Button type="submit" className="w-full" disabled={busy}>
+                  {busy && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Link Account & Create Organizer
+                </Button>
+              </form>
+            </TabsContent>
           </Tabs>
 
           <p className="text-center text-xs text-muted-foreground mt-6">
