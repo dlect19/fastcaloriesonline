@@ -12,8 +12,15 @@ import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 export default function OrganizerAuth() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [tab, setTab] = useState<'login' | 'signup'>('login');
+  const [tab, setTab] = useState<'login' | 'signup' | 'link'>('login');
   const [busy, setBusy] = useState(false);
+
+  // link state
+  const [lEmail, setLEmail] = useState('');
+  const [lPassword, setLPassword] = useState('');
+  const [showLPwd, setShowLPwd] = useState(false);
+  const [lBrand, setLBrand] = useState('');
+  const [lPhone, setLPhone] = useState('');
 
   // login
   const [email, setEmail] = useState('');
