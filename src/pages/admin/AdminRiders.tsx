@@ -15,6 +15,7 @@ import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 import { AdminChangeEmailDialog } from '@/components/admin/AdminChangeEmailDialog';
 import { AdminEntityWalletDialog } from '@/components/admin/AdminEntityWalletDialog';
 import { AdminDeleteUserButton } from '@/components/admin/AdminDeleteUserButton';
+import { logActivity } from '@/hooks/useAdminActivityLogger';
 
 export default function AdminRiders() {
   const navigate = useNavigate();
@@ -100,6 +101,7 @@ export default function AdminRiders() {
         is_verified: true,
         nin_verified: true 
       }).eq('id', riderId);
+      await logActivity('approved', 'rider', riderId);
       toast({ title: 'Rider approved successfully' });
       fetchRiders();
     } catch (error) {
@@ -111,6 +113,7 @@ export default function AdminRiders() {
     try {
       await supabase.from('rider_profiles').delete().eq('id', riderId);
       await supabase.from('user_roles').delete().eq('user_id', userId).eq('role', 'rider');
+      await logActivity('rejected', 'rider', riderId, { user_id: userId });
       toast({ title: 'Rider rejected' });
       fetchRiders();
     } catch (error) {
@@ -121,6 +124,7 @@ export default function AdminRiders() {
   const toggleTestRider = async (riderId: string, isTestRider: boolean) => {
     try {
       await supabase.from('rider_profiles').update({ is_test_rider: !isTestRider }).eq('id', riderId);
+      await logActivity('updated', 'rider', riderId, { is_test_rider: !isTestRider });
       toast({ title: `Rider marked as ${!isTestRider ? 'test rider' : 'live rider'}` });
       fetchRiders();
     } catch (error) {

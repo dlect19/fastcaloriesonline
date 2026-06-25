@@ -16,6 +16,7 @@ import { AdminChangeEmailDialog } from '@/components/admin/AdminChangeEmailDialo
 import { AdminEntityWalletDialog } from '@/components/admin/AdminEntityWalletDialog';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 import { AdminDeleteUserButton } from '@/components/admin/AdminDeleteUserButton';
+import { logActivity } from '@/hooks/useAdminActivityLogger';
 
 export default function AdminVendors() {
   const navigate = useNavigate();
@@ -94,6 +95,7 @@ export default function AdminVendors() {
         .update({ is_verified: true, is_active: true })
         .eq('id', vendorId);
 
+      await logActivity('approved', 'vendor', vendorId);
       toast({ title: 'Vendor approved successfully' });
       fetchVendors();
     } catch (error) {
@@ -104,6 +106,7 @@ export default function AdminVendors() {
   const rejectVendor = async (vendorId: string) => {
     try {
       await supabase.from('vendors').delete().eq('id', vendorId);
+      await logActivity('rejected', 'vendor', vendorId);
       toast({ title: 'Vendor rejected' });
       fetchVendors();
     } catch (error) {
@@ -114,6 +117,7 @@ export default function AdminVendors() {
   const toggleActive = async (vendorId: string, isActive: boolean) => {
     try {
       await supabase.from('vendors').update({ is_active: !isActive }).eq('id', vendorId);
+      await logActivity(isActive ? 'deactivated' : 'activated', 'vendor', vendorId);
       toast({ title: `Vendor ${isActive ? 'deactivated' : 'activated'}` });
       fetchVendors();
     } catch (error) {
@@ -124,6 +128,7 @@ export default function AdminVendors() {
   const toggleTestStore = async (vendorId: string, isTestStore: boolean) => {
     try {
       await supabase.from('vendors').update({ is_test_store: !isTestStore }).eq('id', vendorId);
+      await logActivity('updated', 'vendor', vendorId, { is_test_store: !isTestStore });
       toast({ title: `Vendor marked as ${!isTestStore ? 'test store' : 'live store'}` });
       fetchVendors();
     } catch (error) {
@@ -137,6 +142,7 @@ export default function AdminVendors() {
         approved_for_live: true, 
         is_test_store: false 
       }).eq('id', vendorId);
+      await logActivity('approved', 'vendor', vendorId, { approved_for_live: true });
       toast({ title: 'Vendor approved for live' });
       fetchVendors();
     } catch (error) {
@@ -149,6 +155,7 @@ export default function AdminVendors() {
       await supabase.from('vendors').update({ 
         approved_for_live: false 
       }).eq('id', vendorId);
+      await logActivity('updated', 'vendor', vendorId, { approved_for_live: false });
       toast({ title: 'Live approval revoked' });
       fetchVendors();
     } catch (error) {
