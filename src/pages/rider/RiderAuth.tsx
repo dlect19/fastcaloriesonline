@@ -42,6 +42,15 @@ export default function RiderAuth() {
   const [vehiclePlate, setVehiclePlate] = useState('');
   const [ninNumber, setNinNumber] = useState('');
 
+  // Link existing customer account state
+  const [linkEmail, setLinkEmail] = useState('');
+  const [linkPassword, setLinkPassword] = useState('');
+  const [showLinkPassword, setShowLinkPassword] = useState(false);
+  const [linkPhone, setLinkPhone] = useState('');
+  const [linkVehicleType, setLinkVehicleType] = useState('');
+  const [linkVehiclePlate, setLinkVehiclePlate] = useState('');
+  const [linkNin, setLinkNin] = useState('');
+
   // Google OAuth: complete rider profile after Google sign-in
   const [googleCompleteProfile, setGoogleCompleteProfile] = useState(false);
   const [googleUserId, setGoogleUserId] = useState<string | null>(null);
@@ -553,9 +562,10 @@ export default function RiderAuth() {
         </CardHeader>
         <CardContent>
           <Tabs defaultValue={redirectUrl ? 'signup' : 'login'}>
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="login">Login</TabsTrigger>
               <TabsTrigger value="signup">Sign Up</TabsTrigger>
+              <TabsTrigger value="link">Link</TabsTrigger>
             </TabsList>
 
             <TabsContent value="login">
@@ -731,6 +741,116 @@ export default function RiderAuth() {
                 <Button type="submit" className="w-full" disabled={loading || !termsAccepted}>
                   {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                   Register as Rider
+                </Button>
+              </form>
+            </TabsContent>
+
+            <TabsContent value="link">
+              <div className="mb-3 rounded-md bg-primary/5 border border-primary/20 p-3 text-xs text-muted-foreground">
+                Already have a Fast Calories customer account? Sign in here and add rider access without re-registering. Your profile will still be reviewed by admin.
+              </div>
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!isValidNgPhone(linkPhone)) {
+                    toast({ title: 'Invalid phone number', description: PHONE_ERROR_MESSAGE, variant: 'destructive' });
+                    return;
+                  }
+                  if (!linkVehicleType) {
+                    toast({ title: 'Vehicle type required', variant: 'destructive' });
+                    return;
+                  }
+                  if (!/^\d{11}$/.test(linkNin)) {
+                    toast({ title: 'Valid 11-digit NIN required', variant: 'destructive' });
+                    return;
+                  }
+                  setLoading(true);
+                  try {
+                    const { data, error } = await supabase.auth.signInWithPassword({ email: linkEmail, password: linkPassword });
+                    if (error) throw error;
+                    const { data: existing } = await supabase.from('rider_profiles').select('id').eq('user_id', data.user.id).limit(1);
+                    if (existing && existing.length > 0) {
+                      toast({ title: 'Already a rider', description: 'This account already has rider access.' });
+                      navigate('/rider/dashboard');
+                      return;
+                    }
+                    const { error: roleErr } = await supabase.rpc('add_rider_role');
+                    if (roleErr) throw roleErr;
+                    const { error: profErr } = await supabase.from('rider_profiles').insert({
+                      user_id: data.user.id,
+                      vehicle_type: linkVehicleType,
+                      vehicle_plate: linkVehiclePlate || null,
+                      nin_number: linkNin,
+                      nin_submitted_at: new Date().toISOString(),
+                      email: linkEmail,
+                    });
+                    if (profErr) throw profErr;
+                    await supabase.from('profiles').update({ phone: linkPhone }).eq('user_id', data.user.id);
+                    toast({ title: 'Rider profile created!', description: 'Pending admin verification.' });
+                    navigate('/rider/dashboard');
+                  } catch (err: any) {
+                    toast({ title: 'Failed to link account', description: err.message, variant: 'destructive' });
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                className="space-y-4"
+              >
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <Input type="email" required value={linkEmail} onChange={(e) => setLinkEmail(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Password</Label>
+                  <div className="relative">
+                    <Input
+                      type={showLinkPassword ? 'text' : 'password'}
+                      required
+                      value={linkPassword}
+                      onChange={(e) => setLinkPassword(e.target.value)}
+                    />
+                    <button type="button" onClick={() => setShowLinkPassword(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                      {showLinkPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Phone</Label>
+                  <Input
+                    type="tel"
+                    inputMode="numeric"
+                    required
+                    value={linkPhone}
+                    onChange={(e) => setLinkPhone(sanitizePhoneInput(e.target.value))}
+                    maxLength={PHONE_LENGTH}
+                    pattern="\d{11}"
+                    placeholder="08012345678"
+                    title={PHONE_ERROR_MESSAGE}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Vehicle Type</Label>
+                    <Input required value={linkVehicleType} onChange={(e) => setLinkVehicleType(e.target.value)} placeholder="Motorcycle, Bicycle..." />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Plate <span className="text-xs text-muted-foreground">(optional)</span></Label>
+                    <Input value={linkVehiclePlate} onChange={(e) => setLinkVehiclePlate(e.target.value)} />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-primary" />NIN</Label>
+                  <Input
+                    value={linkNin}
+                    onChange={(e) => setLinkNin(e.target.value.replace(/\D/g, '').slice(0, 11))}
+                    placeholder="11-digit NIN"
+                    maxLength={11}
+                    required
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                  Link Account & Create Rider Profile
                 </Button>
               </form>
             </TabsContent>
