@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Plus, Trash2, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { logActivity } from '@/hooks/useAdminActivityLogger';
 import { format } from 'date-fns';
 
 export default function AdminPromos() {
@@ -80,7 +81,7 @@ export default function AdminPromos() {
 
     setSaving(true);
     try {
-      await supabase.from('promo_codes').insert({
+      const { data: inserted } = await supabase.from('promo_codes').insert({
         code: code.toUpperCase(),
         discount_type: discountType,
         discount_value: parseFloat(discountValue),
@@ -92,8 +93,9 @@ export default function AdminPromos() {
         scope: scope,
         per_user_limit: perUserLimit ? parseInt(perUserLimit) : null,
         per_user_reset_period: perUserResetPeriod,
-      });
+      }).select('id').maybeSingle();
 
+      await logActivity('created', 'promo_code', inserted?.id ?? null, { code: code.toUpperCase(), discount_type: discountType, discount_value: discountValue, scope });
       toast({ title: 'Promo code created successfully' });
       setDialogOpen(false);
       resetForm();
@@ -108,6 +110,7 @@ export default function AdminPromos() {
   const togglePromo = async (promoId: string, isActive: boolean) => {
     try {
       await supabase.from('promo_codes').update({ is_active: !isActive }).eq('id', promoId);
+      await logActivity(isActive ? 'deactivated' : 'activated', 'promo_code', promoId);
       toast({ title: `Promo ${isActive ? 'deactivated' : 'activated'}` });
       fetchPromos();
     } catch (error) {
@@ -118,6 +121,7 @@ export default function AdminPromos() {
   const deletePromo = async (promoId: string) => {
     try {
       await supabase.from('promo_codes').delete().eq('id', promoId);
+      await logActivity('deleted', 'promo_code', promoId);
       toast({ title: 'Promo deleted' });
       fetchPromos();
     } catch (error) {
