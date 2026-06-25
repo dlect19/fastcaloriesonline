@@ -35,6 +35,7 @@ export default function AdminSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState<Record<string, string>>({});
+  const [originalSettings, setOriginalSettings] = useState<Record<string, string>>({});
 
   const deliverySettingsConfig = [
     { key: 'vendor_delivery_radius_km', label: 'Vendor Delivery Radius', unit: 'km', icon: MapPin, description: 'Maximum distance for vendors to appear in customer search' },
@@ -109,6 +110,7 @@ export default function AdminSettings() {
         settingsMap[setting.key] = setting.value;
       });
       setSettings(settingsMap);
+      setOriginalSettings(settingsMap);
     } catch (error) {
       console.error('Error fetching settings:', error);
       toast({
@@ -284,6 +286,21 @@ export default function AdminSettings() {
         }
       }
 
+
+      // Log every changed setting (old → new) into the activity log
+      const changedKeys = Object.keys(settings).filter(
+        (k) => (settings[k] ?? '') !== (originalSettings[k] ?? '')
+      );
+      await Promise.all(
+        changedKeys.map((k) =>
+          supabase.rpc('log_settings_change', {
+            _key: k,
+            _old_value: originalSettings[k] ?? null,
+            _new_value: settings[k] ?? null,
+          })
+        )
+      );
+      setOriginalSettings({ ...settings });
 
       toast({
         title: 'Settings Saved',
