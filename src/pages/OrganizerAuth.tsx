@@ -156,10 +156,11 @@ export default function OrganizerAuth() {
             </p>
           </div>
 
-          <Tabs value={tab} onValueChange={(v) => setTab(v as 'login' | 'signup')}>
-            <TabsList className="grid grid-cols-2 mb-5 w-full">
+          <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
+            <TabsList className="grid grid-cols-3 mb-5 w-full">
               <TabsTrigger value="login">Log In</TabsTrigger>
               <TabsTrigger value="signup">Sign Up</TabsTrigger>
+              <TabsTrigger value="link">Link</TabsTrigger>
             </TabsList>
 
             <TabsContent value="login">
