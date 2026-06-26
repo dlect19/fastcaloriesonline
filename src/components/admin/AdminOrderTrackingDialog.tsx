@@ -399,7 +399,24 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
     setSelectedRiderId('');
     setRescueBonus('');
     setNearbyRiders([]);
+    setAttendedByName(null);
+    setAttendedByRole(null);
   }, [order, open, fetchDetails]);
+
+  // Resolve attended-by staff name whenever the order updates
+  useEffect(() => {
+    const staffId = (liveOrder || order) ? ((liveOrder || order) as any).attended_by_staff_id : null;
+    if (!staffId) { setAttendedByName(null); setAttendedByRole(null); return; }
+    (async () => {
+      const { data: s } = await supabase
+        .from('admin_staff').select('user_id, role').eq('id', staffId).maybeSingle();
+      if (!s) return;
+      setAttendedByRole(s.role as any);
+      const { data: p } = await supabase
+        .from('profiles').select('full_name').eq('user_id', s.user_id).maybeSingle();
+      setAttendedByName(p?.full_name || 'Staff');
+    })();
+  }, [liveOrder, order]);
 
   const fetchOrderItems = async (orderId: string) => {
     const { data: allItems } = await supabase
