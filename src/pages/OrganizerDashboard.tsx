@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import OrganizerWalletSection from '@/components/organizer/OrganizerWalletSection';
 import { format, parseISO } from 'date-fns';
+import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 
 export default function OrganizerDashboard() {
   const navigate = useNavigate();
