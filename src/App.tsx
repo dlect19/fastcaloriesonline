@@ -277,6 +277,7 @@ const App = () => {
               <Route path="/admin/free-meals" element={<AdminFreeMeals />} />
               <Route path="/admin/users" element={<AdminUsers />} />
               <Route path="/admin/staff" element={<AdminStaff />} />
+              <Route path="/admin/activity-logs" element={<AdminActivityLogs />} />
               <Route path="/admin/security" element={<AdminSecurity />} />
               <Route path="/admin/staff/join/:code" element={<AdminStaffJoin />} />
               <Route path="/admin/settings" element={<AdminSettings />} />
