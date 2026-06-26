@@ -545,9 +545,9 @@ export default function AdminOrders() {
                             {order.attended_by_staff_id && (
                               <span
                                 className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/15 text-green-700 dark:text-green-400 border border-green-500/30"
-                                title={`Attended${order.attended_at ? ` at ${format(new Date(order.attended_at), 'p')}` : ''}`}
+                                title={`Attended by ${order.attended_by_name || 'Staff'}${order.attended_by_role ? ` (${String(order.attended_by_role).replace('_',' ')})` : ''}${order.attended_at ? ` at ${format(new Date(order.attended_at), 'p')}` : ''}`}
                               >
-                                ✓ Attended
+                                ✓ {order.attended_by_name || 'Attended'}
                               </span>
                             )}
                             {order.status !== 'cancelled' && order.status !== 'delivered' && (
