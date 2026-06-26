@@ -707,11 +707,18 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2 flex-wrap">
             Order #{activeOrder.order_number}
             <Badge variant={activeOrder.status === 'cancelled' ? 'destructive' : 'secondary'} className="capitalize">
               {activeOrder.status.replace(/_/g, ' ')}
             </Badge>
+            {(activeOrder as any)?.attended_by_staff_id && (
+              <Badge variant="outline" className="gap-1 border-green-500/40 text-green-700 dark:text-green-400">
+                <CheckCircle2 className="w-3 h-3" />
+                Attended by {attendedByName || 'Staff'}
+                {attendedByRole && <span className="opacity-70 capitalize">· {String(attendedByRole).replace('_',' ')}</span>}
+              </Badge>
+            )}
           </DialogTitle>
         </DialogHeader>
 
