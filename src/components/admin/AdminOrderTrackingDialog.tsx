@@ -744,9 +744,10 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
                 </p>
                 {(activeOrder as any)?.attended_by_staff_id && (
                   <p className="text-[11px] text-muted-foreground mt-1">
-                    ✓ Attended by staff
+                    ✓ Attended by <span className="font-semibold text-foreground">{attendedByName || 'Staff'}</span>
+                    {attendedByRole && <> · <span className="capitalize">{String(attendedByRole).replace('_',' ')}</span></>}
                     {(activeOrder as any)?.attended_at && (
-                      <> at {format(new Date((activeOrder as any).attended_at), 'p')}</>
+                      <> · {format(new Date((activeOrder as any).attended_at), 'p')}</>
                     )}
                   </p>
                 )}
