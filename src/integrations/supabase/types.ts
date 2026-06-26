@@ -9143,7 +9143,13 @@ export type Database = {
     }
     Enums: {
       admin_staff_role: "super_admin" | "admin" | "support" | "analyst"
-      app_role: "customer" | "vendor" | "rider" | "admin" | "delivery_company"
+      app_role:
+        | "customer"
+        | "vendor"
+        | "rider"
+        | "admin"
+        | "delivery_company"
+        | "event_organizer"
       calorie_class: "carbs" | "protein" | "fats" | "fiber"
       delivery_company_staff_role: "owner" | "manager" | "dispatcher"
       event_order_payment_status:
@@ -9344,7 +9350,14 @@ export const Constants = {
   public: {
     Enums: {
       admin_staff_role: ["super_admin", "admin", "support", "analyst"],
-      app_role: ["customer", "vendor", "rider", "admin", "delivery_company"],
+      app_role: [
+        "customer",
+        "vendor",
+        "rider",
+        "admin",
+        "delivery_company",
+        "event_organizer",
+      ],
       calorie_class: ["carbs", "protein", "fats", "fiber"],
       delivery_company_staff_role: ["owner", "manager", "dispatcher"],
       event_order_payment_status: [
