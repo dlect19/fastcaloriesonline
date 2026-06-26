@@ -68,6 +68,7 @@ import AdminVendorCommissionPromos from "./pages/admin/AdminVendorCommissionProm
 import AdminRewards from "./pages/admin/AdminRewards";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminStaff from "./pages/admin/AdminStaff";
+import AdminActivityLogs from "./pages/admin/AdminActivityLogs";
 import AdminSecurity from "./pages/admin/AdminSecurity";
 import AdminStaffJoin from "./pages/admin/AdminStaffJoin";
 import AdminSettings from "./pages/admin/AdminSettings";
@@ -276,6 +277,7 @@ const App = () => {
               <Route path="/admin/free-meals" element={<AdminFreeMeals />} />
               <Route path="/admin/users" element={<AdminUsers />} />
               <Route path="/admin/staff" element={<AdminStaff />} />
+              <Route path="/admin/activity-logs" element={<AdminActivityLogs />} />
               <Route path="/admin/security" element={<AdminSecurity />} />
               <Route path="/admin/staff/join/:code" element={<AdminStaffJoin />} />
               <Route path="/admin/settings" element={<AdminSettings />} />

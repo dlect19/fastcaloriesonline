@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import OrganizerWalletSection from '@/components/organizer/OrganizerWalletSection';
 import { format, parseISO } from 'date-fns';
+import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 
 export default function OrganizerDashboard() {
   const navigate = useNavigate();
@@ -74,11 +75,12 @@ export default function OrganizerDashboard() {
       <header className="sticky top-0 z-10 bg-card/80 backdrop-blur border-b border-border">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
-            <div className="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-              <CalendarHeart className="w-4 h-4" />
-            </div>
+            <img src={fastCaloriesLogo} alt="Fast Calories" className="w-9 h-9 rounded-lg shrink-0" />
             <div className="min-w-0">
-              <h1 className="text-sm font-bold truncate">{organizer.name}</h1>
+              <h1 className="text-sm font-bold truncate flex items-center gap-1">
+                {organizer.name}
+                <span className="text-[10px] text-muted-foreground font-normal">· Fast Calories Events</span>
+              </h1>
               <p className="text-[11px] text-muted-foreground truncate">{organizer.contact_email}</p>
             </div>
           </div>

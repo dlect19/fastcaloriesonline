@@ -51,6 +51,7 @@ const menuItems: MenuItem[] = [
   { icon: Megaphone, label: 'Ad Placements', path: '/admin/ad-placements', requiredPermission: 'manage_vendors' },
   { icon: Users, label: 'Users', path: '/admin/users', requiredPermission: 'manage_users' },
   { icon: Users, label: 'Admin Staff', path: '/admin/staff', requiredPermission: 'manage_admin_staff' },
+  { icon: Activity, label: 'Activity Logs', path: '/admin/activity-logs' },
   { icon: DollarSign, label: 'Payroll', path: '/admin/payroll', requiredPermission: 'manage_admin_staff' },
   { icon: UserPlus, label: 'Referrals', path: '/admin/referrals', requiredPermission: 'manage_promos' },
   { icon: ClipboardList, label: 'Requisitions', path: '/admin/requisitions' },

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { CalendarHeart, Ticket, Wallet, ShieldCheck, BarChart3, Users, ArrowRight, CheckCircle2 } from 'lucide-react';
+import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 
 export default function EventPlannersLanding() {
   return (
@@ -8,7 +9,7 @@ export default function EventPlannersLanding() {
       <nav className="border-b border-border bg-card/70 backdrop-blur sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <a href="/" className="flex items-center gap-2 font-bold">
-            <CalendarHeart className="w-5 h-5 text-primary" />
+            <img src={fastCaloriesLogo} alt="Fast Calories" className="w-8 h-8 rounded-lg" />
             Fast Calories <span className="text-primary">Events</span>
           </a>
           <div className="flex items-center gap-2">

@@ -154,6 +154,8 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
   const [orderItems, setOrderItems] = useState<{ product_name: string; quantity: number; special_instructions: string | null; unit_price?: number; total_price?: number; is_free_meal_item?: boolean; original_unit_price?: number; free_qty?: number | null; order_item_addons?: { addon_group_name: string; addon_item_name: string; additional_price: number }[] }[]>([]);
   const [completing, setCompleting] = useState(false);
   const [recalculating, setRecalculating] = useState(false);
+  const [attendedByName, setAttendedByName] = useState<string | null>(null);
+  const [attendedByRole, setAttendedByRole] = useState<string | null>(null);
   const [orderFinancials, setOrderFinancials] = useState<{
     vendor_payout: number;
     vendor_commission_amount: number;
@@ -397,7 +399,24 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
     setSelectedRiderId('');
     setRescueBonus('');
     setNearbyRiders([]);
+    setAttendedByName(null);
+    setAttendedByRole(null);
   }, [order, open, fetchDetails]);
+
+  // Resolve attended-by staff name whenever the order updates
+  useEffect(() => {
+    const staffId = (liveOrder || order) ? ((liveOrder || order) as any).attended_by_staff_id : null;
+    if (!staffId) { setAttendedByName(null); setAttendedByRole(null); return; }
+    (async () => {
+      const { data: s } = await supabase
+        .from('admin_staff').select('user_id, role').eq('id', staffId).maybeSingle();
+      if (!s) return;
+      setAttendedByRole(s.role as any);
+      const { data: p } = await supabase
+        .from('profiles').select('full_name').eq('user_id', s.user_id).maybeSingle();
+      setAttendedByName(p?.full_name || 'Staff');
+    })();
+  }, [liveOrder, order]);
 
   const fetchOrderItems = async (orderId: string) => {
     const { data: allItems } = await supabase
@@ -688,11 +707,18 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2 flex-wrap">
             Order #{activeOrder.order_number}
             <Badge variant={activeOrder.status === 'cancelled' ? 'destructive' : 'secondary'} className="capitalize">
               {activeOrder.status.replace(/_/g, ' ')}
             </Badge>
+            {(activeOrder as any)?.attended_by_staff_id && (
+              <Badge variant="outline" className="gap-1 border-green-500/40 text-green-700 dark:text-green-400">
+                <CheckCircle2 className="w-3 h-3" />
+                Attended by {attendedByName || 'Staff'}
+                {attendedByRole && <span className="opacity-70 capitalize">· {String(attendedByRole).replace('_',' ')}</span>}
+              </Badge>
+            )}
           </DialogTitle>
         </DialogHeader>
 
@@ -725,9 +751,10 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
                 </p>
                 {(activeOrder as any)?.attended_by_staff_id && (
                   <p className="text-[11px] text-muted-foreground mt-1">
-                    ✓ Attended by staff
+                    ✓ Attended by <span className="font-semibold text-foreground">{attendedByName || 'Staff'}</span>
+                    {attendedByRole && <> · <span className="capitalize">{String(attendedByRole).replace('_',' ')}</span></>}
                     {(activeOrder as any)?.attended_at && (
-                      <> at {format(new Date((activeOrder as any).attended_at), 'p')}</>
+                      <> · {format(new Date((activeOrder as any).attended_at), 'p')}</>
                     )}
                   </p>
                 )}
