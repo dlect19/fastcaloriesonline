@@ -302,7 +302,7 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
         </div>
 
         {/* Logout (fixed) */}
-        <div className="flex-shrink-0 p-3 border-t border-border">
+        <div className="flex-shrink-0 p-3 border-t border-border space-y-2">
           <button
             onClick={handleSignOut}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
@@ -310,6 +310,14 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
             <LogOut className="w-5 h-5 flex-shrink-0" />
             {!collapsed && <span className="text-sm font-medium">Sign Out</span>}
           </button>
+          <div className={cn("flex items-center gap-2 px-2 pt-1", collapsed && "justify-center px-0")}>
+            <img src={fastCaloriesLogo} alt="Fast Calories" className="w-6 h-6 rounded" />
+            {!collapsed && (
+              <span className="text-[10px] text-muted-foreground leading-tight">
+                Powered by<br /><span className="font-semibold text-foreground">Fast Calories</span>
+              </span>
+            )}
+          </div>
         </div>
       </aside>
 
