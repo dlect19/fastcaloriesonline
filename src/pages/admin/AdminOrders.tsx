@@ -119,8 +119,9 @@ export default function AdminOrders() {
       if (data && data.length > 0) {
         const userIds = [...new Set(data.map(o => o.user_id).filter(Boolean))];
         const riderIds = [...new Set(data.map(o => o.rider_id).filter(Boolean))];
+        const staffIds = [...new Set(data.map((o: any) => o.attended_by_staff_id).filter(Boolean))];
 
-        const [profilesRes, riderProfilesRes, riderNamesRes] = await Promise.all([
+        const [profilesRes, riderProfilesRes, riderNamesRes, staffRes] = await Promise.all([
           supabase.from('profiles').select('user_id, full_name, phone').in('user_id', userIds),
           riderIds.length > 0
             ? supabase.from('rider_profiles').select('user_id, vehicle_type').in('user_id', riderIds)
@@ -128,11 +129,24 @@ export default function AdminOrders() {
           riderIds.length > 0
             ? supabase.from('profiles').select('user_id, full_name, phone').in('user_id', riderIds)
             : { data: [] },
+          staffIds.length > 0
+            ? supabase.from('admin_staff').select('id, user_id, role').in('id', staffIds)
+            : { data: [] },
         ]);
 
         const profileMap = new Map(profilesRes.data?.map(p => [p.user_id, p]) || []);
         const riderProfileMap = new Map((riderProfilesRes.data || []).map((r: any) => [r.user_id, r]));
         const riderNameMap = new Map((riderNamesRes.data || []).map((r: any) => [r.user_id, r]));
+
+        const staffUserIds = (staffRes.data || []).map((s: any) => s.user_id);
+        const { data: staffProfiles } = staffUserIds.length > 0
+          ? await supabase.from('profiles').select('user_id, full_name').in('user_id', staffUserIds)
+          : { data: [] as any[] };
+        const staffProfileMap = new Map((staffProfiles || []).map((p: any) => [p.user_id, p.full_name]));
+        const staffMap = new Map((staffRes.data || []).map((s: any) => [s.id, {
+          name: staffProfileMap.get(s.user_id) || 'Staff',
+          role: s.role,
+        }]));
 
         const enriched = data.map(order => ({
           ...order,
@@ -140,6 +154,8 @@ export default function AdminOrders() {
           customer_phone: profileMap.get(order.user_id)?.phone || order.receiver_phone || 'N/A',
           rider_name: order.rider_id ? (riderNameMap.get(order.rider_id)?.full_name || 'Assigned') : null,
           rider_vehicle: order.rider_id ? (riderProfileMap.get(order.rider_id)?.vehicle_type || null) : null,
+          attended_by_name: (order as any).attended_by_staff_id ? staffMap.get((order as any).attended_by_staff_id)?.name || 'Staff' : null,
+          attended_by_role: (order as any).attended_by_staff_id ? staffMap.get((order as any).attended_by_staff_id)?.role || null : null,
         }));
         setOrders(enriched);
 
