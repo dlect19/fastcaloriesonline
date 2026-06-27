@@ -199,8 +199,33 @@ export default function AdminEvents() {
                 <div><Label>End time</Label><Input type="time" value={editing.end_time} onChange={e => setEditing({ ...editing, end_time: e.target.value })} /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><Label>Organizer</Label><Input value={editing.organizer} onChange={e => setEditing({ ...editing, organizer: e.target.value })} /></div>
+                <div>
+                  <Label>Link to Event Planner account</Label>
+                  <select
+                    className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                    value={editing.organizer_id}
+                    onChange={e => {
+                      const id = e.target.value;
+                      const org = organizers.find(o => o.id === id);
+                      setEditing({ ...editing, organizer_id: id, organizer: org?.name || editing.organizer });
+                    }}
+                  >
+                    <option value="">— None (unlinked) —</option>
+                    {organizers.map(o => (
+                      <option key={o.id} value={o.id}>
+                        {o.name}{o.contact_email ? ` · ${o.contact_email}` : ''}{!o.owner_user_id ? ' (no user yet)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Picking a planner lets them see & manage this event from their Organizer Dashboard.
+                  </p>
+                </div>
                 <div><Label>Capacity</Label><Input type="number" value={editing.capacity} onChange={e => setEditing({ ...editing, capacity: e.target.value })} /></div>
+              </div>
+              <div>
+                <Label>Organizer display name (shown on event page)</Label>
+                <Input value={editing.organizer} onChange={e => setEditing({ ...editing, organizer: e.target.value })} placeholder="Auto-filled from linked planner" />
               </div>
               <div><Label>Terms & Conditions</Label><Textarea rows={3} value={editing.terms} onChange={e => setEditing({ ...editing, terms: e.target.value })} /></div>
               <div className="flex justify-end gap-2 pt-2">
