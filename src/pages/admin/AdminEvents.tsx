@@ -127,6 +127,11 @@ export default function AdminEvents() {
                     <div className="min-w-0">
                       <p className="font-semibold">{e.name}</p>
                       <p className="text-xs text-muted-foreground">{format(parseISO(e.event_date), 'MMM d, yyyy')}{e.start_time ? ` · ${e.start_time.slice(0,5)}` : ''}</p>
+                      {e.event_organizers?.name ? (
+                        <p className="text-[11px] text-primary mt-0.5">Linked to: {e.event_organizers.name}</p>
+                      ) : e.organizer ? (
+                        <p className="text-[11px] text-muted-foreground mt-0.5">Organizer: {e.organizer} (not linked)</p>
+                      ) : null}
                     </div>
                     <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium capitalize ${
                       e.status === 'published' ? 'bg-green-500/10 text-green-600' :
