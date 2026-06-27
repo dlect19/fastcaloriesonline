@@ -22,6 +22,7 @@ interface EventForm {
   start_time: string;
   end_time: string;
   organizer: string;
+  organizer_id: string;
   capacity: string;
   terms: string;
   status: string;
@@ -29,7 +30,7 @@ interface EventForm {
 
 const empty: EventForm = {
   name: '', banner_url: '', description: '', location_text: '',
-  event_date: '', start_time: '', end_time: '', organizer: '',
+  event_date: '', start_time: '', end_time: '', organizer: '', organizer_id: '',
   capacity: '', terms: '', status: 'draft',
 };
 
