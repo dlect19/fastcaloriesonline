@@ -44,8 +44,12 @@ export default function AdminEvents() {
 
   const load = async () => {
     setLoading(true);
-    const { data } = await supabase.from('events').select('*').order('event_date', { ascending: false });
-    setEvents(data || []);
+    const [{ data: evs }, { data: orgs }] = await Promise.all([
+      supabase.from('events').select('*, event_organizers(id, name)').order('event_date', { ascending: false }),
+      supabase.from('event_organizers').select('id, name, owner_user_id, contact_email').eq('is_active', true).order('name'),
+    ]);
+    setEvents(evs || []);
+    setOrganizers(orgs || []);
     setLoading(false);
   };
 
