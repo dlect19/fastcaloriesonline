@@ -150,7 +150,8 @@ export default function AdminEvents() {
                     <Button size="sm" variant="ghost" onClick={() => setEditing({
                       id: e.id, name: e.name, banner_url: e.banner_url || '', description: e.description || '',
                       location_text: e.location_text || '', event_date: e.event_date, start_time: e.start_time || '',
-                      end_time: e.end_time || '', organizer: e.organizer || '', capacity: e.capacity?.toString() || '',
+                      end_time: e.end_time || '', organizer: e.organizer || '', organizer_id: e.organizer_id || '',
+                      capacity: e.capacity?.toString() || '',
                       terms: e.terms || '', status: e.status,
                     })}>
                       <Edit className="w-3 h-3 mr-1" /> Edit
