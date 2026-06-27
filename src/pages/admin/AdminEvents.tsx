@@ -36,6 +36,7 @@ const empty: EventForm = {
 
 export default function AdminEvents() {
   const [events, setEvents] = useState<any[]>([]);
+  const [organizers, setOrganizers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<EventForm | null>(null);
   const { toast } = useToast();
