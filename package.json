@@ -20,7 +20,11 @@
     "cap:run:ios": "npm run cap:sync:ios && npx cap run ios",
     "android:build": "cd android && ./gradlew assembleDebug",
     "android:release": "cd android && ./gradlew assembleRelease",
-    "mobile:setup": "npm run build && npx cap sync"
+    "mobile:setup": "npm run build && npx cap sync",
+    "generate:assets": "npx capacitor-assets generate",
+    "assets:customer": "node scripts/prepare-assets.mjs customer && npx capacitor-assets generate",
+    "assets:vendor": "node scripts/prepare-assets.mjs vendor && npx capacitor-assets generate",
+    "assets:rider": "node scripts/prepare-assets.mjs rider && npx capacitor-assets generate"
   },
   "dependencies": {
     "@capacitor-firebase/messaging": "^8.1.0",
@@ -98,6 +102,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
     "@eslint/js": "^9.32.0",
     "@tailwindcss/typography": "^0.5.16",
     "@testing-library/jest-dom": "^6.6.0",
