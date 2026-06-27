@@ -57,6 +57,7 @@ export default function AdminEvents() {
 
   const save = async () => {
     if (!editing) return;
+    const linkedOrg = organizers.find(o => o.id === editing.organizer_id);
     const payload: any = {
       name: editing.name,
       banner_url: editing.banner_url || null,
@@ -65,7 +66,9 @@ export default function AdminEvents() {
       event_date: editing.event_date,
       start_time: editing.start_time || null,
       end_time: editing.end_time || null,
-      organizer: editing.organizer || null,
+      organizer: editing.organizer || linkedOrg?.name || null,
+      organizer_id: editing.organizer_id || null,
+      organizer_user_id: linkedOrg?.owner_user_id || null,
       capacity: editing.capacity ? Number(editing.capacity) : null,
       terms: editing.terms || null,
       status: editing.status as any,
