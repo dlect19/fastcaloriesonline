@@ -11,6 +11,8 @@ import { Loader2, Plus, Search, Headphones, Copy, MessageCircle, XCircle } from 
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 
+import { StaffNameBadge } from '@/components/shared/StaffNameBadge';
+
 type Row = {
   id: string;
   order_id: string;
@@ -20,6 +22,8 @@ type Row = {
   payment_link: string | null;
   bank_transfer_instructions: string | null;
   created_at: string;
+  created_by: string | null;
+  last_modified_by: string | null;
   orders: {
     id: string;
     order_number: string;
