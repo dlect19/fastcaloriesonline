@@ -130,7 +130,7 @@ export default function AdminOrders() {
             ? supabase.from('profiles').select('user_id, full_name, phone').in('user_id', riderIds)
             : { data: [] },
           staffIds.length > 0
-            ? supabase.from('admin_staff').select('id, user_id, role').in('id', staffIds)
+            ? supabase.from('admin_staff').select('id, user_id, role, invite_email').in('id', staffIds)
             : { data: [] },
         ]);
 
@@ -144,7 +144,7 @@ export default function AdminOrders() {
           : { data: [] as any[] };
         const staffProfileMap = new Map((staffProfiles || []).map((p: any) => [p.user_id, p.full_name]));
         const staffMap = new Map((staffRes.data || []).map((s: any) => [s.id, {
-          name: staffProfileMap.get(s.user_id) || 'Staff',
+          name: staffProfileMap.get(s.user_id) || s.invite_email || `Staff (${String(s.role).replace('_',' ')})`,
           role: s.role,
         }]));
 
