@@ -97,10 +97,13 @@ export default function AdminRiders() {
 
   const approveRider = async (riderId: string) => {
     try {
-      await supabase.from('rider_profiles').update({ 
+      const { data: { user } } = await supabase.auth.getUser();
+      await supabase.from('rider_profiles').update({
         is_verified: true,
-        nin_verified: true 
-      }).eq('id', riderId);
+        nin_verified: true,
+        verified_by: user?.id,
+        verified_at: new Date().toISOString(),
+      } as any).eq('id', riderId);
       await logActivity('approved', 'rider', riderId);
       toast({ title: 'Rider approved successfully' });
       fetchRiders();
