@@ -90,9 +90,10 @@ export default function AdminVendors() {
 
   const approveVendor = async (vendorId: string) => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
       await supabase
         .from('vendors')
-        .update({ is_verified: true, is_active: true })
+        .update({ is_verified: true, is_active: true, verified_by: user?.id, verified_at: new Date().toISOString() } as any)
         .eq('id', vendorId);
 
       await logActivity('approved', 'vendor', vendorId);

@@ -15,6 +15,10 @@ import { EmailVerificationOTP } from '@/components/rider/EmailVerificationOTP';
 import { TermsAcceptanceCheckbox } from '@/components/auth/TermsAcceptanceCheckbox';
 
 
+const VEHICLE_TYPES = ['bicycle', 'motorcycle', 'tricycle', 'car', 'van'] as const;
+const normalizeVehicleType = (v: string) => (v || '').trim().toLowerCase();
+
+
 export default function RiderAuth() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -116,7 +120,7 @@ export default function RiderAuth() {
       // Create rider profile
       await supabase.from('rider_profiles').insert({
         user_id: googleUserId,
-        vehicle_type: vehicleType,
+        vehicle_type: normalizeVehicleType(vehicleType),
         vehicle_plate: vehiclePlate || null,
         nin_number: ninNumber,
         nin_submitted_at: new Date().toISOString(),
@@ -390,7 +394,7 @@ export default function RiderAuth() {
             if (!existingProfile) {
               await supabase.from('rider_profiles').insert({
                 user_id: signInData.user.id,
-                vehicle_type: vehicleType,
+                vehicle_type: normalizeVehicleType(vehicleType),
                 vehicle_plate: vehiclePlate,
                 nin_number: ninNumber,
                 nin_submitted_at: new Date().toISOString(),
@@ -434,7 +438,7 @@ export default function RiderAuth() {
         // Create rider profile with NIN and email
         await supabase.from('rider_profiles').insert({
           user_id: data.user.id,
-          vehicle_type: vehicleType,
+          vehicle_type: normalizeVehicleType(vehicleType),
           vehicle_plate: vehiclePlate,
           nin_number: ninNumber,
           nin_submitted_at: new Date().toISOString(),
@@ -508,7 +512,15 @@ export default function RiderAuth() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Vehicle Type</Label>
-                <Input value={vehicleType} onChange={(e) => setVehicleType(e.target.value)} placeholder="e.g., Motorcycle" required />
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={vehicleType}
+                  onChange={(e) => setVehicleType(e.target.value)}
+                  required
+                >
+                  <option value="">Select vehicle</option>
+                  {VEHICLE_TYPES.map(v => <option key={v} value={v}>{v[0].toUpperCase() + v.slice(1)}</option>)}
+                </select>
               </div>
               <div className="space-y-2">
                 <Label>Plate Number <span className="text-muted-foreground text-xs">(optional)</span></Label>
@@ -653,13 +665,16 @@ export default function RiderAuth() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="vehicle-type">Vehicle Type</Label>
-                    <Input
+                    <select
                       id="vehicle-type"
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                       value={vehicleType}
                       onChange={(e) => setVehicleType(e.target.value)}
-                      placeholder="e.g., Motorcycle, Bicycle"
                       required
-                    />
+                    >
+                      <option value="">Select vehicle</option>
+                      {VEHICLE_TYPES.map(v => <option key={v} value={v}>{v[0].toUpperCase() + v.slice(1)}</option>)}
+                    </select>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="vehicle-plate">Plate Number <span className="text-muted-foreground text-xs">(optional)</span></Label>
@@ -778,7 +793,7 @@ export default function RiderAuth() {
                     if (roleErr) throw roleErr;
                     const { error: profErr } = await supabase.from('rider_profiles').insert({
                       user_id: data.user.id,
-                      vehicle_type: linkVehicleType,
+                      vehicle_type: normalizeVehicleType(linkVehicleType),
                       vehicle_plate: linkVehiclePlate || null,
                       nin_number: linkNin,
                       nin_submitted_at: new Date().toISOString(),
@@ -831,7 +846,15 @@ export default function RiderAuth() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Vehicle Type</Label>
-                    <Input required value={linkVehicleType} onChange={(e) => setLinkVehicleType(e.target.value)} placeholder="Motorcycle, Bicycle..." />
+                    <select
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      required
+                      value={linkVehicleType}
+                      onChange={(e) => setLinkVehicleType(e.target.value)}
+                    >
+                      <option value="">Select vehicle</option>
+                      {VEHICLE_TYPES.map(v => <option key={v} value={v}>{v[0].toUpperCase() + v.slice(1)}</option>)}
+                    </select>
                   </div>
                   <div className="space-y-2">
                     <Label>Plate <span className="text-xs text-muted-foreground">(optional)</span></Label>

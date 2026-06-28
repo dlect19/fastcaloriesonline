@@ -11,6 +11,8 @@ import { Loader2, Plus, Search, Headphones, Copy, MessageCircle, XCircle } from 
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 
+import { StaffNameBadge } from '@/components/shared/StaffNameBadge';
+
 type Row = {
   id: string;
   order_id: string;
@@ -20,6 +22,8 @@ type Row = {
   payment_link: string | null;
   bank_transfer_instructions: string | null;
   created_at: string;
+  created_by: string | null;
+  last_modified_by: string | null;
   orders: {
     id: string;
     order_number: string;
@@ -54,7 +58,7 @@ export default function AssistedOrdersList() {
     let q = supabase
       .from('assisted_orders')
       .select(`
-        id, order_id, customer_channel, payment_status, payment_method, payment_link, bank_transfer_instructions, created_at,
+        id, order_id, customer_channel, payment_status, payment_method, payment_link, bank_transfer_instructions, created_at, created_by, last_modified_by,
         orders:order_id (
           id, order_number, status, total, subtotal, delivery_fee, service_fee, packaging_fee, confirmation_code,
           receiver_name, receiver_phone, delivery_address_text, vendor_id, user_id,
@@ -275,7 +279,15 @@ export default function AssistedOrdersList() {
                         </td>
                         <td className="p-3 capitalize">{r.orders?.status || '—'}</td>
                         <td className="p-3 text-right whitespace-nowrap">₦{Number(r.orders?.total || 0).toLocaleString()}</td>
-                        <td className="p-3 text-xs whitespace-nowrap">{format(new Date(r.created_at), 'PP p')}</td>
+                        <td className="p-3 text-xs whitespace-nowrap">
+                          {format(new Date(r.created_at), 'PP p')}
+                          <div className="mt-1 flex flex-col gap-1">
+                            {r.created_by && <StaffNameBadge userId={r.created_by} label="Created by" />}
+                            {r.last_modified_by && r.last_modified_by !== r.created_by && (
+                              <StaffNameBadge userId={r.last_modified_by} label="Last edited by" />
+                            )}
+                          </div>
+                        </td>
                         <td className="p-3 space-y-1 whitespace-nowrap">
                           <Link className="text-primary hover:underline block" to={`/admin/assisted-orders/${r.order_id}`}>View</Link>
                           {r.payment_status === 'awaiting' && (

@@ -83,9 +83,15 @@ export default function AdminDeliveryCompanies() {
 
   const toggleVerification = async (company: DeliveryCompany) => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const becomingVerified = !company.is_verified;
       const { error } = await supabase
         .from('delivery_companies')
-        .update({ is_verified: !company.is_verified })
+        .update({
+          is_verified: becomingVerified,
+          verified_by: becomingVerified ? user?.id : null,
+          verified_at: becomingVerified ? new Date().toISOString() : null,
+        } as any)
         .eq('id', company.id);
 
       if (error) throw error;
