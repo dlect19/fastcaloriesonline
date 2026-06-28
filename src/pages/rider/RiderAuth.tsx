@@ -846,7 +846,15 @@ export default function RiderAuth() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Vehicle Type</Label>
-                    <Input required value={linkVehicleType} onChange={(e) => setLinkVehicleType(e.target.value)} placeholder="Motorcycle, Bicycle..." />
+                    <select
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      required
+                      value={linkVehicleType}
+                      onChange={(e) => setLinkVehicleType(e.target.value)}
+                    >
+                      <option value="">Select vehicle</option>
+                      {VEHICLE_TYPES.map(v => <option key={v} value={v}>{v[0].toUpperCase() + v.slice(1)}</option>)}
+                    </select>
                   </div>
                   <div className="space-y-2">
                     <Label>Plate <span className="text-xs text-muted-foreground">(optional)</span></Label>
