@@ -279,7 +279,15 @@ export default function AssistedOrdersList() {
                         </td>
                         <td className="p-3 capitalize">{r.orders?.status || '—'}</td>
                         <td className="p-3 text-right whitespace-nowrap">₦{Number(r.orders?.total || 0).toLocaleString()}</td>
-                        <td className="p-3 text-xs whitespace-nowrap">{format(new Date(r.created_at), 'PP p')}</td>
+                        <td className="p-3 text-xs whitespace-nowrap">
+                          {format(new Date(r.created_at), 'PP p')}
+                          <div className="mt-1 flex flex-col gap-1">
+                            {r.created_by && <StaffNameBadge userId={r.created_by} label="Created by" />}
+                            {r.last_modified_by && r.last_modified_by !== r.created_by && (
+                              <StaffNameBadge userId={r.last_modified_by} label="Last edited by" />
+                            )}
+                          </div>
+                        </td>
                         <td className="p-3 space-y-1 whitespace-nowrap">
                           <Link className="text-primary hover:underline block" to={`/admin/assisted-orders/${r.order_id}`}>View</Link>
                           {r.payment_status === 'awaiting' && (
