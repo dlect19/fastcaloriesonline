@@ -58,7 +58,7 @@ export default function AssistedOrdersList() {
     let q = supabase
       .from('assisted_orders')
       .select(`
-        id, order_id, customer_channel, payment_status, payment_method, payment_link, bank_transfer_instructions, created_at,
+        id, order_id, customer_channel, payment_status, payment_method, payment_link, bank_transfer_instructions, created_at, created_by, last_modified_by,
         orders:order_id (
           id, order_number, status, total, subtotal, delivery_fee, service_fee, packaging_fee, confirmation_code,
           receiver_name, receiver_phone, delivery_address_text, vendor_id, user_id,
