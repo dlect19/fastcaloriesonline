@@ -120,7 +120,7 @@ export default function RiderAuth() {
       // Create rider profile
       await supabase.from('rider_profiles').insert({
         user_id: googleUserId,
-        vehicle_type: vehicleType,
+        vehicle_type: normalizeVehicleType(vehicleType),
         vehicle_plate: vehiclePlate || null,
         nin_number: ninNumber,
         nin_submitted_at: new Date().toISOString(),
@@ -394,7 +394,7 @@ export default function RiderAuth() {
             if (!existingProfile) {
               await supabase.from('rider_profiles').insert({
                 user_id: signInData.user.id,
-                vehicle_type: vehicleType,
+                vehicle_type: normalizeVehicleType(vehicleType),
                 vehicle_plate: vehiclePlate,
                 nin_number: ninNumber,
                 nin_submitted_at: new Date().toISOString(),
@@ -438,7 +438,7 @@ export default function RiderAuth() {
         // Create rider profile with NIN and email
         await supabase.from('rider_profiles').insert({
           user_id: data.user.id,
-          vehicle_type: vehicleType,
+          vehicle_type: normalizeVehicleType(vehicleType),
           vehicle_plate: vehiclePlate,
           nin_number: ninNumber,
           nin_submitted_at: new Date().toISOString(),
@@ -793,7 +793,7 @@ export default function RiderAuth() {
                     if (roleErr) throw roleErr;
                     const { error: profErr } = await supabase.from('rider_profiles').insert({
                       user_id: data.user.id,
-                      vehicle_type: linkVehicleType,
+                      vehicle_type: normalizeVehicleType(linkVehicleType),
                       vehicle_plate: linkVehiclePlate || null,
                       nin_number: linkNin,
                       nin_submitted_at: new Date().toISOString(),
