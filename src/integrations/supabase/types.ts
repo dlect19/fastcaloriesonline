@@ -1825,6 +1825,8 @@ export type Database = {
           state: string | null
           updated_at: string
           user_id: string
+          verified_at: string | null
+          verified_by: string | null
         }
         Insert: {
           address?: string | null
@@ -1847,6 +1849,8 @@ export type Database = {
           state?: string | null
           updated_at?: string
           user_id: string
+          verified_at?: string | null
+          verified_by?: string | null
         }
         Update: {
           address?: string | null
@@ -1869,6 +1873,8 @@ export type Database = {
           state?: string | null
           updated_at?: string
           user_id?: string
+          verified_at?: string | null
+          verified_by?: string | null
         }
         Relationships: []
       }
@@ -2189,6 +2195,8 @@ export type Database = {
           reason: string
           refund_amount: number
           rejection_reason: string | null
+          resolved_at: string | null
+          resolved_by: string | null
           rider_debit_reference: string | null
           rider_deduction: number
           rider_id: string | null
@@ -2222,6 +2230,8 @@ export type Database = {
           reason: string
           refund_amount: number
           rejection_reason?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
           rider_debit_reference?: string | null
           rider_deduction?: number
           rider_id?: string | null
@@ -2255,6 +2265,8 @@ export type Database = {
           reason?: string
           refund_amount?: number
           rejection_reason?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
           rider_debit_reference?: string | null
           rider_deduction?: number
           rider_id?: string | null
@@ -3489,6 +3501,8 @@ export type Database = {
           end_time: string | null
           event_date: string
           id: string
+          last_modified_at: string | null
+          last_modified_by: string | null
           location_lat: number | null
           location_lng: number | null
           location_text: string | null
@@ -3514,6 +3528,8 @@ export type Database = {
           end_time?: string | null
           event_date: string
           id?: string
+          last_modified_at?: string | null
+          last_modified_by?: string | null
           location_lat?: number | null
           location_lng?: number | null
           location_text?: string | null
@@ -3539,6 +3555,8 @@ export type Database = {
           end_time?: string | null
           event_date?: string
           id?: string
+          last_modified_at?: string | null
+          last_modified_by?: string | null
           location_lat?: number | null
           location_lng?: number | null
           location_text?: string | null
@@ -6577,6 +6595,8 @@ export type Database = {
           user_id: string
           vehicle_plate: string | null
           vehicle_type: string | null
+          verified_at: string | null
+          verified_by: string | null
           work_radius_km: number | null
         }
         Insert: {
@@ -6605,6 +6625,8 @@ export type Database = {
           user_id: string
           vehicle_plate?: string | null
           vehicle_type?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
           work_radius_km?: number | null
         }
         Update: {
@@ -6633,6 +6655,8 @@ export type Database = {
           user_id?: string
           vehicle_plate?: string | null
           vehicle_type?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
           work_radius_km?: number | null
         }
         Relationships: [
@@ -7889,6 +7913,8 @@ export type Database = {
           total_ratings: number | null
           updated_at: string
           user_id: string
+          verified_at: string | null
+          verified_by: string | null
           verified_latitude: number | null
           verified_longitude: number | null
         }
@@ -7933,6 +7959,8 @@ export type Database = {
           total_ratings?: number | null
           updated_at?: string
           user_id: string
+          verified_at?: string | null
+          verified_by?: string | null
           verified_latitude?: number | null
           verified_longitude?: number | null
         }
@@ -7977,6 +8005,8 @@ export type Database = {
           total_ratings?: number | null
           updated_at?: string
           user_id?: string
+          verified_at?: string | null
+          verified_by?: string | null
           verified_latitude?: number | null
           verified_longitude?: number | null
         }
