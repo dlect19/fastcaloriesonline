@@ -15,6 +15,10 @@ import { EmailVerificationOTP } from '@/components/rider/EmailVerificationOTP';
 import { TermsAcceptanceCheckbox } from '@/components/auth/TermsAcceptanceCheckbox';
 
 
+const VEHICLE_TYPES = ['bicycle', 'motorcycle', 'tricycle', 'car', 'van'] as const;
+const normalizeVehicleType = (v: string) => (v || '').trim().toLowerCase();
+
+
 export default function RiderAuth() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
