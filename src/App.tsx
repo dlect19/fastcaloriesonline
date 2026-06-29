@@ -168,10 +168,16 @@ const PortalTracker = () => {
   return null;
 };
 
+const AppThemeMount = () => {
+  useAppTheme();
+  return null;
+};
+
 const CustomerChatNotifier = () => {
   useCustomerChatNotifications();
   return null;
 };
+
 
 const App = () => {
   // Register FCM token on native Capacitor platforms
