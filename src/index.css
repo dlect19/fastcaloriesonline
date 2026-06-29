@@ -6,68 +6,123 @@
 
 
 @layer base {
+  /* Default = Customer app theme (orange primary, green secondary) */
   :root {
     --background: 0 0% 100%;
-    --foreground: 142 20% 15%;
+    --foreground: 25 25% 15%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 142 20% 15%;
+    --card: 30 100% 97%;
+    --card-foreground: 25 25% 15%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 142 20% 15%;
+    --popover-foreground: 25 25% 15%;
 
-    /* Fresh Green - Primary */
-    --primary: 142 76% 36%;
+    /* Customer primary: #F97316 */
+    --primary: 25 95% 53%;
     --primary-foreground: 0 0% 100%;
 
-    /* Light Green Background */
-    --secondary: 142 40% 96%;
-    --secondary-foreground: 142 20% 15%;
+    --secondary: 142 71% 45%;
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 142 20% 96%;
-    --muted-foreground: 142 10% 45%;
+    --muted: 30 30% 96%;
+    --muted-foreground: 25 10% 45%;
 
-    /* Coral Accent */
-    --accent: 0 85% 70%;
-    --accent-foreground: 0 0% 100%;
+    /* Customer accent: #FDBA74 */
+    --accent: 27 96% 72%;
+    --accent-foreground: 25 25% 15%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 142 20% 90%;
-    --input: 142 20% 90%;
-    --ring: 142 76% 36%;
+    --border: 25 20% 90%;
+    --input: 25 20% 90%;
+    --ring: 25 95% 53%;
 
     --radius: 0.75rem;
 
-    /* Custom Fast Calories tokens */
-    --success: 142 76% 36%;
+    --success: 142 71% 45%;
     --warning: 38 92% 50%;
-    --info: 199 89% 48%;
-    
-    /* Calorie indicators */
-    --calorie-low: 142 76% 36%;
+    --info: 217 91% 60%;
+
+    --calorie-low: 142 71% 45%;
     --calorie-medium: 38 92% 50%;
     --calorie-high: 0 85% 60%;
-    
-    /* Nutrient tag colors */
+
     --nutrient-water: 199 89% 48%;
     --nutrient-vitamin: 25 95% 53%;
     --nutrient-mineral: 280 70% 55%;
 
-    /* Gradient */
-    --gradient-primary: linear-gradient(135deg, hsl(142 76% 36%) 0%, hsl(142 70% 45%) 100%);
-    --gradient-accent: linear-gradient(135deg, hsl(0 85% 70%) 0%, hsl(0 85% 60%) 100%);
+    --gradient-primary: linear-gradient(135deg, hsl(25 95% 53%) 0%, hsl(25 90% 60%) 100%);
+    --gradient-accent: linear-gradient(135deg, hsl(142 71% 45%) 0%, hsl(142 64% 36%) 100%);
 
-    --sidebar-background: 142 40% 98%;
-    --sidebar-foreground: 142 20% 15%;
-    --sidebar-primary: 142 76% 36%;
+    --sidebar-background: 30 100% 98%;
+    --sidebar-foreground: 25 25% 15%;
+    --sidebar-primary: 25 95% 53%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 142 40% 94%;
-    --sidebar-accent-foreground: 142 20% 15%;
-    --sidebar-border: 142 20% 90%;
-    --sidebar-ring: 142 76% 36%;
+    --sidebar-accent: 30 60% 94%;
+    --sidebar-accent-foreground: 25 25% 15%;
+    --sidebar-border: 25 20% 90%;
+    --sidebar-ring: 25 95% 53%;
   }
+
+  /* Vendor app: blue primary, orange secondary */
+  :root[data-app="vendor"] {
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 25 95% 53%;
+    --secondary-foreground: 0 0% 100%;
+    --accent: 213 94% 68%;
+    --accent-foreground: 217 60% 15%;
+    --card: 210 40% 98%;
+    --card-foreground: 217 33% 17%;
+    --foreground: 217 33% 17%;
+    --muted: 210 30% 96%;
+    --muted-foreground: 217 15% 45%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 217 91% 60%;
+    --info: 217 91% 60%;
+    --gradient-primary: linear-gradient(135deg, hsl(217 91% 60%) 0%, hsl(213 94% 68%) 100%);
+    --gradient-accent: linear-gradient(135deg, hsl(25 95% 53%) 0%, hsl(27 96% 72%) 100%);
+    --sidebar-background: 210 40% 98%;
+    --sidebar-foreground: 217 33% 17%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 213 60% 94%;
+    --sidebar-accent-foreground: 217 33% 17%;
+    --sidebar-border: 214 32% 91%;
+    --sidebar-ring: 217 91% 60%;
+  }
+
+  /* Rider app: green primary, dark green secondary, lime accent */
+  :root[data-app="rider"] {
+    --primary: 142 71% 45%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 142 72% 29%;
+    --secondary-foreground: 0 0% 100%;
+    --accent: 82 78% 44%;
+    --accent-foreground: 142 72% 15%;
+    --card: 138 76% 97%;
+    --card-foreground: 142 30% 15%;
+    --foreground: 142 30% 15%;
+    --muted: 138 40% 96%;
+    --muted-foreground: 142 10% 40%;
+    --border: 142 20% 90%;
+    --input: 142 20% 90%;
+    --ring: 142 71% 45%;
+    --success: 142 71% 45%;
+    --gradient-primary: linear-gradient(135deg, hsl(142 71% 45%) 0%, hsl(142 72% 29%) 100%);
+    --gradient-accent: linear-gradient(135deg, hsl(82 78% 44%) 0%, hsl(82 70% 35%) 100%);
+    --sidebar-background: 138 76% 98%;
+    --sidebar-foreground: 142 30% 15%;
+    --sidebar-primary: 142 71% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 138 60% 92%;
+    --sidebar-accent-foreground: 142 30% 15%;
+    --sidebar-border: 142 20% 90%;
+    --sidebar-ring: 142 71% 45%;
+  }
+
 
   .dark {
     --background: 142 20% 8%;
