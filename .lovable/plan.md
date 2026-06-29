@@ -1,119 +1,87 @@
-# Assisted Ordering System — Implementation Plan
+# Plan: Drug Reminder Fix + Tri-App Brand Theming
 
-A staff-only "Concierge" tool that lets admins create real FastCalories orders on behalf of customers who reach out via phone, WhatsApp, SMS, or social. Every assisted order becomes a regular `orders` row, so it flows through the existing vendor → rider → tracking → wallet → notification pipeline. **No parallel workflows are introduced.**
+## Part 1 — Drug reminders (bug fix)
 
----
+The `process-drug-reminders` edge function is implemented but **never invoked by cron**, so customers never receive push notifications. Tracking (manual "mark as taken") works.
 
-## 1. Scope of this first build
+**Fix (one migration):**
+```sql
+SELECT cron.schedule(
+  'process-drug-reminders',
+  '* * * * *',              -- every minute; function has 2-min match window
+  $$ SELECT net.http_post(
+       url := '<edge-fn-url>/process-drug-reminders',
+       headers := jsonb_build_object('Authorization','Bearer <service-role>')
+     ); $$
+);
+```
+After this, reminders dispatch automatically. The customer's `/drug-tracker` page already shows progress and lets them confirm doses.
 
-Because this spec is very large, I'll deliver it in **two phases**. This plan covers **Phase 1 (core MVP)** end-to-end. Phase 2 items are listed at the bottom and I'll build them next once you approve Phase 1.
+## Part 2 — Tri-app brand themes
 
-### Phase 1 — In scope
-1. New admin section **Operations → Assisted Orders** with:
-   - Create Order wizard
-   - List / filter / search
-   - Order detail (track, resend payment link, resend OTP, cancel)
-   - Repeat previous order
-2. Customer + Receiver capture (payer ≠ receiver supported)
-3. Address picker reusing existing `MapLocationPicker` (autocomplete, drop pin, paste coordinates / Google Maps link / WhatsApp location link)
-4. Vendor + product selection reusing existing vendor menu data; quantities, special instructions
-5. Pricing reuses existing delivery-fee + service-fee + promo engine — no duplication
-6. Customer auto-provisioning (profile row by phone, no auth account yet; can be claimed later via existing OTP login)
-7. Order insertion into existing `orders` table with `source = 'assisted'` and an `assisted_order_meta` row for concierge-specific data
-8. Payment: generate Paystack payment link + bank-transfer instructions; auto-verify via existing Paystack webhook OR mark as manually confirmed by staff
-9. After payment confirmed → order automatically becomes a normal pending order (vendor sees it, rider gets dispatched, tracking link works, delivery OTP issued — all via the existing pipeline)
-10. Public tracking link `/track/:orderNumber` (no login)
-11. Delivery OTP — reuse existing per-order code
-12. Notifications via existing engine (SMS/email/push); resend buttons for payment link + OTP
-13. Audit trail (`created_by`, `payment_verified_by`, `last_modified_by`, change log)
-14. Pharmacy support: OTC flows normally; prescription uploads attach to the existing prescription workflow
-15. Communication notes field on the order (free-text log of phone/WhatsApp conversation)
-16. RBAC: gated by a new `manage_assisted_orders` admin permission (Super Admins always allowed)
+### Color tokens per app
+| Token | Customer | Vendor | Rider |
+|---|---|---|---|
+| `--primary` | `#F97316` orange | `#2563EB` blue | `#16A34A` green |
+| `--secondary` | `#16A34A` green | `#F97316` orange | `#15803D` dark green |
+| `--accent` | `#FDBA74` amber | `#60A5FA` sky | `#84CC16` lime |
+| `--card` | `#FFF8F1` | `#F8FAFC` | `#F0FDF4` |
+| `--background` | `#FFFFFF` | `#FFFFFF` | `#FFFFFF` |
+| `--success` | green | green | green |
+| `--warning` | amber | amber | amber |
+| `--destructive` | red | red | red |
+| `--info` | blue | blue | blue |
 
-### Phase 2 — Deferred (next batch)
-- Analytics dashboard (revenue, top vendors, repeat customers, conversion)
-- Twilio WhatsApp two-way integration + "create order from chat"
-- AI order assistant, voice ordering, corporate / bulk orders
-- Saved address book picker on the concierge form (Phase 1 saves addresses but doesn't show a picker beyond the customer's existing list)
+### Theme detection (both modes)
+`src/lib/appTheme.ts` resolves variant in this order:
+1. `import.meta.env.VITE_APP_VARIANT` (`customer` | `vendor` | `rider`) — set per native build
+2. Route prefix fallback: `/vendor/*` → vendor, `/rider/*` `/delivery/*` → rider, else customer
+3. Applied by adding `data-app="vendor|rider|customer"` to `<html>` on every route change
 
----
+### CSS structure (`src/index.css`)
+Keep existing `:root` as customer defaults. Add:
+```css
+:root[data-app="vendor"]  { --primary: 217 91% 60%; --secondary: 25 95% 53%; --accent: 213 94% 68%; --card: 210 40% 98%; --ring: 217 91% 60%; --sidebar-primary: 217 91% 60%; ... }
+:root[data-app="rider"]   { --primary: 142 71% 45%; --secondary: 142 64% 36%; --accent: 82 78% 44%; --card: 138 76% 97%; --ring: 142 71% 45%; --sidebar-primary: 142 71% 45%; ... }
+```
+All values stored as HSL triplets (matches existing token format). Sidebar tokens themed too.
 
-## 2. Database changes
+### What auto-themes (no component edits)
+Anything already using semantic tokens: `bg-primary`, `text-primary`, `border-primary`, `bg-card`, `bg-secondary`, `bg-accent`, `ring-primary`, button variants, badge variants, shadcn sidebar, navlinks. Estimated 90% of the app.
 
-One migration. All new tables use `service_role` + scoped `authenticated` grants and RLS.
+### What I'll touch manually (highest-visibility surfaces)
+- Auth shells: `Auth.tsx`, `VendorAuth.tsx`, `RiderAuth.tsx`, `DeliveryCompanyAuth.tsx`, `OrganizerAuth.tsx`, `ForgotPasswordModal.tsx` — ensure they all read from tokens.
+- Splash: capacitor `backgroundColor` per build (already groundwork in `prepare-assets.mjs`).
+- Header logos: tint via `text-primary` instead of hardcoded hex.
+- Bottom nav (customer + rider): swap any hardcoded green/orange to `text-primary`.
+- Floating action buttons (rider widget, vendor POS): `bg-primary`.
+- Loading spinners: ensure `Loader2` uses `text-primary` (most already do).
 
-- **`orders`** — add columns:
-  - `source TEXT DEFAULT 'app'` (`app` | `assisted` | `pos` | `whatsapp`)
-  - `assisted_created_by UUID` (admin user id, nullable)
-  - `receiver_name TEXT`, `receiver_phone TEXT` (nullable — only when payer ≠ receiver)
-  - `communication_notes TEXT`
-- **`assisted_orders`** — concierge metadata:
-  - `order_id` (FK to `orders`, unique)
-  - `customer_channel` (`phone` | `whatsapp` | `sms` | `facebook` | `instagram` | `other`)
-  - `channel_reference` (e.g. WhatsApp thread id, call note id)
-  - `payment_method` (`paystack_link` | `bank_transfer` | `wallet` | `cash`)
-  - `payment_link`, `payment_reference`, `payment_status` (`awaiting` | `received` | `failed` | `cancelled`)
-  - `payment_verified_by`, `payment_verified_at`
-  - `created_by`, `last_modified_by`
-- **`assisted_order_audit`** — append-only change log (`order_id`, `actor_id`, `action`, `details jsonb`, `created_at`)
-- **`admin_permissions` enum / mapping** — add `manage_assisted_orders` permission key (matches existing `useAdminPermissions` pattern)
+### What I'll NOT touch this pass (per "tokens only, safe")
+- Calorie color scale (semantic — green/amber/red are meaningful, not branding)
+- Status badges where red/green/amber communicate state
+- Charts (recharts already inherits theme via CSS vars where set)
+- Promotional/marketing landing pages (`EventPlannersLanding`, `RiderLanding`, `VendorLanding`, `DeliveryCompanyLanding`) — those are public marketing pages with their own art direction; ask before re-tinting
+- Google Maps tiles
 
-RLS:
-- `assisted_orders` and `assisted_order_audit`: only admins with `manage_assisted_orders` (via existing `has_admin_permission` helper) or Super Admin can read/write; `service_role` full access for edge functions.
-- Public tracking does **not** read these — it reads `orders` via a safe `SECURITY DEFINER` function keyed by order number (already pattern used elsewhere) plus a new variant if needed.
+### Files
+**New:** `src/lib/appTheme.ts`, `src/hooks/useAppTheme.ts`, `supabase/migrations/<ts>_schedule_drug_reminders.sql`
+**Edit:** `src/index.css` (add `[data-app]` blocks), `src/App.tsx` (mount theme hook), `tailwind.config.ts` (no change — tokens already wired), capacitor.config.ts background color note in README.
 
----
+### Typography & radius
+Already Inter + `--radius: 0.75rem` (12px). Cards already use `rounded-xl` → 16px. **No changes needed** to meet the brief's "rounded 16px, modern clean font" requirement.
 
-## 3. Edge functions
+### Verification after build
+1. Visit `/` → orange primary
+2. Visit `/vendor/dashboard` → blue primary, sidebar blue, buttons blue
+3. Visit `/rider/dashboard` → green primary, FAB green
+4. Auth modals on each → focus rings + buttons match active theme
+5. Drug reminder: query `cron.job` to confirm scheduled, run function manually to confirm dispatch
 
-- `assisted-order-create` — validates input (zod), upserts customer profile by phone, inserts `orders` + `order_items` + `order_packages` + `assisted_orders`, computes pricing via the same RPCs used by the customer cart, returns order id + payment link.
-- `assisted-order-payment-link` — generates a Paystack payment link (existing Paystack edge function pattern) and bank-transfer instructions; stores `payment_link`/`payment_reference`.
-- `assisted-order-verify-payment` — manual confirmation by staff; also called by Paystack webhook fan-out for `source='assisted'` orders to flip status to paid and release the order to the vendor (`status = 'pending_vendor'` — same status the normal checkout uses).
-- `assisted-order-notify` — wraps existing notification helpers to resend payment link, resend delivery OTP, send tracking link via SMS/email/push.
-- `assisted-order-repeat` — clones the last order for a given customer into a draft assisted order.
+## Out of scope (call out, don't do)
+- Marketing landing pages re-skin
+- Hunting hardcoded hex across all 400+ files
+- Splash PNG regeneration (already done in earlier turns)
+- Icon assets (already per-app in `resources/`)
 
-All five are server-validated, JWT-checked (admin role), and write to `assisted_order_audit`.
-
----
-
-## 4. Frontend
-
-New files under `src/pages/admin/assisted/`:
-- `AssistedOrdersList.tsx` — table with filters (date, vendor, customer, status, channel)
-- `AssistedOrderCreate.tsx` — multi-step wizard: Customer → Address → Vendor → Items → Review → Payment
-- `AssistedOrderDetail.tsx` — status, tracking, resend buttons, audit timeline, cancel
-- Shared components under `src/components/admin/assisted/`:
-  - `CustomerLookupStep.tsx` (phone search → existing profile or create new; receiver fields)
-  - `AddressStep.tsx` (reuses `MapLocationPicker`; adds paste-link / paste-coordinates parser for Google Maps / WhatsApp share URLs)
-  - `VendorStep.tsx` (reuses nearby-vendor logic)
-  - `ItemsStep.tsx` (reuses vendor menu + cart math)
-  - `ReviewStep.tsx` (totals via existing pricing hook)
-  - `PaymentStep.tsx` (payment method, link generation, mark-as-paid)
-  - `AuditTimeline.tsx`
-
-Sidebar: add **Assisted Orders** entry under Operations, gated by `manage_assisted_orders`.
-
-Public tracking: a lightweight `src/pages/Track.tsx` at `/track/:orderNumber` that calls an existing/new public RPC and shows the status timeline + rider ETA (reuses existing tracking components where possible). No auth required.
-
-Phone numbers everywhere reuse `src/lib/phoneValidation.ts` (11 digits, no country code).
-
----
-
-## 5. Integration guarantees (the "do NOT duplicate" rules)
-
-- Order goes into the same `orders` table → vendor dashboard, rider dispatch, tracking page, wallet ledger, payouts, disputes, ratings all work unchanged.
-- Pricing uses the same hooks/RPCs as the customer cart (`useDeliveryFee`, `useServiceFee`, promo engine, takeaway packs).
-- Delivery OTP uses the existing per-order confirmation code (no parallel OTP table).
-- Notifications use the existing notification engine (no new sender).
-- Pharmacy prescription uploads use the existing `prescriptions` / `prescription_orders` tables.
-- Customer profile auto-created without an auth user; when the customer later signs up with the same phone, existing claim logic links the historical orders.
-
----
-
-## 6. Open questions before I build
-
-1. **Payment methods for Phase 1** — confirm I should support **Paystack link + Bank transfer + Mark-as-paid (cash)**. Wallet debit from a customer who hasn't logged in isn't possible, so I'll skip wallet for assisted orders unless you want it for already-registered customers.
-2. **Public tracking** — OK to expose order status + rider first name + ETA only (no PII like phone) on `/track/:orderNumber`?
-3. **Customer claim flow** — when an auto-created (no-auth) customer later signs up with the same phone, auto-link prior assisted orders to their new auth account?
-
-If you're happy with these defaults (yes / yes / yes), I'll proceed with Phase 1 immediately.
+Ready to execute on approval.
