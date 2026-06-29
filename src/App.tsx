@@ -149,6 +149,7 @@ import AdminEventVerify from "./pages/admin/AdminEventVerify";
 import { playGlobalNotificationSound } from '@/lib/globalAudio';
 import { useFcmNotifications } from '@/hooks/useFcmNotifications';
 import { usePortalMemory } from '@/hooks/usePortalMemory';
+import { useAppTheme } from '@/hooks/useAppTheme';
 import { useNativeOAuthHandler } from '@/hooks/useNativeOAuthHandler';
 import { useCustomerChatNotifications } from '@/hooks/useCustomerChatNotifications';
 
@@ -197,6 +198,7 @@ const App = () => {
           <Sonner />
           <BrowserRouter>
             <PortalTracker />
+            <AppThemeMount />
             <CustomerChatNotifier />
             <Routes>
               <Route path="/" element={<Home />} />
