@@ -2,7 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Fast Calories Design System - Fresh & Healthy Theme */
+/* Fast Calories Design System — per-app brand themes (customer/vendor/rider) */
+
 
 @layer base {
   :root {
