@@ -44,6 +44,45 @@ export default function AdminDeliveryCompanies() {
   const [saving, setSaving] = useState(false);
   const [walletDialogOpen, setWalletDialogOpen] = useState(false);
   const [walletCompany, setWalletCompany] = useState<DeliveryCompany | null>(null);
+  const [ridersDialogOpen, setRidersDialogOpen] = useState(false);
+  const [ridersCompany, setRidersCompany] = useState<DeliveryCompany | null>(null);
+  const [ridersList, setRidersList] = useState<Array<{ id: string; full_name: string | null; email: string | null; phone: string | null; is_verified: boolean; is_online: boolean }>>([]);
+  const [ridersLoading, setRidersLoading] = useState(false);
+
+  const openRidersDialog = async (company: DeliveryCompany) => {
+    setRidersCompany(company);
+    setRidersDialogOpen(true);
+    setRidersLoading(true);
+    setRidersList([]);
+    try {
+      const { data: rps } = await supabase
+        .from('rider_profiles')
+        .select('id, user_id, email, is_verified, is_online')
+        .eq('delivery_company_id', company.id);
+      const rows = (rps || []) as Array<{ id: string; user_id: string; email: string | null; is_verified: boolean; is_online: boolean }>;
+      const userIds = rows.map(r => r.user_id).filter(Boolean);
+      let profilesMap = new Map<string, { full_name: string | null; phone: string | null }>();
+      if (userIds.length) {
+        const { data: profs } = await supabase
+          .from('profiles')
+          .select('user_id, full_name, phone')
+          .in('user_id', userIds);
+        profilesMap = new Map((profs || []).map(p => [p.user_id, { full_name: p.full_name, phone: p.phone }]));
+      }
+      setRidersList(rows.map(r => ({
+        id: r.id,
+        email: r.email,
+        is_verified: r.is_verified,
+        is_online: r.is_online,
+        full_name: profilesMap.get(r.user_id)?.full_name ?? null,
+        phone: profilesMap.get(r.user_id)?.phone ?? null,
+      })));
+    } catch (e) {
+      console.error('Failed to load riders for company', e);
+    } finally {
+      setRidersLoading(false);
+    }
+  };
 
   useEffect(() => {
     fetchCompanies();
@@ -239,7 +278,15 @@ export default function AdminDeliveryCompanies() {
                           <p className="text-sm text-muted-foreground">📞 {company.phone}</p>
                         )}
                         <p className="text-sm text-muted-foreground">
-                          📍 {[company.address, company.city, company.state].filter(Boolean).join(', ')} • {company.rider_count} riders
+                          📍 {[company.address, company.city, company.state].filter(Boolean).join(', ')}
+                          {' • '}
+                          <button
+                            type="button"
+                            onClick={() => openRidersDialog(company)}
+                            className="text-primary underline-offset-2 hover:underline font-medium"
+                          >
+                            {company.rider_count} riders
+                          </button>
                         </p>
                       </div>
                       <div className="flex items-center gap-2 flex-wrap">
@@ -331,6 +378,38 @@ export default function AdminDeliveryCompanies() {
         entityName={walletCompany?.name || 'Delivery Company'}
         subLabel="Logistics Partner"
       />
+
+      <Dialog open={ridersDialogOpen} onOpenChange={setRidersDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Riders under {ridersCompany?.name}</DialogTitle>
+            <DialogDescription>Names and contact details of all riders attached to this logistics company.</DialogDescription>
+          </DialogHeader>
+          {ridersLoading ? (
+            <div className="py-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+          ) : ridersList.length === 0 ? (
+            <p className="py-6 text-center text-muted-foreground text-sm">No riders attached to this company yet.</p>
+          ) : (
+            <div className="divide-y">
+              {ridersList.map((r) => (
+                <div key={r.id} className="py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div>
+                    <p className="font-medium">{r.full_name || 'Unnamed Rider'}</p>
+                    <p className="text-xs text-muted-foreground">{r.email || '—'}</p>
+                    {r.phone && (
+                      <p className="text-xs text-muted-foreground">📞 <a href={`tel:${r.phone}`} className="hover:underline">{r.phone}</a></p>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    {r.is_verified ? <Badge className="bg-success/20 text-success">Verified</Badge> : <Badge variant="outline">Unverified</Badge>}
+                    {r.is_online ? <Badge className="bg-primary/20 text-primary">Online</Badge> : <Badge variant="secondary">Offline</Badge>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 }

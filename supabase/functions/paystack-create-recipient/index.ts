@@ -132,7 +132,7 @@ const handler = async (req: Request): Promise<Response> => {
       wallet = vendorWallet;
     } else {
       // Try rider wallet
-      const { data: riderWallet, error: riderError } = await supabase
+      const { data: riderWallet } = await supabase
         .from("wallets")
         .select("id")
         .eq("user_id", userId)
@@ -142,27 +142,39 @@ const handler = async (req: Request): Promise<Response> => {
       if (riderWallet) {
         wallet = riderWallet;
       } else {
-        // Try default/customer wallet
-        const { data: defaultWallet, error: defaultError } = await supabase
+        // Try delivery_company wallet
+        const { data: dcWallet } = await supabase
           .from("wallets")
           .select("id")
           .eq("user_id", userId)
-          .is("wallet_type", null)
+          .eq("wallet_type", "delivery_company")
           .maybeSingle();
 
-        if (defaultWallet) {
-          wallet = defaultWallet;
+        if (dcWallet) {
+          wallet = dcWallet;
         } else {
-          // Last resort: get any wallet for user
-          const { data: anyWallet, error: anyError } = await supabase
+          // Try default/customer wallet
+          const { data: defaultWallet } = await supabase
             .from("wallets")
             .select("id")
             .eq("user_id", userId)
-            .limit(1)
+            .is("wallet_type", null)
             .maybeSingle();
 
-          wallet = anyWallet;
-          walletError = anyError;
+          if (defaultWallet) {
+            wallet = defaultWallet;
+          } else {
+            // Last resort: get any wallet for user
+            const { data: anyWallet, error: anyError } = await supabase
+              .from("wallets")
+              .select("id")
+              .eq("user_id", userId)
+              .limit(1)
+              .maybeSingle();
+
+            wallet = anyWallet;
+            walletError = anyError;
+          }
         }
       }
     }

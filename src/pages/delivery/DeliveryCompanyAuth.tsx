@@ -430,7 +430,38 @@ export default function DeliveryCompanyAuth() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex">
+      {/* Left panel - branding */}
+      <div className="hidden lg:flex lg:w-1/2 gradient-primary flex-col justify-center items-center p-12">
+        <div className="max-w-md text-center">
+          <div className="w-24 h-24 rounded-2xl bg-primary-foreground flex items-center justify-center mx-auto mb-6 p-2">
+            <img src={fastCaloriesLogo} alt="Fast Calories" className="w-full h-full object-contain" />
+          </div>
+          <h1 className="text-3xl font-bold text-primary-foreground mb-4">
+            Fast Calories Logistics Portal
+          </h1>
+          <p className="text-primary-foreground/80 text-lg mb-8">
+            Partner with Nigeria's #1 health-aware delivery platform and grow your fleet.
+          </p>
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div>
+              <p className="text-2xl font-bold text-primary-foreground">50K+</p>
+              <p className="text-sm text-primary-foreground/70">Active Users</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-primary-foreground">₦2M+</p>
+              <p className="text-sm text-primary-foreground/70">Daily Orders</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-primary-foreground">Fleet</p>
+              <p className="text-sm text-primary-foreground/70">Management</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Right panel - auth card */}
+      <div className="flex-1 flex items-center justify-center p-4 overflow-y-auto">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
@@ -705,6 +736,7 @@ export default function DeliveryCompanyAuth() {
           </Tabs>
         </CardContent>
       </Card>
+      </div>
 
       <ForgotPasswordModal
         open={showForgotPassword}
