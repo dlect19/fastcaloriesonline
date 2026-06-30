@@ -6,45 +6,46 @@
 
 
 @layer base {
-  /* Default = Customer app theme (orange primary, green secondary) */
+  /* Default = Customer app theme — restored fresh green brand */
   :root {
     --background: 0 0% 100%;
-    --foreground: 25 25% 15%;
+    --foreground: 142 20% 15%;
 
-    --card: 30 100% 97%;
-    --card-foreground: 25 25% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 142 20% 15%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 25 25% 15%;
+    --popover-foreground: 142 20% 15%;
 
-    /* Customer primary: #F97316 */
-    --primary: 25 95% 53%;
+    /* Fresh Green - Primary */
+    --primary: 142 76% 36%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 142 71% 45%;
-    --secondary-foreground: 0 0% 100%;
+    /* Light Green Background */
+    --secondary: 142 40% 96%;
+    --secondary-foreground: 142 20% 15%;
 
-    --muted: 30 30% 96%;
-    --muted-foreground: 25 10% 45%;
+    --muted: 142 20% 96%;
+    --muted-foreground: 142 10% 45%;
 
-    /* Customer accent: #FDBA74 */
-    --accent: 27 96% 72%;
-    --accent-foreground: 25 25% 15%;
+    /* Coral Accent */
+    --accent: 0 85% 70%;
+    --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 25 20% 90%;
-    --input: 25 20% 90%;
-    --ring: 25 95% 53%;
+    --border: 142 20% 90%;
+    --input: 142 20% 90%;
+    --ring: 142 76% 36%;
 
     --radius: 0.75rem;
 
-    --success: 142 71% 45%;
+    --success: 142 76% 36%;
     --warning: 38 92% 50%;
     --info: 217 91% 60%;
 
-    --calorie-low: 142 71% 45%;
+    --calorie-low: 142 76% 36%;
     --calorie-medium: 38 92% 50%;
     --calorie-high: 0 85% 60%;
 
@@ -52,17 +53,17 @@
     --nutrient-vitamin: 25 95% 53%;
     --nutrient-mineral: 280 70% 55%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(25 95% 53%) 0%, hsl(25 90% 60%) 100%);
-    --gradient-accent: linear-gradient(135deg, hsl(142 71% 45%) 0%, hsl(142 64% 36%) 100%);
+    --gradient-primary: linear-gradient(135deg, hsl(142 76% 36%) 0%, hsl(142 70% 45%) 100%);
+    --gradient-accent: linear-gradient(135deg, hsl(0 85% 70%) 0%, hsl(0 85% 60%) 100%);
 
-    --sidebar-background: 30 100% 98%;
-    --sidebar-foreground: 25 25% 15%;
-    --sidebar-primary: 25 95% 53%;
+    --sidebar-background: 142 40% 98%;
+    --sidebar-foreground: 142 20% 15%;
+    --sidebar-primary: 142 76% 36%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 30 60% 94%;
-    --sidebar-accent-foreground: 25 25% 15%;
-    --sidebar-border: 25 20% 90%;
-    --sidebar-ring: 25 95% 53%;
+    --sidebar-accent: 142 40% 94%;
+    --sidebar-accent-foreground: 142 20% 15%;
+    --sidebar-border: 142 20% 90%;
+    --sidebar-ring: 142 76% 36%;
   }
 
   /* Vendor app: blue primary, orange secondary */
