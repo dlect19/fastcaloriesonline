@@ -736,6 +736,7 @@ export default function DeliveryCompanyAuth() {
           </Tabs>
         </CardContent>
       </Card>
+      </div>
 
       <ForgotPasswordModal
         open={showForgotPassword}
