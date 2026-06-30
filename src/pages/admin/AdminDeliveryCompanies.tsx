@@ -46,7 +46,7 @@ export default function AdminDeliveryCompanies() {
   const [walletCompany, setWalletCompany] = useState<DeliveryCompany | null>(null);
   const [ridersDialogOpen, setRidersDialogOpen] = useState(false);
   const [ridersCompany, setRidersCompany] = useState<DeliveryCompany | null>(null);
-  const [ridersList, setRidersList] = useState<Array<{ id: string; full_name: string | null; email: string | null; phone: string | null; is_verified: boolean; is_active: boolean }>>([]);
+  const [ridersList, setRidersList] = useState<Array<{ id: string; full_name: string | null; email: string | null; phone: string | null; is_verified: boolean; is_online: boolean }>>([]);
   const [ridersLoading, setRidersLoading] = useState(false);
 
   const openRidersDialog = async (company: DeliveryCompany) => {
@@ -57,9 +57,10 @@ export default function AdminDeliveryCompanies() {
     try {
       const { data: rps } = await supabase
         .from('rider_profiles')
-        .select('id, user_id, email, is_verified, is_active')
+        .select('id, user_id, email, is_verified, is_online')
         .eq('delivery_company_id', company.id);
-      const userIds = (rps || []).map(r => r.user_id).filter(Boolean);
+      const rows = (rps || []) as Array<{ id: string; user_id: string; email: string | null; is_verified: boolean; is_online: boolean }>;
+      const userIds = rows.map(r => r.user_id).filter(Boolean);
       let profilesMap = new Map<string, { full_name: string | null; phone: string | null }>();
       if (userIds.length) {
         const { data: profs } = await supabase
@@ -68,11 +69,11 @@ export default function AdminDeliveryCompanies() {
           .in('user_id', userIds);
         profilesMap = new Map((profs || []).map(p => [p.user_id, { full_name: p.full_name, phone: p.phone }]));
       }
-      setRidersList((rps || []).map(r => ({
+      setRidersList(rows.map(r => ({
         id: r.id,
         email: r.email,
         is_verified: r.is_verified,
-        is_active: r.is_active,
+        is_online: r.is_online,
         full_name: profilesMap.get(r.user_id)?.full_name ?? null,
         phone: profilesMap.get(r.user_id)?.phone ?? null,
       })));
