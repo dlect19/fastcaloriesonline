@@ -278,7 +278,15 @@ export default function AdminDeliveryCompanies() {
                           <p className="text-sm text-muted-foreground">📞 {company.phone}</p>
                         )}
                         <p className="text-sm text-muted-foreground">
-                          📍 {[company.address, company.city, company.state].filter(Boolean).join(', ')} • {company.rider_count} riders
+                          📍 {[company.address, company.city, company.state].filter(Boolean).join(', ')}
+                          {' • '}
+                          <button
+                            type="button"
+                            onClick={() => openRidersDialog(company)}
+                            className="text-primary underline-offset-2 hover:underline font-medium"
+                          >
+                            {company.rider_count} riders
+                          </button>
                         </p>
                       </div>
                       <div className="flex items-center gap-2 flex-wrap">
