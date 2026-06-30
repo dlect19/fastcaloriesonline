@@ -44,6 +44,44 @@ export default function AdminDeliveryCompanies() {
   const [saving, setSaving] = useState(false);
   const [walletDialogOpen, setWalletDialogOpen] = useState(false);
   const [walletCompany, setWalletCompany] = useState<DeliveryCompany | null>(null);
+  const [ridersDialogOpen, setRidersDialogOpen] = useState(false);
+  const [ridersCompany, setRidersCompany] = useState<DeliveryCompany | null>(null);
+  const [ridersList, setRidersList] = useState<Array<{ id: string; full_name: string | null; email: string | null; phone: string | null; is_verified: boolean; is_active: boolean }>>([]);
+  const [ridersLoading, setRidersLoading] = useState(false);
+
+  const openRidersDialog = async (company: DeliveryCompany) => {
+    setRidersCompany(company);
+    setRidersDialogOpen(true);
+    setRidersLoading(true);
+    setRidersList([]);
+    try {
+      const { data: rps } = await supabase
+        .from('rider_profiles')
+        .select('id, user_id, email, is_verified, is_active')
+        .eq('delivery_company_id', company.id);
+      const userIds = (rps || []).map(r => r.user_id).filter(Boolean);
+      let profilesMap = new Map<string, { full_name: string | null; phone: string | null }>();
+      if (userIds.length) {
+        const { data: profs } = await supabase
+          .from('profiles')
+          .select('user_id, full_name, phone')
+          .in('user_id', userIds);
+        profilesMap = new Map((profs || []).map(p => [p.user_id, { full_name: p.full_name, phone: p.phone }]));
+      }
+      setRidersList((rps || []).map(r => ({
+        id: r.id,
+        email: r.email,
+        is_verified: r.is_verified,
+        is_active: r.is_active,
+        full_name: profilesMap.get(r.user_id)?.full_name ?? null,
+        phone: profilesMap.get(r.user_id)?.phone ?? null,
+      })));
+    } catch (e) {
+      console.error('Failed to load riders for company', e);
+    } finally {
+      setRidersLoading(false);
+    }
+  };
 
   useEffect(() => {
     fetchCompanies();
