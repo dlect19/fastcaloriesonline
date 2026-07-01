@@ -6,7 +6,15 @@ interface DistanceStats {
   thisWeek: number;
   thisMonth: number;
   thisYear: number;
+  lifetime: number;
   filtered: number;
+}
+
+export interface DistanceLogEntry {
+  id: string;
+  order_id: string;
+  distance_km: number;
+  created_at: string;
 }
 
 interface UseRiderDistanceStatsOptions {
@@ -16,7 +24,8 @@ interface UseRiderDistanceStatsOptions {
 }
 
 export function useRiderDistanceStats({ riderId, dateFrom, dateTo }: UseRiderDistanceStatsOptions) {
-  const [stats, setStats] = useState<DistanceStats>({ today: 0, thisWeek: 0, thisMonth: 0, thisYear: 0, filtered: 0 });
+  const [stats, setStats] = useState<DistanceStats>({ today: 0, thisWeek: 0, thisMonth: 0, thisYear: 0, lifetime: 0, filtered: 0 });
+  const [recent, setRecent] = useState<DistanceLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -30,45 +39,46 @@ export function useRiderDistanceStats({ riderId, dateFrom, dateTo }: UseRiderDis
 
     try {
       const now = new Date();
-
-      // Today
-      const todayStart = new Date(now);
-      todayStart.setHours(0, 0, 0, 0);
-
-      // This week (Monday start)
+      const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
       const weekStart = new Date(now);
       const dayOfWeek = weekStart.getDay();
       weekStart.setDate(weekStart.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
       weekStart.setHours(0, 0, 0, 0);
-
-      // This month
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-
-      // This year
       const yearStart = new Date(now.getFullYear(), 0, 1);
 
-      const [todayRes, weekRes, monthRes, yearRes, filteredRes] = await Promise.all([
-        supabase.from('rider_distance_logs').select('distance_km').eq('rider_user_id', riderId).gte('created_at', todayStart.toISOString()),
-        supabase.from('rider_distance_logs').select('distance_km').eq('rider_user_id', riderId).gte('created_at', weekStart.toISOString()),
-        supabase.from('rider_distance_logs').select('distance_km').eq('rider_user_id', riderId).gte('created_at', monthStart.toISOString()),
-        supabase.from('rider_distance_logs').select('distance_km').eq('rider_user_id', riderId).gte('created_at', yearStart.toISOString()),
+      const [allRes, filteredRes, recentRes] = await Promise.all([
+        supabase.from('rider_distance_logs')
+          .select('distance_km, created_at')
+          .eq('rider_user_id', riderId),
         dateFrom
           ? supabase.from('rider_distance_logs').select('distance_km').eq('rider_user_id', riderId)
               .gte('created_at', dateFrom.toISOString())
               .lt('created_at', (dateTo ? new Date(dateTo.getTime() + 86400000) : new Date(dateFrom.getTime() + 86400000)).toISOString())
           : Promise.resolve({ data: null }),
+        supabase.from('rider_distance_logs')
+          .select('id, order_id, distance_km, created_at')
+          .eq('rider_user_id', riderId)
+          .order('created_at', { ascending: false })
+          .limit(20),
       ]);
 
-      const sum = (data: { distance_km: number }[] | null) =>
+      const rows = (allRes.data || []) as { distance_km: number; created_at: string }[];
+      const sumAfter = (from: Date) =>
+        rows.filter(r => new Date(r.created_at) >= from).reduce((s, r) => s + Number(r.distance_km), 0);
+      const sumAll = (data: { distance_km: number }[] | null) =>
         (data || []).reduce((s, r) => s + Number(r.distance_km), 0);
+      const r1 = (n: number) => Math.round(n * 10) / 10;
 
       setStats({
-        today: Math.round(sum(todayRes.data) * 10) / 10,
-        thisWeek: Math.round(sum(weekRes.data) * 10) / 10,
-        thisMonth: Math.round(sum(monthRes.data) * 10) / 10,
-        thisYear: Math.round(sum(yearRes.data) * 10) / 10,
-        filtered: Math.round(sum(filteredRes.data) * 10) / 10,
+        today: r1(sumAfter(todayStart)),
+        thisWeek: r1(sumAfter(weekStart)),
+        thisMonth: r1(sumAfter(monthStart)),
+        thisYear: r1(sumAfter(yearStart)),
+        lifetime: r1(rows.reduce((s, r) => s + Number(r.distance_km), 0)),
+        filtered: r1(sumAll(filteredRes.data)),
       });
+      setRecent((recentRes.data || []) as DistanceLogEntry[]);
     } catch (err) {
       console.error('Error fetching distance stats:', err);
     } finally {
@@ -76,7 +86,7 @@ export function useRiderDistanceStats({ riderId, dateFrom, dateTo }: UseRiderDis
     }
   };
 
-  return { stats, loading, refetch: fetchStats };
+  return { stats, recent, loading, refetch: fetchStats };
 }
 
 /** Haversine fallback for when Google Maps API is unavailable */
