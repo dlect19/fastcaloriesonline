@@ -592,7 +592,7 @@ export default function RiderDashboard() {
           <CardDescription>Total kilometers covered on deliveries</CardDescription>
         </CardHeader>
         <CardContent className="p-4 md:p-6 pt-0">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4">
             <div className="bg-secondary/50 rounded-xl p-3 text-center">
               <p className="text-xs text-muted-foreground mb-1">Today</p>
               <p className="text-lg md:text-xl font-bold text-foreground">{distanceStats.today} km</p>
@@ -609,6 +609,10 @@ export default function RiderDashboard() {
               <p className="text-xs text-muted-foreground mb-1">This Year</p>
               <p className="text-lg md:text-xl font-bold text-foreground">{distanceStats.thisYear} km</p>
             </div>
+            <div className="bg-primary/10 rounded-xl p-3 text-center col-span-2 md:col-span-1">
+              <p className="text-xs text-primary mb-1">Lifetime</p>
+              <p className="text-lg md:text-xl font-bold text-primary">{distanceStats.lifetime} km</p>
+            </div>
           </div>
           {dateRange.from && (
             <div className="mt-3 bg-primary/10 rounded-xl p-3 text-center">
@@ -616,6 +620,30 @@ export default function RiderDashboard() {
               <p className="text-lg font-bold text-primary">{distanceStats.filtered} km</p>
             </div>
           )}
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={() => setShowTripHistory(v => !v)}
+              className="text-sm text-primary hover:underline"
+            >
+              {showTripHistory ? 'Hide' : 'View'} recent trip history ({recentTrips.length})
+            </button>
+            {showTripHistory && (
+              <div className="mt-3 border rounded-xl divide-y max-h-80 overflow-y-auto">
+                {recentTrips.length === 0 ? (
+                  <p className="p-4 text-sm text-muted-foreground text-center">No trips logged yet.</p>
+                ) : recentTrips.map(t => (
+                  <div key={t.id} className="p-3 flex justify-between items-center text-sm">
+                    <div>
+                      <p className="font-medium">Order #{t.order_id.slice(0, 8)}</p>
+                      <p className="text-xs text-muted-foreground">{new Date(t.created_at).toLocaleString()}</p>
+                    </div>
+                    <span className="font-semibold text-primary">{Number(t.distance_km).toFixed(1)} km</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 
