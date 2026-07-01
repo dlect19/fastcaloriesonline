@@ -60,20 +60,28 @@ function getTimePeriod(ss: SurgeSettings): string {
 }
 
 /**
- * Fetch real-time weather from Open-Meteo (free, no API key).
- * Returns 'clear' | 'rain' | 'storm' based on WMO weather codes.
+ * Read current weather condition from the shared weather_cache table.
+ * Cache is populated by the `refresh-weather` edge function on a schedule —
+ * customer orders never call an external weather API directly.
  */
 async function fetchWeatherCondition(lat: number, lon: number): Promise<string> {
   try {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`;
-    const res = await fetch(url);
-    if (!res.ok) return 'clear';
-    const data = await res.json();
-    const code = data?.current_weather?.weathercode ?? 0;
-    // WMO codes: 0-3 = clear/cloudy, 51-67 = drizzle/rain, 71-77 = snow, 80-82 = showers, 95-99 = thunderstorm
-    if (code >= 95) return 'storm';
-    if (code >= 51) return 'rain';
-    return 'clear';
+    const gridKey = `${lat.toFixed(1)},${lon.toFixed(1)}`;
+    const { data } = await supabase
+      .from('weather_cache')
+      .select('condition')
+      .eq('area_key', gridKey)
+      .maybeSingle();
+    if (data?.condition) return data.condition;
+
+    // Fallback: latest global row so pricing still works before the cache is warm
+    const { data: latest } = await supabase
+      .from('weather_cache')
+      .select('condition')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    return latest?.condition || 'clear';
   } catch {
     return 'clear';
   }
