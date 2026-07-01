@@ -109,7 +109,7 @@ function calculateSurge(ss: SurgeSettings, weatherCondition: string): { surgeFee
   return { surgeFee, timePeriod, weatherCondition };
 }
 
-export function useDeliveryFee({ vendorLat, vendorLon, customerLat, customerLon }: UseDeliveryFeeOptions) {
+export function useDeliveryFee({ vendorLat, vendorLon, customerLat, customerLon, vendorId, customerAddressId }: UseDeliveryFeeOptions) {
   const { settings, loading: settingsLoading } = useDeliverySettings();
   const riderAvailability = useRiderAvailability();
   const [distanceKm, setDistanceKm] = useState<number | null>(null);
