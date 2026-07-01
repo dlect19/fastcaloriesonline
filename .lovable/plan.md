@@ -1,87 +1,105 @@
-# Plan: Drug Reminder Fix + Tri-App Brand Theming
 
-## Part 1 — Drug reminders (bug fix)
+# Smart Delivery Distance Cache + Weather Service
 
-The `process-drug-reminders` edge function is implemented but **never invoked by cron**, so customers never receive push notifications. Tracking (manual "mark as taken") works.
+Two things here:
+**(A)** Fix the "0 km" display so past distance records are still visible.
+**(B)** Build the full cache + smart weather architecture you described.
 
-**Fix (one migration):**
-```sql
-SELECT cron.schedule(
-  'process-drug-reminders',
-  '* * * * *',              -- every minute; function has 2-min match window
-  $$ SELECT net.http_post(
-       url := '<edge-fn-url>/process-drug-reminders',
-       headers := jsonb_build_object('Authorization','Bearer <service-role>')
-     ); $$
-);
+Given the size of Part B, I'll ship it in **phased milestones** so nothing breaks the live pricing engine. Each phase is safe to publish on its own.
+
+---
+
+## Phase 0 — Distance-Travelled History Fix (small, ship first)
+
+Problem: rider "Distance Travelled" shows `0 km` when the current period has no logs, hiding all previous logs.
+
+Fix:
+- Show the rider's lifetime total + this-week + this-month from `rider_distance_logs` even when today = 0.
+- Add a small "History" expander listing the last 20 delivered orders with their logged km + date.
+- Empty state: "No trips logged yet" only when the rider truly has zero rows.
+
+Files: `src/hooks/useRiderDistanceStats.ts`, `src/pages/rider/RiderEarnings.tsx` (or wherever Distance Travelled is shown — I'll confirm on read).
+
+---
+
+## Phase 1 — Delivery Distance Cache
+
+**New table** `delivery_distance_cache`:
+vendor_id, customer_address_id, vendor_lat/lng, customer_lat/lng, google_place_id, distance_km, duration_min, delivery_fee, created_at, updated_at, expires_at.
+
+Unique index on `(vendor_id, customer_address_id)` for fast lookup.
+
+**Lookup flow (edge `calculate-distance`):**
+```text
+request → look up (vendor_id, address_id) in cache
+  hit + not expired → return cached, mark source='cache'
+  miss/expired      → call Google → upsert row → return
 ```
-After this, reminders dispatch automatically. The customer's `/drug-tracker` page already shows progress and lets them confirm doses.
 
-## Part 2 — Tri-app brand themes
+**Auto-invalidation triggers:**
+- `addresses` UPDATE of lat/lng → delete matching cache rows.
+- `vendors` UPDATE of lat/lng → delete matching cache rows.
+- Admin "Delivery pricing rules changed" → button that truncates cache.
+- TTL: `expires_at < now()` treated as miss.
 
-### Color tokens per app
-| Token | Customer | Vendor | Rider |
-|---|---|---|---|
-| `--primary` | `#F97316` orange | `#2563EB` blue | `#16A34A` green |
-| `--secondary` | `#16A34A` green | `#F97316` orange | `#15803D` dark green |
-| `--accent` | `#FDBA74` amber | `#60A5FA` sky | `#84CC16` lime |
-| `--card` | `#FFF8F1` | `#F8FAFC` | `#F0FDF4` |
-| `--background` | `#FFFFFF` | `#FFFFFF` | `#FFFFFF` |
-| `--success` | green | green | green |
-| `--warning` | amber | amber | amber |
-| `--destructive` | red | red | red |
-| `--info` | blue | blue | blue |
+**Admin setting:** `distance_cache_ttl_days` (default 30) in `platform_settings`.
 
-### Theme detection (both modes)
-`src/lib/appTheme.ts` resolves variant in this order:
-1. `import.meta.env.VITE_APP_VARIANT` (`customer` | `vendor` | `rider`) — set per native build
-2. Route prefix fallback: `/vendor/*` → vendor, `/rider/*` `/delivery/*` → rider, else customer
-3. Applied by adding `data-app="vendor|rider|customer"` to `<html>` on every route change
+Frontend (`useDeliveryFee`) keeps calling the edge function — no client change needed; savings happen server-side.
 
-### CSS structure (`src/index.css`)
-Keep existing `:root` as customer defaults. Add:
-```css
-:root[data-app="vendor"]  { --primary: 217 91% 60%; --secondary: 25 95% 53%; --accent: 213 94% 68%; --card: 210 40% 98%; --ring: 217 91% 60%; --sidebar-primary: 217 91% 60%; ... }
-:root[data-app="rider"]   { --primary: 142 71% 45%; --secondary: 142 64% 36%; --accent: 82 78% 44%; --card: 138 76% 97%; --ring: 142 71% 45%; --sidebar-primary: 142 71% 45%; ... }
-```
-All values stored as HSL triplets (matches existing token format). Sidebar tokens themed too.
+---
 
-### What auto-themes (no component edits)
-Anything already using semantic tokens: `bg-primary`, `text-primary`, `border-primary`, `bg-card`, `bg-secondary`, `bg-accent`, `ring-primary`, button variants, badge variants, shadcn sidebar, navlinks. Estimated 90% of the app.
+## Phase 2 — Weather Cache + Smart Scheduler
 
-### What I'll touch manually (highest-visibility surfaces)
-- Auth shells: `Auth.tsx`, `VendorAuth.tsx`, `RiderAuth.tsx`, `DeliveryCompanyAuth.tsx`, `OrganizerAuth.tsx`, `ForgotPasswordModal.tsx` — ensure they all read from tokens.
-- Splash: capacitor `backgroundColor` per build (already groundwork in `prepare-assets.mjs`).
-- Header logos: tint via `text-primary` instead of hardcoded hex.
-- Bottom nav (customer + rider): swap any hardcoded green/orange to `text-primary`.
-- Floating action buttons (rider widget, vendor POS): `bg-primary`.
-- Loading spinners: ensure `Loader2` uses `text-primary` (most already do).
+**New table** `weather_cache`: area_key (e.g. rounded lat,lng grid or city), condition, temperature, rain_status, wind_speed, surge_amount, updated_at.
 
-### What I'll NOT touch this pass (per "tokens only, safe")
-- Calorie color scale (semantic — green/amber/red are meaningful, not branding)
-- Status badges where red/green/amber communicate state
-- Charts (recharts already inherits theme via CSS vars where set)
-- Promotional/marketing landing pages (`EventPlannersLanding`, `RiderLanding`, `VendorLanding`, `DeliveryCompanyLanding`) — those are public marketing pages with their own art direction; ask before re-tinting
-- Google Maps tiles
+**New edge function** `refresh-weather` (invoked by pg_cron):
+1. Read `weather_service_*` settings.
+2. Gate checks — abort if all fail:
+   - `enable_weather_service = false`
+   - "only when riders online" and no online rider
+   - "only when active orders" and no active order
+   - "only during business hours" and outside window
+3. For each active area (derived from online riders + active orders), fetch provider, upsert cache.
+4. Log to `weather_api_call_log` (for analytics).
 
-### Files
-**New:** `src/lib/appTheme.ts`, `src/hooks/useAppTheme.ts`, `supabase/migrations/<ts>_schedule_drug_reminders.sql`
-**Edit:** `src/index.css` (add `[data-app]` blocks), `src/App.tsx` (mount theme hook), `tailwind.config.ts` (no change — tokens already wired), capacitor.config.ts background color note in README.
+Frontend `useDeliveryFee` stops calling Open-Meteo. Instead reads latest `weather_cache` row for the customer's area. Zero direct calls per order.
 
-### Typography & radius
-Already Inter + `--radius: 0.75rem` (12px). Cards already use `rounded-xl` → 16px. **No changes needed** to meet the brief's "rounded 16px, modern clean font" requirement.
+**Cron:** pg_cron job at admin-selected frequency (5/10/15/30/60 min).
 
-### Verification after build
-1. Visit `/` → orange primary
-2. Visit `/vendor/dashboard` → blue primary, sidebar blue, buttons blue
-3. Visit `/rider/dashboard` → green primary, FAB green
-4. Auth modals on each → focus rings + buttons match active theme
-5. Drug reminder: query `cron.job` to confirm scheduled, run function manually to confirm dispatch
+---
 
-## Out of scope (call out, don't do)
-- Marketing landing pages re-skin
-- Hunting hardcoded hex across all 400+ files
-- Splash PNG regeneration (already done in earlier turns)
-- Icon assets (already per-app in `resources/`)
+## Phase 3 — Admin Weather Settings UI
 
-Ready to execute on approval.
+New page `AdminWeatherSettings.tsx` under System Settings:
+- Enable toggle, provider dropdown, frequency, business hours, gating toggles, "Update now" button, stats (calls today/month, est. cost).
+
+Settings stored in `platform_settings` under `weather_service_*` keys.
+
+---
+
+## Phase 4 — Surge Management UI
+
+Extend existing `platform_settings` surge keys already used in `useDeliveryFee` with an admin panel: rain tiers (light/heavy/storm/flood), peak hours, weekend, holiday, event, manual. No engine change — same keys read by pricing engine.
+
+---
+
+## Phase 5 — Analytics Dashboard Panel
+
+`api_usage_log` table (provider, endpoint, called_at, cost_estimate). Dashboard tile: today/month calls, cache hit rate, est. money saved.
+
+---
+
+## Phase 6 — Provider Abstraction (future ready)
+
+Introduce `_shared/weather-provider.ts` and `_shared/map-provider.ts` interfaces so admin can switch OpenWeather / WeatherAPI / Tomorrow.io and Google / Mapbox / ORS without touching pricing code.
+
+---
+
+## What I need from you before starting
+
+1. **Ship Phase 0 now?** (small, safe, restores your visible distance history.)
+2. **Then proceed Phase 1 + 2** in the next turn (cache + smart weather — the biggest cost savers)?
+3. **Weather provider to keep** — stay on Open-Meteo (free, no key) as the default, or switch to OpenWeather (needs API key)?
+4. **Default cache TTL** — confirm 30 days OK?
+
+Reply "go" and I'll start with Phase 0 + Phase 1 in parallel.

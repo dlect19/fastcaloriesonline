@@ -1095,6 +1095,36 @@ export type Database = {
         }
         Relationships: []
       }
+      api_usage_log: {
+        Row: {
+          cost_estimate_usd: number
+          created_at: string
+          endpoint: string
+          id: string
+          meta: Json | null
+          outcome: string
+          provider: string
+        }
+        Insert: {
+          cost_estimate_usd?: number
+          created_at?: string
+          endpoint: string
+          id?: string
+          meta?: Json | null
+          outcome?: string
+          provider: string
+        }
+        Update: {
+          cost_estimate_usd?: number
+          created_at?: string
+          endpoint?: string
+          id?: string
+          meta?: Json | null
+          outcome?: string
+          provider?: string
+        }
+        Relationships: []
+      }
       assisted_order_audit: {
         Row: {
           action: string
@@ -1915,6 +1945,66 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      delivery_distance_cache: {
+        Row: {
+          coord_key: string
+          created_at: string
+          customer_address_id: string | null
+          customer_latitude: number
+          customer_longitude: number
+          delivery_fee: number | null
+          distance_km: number
+          duration_minutes: number | null
+          expires_at: string
+          google_place_id: string | null
+          hit_count: number
+          id: string
+          source: string
+          updated_at: string
+          vendor_id: string | null
+          vendor_latitude: number
+          vendor_longitude: number
+        }
+        Insert: {
+          coord_key: string
+          created_at?: string
+          customer_address_id?: string | null
+          customer_latitude: number
+          customer_longitude: number
+          delivery_fee?: number | null
+          distance_km: number
+          duration_minutes?: number | null
+          expires_at?: string
+          google_place_id?: string | null
+          hit_count?: number
+          id?: string
+          source?: string
+          updated_at?: string
+          vendor_id?: string | null
+          vendor_latitude: number
+          vendor_longitude: number
+        }
+        Update: {
+          coord_key?: string
+          created_at?: string
+          customer_address_id?: string | null
+          customer_latitude?: number
+          customer_longitude?: number
+          delivery_fee?: number | null
+          distance_km?: number
+          duration_minutes?: number | null
+          expires_at?: string
+          google_place_id?: string | null
+          hit_count?: number
+          id?: string
+          source?: string
+          updated_at?: string
+          vendor_id?: string | null
+          vendor_latitude?: number
+          vendor_longitude?: number
+        }
+        Relationships: []
       }
       dispatch_offers: {
         Row: {
@@ -8300,6 +8390,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      weather_cache: {
+        Row: {
+          area_key: string
+          area_name: string | null
+          condition: string
+          created_at: string
+          id: string
+          latitude: number
+          longitude: number
+          provider: string
+          rain_status: string | null
+          surge_amount: number
+          temperature: number | null
+          updated_at: string
+          wind_speed: number | null
+        }
+        Insert: {
+          area_key: string
+          area_name?: string | null
+          condition?: string
+          created_at?: string
+          id?: string
+          latitude: number
+          longitude: number
+          provider?: string
+          rain_status?: string | null
+          surge_amount?: number
+          temperature?: number | null
+          updated_at?: string
+          wind_speed?: number | null
+        }
+        Update: {
+          area_key?: string
+          area_name?: string | null
+          condition?: string
+          created_at?: string
+          id?: string
+          latitude?: number
+          longitude?: number
+          provider?: string
+          rain_status?: string | null
+          surge_amount?: number
+          temperature?: number | null
+          updated_at?: string
+          wind_speed?: number | null
+        }
+        Relationships: []
       }
       whatsapp_messages: {
         Row: {
