@@ -41,11 +41,12 @@ export default function RiderDashboard() {
   const { isAffiliated, affiliatedVendorId, isDeliveryCompanyRider, deliveryCompanyId, canViewEarnings } = useRiderRestrictions(riderProfile);
 
   // Distance tracking stats
-  const { stats: distanceStats, loading: distanceLoading } = useRiderDistanceStats({
+  const { stats: distanceStats, recent: recentTrips, loading: distanceLoading } = useRiderDistanceStats({
     riderId: userId,
     dateFrom: dateRange.from,
     dateTo: dateRange.to,
   });
+  const [showTripHistory, setShowTripHistory] = useState(false);
 
   useEffect(() => {
     checkAuth();
