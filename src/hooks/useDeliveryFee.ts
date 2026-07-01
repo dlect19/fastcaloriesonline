@@ -197,7 +197,7 @@ export function useDeliveryFee({ vendorLat, vendorLon, customerLat, customerLon,
 
       // Try Google Maps via edge function (uses shared helper with automatic Haversine fallback)
       supabase.functions.invoke('calculate-distance', {
-        body: { originLat: vendorLat, originLng: vendorLon, destLat: customerLat, destLng: customerLon },
+        body: { originLat: vendorLat, originLng: vendorLon, destLat: customerLat, destLng: customerLon, vendorId, customerAddressId },
       }).then(({ data, error }) => {
         if (data?.distanceInKm && !error) {
           const dist = data.distanceInKm < PROXIMITY_THRESHOLD_KM ? 0 : data.distanceInKm;
