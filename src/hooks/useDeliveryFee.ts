@@ -9,6 +9,8 @@ interface UseDeliveryFeeOptions {
   vendorLon: number | null;
   customerLat: number | null;
   customerLon: number | null;
+  vendorId?: string | null;
+  customerAddressId?: string | null;
 }
 
 interface SurgeSettings {
