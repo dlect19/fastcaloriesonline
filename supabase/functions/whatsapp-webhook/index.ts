@@ -870,6 +870,53 @@ async function persistSession(supabase: any, id: string, state: string, context:
   }).eq("id", id);
 }
 
+// Google Maps gateway helpers (reverse-geocode + geocode). Return null on any failure — location
+// capture must never block ordering.
+const GMAPS_GATEWAY = "https://connector-gateway.lovable.dev/google_maps";
+async function reverseGeocode(lat: number, lon: number): Promise<string | null> {
+  const lk = Deno.env.get("LOVABLE_API_KEY");
+  const gk = Deno.env.get("GOOGLE_MAPS_API_KEY");
+  if (!lk || !gk) return null;
+  try {
+    const r = await fetch(`${GMAPS_GATEWAY}/maps/api/geocode/json?latlng=${lat},${lon}`, {
+      headers: { Authorization: `Bearer ${lk}`, "X-Connection-Api-Key": gk },
+    });
+    const j = await r.json();
+    return j?.results?.[0]?.formatted_address ?? null;
+  } catch (_) { return null; }
+}
+async function geocodeText(query: string): Promise<{ lat: number; lon: number; address: string } | null> {
+  const lk = Deno.env.get("LOVABLE_API_KEY");
+  const gk = Deno.env.get("GOOGLE_MAPS_API_KEY");
+  if (!lk || !gk) return null;
+  try {
+    // Bias to Nigeria for area/landmark queries.
+    const q = encodeURIComponent(query);
+    const r = await fetch(`${GMAPS_GATEWAY}/maps/api/geocode/json?address=${q}&region=ng&components=country:NG`, {
+      headers: { Authorization: `Bearer ${lk}`, "X-Connection-Api-Key": gk },
+    });
+    const j = await r.json();
+    const hit = j?.results?.[0];
+    if (!hit?.geometry?.location) return null;
+    return { lat: hit.geometry.location.lat, lon: hit.geometry.location.lng, address: hit.formatted_address };
+  } catch (_) { return null; }
+}
+// Save a resolved location as the user's default address so we don't re-ask next session.
+async function saveDefaultAddress(supabase: any, userId: string | null, lat: number, lon: number, addressText: string | null) {
+  if (!userId) return;
+  try {
+    const { data: existing } = await supabase
+      .from("addresses").select("id").eq("user_id", userId).eq("is_default", true).maybeSingle();
+    if (existing) return; // don't overwrite a customer's chosen default
+    await supabase.from("addresses").insert({
+      user_id: userId, label: "WhatsApp location",
+      address_line: addressText || `Pinned location (${lat.toFixed(5)}, ${lon.toFixed(5)})`,
+      latitude: lat, longitude: lon, is_default: true,
+    });
+  } catch (e) { console.error("saveDefaultAddress failed", e); }
+}
+
+
 function cartTotal(cart: any[]): number {
   return cart.reduce((s, c) => s + Number(c.price) * c.qty, 0);
 }
