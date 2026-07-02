@@ -8,9 +8,17 @@ const corsHeaders = {
 };
 
 function coordKey(a: number, b: number, c: number, d: number) {
-  // ~11m precision (4 decimals) — treats near-identical coords as same cache row
-  const r = (n: number) => n.toFixed(4);
+  // ~110m precision (3 decimals) — absorbs GPS drift so nearby fixes reuse cache.
+  const r = (n: number) => n.toFixed(3);
   return `${r(a)},${r(b)}|${r(c)},${r(d)}`;
+}
+
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 serve(async (req) => {
@@ -75,6 +83,19 @@ serve(async (req) => {
       );
     }
 
+    // Short-circuit: skip Google entirely when straight-line distance is tiny.
+    // Client already blocks <0.5km, but be defensive here too.
+    const straightKm = haversineKm(originLat, originLng, destLat, destLng);
+    if (straightKm < 0.5) {
+      return new Response(
+        JSON.stringify({
+          distanceInKm: 0, durationInMinutes: 0,
+          distanceText: '0 km', durationText: '0 min', source: 'proximity',
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // 2. Miss — call Google (with Haversine fallback)
     const result = await getGoogleMapsDistance(originLat, originLng, destLat, destLng);
     console.log(`[calculate-distance] MISS → ${result.source} ${result.distanceKm}km`);
@@ -104,7 +125,9 @@ serve(async (req) => {
       await supabase.from('delivery_distance_cache')
         .upsert(row, { onConflict: 'vendor_id,customer_address_id' });
     } else {
-      await supabase.from('delivery_distance_cache').insert(row);
+      // Upsert on coord_key so repeat GPS-based lookups don't create duplicates.
+      await supabase.from('delivery_distance_cache')
+        .upsert(row, { onConflict: 'coord_key' });
     }
 
     supabase.from('api_usage_log').insert({

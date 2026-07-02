@@ -33,11 +33,15 @@ export function VendorGroupCard({
   const { getApplicablePacks } = useTakeawayPacks(group.vendorId);
   const { getExtraPackageFee, extraPackageFeePerPack } = useCart();
 
+  // Skip distance calculation entirely for Carryout — saves a Google Maps call
+  // per vendor per cart open. Also skip if we have no coords yet.
+  const isCarryout = deliveryType === 'self_pickup';
   const { fee: calculatedDeliveryFee, distanceKm, surgeFee, loading: feeLoading } = useDeliveryFee({
-    vendorLat: vendorLocation.latitude,
-    vendorLon: vendorLocation.longitude,
-    customerLat,
-    customerLon,
+    vendorLat: isCarryout ? null : vendorLocation.latitude,
+    vendorLon: isCarryout ? null : vendorLocation.longitude,
+    customerLat: isCarryout ? null : customerLat,
+    customerLon: isCarryout ? null : customerLon,
+    vendorId: group.vendorId,
   });
 
   const deliveryFee = deliveryType === 'self_pickup' ? 0 : calculatedDeliveryFee;

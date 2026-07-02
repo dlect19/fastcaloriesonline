@@ -191,34 +191,49 @@ export function useDeliveryFee({ vendorLat, vendorLon, customerLat, customerLon,
         return;
       }
 
-      console.log(`[DeliveryFee] Calculating distance: vendor(${vendorLat},${vendorLon}) → customer(${customerLat},${customerLon})`);
+      // Session-scoped client cache: prevents re-invoking the edge function
+      // when the cart is re-mounted (nav away and back) within the same tab.
+      // Key uses ~110m precision so tiny GPS drift still hits the cache.
+      const r3 = (n: number) => n.toFixed(3);
+      const sessionKey = `fc_dist_${vendorId || 'nov'}_${customerAddressId || `${r3(customerLat)},${r3(customerLon)}`}_${r3(vendorLat)},${r3(vendorLon)}`;
+      try {
+        const cached = sessionStorage.getItem(sessionKey);
+        if (cached) {
+          const km = Number(cached);
+          if (!isNaN(km)) {
+            console.log(`[DeliveryFee] session cache hit: ${km}km`);
+            setDistanceKm(km);
+            setDistanceLoading(false);
+            return;
+          }
+        }
+      } catch {}
+
       const haversineDist = calculateDistance(customerLat!, customerLon!, vendorLat!, vendorLon!);
-      console.log(`[DeliveryFee] Haversine straight-line: ${haversineDist.toFixed(2)}km`);
 
       // Try Google Maps via edge function (uses shared helper with automatic Haversine fallback)
       supabase.functions.invoke('calculate-distance', {
         body: { originLat: vendorLat, originLng: vendorLon, destLat: customerLat, destLng: customerLon, vendorId, customerAddressId },
       }).then(({ data, error }) => {
-        if (data?.distanceInKm && !error) {
+        if (data?.distanceInKm !== undefined && !error) {
           const dist = data.distanceInKm < PROXIMITY_THRESHOLD_KM ? 0 : data.distanceInKm;
-          console.log(`[DeliveryFee] API result: ${data.distanceInKm}km (source: ${data.source}), haversine: ${haversineDist.toFixed(2)}km, using: ${dist}km`);
           setDistanceKm(dist);
+          try { sessionStorage.setItem(sessionKey, String(dist)); } catch {}
         } else {
           console.warn('[DeliveryFee] Edge function failed, using Haversine fallback:', error);
           const adjustedDist = haversineDist < PROXIMITY_THRESHOLD_KM ? 0 : Math.round(haversineDist * 1.3 * 10) / 10;
-          console.log(`[DeliveryFee] Haversine fallback: ${haversineDist.toFixed(2)}km × 1.3 = ${adjustedDist}km`);
           setDistanceKm(adjustedDist);
+          try { sessionStorage.setItem(sessionKey, String(adjustedDist)); } catch {}
         }
       }).catch((err) => {
         console.warn('[DeliveryFee] calculate-distance invocation failed:', err);
         const adjustedDist = haversineDist < PROXIMITY_THRESHOLD_KM ? 0 : Math.round(haversineDist * 1.3 * 10) / 10;
-        console.log(`[DeliveryFee] Haversine fallback: ${haversineDist.toFixed(2)}km × 1.3 = ${adjustedDist}km`);
         setDistanceKm(adjustedDist);
       }).finally(() => setDistanceLoading(false));
     } else {
       setDistanceKm(null);
     }
-  }, [vendorLat, vendorLon, customerLat, customerLon]);
+  }, [vendorLat, vendorLon, customerLat, customerLon, vendorId, customerAddressId]);
 
   const surge = useMemo(() => calculateSurge(surgeSettings, weatherCondition), [surgeSettings, weatherCondition]);
 
