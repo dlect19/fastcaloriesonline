@@ -26,49 +26,55 @@ export default function WalletPage() {
   const [verifying, setVerifying] = useState(false);
   const verificationAttempted = useRef(false);
 
-  // Handle Paystack callback - verify payment reference
+  // Handle Paystack callback - verify payment reference (with retry polling
+  // in case Paystack hasn't finalized by the time the user is redirected back).
   useEffect(() => {
     const verifyPayment = async () => {
-      // Check for Paystack reference in URL (trxref or reference)
       const reference = searchParams.get('trxref') || searchParams.get('reference');
-      
       if (!reference || verificationAttempted.current) return;
-      
+
       verificationAttempted.current = true;
       setVerifying(true);
-      
-      try {
-        const { data, error } = await supabase.functions.invoke('verify-wallet-funding', {
-          body: { reference },
-        });
 
-        if (error) throw error;
+      const MAX_ATTEMPTS = 10; // ~20s total
+      let credited = false;
+      let lastError: string | null = null;
 
-        if (data?.success) {
-          toast({
-            title: 'Wallet Funded!',
-            description: data.message || 'Your wallet has been credited successfully.',
+      for (let attempt = 0; attempt < MAX_ATTEMPTS && !credited; attempt++) {
+        try {
+          const { data, error } = await supabase.functions.invoke('verify-wallet-funding', {
+            body: { reference },
           });
-          refetch();
-        } else if (data?.error) {
-          toast({
-            title: 'Verification Issue',
-            description: data.error,
-            variant: 'destructive',
-          });
+          if (error) throw error;
+
+          if (data?.success) {
+            credited = true;
+            toast({
+              title: 'Wallet Funded!',
+              description: data.message || 'Your wallet has been credited successfully.',
+            });
+            refetch();
+            break;
+          }
+          lastError = data?.error || null;
+        } catch (err) {
+          lastError = err instanceof Error ? err.message : 'Could not verify payment';
+          console.error('verify-wallet-funding attempt failed:', err);
         }
-      } catch (error) {
-        console.error('Error verifying payment:', error);
-        toast({
-          title: 'Verification Failed',
-          description: error instanceof Error ? error.message : 'Could not verify payment',
-          variant: 'destructive',
-        });
-      } finally {
-        setVerifying(false);
-        // Clear URL parameters
-        setSearchParams({});
+        if (!credited) await new Promise((r) => setTimeout(r, 2000));
       }
+
+      if (!credited) {
+        toast({
+          title: 'Still confirming payment',
+          description: lastError || 'Your bank is taking a moment. Your wallet will credit automatically once confirmed.',
+        });
+        // One last refetch — the webhook may have credited it in the background
+        refetch();
+      }
+
+      setVerifying(false);
+      setSearchParams({});
     };
 
     if (user && !authLoading) {
