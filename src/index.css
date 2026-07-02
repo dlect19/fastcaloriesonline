@@ -124,6 +124,37 @@
     --sidebar-ring: 142 71% 45%;
   }
 
+  /* Admin dashboard: blue primary, neutral slate secondary — no orange */
+  :root[data-app="admin"] {
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 20% 94%;
+    --secondary-foreground: 217 33% 17%;
+    --accent: 217 91% 60%;
+    --accent-foreground: 0 0% 100%;
+    --card: 0 0% 100%;
+    --card-foreground: 217 33% 17%;
+    --foreground: 217 33% 17%;
+    --muted: 210 20% 96%;
+    --muted-foreground: 217 15% 45%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 217 91% 60%;
+    --info: 217 91% 60%;
+    --warning: 38 92% 50%;
+    --gradient-primary: linear-gradient(135deg, hsl(217 91% 60%) 0%, hsl(213 94% 68%) 100%);
+    --gradient-accent: linear-gradient(135deg, hsl(217 91% 60%) 0%, hsl(213 94% 68%) 100%);
+    --sidebar-background: 210 40% 98%;
+    --sidebar-foreground: 217 33% 17%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 40% 94%;
+    --sidebar-accent-foreground: 217 33% 17%;
+    --sidebar-border: 214 32% 91%;
+    --sidebar-ring: 217 91% 60%;
+  }
+
+
 
   .dark {
     --background: 142 20% 8%;
