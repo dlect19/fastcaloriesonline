@@ -281,5 +281,6 @@ export default function AdminWhatsApp() {
         </TabsContent>
       </Tabs>
     </div>
+    </AdminLayout>
   );
 }
