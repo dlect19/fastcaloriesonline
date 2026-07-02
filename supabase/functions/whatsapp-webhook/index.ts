@@ -120,9 +120,9 @@ const WELCOME_INTRO =
   MENU_OPTIONS;
 
 const ACCOUNT_PROMPT_TEXT =
-  `👋 Welcome! It looks like you're new here.\n\n` +
-  `To order, I just need your *first name*.\n\n` +
-  `Reply with your name to create your FastCalories account (we'll use this WhatsApp number — no password needed).`;
+  `👋 Welcome to *FastCalories*! Looks like this is your first time.\n\n` +
+  `To set up your account, please reply with your *full name* (first and last).\n\n` +
+  `We'll use this WhatsApp number as your login — no password needed. You can add your email later from the app.`;
 
 // ============================================================
 // Server
