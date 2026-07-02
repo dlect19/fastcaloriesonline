@@ -1,0 +1,1 @@
+UPDATE public.profiles p SET phone_verified = true, phone_verified_at = COALESCE(phone_verified_at, now()) WHERE EXISTS (SELECT 1 FROM public.phone_verification_otps o WHERE o.verified_at IS NOT NULL AND (o.phone = p.phone OR o.phone = '+234' || substring(p.phone from 2)) AND (o.user_id = p.user_id OR o.user_id IS NULL));
