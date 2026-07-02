@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/hooks/use-toast";
 import { format, formatDistanceToNow } from "date-fns";
 import { MessageCircle, Send, RefreshCw, Wand2 } from "lucide-react";
+import { AdminLayout } from "@/components/admin/AdminLayout";
 
 export default function AdminWhatsApp() {
   const { toast } = useToast();
