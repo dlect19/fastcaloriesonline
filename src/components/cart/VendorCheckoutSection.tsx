@@ -25,6 +25,7 @@ import { useServiceFee } from '@/hooks/useServiceFee';
 import { useRiderAvailability } from '@/hooks/useRiderAvailability';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { PromoCodeInput } from '@/components/cart/PromoCodeInput';
+import { PhoneVerificationDialog } from '@/components/auth/PhoneVerificationDialog';
 
 interface VendorLocation {
   latitude: number | null;
@@ -97,6 +98,9 @@ export function VendorCheckoutSection({
   const [showPrescriptionDialog, setShowPrescriptionDialog] = useState(false);
   const [prescriptionData, setPrescriptionData] = useState<PrescriptionData[] | null>(null);
   const [vendorCategory, setVendorCategory] = useState<string | null>(null);
+  const [phoneVerified, setPhoneVerified] = useState<boolean | null>(null);
+  const [userPhone, setUserPhone] = useState<string>('');
+  const [showPhoneVerify, setShowPhoneVerify] = useState(false);
   const autoAppliedRef = useRef(false);
 
   const { calculateServiceFee, loading: serviceFeeLoading } = useServiceFee();
@@ -132,6 +136,16 @@ export function VendorCheckoutSection({
     supabase.from('vendors').select('category').eq('id', group.vendorId).single()
       .then(({ data }) => setVendorCategory(data?.category || null));
   }, [group.vendorId]);
+
+  // Fetch user's phone verification status
+  useEffect(() => {
+    if (!userId) return;
+    supabase.from('profiles').select('phone, phone_verified').eq('user_id', userId).maybeSingle()
+      .then(({ data }) => {
+        setPhoneVerified(!!data?.phone_verified);
+        setUserPhone(data?.phone || '');
+      });
+  }, [userId]);
 
   const isPharmacy = vendorCategory === 'pharmacy';
 
@@ -200,6 +214,17 @@ export function VendorCheckoutSection({
       toast({ title: 'Still calculating fees', description: 'Please wait a moment before paying.', variant: 'default' });
       return;
     }
+
+    // Gate: phone must be verified before placing any order
+    if (phoneVerified === false) {
+      setShowPhoneVerify(true);
+      toast({
+        title: 'Verify your WhatsApp number',
+        description: 'For your safety, please verify your phone before placing this order.',
+      });
+      return;
+    }
+
 
     if (deliveryType === 'delivery' && !hasDeliveryLocation) {
       toast({ title: 'No delivery location', description: 'Please set your delivery location from the home screen header.', variant: 'destructive' });
@@ -911,6 +936,19 @@ export function VendorCheckoutSection({
           }}
         />
       )}
+
+      {/* Phone Verification Gate for Checkout */}
+      <PhoneVerificationDialog
+        open={showPhoneVerify}
+        onOpenChange={setShowPhoneVerify}
+        defaultPhone={userPhone}
+        title="Verify your WhatsApp number to checkout"
+        onVerified={() => {
+          setPhoneVerified(true);
+          setShowPhoneVerify(false);
+          toast({ title: 'Verified ✅', description: 'You can now place your order.' });
+        }}
+      />
     </div>
   );
 }
