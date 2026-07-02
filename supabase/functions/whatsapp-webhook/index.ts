@@ -445,7 +445,10 @@ serve(async (req) => {
     if (hasSharedLocation) {
       nextContext.lat = sharedLat;
       nextContext.lon = sharedLon;
-      nextContext.location_label = params["Address"] || params["Label"] || null;
+      const label = params["Address"] || params["Label"] || await reverseGeocode(sharedLat, sharedLon);
+      nextContext.location_label = label;
+      // Save as default address on first capture so we don't ask again next time.
+      await saveDefaultAddress(supabase, session.customer_user_id, sharedLat, sharedLon, label);
     }
 
     const showVendors = async () => {
