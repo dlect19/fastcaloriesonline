@@ -5436,6 +5436,45 @@ export type Database = {
           },
         ]
       }
+      phone_verification_otps: {
+        Row: {
+          attempts: number
+          channel: string
+          code_hash: string
+          created_at: string
+          expires_at: string
+          id: string
+          phone: string
+          purpose: string
+          user_id: string | null
+          verified_at: string | null
+        }
+        Insert: {
+          attempts?: number
+          channel?: string
+          code_hash: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          phone: string
+          purpose?: string
+          user_id?: string | null
+          verified_at?: string | null
+        }
+        Update: {
+          attempts?: number
+          channel?: string
+          code_hash?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          phone?: string
+          purpose?: string
+          user_id?: string | null
+          verified_at?: string | null
+        }
+        Relationships: []
+      }
       platform_promotions: {
         Row: {
           created_at: string | null
@@ -6161,6 +6200,9 @@ export type Database = {
           height_cm: number | null
           id: string
           phone: string | null
+          phone_verification_method: string | null
+          phone_verified: boolean
+          phone_verified_at: string | null
           referral_code: string | null
           referred_by: string | null
           updated_at: string
@@ -6183,6 +6225,9 @@ export type Database = {
           height_cm?: number | null
           id?: string
           phone?: string | null
+          phone_verification_method?: string | null
+          phone_verified?: boolean
+          phone_verified_at?: string | null
           referral_code?: string | null
           referred_by?: string | null
           updated_at?: string
@@ -6205,6 +6250,9 @@ export type Database = {
           height_cm?: number | null
           id?: string
           phone?: string | null
+          phone_verification_method?: string | null
+          phone_verified?: boolean
+          phone_verified_at?: string | null
           referral_code?: string | null
           referred_by?: string | null
           updated_at?: string
