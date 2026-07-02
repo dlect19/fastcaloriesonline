@@ -117,8 +117,8 @@ serve(async (req) => {
           const custName = customerProfile?.full_name || orderExtra?.receiver_name || null;
           const custPhone = customerProfile?.phone || orderExtra?.receiver_phone || null;
           const dType = order.delivery_type === 'self_pickup' ? 'Carryout' : 'Delivery';
-          const custLine = customerProfile?.full_name
-            ? `\n👤 ${customerProfile.full_name}${customerProfile.phone ? ` (${customerProfile.phone})` : ''}`
+          const custLine = custName || custPhone
+            ? `\n👤 ${custName || 'Customer'}${custPhone ? ` (${custPhone})` : ''}`
             : '';
           const vendorBody =
             `🛎️ *New Paid Order!*\n*#${order.order_number}*\n` +
