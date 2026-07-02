@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
+import { PhoneVerificationGate } from "@/components/auth/PhoneVerificationGate";
 import { CartProvider } from "@/hooks/useCart";
 import { PWAUpdateBanner } from "@/components/PWAUpdateBanner";
 import { ForceUpdateOverlay } from "@/components/ForceUpdateOverlay";
@@ -81,6 +82,7 @@ import AdminNutrition from "./pages/admin/AdminNutrition";
 import AdminPayouts from "./pages/admin/AdminPayouts";
 import AdminOnHoldPayments from "./pages/admin/AdminOnHoldPayments";
 import AdminWhatsApp from "./pages/admin/AdminWhatsApp";
+import AdminPhoneVerification from "./pages/admin/AdminPhoneVerification";
 import AdminCustomerWallets from "./pages/admin/AdminCustomerWallets";
 import AdminWalletFunding from "./pages/admin/AdminWalletFunding";
 import AdminChargebacks from "./pages/admin/AdminChargebacks";
@@ -202,6 +204,7 @@ const App = () => {
             <PortalTracker />
             <AppThemeMount />
             <CustomerChatNotifier />
+            <PhoneVerificationGate />
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/auth" element={<Auth />} />
@@ -300,6 +303,7 @@ const App = () => {
               <Route path="/admin/payouts" element={<AdminPayouts />} />
               <Route path="/admin/on-hold-payments" element={<AdminOnHoldPayments />} />
               <Route path="/admin/whatsapp" element={<AdminWhatsApp />} />
+              <Route path="/admin/phone-verification" element={<AdminPhoneVerification />} />
               <Route path="/admin/customer-wallets" element={<AdminCustomerWallets />} />
               <Route path="/admin/wallet-funding" element={<AdminWalletFunding />} />
               <Route path="/admin/chargebacks" element={<AdminChargebacks />} />

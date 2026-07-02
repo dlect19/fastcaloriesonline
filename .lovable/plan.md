@@ -1,105 +1,52 @@
+## Goal
 
-# Smart Delivery Distance Cache + Weather Service
+Verify every user's phone number via a 6-digit OTP sent through WhatsApp (with SMS fallback), let admins force existing and new users to complete verification before continuing, and allow brand-new accounts to be created directly from the WhatsApp bot.
 
-Two things here:
-**(A)** Fix the "0 km" display so past distance records are still visible.
-**(B)** Build the full cache + smart weather architecture you described.
+## 1. Database
 
-Given the size of Part B, I'll ship it in **phased milestones** so nothing breaks the live pricing engine. Each phase is safe to publish on its own.
+Migration `phone_verification`:
 
----
+- `profiles`: add `phone_verified boolean default false`, `phone_verified_at timestamptz`, `phone_verification_method text` (`whatsapp` | `sms`).
+- New table `phone_verification_otps` (`id`, `user_id nullable`, `phone e164`, `code_hash`, `attempts int default 0`, `channel text`, `expires_at`, `verified_at`, `created_at`). RLS: only service-role writes; user can read own by `user_id`. Standard GRANTs.
+- `platform_settings`: new key `force_phone_verification` (`off | customers | professionals | all`).
 
-## Phase 0 — Distance-Travelled History Fix (small, ship first)
+## 2. Edge functions
 
-Problem: rider "Distance Travelled" shows `0 km` when the current period has no logs, hiding all previous logs.
+- `send-phone-otp` — input `{ phone, purpose: 'verify' | 'signup' | 'login' }`. Rate-limit (max 3 / 5min). Generate 6-digit code, hash, insert row (10-min expiry). Try WhatsApp via existing `send-whatsapp` (uses `TWILIO_WHATSAPP_FROM`). On WhatsApp failure (unregistered number, template not approved, undelivered) automatically fall back to SMS via Twilio (`TWILIO_SMS_FROM` — request if missing). Return `{ channel, expires_at }`.
+- `verify-phone-otp` — input `{ phone, code, userId?, signup? }`. Look up latest unverified OTP for phone, compare hash, increment attempts (block after 5), mark verified. If `signup=true` and no `auth.users` row exists for that phone, create the user via service role with a random password, insert a `profiles` row (`phone_verified=true`), and return a magic-link / one-time session token so the WhatsApp bot / web can log them in. If `userId` given, flip `profiles.phone_verified=true`.
+- Update existing `whatsapp-webhook` to intercept messages of the form `verify <6-digit>` for numbers with a pending OTP and auto-call `verify-phone-otp`, replying "✅ Your phone is verified".
 
-Fix:
-- Show the rider's lifetime total + this-week + this-month from `rider_distance_logs` even when today = 0.
-- Add a small "History" expander listing the last 20 delivered orders with their logged km + date.
-- Empty state: "No trips logged yet" only when the rider truly has zero rows.
+## 3. Frontend — verification flow
 
-Files: `src/hooks/useRiderDistanceStats.ts`, `src/pages/rider/RiderEarnings.tsx` (or wherever Distance Travelled is shown — I'll confirm on read).
+- `src/components/auth/PhoneVerificationDialog.tsx`: two-step dialog — enter WhatsApp number → enter code. Copy states clearly: *"Use the same number you have on WhatsApp — we'll message you a 6-digit code there."* Shows countdown + "Resend via SMS" after 30 s.
+- `src/hooks/usePhoneVerification.ts`: wraps the two edge functions and returns `{ verified, sendOtp, verify, cooldown }`.
+- `src/components/auth/PhoneVerificationGate.tsx`: mounted in `App.tsx` after auth loads. Reads `platform_settings.force_phone_verification` + current user's `profiles.phone_verified` + user's role scope. If the setting requires verification and the user isn't verified, render the dialog fullscreen and block all other routes until verified.
+- `checkout` guard: even when the global setting is `off`, refuse to place an order if the checkout customer's phone isn't verified — small inline verify banner in `CheckoutPage`.
 
----
+## 4. Admin controls
 
-## Phase 1 — Delivery Distance Cache
+`src/pages/admin/AdminPhoneVerification.tsx` (linked in admin sidebar under Settings):
 
-**New table** `delivery_distance_cache`:
-vendor_id, customer_address_id, vendor_lat/lng, customer_lat/lng, google_place_id, distance_km, duration_min, delivery_fee, created_at, updated_at, expires_at.
+- Toggle `force_phone_verification` with 4 options (`off`, `customers`, `professionals`, `all`, `all + new signups`).
+- Stat cards: total users, verified, unverified, verified today.
+- Table of unverified users with a "Send OTP" button (admin-triggered `send-phone-otp`).
+- Audit trail written to `activity_logs`.
 
-Unique index on `(vendor_id, customer_address_id)` for fast lookup.
+## 5. WhatsApp signup
 
-**Lookup flow (edge `calculate-distance`):**
-```text
-request → look up (vendor_id, address_id) in cache
-  hit + not expired → return cached, mark source='cache'
-  miss/expired      → call Google → upsert row → return
-```
+Extend `whatsapp-webhook` state machine: if an inbound message comes from a number **not linked to any `auth.users` row**, offer a "🚀 Reply *SIGNUP* to create an account". On `SIGNUP`, call `verify-phone-otp` with `signup=true` (phone already proven by the fact they're messaging us via WhatsApp — no OTP needed here) to auto-provision the account, then reply with a one-time login link (`/wa-login?token=…`) that hydrates a Supabase session in the browser. On the web side, first login prompts them to add email + password ("Add web login credentials — optional") through a small `AddWebCredentialsCard` in the profile page; the WhatsApp channel keeps working regardless.
 
-**Auto-invalidation triggers:**
-- `addresses` UPDATE of lat/lng → delete matching cache rows.
-- `vendors` UPDATE of lat/lng → delete matching cache rows.
-- Admin "Delivery pricing rules changed" → button that truncates cache.
-- TTL: `expires_at < now()` treated as miss.
+## 6. Secrets to request
 
-**Admin setting:** `distance_cache_ttl_days` (default 30) in `platform_settings`.
+- `TWILIO_SMS_FROM` — E.164 SMS sender number (only if not already stored).
 
-Frontend (`useDeliveryFee`) keeps calling the edge function — no client change needed; savings happen server-side.
+## 7. UI copy highlights
 
----
+- Signup form phone field: helper text "Must be the same number you use on WhatsApp — we'll send the verification code there."
+- Verification dialog title: "Verify your WhatsApp number".
+- If WhatsApp fails: toast "Couldn't reach you on WhatsApp — we sent the code by SMS instead."
 
-## Phase 2 — Weather Cache + Smart Scheduler
+## Out of scope
 
-**New table** `weather_cache`: area_key (e.g. rounded lat,lng grid or city), condition, temperature, rain_status, wind_speed, surge_amount, updated_at.
-
-**New edge function** `refresh-weather` (invoked by pg_cron):
-1. Read `weather_service_*` settings.
-2. Gate checks — abort if all fail:
-   - `enable_weather_service = false`
-   - "only when riders online" and no online rider
-   - "only when active orders" and no active order
-   - "only during business hours" and outside window
-3. For each active area (derived from online riders + active orders), fetch provider, upsert cache.
-4. Log to `weather_api_call_log` (for analytics).
-
-Frontend `useDeliveryFee` stops calling Open-Meteo. Instead reads latest `weather_cache` row for the customer's area. Zero direct calls per order.
-
-**Cron:** pg_cron job at admin-selected frequency (5/10/15/30/60 min).
-
----
-
-## Phase 3 — Admin Weather Settings UI
-
-New page `AdminWeatherSettings.tsx` under System Settings:
-- Enable toggle, provider dropdown, frequency, business hours, gating toggles, "Update now" button, stats (calls today/month, est. cost).
-
-Settings stored in `platform_settings` under `weather_service_*` keys.
-
----
-
-## Phase 4 — Surge Management UI
-
-Extend existing `platform_settings` surge keys already used in `useDeliveryFee` with an admin panel: rain tiers (light/heavy/storm/flood), peak hours, weekend, holiday, event, manual. No engine change — same keys read by pricing engine.
-
----
-
-## Phase 5 — Analytics Dashboard Panel
-
-`api_usage_log` table (provider, endpoint, called_at, cost_estimate). Dashboard tile: today/month calls, cache hit rate, est. money saved.
-
----
-
-## Phase 6 — Provider Abstraction (future ready)
-
-Introduce `_shared/weather-provider.ts` and `_shared/map-provider.ts` interfaces so admin can switch OpenWeather / WeatherAPI / Tomorrow.io and Google / Mapbox / ORS without touching pricing code.
-
----
-
-## What I need from you before starting
-
-1. **Ship Phase 0 now?** (small, safe, restores your visible distance history.)
-2. **Then proceed Phase 1 + 2** in the next turn (cache + smart weather — the biggest cost savers)?
-3. **Weather provider to keep** — stay on Open-Meteo (free, no key) as the default, or switch to OpenWeather (needs API key)?
-4. **Default cache TTL** — confirm 30 days OK?
-
-Reply "go" and I'll start with Phase 0 + Phase 1 in parallel.
+- Changing verification of numbers already collected via Paystack/DVA flows (they'll simply run through the same gate on next login).
+- Voice-call OTP fallback.

@@ -318,6 +318,32 @@ serve(async (req) => {
     }
 
     // ============================================================
+    // 🔐 Phone verification via WhatsApp — highest priority
+    // Accepts "verify 123456", "123456", or just the 6-digit code
+    // when a pending OTP exists for this phone number.
+    // ============================================================
+    const otpMatch = body.trim().match(/^(?:verify\s+)?(\d{6})$/i);
+    if (otpMatch) {
+      const { data: pending } = await supabase.from("phone_verification_otps")
+        .select("id").eq("phone", phone).is("verified_at", null)
+        .gte("expires_at", new Date().toISOString())
+        .order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (pending) {
+        try {
+          const { data: vr } = await supabase.functions.invoke("verify-phone-otp", {
+            body: { phone, code: otpMatch[1] },
+          });
+          if (vr?.success) {
+            return twiml(`✅ *Phone verified!*\n\nYour WhatsApp number is now confirmed. You can continue using Fast Calories.`);
+          }
+          return twiml(`❌ That code didn't match. Please double-check and try again, or request a new one from the app.`);
+        } catch (e) {
+          console.error("wa otp verify failed", e);
+        }
+      }
+    }
+
+    // ============================================================
     // Normal state machine — accepts BOTH tap payloads and typed numbers
     // ============================================================
     let nextState = session.state;

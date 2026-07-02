@@ -60,6 +60,7 @@ const menuItems: MenuItem[] = [
   { icon: HelpCircle, label: 'FAQ', path: '/admin/faq', requiredPermission: 'platform_settings' },
   { icon: MessageSquare, label: 'Support', path: '/admin/support', requiredPermission: 'handle_support' },
   { icon: MessageCircle, label: 'WhatsApp', path: '/admin/whatsapp', requiredPermission: 'platform_settings' },
+  { icon: ShieldAlert, label: 'Phone Verification', path: '/admin/phone-verification', requiredPermission: 'platform_settings' },
   { icon: Megaphone, label: 'Notifications', path: '/admin/notifications', requiredPermission: 'platform_settings' },
   { icon: Map, label: 'Coverage Areas', path: '/admin/coverage-areas', requiredPermission: 'platform_settings' },
   { icon: DollarSign, label: 'Financial Tools', path: '/admin/financial-tools', requiredPermission: 'process_withdrawals' },
