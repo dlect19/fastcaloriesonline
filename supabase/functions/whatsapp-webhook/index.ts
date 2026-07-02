@@ -342,10 +342,19 @@ serve(async (req) => {
       }
     }
 
-    // If we just credited a pending top-up, tell the user proactively.
+    // If we just credited a pending top-up, tell the user proactively (out-of-band, so
+    // we can still return a TwiML reply for their actual message below).
     if (autoCreditedAmount > 0) {
       try {
-        await replyText(`✅ *Wallet topped up!* ₦${autoCreditedAmount.toLocaleString()} was added to your balance. Continuing…`);
+        await sendViaTwilio({
+          From: fromNumber,
+          To: fromRaw,
+          Body: `✅ *Wallet topped up!* ₦${autoCreditedAmount.toLocaleString()} was added to your balance.`,
+        });
+        await supabase.from("whatsapp_messages").insert({
+          session_id: session.id, phone, direction: "out",
+          body: `✅ Auto top-up credit ₦${autoCreditedAmount.toLocaleString()}`,
+        });
       } catch (e) { console.error("auto-credit notice failed", e); }
     }
 
