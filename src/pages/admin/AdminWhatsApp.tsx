@@ -248,9 +248,9 @@ export default function AdminWhatsApp() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="setup">
+        <TabsContent value="setup" className="space-y-4">
           <Card>
-            <CardHeader><CardTitle>Twilio Sandbox Setup</CardTitle></CardHeader>
+            <CardHeader><CardTitle>1. Twilio Sandbox Setup (Testing)</CardTitle></CardHeader>
             <CardContent className="space-y-4 text-sm">
               <ol className="list-decimal pl-5 space-y-2">
                 <li>Open <strong>Twilio Console → Messaging → Try it out → Send a WhatsApp message</strong>.</li>
@@ -275,6 +275,97 @@ export default function AdminWhatsApp() {
                 <p className="text-xs text-muted-foreground mt-2">
                   Sandbox only delivers to numbers that have joined your sandbox.
                 </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>2. Go Live — Real WhatsApp Business Number</CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                Once testing looks good in the sandbox, follow these steps to accept real customer orders on your own WhatsApp Business number.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-5 text-sm">
+              <div>
+                <h4 className="font-semibold mb-2">Step 1 — Prepare your Meta / Facebook Business assets</h4>
+                <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                  <li>Have a <strong>Facebook Business Manager</strong> account (business.facebook.com).</li>
+                  <li>Have a <strong>verified business</strong> (Meta Business Verification) — required for higher messaging limits.</li>
+                  <li>Have a <strong>phone number</strong> that is <em>not</em> currently active on any WhatsApp app (personal or Business). If it is, delete it from WhatsApp first.</li>
+                  <li>A display name that matches your brand (e.g. <em>Fast Calories</em>).</li>
+                </ul>
+              </div>
+
+              <div>
+                <h4 className="font-semibold mb-2">Step 2 — Register the number inside Twilio</h4>
+                <ol className="list-decimal pl-5 space-y-1 text-muted-foreground">
+                  <li>Twilio Console → <strong>Messaging → Senders → WhatsApp senders → New WhatsApp Sender</strong>.</li>
+                  <li>Connect your Meta Business account and pick / create the WhatsApp Business Account (WABA).</li>
+                  <li>Enter the phone number, verify it via SMS or voice code, and submit for Meta review (usually minutes to a few hours).</li>
+                  <li>Set the display name and business profile (logo, address, category = <em>Food & Beverage</em>).</li>
+                </ol>
+              </div>
+
+              <div>
+                <h4 className="font-semibold mb-2">Step 3 — Point the live sender at our webhook</h4>
+                <p className="text-muted-foreground mb-2">Once the sender is <strong>Approved</strong>, open it in Twilio and configure Messaging:</p>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li><strong>A MESSAGE COMES IN</strong> → Webhook, HTTP POST →
+                    <pre className="mt-1 p-2 bg-muted rounded text-xs overflow-x-auto">https://bruyccrjymmpzulqhotw.supabase.co/functions/v1/whatsapp-webhook</pre>
+                  </li>
+                  <li><strong>STATUS CALLBACK URL</strong> (optional but recommended) →
+                    <pre className="mt-1 p-2 bg-muted rounded text-xs overflow-x-auto">https://bruyccrjymmpzulqhotw.supabase.co/functions/v1/whatsapp-webhook</pre>
+                  </li>
+                  <li>Save.</li>
+                </ul>
+              </div>
+
+              <div>
+                <h4 className="font-semibold mb-2">Step 4 — Update backend secrets to the live sender</h4>
+                <p className="text-muted-foreground mb-2">
+                  In Lovable Cloud secrets, set the following to your live values (same names — just replace the sandbox values):
+                </p>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li><code>TWILIO_ACCOUNT_SID</code> — same account SID.</li>
+                  <li><code>TWILIO_AUTH_TOKEN</code> — same auth token.</li>
+                  <li><code>TWILIO_WHATSAPP_FROM</code> — set to <code>whatsapp:+<em>YOUR_LIVE_NUMBER</em></code> (E.164, no spaces).</li>
+                </ul>
+                <p className="text-xs text-muted-foreground mt-2">
+                  No code changes required — the webhook and <code>send-whatsapp</code> function will automatically use the new sender.
+                </p>
+              </div>
+
+              <div>
+                <h4 className="font-semibold mb-2">Step 5 — Submit / approve message templates</h4>
+                <p className="text-muted-foreground mb-2">
+                  Outside the sandbox, WhatsApp only allows <strong>pre-approved templates</strong> to start a conversation (and for any message sent more than 24 h after the customer's last reply). Free-form text is allowed only <em>inside</em> the 24-hour customer service window.
+                </p>
+                <ol className="list-decimal pl-5 space-y-1">
+                  <li>Open the <strong>Tap Templates</strong> tab above and click <em>Provision Templates</em> — this creates the Content SIDs Twilio expects.</li>
+                  <li>In Twilio Console → <strong>Content Template Builder</strong>, submit each template for WhatsApp approval (order confirmation, rider assigned, wallet top-up, etc.).</li>
+                  <li>Wait for Meta approval (usually &lt; 1 hour). Rejected templates get a reason — fix and resubmit.</li>
+                </ol>
+              </div>
+
+              <div>
+                <h4 className="font-semibold mb-2">Step 6 — Go-live checklist</h4>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>✅ Channel toggle above is <strong>Active</strong>.</li>
+                  <li>✅ Send a real WhatsApp message from any phone to your live number → it should appear under <em>Sessions</em> within seconds.</li>
+                  <li>✅ Complete a test order end-to-end (menu → cart → checkout → wallet payment) using a real customer number.</li>
+                  <li>✅ Confirm the order shows up in <strong>Admin → Orders → 💬 WhatsApp</strong> tab and the vendor receives the WhatsApp notification.</li>
+                  <li>✅ Publish your <em>wa.me</em> link (<code>https://wa.me/<em>YOUR_NUMBER</em>?text=Hi</code>) on your site, socials and receipts.</li>
+                </ul>
+              </div>
+
+              <div className="border-t pt-4">
+                <h4 className="font-semibold mb-2">Common issues</h4>
+                <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                  <li><strong>Messages not arriving?</strong> Check the webhook URL is HTTPS and returns 200. View live logs in the edge function <code>whatsapp-webhook</code>.</li>
+                  <li><strong>"Template not approved"</strong> → send only from approved templates until the customer replies (opens the 24 h window).</li>
+                  <li><strong>Number rejected by Meta</strong> → confirm business verification is complete and the phone number is not still linked to a WhatsApp app.</li>
+                </ul>
               </div>
             </CardContent>
           </Card>
