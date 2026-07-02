@@ -490,7 +490,7 @@ serve(async (req) => {
       const funding = await createWalletFundingLink(supabase, session.customer_user_id!, amt, phone);
       await persistSession(supabase, session.id, "wallet_menu", { ...nextContext, pending_funding_reference: funding?.reference }, nextCart);
       if (!funding) return await replyText("⚠️ Couldn't create payment link right now. Please try again in a moment.");
-      return await replyText(`✅ *Top up ₦${amt.toLocaleString()}*\n\nTap to pay securely with card or bank:\n${funding.link}\n\nAfter payment, reply *checkout* or paste this reference:\n${funding.reference}`);
+      return await replyText(`✅ *Top up ₦${amt.toLocaleString()}*\n\nTap to pay securely with card or bank:\n${funding.link}\n\nOnce your payment succeeds, your wallet updates automatically — just send any message (like *balance* or *checkout*) and we'll confirm it for you.`);
     }
 
     if (tap === "BTN_HEALTHY" || (session.state === "menu" && lower === "4")) {
