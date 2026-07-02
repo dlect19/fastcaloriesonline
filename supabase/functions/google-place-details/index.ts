@@ -54,11 +54,14 @@ serve(async (req) => {
 
     if (data.status !== 'OK') {
       console.error('Place Details error:', data.status, data.error_message);
+      logUsage('place_details', 'failed', 0);
       return new Response(
         JSON.stringify({ error: data.error_message || data.status }),
         { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    logUsage('place_details', 'success', 0.017);
 
     const result = data.result;
     const location = result.geometry?.location;
