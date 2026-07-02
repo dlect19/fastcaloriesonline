@@ -20,7 +20,7 @@ interface Props {
 
 export function PhoneVerificationDialog({
   open, onOpenChange, defaultPhone = "", onVerified, blocking = false,
-  title = "Verify your WhatsApp number",
+  title = "Verify your number",
 }: Props) {
   const { sendOtp, verify, sending, verifying, channel } = usePhoneVerification();
   const { toast } = useToast();
