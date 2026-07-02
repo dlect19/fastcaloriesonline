@@ -267,9 +267,11 @@ export default function AdminOrders() {
     return <Badge className={colors[status] || 'bg-secondary'}>{status.replace(/_/g, ' ')}</Badge>;
   };
 
-  const onlineOrders = orders.filter(o => o.channel !== 'pos' && !(o.channel === 'assisted' && o.payment_status !== 'paid'));
+  const onlineOrders = orders.filter(o => !['pos','whatsapp','assisted'].includes(o.channel));
   const posOrders = orders.filter(o => o.channel === 'pos');
-  const channelOrders = channelTab === 'pos' ? posOrders : onlineOrders;
+  const whatsappOrders = orders.filter(o => o.channel === 'whatsapp');
+  const assistedOrders = orders.filter(o => o.channel === 'assisted');
+  const channelOrders = channelTab === 'pos' ? posOrders : channelTab === 'whatsapp' ? whatsappOrders : channelTab === 'assisted' ? assistedOrders : onlineOrders;
   const ongoingCount = channelOrders.filter(o => ONGOING_STATUSES.includes(o.status)).length;
   const pastCount = channelOrders.filter(o => PAST_STATUSES.includes(o.status)).length;
 
