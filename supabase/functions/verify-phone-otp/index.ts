@@ -89,11 +89,12 @@ serve(async (req) => {
     let sessionEmail: string | null = null;
     let sessionPassword: string | null = null;
     if (!userId && signup) {
-      // Check if a profile with this phone already exists
+      // Check if a profile with this phone already exists (match either raw or normalized)
+      const localForm = phone.startsWith("+234") ? "0" + phone.slice(4) : phone;
       const { data: existingProfile } = await admin.from("profiles")
-        .select("id").eq("phone", phone).maybeSingle();
+        .select("user_id").or(`phone.eq.${phone},phone.eq.${localForm}`).maybeSingle();
       if (existingProfile) {
-        userId = existingProfile.id;
+        userId = existingProfile.user_id;
       } else {
         // Create auth user with placeholder email + random password
         const localPart = phone.replace(/\D/g, "");
@@ -104,29 +105,29 @@ serve(async (req) => {
           password: sessionPassword,
           email_confirm: true,
           phone_confirm: true,
-          user_metadata: { full_name: fullName, phone, signup_source: "whatsapp" },
+          user_metadata: { full_name: fullName, phone: localForm, signup_source: "whatsapp" },
         });
         if (createErr || !created.user) {
           return new Response(JSON.stringify({ error: "signup_failed", details: createErr?.message }),
             { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
         }
         userId = created.user.id;
-        // Best-effort profile insert (a signup trigger may also create one)
+        // Best-effort profile upsert (a signup trigger may also create one)
         await admin.from("profiles").upsert({
-          id: userId, phone, full_name: fullName,
+          user_id: userId, phone: localForm, full_name: fullName,
           phone_verified: true, phone_verified_at: new Date().toISOString(),
           phone_verification_method: otp.channel,
-        }, { onConflict: "id" });
+        }, { onConflict: "user_id" });
       }
     }
 
     if (userId) {
+      // Update by user_id (auth id). Do NOT overwrite the stored phone format.
       await admin.from("profiles").update({
         phone_verified: true,
         phone_verified_at: new Date().toISOString(),
         phone_verification_method: otp.channel,
-        phone,
-      }).eq("id", userId);
+      }).eq("user_id", userId);
     }
 
     await admin.from("phone_verification_otps")
