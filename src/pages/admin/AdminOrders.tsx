@@ -379,8 +379,10 @@ export default function AdminOrders() {
         {/* Channel switcher: Online vs POS */}
         <Tabs value={channelTab} onValueChange={(v) => setChannelTab(v as any)} className="mb-3">
           <TabsList>
-            <TabsTrigger value="online">🌐 Online Orders ({onlineOrders.length})</TabsTrigger>
-            <TabsTrigger value="pos">🧾 POS Orders ({posOrders.length})</TabsTrigger>
+            <TabsTrigger value="online">🌐 Online ({onlineOrders.length})</TabsTrigger>
+            <TabsTrigger value="whatsapp">💬 WhatsApp ({whatsappOrders.length})</TabsTrigger>
+            <TabsTrigger value="assisted">🎧 Assisted ({assistedOrders.length})</TabsTrigger>
+            <TabsTrigger value="pos">🧾 POS ({posOrders.length})</TabsTrigger>
           </TabsList>
         </Tabs>
 
