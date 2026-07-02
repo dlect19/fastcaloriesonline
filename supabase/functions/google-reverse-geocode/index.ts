@@ -84,6 +84,7 @@ serve(async (req) => {
     const streetParts = [streetNumber, route].filter(Boolean).join(' ');
     const addressLabel = streetParts || neighborhood || result.formatted_address.split(',')[0];
 
+    logUsage('reverse_geocode', 'success', 0.005);
     return new Response(
       JSON.stringify({
         formatted_address: result.formatted_address,
