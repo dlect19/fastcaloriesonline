@@ -25,6 +25,7 @@ import { useServiceFee } from '@/hooks/useServiceFee';
 import { useRiderAvailability } from '@/hooks/useRiderAvailability';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { PromoCodeInput } from '@/components/cart/PromoCodeInput';
+import { PhoneVerificationDialog } from '@/components/auth/PhoneVerificationDialog';
 
 interface VendorLocation {
   latitude: number | null;
