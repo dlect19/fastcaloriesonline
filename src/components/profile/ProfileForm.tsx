@@ -164,11 +164,19 @@ export function ProfileForm({ user, profile, onUpdate }: ProfileFormProps) {
             </Button>
             <Button className="flex-1" onClick={handleSave} disabled={saving}>
               {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Save Changes
+              {phoneChanged ? 'Save & Verify Phone' : 'Save Changes'}
             </Button>
           </div>
         )}
       </CardContent>
+
+      <PhoneVerificationDialog
+        open={verifyOpen}
+        onOpenChange={setVerifyOpen}
+        defaultPhone={pendingPhone || profile?.phone || ''}
+        onVerified={handleVerified}
+        title="Verify your new WhatsApp number"
+      />
     </Card>
   );
 }
