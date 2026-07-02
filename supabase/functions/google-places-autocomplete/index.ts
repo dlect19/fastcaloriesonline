@@ -61,11 +61,14 @@ serve(async (req) => {
 
     if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
       console.error('Places Autocomplete error:', data.status, data.error_message);
+      logUsage('places_autocomplete', 'failed', 0);
       return new Response(
         JSON.stringify({ error: data.error_message || data.status, predictions: [] }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    logUsage('places_autocomplete', 'success', 0.00283);
 
     const predictions = (data.predictions || []).map((p: any) => ({
       place_id: p.place_id,
