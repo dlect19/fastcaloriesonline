@@ -936,6 +936,19 @@ export function VendorCheckoutSection({
           }}
         />
       )}
+
+      {/* Phone Verification Gate for Checkout */}
+      <PhoneVerificationDialog
+        open={showPhoneVerify}
+        onOpenChange={setShowPhoneVerify}
+        defaultPhone={userPhone}
+        title="Verify your WhatsApp number to checkout"
+        onVerified={() => {
+          setPhoneVerified(true);
+          setShowPhoneVerify(false);
+          toast({ title: 'Verified ✅', description: 'You can now place your order.' });
+        }}
+      />
     </div>
   );
 }
