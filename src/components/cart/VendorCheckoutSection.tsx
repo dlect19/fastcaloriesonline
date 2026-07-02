@@ -98,6 +98,9 @@ export function VendorCheckoutSection({
   const [showPrescriptionDialog, setShowPrescriptionDialog] = useState(false);
   const [prescriptionData, setPrescriptionData] = useState<PrescriptionData[] | null>(null);
   const [vendorCategory, setVendorCategory] = useState<string | null>(null);
+  const [phoneVerified, setPhoneVerified] = useState<boolean | null>(null);
+  const [userPhone, setUserPhone] = useState<string>('');
+  const [showPhoneVerify, setShowPhoneVerify] = useState(false);
   const autoAppliedRef = useRef(false);
 
   const { calculateServiceFee, loading: serviceFeeLoading } = useServiceFee();
