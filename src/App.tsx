@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
+import { PhoneVerificationGate } from "@/components/auth/PhoneVerificationGate";
 import { CartProvider } from "@/hooks/useCart";
 import { PWAUpdateBanner } from "@/components/PWAUpdateBanner";
 import { ForceUpdateOverlay } from "@/components/ForceUpdateOverlay";
