@@ -44,6 +44,7 @@ serve(async (req) => {
 
     if (data.status !== 'OK' || !data.results?.length) {
       console.error('Reverse geocode error:', data.status, data.error_message);
+      logUsage('reverse_geocode', 'failed', 0);
       return new Response(
         JSON.stringify({ 
           error: data.error_message || 'No results',
