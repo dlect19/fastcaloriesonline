@@ -88,7 +88,7 @@ export function PhoneVerificationDialog({
         {step === "phone" ? (
           <div className="space-y-3">
             <div>
-              <Label>WhatsApp phone number</Label>
+              <Label>Phone number</Label>
               <Input
                 type="tel"
                 inputMode="tel"
@@ -104,12 +104,12 @@ export function PhoneVerificationDialog({
             <Alert>
               <MessageCircle className="h-4 w-4" />
               <AlertDescription className="text-xs">
-                Make sure this number is active on WhatsApp on your phone. If it isn't, we'll fall back to SMS.
+                This must be the WhatsApp number on your phone. We'll try WhatsApp first, and fall back to SMS if needed.
               </AlertDescription>
             </Alert>
             <Button onClick={() => handleSend()} disabled={sending || !phone} className="w-full">
               {sending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <MessageCircle className="h-4 w-4 mr-2" />}
-              Send code on WhatsApp
+              Send code
             </Button>
           </div>
         ) : (
