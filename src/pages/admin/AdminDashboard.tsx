@@ -6,6 +6,7 @@ import { PromoImpactCard } from '@/components/admin/PromoImpactCard';
 import { CompanyProfitCard } from '@/components/admin/CompanyProfitCard';
 import { FinancialResetDialog } from '@/components/admin/FinancialResetDialog';
 import { FinancialPerformanceChart } from '@/components/admin/FinancialPerformanceChart';
+import { ApiUsageStatsCard } from '@/components/admin/ApiUsageStatsCard';
 import { AdminRiderBreakdown } from '@/components/admin/AdminRiderBreakdown';
 import { AdminBalanceBreakdown } from '@/components/admin/AdminBalanceBreakdown';
 import { DateRangeFilter, DateRange } from '@/components/shared/DateRangeFilter';
@@ -769,6 +770,15 @@ export default function AdminDashboard() {
         <section>
           <h2 className="text-lg font-semibold text-foreground mb-4">Promo Impact Analysis</h2>
           <PromoImpactCard environment={isTestMode ? 'development' : 'production'} days={30} />
+        </section>
+
+        {/* External API usage — cache savings */}
+        <section>
+          <h2 className="text-lg font-semibold text-foreground mb-4">External API Usage</h2>
+          <div className="grid gap-4 md:grid-cols-2">
+            <ApiUsageStatsCard provider="maps" />
+            <ApiUsageStatsCard provider="weather" />
+          </div>
         </section>
 
         {/* Quick Actions */}
