@@ -121,7 +121,24 @@ export function ProfileForm({ user, profile, onUpdate }: ProfileFormProps) {
               />
             </div>
           ) : (
-            <p className="text-foreground py-2">{profile?.phone || 'Not set'}</p>
+            <div className="flex items-center gap-2 py-2">
+              <p className="text-foreground">{profile?.phone || 'Not set'}</p>
+              {profile?.phone && (
+                isVerified ? (
+                  <span className="inline-flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
+                    <ShieldCheck className="w-3 h-3" /> Verified
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => { setPendingPhone(profile.phone!); setVerifyOpen(true); }}
+                    className="inline-flex items-center gap-1 text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full hover:bg-amber-100"
+                  >
+                    <ShieldAlert className="w-3 h-3" /> Verify now
+                  </button>
+                )
+              )}
+            </div>
           )}
         </div>
 
