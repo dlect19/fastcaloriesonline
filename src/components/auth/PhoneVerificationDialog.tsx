@@ -80,7 +80,7 @@ export function PhoneVerificationDialog({
           </DialogTitle>
           <DialogDescription>
             {step === "phone"
-              ? "Use the same number you have on WhatsApp — we'll send you a 6-digit code there."
+              ? "We will send a 6-digit code to this number. It should arrive on WhatsApp first, or by SMS if WhatsApp is not available. Make sure this number is your active WhatsApp number."
               : `We sent a 6-digit code to ${phone}. Enter it below.`}
           </DialogDescription>
         </DialogHeader>
