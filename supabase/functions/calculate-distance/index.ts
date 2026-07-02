@@ -83,6 +83,19 @@ serve(async (req) => {
       );
     }
 
+    // Short-circuit: skip Google entirely when straight-line distance is tiny.
+    // Client already blocks <0.5km, but be defensive here too.
+    const straightKm = haversineKm(originLat, originLng, destLat, destLng);
+    if (straightKm < 0.5) {
+      return new Response(
+        JSON.stringify({
+          distanceInKm: 0, durationInMinutes: 0,
+          distanceText: '0 km', durationText: '0 min', source: 'proximity',
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // 2. Miss — call Google (with Haversine fallback)
     const result = await getGoogleMapsDistance(originLat, originLng, destLat, destLng);
     console.log(`[calculate-distance] MISS → ${result.source} ${result.distanceKm}km`);
@@ -112,7 +125,9 @@ serve(async (req) => {
       await supabase.from('delivery_distance_cache')
         .upsert(row, { onConflict: 'vendor_id,customer_address_id' });
     } else {
-      await supabase.from('delivery_distance_cache').insert(row);
+      // Upsert on coord_key so repeat GPS-based lookups don't create duplicates.
+      await supabase.from('delivery_distance_cache')
+        .upsert(row, { onConflict: 'coord_key' });
     }
 
     supabase.from('api_usage_log').insert({
