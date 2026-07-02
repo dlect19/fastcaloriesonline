@@ -1,28 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getWeatherProvider } from "../_shared/weather-provider.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
-
-async function fetchOpenMeteo(lat: number, lon: number) {
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`open-meteo http ${res.status}`);
-  const d = await res.json();
-  const cw = d?.current_weather;
-  const code: number = cw?.weathercode ?? 0;
-  let condition: 'clear' | 'rain' | 'storm' = 'clear';
-  if (code >= 95) condition = 'storm';
-  else if (code >= 51) condition = 'rain';
-  return {
-    condition,
-    temperature: cw?.temperature ?? null,
-    wind_speed: cw?.windspeed ?? null,
-    rain_status: condition,
-  };
-}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
