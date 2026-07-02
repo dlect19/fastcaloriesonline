@@ -269,15 +269,16 @@ serve(async (req) => {
     }
 
     if (session.state === "awaiting_name") {
-      // Validate name (free text). Accept 1–60 chars, letters/spaces/-/'
+      // Validate full name: letters, spaces, hyphens, apostrophes; 2–60 chars; needs at least one letter
       const name = body.trim().replace(/\s+/g, " ");
       if (!name || name.length < 2 || name.length > 60 || !/^[A-Za-z][A-Za-z\s'\-]{1,59}$/.test(name)) {
-        return await replyText("👋 Please reply with your *first name* (letters only, 2–60 characters).");
+        return await replyText("👋 Please reply with your *full name* (letters only, e.g. _Ada Lovelace_).");
       }
-      // Create auth user (phone-based)
+      // Create auth user (phone-based). Coming from WhatsApp implicitly verifies the number.
       try {
         const digits = phone.replace(/\D/g, "");
         const e164 = phone.startsWith("+") ? phone : (digits.startsWith("234") ? "+" + digits : (digits.startsWith("0") ? "+234" + digits.slice(1) : "+" + digits));
+        const localForm = e164.startsWith("+234") ? "0" + e164.slice(4) : e164;
         const synthEmail = `wa${digits}@wa.fastcalories.online`;
         const password = crypto.randomUUID() + crypto.randomUUID();
         const { data: created, error: createErr } = await supabase.auth.admin.createUser({
@@ -293,11 +294,14 @@ serve(async (req) => {
           return await replyText("Sorry, I couldn't create your account right now. Please try again in a moment.");
         }
         const userId = created.user.id;
-        // Upsert profile
+        // Upsert profile — store phone in local NG format to match rest of app, mark verified.
         await supabase.from("profiles").upsert({
           user_id: userId,
           full_name: name,
-          phone: e164,
+          phone: localForm,
+          phone_verified: true,
+          phone_verified_at: new Date().toISOString(),
+          phone_verification_method: "whatsapp",
         }, { onConflict: "user_id" });
 
         await supabase.from("whatsapp_sessions").update({
