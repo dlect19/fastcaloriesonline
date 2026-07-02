@@ -638,7 +638,7 @@ serve(async (req) => {
         const funding = await createWalletFundingLink(supabase, session.customer_user_id!, amount, phone);
         await persistSession(supabase, session.id, "confirming_order", { ...nextContext, pending_funding_reference: funding?.reference }, nextCart);
         if (!funding) return await replyText("⚠️ Couldn't create payment link right now. Please try again.");
-        return await replyText(`💰 Top up *₦${amount.toLocaleString()}* to cover your order:\n${funding.link}\n\nAfter funding, reply *checkout* or paste this reference:\n${funding.reference}`);
+        return await replyText(`💰 Top up *₦${amount.toLocaleString()}* to cover your order:\n${funding.link}\n\nOnce your payment goes through, reply *checkout* — we'll auto-confirm your top-up and place the order. No reference needed.`);
       }
       if (tap === "BTN_CONFIRM" || lower === "yes" || lower === "confirm") {
         return await confirmWhatsAppOrder(supabase, session, nextCart, replyText, sendToUser);
