@@ -282,6 +282,14 @@ serve(async (req) => {
       const vendorId = cart[0].vendor_id;
       const confirmationCode = deliveryType === "self_pickup"
         ? String(Math.floor(100000 + Math.random() * 900000)) : null;
+
+      // Resolve customer name/phone so the vendor can contact them.
+      const { data: custProfile } = await supabase
+        .from("profiles").select("full_name, phone")
+        .eq("user_id", session.customer_user_id).maybeSingle();
+      const receiverPhone = custProfile?.phone || session.phone || null;
+      const receiverName = custProfile?.full_name || null;
+
       const { data: order, error: orderErr } = await supabase.from("orders").insert({
         user_id: session.customer_user_id,
         vendor_id: vendorId,
@@ -294,6 +302,8 @@ serve(async (req) => {
         total_calories: summary.total_calories,
         delivery_type: deliveryType,
         delivery_address_text: deliveryType === "delivery" ? (nextContext.location_label || "WhatsApp shared location") : null,
+        receiver_name: receiverName,
+        receiver_phone: receiverPhone,
         payment_method: "wallet",
         payment_status: "paid",
         payment_reference: `WA-${Date.now()}`,
