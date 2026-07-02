@@ -51,7 +51,7 @@ export function ProfileForm({ user, profile, onUpdate }: ProfileFormProps) {
         setVerifyOpen(true);
         toast({
           title: 'Verify your new number',
-          description: 'Confirm your new WhatsApp number to update it.',
+          description: 'Confirm your new number to update it. It must be your active WhatsApp number.',
         });
       } else {
         toast({ title: 'Success', description: 'Profile updated successfully' });
@@ -69,7 +69,7 @@ export function ProfileForm({ user, profile, onUpdate }: ProfileFormProps) {
   const handleVerified = () => {
     setVerifyOpen(false);
     setIsEditing(false);
-    toast({ title: 'Phone updated ✅', description: 'Your new WhatsApp number is verified.' });
+    toast({ title: 'Phone updated ✅', description: 'Your new number is verified.' });
     onUpdate();
   };
 
@@ -175,7 +175,7 @@ export function ProfileForm({ user, profile, onUpdate }: ProfileFormProps) {
         onOpenChange={setVerifyOpen}
         defaultPhone={pendingPhone || profile?.phone || ''}
         onVerified={handleVerified}
-        title="Verify your new WhatsApp number"
+        title="Verify your new number"
       />
     </Card>
   );

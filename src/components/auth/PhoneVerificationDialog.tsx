@@ -20,7 +20,7 @@ interface Props {
 
 export function PhoneVerificationDialog({
   open, onOpenChange, defaultPhone = "", onVerified, blocking = false,
-  title = "Verify your WhatsApp number",
+  title = "Verify your number",
 }: Props) {
   const { sendOtp, verify, sending, verifying, channel } = usePhoneVerification();
   const { toast } = useToast();
@@ -56,7 +56,7 @@ export function PhoneVerificationDialog({
   const handleVerify = async () => {
     try {
       await verify(phone, code);
-      toast({ title: "Phone verified ✅", description: "Your WhatsApp number is now confirmed." });
+      toast({ title: "Phone verified ✅", description: "Your number is now confirmed." });
       onVerified?.(phone);
       onOpenChange?.(false);
       setStep("phone");
@@ -80,7 +80,7 @@ export function PhoneVerificationDialog({
           </DialogTitle>
           <DialogDescription>
             {step === "phone"
-              ? "Use the same number you have on WhatsApp — we'll send you a 6-digit code there."
+              ? "We will send a 6-digit code to this number. It should arrive on WhatsApp first, or by SMS if WhatsApp is not available. Make sure this number is your active WhatsApp number."
               : `We sent a 6-digit code to ${phone}. Enter it below.`}
           </DialogDescription>
         </DialogHeader>
@@ -88,7 +88,7 @@ export function PhoneVerificationDialog({
         {step === "phone" ? (
           <div className="space-y-3">
             <div>
-              <Label>WhatsApp phone number</Label>
+              <Label>Phone number</Label>
               <Input
                 type="tel"
                 inputMode="tel"
@@ -104,12 +104,12 @@ export function PhoneVerificationDialog({
             <Alert>
               <MessageCircle className="h-4 w-4" />
               <AlertDescription className="text-xs">
-                Make sure this number is active on WhatsApp on your phone. If it isn't, we'll fall back to SMS.
+                This must be the WhatsApp number on your phone. We'll try WhatsApp first, and fall back to SMS if needed.
               </AlertDescription>
             </Alert>
             <Button onClick={() => handleSend()} disabled={sending || !phone} className="w-full">
               {sending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <MessageCircle className="h-4 w-4 mr-2" />}
-              Send code on WhatsApp
+              Send code
             </Button>
           </div>
         ) : (
