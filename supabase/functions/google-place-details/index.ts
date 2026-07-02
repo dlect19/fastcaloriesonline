@@ -1,9 +1,19 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
+
+function logUsage(endpoint: string, outcome: 'success' | 'failed', costUsd: number) {
+  try {
+    const supa = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    supa.from('api_usage_log').insert({
+      provider: 'google_maps', endpoint, outcome, cost_estimate_usd: costUsd,
+    }).then(() => {});
+  } catch (_) { /* best-effort */ }
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -44,11 +54,14 @@ serve(async (req) => {
 
     if (data.status !== 'OK') {
       console.error('Place Details error:', data.status, data.error_message);
+      logUsage('place_details', 'failed', 0);
       return new Response(
         JSON.stringify({ error: data.error_message || data.status }),
         { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    logUsage('place_details', 'success', 0.017);
 
     const result = data.result;
     const location = result.geometry?.location;
