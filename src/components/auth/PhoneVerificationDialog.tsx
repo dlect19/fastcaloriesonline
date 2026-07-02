@@ -56,7 +56,7 @@ export function PhoneVerificationDialog({
   const handleVerify = async () => {
     try {
       await verify(phone, code);
-      toast({ title: "Phone verified ✅", description: "Your WhatsApp number is now confirmed." });
+      toast({ title: "Phone verified ✅", description: "Your number is now confirmed." });
       onVerified?.(phone);
       onOpenChange?.(false);
       setStep("phone");

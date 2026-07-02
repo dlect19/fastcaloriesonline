@@ -219,7 +219,7 @@ export function VendorCheckoutSection({
     if (phoneVerified === false) {
       setShowPhoneVerify(true);
       toast({
-        title: 'Verify your WhatsApp number',
+        title: 'Verify your number',
         description: 'For your safety, please verify your phone before placing this order.',
       });
       return;
@@ -942,7 +942,7 @@ export function VendorCheckoutSection({
         open={showPhoneVerify}
         onOpenChange={setShowPhoneVerify}
         defaultPhone={userPhone}
-        title="Verify your WhatsApp number to checkout"
+        title="Verify your number to checkout"
         onVerified={() => {
           setPhoneVerified(true);
           setShowPhoneVerify(false);
