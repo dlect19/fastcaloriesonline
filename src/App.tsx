@@ -82,6 +82,7 @@ import AdminNutrition from "./pages/admin/AdminNutrition";
 import AdminPayouts from "./pages/admin/AdminPayouts";
 import AdminOnHoldPayments from "./pages/admin/AdminOnHoldPayments";
 import AdminWhatsApp from "./pages/admin/AdminWhatsApp";
+import AdminPhoneVerification from "./pages/admin/AdminPhoneVerification";
 import AdminCustomerWallets from "./pages/admin/AdminCustomerWallets";
 import AdminWalletFunding from "./pages/admin/AdminWalletFunding";
 import AdminChargebacks from "./pages/admin/AdminChargebacks";
