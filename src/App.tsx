@@ -202,6 +202,7 @@ const App = () => {
             <PortalTracker />
             <AppThemeMount />
             <CustomerChatNotifier />
+            <PhoneVerificationGate />
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/auth" element={<Auth />} />
