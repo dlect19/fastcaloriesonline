@@ -722,9 +722,22 @@ serve(async (req) => {
           return await sendToUser("wa_vendor_list", vars, text);
         }
       }
+      // Typed area / landmark fallback (for people on desktop WhatsApp who can't share a pin).
+      if (body && body.trim().length >= 3) {
+        const hit = await geocodeText(body.trim());
+        if (hit) {
+          nextContext.lat = hit.lat;
+          nextContext.lon = hit.lon;
+          nextContext.location_label = hit.address;
+          await saveDefaultAddress(supabase, session.customer_user_id, hit.lat, hit.lon, hit.address);
+          return await showVendors();
+        }
+        return await replyText(`❓ I couldn't locate *"${body.trim()}"*. Try a nearby landmark or area name, share your live location pin (📎 → Location), or reply *skip*.`);
+      }
       return await sendToUser("wa_request_location", {},
-        `📍 Please share your location: tap *📎* → *Location* → *Send your current location*.\n\nOr reply *skip* to see top vendors.`);
+        `📍 Share your location so I can show vendors near you.\n\n• Tap *📎* → *Location* → *Send your current location*\n• Or type an area/landmark (e.g. _Lekki Phase 1_)\n• Or reply *skip* to see top vendors`);
     }
+
 
     // ===== Awaiting delivery address (asked during checkout) =====
     if (session.state === "awaiting_delivery_address") {
