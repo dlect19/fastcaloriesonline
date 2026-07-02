@@ -72,6 +72,8 @@ import AdminActivityLogs from "./pages/admin/AdminActivityLogs";
 import AdminSecurity from "./pages/admin/AdminSecurity";
 import AdminStaffJoin from "./pages/admin/AdminStaffJoin";
 import AdminSettings from "./pages/admin/AdminSettings";
+import AdminWeatherSettings from "./pages/admin/AdminWeatherSettings";
+import AdminSurgeSettings from "./pages/admin/AdminSurgeSettings";
 import AdminAdvertisements from "./pages/admin/AdminAdvertisements";
 import AdminCampaigns from "./pages/admin/AdminCampaigns";
 import AdminAdPlacements from "./pages/admin/AdminAdPlacements";
@@ -289,6 +291,8 @@ const App = () => {
               <Route path="/admin/security" element={<AdminSecurity />} />
               <Route path="/admin/staff/join/:code" element={<AdminStaffJoin />} />
               <Route path="/admin/settings" element={<AdminSettings />} />
+              <Route path="/admin/weather" element={<AdminWeatherSettings />} />
+              <Route path="/admin/surge" element={<AdminSurgeSettings />} />
               <Route path="/admin/advertisements" element={<AdminAdvertisements />} />
               <Route path="/admin/campaigns" element={<AdminCampaigns />} />
               <Route path="/admin/ad-placements" element={<AdminAdPlacements />} />

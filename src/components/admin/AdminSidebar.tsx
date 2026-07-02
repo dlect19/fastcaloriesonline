@@ -68,6 +68,8 @@ const menuItems: MenuItem[] = [
   { icon: Pill, label: 'Pharmacy Analytics', path: '/admin/pharmacy-analytics', requiredPermission: 'view_reports' },
   { icon: ShieldAlert, label: 'Security (2FA)', path: '/admin/security' },
   { icon: Settings, label: 'Settings', path: '/admin/settings', requiredPermission: 'platform_settings' },
+  { icon: Settings, label: 'Weather Service', path: '/admin/weather', requiredPermission: 'platform_settings' },
+  { icon: Settings, label: 'Surge Management', path: '/admin/surge', requiredPermission: 'platform_settings' },
 ];
 
 export function AdminSidebar() {

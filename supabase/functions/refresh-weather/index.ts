@@ -1,28 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getWeatherProvider } from "../_shared/weather-provider.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
-
-async function fetchOpenMeteo(lat: number, lon: number) {
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`open-meteo http ${res.status}`);
-  const d = await res.json();
-  const cw = d?.current_weather;
-  const code: number = cw?.weathercode ?? 0;
-  let condition: 'clear' | 'rain' | 'storm' = 'clear';
-  if (code >= 95) condition = 'storm';
-  else if (code >= 51) condition = 'rain';
-  return {
-    condition,
-    temperature: cw?.temperature ?? null,
-    wind_speed: cw?.windspeed ?? null,
-    rain_status: condition,
-  };
-}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
@@ -92,10 +75,13 @@ serve(async (req) => {
     const surgeRain = parseFloat(s.rider_weather_surge_rain || '100');
     const surgeStorm = parseFloat(s.rider_weather_surge_storm || '300');
 
+    const providerName = s.weather_service_provider || 'open-meteo';
+    const provider = getWeatherProvider(providerName);
+
     let updated = 0;
     for (const [areaKey, { lat, lon, name }] of grid) {
       try {
-        const w = await fetchOpenMeteo(lat, lon);
+        const w = await provider.fetch(lat, lon);
         const surge = w.condition === 'storm' ? surgeStorm : w.condition === 'rain' ? surgeRain : surgeClear;
         await supabase.from('weather_cache').upsert({
           area_key: areaKey,
@@ -107,19 +93,19 @@ serve(async (req) => {
           rain_status: w.rain_status,
           wind_speed: w.wind_speed,
           surge_amount: surge,
-          provider: s.weather_service_provider || 'open-meteo',
+          provider: provider.name,
           updated_at: new Date().toISOString(),
         }, { onConflict: 'area_key' });
 
         await supabase.from('api_usage_log').insert({
-          provider: 'open-meteo', endpoint: 'current_weather',
+          provider: provider.name, endpoint: 'current_weather',
           outcome: 'success', cost_estimate_usd: 0,
         });
         updated++;
       } catch (e) {
         console.warn('weather fetch failed for', areaKey, e);
         await supabase.from('api_usage_log').insert({
-          provider: 'open-meteo', endpoint: 'current_weather',
+          provider: provider.name, endpoint: 'current_weather',
           outcome: 'failed', cost_estimate_usd: 0,
         });
       }
