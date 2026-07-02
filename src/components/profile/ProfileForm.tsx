@@ -5,10 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { User as UserIcon, Phone, Loader2 } from 'lucide-react';
+import { User as UserIcon, Phone, Loader2, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { sanitizePhoneInput, isValidNgPhone, PHONE_ERROR_MESSAGE, PHONE_LENGTH } from '@/lib/phoneValidation';
 import type { Tables } from '@/integrations/supabase/types';
+import { PhoneVerificationDialog } from '@/components/auth/PhoneVerificationDialog';
 
 type Profile = Tables<'profiles'>;
 
@@ -22,10 +23,15 @@ export function ProfileForm({ user, profile, onUpdate }: ProfileFormProps) {
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [verifyOpen, setVerifyOpen] = useState(false);
+  const [pendingPhone, setPendingPhone] = useState('');
   const [formData, setFormData] = useState({
     full_name: profile?.full_name || '',
     phone: profile?.phone || '',
   });
+
+  const phoneChanged = formData.phone.trim() !== (profile?.phone || '').trim();
+  const isVerified = !!(profile as any)?.phone_verified;
 
   const handleSave = async () => {
     if (!isValidNgPhone(formData.phone)) {
@@ -36,30 +42,35 @@ export function ProfileForm({ user, profile, onUpdate }: ProfileFormProps) {
     try {
       const { error } = await supabase
         .from('profiles')
-        .update({
-          full_name: formData.full_name.trim(),
-          phone: formData.phone.trim(),
-        })
+        .update({ full_name: formData.full_name.trim() })
         .eq('user_id', user.id);
-
       if (error) throw error;
 
-      toast({
-        title: 'Success',
-        description: 'Profile updated successfully',
-      });
-      setIsEditing(false);
-      onUpdate();
+      if (phoneChanged) {
+        setPendingPhone(formData.phone.trim());
+        setVerifyOpen(true);
+        toast({
+          title: 'Verify your new number',
+          description: 'Confirm your new WhatsApp number to update it.',
+        });
+      } else {
+        toast({ title: 'Success', description: 'Profile updated successfully' });
+        setIsEditing(false);
+        onUpdate();
+      }
     } catch (error) {
       console.error('Error updating profile:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to update profile',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: 'Failed to update profile', variant: 'destructive' });
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleVerified = () => {
+    setVerifyOpen(false);
+    setIsEditing(false);
+    toast({ title: 'Phone updated ✅', description: 'Your new WhatsApp number is verified.' });
+    onUpdate();
   };
 
   return (
