@@ -110,6 +110,7 @@ export default function AdminWhatsApp() {
   };
 
   return (
+    <AdminLayout>
     <div className="container max-w-7xl py-6 space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
