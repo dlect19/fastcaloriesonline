@@ -103,16 +103,19 @@ serve(async (req) => {
         const from = Deno.env.get('TWILIO_WHATSAPP_FROM') || 'whatsapp:+14155238886';
         if (LOVABLE_API_KEY && TWILIO_API_KEY && vendor?.phone) {
           // Fetch items + customer name for context
-          const [{ data: items }, { data: customerProfile }] = await Promise.all([
-            supabase.from('order_items').select('name, quantity, price').eq('order_id', order.id),
+          const [{ data: items }, { data: customerProfile }, { data: orderExtra }] = await Promise.all([
+            supabase.from('order_items').select('product_name, quantity, unit_price').eq('order_id', order.id),
             order.user_id
               ? supabase.from('profiles').select('full_name, phone').eq('user_id', order.user_id).maybeSingle()
               : Promise.resolve({ data: null } as any),
+            supabase.from('orders').select('receiver_name, receiver_phone, delivery_address_text').eq('id', order.id).maybeSingle(),
           ]);
 
           const itemsText = (items || [])
-            .map((i: any) => `• ${i.name} × ${i.quantity}`)
+            .map((i: any) => `• ${i.product_name} × ${i.quantity}`)
             .join('\n');
+          const custName = customerProfile?.full_name || orderExtra?.receiver_name || null;
+          const custPhone = customerProfile?.phone || orderExtra?.receiver_phone || null;
           const dType = order.delivery_type === 'self_pickup' ? 'Carryout' : 'Delivery';
           const custLine = customerProfile?.full_name
             ? `\n👤 ${customerProfile.full_name}${customerProfile.phone ? ` (${customerProfile.phone})` : ''}`
