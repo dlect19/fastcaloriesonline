@@ -4,18 +4,20 @@
 //   2. Route prefix fallback — for web preview and shared dev URL.
 //   3. Default to customer.
 
-export type AppVariant = "customer" | "vendor" | "rider";
+export type AppVariant = "customer" | "vendor" | "rider" | "admin";
 
 const envVariant = (import.meta.env.VITE_APP_VARIANT as string | undefined)?.toLowerCase();
 
 export function resolveVariantFromPath(pathname: string): AppVariant {
-  if (envVariant === "customer" || envVariant === "vendor" || envVariant === "rider") {
+  if (envVariant === "customer" || envVariant === "vendor" || envVariant === "rider" || envVariant === "admin") {
     return envVariant as AppVariant;
+  }
+  if (pathname.startsWith("/admin")) {
+    return "admin";
   }
   if (
     pathname.startsWith("/vendor/") ||
-    pathname === "/vendor" ||
-    pathname.startsWith("/admin")
+    pathname === "/vendor"
   ) {
     return "vendor";
   }
