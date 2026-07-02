@@ -214,11 +214,11 @@ export function EnvironmentSwitch() {
                 </h4>
                 <div className="space-y-2">
                   {switchLogs.map((log) => (
-                    <div key={log.id} className="flex items-center justify-between text-sm p-2 bg-secondary rounded">
-                      <span>
-                        <Badge variant="outline" className="mr-2">{log.from_environment}</Badge>
-                        →
-                        <Badge variant="outline" className="ml-2">{log.to_environment}</Badge>
+                    <div key={log.id} className="flex items-center justify-between text-sm p-2 bg-muted/40 border border-border rounded">
+                      <span className="flex items-center gap-2 text-foreground">
+                        <Badge variant="outline" className="bg-background text-foreground border-border">{log.from_environment}</Badge>
+                        <span className="text-muted-foreground">→</span>
+                        <Badge variant="outline" className="bg-background text-foreground border-border">{log.to_environment}</Badge>
                       </span>
                       <span className="text-muted-foreground">
                         {new Date(log.created_at).toLocaleString()}
