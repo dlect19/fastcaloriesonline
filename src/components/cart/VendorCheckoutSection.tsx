@@ -137,6 +137,16 @@ export function VendorCheckoutSection({
       .then(({ data }) => setVendorCategory(data?.category || null));
   }, [group.vendorId]);
 
+  // Fetch user's phone verification status
+  useEffect(() => {
+    if (!userId) return;
+    supabase.from('profiles').select('phone, phone_verified').eq('user_id', userId).maybeSingle()
+      .then(({ data }) => {
+        setPhoneVerified(!!data?.phone_verified);
+        setUserPhone(data?.phone || '');
+      });
+  }, [userId]);
+
   const isPharmacy = vendorCategory === 'pharmacy';
 
   // Compute the platform promo specific to this vendor (pharmacy vs non-pharmacy)
