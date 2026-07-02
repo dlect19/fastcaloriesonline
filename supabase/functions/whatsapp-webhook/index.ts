@@ -324,6 +324,24 @@ serve(async (req) => {
     let nextContext: any = session.context || {};
     let nextCart: any[] = Array.isArray(session.cart) ? session.cart : [];
 
+    // 🔁 Auto-confirm any pending Paystack top-up on every incoming message.
+    // The user never has to paste WF-WA-XXXX — as soon as their payment
+    // clears at Paystack, the next WhatsApp reply silently credits the wallet.
+    let autoCreditedAmount = 0;
+    if (nextContext?.pending_funding_reference && session.customer_user_id) {
+      try {
+        const { data: vf } = await supabase.functions.invoke("verify-whatsapp-funding", {
+          body: { reference: nextContext.pending_funding_reference },
+        });
+        if (vf?.success) {
+          autoCreditedAmount = Number(vf.amount) || 0;
+          nextContext = { ...nextContext, pending_funding_reference: undefined };
+        }
+      } catch (e) {
+        console.error("auto-verify pending funding failed", e);
+      }
+    }
+
     // Shared shortcuts (work from any state)
     if (tap === "BTN_MAIN_MENU" || lower === "menu" || isGreeting) {
       await persistSession(supabase, session.id, "menu", nextContext, nextCart);
