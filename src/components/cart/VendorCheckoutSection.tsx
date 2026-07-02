@@ -215,6 +215,17 @@ export function VendorCheckoutSection({
       return;
     }
 
+    // Gate: phone must be verified before placing any order
+    if (phoneVerified === false) {
+      setShowPhoneVerify(true);
+      toast({
+        title: 'Verify your WhatsApp number',
+        description: 'For your safety, please verify your phone before placing this order.',
+      });
+      return;
+    }
+
+
     if (deliveryType === 'delivery' && !hasDeliveryLocation) {
       toast({ title: 'No delivery location', description: 'Please set your delivery location from the home screen header.', variant: 'destructive' });
       return;
