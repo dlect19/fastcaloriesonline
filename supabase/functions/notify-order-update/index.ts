@@ -332,16 +332,22 @@ serve(async (req) => {
           if (currentRiderId) {
             const { data: riderProfile } = await supabase
               .from('profiles')
-              .select('full_name, phone, vehicle_type, vehicle_plate_number')
+              .select('full_name, phone')
+              .eq('user_id', currentRiderId)
+              .maybeSingle();
+            const { data: riderMeta } = await supabase
+              .from('rider_profiles')
+              .select('vehicle_type, vehicle_plate')
               .eq('user_id', currentRiderId)
               .maybeSingle();
             const rName = riderProfile?.full_name || 'Rider';
             const rPhone = riderProfile?.phone ? `\n📞 ${riderProfile.phone}` : '';
-            const rVeh = riderProfile?.vehicle_type
-              ? `\n🛵 ${riderProfile.vehicle_type}${riderProfile.vehicle_plate_number ? ` • ${riderProfile.vehicle_plate_number}` : ''}`
+            const rVeh = riderMeta?.vehicle_type
+              ? `\n🛵 ${riderMeta.vehicle_type}${riderMeta.vehicle_plate ? ` • ${riderMeta.vehicle_plate}` : ''}`
               : '';
             riderBlock = `\n\n🏍️ *Rider:* ${rName}${rPhone}${rVeh}`;
           }
+
 
           let waBody = '';
           if (new_rider_id && !old_rider_id) {
