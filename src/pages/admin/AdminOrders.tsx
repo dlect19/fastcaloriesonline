@@ -59,9 +59,11 @@ export default function AdminOrders() {
   const filteredOrders = useMemo(() => {
     let result = orders;
 
-    // Channel tab (POS vs Online)
+    // Channel tab
     if (channelTab === 'pos') result = result.filter(o => o.channel === 'pos');
-    else result = result.filter(o => o.channel !== 'pos' && !(o.channel === 'assisted' && o.payment_status !== 'paid'));
+    else if (channelTab === 'whatsapp') result = result.filter(o => o.channel === 'whatsapp');
+    else if (channelTab === 'assisted') result = result.filter(o => o.channel === 'assisted');
+    else result = result.filter(o => !['pos','whatsapp','assisted'].includes(o.channel) || (o.channel === 'assisted' && o.payment_status === 'paid'));
 
     // Tab filter
     if (orderTab === 'ongoing') result = result.filter(o => ONGOING_STATUSES.includes(o.status));
