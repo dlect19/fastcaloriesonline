@@ -63,7 +63,7 @@ export default function AdminOrders() {
     if (channelTab === 'pos') result = result.filter(o => o.channel === 'pos');
     else if (channelTab === 'whatsapp') result = result.filter(o => o.channel === 'whatsapp');
     else if (channelTab === 'assisted') result = result.filter(o => o.channel === 'assisted');
-    else result = result.filter(o => !['pos','whatsapp','assisted'].includes(o.channel) || (o.channel === 'assisted' && o.payment_status === 'paid'));
+    else result = result.filter(o => !['pos','whatsapp','assisted'].includes(o.channel));
 
     // Tab filter
     if (orderTab === 'ongoing') result = result.filter(o => ONGOING_STATUSES.includes(o.status));
