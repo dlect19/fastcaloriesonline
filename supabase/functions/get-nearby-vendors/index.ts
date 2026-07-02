@@ -277,6 +277,11 @@ serve(async (req) => {
             if (geoRes.ok) {
               const geoData = await geoRes.json();
               console.log("Reverse geocode status:", geoData?.status, "results count:", geoData?.results?.length);
+              supabase.from('api_usage_log').insert({
+                provider: 'google_maps', endpoint: 'reverse_geocode',
+                outcome: geoData?.status === 'OK' ? 'success' : 'failed',
+                cost_estimate_usd: geoData?.status === 'OK' ? 0.005 : 0,
+              }).then(() => {});
               for (const result of (geoData?.results || [])) {
                 const stateComponent = result?.address_components?.find(
                   (c: any) => c.types?.includes("administrative_area_level_1")
