@@ -29,7 +29,7 @@ export default function AdminOrders() {
   const [trackOrder, setTrackOrder] = useState<any | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [orderTab, setOrderTab] = useState<'all' | 'ongoing' | 'past'>('all');
-  const [channelTab, setChannelTab] = useState<'online' | 'pos'>('online');
+  const [channelTab, setChannelTab] = useState<'online' | 'pos' | 'whatsapp' | 'assisted'>('online');
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
