@@ -7,7 +7,8 @@ import { supabase } from "@/integrations/supabase/client";
 
 export default function WhatsAppFundingSuccess() {
   const [params] = useSearchParams();
-  const reference = params.get("ref") || "";
+  // Paystack appends ?trxref=<ref>&reference=<ref> on redirect. Also accept ?ref= for legacy links.
+  const reference = params.get("ref") || params.get("trxref") || params.get("reference") || "";
   const [status, setStatus] = useState<"checking" | "ok" | "pending">("checking");
   const [waNumber, setWaNumber] = useState("14155238886");
 

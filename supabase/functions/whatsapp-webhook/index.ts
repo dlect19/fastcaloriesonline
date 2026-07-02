@@ -324,6 +324,40 @@ serve(async (req) => {
     let nextContext: any = session.context || {};
     let nextCart: any[] = Array.isArray(session.cart) ? session.cart : [];
 
+    // 🔁 Auto-confirm any pending Paystack top-up on every incoming message.
+    // The user never has to paste WF-WA-XXXX — as soon as their payment
+    // clears at Paystack, the next WhatsApp reply silently credits the wallet.
+    let autoCreditedAmount = 0;
+    if (nextContext?.pending_funding_reference && session.customer_user_id) {
+      try {
+        const { data: vf } = await supabase.functions.invoke("verify-whatsapp-funding", {
+          body: { reference: nextContext.pending_funding_reference },
+        });
+        if (vf?.success) {
+          autoCreditedAmount = Number(vf.amount) || 0;
+          nextContext = { ...nextContext, pending_funding_reference: undefined };
+        }
+      } catch (e) {
+        console.error("auto-verify pending funding failed", e);
+      }
+    }
+
+    // If we just credited a pending top-up, tell the user proactively (out-of-band, so
+    // we can still return a TwiML reply for their actual message below).
+    if (autoCreditedAmount > 0) {
+      try {
+        await sendViaTwilio({
+          From: fromNumber,
+          To: fromRaw,
+          Body: `✅ *Wallet topped up!* ₦${autoCreditedAmount.toLocaleString()} was added to your balance.`,
+        });
+        await supabase.from("whatsapp_messages").insert({
+          session_id: session.id, phone, direction: "out",
+          body: `✅ Auto top-up credit ₦${autoCreditedAmount.toLocaleString()}`,
+        });
+      } catch (e) { console.error("auto-credit notice failed", e); }
+    }
+
     // Shared shortcuts (work from any state)
     if (tap === "BTN_MAIN_MENU" || lower === "menu" || isGreeting) {
       await persistSession(supabase, session.id, "menu", nextContext, nextCart);
@@ -472,7 +506,7 @@ serve(async (req) => {
       const funding = await createWalletFundingLink(supabase, session.customer_user_id!, amt, phone);
       await persistSession(supabase, session.id, "wallet_menu", { ...nextContext, pending_funding_reference: funding?.reference }, nextCart);
       if (!funding) return await replyText("⚠️ Couldn't create payment link right now. Please try again in a moment.");
-      return await replyText(`✅ *Top up ₦${amt.toLocaleString()}*\n\nTap to pay securely with card or bank:\n${funding.link}\n\nAfter payment, reply *checkout* or paste this reference:\n${funding.reference}`);
+      return await replyText(`✅ *Top up ₦${amt.toLocaleString()}*\n\nTap to pay securely with card or bank:\n${funding.link}\n\nOnce your payment succeeds, your wallet updates automatically — just send any message (like *balance* or *checkout*) and we'll confirm it for you.`);
     }
 
     if (tap === "BTN_HEALTHY" || (session.state === "menu" && lower === "4")) {
@@ -620,7 +654,7 @@ serve(async (req) => {
         const funding = await createWalletFundingLink(supabase, session.customer_user_id!, amount, phone);
         await persistSession(supabase, session.id, "confirming_order", { ...nextContext, pending_funding_reference: funding?.reference }, nextCart);
         if (!funding) return await replyText("⚠️ Couldn't create payment link right now. Please try again.");
-        return await replyText(`💰 Top up *₦${amount.toLocaleString()}* to cover your order:\n${funding.link}\n\nAfter funding, reply *checkout* or paste this reference:\n${funding.reference}`);
+        return await replyText(`💰 Top up *₦${amount.toLocaleString()}* to cover your order:\n${funding.link}\n\nOnce your payment goes through, reply *checkout* — we'll auto-confirm your top-up and place the order. No reference needed.`);
       }
       if (tap === "BTN_CONFIRM" || lower === "yes" || lower === "confirm") {
         return await confirmWhatsAppOrder(supabase, session, nextCart, replyText, sendToUser);
