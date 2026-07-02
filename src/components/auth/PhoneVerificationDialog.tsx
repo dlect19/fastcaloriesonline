@@ -91,13 +91,14 @@ export function PhoneVerificationDialog({
               <Label>WhatsApp phone number</Label>
               <Input
                 type="tel"
-                placeholder="+2348012345678"
+                inputMode="tel"
+                placeholder="08012345678 or +2348012345678"
                 value={phone}
                 onChange={e => setPhone(e.target.value)}
                 autoFocus
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Include country code. Nigerian numbers starting with 0 are auto-formatted.
+                Nigerian numbers (starting with 0) work without a country code — we add +234 for you. For other countries, include the country code (e.g. +44...).
               </p>
             </div>
             <Alert>
