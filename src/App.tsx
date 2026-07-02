@@ -303,6 +303,7 @@ const App = () => {
               <Route path="/admin/payouts" element={<AdminPayouts />} />
               <Route path="/admin/on-hold-payments" element={<AdminOnHoldPayments />} />
               <Route path="/admin/whatsapp" element={<AdminWhatsApp />} />
+              <Route path="/admin/phone-verification" element={<AdminPhoneVerification />} />
               <Route path="/admin/customer-wallets" element={<AdminCustomerWallets />} />
               <Route path="/admin/wallet-funding" element={<AdminWalletFunding />} />
               <Route path="/admin/chargebacks" element={<AdminChargebacks />} />
