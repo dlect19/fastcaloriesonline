@@ -342,6 +342,13 @@ serve(async (req) => {
       }
     }
 
+    // If we just credited a pending top-up, tell the user proactively.
+    if (autoCreditedAmount > 0) {
+      try {
+        await replyText(`✅ *Wallet topped up!* ₦${autoCreditedAmount.toLocaleString()} was added to your balance. Continuing…`);
+      } catch (e) { console.error("auto-credit notice failed", e); }
+    }
+
     // Shared shortcuts (work from any state)
     if (tap === "BTN_MAIN_MENU" || lower === "menu" || isGreeting) {
       await persistSession(supabase, session.id, "menu", nextContext, nextCart);
