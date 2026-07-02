@@ -29,7 +29,7 @@ export default function AdminOrders() {
   const [trackOrder, setTrackOrder] = useState<any | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [orderTab, setOrderTab] = useState<'all' | 'ongoing' | 'past'>('all');
-  const [channelTab, setChannelTab] = useState<'online' | 'pos'>('online');
+  const [channelTab, setChannelTab] = useState<'online' | 'pos' | 'whatsapp' | 'assisted'>('online');
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
@@ -59,9 +59,11 @@ export default function AdminOrders() {
   const filteredOrders = useMemo(() => {
     let result = orders;
 
-    // Channel tab (POS vs Online)
+    // Channel tab
     if (channelTab === 'pos') result = result.filter(o => o.channel === 'pos');
-    else result = result.filter(o => o.channel !== 'pos' && !(o.channel === 'assisted' && o.payment_status !== 'paid'));
+    else if (channelTab === 'whatsapp') result = result.filter(o => o.channel === 'whatsapp');
+    else if (channelTab === 'assisted') result = result.filter(o => o.channel === 'assisted');
+    else result = result.filter(o => !['pos','whatsapp','assisted'].includes(o.channel));
 
     // Tab filter
     if (orderTab === 'ongoing') result = result.filter(o => ONGOING_STATUSES.includes(o.status));
@@ -265,9 +267,11 @@ export default function AdminOrders() {
     return <Badge className={colors[status] || 'bg-secondary'}>{status.replace(/_/g, ' ')}</Badge>;
   };
 
-  const onlineOrders = orders.filter(o => o.channel !== 'pos' && !(o.channel === 'assisted' && o.payment_status !== 'paid'));
+  const onlineOrders = orders.filter(o => !['pos','whatsapp','assisted'].includes(o.channel));
   const posOrders = orders.filter(o => o.channel === 'pos');
-  const channelOrders = channelTab === 'pos' ? posOrders : onlineOrders;
+  const whatsappOrders = orders.filter(o => o.channel === 'whatsapp');
+  const assistedOrders = orders.filter(o => o.channel === 'assisted');
+  const channelOrders = channelTab === 'pos' ? posOrders : channelTab === 'whatsapp' ? whatsappOrders : channelTab === 'assisted' ? assistedOrders : onlineOrders;
   const ongoingCount = channelOrders.filter(o => ONGOING_STATUSES.includes(o.status)).length;
   const pastCount = channelOrders.filter(o => PAST_STATUSES.includes(o.status)).length;
 
@@ -375,8 +379,10 @@ export default function AdminOrders() {
         {/* Channel switcher: Online vs POS */}
         <Tabs value={channelTab} onValueChange={(v) => setChannelTab(v as any)} className="mb-3">
           <TabsList>
-            <TabsTrigger value="online">🌐 Online Orders ({onlineOrders.length})</TabsTrigger>
-            <TabsTrigger value="pos">🧾 POS Orders ({posOrders.length})</TabsTrigger>
+            <TabsTrigger value="online">🌐 Online ({onlineOrders.length})</TabsTrigger>
+            <TabsTrigger value="whatsapp">💬 WhatsApp ({whatsappOrders.length})</TabsTrigger>
+            <TabsTrigger value="assisted">🎧 Assisted ({assistedOrders.length})</TabsTrigger>
+            <TabsTrigger value="pos">🧾 POS ({posOrders.length})</TabsTrigger>
           </TabsList>
         </Tabs>
 
@@ -463,8 +469,14 @@ export default function AdminOrders() {
                           )}
                         </td>
                         <td className="py-3 px-4 font-medium">
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             {order.order_number}
+                            {order.channel === 'whatsapp' && (
+                              <Badge className="bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/30 text-[10px]">💬 WhatsApp</Badge>
+                            )}
+                            {order.channel === 'assisted' && (
+                              <Badge className="bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/30 text-[10px]">🎧 Assisted</Badge>
+                            )}
                             {order.is_free_meal && (
                               <Badge className="bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/30 text-[10px] gap-0.5">
                                 <Gift className="w-2.5 h-2.5" /> Free Meal
