@@ -794,7 +794,7 @@ serve(async (req) => {
         return await replyText(
           "📸 *Please send a clear photo of your prescription* (or PDF).\n\n" +
           "Tap *📎* → *Photo* (or *Document*) → select your prescription, then send.\n\n" +
-          "Reply *0* to cancel."
+          "Reply *0* or *menu* to cancel."
         );
       }
       if (lower === "2" || lower === "no" || lower === "pharmacist") {
@@ -803,7 +803,7 @@ serve(async (req) => {
           "📝 *Tell the pharmacist what you need.*\n\n" +
           "Reply with your symptoms / what the medicine is for / how often you take it.\n" +
           "Example: _\"Headache, adult, take twice daily for 3 days.\"_\n\n" +
-          "Reply *0* to cancel."
+          "Reply *0* or *menu* to cancel."
         );
       }
       if (lower === "0" || lower === "cancel") {
