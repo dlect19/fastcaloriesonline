@@ -101,12 +101,12 @@ serve(async (req) => {
 
     // Try WhatsApp first (unless caller explicitly asked for SMS)
     let channelUsed: "whatsapp" | "sms" = preferSms ? "sms" : "whatsapp";
-    let send = await sendTwilio(channelUsed, phone, message);
+    let send = await sendTwilio(admin, channelUsed, phone, message);
 
     // Fallback to SMS if WhatsApp failed and SMS sender exists
     if (!send.ok && channelUsed === "whatsapp" && Deno.env.get("TWILIO_SMS_FROM")) {
       channelUsed = "sms";
-      send = await sendTwilio("sms", phone, message);
+      send = await sendTwilio(admin, "sms", phone, message);
     }
 
     if (!send.ok) {
