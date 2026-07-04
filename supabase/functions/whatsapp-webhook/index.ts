@@ -1400,7 +1400,7 @@ async function doCheckout(
     return await replyText(
       "💊 *Pharmacy order — prescription check*\n\n" +
       "Before we place this order, the pharmacy needs to know how to dispense.\n\n" +
-      "Reply:\n1️⃣ I have a *doctor's prescription* (I'll send a photo)\n2️⃣ *No prescription* — guide me (pharmacist instructions)\n0️⃣ Cancel"
+      "Reply:\n1️⃣ I have a *doctor's prescription* (I'll send a photo)\n2️⃣ *No prescription* — guide me (pharmacist instructions)\n0️⃣ or *menu* to cancel"
     );
   }
 
