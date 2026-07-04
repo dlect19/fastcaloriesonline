@@ -211,7 +211,7 @@ serve(async (req) => {
       nextContext.pin_sent_at = new Date().toISOString();
       nextContext.pin_verified_at = null;
       const purpose = body.purpose === "fund" ? "fund your wallet" : body.purpose === "checkout" ? "place this order" : "confirm this action";
-      await sendWhatsApp(session.phone, `🔐 Your FastCalories code: *${pin}*\n\nUse it to ${purpose}. Expires in 10 minutes. Never share this code.`);
+      await sendWhatsApp(supabase, session.phone, `🔐 Your FastCalories code: *${pin}*\n\nUse it to ${purpose}. Expires in 10 minutes. Never share this code.`);
       await supabase.from("whatsapp_sessions").update({ context: nextContext, expires_at: newExpiry }).eq("id", sid);
       return json({ ok: true, sent: true });
     } else if (action === "verify_pin") {
