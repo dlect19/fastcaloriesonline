@@ -456,15 +456,31 @@ serve(async (req) => {
       await saveDefaultAddress(supabase, session.customer_user_id, sharedLat, sharedLon, label);
     }
 
+    const CATEGORY_LABELS: Record<string, string> = {
+      restaurant: "🍔 Restaurants (food & meals)",
+      pharmacy: "💊 Pharmacy (medicine)",
+      market: "🛒 Market / Grocery",
+    };
+    const CATEGORY_PROMPT =
+      `🛍️ *What would you like to order?*\n\n` +
+      `1️⃣ ${CATEGORY_LABELS.restaurant}\n` +
+      `2️⃣ ${CATEGORY_LABELS.pharmacy}\n` +
+      `3️⃣ ${CATEGORY_LABELS.market}\n` +
+      `4️⃣ 🌐 All vendors\n\n` +
+      `Reply with a number, or *menu* to go back.`;
+
     const showVendors = async () => {
-      const vendors = await fetchVendors(supabase, session.customer_user_id, nextContext.lat ?? null, nextContext.lon ?? null);
+      const cat = nextContext.category || null;
+      const vendors = await fetchVendors(supabase, session.customer_user_id, nextContext.lat ?? null, nextContext.lon ?? null, cat);
       if (!vendors.length) {
         await persistSession(supabase, session.id, "menu", nextContext, nextCart);
-        return await sendToUser("wa_main_menu", {}, "😕 No vendors near you right now.\n\n" + MENU_OPTIONS);
+        const catLabel = cat ? ` for *${CATEGORY_LABELS[cat] || cat}*` : "";
+        return await sendToUser("wa_main_menu", {}, `😕 No vendors near you${catLabel} right now.\n\n` + MENU_OPTIONS);
       }
       nextContext.vendors = vendors.map((v: any) => ({ id: v.id, name: v.name, distance_km: v.distance_km ?? v.distance ?? null }));
       await persistSession(supabase, session.id, "browsing_vendors", nextContext, nextCart);
-      const text = `🏪 *Nearby vendors:*\n\n` +
+      const header = cat ? `🏪 *Nearby ${CATEGORY_LABELS[cat] || cat}:*` : `🏪 *Nearby vendors:*`;
+      const text = `${header}\n\n` +
         vendors.map((v: any, i: number) => {
           const d = v.distance_km ?? v.distance;
           const dTxt = typeof d === "number" ? ` — ${d.toFixed(1)} km` : "";
@@ -476,26 +492,39 @@ serve(async (req) => {
       return await sendToUser("wa_vendor_list", vars, text);
     };
 
-    // Tap routing
-    if (tap === "BTN_ORDER" || (session.state === "menu" && lower === "1")) {
+    // Handle category picker replies
+    if (session.state === "choosing_category") {
+      let picked: string | null = null;
+      if (tap === "BTN_CAT_RESTAURANT" || lower === "1") picked = "restaurant";
+      else if (tap === "BTN_CAT_PHARMACY" || lower === "2") picked = "pharmacy";
+      else if (tap === "BTN_CAT_MARKET" || lower === "3") picked = "market";
+      else if (tap === "BTN_CAT_ALL" || lower === "4" || lower === "all") picked = null;
+      else {
+        return await replyText(`Please reply 1, 2, 3 or 4.\n\n${CATEGORY_PROMPT}`);
+      }
+      nextContext.category = picked;
       if (nextContext.lat && nextContext.lon) return await showVendors();
-      // Try saved address
-      const vendors = await fetchVendors(supabase, session.customer_user_id, null, null);
+      // no location yet — try saved, else ask
+      const vendors = await fetchVendors(supabase, session.customer_user_id, null, null, picked);
       if (vendors.length) {
         nextContext.vendors = vendors.map((v: any) => ({ id: v.id, name: v.name, distance_km: v.distance_km ?? v.distance ?? null }));
         await persistSession(supabase, session.id, "browsing_vendors", nextContext, nextCart);
         const text = `🏪 *Nearby vendors* _(based on your saved address)_:\n\n` +
           vendors.map((v: any, i: number) => `${i + 1}. ${v.name}`).join("\n") +
           "\n\nReply with a number." + HELP_HINT;
-        const vars: Record<string, string> = {};
-        vendors.slice(0, 10).forEach((v: any, i: number) => { vars[`${i + 1}`] = v.name; vars[`id${i + 1}`] = v.id; });
-        if (vendors.length < 10) return await replyText(text);
-        return await sendToUser("wa_vendor_list", vars, text);
+        return await replyText(text);
       }
       await persistSession(supabase, session.id, "awaiting_location", nextContext, nextCart);
       return await sendToUser("wa_request_location", {},
         `📍 *Share your location* to see vendors near you.\n\nTap *📎* → *Location* → *Send your current location*.\n\nOr reply *skip* to see top vendors, or *menu* to go back.`);
     }
+
+    // Tap routing
+    if (tap === "BTN_ORDER" || (session.state === "menu" && lower === "1")) {
+      await persistSession(supabase, session.id, "choosing_category", nextContext, nextCart);
+      return await replyText(CATEGORY_PROMPT);
+    }
+
 
     if (tap === "BTN_TRACK" || (session.state === "menu" && lower === "2")) {
       const text = await renderRecentOrders(supabase, phone, session.customer_user_id) + HELP_HINT;
