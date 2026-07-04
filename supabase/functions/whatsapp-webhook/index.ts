@@ -1424,8 +1424,8 @@ async function doCheckout(
     );
 
     const prompt = savedLabel
-      ? `📍 *Where should we deliver this order?*\n\nSaved address: *${savedLabel}*\n\nReply:\n1️⃣ Use this saved address\n2️⃣ Deliver to a *different* address\n\nOr share a new location pin (📎 → Location).`
-      : `📍 *Where should we deliver this order?*\n\nYou don't have a saved address yet. Please reply with the *full delivery address* (street, area, landmark) or share your location pin (📎 → Location).`;
+      ? `📍 *Where should we deliver this order?*\n\nSaved address: *${savedLabel}*\n\nReply:\n1️⃣ Use this saved address\n2️⃣ Deliver to a *different* address\n\nOr share a new location pin (📎 → Location).\n\nReply *menu* to cancel.`
+      : `📍 *Where should we deliver this order?*\n\nYou don't have a saved address yet. Please reply with the *full delivery address* (street, area, landmark) or share your location pin (📎 → Location).\n\nReply *menu* to cancel.`;
     return await replyText(prompt);
   }
 
@@ -1458,8 +1458,8 @@ async function doCheckout(
     `\n\n💼 Wallet balance: ₦${bal.toLocaleString()}` +
     (ctx.customer_order_note ? `\n📝 Note: ${ctx.customer_order_note}` : "") +
     (insufficient
-      ? `\n\n❌ *Insufficient funds*\nYou need ₦${shortfall.toLocaleString()} more to place this order.\n\nReply *3* to top up your wallet, or *cancel* to stop.`
-      : `\n\nReply *yes* to confirm & pay, or reply *note: your instruction* before confirming.`);
+      ? `\n\n❌ *Insufficient funds*\nYou need ₦${shortfall.toLocaleString()} more to place this order.\n\nReply *3* to top up your wallet, or *menu* to cancel.`
+      : `\n\nReply *yes* to confirm & pay, reply *note: your instruction* before confirming, or *menu* to cancel.`);
 
   await persistSession(supabase, session.id, "confirming_order", { ...(session.context || {}), pending_total: total, pending_shortfall: shortfall }, cart);
 
