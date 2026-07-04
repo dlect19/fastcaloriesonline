@@ -680,9 +680,9 @@ serve(async (req) => {
     if (session.state === "confirming_order") {
       if (lower.startsWith("note:") || lower.startsWith("note ")) {
         const note = body.replace(/^note[:\s]+/i, "").trim();
-        if (!note) return await replyText("Please type your note after `note:` e.g. *note: do not microwave*.");
+        if (!note) return await replyText("Please type your note after `note:` e.g. *note: do not microwave*.\n\nReply *menu* to cancel.");
         await persistSession(supabase, session.id, "confirming_order", { ...nextContext, customer_order_note: note }, nextCart);
-        return await replyText(`📝 Note saved: ${note}\n\nReply *yes* to confirm & pay, or *cancel* to stop.`);
+        return await replyText(`📝 Note saved: ${note}\n\nReply *yes* to confirm & pay, or *menu* to cancel.`);
       }
       if (tap === "BTN_WALLET" || lower === "3" || lower === "fund" || lower === "top up" || lower === "topup") {
         const pendingTotal = Number(nextContext?.pending_total || cartTotal(nextCart) || 0);
@@ -692,19 +692,19 @@ serve(async (req) => {
         const funding = await createWalletFundingLink(supabase, session.customer_user_id!, amount, phone);
         await persistSession(supabase, session.id, "confirming_order", { ...nextContext, pending_funding_reference: funding?.reference }, nextCart);
         if (!funding) return await replyText("⚠️ Couldn't create payment link right now. Please try again.");
-        return await replyText(`💰 Top up *₦${amount.toLocaleString()}* to cover your order:\n${funding.link}\n\nOnce your payment goes through, reply *checkout* — we'll auto-confirm your top-up and place the order. No reference needed.`);
+        return await replyText(`💰 Top up *₦${amount.toLocaleString()}* to cover your order:\n${funding.link}\n\nOnce your payment goes through, reply *checkout* — we'll auto-confirm your top-up and place the order. No reference needed.\n\nReply *menu* to cancel.`);
       }
       if (tap === "BTN_CONFIRM" || lower === "yes" || lower === "confirm") {
         return await confirmWhatsAppOrder(supabase, session, nextCart, replyText, sendToUser);
       }
-      if (tap === "BTN_CANCEL" || lower === "cancel") {
+      if (tap === "BTN_CANCEL" || lower === "cancel" || lower === "menu" || tap === "BTN_MAIN_MENU") {
         await persistSession(supabase, session.id, "menu", nextContext, nextCart);
         return await sendToUser("wa_main_menu", {}, "Order cancelled.\n\n" + MENU_OPTIONS);
       }
       if (lower === "checkout") {
         return await doCheckout(supabase, session, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
       }
-      return await replyText("Reply *3* to top up, *checkout* to recheck your wallet, or *cancel* to stop this order.");
+      return await replyText("Reply *3* to top up, *checkout* to recheck your wallet, *yes* to confirm & pay, or *menu* to cancel this order.");
     }
 
     if (session.state === "ai_suggest") {
@@ -839,12 +839,12 @@ serve(async (req) => {
     }
 
     if (session.state === "pharmacy_rx_awaiting_instructions") {
-      if (lower === "0" || lower === "cancel") {
+      if (lower === "0" || lower === "cancel" || lower === "menu" || tap === "BTN_MAIN_MENU") {
         await persistSession(supabase, session.id, "menu", { ...nextContext, pharmacy_rx: undefined }, nextCart);
         return await sendToUser("wa_main_menu", {}, "Order cancelled.\n\n" + MENU_OPTIONS);
       }
       if (!body || body.trim().length < 5) {
-        return await replyText("Please reply with a few words about your symptoms or what the medicine is for. Reply *0* to cancel.");
+        return await replyText("Please reply with a few words about your symptoms or what the medicine is for. Reply *0* or *menu* to cancel.");
       }
       const rx = { type: "pharmacist", pharmacist_instructions: body.trim(), captured_at: new Date().toISOString() };
       const merged = { ...nextContext, pharmacy_rx: rx };
