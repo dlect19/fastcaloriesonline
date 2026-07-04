@@ -24,6 +24,9 @@ export default function AdminWhatsApp() {
   const [testBody, setTestBody] = useState("Hello from FastCalories 👋");
   const [templates, setTemplates] = useState<Array<{ template_key: string; content_sid: string; description: string | null }>>([]);
   const [savingTpl, setSavingTpl] = useState<string | null>(null);
+  const [fromNumber, setFromNumber] = useState("");
+  const [savingFrom, setSavingFrom] = useState(false);
+  const [fromNumberInput, setFromNumberInput] = useState("");
 
   const load = async () => {
     setLoading(true);
