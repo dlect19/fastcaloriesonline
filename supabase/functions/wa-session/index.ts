@@ -362,7 +362,7 @@ serve(async (req) => {
 
       // Send WhatsApp confirmation
       const confLine = confirmationCode ? `\n📍 Pickup code: *${confirmationCode}*` : "";
-      await sendWhatsApp(session.phone,
+      await sendWhatsApp(supabase, session.phone,
         `✅ Order confirmed!\n\n*${order.order_number}*\nTotal: ₦${summary.total.toLocaleString()}${confLine}\n\nTrack it in the app or here in chat.`);
 
       return json({
