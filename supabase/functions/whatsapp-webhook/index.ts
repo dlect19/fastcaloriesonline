@@ -806,30 +806,30 @@ serve(async (req) => {
           "Reply *0* or *menu* to cancel."
         );
       }
-      if (lower === "0" || lower === "cancel") {
+      if (lower === "0" || lower === "cancel" || lower === "menu" || tap === "BTN_MAIN_MENU" || tap === "BTN_CANCEL") {
         await persistSession(supabase, session.id, "menu", { ...nextContext, pharmacy_rx: undefined }, nextCart);
         return await sendToUser("wa_main_menu", {}, "Order cancelled.\n\n" + MENU_OPTIONS);
       }
       return await replyText(
         "💊 *Pharmacy order — prescription check*\n\n" +
-        "Reply:\n1️⃣ I have a *doctor's prescription* (I'll send a photo)\n2️⃣ *No prescription* — guide me (pharmacist instructions)\n0️⃣ Cancel"
+        "Reply:\n1️⃣ I have a *doctor's prescription* (I'll send a photo)\n2️⃣ *No prescription* — guide me (pharmacist instructions)\n0️⃣ or *menu* to cancel"
       );
     }
 
     if (session.state === "pharmacy_rx_awaiting_image") {
-      if (lower === "0" || lower === "cancel") {
+      if (lower === "0" || lower === "cancel" || lower === "menu" || tap === "BTN_MAIN_MENU") {
         await persistSession(supabase, session.id, "menu", { ...nextContext, pharmacy_rx: undefined }, nextCart);
         return await sendToUser("wa_main_menu", {}, "Order cancelled.\n\n" + MENU_OPTIONS);
       }
       const numMedia = parseInt(params["NumMedia"] || "0", 10);
       if (!numMedia || numMedia < 1) {
-        return await replyText("📸 I'm waiting for your prescription image. Tap *📎* → *Photo* → send. Or reply *0* to cancel.");
+        return await replyText("📸 I'm waiting for your prescription image. Tap *📎* → *Photo* → send. Or reply *0* or *menu* to cancel.");
       }
       const mediaUrl = params["MediaUrl0"];
       const mediaType = params["MediaContentType0"] || "image/jpeg";
       const uploaded = await uploadTwilioMediaToBucket(supabase, session.customer_user_id!, mediaUrl, mediaType);
       if (!uploaded) {
-        return await replyText("⚠️ Couldn't save your prescription image. Please try sending it again, or reply *0* to cancel.");
+        return await replyText("⚠️ Couldn't save your prescription image. Please try sending it again, or reply *0* or *menu* to cancel.");
       }
       const rx = { type: "doctor", image_url: uploaded, captured_at: new Date().toISOString() };
       const merged = { ...nextContext, pharmacy_rx: rx };
