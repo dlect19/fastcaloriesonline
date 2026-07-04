@@ -329,7 +329,7 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
           </div>
 
           {/* Doctor prescription details */}
-          {current.prescriptionType === 'doctor' && (
+          {!isOTC && current.prescriptionType === 'doctor' && (
             <div className="space-y-3 p-3 bg-primary/5 rounded-lg border border-primary/20">
               <p className="text-sm font-medium flex items-center gap-2">
                 <Stethoscope className="w-4 h-4 text-primary" /> Doctor's Prescription
