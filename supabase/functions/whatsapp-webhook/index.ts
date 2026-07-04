@@ -948,11 +948,12 @@ function renderCart(cart: any[]): string {
   return `🛒 *Your Cart*\n\n${lines.join("\n")}\n\n*Total: ₦${cartTotal(cart).toLocaleString()}*`;
 }
 
-async function fetchVendors(supabase: any, userId: string | null, overrideLat: number | null, overrideLon: number | null) {
+async function fetchVendors(supabase: any, userId: string | null, overrideLat: number | null, overrideLon: number | null, category: string | null = null) {
   const withNamesOnly = (rows: any[] = []) => rows
     .filter((v: any) => typeof v?.name === "string" && v.name.trim().length > 0 && !/^vendor\s*\d+$/i.test(v.name.trim()))
     .map((v: any) => ({ ...v, name: v.name.trim() }))
     .slice(0, 10);
+  const filterByCategory = (rows: any[]) => category ? rows.filter((v: any) => (v.category || "").toLowerCase() === category) : rows;
   let lat = overrideLat, lon = overrideLon;
   if ((lat === null || lon === null) && userId) {
     const { data: addr } = await supabase
@@ -962,12 +963,16 @@ async function fetchVendors(supabase: any, userId: string | null, overrideLat: n
   }
   if (lat !== null && lon !== null) {
     try {
-      const { data } = await supabase.functions.invoke("get-nearby-vendors", { body: { customer_lat: lat, customer_lon: lon } });
-      const namedVendors = withNamesOnly(data?.vendors || []);
+      const body: any = { customer_lat: lat, customer_lon: lon };
+      if (category) body.category = category;
+      const { data } = await supabase.functions.invoke("get-nearby-vendors", { body });
+      const namedVendors = withNamesOnly(filterByCategory(data?.vendors || []));
       if (namedVendors.length) return namedVendors;
     } catch (_) {}
   }
-  const { data } = await supabase.from("vendors").select("id, name").eq("is_active", true).limit(50);
+  let q = supabase.from("vendors").select("id, name, category").eq("is_active", true).limit(50);
+  if (category) q = q.eq("category", category);
+  const { data } = await q;
   return withNamesOnly(data || []);
 }
 
