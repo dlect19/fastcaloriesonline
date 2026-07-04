@@ -356,9 +356,7 @@ async function handleWalletFunding(supabase: SupabaseClient, data: any, environm
     try {
       const lovableKey = Deno.env.get("LOVABLE_API_KEY");
       const twilioKey = Deno.env.get("TWILIO_API_KEY");
-      const { data: fromRow } = await supabase
-        .from("platform_settings").select("value").eq("key", "whatsapp_from_number").maybeSingle();
-      const fromNumber = fromRow?.value || "whatsapp:+14155238886";
+      const fromNumber = await getWhatsAppFromNumber(supabase);
       if (lovableKey && twilioKey) {
         const toRaw = String(metadata.phone).replace(/\D/g, "");
         const to = `whatsapp:+${toRaw}`;
