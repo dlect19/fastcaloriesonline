@@ -513,7 +513,7 @@ serve(async (req) => {
     if (session.state === "wallet_menu") {
       if (lower === "1" || lower === "topup" || lower === "top up" || lower === "fund") {
         await persistSession(supabase, session.id, "wallet_awaiting_amount", nextContext, nextCart);
-        return await replyText("💰 *Top up wallet*\n\nReply with the amount in Naira you want to add (minimum ₦100).\n\nExamples: *1000*, *5000*, *20000*\n\nReply *0* to cancel.");
+        return await replyText("💰 *Top up wallet*\n\nReply with the amount in Naira you want to add (minimum ₦100).\n\nExamples: *1000*, *5000*, *20000*\n\nReply *0* or *menu* to cancel.");
       }
       if (lower === "2" || lower === "dva" || lower === "account") {
         const dvaText = await createOrFetchDVA(supabase, session.customer_user_id);
@@ -532,19 +532,19 @@ serve(async (req) => {
     }
 
     if (session.state === "wallet_awaiting_amount") {
-      if (lower === "0" || lower === "cancel" || lower === "menu") {
+      if (lower === "0" || lower === "cancel" || lower === "menu" || tap === "BTN_MAIN_MENU") {
         await persistSession(supabase, session.id, "wallet_menu", nextContext, nextCart);
         const text = await renderWallet(supabase, session.customer_user_id, phone);
         return await replyText("Top-up cancelled.\n\n" + text);
       }
       const amt = Math.floor(Number((body || "").replace(/[^\d.]/g, "")));
       if (!amt || amt < 100) {
-        return await replyText("⚠️ Please reply with a valid amount of at least ₦100. E.g. *2000*.\n\nReply *0* to cancel.");
+        return await replyText("⚠️ Please reply with a valid amount of at least ₦100. E.g. *2000*.\n\nReply *0* or *menu* to cancel.");
       }
       const funding = await createWalletFundingLink(supabase, session.customer_user_id!, amt, phone);
       await persistSession(supabase, session.id, "wallet_menu", { ...nextContext, pending_funding_reference: funding?.reference }, nextCart);
       if (!funding) return await replyText("⚠️ Couldn't create payment link right now. Please try again in a moment.");
-      return await replyText(`✅ *Top up ₦${amt.toLocaleString()}*\n\nTap to pay securely with card or bank:\n${funding.link}\n\nOnce your payment succeeds, your wallet updates automatically — just send any message (like *balance* or *checkout*) and we'll confirm it for you.`);
+      return await replyText(`✅ *Top up ₦${amt.toLocaleString()}*\n\nTap to pay securely with card or bank:\n${funding.link}\n\nOnce your payment succeeds, your wallet updates automatically — just send any message (like *balance* or *checkout*) and we'll confirm it for you.\n\nReply *menu* to return to the main menu.`);
     }
 
     if (tap === "BTN_HEALTHY" || (session.state === "menu" && lower === "4")) {
