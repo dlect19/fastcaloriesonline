@@ -384,17 +384,12 @@ export default function AdminWhatsApp() {
               </div>
 
               <div>
-                <h4 className="font-semibold mb-2">Step 4 — Update backend secrets to the live sender</h4>
+                <h4 className="font-semibold mb-2">Step 4 — Set the live sender number in the dashboard</h4>
                 <p className="text-muted-foreground mb-2">
-                  In Lovable Cloud secrets, set the following to your live values (same names — just replace the sandbox values):
+                  Paste the approved number into the <strong>Live WhatsApp Sender</strong> card at the top of this page and click <em>Save</em>.
                 </p>
-                <ul className="list-disc pl-5 space-y-1">
-                  <li><code>TWILIO_ACCOUNT_SID</code> — same account SID.</li>
-                  <li><code>TWILIO_AUTH_TOKEN</code> — same auth token.</li>
-                  <li><code>TWILIO_WHATSAPP_FROM</code> — set to <code>whatsapp:+<em>YOUR_LIVE_NUMBER</em></code> (E.164, no spaces).</li>
-                </ul>
                 <p className="text-xs text-muted-foreground mt-2">
-                  No code changes required — the webhook and <code>send-whatsapp</code> function will automatically use the new sender.
+                  No redeploy or secret change is required — the webhook and all WhatsApp-sending functions will use the new sender immediately.
                 </p>
               </div>
 
