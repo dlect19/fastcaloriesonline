@@ -858,7 +858,7 @@ serve(async (req) => {
     return await sendToUser("wa_main_menu", {}, MAIN_MENU);
   } catch (e) {
     console.error("whatsapp-webhook error:", e);
-    return twiml("Sorry, something went wrong. Please try again in a moment.");
+    return twiml("Sorry, something went wrong. Please try again in a moment, or reply *menu* to go back to the main menu.");
   }
 });
 
