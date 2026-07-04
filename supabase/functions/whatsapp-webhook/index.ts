@@ -104,7 +104,7 @@ const HELP_HINT = "\n\nReply *menu* at any time to go back to the main menu, or 
 
 const MENU_OPTIONS =
   `Reply with a number:\n` +
-  `1️⃣ Place your order (food, groceries, meds)\n` +
+  `1️⃣ Place an order — 🍔 Restaurant, 💊 Pharmacy or 🛒 Market\n` +
   `2️⃣ Track an order\n` +
   `3️⃣ My wallet\n` +
   `4️⃣ Healthy meal suggestions\n` +
