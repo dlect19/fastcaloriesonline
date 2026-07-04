@@ -100,7 +100,7 @@ async function verifyTwilioSignature(req: Request, params: Record<string, string
 // ============================================================
 // Static text (fallback when no template SID configured)
 // ============================================================
-const HELP_HINT = "\n\nReply *menu* anytime to restart, or *cart* to see your basket.";
+const HELP_HINT = "\n\nReply *menu* at any time to go back to the main menu, or *cart* to see your basket.";
 
 const MENU_OPTIONS =
   `Reply with a number:\n` +
@@ -122,7 +122,8 @@ const WELCOME_INTRO =
 const ACCOUNT_PROMPT_TEXT =
   `👋 Welcome to *FastCalories*! Looks like this is your first time.\n\n` +
   `To set up your account, please reply with your *full name* (first and last).\n\n` +
-  `We'll use this WhatsApp number as your login — no password needed. You can add your email later from the app.`;
+  `We'll use this WhatsApp number as your login — no password needed. You can add your email later from the app.\n\n` +
+  `Reply *menu* to skip this and go back to the main menu.`;
 
 // ============================================================
 // Server
