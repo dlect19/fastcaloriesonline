@@ -385,7 +385,7 @@ serve(async (req) => {
           if (waBody) {
             const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
             const TWILIO_API_KEY = Deno.env.get('TWILIO_API_KEY');
-            const from = Deno.env.get('TWILIO_WHATSAPP_FROM') || 'whatsapp:+14155238886';
+            const from = await getWhatsAppFromNumber(supabase);
             if (LOVABLE_API_KEY && TWILIO_API_KEY) {
               const to = phone.startsWith('whatsapp:') ? phone : `whatsapp:${phone}`;
               const r = await fetch('https://connector-gateway.lovable.dev/twilio/Messages.json', {
