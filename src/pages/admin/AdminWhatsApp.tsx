@@ -82,6 +82,29 @@ export default function AdminWhatsApp() {
     }
   };
 
+  const saveFromNumber = async () => {
+    setSavingFrom(true);
+    let normalized = fromNumberInput.trim().replace(/\s/g, "");
+    if (!normalized) {
+      toast({ title: "Enter a number", description: "Paste the approved E.164 WhatsApp number.", variant: "destructive" });
+      setSavingFrom(false);
+      return;
+    }
+    if (!normalized.startsWith("+")) normalized = "+" + normalized;
+    const value = normalized.startsWith("whatsapp:") ? normalized : `whatsapp:${normalized}`;
+    const { error } = await supabase
+      .from("platform_settings")
+      .upsert({ key: "whatsapp_from_number", value, description: "Active WhatsApp sender number used by Twilio" }, { onConflict: "key" });
+    setSavingFrom(false);
+    if (error) {
+      toast({ title: "Failed to save", description: error.message, variant: "destructive" });
+    } else {
+      setFromNumber(value);
+      setFromNumberInput(value.replace("whatsapp:", ""));
+      toast({ title: "Live WhatsApp number saved", description: value });
+    }
+  };
+
   const sendTest = async () => {
     if (!testTo || !testBody) return;
     const { data, error } = await supabase.functions.invoke("whatsapp-send", {
