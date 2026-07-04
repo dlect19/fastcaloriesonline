@@ -20,6 +20,8 @@ serve(async (req) => {
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
     if (!TWILIO_API_KEY) throw new Error("TWILIO_API_KEY not configured (link Twilio connector)");
 
+    const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
     // Auth: must be admin
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!,
@@ -38,7 +40,7 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const from = Deno.env.get("TWILIO_WHATSAPP_FROM") || SANDBOX_FROM;
+    const from = await getWhatsAppFromNumber(admin);
     const toFormatted = to.startsWith("whatsapp:") ? to : `whatsapp:${to}`;
 
     const r = await fetch(`${GATEWAY}/Messages.json`, {
