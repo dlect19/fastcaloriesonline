@@ -31,14 +31,14 @@ async function sha256(s: string) {
   return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-async function sendWhatsApp(phone: string, body: string) {
+async function sendWhatsApp(supabase: any, phone: string, body: string) {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   const TWILIO_API_KEY = Deno.env.get("TWILIO_API_KEY");
   if (!LOVABLE_API_KEY || !TWILIO_API_KEY) {
     console.warn("Twilio not configured; skipping WhatsApp send");
     return;
   }
-  const from = Deno.env.get("TWILIO_WHATSAPP_FROM") || "whatsapp:+14155238886";
+  const from = await getWhatsAppFromNumber(supabase);
   const to = phone.startsWith("whatsapp:") ? phone : `whatsapp:${phone.startsWith("+") ? phone : "+" + phone.replace(/\D/g, "")}`;
   await fetch("https://connector-gateway.lovable.dev/twilio/Messages.json", {
     method: "POST",
