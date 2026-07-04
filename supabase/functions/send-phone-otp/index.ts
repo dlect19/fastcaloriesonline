@@ -26,13 +26,13 @@ async function sha256Hex(input: string): Promise<string> {
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
-async function sendTwilio(kind: "whatsapp" | "sms", to: string, body: string): Promise<{ ok: boolean; sid?: string; error?: string }> {
+async function sendTwilio(supabase: any, kind: "whatsapp" | "sms", to: string, body: string): Promise<{ ok: boolean; sid?: string; error?: string }> {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   const TWILIO_API_KEY = Deno.env.get("TWILIO_API_KEY");
   if (!LOVABLE_API_KEY || !TWILIO_API_KEY) return { ok: false, error: "twilio_not_configured" };
 
   const from = kind === "whatsapp"
-    ? (Deno.env.get("TWILIO_WHATSAPP_FROM") || SANDBOX_WA_FROM)
+    ? await getWhatsAppFromNumber(supabase)
     : Deno.env.get("TWILIO_SMS_FROM");
   if (!from) return { ok: false, error: `${kind}_sender_not_configured` };
 
