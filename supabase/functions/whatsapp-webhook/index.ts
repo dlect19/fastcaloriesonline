@@ -142,10 +142,10 @@ serve(async (req) => {
     const { data: settingRows } = await supabase
       .from("platform_settings")
       .select("key,value")
-      .in("key", ["whatsapp_ordering_enabled", "platform_environment", "whatsapp_from_number"]);
+      .in("key", ["whatsapp_ordering_enabled", "platform_environment"]);
     const settings = Object.fromEntries((settingRows || []).map((row: any) => [row.key, row.value]));
     const platformEnvironment = settings.platform_environment || "development";
-    const fromNumber = settings.whatsapp_from_number || SANDBOX_FROM;
+    const fromNumber = await getWhatsAppFromNumber(supabase);
     if (settings.whatsapp_ordering_enabled !== "true") {
       return twiml("WhatsApp ordering is currently disabled.");
     }
