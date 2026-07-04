@@ -860,7 +860,7 @@ serve(async (req) => {
     console.error("whatsapp-webhook error:", e);
     return twiml("Sorry, something went wrong. Please try again in a moment, or reply *menu* to go back to the main menu.");
   }
-});
+  });
 
 // ============================================================
 // Helpers
