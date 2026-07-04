@@ -540,7 +540,11 @@ serve(async (req) => {
         nextContext.vendors = vendors.map((v: any) => ({ id: v.id, name: v.name, distance_km: v.distance_km ?? v.distance ?? null }));
         await persistSession(supabase, session.id, "browsing_vendors", nextContext, nextCart);
         const text = `🏪 *Nearby vendors* _(based on your saved address)_:\n\n` +
-          vendors.map((v: any, i: number) => `${i + 1}. ${v.name}`).join("\n") +
+          vendors.map((v: any, i: number) => {
+            const d = v.distance_km ?? v.distance;
+            const dTxt = typeof d === "number" ? ` — ${d.toFixed(1)} km` : "";
+            return `${i + 1}. ${v.name}${dTxt}`;
+          }).join("\n") +
           "\n\nReply with a number." + HELP_HINT;
         return await replyText(text);
       }
