@@ -113,6 +113,7 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
 
   const isControlled = item.medicineClassification === 'controlled';
   const isRx = item.medicineClassification === 'prescription';
+  const isOTC = item.medicineClassification === 'otc' || (!isControlled && !isRx);
 
   const handleNext = () => {
     // Only CONTROLLED drugs gate on doctor-prescription photo upload.
