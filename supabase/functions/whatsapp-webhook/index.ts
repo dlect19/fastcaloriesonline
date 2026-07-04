@@ -765,7 +765,7 @@ serve(async (req) => {
       if (lower === "2" || lower === "new" || lower === "different") {
         await persistSession(supabase, session.id, "awaiting_delivery_address", { ...nextContext, awaiting_new_address: true }, nextCart);
         return await sendToUser("wa_request_location", {},
-          `📍 Please reply with the *full delivery address* (street, area, landmark), or share your location pin (📎 → Location → Send your current location).`);
+          `📍 Please reply with the *full delivery address* (street, area, landmark), or share your location pin (📎 → Location → Send your current location).\n\nReply *menu* to go back.`);
       }
       // Shared a new location pin
       if (hasSharedLocation) {
@@ -784,7 +784,7 @@ serve(async (req) => {
         await persistSession(supabase, session.id, "menu", nextContext, nextCart);
         return await doCheckout(supabase, { ...session, context: nextContext }, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
       }
-      return await replyText("Reply *1* to use your saved address, *2* for a different address, share a location pin, or type the full delivery address.");
+      return await replyText("Reply *1* to use your saved address, *2* for a different address, share a location pin, or type the full delivery address.\n\nReply *menu* to cancel and go back to the main menu.");
     }
 
     // ===== Pharmacy Rx capture (asked during checkout when cart contains pharmacy items) =====
