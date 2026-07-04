@@ -653,7 +653,7 @@ serve(async (req) => {
       });
       await persistSession(supabase, session.id, "browsing_menu", nextContext, nextCart);
       const txt = `✅ Added *${qty} × ${it.name}* to cart.\n\n` + renderCart(nextCart);
-      return await sendToUser("wa_cart_actions", { "1": cartTotal(nextCart).toLocaleString() }, txt + "\n\nReply *checkout* to pay, another item number, or *<item>x<qty>* for multiple.");
+      return await sendToUser("wa_cart_actions", { "1": cartTotal(nextCart).toLocaleString() }, txt + "\n\nReply *checkout* to pay, another item number, *<item>x<qty>* for multiple, or *menu* to go back.");
     }
 
     if (session.state === "cart") {
@@ -668,7 +668,7 @@ serve(async (req) => {
       if (tap === "BTN_ADD_MORE") {
         if (nextContext.vendor_id) {
           await persistSession(supabase, session.id, "browsing_menu", nextContext, nextCart);
-          return await replyText("Reply with another item number from the menu.");
+          return await replyText("Reply with another item number from the menu, or *menu* to go back.");
         }
         await persistSession(supabase, session.id, "menu", nextContext, nextCart);
         return await sendToUser("wa_main_menu", {}, MENU_OPTIONS);
