@@ -373,7 +373,7 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
           )}
 
           {/* Symptoms — required when no doctor's prescription so the pharmacist can review */}
-          {current.prescriptionType === 'pharmacist' && (
+          {!isOTC && current.prescriptionType === 'pharmacist' && (
             <div className="space-y-1 p-3 rounded-lg border border-primary/20 bg-primary/5">
               <Label className="text-sm font-medium">
                 What symptoms are you treating? <span className="text-destructive">*</span>
