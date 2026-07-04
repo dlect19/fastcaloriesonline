@@ -100,7 +100,7 @@ async function verifyTwilioSignature(req: Request, params: Record<string, string
 // ============================================================
 // Static text (fallback when no template SID configured)
 // ============================================================
-const HELP_HINT = "\n\nReply *menu* anytime to restart, or *cart* to see your basket.";
+const HELP_HINT = "\n\nReply *menu* at any time to go back to the main menu, or *cart* to see your basket.";
 
 const MENU_OPTIONS =
   `Reply with a number:\n` +
@@ -122,7 +122,8 @@ const WELCOME_INTRO =
 const ACCOUNT_PROMPT_TEXT =
   `👋 Welcome to *FastCalories*! Looks like this is your first time.\n\n` +
   `To set up your account, please reply with your *full name* (first and last).\n\n` +
-  `We'll use this WhatsApp number as your login — no password needed. You can add your email later from the app.`;
+  `We'll use this WhatsApp number as your login — no password needed. You can add your email later from the app.\n\n` +
+  `Reply *menu* to skip this and go back to the main menu.`;
 
 // ============================================================
 // Server
@@ -269,10 +270,14 @@ serve(async (req) => {
     }
 
     if (session.state === "awaiting_name") {
+      if (lower === "menu" || lower === "0" || lower === "back" || tap === "BTN_MAIN_MENU") {
+        await persistSession(supabase, session.id, "menu", session.context || {}, session.cart || []);
+        return await sendToUser("wa_main_menu", {}, existing ? MAIN_MENU : WELCOME_INTRO);
+      }
       // Validate full name: letters, spaces, hyphens, apostrophes; 2–60 chars; needs at least one letter
       const name = body.trim().replace(/\s+/g, " ");
       if (!name || name.length < 2 || name.length > 60 || !/^[A-Za-z][A-Za-z\s'\-]{1,59}$/.test(name)) {
-        return await replyText("👋 Please reply with your *full name* (letters only, e.g. _Ada Lovelace_).");
+        return await replyText("👋 Please reply with your *full name* (letters only, e.g. _Ada Lovelace_).\n\nReply *menu* to go back to the main menu.");
       }
       // Create auth user (phone-based). Coming from WhatsApp implicitly verifies the number.
       try {
@@ -489,7 +494,7 @@ serve(async (req) => {
       }
       await persistSession(supabase, session.id, "awaiting_location", nextContext, nextCart);
       return await sendToUser("wa_request_location", {},
-        `📍 *Share your location* to see vendors near you.\n\nTap *📎* → *Location* → *Send your current location*.\n\nOr reply *skip* to see top vendors.`);
+        `📍 *Share your location* to see vendors near you.\n\nTap *📎* → *Location* → *Send your current location*.\n\nOr reply *skip* to see top vendors, or *menu* to go back.`);
     }
 
     if (tap === "BTN_TRACK" || (session.state === "menu" && lower === "2")) {
@@ -508,7 +513,7 @@ serve(async (req) => {
     if (session.state === "wallet_menu") {
       if (lower === "1" || lower === "topup" || lower === "top up" || lower === "fund") {
         await persistSession(supabase, session.id, "wallet_awaiting_amount", nextContext, nextCart);
-        return await replyText("💰 *Top up wallet*\n\nReply with the amount in Naira you want to add (minimum ₦100).\n\nExamples: *1000*, *5000*, *20000*\n\nReply *0* to cancel.");
+        return await replyText("💰 *Top up wallet*\n\nReply with the amount in Naira you want to add (minimum ₦100).\n\nExamples: *1000*, *5000*, *20000*\n\nReply *0* or *menu* to cancel.");
       }
       if (lower === "2" || lower === "dva" || lower === "account") {
         const dvaText = await createOrFetchDVA(supabase, session.customer_user_id);
@@ -527,24 +532,24 @@ serve(async (req) => {
     }
 
     if (session.state === "wallet_awaiting_amount") {
-      if (lower === "0" || lower === "cancel" || lower === "menu") {
+      if (lower === "0" || lower === "cancel" || lower === "menu" || tap === "BTN_MAIN_MENU") {
         await persistSession(supabase, session.id, "wallet_menu", nextContext, nextCart);
         const text = await renderWallet(supabase, session.customer_user_id, phone);
         return await replyText("Top-up cancelled.\n\n" + text);
       }
       const amt = Math.floor(Number((body || "").replace(/[^\d.]/g, "")));
       if (!amt || amt < 100) {
-        return await replyText("⚠️ Please reply with a valid amount of at least ₦100. E.g. *2000*.\n\nReply *0* to cancel.");
+        return await replyText("⚠️ Please reply with a valid amount of at least ₦100. E.g. *2000*.\n\nReply *0* or *menu* to cancel.");
       }
       const funding = await createWalletFundingLink(supabase, session.customer_user_id!, amt, phone);
       await persistSession(supabase, session.id, "wallet_menu", { ...nextContext, pending_funding_reference: funding?.reference }, nextCart);
       if (!funding) return await replyText("⚠️ Couldn't create payment link right now. Please try again in a moment.");
-      return await replyText(`✅ *Top up ₦${amt.toLocaleString()}*\n\nTap to pay securely with card or bank:\n${funding.link}\n\nOnce your payment succeeds, your wallet updates automatically — just send any message (like *balance* or *checkout*) and we'll confirm it for you.`);
+      return await replyText(`✅ *Top up ₦${amt.toLocaleString()}*\n\nTap to pay securely with card or bank:\n${funding.link}\n\nOnce your payment succeeds, your wallet updates automatically — just send any message (like *balance* or *checkout*) and we'll confirm it for you.\n\nReply *menu* to return to the main menu.`);
     }
 
     if (tap === "BTN_HEALTHY" || (session.state === "menu" && lower === "4")) {
       await persistSession(supabase, session.id, "ai_suggest", nextContext, nextCart);
-      return await replyText("🥗 Tell me what you're looking for (e.g. *low calorie breakfast*, *high protein lunch*).");
+      return await replyText("🥗 Tell me what you're looking for (e.g. *low calorie breakfast*, *high protein lunch*).\n\nReply *menu* to go back.");
     }
 
     if ((session.state === "menu" && lower === "5")) {
@@ -648,7 +653,7 @@ serve(async (req) => {
       });
       await persistSession(supabase, session.id, "browsing_menu", nextContext, nextCart);
       const txt = `✅ Added *${qty} × ${it.name}* to cart.\n\n` + renderCart(nextCart);
-      return await sendToUser("wa_cart_actions", { "1": cartTotal(nextCart).toLocaleString() }, txt + "\n\nReply *checkout* to pay, another item number, or *<item>x<qty>* for multiple.");
+      return await sendToUser("wa_cart_actions", { "1": cartTotal(nextCart).toLocaleString() }, txt + "\n\nReply *checkout* to pay, another item number, *<item>x<qty>* for multiple, or *menu* to go back.");
     }
 
     if (session.state === "cart") {
@@ -663,7 +668,7 @@ serve(async (req) => {
       if (tap === "BTN_ADD_MORE") {
         if (nextContext.vendor_id) {
           await persistSession(supabase, session.id, "browsing_menu", nextContext, nextCart);
-          return await replyText("Reply with another item number from the menu.");
+          return await replyText("Reply with another item number from the menu, or *menu* to go back.");
         }
         await persistSession(supabase, session.id, "menu", nextContext, nextCart);
         return await sendToUser("wa_main_menu", {}, MENU_OPTIONS);
@@ -675,9 +680,9 @@ serve(async (req) => {
     if (session.state === "confirming_order") {
       if (lower.startsWith("note:") || lower.startsWith("note ")) {
         const note = body.replace(/^note[:\s]+/i, "").trim();
-        if (!note) return await replyText("Please type your note after `note:` e.g. *note: do not microwave*.");
+        if (!note) return await replyText("Please type your note after `note:` e.g. *note: do not microwave*.\n\nReply *menu* to cancel.");
         await persistSession(supabase, session.id, "confirming_order", { ...nextContext, customer_order_note: note }, nextCart);
-        return await replyText(`📝 Note saved: ${note}\n\nReply *yes* to confirm & pay, or *cancel* to stop.`);
+        return await replyText(`📝 Note saved: ${note}\n\nReply *yes* to confirm & pay, or *menu* to cancel.`);
       }
       if (tap === "BTN_WALLET" || lower === "3" || lower === "fund" || lower === "top up" || lower === "topup") {
         const pendingTotal = Number(nextContext?.pending_total || cartTotal(nextCart) || 0);
@@ -687,19 +692,19 @@ serve(async (req) => {
         const funding = await createWalletFundingLink(supabase, session.customer_user_id!, amount, phone);
         await persistSession(supabase, session.id, "confirming_order", { ...nextContext, pending_funding_reference: funding?.reference }, nextCart);
         if (!funding) return await replyText("⚠️ Couldn't create payment link right now. Please try again.");
-        return await replyText(`💰 Top up *₦${amount.toLocaleString()}* to cover your order:\n${funding.link}\n\nOnce your payment goes through, reply *checkout* — we'll auto-confirm your top-up and place the order. No reference needed.`);
+        return await replyText(`💰 Top up *₦${amount.toLocaleString()}* to cover your order:\n${funding.link}\n\nOnce your payment goes through, reply *checkout* — we'll auto-confirm your top-up and place the order. No reference needed.\n\nReply *menu* to cancel.`);
       }
       if (tap === "BTN_CONFIRM" || lower === "yes" || lower === "confirm") {
         return await confirmWhatsAppOrder(supabase, session, nextCart, replyText, sendToUser);
       }
-      if (tap === "BTN_CANCEL" || lower === "cancel") {
+      if (tap === "BTN_CANCEL" || lower === "cancel" || lower === "menu" || tap === "BTN_MAIN_MENU") {
         await persistSession(supabase, session.id, "menu", nextContext, nextCart);
         return await sendToUser("wa_main_menu", {}, "Order cancelled.\n\n" + MENU_OPTIONS);
       }
       if (lower === "checkout") {
         return await doCheckout(supabase, session, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
       }
-      return await replyText("Reply *3* to top up, *checkout* to recheck your wallet, or *cancel* to stop this order.");
+      return await replyText("Reply *3* to top up, *checkout* to recheck your wallet, *yes* to confirm & pay, or *menu* to cancel this order.");
     }
 
     if (session.state === "ai_suggest") {
@@ -732,10 +737,10 @@ serve(async (req) => {
           await saveDefaultAddress(supabase, session.customer_user_id, hit.lat, hit.lon, hit.address);
           return await showVendors();
         }
-        return await replyText(`❓ I couldn't locate *"${body.trim()}"*. Try a nearby landmark or area name, share your live location pin (📎 → Location), or reply *skip*.`);
+        return await replyText(`❓ I couldn't locate *"${body.trim()}"*. Try a nearby landmark or area name, share your live location pin (📎 → Location), or reply *skip* or *menu*.`);
       }
       return await sendToUser("wa_request_location", {},
-        `📍 Share your location so I can show vendors near you.\n\n• Tap *📎* → *Location* → *Send your current location*\n• Or type an area/landmark (e.g. _Lekki Phase 1_)\n• Or reply *skip* to see top vendors`);
+        `📍 Share your location so I can show vendors near you.\n\n• Tap *📎* → *Location* → *Send your current location*\n• Or type an area/landmark (e.g. _Lekki Phase 1_)\n• Or reply *skip* to see top vendors\n• Or reply *menu* to go back`);
     }
 
 
@@ -760,7 +765,7 @@ serve(async (req) => {
       if (lower === "2" || lower === "new" || lower === "different") {
         await persistSession(supabase, session.id, "awaiting_delivery_address", { ...nextContext, awaiting_new_address: true }, nextCart);
         return await sendToUser("wa_request_location", {},
-          `📍 Please reply with the *full delivery address* (street, area, landmark), or share your location pin (📎 → Location → Send your current location).`);
+          `📍 Please reply with the *full delivery address* (street, area, landmark), or share your location pin (📎 → Location → Send your current location).\n\nReply *menu* to go back.`);
       }
       // Shared a new location pin
       if (hasSharedLocation) {
@@ -779,7 +784,7 @@ serve(async (req) => {
         await persistSession(supabase, session.id, "menu", nextContext, nextCart);
         return await doCheckout(supabase, { ...session, context: nextContext }, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
       }
-      return await replyText("Reply *1* to use your saved address, *2* for a different address, share a location pin, or type the full delivery address.");
+      return await replyText("Reply *1* to use your saved address, *2* for a different address, share a location pin, or type the full delivery address.\n\nReply *menu* to cancel and go back to the main menu.");
     }
 
     // ===== Pharmacy Rx capture (asked during checkout when cart contains pharmacy items) =====
@@ -789,7 +794,7 @@ serve(async (req) => {
         return await replyText(
           "📸 *Please send a clear photo of your prescription* (or PDF).\n\n" +
           "Tap *📎* → *Photo* (or *Document*) → select your prescription, then send.\n\n" +
-          "Reply *0* to cancel."
+          "Reply *0* or *menu* to cancel."
         );
       }
       if (lower === "2" || lower === "no" || lower === "pharmacist") {
@@ -798,33 +803,33 @@ serve(async (req) => {
           "📝 *Tell the pharmacist what you need.*\n\n" +
           "Reply with your symptoms / what the medicine is for / how often you take it.\n" +
           "Example: _\"Headache, adult, take twice daily for 3 days.\"_\n\n" +
-          "Reply *0* to cancel."
+          "Reply *0* or *menu* to cancel."
         );
       }
-      if (lower === "0" || lower === "cancel") {
+      if (lower === "0" || lower === "cancel" || lower === "menu" || tap === "BTN_MAIN_MENU" || tap === "BTN_CANCEL") {
         await persistSession(supabase, session.id, "menu", { ...nextContext, pharmacy_rx: undefined }, nextCart);
         return await sendToUser("wa_main_menu", {}, "Order cancelled.\n\n" + MENU_OPTIONS);
       }
       return await replyText(
         "💊 *Pharmacy order — prescription check*\n\n" +
-        "Reply:\n1️⃣ I have a *doctor's prescription* (I'll send a photo)\n2️⃣ *No prescription* — guide me (pharmacist instructions)\n0️⃣ Cancel"
+        "Reply:\n1️⃣ I have a *doctor's prescription* (I'll send a photo)\n2️⃣ *No prescription* — guide me (pharmacist instructions)\n0️⃣ or *menu* to cancel"
       );
     }
 
     if (session.state === "pharmacy_rx_awaiting_image") {
-      if (lower === "0" || lower === "cancel") {
+      if (lower === "0" || lower === "cancel" || lower === "menu" || tap === "BTN_MAIN_MENU") {
         await persistSession(supabase, session.id, "menu", { ...nextContext, pharmacy_rx: undefined }, nextCart);
         return await sendToUser("wa_main_menu", {}, "Order cancelled.\n\n" + MENU_OPTIONS);
       }
       const numMedia = parseInt(params["NumMedia"] || "0", 10);
       if (!numMedia || numMedia < 1) {
-        return await replyText("📸 I'm waiting for your prescription image. Tap *📎* → *Photo* → send. Or reply *0* to cancel.");
+        return await replyText("📸 I'm waiting for your prescription image. Tap *📎* → *Photo* → send. Or reply *0* or *menu* to cancel.");
       }
       const mediaUrl = params["MediaUrl0"];
       const mediaType = params["MediaContentType0"] || "image/jpeg";
       const uploaded = await uploadTwilioMediaToBucket(supabase, session.customer_user_id!, mediaUrl, mediaType);
       if (!uploaded) {
-        return await replyText("⚠️ Couldn't save your prescription image. Please try sending it again, or reply *0* to cancel.");
+        return await replyText("⚠️ Couldn't save your prescription image. Please try sending it again, or reply *0* or *menu* to cancel.");
       }
       const rx = { type: "doctor", image_url: uploaded, captured_at: new Date().toISOString() };
       const merged = { ...nextContext, pharmacy_rx: rx };
@@ -834,12 +839,12 @@ serve(async (req) => {
     }
 
     if (session.state === "pharmacy_rx_awaiting_instructions") {
-      if (lower === "0" || lower === "cancel") {
+      if (lower === "0" || lower === "cancel" || lower === "menu" || tap === "BTN_MAIN_MENU") {
         await persistSession(supabase, session.id, "menu", { ...nextContext, pharmacy_rx: undefined }, nextCart);
         return await sendToUser("wa_main_menu", {}, "Order cancelled.\n\n" + MENU_OPTIONS);
       }
       if (!body || body.trim().length < 5) {
-        return await replyText("Please reply with a few words about your symptoms or what the medicine is for. Reply *0* to cancel.");
+        return await replyText("Please reply with a few words about your symptoms or what the medicine is for. Reply *0* or *menu* to cancel.");
       }
       const rx = { type: "pharmacist", pharmacist_instructions: body.trim(), captured_at: new Date().toISOString() };
       const merged = { ...nextContext, pharmacy_rx: rx };
@@ -853,9 +858,9 @@ serve(async (req) => {
     return await sendToUser("wa_main_menu", {}, MAIN_MENU);
   } catch (e) {
     console.error("whatsapp-webhook error:", e);
-    return twiml("Sorry, something went wrong. Please try again in a moment.");
+    return twiml("Sorry, something went wrong. Please try again in a moment, or reply *menu* to go back to the main menu.");
   }
-});
+  });
 
 // ============================================================
 // Helpers
@@ -1395,7 +1400,7 @@ async function doCheckout(
     return await replyText(
       "💊 *Pharmacy order — prescription check*\n\n" +
       "Before we place this order, the pharmacy needs to know how to dispense.\n\n" +
-      "Reply:\n1️⃣ I have a *doctor's prescription* (I'll send a photo)\n2️⃣ *No prescription* — guide me (pharmacist instructions)\n0️⃣ Cancel"
+      "Reply:\n1️⃣ I have a *doctor's prescription* (I'll send a photo)\n2️⃣ *No prescription* — guide me (pharmacist instructions)\n0️⃣ or *menu* to cancel"
     );
   }
 
@@ -1419,8 +1424,8 @@ async function doCheckout(
     );
 
     const prompt = savedLabel
-      ? `📍 *Where should we deliver this order?*\n\nSaved address: *${savedLabel}*\n\nReply:\n1️⃣ Use this saved address\n2️⃣ Deliver to a *different* address\n\nOr share a new location pin (📎 → Location).`
-      : `📍 *Where should we deliver this order?*\n\nYou don't have a saved address yet. Please reply with the *full delivery address* (street, area, landmark) or share your location pin (📎 → Location).`;
+      ? `📍 *Where should we deliver this order?*\n\nSaved address: *${savedLabel}*\n\nReply:\n1️⃣ Use this saved address\n2️⃣ Deliver to a *different* address\n\nOr share a new location pin (📎 → Location).\n\nReply *menu* to cancel.`
+      : `📍 *Where should we deliver this order?*\n\nYou don't have a saved address yet. Please reply with the *full delivery address* (street, area, landmark) or share your location pin (📎 → Location).\n\nReply *menu* to cancel.`;
     return await replyText(prompt);
   }
 
@@ -1453,8 +1458,8 @@ async function doCheckout(
     `\n\n💼 Wallet balance: ₦${bal.toLocaleString()}` +
     (ctx.customer_order_note ? `\n📝 Note: ${ctx.customer_order_note}` : "") +
     (insufficient
-      ? `\n\n❌ *Insufficient funds*\nYou need ₦${shortfall.toLocaleString()} more to place this order.\n\nReply *3* to top up your wallet, or *cancel* to stop.`
-      : `\n\nReply *yes* to confirm & pay, or reply *note: your instruction* before confirming.`);
+      ? `\n\n❌ *Insufficient funds*\nYou need ₦${shortfall.toLocaleString()} more to place this order.\n\nReply *3* to top up your wallet, or *menu* to cancel.`
+      : `\n\nReply *yes* to confirm & pay, reply *note: your instruction* before confirming, or *menu* to cancel.`);
 
   await persistSession(supabase, session.id, "confirming_order", { ...(session.context || {}), pending_total: total, pending_shortfall: shortfall }, cart);
 
