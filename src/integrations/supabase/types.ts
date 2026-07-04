@@ -5789,13 +5789,17 @@ export type Database = {
           morning_dose: number | null
           night_dose: number | null
           order_id: string
+          pharmacist_dosage_instructions: string | null
           pharmacist_instructions: string | null
+          pharmacist_note: string | null
+          pharmacist_suggested_drug: string | null
           prescription_image_url: string | null
           prescription_type: string
           product_id: string
           quantity_per_dose: number
           rejection_reason: string | null
           requires_approval: boolean
+          symptoms: string | null
           total_quantity: number
           updated_at: string
           user_id: string
@@ -5820,13 +5824,17 @@ export type Database = {
           morning_dose?: number | null
           night_dose?: number | null
           order_id: string
+          pharmacist_dosage_instructions?: string | null
           pharmacist_instructions?: string | null
+          pharmacist_note?: string | null
+          pharmacist_suggested_drug?: string | null
           prescription_image_url?: string | null
           prescription_type?: string
           product_id: string
           quantity_per_dose?: number
           rejection_reason?: string | null
           requires_approval?: boolean
+          symptoms?: string | null
           total_quantity?: number
           updated_at?: string
           user_id: string
@@ -5851,13 +5859,17 @@ export type Database = {
           morning_dose?: number | null
           night_dose?: number | null
           order_id?: string
+          pharmacist_dosage_instructions?: string | null
           pharmacist_instructions?: string | null
+          pharmacist_note?: string | null
+          pharmacist_suggested_drug?: string | null
           prescription_image_url?: string | null
           prescription_type?: string
           product_id?: string
           quantity_per_dose?: number
           rejection_reason?: string | null
           requires_approval?: boolean
+          symptoms?: string | null
           total_quantity?: number
           updated_at?: string
           user_id?: string
@@ -8917,6 +8929,10 @@ export type Database = {
         Args: { _notes?: string; _prescription_id: string }
         Returns: undefined
       }
+      approve_prescription_with_instructions: {
+        Args: { _instructions: string; _prescription_id: string }
+        Returns: undefined
+      }
       attend_order: {
         Args: { _order_id: string }
         Returns: {
@@ -9301,6 +9317,15 @@ export type Database = {
       }
       reject_prescription_item: {
         Args: { _prescription_id: string; _reason: string }
+        Returns: undefined
+      }
+      reject_prescription_with_suggestion: {
+        Args: {
+          _note?: string
+          _prescription_id: string
+          _reason: string
+          _suggested_drug?: string
+        }
         Returns: undefined
       }
       release_event_organizer_matured_holds: { Args: never; Returns: number }

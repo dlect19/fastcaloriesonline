@@ -46,6 +46,7 @@ export interface PrescriptionData {
   prescriptionImageUrl: string;
   isEmergency: boolean;
   emergencyReason: string;
+  symptoms: string;
 }
 
 interface PrescriptionCheckoutDialogProps {
@@ -63,8 +64,11 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
   const [prescriptions, setPrescriptions] = useState<PrescriptionData[]>(
     pharmacyItems.map(item => {
       const isTablet = !item.dosageForm || ['tablet', 'capsule'].includes(item.dosageForm);
-      // Only CONTROLLED drugs require pharmacist approval before dispatch.
-      // OTC + Rx (prescription) drugs proceed straight to payment.
+      // Approval rules (payment happens first, pharmacist reviews after):
+      //  - Controlled drugs ALWAYS require pharmacist approval.
+      //  - No doctor's prescription (pharmacist route) → pharmacist reviews the
+      //    customer's symptoms before dispensing, can suggest a different drug.
+      //  - Doctor's Rx for non-controlled → no gate, proceeds normally.
       const needsApproval = item.medicineClassification === 'controlled';
       return {
         productId: item.productId,
@@ -81,10 +85,12 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
         dosageDurationDays: item.defaultDuration || 7,
         quantityPerDose: item.defaultQtyPerDose || 1,
         totalQuantity: item.quantity,
-        requiresApproval: needsApproval,
+        // pharmacist route always needs review (of symptoms). Controlled always needs review.
+        requiresApproval: needsApproval || true,
         prescriptionImageUrl: '',
         isEmergency: false,
         emergencyReason: '',
+        symptoms: '',
       };
     })
   );
@@ -119,6 +125,15 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
       toast({
         title: 'Prescription photo required',
         description: "This is a controlled drug. Please upload your doctor's prescription image to continue.",
+        variant: 'destructive',
+      });
+      return;
+    }
+    // No doctor's prescription → symptoms are required so the pharmacist can review.
+    if (current.prescriptionType === 'pharmacist' && !current.symptoms.trim()) {
+      toast({
+        title: 'Please describe your symptoms',
+        description: "The pharmacist reviews your symptoms before dispatch. If they suggest a different drug, you'll be refunded automatically.",
         variant: 'destructive',
       });
       return;
@@ -342,6 +357,24 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
             <div className="p-3 bg-secondary/50 rounded-lg border border-border">
               <p className="text-xs font-medium text-muted-foreground mb-1">Pharmacist Recommendation</p>
               <p className="text-sm text-foreground">{current.pharmacistInstructions}</p>
+            </div>
+          )}
+
+          {/* Symptoms — required when no doctor's prescription so the pharmacist can review */}
+          {current.prescriptionType === 'pharmacist' && (
+            <div className="space-y-1 p-3 rounded-lg border border-primary/20 bg-primary/5">
+              <Label className="text-sm font-medium">
+                What symptoms are you treating? <span className="text-destructive">*</span>
+              </Label>
+              <Textarea
+                value={current.symptoms}
+                onChange={(e) => updateCurrent({ symptoms: e.target.value })}
+                placeholder="e.g. Fever + body aches for 2 days, sore throat, mild headache…"
+                rows={3}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                A licensed pharmacist will review your symptoms after you pay. If they suggest a different drug, this item is automatically cancelled and refunded to your wallet — you'll see their note in the order.
+              </p>
             </div>
           )}
 

@@ -552,6 +552,7 @@ export function VendorCheckoutSection({
               prescription_image_url: rxData?.prescriptionImageUrl || null,
               is_emergency: rxData?.isEmergency || false,
               emergency_reason: rxData?.emergencyReason || null,
+              symptoms: rxData?.symptoms || null,
             } as any;
           });
 

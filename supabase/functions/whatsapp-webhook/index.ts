@@ -540,7 +540,11 @@ serve(async (req) => {
         nextContext.vendors = vendors.map((v: any) => ({ id: v.id, name: v.name, distance_km: v.distance_km ?? v.distance ?? null }));
         await persistSession(supabase, session.id, "browsing_vendors", nextContext, nextCart);
         const text = `🏪 *Nearby vendors* _(based on your saved address)_:\n\n` +
-          vendors.map((v: any, i: number) => `${i + 1}. ${v.name}`).join("\n") +
+          vendors.map((v: any, i: number) => {
+            const d = v.distance_km ?? v.distance;
+            const dTxt = typeof d === "number" ? ` — ${d.toFixed(1)} km` : "";
+            return `${i + 1}. ${v.name}${dTxt}`;
+          }).join("\n") +
           "\n\nReply with a number." + HELP_HINT;
         return await replyText(text);
       }
@@ -777,9 +781,13 @@ serve(async (req) => {
       if (tap === "BTN_USE_SAVED_ADDR") {
         const vendors = await fetchVendors(supabase, session.customer_user_id, null, null);
         if (vendors.length) {
-          nextContext.vendors = vendors.map((v: any) => ({ id: v.id, name: v.name }));
+          nextContext.vendors = vendors.map((v: any) => ({ id: v.id, name: v.name, distance_km: v.distance_km ?? v.distance ?? null }));
           await persistSession(supabase, session.id, "browsing_vendors", nextContext, nextCart);
-          const text = `🏪 *Nearby vendors:*\n\n` + vendors.map((v: any, i: number) => `${i + 1}. ${v.name}`).join("\n") + HELP_HINT;
+          const text = `🏪 *Nearby vendors:*\n\n` + vendors.map((v: any, i: number) => {
+            const d = v.distance_km ?? v.distance;
+            const dTxt = typeof d === "number" ? ` — ${d.toFixed(1)} km` : "";
+            return `${i + 1}. ${v.name}${dTxt}`;
+          }).join("\n") + HELP_HINT;
           const vars: Record<string, string> = {};
           vendors.slice(0, 10).forEach((v: any, i: number) => { vars[`${i + 1}`] = v.name; vars[`id${i + 1}`] = v.id; });
           if (vendors.length < 10) return await replyText(text);
@@ -1339,7 +1347,11 @@ async function confirmWhatsAppOrder(
 
   const isPharmacyOrder = cart.some((c: any) => c.is_pharmacy);
   const rx = session.context?.pharmacy_rx || null;
-  const requiresApproval = isPharmacyOrder && rx?.type === "doctor"; // doctor Rx → pharmacist approval needed
+  // Pharmacist always reviews pharmacy orders after payment:
+  //  - Doctor's Rx → pharmacist verifies the photo (approve or suggest alternative).
+  //  - No prescription → pharmacist reviews described symptoms and either approves
+  //    with usage instructions or cancels the item with a suggested drug + note.
+  const requiresApproval = isPharmacyOrder;
   const orderStatus = requiresApproval ? "pending" : "confirmed";
 
   const { data: order, error: orderErr } = await supabase.from("orders").insert({
@@ -1392,7 +1404,10 @@ async function confirmWhatsAppOrder(
         prescription_type: rx?.type || "pharmacist",
         prescription_image_url: rx?.image_url || null,
         doctor_instructions: rx?.doctor_instructions || "",
-        pharmacist_instructions: rx?.pharmacist_instructions || "",
+        // The customer's free-text description from WhatsApp is their symptoms
+        // (the pharmacist will fill pharmacist_dosage_instructions on approval).
+        symptoms: rx?.type === "pharmacist" ? (rx?.pharmacist_instructions || rx?.instructions || null) : null,
+        pharmacist_instructions: "",
         dosage_frequency: "as_directed",
         dosage_duration_days: 7,
         quantity_per_dose: 1,
