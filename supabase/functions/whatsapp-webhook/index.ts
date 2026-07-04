@@ -10,7 +10,6 @@ const corsHeaders = {
 };
 
 const TWILIO_GATEWAY = "https://connector-gateway.lovable.dev/twilio";
-const SANDBOX_FROM = "whatsapp:+14155238886";
 
 // ============================================================
 // TwiML helpers
