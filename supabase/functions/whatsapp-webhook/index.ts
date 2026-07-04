@@ -2,6 +2,7 @@
 // Public endpoint (no JWT). Twilio signature is verified in production.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getWhatsAppFromNumber } from "../_shared/whatsapp.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -9,7 +10,6 @@ const corsHeaders = {
 };
 
 const TWILIO_GATEWAY = "https://connector-gateway.lovable.dev/twilio";
-const SANDBOX_FROM = "whatsapp:+14155238886";
 
 // ============================================================
 // TwiML helpers
@@ -141,10 +141,10 @@ serve(async (req) => {
     const { data: settingRows } = await supabase
       .from("platform_settings")
       .select("key,value")
-      .in("key", ["whatsapp_ordering_enabled", "platform_environment", "whatsapp_from_number"]);
+      .in("key", ["whatsapp_ordering_enabled", "platform_environment"]);
     const settings = Object.fromEntries((settingRows || []).map((row: any) => [row.key, row.value]));
     const platformEnvironment = settings.platform_environment || "development";
-    const fromNumber = settings.whatsapp_from_number || SANDBOX_FROM;
+    const fromNumber = await getWhatsAppFromNumber(supabase);
     if (settings.whatsapp_ordering_enabled !== "true") {
       return twiml("WhatsApp ordering is currently disabled.");
     }

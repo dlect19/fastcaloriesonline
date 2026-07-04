@@ -2,6 +2,7 @@
 // Used by admin actions and (later) order-status triggers.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getWhatsAppFromNumber } from "../_shared/whatsapp.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -9,7 +10,6 @@ const corsHeaders = {
 };
 
 const GATEWAY = "https://connector-gateway.lovable.dev/twilio";
-const SANDBOX_FROM = "whatsapp:+14155238886";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -18,6 +18,8 @@ serve(async (req) => {
     const TWILIO_API_KEY = Deno.env.get("TWILIO_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
     if (!TWILIO_API_KEY) throw new Error("TWILIO_API_KEY not configured (link Twilio connector)");
+
+    const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     // Auth: must be admin
     const supabase = createClient(
@@ -37,7 +39,7 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const from = Deno.env.get("TWILIO_WHATSAPP_FROM") || SANDBOX_FROM;
+    const from = await getWhatsAppFromNumber(admin);
     const toFormatted = to.startsWith("whatsapp:") ? to : `whatsapp:${to}`;
 
     const r = await fetch(`${GATEWAY}/Messages.json`, {
@@ -56,7 +58,6 @@ serve(async (req) => {
     }
 
     // Log
-    const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const phone = to.replace("whatsapp:", "");
     const { data: session } = await admin.from("whatsapp_sessions").select("id").eq("phone", phone).maybeSingle();
     await admin.from("whatsapp_messages").insert({

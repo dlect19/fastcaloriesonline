@@ -24,16 +24,23 @@ export default function AdminWhatsApp() {
   const [testBody, setTestBody] = useState("Hello from FastCalories 👋");
   const [templates, setTemplates] = useState<Array<{ template_key: string; content_sid: string; description: string | null }>>([]);
   const [savingTpl, setSavingTpl] = useState<string | null>(null);
+  const [fromNumber, setFromNumber] = useState("");
+  const [savingFrom, setSavingFrom] = useState(false);
+  const [fromNumberInput, setFromNumberInput] = useState("");
 
   const load = async () => {
     setLoading(true);
-    const [setting, ses, ord, tpl] = await Promise.all([
+    const [setting, fromSetting, ses, ord, tpl] = await Promise.all([
       supabase.from("platform_settings").select("value").eq("key", "whatsapp_ordering_enabled").maybeSingle(),
+      supabase.from("platform_settings").select("value").eq("key", "whatsapp_from_number").maybeSingle(),
       supabase.from("whatsapp_sessions").select("*").order("last_message_at", { ascending: false }).limit(50),
       supabase.from("whatsapp_orders").select("*, orders(order_number, status, total_amount)").order("created_at", { ascending: false }).limit(50),
       supabase.from("whatsapp_templates").select("template_key, content_sid, description").order("template_key"),
     ]);
     setEnabled(setting.data?.value === "true");
+    const currentFrom = fromSetting.data?.value || "whatsapp:+14155238886";
+    setFromNumber(currentFrom);
+    setFromNumberInput(currentFrom.replace("whatsapp:", ""));
     setSessions(ses.data || []);
     setOrders(ord.data || []);
     setTemplates(tpl.data || []);
@@ -72,6 +79,29 @@ export default function AdminWhatsApp() {
       setEnabled(!v);
     } else {
       toast({ title: v ? "WhatsApp ordering enabled" : "WhatsApp ordering disabled" });
+    }
+  };
+
+  const saveFromNumber = async () => {
+    setSavingFrom(true);
+    let normalized = fromNumberInput.trim().replace(/\s/g, "");
+    if (!normalized) {
+      toast({ title: "Enter a number", description: "Paste the approved E.164 WhatsApp number.", variant: "destructive" });
+      setSavingFrom(false);
+      return;
+    }
+    if (!normalized.startsWith("+")) normalized = "+" + normalized;
+    const value = normalized.startsWith("whatsapp:") ? normalized : `whatsapp:${normalized}`;
+    const { error } = await supabase
+      .from("platform_settings")
+      .upsert({ key: "whatsapp_from_number", value, description: "Active WhatsApp sender number used by Twilio" }, { onConflict: "key" });
+    setSavingFrom(false);
+    if (error) {
+      toast({ title: "Failed to save", description: error.message, variant: "destructive" });
+    } else {
+      setFromNumber(value);
+      setFromNumberInput(value.replace("whatsapp:", ""));
+      toast({ title: "Live WhatsApp number saved", description: value });
     }
   };
 
@@ -134,6 +164,38 @@ export default function AdminWhatsApp() {
             <Switch checked={enabled} onCheckedChange={toggleEnabled} />
           </div>
         </CardHeader>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Live WhatsApp Sender</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              The approved Twilio WhatsApp number all outbound messages are sent from.
+            </p>
+          </div>
+          <Badge variant={fromNumber && fromNumber !== "whatsapp:+14155238886" ? "default" : "secondary"}>
+            {fromNumber && fromNumber !== "whatsapp:+14155238886" ? "Live" : "Sandbox"}
+          </Badge>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-[auto_1fr_auto] gap-3 items-end">
+            <div className="text-sm font-medium text-muted-foreground pb-2">whatsapp:</div>
+            <Input
+              value={fromNumberInput}
+              onChange={(e) => setFromNumberInput(e.target.value)}
+              placeholder="+2348012345678"
+              disabled={savingFrom}
+            />
+            <Button onClick={saveFromNumber} disabled={savingFrom || fromNumberInput === fromNumber.replace("whatsapp:", "")}>
+              {savingFrom ? "Saving..." : "Save"}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Paste the exact E.164 number Twilio approved (e.g. <code>+234813128494</code>). The system will prefix it with <code>whatsapp:</code> automatically.
+            Changing this immediately affects test sends, OTPs, order notifications, and the WhatsApp webhook.
+          </p>
+        </CardContent>
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -322,17 +384,12 @@ export default function AdminWhatsApp() {
               </div>
 
               <div>
-                <h4 className="font-semibold mb-2">Step 4 — Update backend secrets to the live sender</h4>
+                <h4 className="font-semibold mb-2">Step 4 — Set the live sender number in the dashboard</h4>
                 <p className="text-muted-foreground mb-2">
-                  In Lovable Cloud secrets, set the following to your live values (same names — just replace the sandbox values):
+                  Paste the approved number into the <strong>Live WhatsApp Sender</strong> card at the top of this page and click <em>Save</em>.
                 </p>
-                <ul className="list-disc pl-5 space-y-1">
-                  <li><code>TWILIO_ACCOUNT_SID</code> — same account SID.</li>
-                  <li><code>TWILIO_AUTH_TOKEN</code> — same auth token.</li>
-                  <li><code>TWILIO_WHATSAPP_FROM</code> — set to <code>whatsapp:+<em>YOUR_LIVE_NUMBER</em></code> (E.164, no spaces).</li>
-                </ul>
                 <p className="text-xs text-muted-foreground mt-2">
-                  No code changes required — the webhook and <code>send-whatsapp</code> function will automatically use the new sender.
+                  No redeploy or secret change is required — the webhook and all WhatsApp-sending functions will use the new sender immediately.
                 </p>
               </div>
 

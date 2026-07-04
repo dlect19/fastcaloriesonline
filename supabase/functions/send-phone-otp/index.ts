@@ -1,6 +1,7 @@
 // Send a 6-digit OTP to a phone number via WhatsApp, falling back to SMS.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getWhatsAppFromNumber } from "../_shared/whatsapp.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,7 +9,6 @@ const corsHeaders = {
 };
 
 const GATEWAY = "https://connector-gateway.lovable.dev/twilio";
-const SANDBOX_WA_FROM = "whatsapp:+14155238886";
 
 function normalizePhone(raw: string): string {
   const trimmed = (raw || "").trim().replace(/\s|-/g, "");
@@ -25,13 +25,13 @@ async function sha256Hex(input: string): Promise<string> {
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
-async function sendTwilio(kind: "whatsapp" | "sms", to: string, body: string): Promise<{ ok: boolean; sid?: string; error?: string }> {
+async function sendTwilio(supabase: any, kind: "whatsapp" | "sms", to: string, body: string): Promise<{ ok: boolean; sid?: string; error?: string }> {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   const TWILIO_API_KEY = Deno.env.get("TWILIO_API_KEY");
   if (!LOVABLE_API_KEY || !TWILIO_API_KEY) return { ok: false, error: "twilio_not_configured" };
 
   const from = kind === "whatsapp"
-    ? (Deno.env.get("TWILIO_WHATSAPP_FROM") || SANDBOX_WA_FROM)
+    ? await getWhatsAppFromNumber(supabase)
     : Deno.env.get("TWILIO_SMS_FROM");
   if (!from) return { ok: false, error: `${kind}_sender_not_configured` };
 
@@ -101,12 +101,12 @@ serve(async (req) => {
 
     // Try WhatsApp first (unless caller explicitly asked for SMS)
     let channelUsed: "whatsapp" | "sms" = preferSms ? "sms" : "whatsapp";
-    let send = await sendTwilio(channelUsed, phone, message);
+    let send = await sendTwilio(admin, channelUsed, phone, message);
 
     // Fallback to SMS if WhatsApp failed and SMS sender exists
     if (!send.ok && channelUsed === "whatsapp" && Deno.env.get("TWILIO_SMS_FROM")) {
       channelUsed = "sms";
-      send = await sendTwilio("sms", phone, message);
+      send = await sendTwilio(admin, "sms", phone, message);
     }
 
     if (!send.ok) {

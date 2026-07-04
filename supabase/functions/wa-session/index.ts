@@ -2,6 +2,7 @@
 // Uses the session id as bearer (the link is private to the user's WhatsApp).
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getWhatsAppFromNumber } from "../_shared/whatsapp.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -30,14 +31,14 @@ async function sha256(s: string) {
   return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-async function sendWhatsApp(phone: string, body: string) {
+async function sendWhatsApp(supabase: any, phone: string, body: string) {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   const TWILIO_API_KEY = Deno.env.get("TWILIO_API_KEY");
   if (!LOVABLE_API_KEY || !TWILIO_API_KEY) {
     console.warn("Twilio not configured; skipping WhatsApp send");
     return;
   }
-  const from = Deno.env.get("TWILIO_WHATSAPP_FROM") || "whatsapp:+14155238886";
+  const from = await getWhatsAppFromNumber(supabase);
   const to = phone.startsWith("whatsapp:") ? phone : `whatsapp:${phone.startsWith("+") ? phone : "+" + phone.replace(/\D/g, "")}`;
   await fetch("https://connector-gateway.lovable.dev/twilio/Messages.json", {
     method: "POST",
@@ -210,7 +211,7 @@ serve(async (req) => {
       nextContext.pin_sent_at = new Date().toISOString();
       nextContext.pin_verified_at = null;
       const purpose = body.purpose === "fund" ? "fund your wallet" : body.purpose === "checkout" ? "place this order" : "confirm this action";
-      await sendWhatsApp(session.phone, `🔐 Your FastCalories code: *${pin}*\n\nUse it to ${purpose}. Expires in 10 minutes. Never share this code.`);
+      await sendWhatsApp(supabase, session.phone, `🔐 Your FastCalories code: *${pin}*\n\nUse it to ${purpose}. Expires in 10 minutes. Never share this code.`);
       await supabase.from("whatsapp_sessions").update({ context: nextContext, expires_at: newExpiry }).eq("id", sid);
       return json({ ok: true, sent: true });
     } else if (action === "verify_pin") {
@@ -361,7 +362,7 @@ serve(async (req) => {
 
       // Send WhatsApp confirmation
       const confLine = confirmationCode ? `\n📍 Pickup code: *${confirmationCode}*` : "";
-      await sendWhatsApp(session.phone,
+      await sendWhatsApp(supabase, session.phone,
         `✅ Order confirmed!\n\n*${order.order_number}*\nTotal: ₦${summary.total.toLocaleString()}${confLine}\n\nTrack it in the app or here in chat.`);
 
       return json({
