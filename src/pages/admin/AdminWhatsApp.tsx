@@ -30,13 +30,17 @@ export default function AdminWhatsApp() {
 
   const load = async () => {
     setLoading(true);
-    const [setting, ses, ord, tpl] = await Promise.all([
+    const [setting, fromSetting, ses, ord, tpl] = await Promise.all([
       supabase.from("platform_settings").select("value").eq("key", "whatsapp_ordering_enabled").maybeSingle(),
+      supabase.from("platform_settings").select("value").eq("key", "whatsapp_from_number").maybeSingle(),
       supabase.from("whatsapp_sessions").select("*").order("last_message_at", { ascending: false }).limit(50),
       supabase.from("whatsapp_orders").select("*, orders(order_number, status, total_amount)").order("created_at", { ascending: false }).limit(50),
       supabase.from("whatsapp_templates").select("template_key, content_sid, description").order("template_key"),
     ]);
     setEnabled(setting.data?.value === "true");
+    const currentFrom = fromSetting.data?.value || "whatsapp:+14155238886";
+    setFromNumber(currentFrom);
+    setFromNumberInput(currentFrom.replace("whatsapp:", ""));
     setSessions(ses.data || []);
     setOrders(ord.data || []);
     setTemplates(tpl.data || []);
