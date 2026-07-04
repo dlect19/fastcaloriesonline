@@ -58,7 +58,6 @@ serve(async (req) => {
     }
 
     // Log
-    const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const phone = to.replace("whatsapp:", "");
     const { data: session } = await admin.from("whatsapp_sessions").select("id").eq("phone", phone).maybeSingle();
     await admin.from("whatsapp_messages").insert({
