@@ -270,10 +270,14 @@ serve(async (req) => {
     }
 
     if (session.state === "awaiting_name") {
+      if (lower === "menu" || lower === "0" || lower === "back" || tap === "BTN_MAIN_MENU") {
+        await persistSession(supabase, session.id, "menu", session.context || {}, session.cart || []);
+        return await sendToUser("wa_main_menu", {}, existing ? MAIN_MENU : WELCOME_INTRO);
+      }
       // Validate full name: letters, spaces, hyphens, apostrophes; 2–60 chars; needs at least one letter
       const name = body.trim().replace(/\s+/g, " ");
       if (!name || name.length < 2 || name.length > 60 || !/^[A-Za-z][A-Za-z\s'\-]{1,59}$/.test(name)) {
-        return await replyText("👋 Please reply with your *full name* (letters only, e.g. _Ada Lovelace_).");
+        return await replyText("👋 Please reply with your *full name* (letters only, e.g. _Ada Lovelace_).\n\nReply *menu* to go back to the main menu.");
       }
       // Create auth user (phone-based). Coming from WhatsApp implicitly verifies the number.
       try {
