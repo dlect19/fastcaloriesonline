@@ -494,7 +494,7 @@ serve(async (req) => {
       }
       await persistSession(supabase, session.id, "awaiting_location", nextContext, nextCart);
       return await sendToUser("wa_request_location", {},
-        `📍 *Share your location* to see vendors near you.\n\nTap *📎* → *Location* → *Send your current location*.\n\nOr reply *skip* to see top vendors.`);
+        `📍 *Share your location* to see vendors near you.\n\nTap *📎* → *Location* → *Send your current location*.\n\nOr reply *skip* to see top vendors, or *menu* to go back.`);
     }
 
     if (tap === "BTN_TRACK" || (session.state === "menu" && lower === "2")) {
@@ -549,7 +549,7 @@ serve(async (req) => {
 
     if (tap === "BTN_HEALTHY" || (session.state === "menu" && lower === "4")) {
       await persistSession(supabase, session.id, "ai_suggest", nextContext, nextCart);
-      return await replyText("🥗 Tell me what you're looking for (e.g. *low calorie breakfast*, *high protein lunch*).");
+      return await replyText("🥗 Tell me what you're looking for (e.g. *low calorie breakfast*, *high protein lunch*).\n\nReply *menu* to go back.");
     }
 
     if ((session.state === "menu" && lower === "5")) {
@@ -737,10 +737,10 @@ serve(async (req) => {
           await saveDefaultAddress(supabase, session.customer_user_id, hit.lat, hit.lon, hit.address);
           return await showVendors();
         }
-        return await replyText(`❓ I couldn't locate *"${body.trim()}"*. Try a nearby landmark or area name, share your live location pin (📎 → Location), or reply *skip*.`);
+        return await replyText(`❓ I couldn't locate *"${body.trim()}"*. Try a nearby landmark or area name, share your live location pin (📎 → Location), or reply *skip* or *menu*.`);
       }
       return await sendToUser("wa_request_location", {},
-        `📍 Share your location so I can show vendors near you.\n\n• Tap *📎* → *Location* → *Send your current location*\n• Or type an area/landmark (e.g. _Lekki Phase 1_)\n• Or reply *skip* to see top vendors`);
+        `📍 Share your location so I can show vendors near you.\n\n• Tap *📎* → *Location* → *Send your current location*\n• Or type an area/landmark (e.g. _Lekki Phase 1_)\n• Or reply *skip* to see top vendors\n• Or reply *menu* to go back`);
     }
 
 
