@@ -9,7 +9,6 @@ const corsHeaders = {
 };
 
 const GATEWAY = "https://connector-gateway.lovable.dev/twilio";
-const SANDBOX_WA_FROM = "whatsapp:+14155238886";
 
 function normalizePhone(raw: string): string {
   const trimmed = (raw || "").trim().replace(/\s|-/g, "");
