@@ -159,7 +159,7 @@ export default function OrderDetail() {
       // Fetch prescription review status for pharmacy items
       const { data: rxs } = await (supabase as any)
         .from('prescription_orders')
-        .select('id, product_id, approval_status, requires_approval, rejection_reason, products(name, medicine_classification)')
+        .select('id, product_id, approval_status, requires_approval, rejection_reason, symptoms, pharmacist_suggested_drug, pharmacist_note, pharmacist_dosage_instructions, products(name, medicine_classification)')
         .eq('order_id', id);
       setPrescriptions(rxs || []);
 
@@ -353,18 +353,48 @@ export default function OrderDetail() {
                   Some items were rejected and refunded to your wallet. Approved items will continue.
                 </p>
               )}
-              <ul className="space-y-1.5 text-sm">
+              <ul className="space-y-3 text-sm">
                 {prescriptions.map((rx) => (
-                  <li key={rx.id} className="flex items-start justify-between gap-2 text-xs">
-                    <span className="truncate">{rx.products?.name}</span>
-                    {!rx.requires_approval ? (
-                      <span className="text-muted-foreground">Not required</span>
-                    ) : rx.approval_status === 'approved' ? (
-                      <span className="text-calorie-low">✅ Approved</span>
-                    ) : rx.approval_status === 'rejected' ? (
-                      <span className="text-destructive" title={rx.rejection_reason || ''}>❌ Refunded</span>
-                    ) : (
-                      <span className="text-warning">⏳ Awaiting review</span>
+                  <li key={rx.id} className="border-b border-border/50 last:border-b-0 pb-2 last:pb-0">
+                    <div className="flex items-start justify-between gap-2 text-xs">
+                      <span className="truncate font-medium">{rx.products?.name}</span>
+                      {!rx.requires_approval ? (
+                        <span className="text-muted-foreground">Not required</span>
+                      ) : rx.approval_status === 'approved' ? (
+                        <span className="text-calorie-low whitespace-nowrap">✅ Approved</span>
+                      ) : rx.approval_status === 'rejected' ? (
+                        <span className="text-destructive whitespace-nowrap">❌ Cancelled & Refunded</span>
+                      ) : (
+                        <span className="text-warning whitespace-nowrap">⏳ Awaiting pharmacist</span>
+                      )}
+                    </div>
+
+                    {rx.approval_status === 'approved' && rx.pharmacist_dosage_instructions && (
+                      <p className="mt-1 text-[11px] p-2 rounded bg-primary/5 border border-primary/20 text-foreground">
+                        <span className="font-medium">Pharmacist instructions: </span>
+                        {rx.pharmacist_dosage_instructions}
+                      </p>
+                    )}
+
+                    {rx.approval_status === 'rejected' && (
+                      <div className="mt-1 space-y-1 text-[11px]">
+                        {rx.rejection_reason && (
+                          <p className="text-destructive">
+                            <span className="font-medium">Reason: </span>{rx.rejection_reason}
+                          </p>
+                        )}
+                        {rx.pharmacist_suggested_drug && (
+                          <p className="p-2 rounded bg-warning/10 border border-warning/30 text-foreground">
+                            <span className="font-medium">💊 Pharmacist suggests: </span>
+                            {rx.pharmacist_suggested_drug}
+                          </p>
+                        )}
+                        {rx.pharmacist_note && (
+                          <p className="p-2 rounded bg-muted text-muted-foreground italic">
+                            "{rx.pharmacist_note}"
+                          </p>
+                        )}
+                      </div>
                     )}
                   </li>
                 ))}

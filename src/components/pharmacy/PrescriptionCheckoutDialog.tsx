@@ -360,6 +360,24 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
             </div>
           )}
 
+          {/* Symptoms — required when no doctor's prescription so the pharmacist can review */}
+          {current.prescriptionType === 'pharmacist' && (
+            <div className="space-y-1 p-3 rounded-lg border border-primary/20 bg-primary/5">
+              <Label className="text-sm font-medium">
+                What symptoms are you treating? <span className="text-destructive">*</span>
+              </Label>
+              <Textarea
+                value={current.symptoms}
+                onChange={(e) => updateCurrent({ symptoms: e.target.value })}
+                placeholder="e.g. Fever + body aches for 2 days, sore throat, mild headache…"
+                rows={3}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                A licensed pharmacist will review your symptoms after you pay. If they suggest a different drug, this item is automatically cancelled and refunded to your wallet — you'll see their note in the order.
+              </p>
+            </div>
+          )}
+
           {/* Morning / Afternoon / Night dosage */}
           <div className="border-t pt-4 space-y-3">
             <p className="text-sm font-medium flex items-center gap-2">
