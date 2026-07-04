@@ -131,7 +131,8 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
       return;
     }
     // No doctor's prescription → symptoms are required so the pharmacist can review.
-    if (current.prescriptionType === 'pharmacist' && !current.symptoms.trim()) {
+    // OTC items skip this — they don't need pharmacist review.
+    if (!isOTC && current.prescriptionType === 'pharmacist' && !current.symptoms.trim()) {
       toast({
         title: 'Please describe your symptoms',
         description: "The pharmacist reviews your symptoms before dispatch. If they suggest a different drug, you'll be refunded automatically.",
