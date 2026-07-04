@@ -365,7 +365,7 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
           )}
 
           {/* Pharmacist instructions (if no doctor prescription) */}
-          {current.prescriptionType === 'pharmacist' && current.pharmacistInstructions && (
+          {!isOTC && current.prescriptionType === 'pharmacist' && current.pharmacistInstructions && (
             <div className="p-3 bg-secondary/50 rounded-lg border border-border">
               <p className="text-xs font-medium text-muted-foreground mb-1">Pharmacist Recommendation</p>
               <p className="text-sm text-foreground">{current.pharmacistInstructions}</p>
