@@ -403,42 +403,36 @@ serve(async (req) => {
       await persistSession(supabase, session.id, "wallet_menu", nextContext, nextCart);
       return await replyText(text);
     }
-    // 🌐 Global "order" shortcut — jumps straight to the category picker
-    // from ANY state so the customer never gets stuck in a sub-flow.
-    // Also supports direct category keywords (food/restaurant, pharmacy/drug/medicine, market/grocery).
+    // 🌐 Global "order" / category shortcuts — jump straight to the category
+    // picker from ANY state so the customer never gets stuck in a sub-flow.
+    // Typed keywords like "food", "pharmacy", "market" pre-select the category.
     {
-      let directCat: string | null | undefined = undefined; // undefined = no match
-      if (tap === "BTN_ORDER" || lower === "order" || lower === "order food" || lower === "buy" || lower === "shop") directCat = null;
-      else if (lower === "food" || lower === "restaurant" || lower === "restaurants" || lower === "meal" || lower === "meals" || tap === "BTN_CAT_RESTAURANT") directCat = "restaurant";
-      else if (lower === "pharmacy" || lower === "drug" || lower === "drugs" || lower === "medicine" || lower === "meds" || tap === "BTN_CAT_PHARMACY") directCat = "pharmacy";
-      else if (lower === "market" || lower === "grocery" || lower === "groceries" || lower === "supermarket" || tap === "BTN_CAT_MARKET") directCat = "market";
+      let preCat: string | null | undefined = undefined; // undefined = no match
+      let openPicker = false;
+      if (tap === "BTN_ORDER" || lower === "order" || lower === "order food" || lower === "buy" || lower === "shop") { openPicker = true; preCat = null; }
+      else if (lower === "food" || lower === "restaurant" || lower === "restaurants" || lower === "meal" || lower === "meals" || tap === "BTN_CAT_RESTAURANT") { openPicker = true; preCat = "restaurant"; }
+      else if (lower === "pharmacy" || lower === "drug" || lower === "drugs" || lower === "medicine" || lower === "meds" || tap === "BTN_CAT_PHARMACY") { openPicker = true; preCat = "pharmacy"; }
+      else if (lower === "market" || lower === "grocery" || lower === "groceries" || lower === "supermarket" || tap === "BTN_CAT_MARKET") { openPicker = true; preCat = "market"; }
 
-      if (directCat !== undefined) {
-        if (directCat === null) {
-          // Open the category picker
-          await persistSession(supabase, session.id, "choosing_category", nextContext, nextCart);
-          return await replyText(
-            `🛍️ *What would you like to order?*\n\n` +
-            `1️⃣ 🍔 Restaurants (food & meals)\n` +
-            `2️⃣ 💊 Pharmacy (medicine)\n` +
-            `3️⃣ 🛒 Market / Grocery\n` +
-            `4️⃣ 🌐 All vendors\n\n` +
-            `Reply with a number, or *menu* to go back.`
-          );
-        }
-        // Pre-selected category — jump straight into vendor browsing
-        nextContext.category = directCat;
+      if (openPicker) {
+        if (preCat) nextContext.category = preCat;
+        else delete nextContext.category;
         await persistSession(supabase, session.id, "choosing_category", nextContext, nextCart);
-        // Simulate the user picking the category by re-dispatching as "1"/"2"/"3"
-        // via the choosing_category handler below.
-        const asNumber = directCat === "restaurant" ? "1" : directCat === "pharmacy" ? "2" : "3";
-        body = asNumber;
-        (params as any).Body = asNumber;
-        session.state = "choosing_category";
+        const hint = preCat
+          ? `\n\n👉 Reply *${preCat === "restaurant" ? "1" : preCat === "pharmacy" ? "2" : "3"}* to continue with *${preCat}*, or pick another below.`
+          : "";
+        return await replyText(
+          `🛍️ *What would you like to order?*${hint}\n\n` +
+          `1️⃣ 🍔 Restaurants (food & meals)\n` +
+          `2️⃣ 💊 Pharmacy (medicine)\n` +
+          `3️⃣ 🛒 Market / Grocery\n` +
+          `4️⃣ 🌐 All vendors\n\n` +
+          `Reply with a number, or *menu* to go back.`
+        );
       }
     }
 
-
+    if (tap === "BTN_CART" || lower === "cart") {
       const txt = renderCart(nextCart);
       await persistSession(supabase, session.id, nextCart.length ? "cart" : session.state, nextContext, nextCart);
       if (nextCart.length) {
@@ -446,6 +440,7 @@ serve(async (req) => {
       }
       return await replyText(txt + HELP_HINT);
     }
+
     // Global clear cart — works from any state
     if (tap === "BTN_CLEAR" || lower === "clear" || lower === "empty cart" || lower === "clear cart") {
       nextCart = [];
