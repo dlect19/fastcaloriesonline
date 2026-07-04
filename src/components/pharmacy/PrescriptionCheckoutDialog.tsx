@@ -273,36 +273,46 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
             </div>
           )}
 
-          {/* Prescription type selection */}
-          <div className="space-y-2">
-            <Label className="font-medium">Do you have a doctor's prescription?</Label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => updateCurrent({ prescriptionType: 'doctor' })}
-                className={`p-3 rounded-lg border-2 text-center transition-colors ${
-                  current.prescriptionType === 'doctor'
-                    ? 'border-primary bg-primary/10 text-primary'
-                    : 'border-border hover:border-primary/50'
-                }`}
-              >
-                <Stethoscope className="w-5 h-5 mx-auto mb-1" />
-                <p className="text-sm font-medium">Yes, Doctor's</p>
-              </button>
-              <button
-                type="button"
-                onClick={() => updateCurrent({ prescriptionType: 'pharmacist' })}
-                className={`p-3 rounded-lg border-2 text-center transition-colors ${
-                  current.prescriptionType === 'pharmacist'
-                    ? 'border-primary bg-primary/10 text-primary'
-                    : 'border-border hover:border-primary/50'
-                }`}
-              >
-                <Pill className="w-5 h-5 mx-auto mb-1" />
-                <p className="text-sm font-medium">No, Pharmacist</p>
-              </button>
+          {/* Prescription type selection — hidden for OTC (no prescription needed) */}
+          {!isOTC && (
+            <div className="space-y-2">
+              <Label className="font-medium">Do you have a doctor's prescription?</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => updateCurrent({ prescriptionType: 'doctor' })}
+                  className={`p-3 rounded-lg border-2 text-center transition-colors ${
+                    current.prescriptionType === 'doctor'
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border hover:border-primary/50'
+                  }`}
+                >
+                  <Stethoscope className="w-5 h-5 mx-auto mb-1" />
+                  <p className="text-sm font-medium">Yes, Doctor's</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateCurrent({ prescriptionType: 'pharmacist' })}
+                  className={`p-3 rounded-lg border-2 text-center transition-colors ${
+                    current.prescriptionType === 'pharmacist'
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border hover:border-primary/50'
+                  }`}
+                >
+                  <Pill className="w-5 h-5 mx-auto mb-1" />
+                  <p className="text-sm font-medium">No, Pharmacist</p>
+                </button>
+              </div>
             </div>
-          </div>
+          )}
+
+          {isOTC && (
+            <div className="p-3 rounded-lg border border-primary/20 bg-primary/5">
+              <p className="text-xs text-foreground">
+                ✅ Over-the-counter medicine — no prescription needed. Just confirm your dosage below.
+              </p>
+            </div>
+          )}
 
           {/* Drug form type */}
           <div className="space-y-1">
