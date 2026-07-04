@@ -116,7 +116,7 @@ const MAIN_MENU = `🍔 *FastCalories Menu*\n\n${MENU_OPTIONS}`;
 
 const WELCOME_INTRO =
   `🍔 *Welcome to FastCalories!* 🇳🇬\n\n` +
-  `Order food, groceries & medicine — all here in WhatsApp. We track calories so you can eat smarter.\n\n` +
+  `Place orders for food, groceries & medicine — all here in WhatsApp. We track calories so you can eat smarter.\n\n` +
   MENU_OPTIONS;
 
 const ACCOUNT_PROMPT_TEXT =

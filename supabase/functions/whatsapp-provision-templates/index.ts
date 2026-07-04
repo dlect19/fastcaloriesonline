@@ -27,7 +27,7 @@ const TEMPLATES: TemplateDef[] = [
       "twilio/quick-reply": {
         body: "Hi {{1}} 👋 What would you like to do?",
         actions: [
-          { title: "🍱 Order food", id: "BTN_ORDER" },
+          { title: "🍱 Place Order", id: "BTN_ORDER" },
           { title: "📦 Track order", id: "BTN_TRACK" },
           { title: "💳 My wallet", id: "BTN_WALLET" },
         ],
