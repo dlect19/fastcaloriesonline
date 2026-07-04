@@ -166,6 +166,38 @@ export default function AdminWhatsApp() {
         </CardHeader>
       </Card>
 
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Live WhatsApp Sender</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              The approved Twilio WhatsApp number all outbound messages are sent from.
+            </p>
+          </div>
+          <Badge variant={fromNumber && fromNumber !== "whatsapp:+14155238886" ? "default" : "secondary"}>
+            {fromNumber && fromNumber !== "whatsapp:+14155238886" ? "Live" : "Sandbox"}
+          </Badge>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-[auto_1fr_auto] gap-3 items-end">
+            <div className="text-sm font-medium text-muted-foreground pb-2">whatsapp:</div>
+            <Input
+              value={fromNumberInput}
+              onChange={(e) => setFromNumberInput(e.target.value)}
+              placeholder="+2348012345678"
+              disabled={savingFrom}
+            />
+            <Button onClick={saveFromNumber} disabled={savingFrom || fromNumberInput === fromNumber.replace("whatsapp:", "")}>
+              {savingFrom ? "Saving..." : "Save"}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Paste the exact E.164 number Twilio approved (e.g. <code>+234813128494</code>). The system will prefix it with <code>whatsapp:</code> automatically.
+            Changing this immediately affects test sends, OTPs, order notifications, and the WhatsApp webhook.
+          </p>
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card><CardContent className="pt-6"><div className="text-sm text-muted-foreground">Active sessions (last 50)</div><div className="text-3xl font-bold">{stats.sessions}</div></CardContent></Card>
         <Card><CardContent className="pt-6"><div className="text-sm text-muted-foreground">WhatsApp orders</div><div className="text-3xl font-bold">{stats.orders}</div></CardContent></Card>
