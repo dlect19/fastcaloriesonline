@@ -1518,7 +1518,20 @@ async function confirmWhatsAppOrder(
     total_price: (Number(c.price) || 0) * Number(c.qty),
     calories: c.calories ?? 0,
   }));
+  // Auto takeaway pack (matches customer-app behaviour) — added as its own line item
+  if (summary.pack && summary.pack_fee > 0) {
+    items.push({
+      order_id: order.id,
+      product_id: null,
+      product_name: `📦 Takeaway pack — ${summary.pack.name}`,
+      quantity: 1,
+      unit_price: summary.pack_fee,
+      total_price: summary.pack_fee,
+      calories: 0,
+    } as any);
+  }
   await supabase.from("order_items").insert(items);
+
 
   // === Pharmacy: insert prescription_orders + prescriptions row ===
   if (isPharmacyOrder) {
