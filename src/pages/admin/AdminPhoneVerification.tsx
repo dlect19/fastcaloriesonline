@@ -143,7 +143,7 @@ export default function AdminPhoneVerification() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <RadioGroup value={enforcement} onValueChange={(v) => saveEnforcement(v as Enforcement)} disabled={saving}>
+            <RadioGroup value={enforcement} onValueChange={(v) => setEnforcement(v as Enforcement)} disabled={saving}>
               {OPTIONS.map(o => (
                 <div key={o.value} className="flex items-start gap-3 p-3 rounded-lg border hover:bg-secondary/40">
                   <RadioGroupItem value={o.value} id={`opt-${o.value}`} className="mt-1" />
@@ -151,10 +151,22 @@ export default function AdminPhoneVerification() {
                     <div className="font-medium">{o.label}</div>
                     <div className="text-xs text-muted-foreground">{o.desc}</div>
                   </Label>
-                  {enforcement === o.value && <Badge className="bg-primary/15 text-primary border-primary/30">Active</Badge>}
+                  {savedEnforcement === o.value && <Badge className="bg-primary/15 text-primary border-primary/30">Active</Badge>}
                 </div>
               ))}
             </RadioGroup>
+            <div className="mt-4 flex items-center justify-end gap-3">
+              {isDirty && (
+                <span className="text-xs text-orange-600">Unsaved changes</span>
+              )}
+              <Button
+                onClick={saveEnforcement}
+                disabled={!isDirty || saving}
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Save changes
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
