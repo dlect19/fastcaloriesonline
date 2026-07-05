@@ -1015,32 +1015,49 @@ function renderCart(cart: any[]): string {
   return `🛒 *Your Cart*\n\n${lines.join("\n")}\n\n*Total: ₦${cartTotal(cart).toLocaleString()}*`;
 }
 
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
 async function fetchVendors(supabase: any, userId: string | null, overrideLat: number | null, overrideLon: number | null, category: string | null = null) {
   const withNamesOnly = (rows: any[] = []) => rows
     .filter((v: any) => typeof v?.name === "string" && v.name.trim().length > 0 && !/^vendor\s*\d+$/i.test(v.name.trim()))
     .map((v: any) => ({ ...v, name: v.name.trim() }))
     .slice(0, 10);
   const filterByCategory = (rows: any[]) => category ? rows.filter((v: any) => (v.category || "").toLowerCase() === category) : rows;
+  const withStraightLine = (rows: any[], cLat: number | null, cLon: number | null) => rows.map((v: any) => {
+    const vLat = v.latitude != null ? Number(v.latitude) : null;
+    const vLon = v.longitude != null ? Number(v.longitude) : null;
+    if (cLat !== null && cLon !== null && vLat !== null && vLon !== null && !Number.isNaN(vLat) && !Number.isNaN(vLon)) {
+      return { ...v, distance_km: haversineKm(cLat, cLon, vLat, vLon) };
+    }
+    return v;
+  });
   let lat = overrideLat, lon = overrideLon;
   if ((lat === null || lon === null) && userId) {
     const { data: addr } = await supabase
       .from("delivery_addresses").select("latitude, longitude")
       .eq("user_id", userId).order("is_default", { ascending: false }).limit(1).maybeSingle();
-    if (addr?.latitude && addr?.longitude) { lat = addr.latitude; lon = addr.longitude; }
+    if (addr?.latitude && addr?.longitude) { lat = Number(addr.latitude); lon = Number(addr.longitude); }
   }
   if (lat !== null && lon !== null) {
     try {
       const body: any = { customer_lat: lat, customer_lon: lon };
       if (category) body.category = category;
       const { data } = await supabase.functions.invoke("get-nearby-vendors", { body });
-      const namedVendors = withNamesOnly(filterByCategory(data?.vendors || []));
+      const namedVendors = withStraightLine(withNamesOnly(filterByCategory(data?.vendors || [])), lat, lon);
       if (namedVendors.length) return namedVendors;
     } catch (_) {}
   }
-  let q = supabase.from("vendors").select("id, name, category").eq("is_active", true).limit(50);
+  let q = supabase.from("vendors").select("id, name, category, latitude, longitude").eq("is_active", true).limit(50);
   if (category) q = q.eq("category", category);
   const { data } = await q;
-  return withNamesOnly(data || []);
+  return withStraightLine(withNamesOnly(data || []), lat, lon);
 }
 
 async function fetchMenuItems(supabase: any, vendorId: string) {
