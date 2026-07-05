@@ -22,6 +22,7 @@ const OPTIONS: { value: Enforcement; label: string; desc: string }[] = [
 
 export default function AdminPhoneVerification() {
   const { toast } = useToast();
+  const [savedEnforcement, setSavedEnforcement] = useState<Enforcement>("off");
   const [enforcement, setEnforcement] = useState<Enforcement>("off");
   const [saving, setSaving] = useState(false);
   const [stats, setStats] = useState({ total: 0, verified: 0, unverified: 0, today: 0 });
@@ -41,7 +42,9 @@ export default function AdminPhoneVerification() {
         .gte("phone_verified_at", new Date(new Date().setHours(0, 0, 0, 0)).toISOString()),
     ]);
 
-    setEnforcement(((setting?.value as Enforcement) || "off"));
+    const current = ((setting?.value as Enforcement) || "off");
+    setEnforcement(current);
+    setSavedEnforcement(current);
     setStats({
       total: total ?? 0,
       verified: verified ?? 0,
@@ -62,17 +65,30 @@ export default function AdminPhoneVerification() {
 
   useEffect(() => { load(); }, []);
 
-  const saveEnforcement = async (val: Enforcement) => {
+  const isDirty = enforcement !== savedEnforcement;
+
+  const saveEnforcement = async () => {
     setSaving(true);
-    const { error } = await supabase.from("platform_settings")
-      .update({ value: val }).eq("key", "force_phone_verification");
+    // Upsert so the row is created if missing (avoids silent 0-row updates)
+    const { data, error } = await supabase.from("platform_settings")
+      .upsert(
+        { key: "force_phone_verification", value: enforcement, updated_at: new Date().toISOString() },
+        { onConflict: "key" }
+      )
+      .select("value")
+      .maybeSingle();
     setSaving(false);
     if (error) {
       toast({ title: "Failed to save", description: error.message, variant: "destructive" });
       return;
     }
-    setEnforcement(val);
-    toast({ title: "Setting updated", description: OPTIONS.find(o => o.value === val)?.label });
+    const persisted = (data?.value as Enforcement) || enforcement;
+    setSavedEnforcement(persisted);
+    setEnforcement(persisted);
+    toast({
+      title: "Enforcement saved",
+      description: OPTIONS.find(o => o.value === persisted)?.label,
+    });
   };
 
   const sendOtp = async (phone: string, userId: string) => {
