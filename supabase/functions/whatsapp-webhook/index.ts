@@ -1421,8 +1421,20 @@ async function buildOrderSummary(supabase: any, cart: any[]) {
   const delivery_fee = Number(map.get("base_delivery_fee")) || 500;
   const servicePct = Number(map.get("service_fee_percentage")) || 8;
   const service_fee = Math.round((subtotal * servicePct) / 100);
-  return { subtotal, delivery_fee, service_fee, total: subtotal + delivery_fee + service_fee, total_calories };
+  // Auto-apply the vendor's takeaway pack (matches customer-app behaviour)
+  const pack = await computeApplicablePack(supabase, cart);
+  const pack_fee = pack ? Number(pack.price) || 0 : 0;
+  return {
+    subtotal,
+    delivery_fee,
+    service_fee,
+    pack,
+    pack_fee,
+    total: subtotal + delivery_fee + service_fee + pack_fee,
+    total_calories,
+  };
 }
+
 
 async function confirmWhatsAppOrder(
   supabase: any,
