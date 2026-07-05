@@ -23,6 +23,7 @@ import { AppDownloadBanner } from '@/components/shared/AppDownloadBanner';
 import { AIMealRecommendation } from '@/components/home/AIMealRecommendation';
 import { SpinWheelWidget } from '@/components/home/SpinWheelWidget';
 import { ScanFoodBanner } from '@/components/home/ScanFoodBanner';
+import { DrugTrackerButton } from '@/components/home/DrugTrackerButton';
 import { FreeMealBanner } from '@/components/home/FreeMealBanner';
 import { LocationSearch } from '@/components/home/LocationSearch';
 import { Button } from '@/components/ui/button';
@@ -399,6 +400,9 @@ export default function Home() {
             <LogOut className="w-5 h-5" />
           </Button>
         </div>
+
+        {/* Drug Tracker shortcut — only appears when user has medications to track */}
+        <DrugTrackerButton />
 
         {/* Push Notification Banner */}
         <PushNotificationBanner />
