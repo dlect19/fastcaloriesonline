@@ -1082,7 +1082,7 @@ async function fetchMenuItems(supabase: any, vendorId: string) {
     .from("products")
     .select("id, name, price, calories, requires_prescription, serving_unit, is_available, is_hidden")
     .eq("vendor_id", vendorId)
-    .order("sort_order", { ascending: true, nullsFirst: false })
+    .order("name", { ascending: true })
     .limit(50);
   const products = data || [];
   if (!products.length) return [];
