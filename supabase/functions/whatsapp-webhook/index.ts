@@ -537,19 +537,12 @@ serve(async (req) => {
       }
       nextContext.category = picked;
       if (nextContext.lat && nextContext.lon) return await showVendors();
-      // no location yet — try saved, else ask
-      const vendors = await fetchVendors(supabase, session.customer_user_id, null, null, picked);
-      if (vendors.length) {
-        nextContext.vendors = vendors.map((v: any) => ({ id: v.id, name: v.name, distance_km: v.distance_km ?? v.distance ?? null }));
-        await persistSession(supabase, session.id, "browsing_vendors", nextContext, nextCart);
-        const text = `🏪 *Nearby vendors* _(based on your saved address)_:\n\n` +
-          vendors.map((v: any, i: number) => {
-            const d = v.distance_km ?? v.distance;
-            const dTxt = typeof d === "number" ? ` — ${d.toFixed(1)} km` : "";
-            return `${i + 1}. ${v.name}${dTxt}`;
-          }).join("\n") +
-          "\n\nReply with a number." + HELP_HINT;
-        return await replyText(text);
+      const savedCoords = await fetchSavedAddressCoords(supabase, session.customer_user_id);
+      if (savedCoords) {
+        nextContext.lat = savedCoords.lat;
+        nextContext.lon = savedCoords.lon;
+        nextContext.location_label = savedCoords.label;
+        return await showVendors();
       }
       await persistSession(supabase, session.id, "awaiting_location", nextContext, nextCart);
       return await sendToUser("wa_request_location", {},
@@ -782,20 +775,14 @@ serve(async (req) => {
     if (session.state === "awaiting_location") {
       if (lower === "skip" || tap === "BTN_SKIP_LOC") return await showVendors();
       if (tap === "BTN_USE_SAVED_ADDR") {
-        const vendors = await fetchVendors(supabase, session.customer_user_id, null, null);
-        if (vendors.length) {
-          nextContext.vendors = vendors.map((v: any) => ({ id: v.id, name: v.name, distance_km: v.distance_km ?? v.distance ?? null }));
-          await persistSession(supabase, session.id, "browsing_vendors", nextContext, nextCart);
-          const text = `🏪 *Nearby vendors:*\n\n` + vendors.map((v: any, i: number) => {
-            const d = v.distance_km ?? v.distance;
-            const dTxt = typeof d === "number" ? ` — ${d.toFixed(1)} km` : "";
-            return `${i + 1}. ${v.name}${dTxt}`;
-          }).join("\n") + HELP_HINT;
-          const vars: Record<string, string> = {};
-          vendors.slice(0, 10).forEach((v: any, i: number) => { vars[`${i + 1}`] = v.name; vars[`id${i + 1}`] = v.id; });
-          if (vendors.length < 10) return await replyText(text);
-          return await sendToUser("wa_vendor_list", vars, text);
+        const savedCoords = await fetchSavedAddressCoords(supabase, session.customer_user_id);
+        if (savedCoords) {
+          nextContext.lat = savedCoords.lat;
+          nextContext.lon = savedCoords.lon;
+          nextContext.location_label = savedCoords.label;
+          return await showVendors();
         }
+        return await replyText("⚠️ I couldn't find a saved address with coordinates. Please share your current location pin so I can show vendor distances.");
       }
       // Typed area / landmark fallback (for people on desktop WhatsApp who can't share a pin).
       if (body && body.trim().length >= 3) {
@@ -1005,6 +992,21 @@ async function saveDefaultAddress(supabase: any, userId: string | null, lat: num
       latitude: lat, longitude: lon, is_default: true,
     });
   } catch (e) { console.error("saveDefaultAddress failed", e); }
+}
+
+async function fetchSavedAddressCoords(supabase: any, userId: string | null) {
+  if (!userId) return null;
+  const { data: addr } = await supabase
+    .from("addresses")
+    .select("label, address_line, latitude, longitude")
+    .eq("user_id", userId)
+    .order("is_default", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const lat = addr?.latitude != null ? Number(addr.latitude) : NaN;
+  const lon = addr?.longitude != null ? Number(addr.longitude) : NaN;
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  return { lat, lon, label: addr?.address_line || addr?.label || null };
 }
 
 
