@@ -22,6 +22,7 @@ const OPTIONS: { value: Enforcement; label: string; desc: string }[] = [
 
 export default function AdminPhoneVerification() {
   const { toast } = useToast();
+  const [savedEnforcement, setSavedEnforcement] = useState<Enforcement>("off");
   const [enforcement, setEnforcement] = useState<Enforcement>("off");
   const [saving, setSaving] = useState(false);
   const [stats, setStats] = useState({ total: 0, verified: 0, unverified: 0, today: 0 });
@@ -41,7 +42,9 @@ export default function AdminPhoneVerification() {
         .gte("phone_verified_at", new Date(new Date().setHours(0, 0, 0, 0)).toISOString()),
     ]);
 
-    setEnforcement(((setting?.value as Enforcement) || "off"));
+    const current = ((setting?.value as Enforcement) || "off");
+    setEnforcement(current);
+    setSavedEnforcement(current);
     setStats({
       total: total ?? 0,
       verified: verified ?? 0,
@@ -62,17 +65,30 @@ export default function AdminPhoneVerification() {
 
   useEffect(() => { load(); }, []);
 
-  const saveEnforcement = async (val: Enforcement) => {
+  const isDirty = enforcement !== savedEnforcement;
+
+  const saveEnforcement = async () => {
     setSaving(true);
-    const { error } = await supabase.from("platform_settings")
-      .update({ value: val }).eq("key", "force_phone_verification");
+    // Upsert so the row is created if missing (avoids silent 0-row updates)
+    const { data, error } = await supabase.from("platform_settings")
+      .upsert(
+        { key: "force_phone_verification", value: enforcement, updated_at: new Date().toISOString() },
+        { onConflict: "key" }
+      )
+      .select("value")
+      .maybeSingle();
     setSaving(false);
     if (error) {
       toast({ title: "Failed to save", description: error.message, variant: "destructive" });
       return;
     }
-    setEnforcement(val);
-    toast({ title: "Setting updated", description: OPTIONS.find(o => o.value === val)?.label });
+    const persisted = (data?.value as Enforcement) || enforcement;
+    setSavedEnforcement(persisted);
+    setEnforcement(persisted);
+    toast({
+      title: "Enforcement saved",
+      description: OPTIONS.find(o => o.value === persisted)?.label,
+    });
   };
 
   const sendOtp = async (phone: string, userId: string) => {
@@ -127,7 +143,7 @@ export default function AdminPhoneVerification() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <RadioGroup value={enforcement} onValueChange={(v) => saveEnforcement(v as Enforcement)} disabled={saving}>
+            <RadioGroup value={enforcement} onValueChange={(v) => setEnforcement(v as Enforcement)} disabled={saving}>
               {OPTIONS.map(o => (
                 <div key={o.value} className="flex items-start gap-3 p-3 rounded-lg border hover:bg-secondary/40">
                   <RadioGroupItem value={o.value} id={`opt-${o.value}`} className="mt-1" />
@@ -135,10 +151,22 @@ export default function AdminPhoneVerification() {
                     <div className="font-medium">{o.label}</div>
                     <div className="text-xs text-muted-foreground">{o.desc}</div>
                   </Label>
-                  {enforcement === o.value && <Badge className="bg-primary/15 text-primary border-primary/30">Active</Badge>}
+                  {savedEnforcement === o.value && <Badge className="bg-primary/15 text-primary border-primary/30">Active</Badge>}
                 </div>
               ))}
             </RadioGroup>
+            <div className="mt-4 flex items-center justify-end gap-3">
+              {isDirty && (
+                <span className="text-xs text-orange-600">Unsaved changes</span>
+              )}
+              <Button
+                onClick={saveEnforcement}
+                disabled={!isDirty || saving}
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Save changes
+              </Button>
+            </div>
           </CardContent>
         </Card>
 

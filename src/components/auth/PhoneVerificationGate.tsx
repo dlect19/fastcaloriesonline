@@ -46,11 +46,14 @@ export function PhoneVerificationGate() {
   const isProfessional = roles.some(r => ["admin", "vendor", "vendor_staff", "rider", "delivery_company"].includes(r));
   const isCustomer = !isProfessional; // fallback
 
+  // Customers are gated at checkout (when they tap "Pay Vendor"), NOT at login.
+  // The login gate only blocks professionals so vendors/riders/staff can't reach their portals unverified.
   const shouldEnforce =
-    enforcement === "all" ||
-    enforcement === "all_and_signups" ||
-    (enforcement === "customers" && isCustomer) ||
-    (enforcement === "professionals" && isProfessional);
+    isProfessional && (
+      enforcement === "all" ||
+      enforcement === "all_and_signups" ||
+      enforcement === "professionals"
+    );
 
   if (!shouldEnforce || profile?.phone_verified) return null;
 
