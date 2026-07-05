@@ -80,11 +80,32 @@ async function verifyTwilioSignature(req: Request, params: Record<string, string
   const authToken = Deno.env.get("TWILIO_AUTH_TOKEN");
   if (!authToken) return true;
   const signature = req.headers.get("x-twilio-signature");
-  if (!signature) return false;
-  const url = req.url;
+  if (!signature) {
+    console.warn("Twilio signature missing on production WhatsApp webhook");
+    return false;
+  }
+
+  const requestUrl = new URL(req.url);
+  const publicBaseUrl = Deno.env.get("SUPABASE_URL")?.replace(/\/$/, "");
+  const explicitWebhookUrl = Deno.env.get("WHATSAPP_WEBHOOK_PUBLIC_URL")?.replace(/\/$/, "");
+  const forwardedHost = req.headers.get("x-forwarded-host") || req.headers.get("host");
+  const forwardedProto = req.headers.get("x-forwarded-proto") || "https";
+  const candidateUrls = new Set<string>([
+    req.url,
+    req.url.replace(/^http:/, "https:"),
+  ]);
+
+  if (publicBaseUrl) {
+    candidateUrls.add(`${publicBaseUrl}/functions/v1/whatsapp-webhook${requestUrl.search}`);
+  }
+  if (explicitWebhookUrl) {
+    candidateUrls.add(`${explicitWebhookUrl}${requestUrl.search}`);
+  }
+  if (forwardedHost) {
+    candidateUrls.add(`${forwardedProto}://${forwardedHost}${requestUrl.pathname}${requestUrl.search}`);
+  }
+
   const sortedKeys = Object.keys(params).sort();
-  let data = url;
-  for (const k of sortedKeys) data += k + params[k];
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(authToken),
@@ -92,9 +113,20 @@ async function verifyTwilioSignature(req: Request, params: Record<string, string
     false,
     ["sign"],
   );
-  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(data));
-  const expected = btoa(String.fromCharCode(...new Uint8Array(sig)));
-  return expected === signature;
+  for (const url of candidateUrls) {
+    let data = url;
+    for (const k of sortedKeys) data += k + params[k];
+    const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(data));
+    const expected = btoa(String.fromCharCode(...new Uint8Array(sig)));
+    if (expected === signature) return true;
+  }
+
+  console.warn("Twilio signature mismatch on production WhatsApp webhook", {
+    candidateCount: candidateUrls.size,
+    hasFrom: Boolean(params["From"]),
+    hasMessageSid: Boolean(params["MessageSid"]),
+  });
+  return false;
 }
 
 // ============================================================
