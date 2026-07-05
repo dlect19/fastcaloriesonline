@@ -1098,6 +1098,53 @@ export default function VendorOrders() {
             </div>
           )}
 
+          {/* Prescription details for pharmacy orders (symptoms or doctor's Rx) */}
+          {order.prescriptions && order.prescriptions.length > 0 && (
+            <div className="mx-4 mb-3 space-y-2">
+              {order.prescriptions.map((rx) => {
+                const hasSymptoms = !!rx.symptoms;
+                const hasDoctor = rx.prescription_type === 'doctor' || rx.doctor_name || rx.prescription_image_url;
+                if (!hasSymptoms && !hasDoctor) return null;
+                return (
+                  <div key={rx.id} className="rounded-lg border border-border bg-muted/40 p-3 text-xs space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-medium text-foreground truncate">
+                        {rx.product_name || 'Prescription item'}
+                      </p>
+                      <Badge variant={rx.approval_status === 'approved' ? 'default' : rx.approval_status === 'rejected' ? 'destructive' : 'secondary'} className="capitalize text-[10px]">
+                        {rx.approval_status || 'pending'}
+                      </Badge>
+                    </div>
+                    {hasSymptoms && (
+                      <div className="p-2 rounded bg-primary/5 border border-primary/20">
+                        <p className="text-[11px] font-medium text-primary mb-0.5">Customer's symptoms</p>
+                        <p className="text-foreground">{rx.symptoms}</p>
+                      </div>
+                    )}
+                    {hasDoctor && (
+                      <div className="p-2 rounded bg-background border border-border space-y-1">
+                        <p className="text-[11px] font-medium">Doctor's prescription</p>
+                        {rx.doctor_name && (
+                          <p className="text-muted-foreground">
+                            {rx.doctor_name}{rx.hospital_name ? ` · ${rx.hospital_name}` : ''}
+                          </p>
+                        )}
+                        {rx.doctor_instructions && (
+                          <p className="italic">"{rx.doctor_instructions}"</p>
+                        )}
+                        {rx.prescription_image_url ? (
+                          <RxPrescriptionThumb path={rx.prescription_image_url} />
+                        ) : (
+                          <p className="text-muted-foreground italic">No image uploaded.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           {/* Prep time countdown for preparing orders */}
           {order.status === 'preparing' && order.estimated_delivery_at && (
             <PrepCountdown estimatedAt={order.estimated_delivery_at} prepMinutes={order.prep_minutes} />
