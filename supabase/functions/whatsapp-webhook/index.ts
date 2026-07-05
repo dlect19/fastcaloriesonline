@@ -162,6 +162,9 @@ const ACCOUNT_PROMPT_TEXT =
 // ============================================================
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  console.log("[whatsapp-webhook] hit", req.method, req.url, "sig=", req.headers.get("x-twilio-signature") ? "yes" : "no");
+
+
 
   try {
     const supabase = createClient(
