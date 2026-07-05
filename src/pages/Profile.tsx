@@ -17,7 +17,7 @@ import { VirtualAccountCard } from '@/components/profile/VirtualAccountCard';
 import { CreateDVADialog } from '@/components/profile/CreateDVADialog';
 import { PosWalletCodeCard } from '@/components/profile/PosWalletCodeCard';
 import { DeleteAccountDialog } from '@/components/shared/DeleteAccountDialog';
-import { Leaf, ArrowLeft, Receipt, ChevronRight, Wallet, Plus, Building2, User, MessageCircle, Ticket } from 'lucide-react';
+import { Leaf, ArrowLeft, Receipt, ChevronRight, Wallet, Plus, Building2, User, MessageCircle, Ticket, Pill } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Tables } from '@/integrations/supabase/types';
 
