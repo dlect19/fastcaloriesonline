@@ -58,43 +58,47 @@ serve(async (req: Request) => {
 
     let isAuthorized = !!adminRole;
 
-    if (!isAuthorized) {
-      // Check if user is vendor owner or active staff for the order's vendor
-      const { data: orderCheck } = await supabaseAdmin
-        .from("orders")
-        .select("vendor_id")
-        .eq("id", orderId)
+    // Look up the order once so we can also authorize the paying customer
+    const { data: orderCheck } = await supabaseAdmin
+      .from("orders")
+      .select("vendor_id, user_id, status")
+      .eq("id", orderId)
+      .single();
+
+    if (!isAuthorized && orderCheck?.vendor_id) {
+      // Check vendor owner
+      const { data: vendor } = await supabaseAdmin
+        .from("vendors")
+        .select("id")
+        .eq("id", orderCheck.vendor_id)
+        .eq("user_id", user.id)
         .single();
 
-      if (orderCheck?.vendor_id) {
-        // Check vendor owner
-        const { data: vendor } = await supabaseAdmin
-          .from("vendors")
+      if (vendor) {
+        isAuthorized = true;
+      } else {
+        // Check vendor staff
+        const { data: staff } = await supabaseAdmin
+          .from("vendor_staff")
           .select("id")
-          .eq("id", orderCheck.vendor_id)
+          .eq("vendor_id", orderCheck.vendor_id)
           .eq("user_id", user.id)
+          .eq("is_active", true)
           .single();
 
-        if (vendor) {
-          isAuthorized = true;
-        } else {
-          // Check vendor staff
-          const { data: staff } = await supabaseAdmin
-            .from("vendor_staff")
-            .select("id")
-            .eq("vendor_id", orderCheck.vendor_id)
-            .eq("user_id", user.id)
-            .eq("is_active", true)
-            .single();
-
-          if (staff) isAuthorized = true;
-        }
+        if (staff) isAuthorized = true;
       }
+    }
+
+    // Allow the paying customer to refund their OWN cancelled order.
+    // The order MUST already be marked cancelled to prevent abuse.
+    if (!isAuthorized && orderCheck?.user_id === user.id && orderCheck?.status === "cancelled") {
+      isAuthorized = true;
     }
 
     if (!isAuthorized) {
       return new Response(
-        JSON.stringify({ error: "Unauthorized: admin or vendor access required" }),
+        JSON.stringify({ error: "Unauthorized: admin, vendor, or order owner (on cancelled order) required" }),
         { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
