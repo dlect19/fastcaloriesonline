@@ -517,8 +517,9 @@ serve(async (req) => {
         vendors.map((v: any, i: number) => {
           const d = v.distance_km ?? v.distance;
           const dTxt = typeof d === "number" ? ` — ${d.toFixed(1)} km` : "";
-          return `${i + 1}. ${v.name}${dTxt}`;
-        }).join("\n") + "\n\nReply with a number to view the menu." + HELP_HINT;
+          const status = v.is_open === false ? " 🔴 _Closed_" : " 🟢 _Open_";
+          return `${i + 1}. ${v.name}${dTxt}${status}`;
+        }).join("\n") + "\n\n_You can still browse a closed vendor's menu — orders will be queued until they reopen._\n\nReply with a number to view the menu." + HELP_HINT;
       const vars: Record<string, string> = {};
       vendors.slice(0, 10).forEach((v: any, i: number) => { vars[`${i + 1}`] = v.name; vars[`id${i + 1}`] = v.id; });
       if (vendors.length < 10) return await replyText(text);
@@ -667,7 +668,7 @@ serve(async (req) => {
       const text = `${headerIcon} *${vendor?.name || ""}*${isPharm ? " _(Pharmacy)_" : ""}\n\n` +
         shown.map((m: any, i: number) => {
           const rx = m.requires_prescription ? " ⚕️_Rx_" : "";
-          const off = m.is_available === false ? " _(ask vendor)_" : "";
+          const off = m.is_available === false ? " 🔴 _Unavailable_" : " 🟢";
           const head = `${i + 1}. ${m.name}${rx}${off} — ₦${Number(m.price).toLocaleString()}${m.calories ? ` (${m.calories} cal)` : ""}`;
           const addons = (m.addons_summary || []).slice(0, 2).map((a: string) => `\n   • ${a}`).join("");
           return head + addons;
@@ -1068,7 +1069,7 @@ async function fetchVendors(supabase: any, userId: string | null, overrideLat: n
       if (namedVendors.length) return namedVendors;
     } catch (_) {}
   }
-  let q = supabase.from("vendors").select("id, name, category, latitude, longitude").eq("is_active", true).limit(50);
+  let q = supabase.from("vendors").select("id, name, category, latitude, longitude, is_open").eq("is_active", true).limit(50);
   if (category) q = q.eq("category", category);
   const { data } = await q;
   return withStraightLine(withNamesOnly(data || []), lat, lon);
