@@ -652,6 +652,9 @@ serve(async (req) => {
       nextContext.items = items.map((m: any) => ({
         id: m.id, name: m.name, price: m.price, calories: m.calories,
         requires_prescription: !!m.requires_prescription,
+        serving_unit: m.serving_unit || null,
+        is_available: m.is_available !== false,
+        addons_summary: m.addons_summary || [],
       }));
       if (!items.length) {
         await persistSession(supabase, session.id, "menu", nextContext, nextCart);
@@ -664,9 +667,12 @@ serve(async (req) => {
       const text = `${headerIcon} *${vendor?.name || ""}*${isPharm ? " _(Pharmacy)_" : ""}\n\n` +
         shown.map((m: any, i: number) => {
           const rx = m.requires_prescription ? " ⚕️_Rx_" : "";
-          return `${i + 1}. ${m.name}${rx} — ₦${Number(m.price).toLocaleString()}${m.calories ? ` (${m.calories} cal)` : ""}`;
+          const off = m.is_available === false ? " _(ask vendor)_" : "";
+          const head = `${i + 1}. ${m.name}${rx}${off} — ₦${Number(m.price).toLocaleString()}${m.calories ? ` (${m.calories} cal)` : ""}`;
+          const addons = (m.addons_summary || []).slice(0, 2).map((a: string) => `\n   • ${a}`).join("");
+          return head + addons;
         }).join("\n") +
-        (isPharm ? "\n\n_⚕️ = prescription required. We'll ask for your prescription at checkout._" : "") +
+        (isPharm ? "\n\n_⚕️ = prescription required. We'll ask for your prescription at checkout._" : "\n\n_Add-ons marked with * are required — reply with a note if you want a specific option._") +
         "\n\nReply with the item number to add 1 to cart.\nFor multiple, reply *<item>x<qty>* (e.g. *1x3* = 3 of item 1).\nOr *menu* to go back.";
       // Twilio template requires all 10 slots filled — only use it when we have exactly 10 real items
       if (shown.length < 10) return await replyText(text);
@@ -1069,11 +1075,96 @@ async function fetchVendors(supabase: any, userId: string | null, overrideLat: n
 }
 
 async function fetchMenuItems(supabase: any, vendorId: string) {
+  // WhatsApp shows the FULL menu — including items hidden from the customer app
+  // and items currently marked unavailable — so vendors can still take orders here.
   const { data } = await supabase
-    .from("products").select("id, name, price, calories, requires_prescription")
-    .eq("vendor_id", vendorId).eq("is_available", true).limit(20);
-  return data || [];
+    .from("products")
+    .select("id, name, price, calories, requires_prescription, serving_unit, is_available, is_hidden")
+    .eq("vendor_id", vendorId)
+    .order("sort_order", { ascending: true, nullsFirst: false })
+    .limit(50);
+  const products = data || [];
+  if (!products.length) return [];
+
+  // Attach a short addon summary per product so we can show it in the menu text.
+  const ids = products.map((p: any) => p.id);
+  const { data: pag } = await supabase
+    .from("product_addon_groups")
+    .select("product_id, addon_group_id")
+    .in("product_id", ids);
+  const groupIds = Array.from(new Set((pag || []).map((r: any) => r.addon_group_id)));
+  let groups: any[] = [];
+  let items: any[] = [];
+  if (groupIds.length) {
+    const [gRes, iRes] = await Promise.all([
+      supabase.from("addon_groups").select("id, name, is_required").in("id", groupIds),
+      supabase.from("addon_items").select("id, addon_group_id, name, additional_price").in("addon_group_id", groupIds),
+    ]);
+    groups = gRes.data || [];
+    items = iRes.data || [];
+  }
+  const groupById = new Map(groups.map((g: any) => [g.id, g]));
+  const itemsByGroup = new Map<string, any[]>();
+  items.forEach((it: any) => {
+    const arr = itemsByGroup.get(it.addon_group_id) || [];
+    arr.push(it);
+    itemsByGroup.set(it.addon_group_id, arr);
+  });
+  const addonsByProduct = new Map<string, string[]>();
+  (pag || []).forEach((row: any) => {
+    const g = groupById.get(row.addon_group_id);
+    if (!g) return;
+    const gi = itemsByGroup.get(row.addon_group_id) || [];
+    if (!gi.length) return;
+    const names = gi.slice(0, 4).map((i: any) => {
+      const price = Number(i.additional_price) || 0;
+      return price > 0 ? `${i.name} (+₦${price.toLocaleString()})` : i.name;
+    });
+    const label = `${g.name}${g.is_required ? "*" : ""}: ${names.join(", ")}${gi.length > 4 ? "…" : ""}`;
+    const arr = addonsByProduct.get(row.product_id) || [];
+    arr.push(label);
+    addonsByProduct.set(row.product_id, arr);
+  });
+
+  return products.map((p: any) => ({
+    ...p,
+    addons_summary: addonsByProduct.get(p.id) || [],
+  }));
 }
+
+// Only serving units that actually need containers count toward pack sizing —
+// mirrors the customer-app rule in src/hooks/useTakeawayPacks.ts
+const PACK_ELIGIBLE_UNIT_REGEX = /(portion|plate|bowl|wrap|pack)/i;
+
+async function computeApplicablePack(supabase: any, cart: any[]) {
+  if (!cart.length) return null;
+  const vendorId = cart[0]?.vendor_id;
+  if (!vendorId) return null;
+
+  const { data: packs } = await supabase
+    .from("takeaway_packs")
+    .select("id, name, price, threshold_type, threshold_value")
+    .eq("vendor_id", vendorId)
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true, nullsFirst: false });
+  if (!packs?.length) return null;
+
+  const eligible = cart.filter((c: any) => PACK_ELIGIBLE_UNIT_REGEX.test(String(c.serving_unit || "")));
+  if (!eligible.length) return null;
+
+  const totalItems = eligible.reduce((s: number, c: any) => s + Number(c.qty || 0), 0);
+  const maxItemQty = Math.max(...eligible.map((c: any) => Number(c.qty || 0)));
+
+  const applicable = packs.filter((p: any) => {
+    if (p.threshold_type === "per_item") return maxItemQty >= Number(p.threshold_value);
+    if (p.threshold_type === "total_items") return totalItems >= Number(p.threshold_value);
+    return false;
+  });
+  if (!applicable.length) return null;
+  applicable.sort((a: any, b: any) => Number(b.threshold_value) - Number(a.threshold_value));
+  return applicable[0];
+}
+
 
 async function renderRecentOrders(supabase: any, phone: string, userId: string | null) {
   if (userId) {
@@ -1330,8 +1421,20 @@ async function buildOrderSummary(supabase: any, cart: any[]) {
   const delivery_fee = Number(map.get("base_delivery_fee")) || 500;
   const servicePct = Number(map.get("service_fee_percentage")) || 8;
   const service_fee = Math.round((subtotal * servicePct) / 100);
-  return { subtotal, delivery_fee, service_fee, total: subtotal + delivery_fee + service_fee, total_calories };
+  // Auto-apply the vendor's takeaway pack (matches customer-app behaviour)
+  const pack = await computeApplicablePack(supabase, cart);
+  const pack_fee = pack ? Number(pack.price) || 0 : 0;
+  return {
+    subtotal,
+    delivery_fee,
+    service_fee,
+    pack,
+    pack_fee,
+    total: subtotal + delivery_fee + service_fee + pack_fee,
+    total_calories,
+  };
 }
+
 
 async function confirmWhatsAppOrder(
   supabase: any,
@@ -1415,7 +1518,20 @@ async function confirmWhatsAppOrder(
     total_price: (Number(c.price) || 0) * Number(c.qty),
     calories: c.calories ?? 0,
   }));
+  // Auto takeaway pack (matches customer-app behaviour) — added as its own line item
+  if (summary.pack && summary.pack_fee > 0) {
+    items.push({
+      order_id: order.id,
+      product_id: null,
+      product_name: `📦 Takeaway pack — ${summary.pack.name}`,
+      quantity: 1,
+      unit_price: summary.pack_fee,
+      total_price: summary.pack_fee,
+      calories: 0,
+    } as any);
+  }
   await supabase.from("order_items").insert(items);
+
 
   // === Pharmacy: insert prescription_orders + prescriptions row ===
   if (isPharmacyOrder) {
@@ -1556,6 +1672,7 @@ async function doCheckout(
     `🧾 *Order Summary*\n\n` +
     cart.map(c => `• ${c.name} × ${c.qty} — ₦${(Number(c.price) * c.qty).toLocaleString()}`).join("\n") +
     `\n\nSubtotal: ₦${subtotal.toLocaleString()}` +
+    (summary.pack_fee > 0 ? `\n📦 Takeaway pack (${summary.pack.name}): ₦${summary.pack_fee.toLocaleString()}` : "") +
     `\nService fee (8%): ₦${serviceFee.toLocaleString()}` +
     `\nDelivery: ₦${deliveryFee.toLocaleString()}` +
     `\n*Total: ₦${total.toLocaleString()}*` +
