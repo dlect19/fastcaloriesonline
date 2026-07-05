@@ -314,19 +314,21 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
             </div>
           )}
 
-          {/* Drug form type */}
-          <div className="space-y-1">
-            <Label className="text-sm">Dosage Form</Label>
-            <Select value={current.doseUnit} onValueChange={v => updateCurrent({ doseUnit: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="tablet">Tablet</SelectItem>
-                <SelectItem value="capsule">Capsule</SelectItem>
-                <SelectItem value="ml">Syrup (ml)</SelectItem>
-                <SelectItem value="drops">Drops</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Drug form type — hidden for OTC (use pharmacy's saved form) */}
+          {!isOTC && (
+            <div className="space-y-1">
+              <Label className="text-sm">Dosage Form</Label>
+              <Select value={current.doseUnit} onValueChange={v => updateCurrent({ doseUnit: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="tablet">Tablet</SelectItem>
+                  <SelectItem value="capsule">Capsule</SelectItem>
+                  <SelectItem value="ml">Syrup (ml)</SelectItem>
+                  <SelectItem value="drops">Drops</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* Doctor prescription details */}
           {!isOTC && current.prescriptionType === 'doctor' && (
