@@ -1672,6 +1672,7 @@ async function doCheckout(
     `🧾 *Order Summary*\n\n` +
     cart.map(c => `• ${c.name} × ${c.qty} — ₦${(Number(c.price) * c.qty).toLocaleString()}`).join("\n") +
     `\n\nSubtotal: ₦${subtotal.toLocaleString()}` +
+    (summary.pack_fee > 0 ? `\n📦 Takeaway pack (${summary.pack.name}): ₦${summary.pack_fee.toLocaleString()}` : "") +
     `\nService fee (8%): ₦${serviceFee.toLocaleString()}` +
     `\nDelivery: ₦${deliveryFee.toLocaleString()}` +
     `\n*Total: ₦${total.toLocaleString()}*` +
