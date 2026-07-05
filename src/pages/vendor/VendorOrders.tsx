@@ -457,6 +457,12 @@ export default function VendorOrders() {
             .in('order_id', orderIds)
             .order('sort_order');
 
+          // Fetch prescription details (symptoms / doctor Rx) for pharmacy orders
+          const { data: rxData } = await (supabase as any)
+            .from('prescription_orders')
+            .select('id, order_id, product_id, prescription_type, requires_approval, approval_status, symptoms, doctor_name, hospital_name, doctor_instructions, prescription_image_url, products(name)')
+            .in('order_id', orderIds);
+
             const ordersWithItems: OrderWithItems[] = visibleOrders.map(order => {
             const customerProfile = profilesData?.find(p => p.user_id === order.user_id);
             const orderItems: OrderItemWithAddons[] = (itemsData || [])
@@ -466,10 +472,26 @@ export default function VendorOrders() {
                 addons: addonsData.filter(a => a.order_item_id === item.id),
               }));
             const orderPackages = (packagesData || []).filter(p => p.order_id === order.id) as OrderPackage[];
+            const orderRx: PrescriptionOrderRow[] = (rxData || [])
+              .filter((r: any) => r.order_id === order.id)
+              .map((r: any) => ({
+                id: r.id,
+                product_id: r.product_id,
+                prescription_type: r.prescription_type,
+                requires_approval: r.requires_approval,
+                approval_status: r.approval_status,
+                symptoms: r.symptoms,
+                doctor_name: r.doctor_name,
+                hospital_name: r.hospital_name,
+                doctor_instructions: r.doctor_instructions,
+                prescription_image_url: r.prescription_image_url,
+                product_name: r.products?.name || null,
+              }));
             return {
               ...order,
               items: orderItems,
               packages: orderPackages.length > 0 ? orderPackages : undefined,
+              prescriptions: orderRx.length > 0 ? orderRx : undefined,
               customer: customerProfile ? {
                 full_name: customerProfile.full_name || order.receiver_name,
                 phone: customerProfile.phone || order.receiver_phone
