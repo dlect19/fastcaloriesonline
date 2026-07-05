@@ -517,8 +517,9 @@ serve(async (req) => {
         vendors.map((v: any, i: number) => {
           const d = v.distance_km ?? v.distance;
           const dTxt = typeof d === "number" ? ` — ${d.toFixed(1)} km` : "";
-          return `${i + 1}. ${v.name}${dTxt}`;
-        }).join("\n") + "\n\nReply with a number to view the menu." + HELP_HINT;
+          const status = v.is_open === false ? " 🔴 _Closed_" : " 🟢 _Open_";
+          return `${i + 1}. ${v.name}${dTxt}${status}`;
+        }).join("\n") + "\n\n_You can still browse a closed vendor's menu — orders will be queued until they reopen._\n\nReply with a number to view the menu." + HELP_HINT;
       const vars: Record<string, string> = {};
       vendors.slice(0, 10).forEach((v: any, i: number) => { vars[`${i + 1}`] = v.name; vars[`id${i + 1}`] = v.id; });
       if (vendors.length < 10) return await replyText(text);
