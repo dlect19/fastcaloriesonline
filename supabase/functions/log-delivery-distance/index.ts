@@ -82,6 +82,29 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Step 2b: Final fallback — vendor coords vs rider's current location (for carryout
+    // or orders that never captured a customer address, e.g. WhatsApp/POS)
+    if (!originLat || !destLat) {
+      const { data: order } = await supabase
+        .from('orders')
+        .select('vendor_id')
+        .eq('id', orderId)
+        .maybeSingle();
+      const [{ data: vendor }, { data: rider }] = await Promise.all([
+        order?.vendor_id
+          ? supabase.from('vendors').select('latitude, longitude').eq('id', order.vendor_id).maybeSingle()
+          : Promise.resolve({ data: null }),
+        supabase.from('rider_profiles').select('current_latitude, current_longitude').eq('user_id', riderId).maybeSingle(),
+      ]);
+      if (vendor?.latitude && vendor?.longitude && rider?.current_latitude && rider?.current_longitude) {
+        originLat = vendor.latitude;
+        originLng = vendor.longitude;
+        destLat = rider.current_latitude;
+        destLng = rider.current_longitude;
+        console.log(`Using rider's current location as delivery destination for order ${orderId}`);
+      }
+    }
+
     // Step 3: Calculate distance using shared Google Maps helper (direct, no edge-to-edge call)
     if (!distanceKm && originLat && originLng && destLat && destLng) {
       const result = await getGoogleMapsDistance(originLat, originLng, destLat, destLng);
