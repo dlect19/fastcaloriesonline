@@ -668,7 +668,7 @@ serve(async (req) => {
       const text = `${headerIcon} *${vendor?.name || ""}*${isPharm ? " _(Pharmacy)_" : ""}\n\n` +
         shown.map((m: any, i: number) => {
           const rx = m.requires_prescription ? " ⚕️_Rx_" : "";
-          const off = m.is_available === false ? " _(ask vendor)_" : "";
+          const off = m.is_available === false ? " 🔴 _Unavailable_" : " 🟢";
           const head = `${i + 1}. ${m.name}${rx}${off} — ₦${Number(m.price).toLocaleString()}${m.calories ? ` (${m.calories} cal)` : ""}`;
           const addons = (m.addons_summary || []).slice(0, 2).map((a: string) => `\n   • ${a}`).join("");
           return head + addons;
