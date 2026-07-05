@@ -223,8 +223,11 @@ serve(async (req) => {
     // ============================================================
     // Outbound dispatcher — try interactive template, fall back to text
     // ============================================================
+    // Templates we intentionally bypass so wording stays fully controlled from code
+    // (avoids Twilio-approved copy like "Order food" overriding our updated menu labels).
+    const TEXT_ONLY_KEYS = new Set(["wa_main_menu"]);
     const sendToUser = async (templateKey: string, vars: Record<string, string>, fallbackText: string) => {
-      const sid = templates[templateKey];
+      const sid = TEXT_ONLY_KEYS.has(templateKey) ? undefined : templates[templateKey];
       if (sid) {
         const okSent = await sendInteractive(fromNumber, fromRaw, sid, vars);
         if (okSent) {
