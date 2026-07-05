@@ -104,7 +104,9 @@ export function PhoneVerificationDialog({
             <Alert>
               <MessageCircle className="h-4 w-4" />
               <AlertDescription className="text-xs">
-                This must be the WhatsApp number on your phone. We'll try WhatsApp first, and fall back to SMS if needed.
+                This must be your active <strong>WhatsApp</strong> number. If the number here isn't your WhatsApp,
+                open your <a href="/profile" className="underline text-primary font-medium">Profile</a> first, edit
+                your phone to your WhatsApp number, then come back to verify.
               </AlertDescription>
             </Alert>
             <Button onClick={() => handleSend()} disabled={sending || !phone} className="w-full">
