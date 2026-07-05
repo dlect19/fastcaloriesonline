@@ -75,16 +75,18 @@ export default function DrugTracker() {
     if (record.is_completed) return;
     const newDosesTaken = record.doses_taken + 1;
     const isComplete = newDosesTaken >= record.total_doses;
-    const completionPct = Math.round((newDosesTaken / record.total_doses) * 100);
 
-    await supabase.from('drug_usage_tracking').update({
+    const { error } = await supabase.from('drug_usage_tracking').update({
       doses_taken: newDosesTaken,
-      doses_remaining: record.total_doses - newDosesTaken,
-      completion_percentage: completionPct,
       last_taken_at: new Date().toISOString(),
       is_completed: isComplete,
       next_dose_at: isComplete ? null : new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString(),
     }).eq('id', record.id);
+
+    if (error) {
+      toast({ title: 'Could not log dose', description: error.message, variant: 'destructive' });
+      return;
+    }
 
     if (isComplete) {
       // Deactivate reminders for this tracking
