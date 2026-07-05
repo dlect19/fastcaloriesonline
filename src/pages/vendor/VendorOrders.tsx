@@ -80,6 +80,23 @@ function PrepCountdown({ estimatedAt, prepMinutes }: { estimatedAt: string; prep
   );
 }
 
+function RxPrescriptionThumb({ path }: { path: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    supabase.storage.from('prescriptions').createSignedUrl(path, 600).then(({ data }) => {
+      if (!cancelled) setUrl(data?.signedUrl || null);
+    });
+    return () => { cancelled = true; };
+  }, [path]);
+  if (!url) return <div className="w-24 h-24 bg-muted rounded animate-pulse" />;
+  return (
+    <a href={url} target="_blank" rel="noreferrer" className="inline-block">
+      <img src={url} alt="Doctor's prescription" className="w-24 h-24 object-cover rounded border border-border" />
+    </a>
+  );
+}
+
 type Order = Tables<'orders'>;
 type OrderItem = Tables<'order_items'>;
 type OrderStatus = Database['public']['Enums']['order_status'];
