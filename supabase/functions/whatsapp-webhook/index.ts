@@ -121,13 +121,17 @@ async function verifyTwilioSignature(req: Request, params: Record<string, string
     if (expected === signature) return true;
   }
 
-  console.warn("Twilio signature mismatch on production WhatsApp webhook", {
-    candidateCount: candidateUrls.size,
-    hasFrom: Boolean(params["From"]),
-    hasMessageSid: Boolean(params["MessageSid"]),
+  console.warn("[whatsapp-webhook] signature mismatch", {
+    receivedSignature: signature,
+    candidateUrls: Array.from(candidateUrls),
+    paramKeys: sortedKeys,
+    authTokenLen: authToken.length,
+    from: params["From"],
+    messageSid: params["MessageSid"],
   });
   return false;
 }
+
 
 // ============================================================
 // Static text (fallback when no template SID configured)
