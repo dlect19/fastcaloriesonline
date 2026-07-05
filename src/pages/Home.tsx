@@ -401,6 +401,9 @@ export default function Home() {
           </Button>
         </div>
 
+        {/* Drug Tracker shortcut — only appears when user has medications to track */}
+        <DrugTrackerButton />
+
         {/* Push Notification Banner */}
         <PushNotificationBanner />
 
