@@ -1069,7 +1069,7 @@ async function fetchVendors(supabase: any, userId: string | null, overrideLat: n
       if (namedVendors.length) return namedVendors;
     } catch (_) {}
   }
-  let q = supabase.from("vendors").select("id, name, category, latitude, longitude").eq("is_active", true).limit(50);
+  let q = supabase.from("vendors").select("id, name, category, latitude, longitude, is_open").eq("is_active", true).limit(50);
   if (category) q = q.eq("category", category);
   const { data } = await q;
   return withStraightLine(withNamesOnly(data || []), lat, lon);
