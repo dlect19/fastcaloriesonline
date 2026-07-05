@@ -61,6 +61,14 @@ export default function RiderSettings() {
     }
   }, [riderProfile?.nin_number]);
 
+  // Clamp work radius to the admin-configured max for the selected vehicle type
+  useEffect(() => {
+    const cfg = getConfigForVehicle(vehicleType);
+    if (!cfg) return;
+    const max = cfg.max_delivery_distance_km;
+    setWorkRadius((prev) => (prev > max ? max : prev));
+  }, [vehicleType, vehicleConfigs]);
+
   useEffect(() => {
     checkAuth();
     const savedFloatMode = localStorage.getItem('rider_float_mode');
