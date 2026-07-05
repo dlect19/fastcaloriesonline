@@ -225,7 +225,7 @@ serve(async (req) => {
     // ============================================================
     // Templates we intentionally bypass so wording stays fully controlled from code
     // (avoids Twilio-approved copy like "Order food" overriding our updated menu labels).
-    const TEXT_ONLY_KEYS = new Set(["wa_main_menu"]);
+    const TEXT_ONLY_KEYS = new Set(["wa_main_menu", "wa_vendor_list"]);
     const sendToUser = async (templateKey: string, vars: Record<string, string>, fallbackText: string) => {
       const sid = TEXT_ONLY_KEYS.has(templateKey) ? undefined : templates[templateKey];
       if (sid) {
@@ -1044,7 +1044,7 @@ async function fetchVendors(supabase: any, userId: string | null, overrideLat: n
   let lat = overrideLat, lon = overrideLon;
   if ((lat === null || lon === null) && userId) {
     const { data: addr } = await supabase
-      .from("delivery_addresses").select("latitude, longitude")
+      .from("addresses").select("latitude, longitude")
       .eq("user_id", userId).order("is_default", { ascending: false }).limit(1).maybeSingle();
     if (addr?.latitude && addr?.longitude) { lat = Number(addr.latitude); lon = Number(addr.longitude); }
   }
@@ -1506,7 +1506,7 @@ async function doCheckout(
   // === Step 1: confirm delivery address before showing the order summary ===
   if (!ctx.address_confirmed) {
     const { data: savedAddr } = await supabase
-      .from("delivery_addresses")
+      .from("addresses")
       .select("label, address_text, latitude, longitude")
       .eq("user_id", session.customer_user_id)
       .order("is_default", { ascending: false })

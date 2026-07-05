@@ -420,7 +420,7 @@ async function fetchVendors(
   let useLon: number | null = Number.isFinite(lon) ? lon : null;
   if ((useLat === null || useLon === null) && userId) {
     const { data: addr } = await supabase
-      .from("delivery_addresses").select("latitude, longitude")
+      .from("addresses").select("latitude, longitude")
       .eq("user_id", userId).order("is_default", { ascending: false }).limit(1).maybeSingle();
     if (addr?.latitude && addr?.longitude) {
       useLat = Number(addr.latitude); useLon = Number(addr.longitude);
