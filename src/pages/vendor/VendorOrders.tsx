@@ -108,9 +108,24 @@ type OrderPackage = {
   sort_order: number;
 };
 
+type PrescriptionOrderRow = {
+  id: string;
+  product_id: string | null;
+  prescription_type: string | null;
+  requires_approval: boolean | null;
+  approval_status: string | null;
+  symptoms: string | null;
+  doctor_name: string | null;
+  hospital_name: string | null;
+  doctor_instructions: string | null;
+  prescription_image_url: string | null;
+  product_name?: string | null;
+};
+
 type OrderWithItems = Order & { 
   items: OrderItemWithAddons[];
   packages?: OrderPackage[];
+  prescriptions?: PrescriptionOrderRow[];
   customer?: {
     full_name: string | null;
     phone: string | null;
