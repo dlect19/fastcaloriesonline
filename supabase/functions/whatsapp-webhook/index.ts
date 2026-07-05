@@ -774,7 +774,7 @@ serve(async (req) => {
 
     if (session.state === "awaiting_location") {
       if (lower === "skip" || tap === "BTN_SKIP_LOC") return await showVendors();
-      if (tap === "BTN_USE_SAVED_ADDR") {
+      if (tap === "BTN_USE_SAVED_ADDR" || lower.includes("saved address")) {
         const savedCoords = await fetchSavedAddressCoords(supabase, session.customer_user_id);
         if (savedCoords) {
           nextContext.lat = savedCoords.lat;
@@ -783,6 +783,9 @@ serve(async (req) => {
           return await showVendors();
         }
         return await replyText("⚠️ I couldn't find a saved address with coordinates. Please share your current location pin so I can show vendor distances.");
+      }
+      if (tap === "BTN_SHARE_LOC" || lower.includes("share location")) {
+        return await replyText("📍 Please send your actual WhatsApp location pin: tap *📎* → *Location* → *Send your current location*.\n\nOr reply *skip* to see top vendors without distances.");
       }
       // Typed area / landmark fallback (for people on desktop WhatsApp who can't share a pin).
       if (body && body.trim().length >= 3) {
@@ -805,7 +808,7 @@ serve(async (req) => {
     if (session.state === "awaiting_delivery_address") {
       const saved = nextContext.saved_address;
       // Option 1: use saved address
-      if (lower === "1" || lower === "yes" || lower === "use saved" || tap === "BTN_USE_SAVED_ADDR") {
+      if (lower === "1" || lower === "yes" || lower === "use saved" || lower.includes("saved address") || tap === "BTN_USE_SAVED_ADDR") {
         if (!saved?.address_text && !saved?.label) {
           return await replyText("⚠️ No saved address found. Please reply with your full delivery address or share a location pin.");
         }
