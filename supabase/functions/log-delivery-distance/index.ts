@@ -85,22 +85,32 @@ Deno.serve(async (req) => {
     // Step 2b: Final fallback — vendor coords vs rider's current location (for carryout
     // or orders that never captured a customer address, e.g. WhatsApp/POS)
     if (!originLat || !destLat) {
-      const { data: order } = await supabase
-        .from('orders')
-        .select('vendor_id')
-        .eq('id', orderId)
-        .maybeSingle();
-      const [{ data: vendor }, { data: rider }] = await Promise.all([
-        order?.vendor_id
-          ? supabase.from('vendors').select('latitude, longitude').eq('id', order.vendor_id).maybeSingle()
-          : Promise.resolve({ data: null }),
-        supabase.from('rider_profiles').select('current_latitude, current_longitude').eq('user_id', riderId).maybeSingle(),
-      ]);
-      if (vendor?.latitude && vendor?.longitude && rider?.current_latitude && rider?.current_longitude) {
-        originLat = vendor.latitude;
-        originLng = vendor.longitude;
-        destLat = rider.current_latitude;
-        destLng = rider.current_longitude;
+      // Prefer vendor coords already captured on the dispatch_request (works for
+      // multi-outlet vendors where the `vendors` row itself has no coords).
+      let vLat: number | null = request?.vendor_latitude ?? null;
+      let vLon: number | null = request?.vendor_longitude ?? null;
+      if (!vLat || !vLon) {
+        const { data: order } = await supabase
+          .from('orders')
+          .select('vendor_id, outlet_id')
+          .eq('id', orderId)
+          .maybeSingle();
+        if (order?.outlet_id) {
+          const { data: outlet } = await supabase
+            .from('vendor_outlets').select('latitude, longitude').eq('id', order.outlet_id).maybeSingle();
+          if (outlet?.latitude && outlet?.longitude) { vLat = outlet.latitude; vLon = outlet.longitude; }
+        }
+        if ((!vLat || !vLon) && order?.vendor_id) {
+          const { data: vendor } = await supabase
+            .from('vendors').select('latitude, longitude').eq('id', order.vendor_id).maybeSingle();
+          if (vendor?.latitude && vendor?.longitude) { vLat = vendor.latitude; vLon = vendor.longitude; }
+        }
+      }
+      const { data: rider } = await supabase
+        .from('rider_profiles').select('current_latitude, current_longitude').eq('user_id', riderId).maybeSingle();
+      if (vLat && vLon && rider?.current_latitude && rider?.current_longitude) {
+        originLat = vLat; originLng = vLon;
+        destLat = rider.current_latitude; destLng = rider.current_longitude;
         console.log(`Using rider's current location as delivery destination for order ${orderId}`);
       }
     }
