@@ -65,11 +65,12 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
     pharmacyItems.map(item => {
       const isTablet = !item.dosageForm || ['tablet', 'capsule'].includes(item.dosageForm);
       // Approval rules (payment happens first, pharmacist reviews after):
-      //  - Controlled drugs ALWAYS require pharmacist approval.
-      //  - No doctor's prescription (pharmacist route) → pharmacist reviews the
-      //    customer's symptoms before dispensing, can suggest a different drug.
-      //  - Doctor's Rx for non-controlled → no gate, proceeds normally.
-      const needsApproval = item.medicineClassification === 'controlled';
+      //  - OTC → no pharmacist review, dispensed immediately.
+      //  - Controlled or Prescription drugs → always require pharmacist approval
+      //    (either symptom review on pharmacist route, or Rx image review).
+      const itemIsOTC =
+        item.medicineClassification === 'otc' ||
+        (item.medicineClassification !== 'controlled' && item.medicineClassification !== 'prescription');
       return {
         productId: item.productId,
         prescriptionType: 'pharmacist',
@@ -85,8 +86,7 @@ export function PrescriptionCheckoutDialog({ open, onClose, pharmacyItems, onCom
         dosageDurationDays: item.defaultDuration || 7,
         quantityPerDose: item.defaultQtyPerDose || 1,
         totalQuantity: item.quantity,
-        // pharmacist route always needs review (of symptoms). Controlled always needs review.
-        requiresApproval: needsApproval || true,
+        requiresApproval: !itemIsOTC,
         prescriptionImageUrl: '',
         isEmergency: false,
         emergencyReason: '',

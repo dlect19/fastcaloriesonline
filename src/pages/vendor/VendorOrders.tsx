@@ -80,6 +80,23 @@ function PrepCountdown({ estimatedAt, prepMinutes }: { estimatedAt: string; prep
   );
 }
 
+function RxPrescriptionThumb({ path }: { path: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    supabase.storage.from('prescriptions').createSignedUrl(path, 600).then(({ data }) => {
+      if (!cancelled) setUrl(data?.signedUrl || null);
+    });
+    return () => { cancelled = true; };
+  }, [path]);
+  if (!url) return <div className="w-24 h-24 bg-muted rounded animate-pulse" />;
+  return (
+    <a href={url} target="_blank" rel="noreferrer" className="inline-block">
+      <img src={url} alt="Doctor's prescription" className="w-24 h-24 object-cover rounded border border-border" />
+    </a>
+  );
+}
+
 type Order = Tables<'orders'>;
 type OrderItem = Tables<'order_items'>;
 type OrderStatus = Database['public']['Enums']['order_status'];
@@ -108,9 +125,24 @@ type OrderPackage = {
   sort_order: number;
 };
 
+type PrescriptionOrderRow = {
+  id: string;
+  product_id: string | null;
+  prescription_type: string | null;
+  requires_approval: boolean | null;
+  approval_status: string | null;
+  symptoms: string | null;
+  doctor_name: string | null;
+  hospital_name: string | null;
+  doctor_instructions: string | null;
+  prescription_image_url: string | null;
+  product_name?: string | null;
+};
+
 type OrderWithItems = Order & { 
   items: OrderItemWithAddons[];
   packages?: OrderPackage[];
+  prescriptions?: PrescriptionOrderRow[];
   customer?: {
     full_name: string | null;
     phone: string | null;
@@ -442,6 +474,12 @@ export default function VendorOrders() {
             .in('order_id', orderIds)
             .order('sort_order');
 
+          // Fetch prescription details (symptoms / doctor Rx) for pharmacy orders
+          const { data: rxData } = await (supabase as any)
+            .from('prescription_orders')
+            .select('id, order_id, product_id, prescription_type, requires_approval, approval_status, symptoms, doctor_name, hospital_name, doctor_instructions, prescription_image_url, products(name)')
+            .in('order_id', orderIds);
+
             const ordersWithItems: OrderWithItems[] = visibleOrders.map(order => {
             const customerProfile = profilesData?.find(p => p.user_id === order.user_id);
             const orderItems: OrderItemWithAddons[] = (itemsData || [])
@@ -451,10 +489,26 @@ export default function VendorOrders() {
                 addons: addonsData.filter(a => a.order_item_id === item.id),
               }));
             const orderPackages = (packagesData || []).filter(p => p.order_id === order.id) as OrderPackage[];
+            const orderRx: PrescriptionOrderRow[] = (rxData || [])
+              .filter((r: any) => r.order_id === order.id)
+              .map((r: any) => ({
+                id: r.id,
+                product_id: r.product_id,
+                prescription_type: r.prescription_type,
+                requires_approval: r.requires_approval,
+                approval_status: r.approval_status,
+                symptoms: r.symptoms,
+                doctor_name: r.doctor_name,
+                hospital_name: r.hospital_name,
+                doctor_instructions: r.doctor_instructions,
+                prescription_image_url: r.prescription_image_url,
+                product_name: r.products?.name || null,
+              }));
             return {
               ...order,
               items: orderItems,
               packages: orderPackages.length > 0 ? orderPackages : undefined,
+              prescriptions: orderRx.length > 0 ? orderRx : undefined,
               customer: customerProfile ? {
                 full_name: customerProfile.full_name || order.receiver_name,
                 phone: customerProfile.phone || order.receiver_phone
@@ -1041,6 +1095,53 @@ export default function VendorOrders() {
           {(order as any).pharmacy_review_status === 'partially_rejected' && (
             <div className="mx-4 mb-3 px-3 py-2 rounded-lg bg-destructive/10 text-destructive border border-destructive/30 text-xs font-medium">
               Some prescription items were rejected and refunded. Prepare only approved items.
+            </div>
+          )}
+
+          {/* Prescription details for pharmacy orders (symptoms or doctor's Rx) */}
+          {order.prescriptions && order.prescriptions.length > 0 && (
+            <div className="mx-4 mb-3 space-y-2">
+              {order.prescriptions.map((rx) => {
+                const hasSymptoms = !!rx.symptoms;
+                const hasDoctor = rx.prescription_type === 'doctor' || rx.doctor_name || rx.prescription_image_url;
+                if (!hasSymptoms && !hasDoctor) return null;
+                return (
+                  <div key={rx.id} className="rounded-lg border border-border bg-muted/40 p-3 text-xs space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-medium text-foreground truncate">
+                        {rx.product_name || 'Prescription item'}
+                      </p>
+                      <Badge variant={rx.approval_status === 'approved' ? 'default' : rx.approval_status === 'rejected' ? 'destructive' : 'secondary'} className="capitalize text-[10px]">
+                        {rx.approval_status || 'pending'}
+                      </Badge>
+                    </div>
+                    {hasSymptoms && (
+                      <div className="p-2 rounded bg-primary/5 border border-primary/20">
+                        <p className="text-[11px] font-medium text-primary mb-0.5">Customer's symptoms</p>
+                        <p className="text-foreground">{rx.symptoms}</p>
+                      </div>
+                    )}
+                    {hasDoctor && (
+                      <div className="p-2 rounded bg-background border border-border space-y-1">
+                        <p className="text-[11px] font-medium">Doctor's prescription</p>
+                        {rx.doctor_name && (
+                          <p className="text-muted-foreground">
+                            {rx.doctor_name}{rx.hospital_name ? ` · ${rx.hospital_name}` : ''}
+                          </p>
+                        )}
+                        {rx.doctor_instructions && (
+                          <p className="italic">"{rx.doctor_instructions}"</p>
+                        )}
+                        {rx.prescription_image_url ? (
+                          <RxPrescriptionThumb path={rx.prescription_image_url} />
+                        ) : (
+                          <p className="text-muted-foreground italic">No image uploaded.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
 
