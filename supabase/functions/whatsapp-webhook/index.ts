@@ -1126,7 +1126,8 @@ async function fetchMenuItems(supabase: any, vendorId: string) {
   const products = data || [];
   if (!products.length) return [];
 
-  // Attach a short addon summary per product so we can show it in the menu text.
+  // Attach full addon groups+items per product so we can walk the customer
+  // through selecting add-ons interactively (rather than dumping them inline).
   const ids = products.map((p: any) => p.id);
   const { data: pag } = await supabase
     .from("product_addon_groups")
@@ -1137,11 +1138,15 @@ async function fetchMenuItems(supabase: any, vendorId: string) {
   let items: any[] = [];
   if (groupIds.length) {
     const [gRes, iRes] = await Promise.all([
-      supabase.from("addon_groups").select("id, name, is_required").in("id", groupIds),
-      supabase.from("addon_items").select("id, addon_group_id, name, additional_price").in("addon_group_id", groupIds),
+      supabase.from("addon_groups")
+        .select("id, name, is_required, selection_type, min_selections, max_selections, sort_order")
+        .in("id", groupIds),
+      supabase.from("addon_items")
+        .select("id, addon_group_id, name, additional_price, calories, is_available, sort_order")
+        .in("addon_group_id", groupIds),
     ]);
     groups = gRes.data || [];
-    items = iRes.data || [];
+    items = (iRes.data || []).filter((i: any) => i.is_available !== false);
   }
   const groupById = new Map(groups.map((g: any) => [g.id, g]));
   const itemsByGroup = new Map<string, any[]>();
@@ -1150,26 +1155,62 @@ async function fetchMenuItems(supabase: any, vendorId: string) {
     arr.push(it);
     itemsByGroup.set(it.addon_group_id, arr);
   });
-  const addonsByProduct = new Map<string, string[]>();
+  // Sort items within each group
+  itemsByGroup.forEach((arr) => arr.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)));
+
+  const groupsByProduct = new Map<string, any[]>();
   (pag || []).forEach((row: any) => {
     const g = groupById.get(row.addon_group_id);
     if (!g) return;
     const gi = itemsByGroup.get(row.addon_group_id) || [];
     if (!gi.length) return;
-    const names = gi.slice(0, 4).map((i: any) => {
-      const price = Number(i.additional_price) || 0;
-      return price > 0 ? `${i.name} (+₦${price.toLocaleString()})` : i.name;
+    const arr = groupsByProduct.get(row.product_id) || [];
+    arr.push({
+      id: g.id,
+      name: g.name,
+      is_required: !!g.is_required,
+      selection_type: g.selection_type || "single",
+      min_selections: Number(g.min_selections) || 0,
+      max_selections: g.max_selections == null ? null : Number(g.max_selections),
+      sort_order: Number(g.sort_order) || 0,
+      items: gi.map((i: any) => ({
+        id: i.id,
+        name: i.name,
+        price: Number(i.additional_price) || 0,
+        calories: Number(i.calories) || 0,
+      })),
     });
-    const label = `${g.name}${g.is_required ? "*" : ""}: ${names.join(", ")}${gi.length > 4 ? "…" : ""}`;
-    const arr = addonsByProduct.get(row.product_id) || [];
-    arr.push(label);
-    addonsByProduct.set(row.product_id, arr);
+    groupsByProduct.set(row.product_id, arr);
   });
+  // Sort groups within a product
+  groupsByProduct.forEach((arr) => arr.sort((a, b) => a.sort_order - b.sort_order));
 
   return products.map((p: any) => ({
     ...p,
-    addons_summary: addonsByProduct.get(p.id) || [],
+    addon_groups: groupsByProduct.get(p.id) || [],
   }));
+}
+
+// Format one addon group prompt for the customer
+function renderAddonGroupPrompt(itemName: string, group: any, groupIdx: number, totalGroups: number): string {
+  const isMulti = group.selection_type === "multiple";
+  const minSel = group.is_required ? Math.max(1, group.min_selections || 1) : (group.min_selections || 0);
+  const maxSel = group.max_selections || (isMulti ? group.items.length : 1);
+  const lines = group.items.map((it: any, i: number) => {
+    const price = Number(it.price) || 0;
+    const priceLabel = price > 0 ? ` (+₦${price.toLocaleString()})` : "";
+    return `${i + 1}. ${it.name}${priceLabel}`;
+  }).join("\n");
+  const header = `➕ *${itemName}* — Step ${groupIdx + 1}/${totalGroups}\n\n*${group.name}*${group.is_required ? " _(required)_" : " _(optional)_"}`;
+  let hint = "";
+  if (isMulti && maxSel > 1) {
+    hint = `\n\nReply with number(s) — up to ${maxSel}. E.g. *1* or *1,3*`;
+  } else {
+    hint = `\n\nReply with one number.`;
+  }
+  if (!group.is_required) hint += ` Reply *skip* to skip.`;
+  hint += `\nReply *cancel* to drop this item.`;
+  return `${header}\n\n${lines}${hint}`;
 }
 
 // Only serving units that actually need containers count toward pack sizing —
