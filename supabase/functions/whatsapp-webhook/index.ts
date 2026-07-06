@@ -1164,7 +1164,13 @@ function cartTotal(cart: any[]): number {
 
 function renderCart(cart: any[]): string {
   if (!cart.length) return "🛒 Your cart is empty.";
-  const lines = cart.map((c, i) => `${i + 1}. ${c.name} × ${c.qty} — ₦${(Number(c.price) * c.qty).toLocaleString()}`);
+  const lines = cart.map((c, i) => {
+    const head = `${i + 1}. ${c.name} × ${c.qty} — ₦${(Number(c.price) * c.qty).toLocaleString()}`;
+    const addons = (c.addons || []).length
+      ? "\n   _+ " + c.addons.map((a: any) => a.item_name).join(", ") + "_"
+      : "";
+    return head + addons;
+  });
   return `🛒 *Your Cart*\n\n${lines.join("\n")}\n\n*Total: ₦${cartTotal(cart).toLocaleString()}*`;
 }
 
