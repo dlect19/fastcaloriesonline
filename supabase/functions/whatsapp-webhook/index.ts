@@ -476,9 +476,10 @@ serve(async (req) => {
 
     if (tap === "BTN_CART" || lower === "cart") {
       const txt = renderCart(nextCart);
+      const cartBody = renderCart(nextCart, false);
       await persistSession(supabase, session.id, nextCart.length ? "cart" : session.state, nextContext, nextCart);
       if (nextCart.length) {
-        return await sendToUser("wa_cart_actions", { "1": cartTotal(nextCart).toLocaleString() }, txt + "\n\nReply *checkout* to pay, *clear* to empty, or *menu*.");
+        return await sendToUser("wa_cart_actions", { "1": cartBody }, txt + "\n\nReply *checkout* to pay, *clear* to empty, or *menu*.");
       }
       return await replyText(txt + HELP_HINT);
     }
@@ -653,8 +654,9 @@ serve(async (req) => {
 
     if ((session.state === "menu" && lower === "5")) {
       const txt = renderCart(nextCart);
+      const cartBody = renderCart(nextCart, false);
       await persistSession(supabase, session.id, nextCart.length ? "cart" : "menu", nextContext, nextCart);
-      if (nextCart.length) return await sendToUser("wa_cart_actions", { "1": cartTotal(nextCart).toLocaleString() }, txt);
+      if (nextCart.length) return await sendToUser("wa_cart_actions", { "1": cartBody }, txt);
       return await replyText(txt + HELP_HINT);
     }
 
@@ -774,7 +776,8 @@ serve(async (req) => {
       });
       await persistSession(supabase, session.id, "browsing_menu", nextContext, nextCart);
       const txt = `✅ Added *${qty} × ${it.name}* to cart.\n\n` + renderCart(nextCart);
-      return await sendToUser("wa_cart_actions", { "1": cartTotal(nextCart).toLocaleString() }, txt + "\n\nReply *checkout* to pay, another item number, *<item>x<qty>* for multiple, or *menu* to go back.");
+      const cartBody = `✅ Added *${qty} × ${it.name}* to cart.\n\n` + renderCart(nextCart, false);
+      return await sendToUser("wa_cart_actions", { "1": cartBody }, txt + "\n\nReply *checkout* to pay, another item number, *<item>x<qty>* for multiple, or *menu* to go back.");
     }
 
     // Walk the customer through picking add-ons for the pending item, one group at a time.
@@ -857,7 +860,8 @@ serve(async (req) => {
         ? "\n   _+ " + nextSelections.map((a: any) => a.item_name).join(", ") + "_"
         : "";
       const txt = `✅ Added *${pending.qty} × ${it.name}*${summary}\n\n` + renderCart(nextCart);
-      return await sendToUser("wa_cart_actions", { "1": cartTotal(nextCart).toLocaleString() }, txt + "\n\nReply *checkout* to pay, another item number, or *menu* to go back.");
+      const cartBody = `✅ Added *${pending.qty} × ${it.name}*${summary}\n\n` + renderCart(nextCart, false);
+      return await sendToUser("wa_cart_actions", { "1": cartBody }, txt + "\n\nReply *checkout* to pay, another item number, or *menu* to go back.");
     }
 
     if (session.state === "cart") {
@@ -875,11 +879,12 @@ serve(async (req) => {
           return await replyText("Reply with another item number from the menu, or *menu* to go back.");
         }
         await persistSession(supabase, session.id, "menu", nextContext, nextCart);
-        return await sendToUser("wa_main_menu", {}, MENU_OPTIONS);
-      }
-      return await sendToUser("wa_cart_actions", { "1": cartTotal(nextCart).toLocaleString() },
-        renderCart(nextCart) + "\n\nReply *checkout* to pay, *clear* to empty, or *menu* to restart.");
+      return await sendToUser("wa_main_menu", {}, MENU_OPTIONS);
     }
+    const cartBody = renderCart(nextCart, false);
+    return await sendToUser("wa_cart_actions", { "1": cartBody },
+      renderCart(nextCart) + "\n\nReply *checkout* to pay, *clear* to empty, or *menu* to restart.");
+  }
 
     if (session.state === "confirming_order") {
       if (lower.startsWith("note:") || lower.startsWith("note ")) {
@@ -1162,7 +1167,7 @@ function cartTotal(cart: any[]): number {
   return cart.reduce((s, c) => s + Number(c.price) * c.qty, 0);
 }
 
-function renderCart(cart: any[]): string {
+function renderCart(cart: any[], includeHeader = true): string {
   if (!cart.length) return "🛒 Your cart is empty.";
   const lines = cart.map((c, i) => {
     const head = `${i + 1}. ${c.name} × ${c.qty} — ₦${(Number(c.price) * c.qty).toLocaleString()}`;
@@ -1171,7 +1176,8 @@ function renderCart(cart: any[]): string {
       : "";
     return head + addons;
   });
-  return `🛒 *Your Cart*\n\n${lines.join("\n")}\n\n*Total: ₦${cartTotal(cart).toLocaleString()}*`;
+  const body = `${lines.join("\n")}\n\n*Total: ₦${cartTotal(cart).toLocaleString()}*`;
+  return includeHeader ? `🛒 *Your Cart*\n\n${body}` : body;
 }
 
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
