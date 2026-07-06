@@ -1162,7 +1162,7 @@ function cartTotal(cart: any[]): number {
   return cart.reduce((s, c) => s + Number(c.price) * c.qty, 0);
 }
 
-function renderCart(cart: any[]): string {
+function renderCart(cart: any[], includeHeader = true): string {
   if (!cart.length) return "🛒 Your cart is empty.";
   const lines = cart.map((c, i) => {
     const head = `${i + 1}. ${c.name} × ${c.qty} — ₦${(Number(c.price) * c.qty).toLocaleString()}`;
@@ -1171,7 +1171,8 @@ function renderCart(cart: any[]): string {
       : "";
     return head + addons;
   });
-  return `🛒 *Your Cart*\n\n${lines.join("\n")}\n\n*Total: ₦${cartTotal(cart).toLocaleString()}*`;
+  const body = `${lines.join("\n")}\n\n*Total: ₦${cartTotal(cart).toLocaleString()}*`;
+  return includeHeader ? `🛒 *Your Cart*\n\n${body}` : body;
 }
 
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
