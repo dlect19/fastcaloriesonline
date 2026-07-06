@@ -748,17 +748,116 @@ serve(async (req) => {
       if (!itemId) return await replyText("Reply with item number (e.g. *2*) or *<item>x<qty>* (e.g. *2x3*), *checkout* to pay, or *menu* to restart.");
       const it = (nextContext.items || []).find((x: any) => x.id === itemId);
       if (!it) return await replyText("That item is no longer available.");
-      const inCart = nextCart.find((c: any) => c.id === it.id);
+
+      // If this item has add-on groups, walk the customer through selecting them
+      // one group at a time before we drop the line into the cart.
+      const groups = Array.isArray(it.addon_groups) ? it.addon_groups : [];
+      if (groups.length) {
+        nextContext.pending_item = {
+          item_id: it.id,
+          qty,
+          group_idx: 0,
+          selections: [],
+        };
+        await persistSession(supabase, session.id, "selecting_addons", nextContext, nextCart);
+        return await replyText(renderAddonGroupPrompt(it.name, groups[0], 0, groups.length));
+      }
+
+      const inCart = nextCart.find((c: any) => c.id === it.id && !(c.addons && c.addons.length));
       if (inCart) inCart.qty += qty;
       else nextCart.push({
         ...it, qty,
         vendor_id: nextContext.vendor_id, vendor_name: nextContext.vendor_name,
         is_pharmacy: nextContext.vendor_category === "pharmacy",
         requires_prescription: !!it.requires_prescription,
+        addons: [],
       });
       await persistSession(supabase, session.id, "browsing_menu", nextContext, nextCart);
       const txt = `✅ Added *${qty} × ${it.name}* to cart.\n\n` + renderCart(nextCart);
       return await sendToUser("wa_cart_actions", { "1": cartTotal(nextCart).toLocaleString() }, txt + "\n\nReply *checkout* to pay, another item number, *<item>x<qty>* for multiple, or *menu* to go back.");
+    }
+
+    // Walk the customer through picking add-ons for the pending item, one group at a time.
+    if (session.state === "selecting_addons") {
+      const pending = nextContext.pending_item;
+      const it = (nextContext.items || []).find((x: any) => x.id === pending?.item_id);
+      if (!pending || !it) {
+        await persistSession(supabase, session.id, "browsing_menu", { ...nextContext, pending_item: null }, nextCart);
+        return await replyText("Hmm, that item went away. Reply with a menu number to try again, or *menu* to restart.");
+      }
+      const groups = it.addon_groups || [];
+      const group = groups[pending.group_idx];
+      if (lower === "cancel") {
+        await persistSession(supabase, session.id, "browsing_menu", { ...nextContext, pending_item: null }, nextCart);
+        return await replyText(`❌ Dropped *${it.name}*.\n\nReply with a menu number, or *menu* to go back.`);
+      }
+      const isMulti = group.selection_type === "multiple";
+      const maxSel = group.max_selections || (isMulti ? group.items.length : 1);
+      const minSel = group.is_required ? Math.max(1, group.min_selections || 1) : (group.min_selections || 0);
+
+      let picks: any[] = [];
+      if (lower === "skip" || lower === "none" || lower === "0") {
+        if (group.is_required || minSel > 0) {
+          return await replyText(`⚠️ *${group.name}* is required. Please reply with ${minSel === 1 ? "one number" : `at least ${minSel} numbers`}.`);
+        }
+      } else {
+        const nums = lower.replace(/\s+/g, "").split(/[,+]/).map((s) => parseInt(s, 10)).filter((n) => Number.isFinite(n) && n > 0);
+        const unique = Array.from(new Set(nums));
+        if (!unique.length) {
+          return await replyText(`Please reply with number${isMulti && maxSel > 1 ? "(s)" : ""} from the list${group.is_required ? "" : ", or *skip*"}, or *cancel*.`);
+        }
+        if (unique.length > maxSel) {
+          return await replyText(`⚠️ You can pick up to ${maxSel} option${maxSel === 1 ? "" : "s"} for *${group.name}*.`);
+        }
+        if (unique.length < minSel) {
+          return await replyText(`⚠️ *${group.name}* needs at least ${minSel} option${minSel === 1 ? "" : "s"}.`);
+        }
+        for (const n of unique) {
+          const chosen = group.items[n - 1];
+          if (!chosen) return await replyText(`⚠️ "${n}" isn't on the list. Try again, or *cancel*.`);
+          picks.push({
+            group_id: group.id,
+            group_name: group.name,
+            item_id: chosen.id,
+            item_name: chosen.name,
+            price: Number(chosen.price) || 0,
+            calories: Number(chosen.calories) || 0,
+          });
+        }
+      }
+      const nextSelections = [...(pending.selections || []), ...picks];
+      const nextIdx = pending.group_idx + 1;
+
+      if (nextIdx < groups.length) {
+        nextContext.pending_item = { ...pending, group_idx: nextIdx, selections: nextSelections };
+        await persistSession(supabase, session.id, "selecting_addons", nextContext, nextCart);
+        return await replyText(renderAddonGroupPrompt(it.name, groups[nextIdx], nextIdx, groups.length));
+      }
+
+      // Done — push a new cart line (don't merge, since add-on combos may differ)
+      const addonTotal = nextSelections.reduce((s: number, a: any) => s + (Number(a.price) || 0), 0);
+      const addonCal = nextSelections.reduce((s: number, a: any) => s + (Number(a.calories) || 0), 0);
+      nextCart.push({
+        id: it.id,
+        name: it.name,
+        price: (Number(it.price) || 0) + addonTotal,
+        base_price: Number(it.price) || 0,
+        calories: (Number(it.calories) || 0) + addonCal,
+        qty: pending.qty,
+        vendor_id: nextContext.vendor_id,
+        vendor_name: nextContext.vendor_name,
+        is_pharmacy: nextContext.vendor_category === "pharmacy",
+        requires_prescription: !!it.requires_prescription,
+        serving_unit: it.serving_unit || null,
+        addons: nextSelections,
+      });
+      nextContext.pending_item = null;
+      await persistSession(supabase, session.id, "browsing_menu", nextContext, nextCart);
+      const summary = nextSelections.length
+        ? "\n   _+ " + nextSelections.map((a: any) => a.item_name).join(", ") + "_"
+        : "";
+      const txt = `✅ Added *${pending.qty} × ${it.name}*${summary}\n\n` + renderCart(nextCart);
+      return await sendToUser("wa_cart_actions", { "1": cartTotal(nextCart).toLocaleString() }, txt + "\n\nReply *checkout* to pay, another item number, or *menu* to go back.");
     }
 
     if (session.state === "cart") {
