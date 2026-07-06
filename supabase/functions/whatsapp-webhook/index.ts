@@ -694,7 +694,7 @@ serve(async (req) => {
         requires_prescription: !!m.requires_prescription,
         serving_unit: m.serving_unit || null,
         is_available: m.is_available !== false,
-        addons_summary: m.addons_summary || [],
+        addon_groups: m.addon_groups || [],
       }));
       if (!items.length) {
         await persistSession(supabase, session.id, "menu", nextContext, nextCart);
@@ -708,11 +708,11 @@ serve(async (req) => {
         shown.map((m: any, i: number) => {
           const rx = m.requires_prescription ? " ⚕️_Rx_" : "";
           const off = m.is_available === false ? " 🔴 _Unavailable_" : " 🟢";
-          const head = `${i + 1}. ${m.name}${rx}${off} — ₦${Number(m.price).toLocaleString()}${m.calories ? ` (${m.calories} cal)` : ""}`;
-          const addons = (m.addons_summary || []).slice(0, 2).map((a: string) => `\n   • ${a}`).join("");
-          return head + addons;
+          const hasAddons = (m.addon_groups || []).length > 0;
+          const addonHint = hasAddons ? "\n   _➕ add-ons available_" : "";
+          return `${i + 1}. ${m.name}${rx}${off} — ₦${Number(m.price).toLocaleString()}${m.calories ? ` (${m.calories} cal)` : ""}${addonHint}`;
         }).join("\n") +
-        (isPharm ? "\n\n_⚕️ = prescription required. We'll ask for your prescription at checkout._" : "\n\n_Add-ons marked with * are required — reply with a note if you want a specific option._") +
+        (isPharm ? "\n\n_⚕️ = prescription required. We'll ask for your prescription at checkout._" : "") +
         "\n\nReply with the item number to add 1 to cart.\nFor multiple, reply *<item>x<qty>* (e.g. *1x3* = 3 of item 1).\nOr *menu* to go back.";
       // Twilio template requires all 10 slots filled — only use it when we have exactly 10 real items
       if (shown.length < 10) return await replyText(text);
