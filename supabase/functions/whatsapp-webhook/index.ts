@@ -879,11 +879,12 @@ serve(async (req) => {
           return await replyText("Reply with another item number from the menu, or *menu* to go back.");
         }
         await persistSession(supabase, session.id, "menu", nextContext, nextCart);
-        return await sendToUser("wa_main_menu", {}, MENU_OPTIONS);
-      }
-      return await sendToUser("wa_cart_actions", { "1": cartTotal(nextCart).toLocaleString() },
-        renderCart(nextCart) + "\n\nReply *checkout* to pay, *clear* to empty, or *menu* to restart.");
+      return await sendToUser("wa_main_menu", {}, MENU_OPTIONS);
     }
+    const cartBody = renderCart(nextCart, false);
+    return await sendToUser("wa_cart_actions", { "1": cartBody },
+      renderCart(nextCart) + "\n\nReply *checkout* to pay, *clear* to empty, or *menu* to restart.");
+  }
 
     if (session.state === "confirming_order") {
       if (lower.startsWith("note:") || lower.startsWith("note ")) {
