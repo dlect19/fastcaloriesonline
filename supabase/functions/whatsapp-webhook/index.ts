@@ -776,7 +776,8 @@ serve(async (req) => {
       });
       await persistSession(supabase, session.id, "browsing_menu", nextContext, nextCart);
       const txt = `✅ Added *${qty} × ${it.name}* to cart.\n\n` + renderCart(nextCart);
-      return await sendToUser("wa_cart_actions", { "1": cartTotal(nextCart).toLocaleString() }, txt + "\n\nReply *checkout* to pay, another item number, *<item>x<qty>* for multiple, or *menu* to go back.");
+      const cartBody = `✅ Added *${qty} × ${it.name}* to cart.\n\n` + renderCart(nextCart, false);
+      return await sendToUser("wa_cart_actions", { "1": cartBody }, txt + "\n\nReply *checkout* to pay, another item number, *<item>x<qty>* for multiple, or *menu* to go back.");
     }
 
     // Walk the customer through picking add-ons for the pending item, one group at a time.
