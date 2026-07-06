@@ -1716,7 +1716,32 @@ async function confirmWhatsAppOrder(
       calories: 0,
     } as any);
   }
-  await supabase.from("order_items").insert(items);
+  const { data: insertedItems } = await supabase.from("order_items").insert(items).select("id, product_id");
+
+  // Persist selected add-ons per line item into order_item_addons (denormalized).
+  if (insertedItems?.length) {
+    const addonRows: any[] = [];
+    cart.forEach((c: any) => {
+      if (!c.addons?.length) return;
+      // Match inserted row to cart line by product_id. When multiple lines share
+      // the same product, associate to the first still-unclaimed row.
+      const claimed = new Set<string>();
+      const row = insertedItems.find((r: any) => r.product_id === c.id && !claimed.has(r.id));
+      if (!row) return;
+      claimed.add(row.id);
+      c.addons.forEach((a: any) => {
+        addonRows.push({
+          order_item_id: row.id,
+          addon_group_name: a.group_name,
+          addon_item_name: a.item_name,
+          additional_price: Number(a.price) || 0,
+          calories: Number(a.calories) || 0,
+        });
+      });
+    });
+    if (addonRows.length) await supabase.from("order_item_addons").insert(addonRows);
+  }
+
 
 
   // === Pharmacy: insert prescription_orders + prescriptions row ===
