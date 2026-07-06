@@ -860,7 +860,8 @@ serve(async (req) => {
         ? "\n   _+ " + nextSelections.map((a: any) => a.item_name).join(", ") + "_"
         : "";
       const txt = `✅ Added *${pending.qty} × ${it.name}*${summary}\n\n` + renderCart(nextCart);
-      return await sendToUser("wa_cart_actions", { "1": cartTotal(nextCart).toLocaleString() }, txt + "\n\nReply *checkout* to pay, another item number, or *menu* to go back.");
+      const cartBody = `✅ Added *${pending.qty} × ${it.name}*${summary}\n\n` + renderCart(nextCart, false);
+      return await sendToUser("wa_cart_actions", { "1": cartBody }, txt + "\n\nReply *checkout* to pay, another item number, or *menu* to go back.");
     }
 
     if (session.state === "cart") {
