@@ -476,9 +476,10 @@ serve(async (req) => {
 
     if (tap === "BTN_CART" || lower === "cart") {
       const txt = renderCart(nextCart);
+      const cartBody = renderCart(nextCart, false);
       await persistSession(supabase, session.id, nextCart.length ? "cart" : session.state, nextContext, nextCart);
       if (nextCart.length) {
-        return await sendToUser("wa_cart_actions", { "1": cartTotal(nextCart).toLocaleString() }, txt + "\n\nReply *checkout* to pay, *clear* to empty, or *menu*.");
+        return await sendToUser("wa_cart_actions", { "1": cartBody }, txt + "\n\nReply *checkout* to pay, *clear* to empty, or *menu*.");
       }
       return await replyText(txt + HELP_HINT);
     }
