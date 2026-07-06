@@ -654,8 +654,9 @@ serve(async (req) => {
 
     if ((session.state === "menu" && lower === "5")) {
       const txt = renderCart(nextCart);
+      const cartBody = renderCart(nextCart, false);
       await persistSession(supabase, session.id, nextCart.length ? "cart" : "menu", nextContext, nextCart);
-      if (nextCart.length) return await sendToUser("wa_cart_actions", { "1": cartTotal(nextCart).toLocaleString() }, txt);
+      if (nextCart.length) return await sendToUser("wa_cart_actions", { "1": cartBody }, txt);
       return await replyText(txt + HELP_HINT);
     }
 
