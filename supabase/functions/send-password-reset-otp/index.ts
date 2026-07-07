@@ -59,9 +59,9 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Generate OTP and expiry (10 minutes)
+    // Generate OTP and expiry (30 minutes — gives users time to open email + set new password)
     const otpCode = generateOTP();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
 
     // Store OTP in database
     const { error: insertError } = await supabase
@@ -125,7 +125,7 @@ const handler = async (req: Request): Promise<Response> => {
                     <!-- Expiry Warning -->
                     <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 12px 16px; border-radius: 0 8px 8px 0; margin-bottom: 24px;">
                       <p style="margin: 0; color: #92400e; font-size: 14px;">
-                        ⏱️ This code expires in <strong>10 minutes</strong>
+                        ⏱️ This code expires in <strong>30 minutes</strong>
                       </p>
                     </div>
                     

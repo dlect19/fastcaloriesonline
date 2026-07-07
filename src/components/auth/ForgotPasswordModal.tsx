@@ -151,16 +151,19 @@ export function ForgotPasswordModal({ open, onOpenChange, platform }: ForgotPass
         },
       });
 
-      if (error) throw error;
+      // If the edge function returned a non-2xx, prefer the message inside the response body over the generic invoke error.
+      const responseMessage = (data && typeof data === 'object' && 'error' in data) ? (data as any).error : null;
+      if (error && !responseMessage) throw error;
+      if (responseMessage) throw new Error(responseMessage);
 
       if (data?.success) {
         setStep('success');
       } else {
-        throw new Error(data?.error || 'Failed to reset password');
+        throw new Error('Failed to reset password');
       }
     } catch (error: any) {
       toast({
-        title: 'Error',
+        title: 'Could not reset password',
         description: error.message || 'Failed to reset password',
         variant: 'destructive',
       });
