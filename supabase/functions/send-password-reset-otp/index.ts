@@ -177,8 +177,8 @@ const handler = async (req: Request): Promise<Response> => {
   } catch (error: any) {
     console.error("Error in send-password-reset-otp:", error);
     return new Response(
-      JSON.stringify({ success: false, error: error.message }),
-      { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      JSON.stringify({ success: false, error: error.message || "Failed to send reset code" }),
+      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   }
 };
