@@ -35,8 +35,8 @@ const handler = async (req: Request): Promise<Response> => {
     // Validate OTP format
     if (!/^\d{6}$/.test(trimmedOtp)) {
       return new Response(
-        JSON.stringify({ success: false, error: "Invalid OTP format" }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        JSON.stringify({ success: false, error: "Invalid code format. Please enter the 6-digit code." }),
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -44,7 +44,7 @@ const handler = async (req: Request): Promise<Response> => {
     if (newPassword.length < 8) {
       return new Response(
         JSON.stringify({ success: false, error: "Password must be at least 8 characters long" }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -66,9 +66,25 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     if (!otpRecord) {
+      // Check whether an OTP existed but expired, so we can tell the user why it failed.
+      const { data: recentAny } = await supabase
+        .from("password_reset_otps")
+        .select("expires_at, used")
+        .eq("email", normalizedEmail)
+        .eq("otp_code", trimmedOtp)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      let message = "Invalid code. Please double-check and try again, or request a new one.";
+      if (recentAny?.used) {
+        message = "This code has already been used. Please request a new one.";
+      } else if (recentAny && new Date(recentAny.expires_at) < new Date()) {
+        message = "This code has expired. Please request a new one.";
+      }
       return new Response(
-        JSON.stringify({ success: false, error: "Invalid or expired code. Please request a new one." }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        JSON.stringify({ success: false, error: message }),
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
