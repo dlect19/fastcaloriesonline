@@ -53,9 +53,9 @@ const handler = async (req: Request): Promise<Response> => {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: "Too many password reset requests. Please try again later." 
+          error: "Too many password reset requests. Please wait an hour and try again." 
         }),
-        { status: 429, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
