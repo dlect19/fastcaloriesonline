@@ -70,7 +70,10 @@ export function ForgotPasswordModal({ open, onOpenChange, platform }: ForgotPass
         body: { email: email.trim().toLowerCase(), platform },
       });
 
-      if (error) throw error;
+      // Prefer real error message from response body over generic non-2xx invoke error
+      const responseMessage = (data && typeof data === 'object' && 'error' in data) ? (data as any).error : null;
+      if (error && !responseMessage) throw error;
+      if (responseMessage) throw new Error(responseMessage);
 
       if (data?.success) {
         toast({
