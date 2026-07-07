@@ -255,18 +255,28 @@ serve(async (req) => {
     let combinedShadowUsed = 0;
     let combinedShortfall = 0;
 
+    let paystackErrorMsg: string | null = null;
     const initPaystackLink = async (amount: number, suffix = '') => {
       const paystackKey = environment === 'production'
         ? Deno.env.get('PAYSTACK_LIVE_SECRET_KEY') || Deno.env.get('PAYSTACK_SECRET_KEY')
         : Deno.env.get('PAYSTACK_TEST_SECRET_KEY') || Deno.env.get('PAYSTACK_SECRET_KEY');
-      if (!paystackKey) return null;
+      if (!paystackKey) {
+        paystackErrorMsg = 'Paystack secret key is not configured for the active environment.';
+        return null;
+      }
       const ref = `FCM-${order.order_number}-${suffix || ''}${Date.now()}`;
       const origin = req.headers.get('origin') || 'https://app.fastcalories.online';
+      // Paystack requires a valid email. Build a safe fallback using a real domain.
+      const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const rawEmail = (customer.email || '').trim();
+      const digits = String(customer.phone || '').replace(/\D/g, '') || 'guest';
+      const fallbackEmail = `assisted+${digits}@fastcalories.online`;
+      const emailToUse = emailRe.test(rawEmail) ? rawEmail : fallbackEmail;
       const psRes = await fetch('https://api.paystack.co/transaction/initialize', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${paystackKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: customer.email || `${customer.phone}@fastcalories.local`,
+          email: emailToUse,
           amount: Math.round(amount * 100),
           reference: ref,
           callback_url: `${origin}/track/${order.order_number}`,
@@ -278,8 +288,10 @@ serve(async (req) => {
         return { url: psData.data.authorization_url as string, reference: psData.data.reference as string };
       }
       console.error('Paystack init failed', psData);
+      paystackErrorMsg = psData?.message || 'Paystack rejected the request.';
       return null;
     };
+
 
     if (payment_method === 'wallet') {
       // Inline wallet debit (process-wallet-payment requires a user JWT, which we don't have here).
@@ -374,8 +386,10 @@ serve(async (req) => {
       const res = await initPaystackLink(total);
       if (!res) {
         await supabase.from('orders').delete().eq('id', order.id);
-        return json({ error: 'Paystack payment link could not be generated. Please check the active payment environment and Paystack keys, then try again.' }, 502);
+        return json({ error: `Paystack payment link could not be generated: ${paystackErrorMsg || 'unknown error'}. Check the active payment environment and Paystack keys, then try again.` }, 502);
       }
+      paymentLink = res.url; paymentReference = res.reference;
+      await supabase.from('orders').update({ payment_reference: paymentReference }).eq('id', order.id);
       paymentLink = res.url; paymentReference = res.reference;
       await supabase.from('orders').update({ payment_reference: paymentReference }).eq('id', order.id);
     } else if (payment_method === 'bank_transfer') {
