@@ -101,7 +101,7 @@ const handler = async (req: Request): Promise<Response> => {
     if (!user) {
       return new Response(
         JSON.stringify({ success: false, error: "No account found with this email" }),
-        { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
