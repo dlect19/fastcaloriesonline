@@ -69,6 +69,7 @@ serve(async (req) => {
         to_phone: phone, from_phone: from.replace("whatsapp:", ""), body,
         twilio_sid: null, twilio_status: "failed",
         function_name: "whatsapp-send", error: JSON.stringify(data).slice(0, 500),
+        order_id: orderId ?? null,
       });
       return new Response(JSON.stringify({ error: "twilio_failed", details: data }),
         { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -84,6 +85,7 @@ serve(async (req) => {
       to_phone: phone, from_phone: from.replace("whatsapp:", ""), body,
       twilio_sid: data.sid ?? null, twilio_status: data.status ?? "queued",
       function_name: "whatsapp-send",
+      order_id: orderId ?? null,
     });
 
     return new Response(JSON.stringify({ success: true, sid: data.sid }),
