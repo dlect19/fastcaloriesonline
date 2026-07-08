@@ -5,6 +5,7 @@ import { useCart } from '@/hooks/useCart';
 import { useCustomerWallet } from '@/hooks/useCustomerWallet';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { BottomNav } from '@/components/home/BottomNav';
 import { VendorCheckoutSection } from '@/components/cart/VendorCheckoutSection';
 import { ArrowLeft, ShoppingBag, Leaf, Trash2 } from 'lucide-react';
