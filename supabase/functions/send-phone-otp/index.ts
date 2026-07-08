@@ -111,9 +111,20 @@ serve(async (req) => {
     }
 
     if (!send.ok) {
+      await logTwilioCall(admin, {
+        user_id: userId, initiated_by: userId, channel: channelUsed,
+        to_phone: phone, body: message, function_name: "send-phone-otp",
+        twilio_status: "failed", error: String(send.error).slice(0, 500),
+      });
       return new Response(JSON.stringify({ error: "send_failed", details: send.error }),
         { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
+
+    await logTwilioCall(admin, {
+      user_id: userId, initiated_by: userId, channel: channelUsed,
+      to_phone: phone, body: message, twilio_sid: send.sid ?? null,
+      twilio_status: "queued", function_name: "send-phone-otp",
+    });
 
     await admin.from("phone_verification_otps").insert({
       user_id: userId, phone, code_hash: codeHash, channel: channelUsed,
