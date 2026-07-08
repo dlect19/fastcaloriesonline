@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
-import { Flame, Wheat, Drumstick, Droplets, Leaf } from 'lucide-react';
+import { Flame, Wheat, Drumstick, Droplets, Leaf, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ProductCustomizationDialog } from '@/components/vendor/ProductCustomizationDialog';
 import { MedicineClassificationBadge } from '@/components/pharmacy/MedicineClassificationBadge';
@@ -13,9 +13,12 @@ interface ProductCardProps {
   product: Product;
   vendor: Vendor;
   outletId?: string;
+  selectionMode?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (product: Product) => void;
 }
 
-export function ProductCard({ product, vendor, outletId }: ProductCardProps) {
+export function ProductCard({ product, vendor, outletId, selectionMode, selected, onToggleSelect }: ProductCardProps) {
   const [showDetails, setShowDetails] = useState(false);
 
   const getCalorieLevel = (calories: number | null) => {
