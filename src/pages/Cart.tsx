@@ -7,7 +7,18 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { BottomNav } from '@/components/home/BottomNav';
 import { VendorCheckoutSection } from '@/components/cart/VendorCheckoutSection';
-import { ArrowLeft, ShoppingBag, Leaf } from 'lucide-react';
+import { ArrowLeft, ShoppingBag, Leaf, Trash2 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { VendorFreeMealProgress } from '@/components/vendor/VendorFreeMealProgress';
 import { useToast } from '@/hooks/use-toast';
 import { useLegalAcceptance } from '@/hooks/useLegalAcceptance';
@@ -28,7 +39,7 @@ interface VendorLocation {
 
 export default function Cart() {
   const { user, loading: authLoading } = useAuth();
-  const { items, vendorGroups, isMultiVendor } = useCart();
+  const { items, vendorGroups, isMultiVendor, clearCart } = useCart();
   const { balance: walletBalance, isDisabled: isWalletDisabled, hasDVA, dvaDetails, refetch: refetchWallet } = useCustomerWallet();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -181,6 +192,36 @@ export default function Cart() {
               <p className="text-sm text-muted-foreground">From {vendorGroups[0].vendorName}</p>
             ) : null}
           </div>
+          {items.length > 0 && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="sm" className="shrink-0 text-destructive gap-1.5">
+                  <Trash2 className="w-4 h-4" />
+                  <span className="hidden sm:inline">Clear</span>
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Clear your cart?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will remove all {items.length} item{items.length === 1 ? '' : 's'} from every vendor in your cart. You can’t undo this.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Keep items</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => {
+                      clearCart();
+                      toast({ title: 'Cart cleared' });
+                    }}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Yes, clear it
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
         </div>
       </header>
 
