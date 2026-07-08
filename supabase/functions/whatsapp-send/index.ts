@@ -35,7 +35,7 @@ serve(async (req) => {
     }
     const initiatedBy = claims.claims.sub as string;
 
-    const { to, body, user_id: targetUserId } = await req.json();
+    const { to, body, user_id: targetUserId, order_id: orderId } = await req.json();
     if (!to || !body) {
       return new Response(JSON.stringify({ error: "to and body are required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
