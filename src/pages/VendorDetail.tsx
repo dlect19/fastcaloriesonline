@@ -620,6 +620,30 @@ export default function VendorDetail() {
         <VendorReviewsSection vendorId={id!} />
       </div>
 
+      {selectionMode && selectedCount > 0 && (
+        <div className="fixed bottom-20 left-0 right-0 z-40 px-4 pointer-events-none">
+          <div className="container pointer-events-auto">
+            <div className="bg-primary text-primary-foreground rounded-2xl shadow-2xl p-3 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <ShoppingCart className="w-5 h-5 shrink-0" />
+                <span className="font-medium truncate">
+                  {selectedCount} item{selectedCount === 1 ? '' : 's'} selected
+                </span>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={bulkAddToCart}
+                className="shrink-0"
+              >
+                Add to cart
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <CartButton />
       <BottomNav />
     </div>
