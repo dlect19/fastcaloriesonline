@@ -39,7 +39,7 @@ interface VendorLocation {
 
 export default function Cart() {
   const { user, loading: authLoading } = useAuth();
-  const { items, vendorGroups, isMultiVendor } = useCart();
+  const { items, vendorGroups, isMultiVendor, clearCart } = useCart();
   const { balance: walletBalance, isDisabled: isWalletDisabled, hasDVA, dvaDetails, refetch: refetchWallet } = useCustomerWallet();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
