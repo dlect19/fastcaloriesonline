@@ -5,6 +5,7 @@ import { useCart } from '@/hooks/useCart';
 import { useCustomerWallet } from '@/hooks/useCustomerWallet';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { BottomNav } from '@/components/home/BottomNav';
 import { VendorCheckoutSection } from '@/components/cart/VendorCheckoutSection';
 import { ArrowLeft, ShoppingBag, Leaf, Trash2 } from 'lucide-react';
@@ -58,6 +59,8 @@ export default function Cart() {
   const [vendorLocations, setVendorLocations] = useState<Record<string, VendorLocation>>({});
   const [placingOrderForVendor, setPlacingOrderForVendor] = useState<string | null>(null);
   const [completedOrders, setCompletedOrders] = useState<{ vendorId: string; orderId: string }[]>([]);
+  const [clearDialogOpen, setClearDialogOpen] = useState(false);
+  const [clearConfirmText, setClearConfirmText] = useState('');
 
   const [verifyingFunding, setVerifyingFunding] = useState(false);
   const verificationAttempted = useRef(false);
@@ -193,9 +196,17 @@ export default function Cart() {
             ) : null}
           </div>
           {items.length > 0 && (
-            <AlertDialog>
+            <AlertDialog open={clearDialogOpen} onOpenChange={(open) => {
+              setClearDialogOpen(open);
+              if (!open) setClearConfirmText('');
+            }}>
               <AlertDialogTrigger asChild>
-                <Button variant="ghost" size="sm" className="shrink-0 text-destructive gap-1.5">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="shrink-0 text-destructive gap-1.5"
+                  onClick={() => setClearDialogOpen(true)}
+                >
                   <Trash2 className="w-4 h-4" />
                   <span className="hidden sm:inline">Clear</span>
                 </Button>
@@ -207,14 +218,35 @@ export default function Cart() {
                     This will remove all {items.length} item{items.length === 1 ? '' : 's'} from every vendor in your cart. You can’t undo this.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
+                <div className="py-4 space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    To confirm, type <strong className="text-foreground">clear cart</strong> below.
+                  </p>
+                  <Input
+                    value={clearConfirmText}
+                    onChange={(e) => setClearConfirmText(e.target.value)}
+                    placeholder="Type clear cart"
+                    autoFocus={clearDialogOpen}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && clearConfirmText.trim().toLowerCase() === 'clear cart') {
+                        clearCart();
+                        toast({ title: 'Cart cleared' });
+                        setClearDialogOpen(false);
+                        setClearConfirmText('');
+                      }
+                    }}
+                  />
+                </div>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Keep items</AlertDialogCancel>
+                  <AlertDialogCancel onClick={() => setClearConfirmText('')}>Keep items</AlertDialogCancel>
                   <AlertDialogAction
+                    disabled={clearConfirmText.trim().toLowerCase() !== 'clear cart'}
                     onClick={() => {
                       clearCart();
                       toast({ title: 'Cart cleared' });
+                      setClearConfirmText('');
                     }}
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Yes, clear it
                   </AlertDialogAction>
