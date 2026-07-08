@@ -2,9 +2,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { DollarSign, Save, Loader2, Truck, Store } from 'lucide-react';
+import { DollarSign, Save, Loader2, Truck, Store, MessageCircle } from 'lucide-react';
 
 interface ServiceFeeSettingsProps {
   settings: Record<string, string>;
