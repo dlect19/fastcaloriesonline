@@ -126,6 +126,16 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
       .then(({ data }) => setVendorCategory(data?.category ?? null));
   }, [vendorId]);
 
+  // Fetch logo & owner id for header badge
+  useEffect(() => {
+    if (!resolvedVendorId) return;
+    supabase.from('vendors').select('logo_url, user_id').eq('id', resolvedVendorId).maybeSingle()
+      .then(({ data }) => {
+        setVendorLogo(data?.logo_url ?? null);
+        setVendorOwnerId(data?.user_id ?? null);
+      });
+  }, [resolvedVendorId]);
+
   // Fetch pending/confirmed order count and subscribe to realtime updates
   // Scoped to selected outlet so badge only reflects the active branch
   useEffect(() => {
@@ -226,9 +236,15 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
         <div className="h-16 flex-shrink-0 flex items-center justify-between px-4 border-b border-border">
           {!collapsed && (
             <div className="flex items-center gap-2">
-              <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center">
-                <Store className="w-6 h-6 text-primary-foreground" />
-              </div>
+              <VerifiedAvatar userId={vendorOwnerId} badgeSize={14} className="w-12 h-12">
+                {vendorLogo ? (
+                  <img src={vendorLogo} alt={vendorName} className="w-12 h-12 rounded-xl object-cover" />
+                ) : (
+                  <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center">
+                    <Store className="w-6 h-6 text-primary-foreground" />
+                  </div>
+                )}
+              </VerifiedAvatar>
               <div className="min-w-0">
                 <p className="font-semibold text-sm truncate">{vendorName}</p>
                 <p className="text-xs text-muted-foreground">Vendor Portal</p>
