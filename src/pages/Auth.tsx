@@ -14,6 +14,8 @@ import vendorRestaurantImg from '@/assets/landing-vendor-restaurant.png';
 import { ForgotPasswordModal } from '@/components/auth/ForgotPasswordModal';
 import { TermsAcceptanceCheckbox } from '@/components/auth/TermsAcceptanceCheckbox';
 import { EmailVerificationOTP } from '@/components/rider/EmailVerificationOTP';
+import { PhoneAuthModal } from '@/components/auth/PhoneAuthModal';
+import { MessageCircle } from 'lucide-react';
 
 
 
@@ -35,6 +37,7 @@ export default function Auth() {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [showPreSignupOTP, setShowPreSignupOTP] = useState(false);
+  const [showPhoneAuth, setShowPhoneAuth] = useState(false);
 
   // Pre-fill referral code from URL
   const urlRef = useMemo(() => {
@@ -442,6 +445,31 @@ export default function Auth() {
             </Button>
           </form>
 
+          {/* WhatsApp / phone auth */}
+          <div className="mt-6">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border" /></div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">Or</span>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full h-12 mt-4 border-primary/40 hover:bg-primary/5"
+              onClick={() => setShowPhoneAuth(true)}
+              disabled={isLoading}
+            >
+              <MessageCircle className="w-5 h-5 mr-2 text-primary" />
+              {isLogin ? 'Continue with WhatsApp number' : 'Sign up with WhatsApp number'}
+            </Button>
+            <p className="text-xs text-muted-foreground text-center mt-2">
+              No password needed — we send a 6-digit code to your WhatsApp.
+            </p>
+          </div>
+
+
+
 
           {/* Toggle */}
           <div className="mt-8 text-center">
@@ -472,6 +500,8 @@ export default function Auth() {
         onOpenChange={setShowForgotPassword}
         platform="customer"
       />
+
+      <PhoneAuthModal open={showPhoneAuth} onOpenChange={setShowPhoneAuth} />
     </div>
   );
 }

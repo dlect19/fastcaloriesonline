@@ -949,6 +949,8 @@ serve(async (req) => {
     }
 
     if (session.state === "awaiting_location") {
+      // Shared a live/pinned WhatsApp location — coords were captured above; show vendors now.
+      if (hasSharedLocation) return await showVendors();
       if (lower === "skip" || tap === "BTN_SKIP_LOC") return await showVendors();
       if (tap === "BTN_USE_SAVED_ADDR" || lower.includes("saved address")) {
         const savedCoords = await fetchSavedAddressCoords(supabase, session.customer_user_id);
