@@ -42,15 +42,32 @@ export function ProductCard({ product, vendor, outletId, selectionMode, selected
   return (
     <>
       <button
-        onClick={() => !isUnavailable && setShowDetails(true)}
+        onClick={() => {
+          if (isUnavailable) return;
+          if (selectionMode) {
+            onToggleSelect?.(product);
+          } else {
+            setShowDetails(true);
+          }
+        }}
         disabled={isUnavailable}
         className={cn(
-          "w-full text-left bg-card rounded-xl overflow-hidden border shadow-soft transition-all group",
+          "w-full text-left bg-card rounded-xl overflow-hidden border shadow-soft transition-all group relative",
           isUnavailable
             ? "border-border cursor-not-allowed"
-            : "border-border hover:shadow-card"
+            : selected
+              ? "border-primary ring-2 ring-primary/40"
+              : "border-border hover:shadow-card"
         )}
       >
+        {selectionMode && !isUnavailable && (
+          <div className={cn(
+            "absolute top-2 right-2 z-10 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors",
+            selected ? "bg-primary border-primary text-primary-foreground" : "bg-background/90 border-muted-foreground/40"
+          )}>
+            {selected && <Check className="w-3.5 h-3.5" />}
+          </div>
+        )}
         <div className="flex gap-3 p-3">
           {/* Image */}
           <div className="w-24 h-24 rounded-lg bg-secondary overflow-hidden shrink-0 relative">
