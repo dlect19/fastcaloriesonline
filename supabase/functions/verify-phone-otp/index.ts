@@ -32,6 +32,7 @@ serve(async (req) => {
     const code = String(body.code || "").trim();
     const signup = !!body.signup;
     const fullName = String(body.full_name || "").trim() || null;
+    const providedEmail = String(body.email || "").trim().toLowerCase() || null;
 
     if (!phone || !/^\d{6}$/.test(code)) {
       return new Response(JSON.stringify({ error: "invalid_input" }),
