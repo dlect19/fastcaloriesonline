@@ -479,9 +479,35 @@ serve(async (req) => {
       const cartBody = renderCart(nextCart, false);
       await persistSession(supabase, session.id, nextCart.length ? "cart" : session.state, nextContext, nextCart);
       if (nextCart.length) {
-        return await sendToUser("wa_cart_actions", { "1": cartBody }, txt + "\n\nReply *checkout* to pay, *clear* to empty, or *menu*.");
+        return await sendToUser("wa_cart_actions", { "1": cartBody }, txt + "\n\nReply *checkout* to pay, *remove <#>* to drop a line, *clear* to empty, or *menu*.");
       }
       return await replyText(txt + HELP_HINT);
+    }
+
+    // Global remove single line — "remove 2", "delete 2", "rm 2", "del 2"
+    {
+      const removeMatch = lower.match(/^(?:remove|delete|del|rm)\s*#?\s*(\d{1,2})$/);
+      if (removeMatch) {
+        const idx = parseInt(removeMatch[1], 10) - 1;
+        if (!nextCart.length) {
+          return await replyText("🛒 Your cart is empty." + HELP_HINT);
+        }
+        if (idx < 0 || idx >= nextCart.length) {
+          return await replyText(`⚠️ No item #${removeMatch[1]} in your cart. Reply *cart* to see line numbers.`);
+        }
+        const removed = nextCart[idx];
+        nextCart = nextCart.filter((_, i) => i !== idx);
+        nextContext = { ...nextContext, pending_total: undefined };
+        const newState = nextCart.length ? "cart" : "menu";
+        await persistSession(supabase, session.id, newState, nextContext, nextCart);
+        const note = `🗑️ Removed *${removed?.name || "item"}* from your cart.\n\n`;
+        if (!nextCart.length) {
+          return await sendToUser("wa_main_menu", {}, note + MENU_OPTIONS);
+        }
+        const txt = renderCart(nextCart);
+        const cartBody = renderCart(nextCart, false);
+        return await sendToUser("wa_cart_actions", { "1": cartBody }, note + txt + "\n\nReply *checkout* to pay, *remove <#>* to drop another, *clear* to empty, or *menu*.");
+      }
     }
 
     // Global clear cart — works from any state
