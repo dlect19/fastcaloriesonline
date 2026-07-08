@@ -54,8 +54,56 @@ export default function VendorDetail() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
-  const { vendorGroups } = useCart();
+  const { vendorGroups, addItem } = useCart();
   const vendorCartTotal = vendorGroups.filter(g => g.vendorId === id).reduce((sum, g) => sum + g.subtotal, 0);
+
+  // Bulk multi-select state
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Record<string, Product>>({});
+  const selectedCount = Object.keys(selectedIds).length;
+
+  const toggleSelectProduct = (p: Product) => {
+    setSelectedIds(prev => {
+      const next = { ...prev };
+      if (next[p.id]) delete next[p.id];
+      else next[p.id] = p;
+      return next;
+    });
+  };
+
+  const exitSelectionMode = () => {
+    setSelectionMode(false);
+    setSelectedIds({});
+  };
+
+  const bulkAddToCart = () => {
+    const outletIdParam = searchParams.get('outlet') || undefined;
+    const items = Object.values(selectedIds);
+    if (!vendor || items.length === 0) return;
+    let added = 0;
+    items.forEach((p) => {
+      const priceToUse = (p as any).discount_price && (p as any).discount_price < p.price
+        ? Number((p as any).discount_price)
+        : Number(p.price);
+      addItem({
+        productId: p.id,
+        productName: p.name,
+        vendorId: vendor.id,
+        vendorName: vendor.name,
+        outletId: outletIdParam,
+        price: priceToUse,
+        quantity: 1,
+        calories: p.calories || 0,
+        imageUrl: p.image_url || undefined,
+      });
+      added += 1;
+    });
+    toast({
+      title: `Added ${added} item${added === 1 ? '' : 's'} to cart`,
+      description: 'Tap any item in the cart to customize add-ons or change quantity.',
+    });
+    exitSelectionMode();
+  };
 
   // Location state — prefer delivery address from Home page over raw GPS
   const { latitude: gpsLat, longitude: gpsLon, loading: geoLoading, getCurrentPosition } = useGeolocation();
