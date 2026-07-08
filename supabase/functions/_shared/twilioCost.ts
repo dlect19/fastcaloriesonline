@@ -31,6 +31,7 @@ export interface LogTwilioParams {
   function_name: string;
   error?: string | null;
   direction?: "in" | "out";
+  order_id?: string | null;
 }
 
 export async function logTwilioCall(supabase: any, p: LogTwilioParams) {
