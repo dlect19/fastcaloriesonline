@@ -43,13 +43,13 @@ export function PhoneVerificationGate() {
 
   if (!user || !checked || enforcement === "off") return null;
 
-  const isProfessional = roles.some(r => ["admin", "vendor", "vendor_staff", "rider", "delivery_company"].includes(r));
-  const isCustomer = !isProfessional; // fallback
+  // Admins never go through the WhatsApp phone-verification gate — their 2FA
+  // code is delivered to email (and mirrored to WhatsApp) at sign-in instead.
+  const isAdmin = roles.includes("admin");
+  const isProfessional = roles.some(r => ["vendor", "vendor_staff", "rider", "delivery_company"].includes(r));
 
-  // Customers are gated at checkout (when they tap "Pay Vendor"), NOT at login.
-  // The login gate only blocks professionals so vendors/riders/staff can't reach their portals unverified.
   const shouldEnforce =
-    isProfessional && (
+    !isAdmin && isProfessional && (
       enforcement === "all" ||
       enforcement === "all_and_signups" ||
       enforcement === "professionals"
