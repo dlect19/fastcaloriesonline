@@ -7309,6 +7309,7 @@ export type Database = {
           function_name: string | null
           id: string
           initiated_by: string | null
+          order_id: string | null
           price_ngn: number
           segments: number
           to_phone: string | null
@@ -7326,6 +7327,7 @@ export type Database = {
           function_name?: string | null
           id?: string
           initiated_by?: string | null
+          order_id?: string | null
           price_ngn?: number
           segments?: number
           to_phone?: string | null
@@ -7343,6 +7345,7 @@ export type Database = {
           function_name?: string | null
           id?: string
           initiated_by?: string | null
+          order_id?: string | null
           price_ngn?: number
           segments?: number
           to_phone?: string | null
@@ -7350,7 +7353,15 @@ export type Database = {
           twilio_status?: string | null
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "twilio_api_logs_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_order_stats: {
         Row: {
