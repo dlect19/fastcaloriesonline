@@ -75,6 +75,8 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
   const [newOrderCount, setNewOrderCount] = useState(0);
   const [resolvedVendorId, setResolvedVendorId] = useState<string | null>(vendorId || null);
   const [vendorCategory, setVendorCategory] = useState<string | null>(null);
+  const [vendorLogo, setVendorLogo] = useState<string | null>(null);
+  const [vendorOwnerId, setVendorOwnerId] = useState<string | null>(null);
   const [addOutletOpen, setAddOutletOpen] = useState(false);
   
   // Use persisted outlet as fallback when the prop isn't provided
