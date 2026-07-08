@@ -59,6 +59,8 @@ export default function Cart() {
   const [vendorLocations, setVendorLocations] = useState<Record<string, VendorLocation>>({});
   const [placingOrderForVendor, setPlacingOrderForVendor] = useState<string | null>(null);
   const [completedOrders, setCompletedOrders] = useState<{ vendorId: string; orderId: string }[]>([]);
+  const [clearDialogOpen, setClearDialogOpen] = useState(false);
+  const [clearConfirmText, setClearConfirmText] = useState('');
 
   const [verifyingFunding, setVerifyingFunding] = useState(false);
   const verificationAttempted = useRef(false);
