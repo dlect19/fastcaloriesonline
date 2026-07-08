@@ -28,6 +28,7 @@ import { useState, useEffect } from 'react';
 import { VendorPermission } from '@/hooks/useVendorPermissions';
 import { useAutoStoreStatus } from '@/hooks/useAutoStoreStatus';
 import { OutletProvider } from '@/hooks/useOutletContext';
+import { VerifiedAvatar } from '@/components/shared/VerifiedAvatar';
 import { OutletSwitcher } from '@/components/vendor/OutletSwitcher';
 import { AddOutletDialog } from '@/components/vendor/AddOutletDialog';
 import { usePersistedOutletId } from '@/hooks/usePersistedOutletId';
