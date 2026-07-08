@@ -134,10 +134,28 @@ serve(async (req) => {
       .update({ verified_at: new Date().toISOString(), user_id: userId })
       .eq("id", otp.id);
 
+    // Mint a magic-link token_hash so the web client can sign the user in without a password.
+    let magicToken: { email: string; token_hash: string } | null = null;
+    if (userId) {
+      try {
+        const { data: udata } = await admin.auth.admin.getUserById(userId);
+        const emailForLink = udata?.user?.email || sessionEmail;
+        if (emailForLink) {
+          const { data: linkData } = await admin.auth.admin.generateLink({
+            type: "magiclink",
+            email: emailForLink,
+          });
+          const hashed = (linkData as any)?.properties?.hashed_token;
+          if (hashed) magicToken = { email: emailForLink, token_hash: hashed };
+        }
+      } catch (e) { console.warn("magiclink generation failed:", e); }
+    }
+
     return new Response(JSON.stringify({
       success: true, user_id: userId,
       // Returned only for freshly-created signup users so the WA bot / web can log them in
       signup_credentials: sessionEmail ? { email: sessionEmail, password: sessionPassword } : null,
+      magic: magicToken, // { email, token_hash } — pass to supabase.auth.verifyOtp({ type: 'magiclink', token_hash })
     }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     console.error("verify-phone-otp error:", e);
