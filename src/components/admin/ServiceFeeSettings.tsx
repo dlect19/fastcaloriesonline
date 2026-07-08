@@ -178,6 +178,23 @@ export function ServiceFeeSettings({ settings, onSettingChange, onSave, saving }
           </TabsContent>
         </Tabs>
 
+        {/* Twilio pass-through toggle */}
+        <div className="flex items-start justify-between gap-4 p-4 border border-border rounded-lg">
+          <div className="space-y-1">
+            <Label className="flex items-center gap-2 text-sm font-medium">
+              <MessageCircle className="w-4 h-4 text-primary" />
+              Add Twilio message cost to service charge
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              When ON, the cost of WhatsApp/SMS messages sent on behalf of an order (tracked in Twilio Costs) is added to that order's service charge.
+            </p>
+          </div>
+          <Switch
+            checked={(settings.service_fee_include_twilio || 'false') === 'true'}
+            onCheckedChange={(v) => onSettingChange('service_fee_include_twilio', v ? 'true' : 'false')}
+          />
+        </div>
+
         <div className="flex justify-end">
           <Button onClick={onSave} disabled={saving}>
             {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
