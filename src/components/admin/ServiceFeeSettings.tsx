@@ -2,9 +2,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { DollarSign, Save, Loader2, Truck, Store } from 'lucide-react';
+import { DollarSign, Save, Loader2, Truck, Store, MessageCircle } from 'lucide-react';
 
 interface ServiceFeeSettingsProps {
   settings: Record<string, string>;
@@ -176,6 +177,23 @@ export function ServiceFeeSettings({ settings, onSettingChange, onSave, saving }
             />
           </TabsContent>
         </Tabs>
+
+        {/* Twilio pass-through toggle */}
+        <div className="flex items-start justify-between gap-4 p-4 border border-border rounded-lg">
+          <div className="space-y-1">
+            <Label className="flex items-center gap-2 text-sm font-medium">
+              <MessageCircle className="w-4 h-4 text-primary" />
+              Add Twilio message cost to service charge
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              When ON, the cost of WhatsApp/SMS messages sent on behalf of an order (tracked in Twilio Costs) is added to that order's service charge.
+            </p>
+          </div>
+          <Switch
+            checked={(settings.service_fee_include_twilio || 'false') === 'true'}
+            onCheckedChange={(v) => onSettingChange('service_fee_include_twilio', v ? 'true' : 'false')}
+          />
+        </div>
 
         <div className="flex justify-end">
           <Button onClick={onSave} disabled={saving}>

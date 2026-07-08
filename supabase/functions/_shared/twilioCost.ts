@@ -31,6 +31,7 @@ export interface LogTwilioParams {
   function_name: string;
   error?: string | null;
   direction?: "in" | "out";
+  order_id?: string | null;
 }
 
 export async function logTwilioCall(supabase: any, p: LogTwilioParams) {
@@ -52,6 +53,7 @@ export async function logTwilioCall(supabase: any, p: LogTwilioParams) {
       price_ngn: price,
       function_name: p.function_name,
       error: p.error ?? null,
+      order_id: p.order_id ?? null,
     });
   } catch (e) {
     console.error("logTwilioCall failed:", e);

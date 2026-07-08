@@ -28,6 +28,7 @@ const defaultPickupConfig: ServiceFeeConfig = {
 export function useServiceFee() {
   const [deliveryConfig, setDeliveryConfig] = useState<ServiceFeeConfig>(defaultDeliveryConfig);
   const [pickupConfig, setPickupConfig] = useState<ServiceFeeConfig>(defaultPickupConfig);
+  const [includeTwilio, setIncludeTwilio] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -41,11 +42,12 @@ export function useServiceFee() {
             'service_fee_min', 'service_fee_max',
             'service_fee_type_pickup', 'service_fee_fixed_pickup', 'service_fee_percentage_pickup',
             'service_fee_min_pickup', 'service_fee_max_pickup',
+            'service_fee_include_twilio',
           ]);
 
         if (data) {
           const m: Record<string, string> = {};
-          data.forEach(s => { m[s.key] = s.value; });
+          data.forEach(s => { m[s.key] = s.value as string; });
 
           setDeliveryConfig({
             type: (m.service_fee_type as ServiceFeeConfig['type']) || 'fixed',
@@ -62,6 +64,8 @@ export function useServiceFee() {
             min: parseFloat(m.service_fee_min_pickup || '50'),
             max: parseFloat(m.service_fee_max_pickup || '500'),
           });
+
+          setIncludeTwilio(String(m.service_fee_include_twilio || 'false') === 'true');
         }
       } catch (err) {
         console.error('Error fetching service fee config:', err);
@@ -92,5 +96,27 @@ export function useServiceFee() {
     return calcFee(config, orderAmount);
   }, [deliveryConfig, pickupConfig]);
 
-  return { deliveryConfig, pickupConfig, config: deliveryConfig, calculateServiceFee, loading };
+  /**
+   * Sum of Twilio message cost logged against this order.
+   * Returns 0 if the platform toggle is off or the order has no messages.
+   */
+  const getOrderTwilioSurcharge = useCallback(async (orderId: string | null | undefined): Promise<number> => {
+    if (!includeTwilio || !orderId) return 0;
+    const { data, error } = await supabase
+      .from('twilio_api_logs')
+      .select('price_ngn')
+      .eq('order_id', orderId);
+    if (error || !data) return 0;
+    return data.reduce((s: number, r: any) => s + Number(r.price_ngn || 0), 0);
+  }, [includeTwilio]);
+
+  return {
+    deliveryConfig,
+    pickupConfig,
+    config: deliveryConfig,
+    calculateServiceFee,
+    includeTwilio,
+    getOrderTwilioSurcharge,
+    loading,
+  };
 }

@@ -246,6 +246,9 @@ export default function AdminSettings() {
       const serviceFeeKeys = [
         'service_fee_type', 'service_fee_fixed', 'service_fee_percentage',
         'service_fee_min', 'service_fee_max',
+        'service_fee_type_pickup', 'service_fee_fixed_pickup', 'service_fee_percentage_pickup',
+        'service_fee_min_pickup', 'service_fee_max_pickup',
+        'service_fee_include_twilio',
         'pos_wallet_fee_percentage',
       ];
 
