@@ -500,6 +500,8 @@ export default function Auth() {
         onOpenChange={setShowForgotPassword}
         platform="customer"
       />
+
+      <PhoneAuthModal open={showPhoneAuth} onOpenChange={setShowPhoneAuth} />
     </div>
   );
 }
