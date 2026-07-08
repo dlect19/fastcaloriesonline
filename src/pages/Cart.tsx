@@ -192,6 +192,36 @@ export default function Cart() {
               <p className="text-sm text-muted-foreground">From {vendorGroups[0].vendorName}</p>
             ) : null}
           </div>
+          {items.length > 0 && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="sm" className="shrink-0 text-destructive gap-1.5">
+                  <Trash2 className="w-4 h-4" />
+                  <span className="hidden sm:inline">Clear</span>
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Clear your cart?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will remove all {items.length} item{items.length === 1 ? '' : 's'} from every vendor in your cart. You can’t undo this.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Keep items</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => {
+                      clearCart();
+                      toast({ title: 'Cart cleared' });
+                    }}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Yes, clear it
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
         </div>
       </header>
 
