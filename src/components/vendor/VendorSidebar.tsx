@@ -28,6 +28,7 @@ import { useState, useEffect } from 'react';
 import { VendorPermission } from '@/hooks/useVendorPermissions';
 import { useAutoStoreStatus } from '@/hooks/useAutoStoreStatus';
 import { OutletProvider } from '@/hooks/useOutletContext';
+import { VerifiedAvatar } from '@/components/shared/VerifiedAvatar';
 import { OutletSwitcher } from '@/components/vendor/OutletSwitcher';
 import { AddOutletDialog } from '@/components/vendor/AddOutletDialog';
 import { usePersistedOutletId } from '@/hooks/usePersistedOutletId';
@@ -75,6 +76,8 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
   const [newOrderCount, setNewOrderCount] = useState(0);
   const [resolvedVendorId, setResolvedVendorId] = useState<string | null>(vendorId || null);
   const [vendorCategory, setVendorCategory] = useState<string | null>(null);
+  const [vendorLogo, setVendorLogo] = useState<string | null>(null);
+  const [vendorOwnerId, setVendorOwnerId] = useState<string | null>(null);
   const [addOutletOpen, setAddOutletOpen] = useState(false);
   
   // Use persisted outlet as fallback when the prop isn't provided
@@ -122,6 +125,16 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
     supabase.from('vendors').select('category').eq('id', vendorId).maybeSingle()
       .then(({ data }) => setVendorCategory(data?.category ?? null));
   }, [vendorId]);
+
+  // Fetch logo & owner id for header badge
+  useEffect(() => {
+    if (!resolvedVendorId) return;
+    supabase.from('vendors').select('logo_url, user_id').eq('id', resolvedVendorId).maybeSingle()
+      .then(({ data }) => {
+        setVendorLogo(data?.logo_url ?? null);
+        setVendorOwnerId(data?.user_id ?? null);
+      });
+  }, [resolvedVendorId]);
 
   // Fetch pending/confirmed order count and subscribe to realtime updates
   // Scoped to selected outlet so badge only reflects the active branch
@@ -223,9 +236,15 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
         <div className="h-16 flex-shrink-0 flex items-center justify-between px-4 border-b border-border">
           {!collapsed && (
             <div className="flex items-center gap-2">
-              <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center">
-                <Store className="w-6 h-6 text-primary-foreground" />
-              </div>
+              <VerifiedAvatar userId={vendorOwnerId} badgeSize={14} className="w-12 h-12">
+                {vendorLogo ? (
+                  <img src={vendorLogo} alt={vendorName} className="w-12 h-12 rounded-xl object-cover" />
+                ) : (
+                  <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center">
+                    <Store className="w-6 h-6 text-primary-foreground" />
+                  </div>
+                )}
+              </VerifiedAvatar>
               <div className="min-w-0">
                 <p className="font-semibold text-sm truncate">{vendorName}</p>
                 <p className="text-xs text-muted-foreground">Vendor Portal</p>

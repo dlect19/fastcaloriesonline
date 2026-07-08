@@ -7298,6 +7298,60 @@ export type Database = {
           },
         ]
       }
+      twilio_api_logs: {
+        Row: {
+          body_preview: string | null
+          channel: string
+          created_at: string
+          direction: string
+          error: string | null
+          from_phone: string | null
+          function_name: string | null
+          id: string
+          initiated_by: string | null
+          price_ngn: number
+          segments: number
+          to_phone: string | null
+          twilio_sid: string | null
+          twilio_status: string | null
+          user_id: string | null
+        }
+        Insert: {
+          body_preview?: string | null
+          channel: string
+          created_at?: string
+          direction?: string
+          error?: string | null
+          from_phone?: string | null
+          function_name?: string | null
+          id?: string
+          initiated_by?: string | null
+          price_ngn?: number
+          segments?: number
+          to_phone?: string | null
+          twilio_sid?: string | null
+          twilio_status?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          body_preview?: string | null
+          channel?: string
+          created_at?: string
+          direction?: string
+          error?: string | null
+          from_phone?: string | null
+          function_name?: string | null
+          id?: string
+          initiated_by?: string | null
+          price_ngn?: number
+          segments?: number
+          to_phone?: string | null
+          twilio_sid?: string | null
+          twilio_status?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       user_order_stats: {
         Row: {
           completed_orders: number | null
@@ -9218,6 +9272,7 @@ export type Database = {
         Returns: boolean
       }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
+      is_user_verified: { Args: { _user_id: string }; Returns: boolean }
       is_vendor_owner: {
         Args: { _user_id: string; _vendor_id: string }
         Returns: boolean

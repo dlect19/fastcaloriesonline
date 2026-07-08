@@ -2,6 +2,7 @@ import { User } from '@supabase/supabase-js';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { LogOut, Mail, Calendar } from 'lucide-react';
+import { VerifiedAvatar } from '@/components/shared/VerifiedAvatar';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Profile = Tables<'profiles'>;
@@ -24,12 +25,14 @@ export function ProfileHeader({ user, profile, onSignOut }: ProfileHeaderProps) 
     <div className="bg-card rounded-2xl p-6 border border-border shadow-soft">
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
-          <Avatar className="w-20 h-20 border-4 border-primary/20">
-            <AvatarImage src={profile?.avatar_url || undefined} alt={displayName} />
-            <AvatarFallback className="bg-primary text-primary-foreground text-xl font-bold">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
+          <VerifiedAvatar userId={user.id} badgeSize={20} className="w-20 h-20">
+            <Avatar className="w-20 h-20 border-4 border-primary/20">
+              <AvatarImage src={profile?.avatar_url || undefined} alt={displayName} />
+              <AvatarFallback className="bg-primary text-primary-foreground text-xl font-bold">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+          </VerifiedAvatar>
           
           <div>
             <h2 className="text-xl font-bold text-foreground">{displayName}</h2>

@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, ArrowLeft, Copy, CheckCircle2, RefreshCw, MessageCircle, XCircle, Banknote } from 'lucide-react';
+import { Loader2, ArrowLeft, Copy, CheckCircle2, RefreshCw, MessageCircle, XCircle, Banknote, Send } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -232,6 +232,30 @@ export default function AssistedOrderDetail() {
                     {intl && (
                       <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => window.open(`https://wa.me/${intl}?text=${encodeURIComponent(msg)}`, '_blank')}>
                         <MessageCircle className="w-4 h-4 mr-1" /> Send via WhatsApp
+                      </Button>
+                    )}
+                    {intl && (
+                      <Button
+                        size="sm"
+                        variant="default"
+                        disabled={busy === 'push-whatsapp'}
+                        onClick={async () => {
+                          setBusy('push-whatsapp');
+                          try {
+                            const { data, error } = await supabase.functions.invoke('whatsapp-send', {
+                              body: { to: `+${intl}`, body: msg, user_id: o.user_id ?? null },
+                            });
+                            if (error || (data as any)?.error) throw new Error((data as any)?.error || error?.message || 'Send failed');
+                            toast({ title: 'Pushed via WhatsApp', description: 'Customer will receive it from the official FastCalories number.' });
+                          } catch (e: any) {
+                            toast({ title: 'Push failed', description: e.message, variant: 'destructive' });
+                          } finally {
+                            setBusy(null);
+                          }
+                        }}
+                      >
+                        {busy === 'push-whatsapp' ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Send className="w-4 h-4 mr-1" />}
+                        Push via Twilio (Official)
                       </Button>
                     )}
                     {phone && (
