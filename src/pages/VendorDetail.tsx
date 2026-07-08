@@ -11,7 +11,7 @@ import { ComboCard } from '@/components/vendor/ComboCard';
 import { CartButton } from '@/components/cart/CartButton';
 import { BottomNav } from '@/components/home/BottomNav';
 import { VendorAccessDenied } from '@/components/vendor/VendorAccessDenied';
-import { ArrowLeft, Leaf, Search, Package, Heart } from 'lucide-react';
+import { ArrowLeft, Leaf, Search, Package, Heart, CheckSquare, X, ShoppingCart } from 'lucide-react';
 import { FreeMealButton } from '@/components/vendor/FreeMealButton';
 import { VendorFreeMealProgress } from '@/components/vendor/VendorFreeMealProgress';
 import { useCart } from '@/hooks/useCart';
@@ -54,8 +54,56 @@ export default function VendorDetail() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
-  const { vendorGroups } = useCart();
+  const { vendorGroups, addItem } = useCart();
   const vendorCartTotal = vendorGroups.filter(g => g.vendorId === id).reduce((sum, g) => sum + g.subtotal, 0);
+
+  // Bulk multi-select state
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Record<string, Product>>({});
+  const selectedCount = Object.keys(selectedIds).length;
+
+  const toggleSelectProduct = (p: Product) => {
+    setSelectedIds(prev => {
+      const next = { ...prev };
+      if (next[p.id]) delete next[p.id];
+      else next[p.id] = p;
+      return next;
+    });
+  };
+
+  const exitSelectionMode = () => {
+    setSelectionMode(false);
+    setSelectedIds({});
+  };
+
+  const bulkAddToCart = () => {
+    const outletIdParam = searchParams.get('outlet') || undefined;
+    const items = Object.values(selectedIds);
+    if (!vendor || items.length === 0) return;
+    let added = 0;
+    items.forEach((p) => {
+      const priceToUse = (p as any).discount_price && (p as any).discount_price < p.price
+        ? Number((p as any).discount_price)
+        : Number(p.price);
+      addItem({
+        productId: p.id,
+        productName: p.name,
+        vendorId: vendor.id,
+        vendorName: vendor.name,
+        outletId: outletIdParam,
+        price: priceToUse,
+        quantity: 1,
+        calories: p.calories || 0,
+        imageUrl: p.image_url || undefined,
+      });
+      added += 1;
+    });
+    toast({
+      title: `Added ${added} item${added === 1 ? '' : 's'} to cart`,
+      description: 'Tap any item in the cart to customize add-ons or change quantity.',
+    });
+    exitSelectionMode();
+  };
 
   // Location state — prefer delivery address from Home page over raw GPS
   const { latitude: gpsLat, longitude: gpsLon, loading: geoLoading, getCurrentPosition } = useGeolocation();
@@ -454,18 +502,35 @@ export default function VendorDetail() {
         </div>
       </div>
 
-      {/* Search — hidden in combos-only mode */}
+      {/* Search + multi-select toggle — hidden in combos-only mode */}
       {!(vendor as any).combos_only && (
       <div className="container py-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Search menu..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search menu..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <Button
+            type="button"
+            variant={selectionMode ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => (selectionMode ? exitSelectionMode() : setSelectionMode(true))}
+            className="shrink-0 gap-1.5"
+          >
+            {selectionMode ? <X className="w-4 h-4" /> : <CheckSquare className="w-4 h-4" />}
+            {selectionMode ? 'Cancel' : 'Select many'}
+          </Button>
         </div>
+        {selectionMode && (
+          <p className="text-xs text-muted-foreground mt-2">
+            Tap items to select them, then add them all to your cart at once. Open any item from the cart to pick add-ons.
+          </p>
+        )}
       </div>
       )}
 
@@ -532,6 +597,9 @@ export default function VendorDetail() {
                   product={product}
                   vendor={vendor}
                   outletId={searchParams.get('outlet') || undefined}
+                  selectionMode={selectionMode}
+                  selected={!!selectedIds[product.id]}
+                  onToggleSelect={toggleSelectProduct}
                 />
               ))}
             </div>
@@ -551,6 +619,30 @@ export default function VendorDetail() {
       <div className="container py-2 pb-6">
         <VendorReviewsSection vendorId={id!} />
       </div>
+
+      {selectionMode && selectedCount > 0 && (
+        <div className="fixed bottom-20 left-0 right-0 z-40 px-4 pointer-events-none">
+          <div className="container pointer-events-auto">
+            <div className="bg-primary text-primary-foreground rounded-2xl shadow-2xl p-3 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <ShoppingCart className="w-5 h-5 shrink-0" />
+                <span className="font-medium truncate">
+                  {selectedCount} item{selectedCount === 1 ? '' : 's'} selected
+                </span>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={bulkAddToCart}
+                className="shrink-0"
+              >
+                Add to cart
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <CartButton />
       <BottomNav />
