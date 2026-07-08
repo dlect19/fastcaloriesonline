@@ -97,9 +97,10 @@ serve(async (req) => {
       if (existingProfile) {
         userId = existingProfile.user_id;
       } else {
-        // Create auth user with placeholder email + random password
+        // Create auth user. Prefer the real email the user just verified via
+        // the email OTP flow; fall back to a placeholder if none supplied.
         const localPart = phone.replace(/\D/g, "");
-        sessionEmail = `wa_${localPart}@wa.fastcalories.local`;
+        sessionEmail = providedEmail || `wa_${localPart}@wa.fastcalories.local`;
         sessionPassword = crypto.randomUUID() + crypto.randomUUID();
         const { data: created, error: createErr } = await admin.auth.admin.createUser({
           email: sessionEmail,
@@ -116,6 +117,7 @@ serve(async (req) => {
         // Best-effort profile upsert (a signup trigger may also create one)
         await admin.from("profiles").upsert({
           user_id: userId, phone: localForm, full_name: fullName,
+          email: providedEmail || undefined,
           phone_verified: true, phone_verified_at: new Date().toISOString(),
           phone_verification_method: otp.channel,
         }, { onConflict: "user_id" });
