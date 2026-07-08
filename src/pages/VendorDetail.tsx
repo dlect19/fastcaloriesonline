@@ -502,18 +502,35 @@ export default function VendorDetail() {
         </div>
       </div>
 
-      {/* Search — hidden in combos-only mode */}
+      {/* Search + multi-select toggle — hidden in combos-only mode */}
       {!(vendor as any).combos_only && (
       <div className="container py-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Search menu..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search menu..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <Button
+            type="button"
+            variant={selectionMode ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => (selectionMode ? exitSelectionMode() : setSelectionMode(true))}
+            className="shrink-0 gap-1.5"
+          >
+            {selectionMode ? <X className="w-4 h-4" /> : <CheckSquare className="w-4 h-4" />}
+            {selectionMode ? 'Cancel' : 'Select many'}
+          </Button>
         </div>
+        {selectionMode && (
+          <p className="text-xs text-muted-foreground mt-2">
+            Tap items to select them, then add them all to your cart at once. Open any item from the cart to pick add-ons.
+          </p>
+        )}
       </div>
       )}
 
