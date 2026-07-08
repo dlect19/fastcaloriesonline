@@ -597,6 +597,9 @@ export default function VendorDetail() {
                   product={product}
                   vendor={vendor}
                   outletId={searchParams.get('outlet') || undefined}
+                  selectionMode={selectionMode}
+                  selected={!!selectedIds[product.id]}
+                  onToggleSelect={toggleSelectProduct}
                 />
               ))}
             </div>
