@@ -98,7 +98,18 @@ serve(async (req) => {
     const code = String(Math.floor(100000 + Math.random() * 900000));
     const codeHash = await sha256Hex(code + phone);
     const expiresAt = new Date(Date.now() + 10 * 60_000).toISOString();
-    const message = `Your Fast Calories verification code is: ${code}\n\nIt expires in 10 minutes. Do not share this code with anyone.`;
+    const purposeLabel =
+      purpose === "login"
+        ? "sign-in"
+        : purpose === "signup"
+        ? "sign-up"
+        : "phone verification";
+    const message =
+      purpose === "login"
+        ? `Your Fast Calories login code is: ${code}\n\nUse this code to sign in to your account. It expires in 10 minutes. Do not share it with anyone.`
+        : purpose === "signup"
+        ? `Your Fast Calories sign-up code is: ${code}\n\nUse this code to create your new account. It expires in 10 minutes. Do not share it with anyone.`
+        : `Your Fast Calories phone verification code is: ${code}\n\nUse this code to verify your phone number. It expires in 10 minutes. Do not share it with anyone.`;
 
     // Try WhatsApp first (unless caller explicitly asked for SMS)
     let channelUsed: "whatsapp" | "sms" = preferSms ? "sms" : "whatsapp";

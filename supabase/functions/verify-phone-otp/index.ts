@@ -89,13 +89,20 @@ serve(async (req) => {
 
     // For normal WhatsApp login, the OTP row is usually created before the user
     // is authenticated, so it has no user_id. Resolve the existing account from
-    // the verified phone before minting the web session.
+    // the verified phone before minting the web session. Multiple profile rows
+    // may share the same phone (legacy WhatsApp signups) — prefer a verified
+    // one, otherwise take the most recently updated.
     if (!userId) {
-      const { data: existingProfile } = await admin.from("profiles")
-        .select("user_id")
+      const { data: candidates } = await admin.from("profiles")
+        .select("user_id, phone_verified, updated_at, created_at")
         .or(`phone.eq.${phone},phone.eq.${localForm}`)
-        .maybeSingle();
-      if (existingProfile?.user_id) userId = existingProfile.user_id;
+        .order("phone_verified", { ascending: false })
+        .order("updated_at", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false, nullsFirst: false })
+        .limit(1);
+      if (candidates && candidates.length > 0 && candidates[0].user_id) {
+        userId = candidates[0].user_id;
+      }
     }
 
     // If signup requested and no user yet, provision one
@@ -103,8 +110,13 @@ serve(async (req) => {
     let sessionPassword: string | null = null;
     if (!userId && signup) {
       // Check if a profile with this phone already exists (match either raw or normalized)
-      const { data: existingProfile } = await admin.from("profiles")
-        .select("user_id").or(`phone.eq.${phone},phone.eq.${localForm}`).maybeSingle();
+      const { data: existingProfiles } = await admin.from("profiles")
+        .select("user_id, phone_verified, updated_at")
+        .or(`phone.eq.${phone},phone.eq.${localForm}`)
+        .order("phone_verified", { ascending: false })
+        .order("updated_at", { ascending: false, nullsFirst: false })
+        .limit(1);
+      const existingProfile = existingProfiles?.[0];
       if (existingProfile) {
         userId = existingProfile.user_id;
       } else {
