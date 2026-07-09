@@ -110,8 +110,13 @@ serve(async (req) => {
     let sessionPassword: string | null = null;
     if (!userId && signup) {
       // Check if a profile with this phone already exists (match either raw or normalized)
-      const { data: existingProfile } = await admin.from("profiles")
-        .select("user_id").or(`phone.eq.${phone},phone.eq.${localForm}`).maybeSingle();
+      const { data: existingProfiles } = await admin.from("profiles")
+        .select("user_id, phone_verified, updated_at")
+        .or(`phone.eq.${phone},phone.eq.${localForm}`)
+        .order("phone_verified", { ascending: false })
+        .order("updated_at", { ascending: false, nullsFirst: false })
+        .limit(1);
+      const existingProfile = existingProfiles?.[0];
       if (existingProfile) {
         userId = existingProfile.user_id;
       } else {
