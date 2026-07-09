@@ -74,6 +74,7 @@ serve(async (req) => {
 
     // Determine which user to mark verified
     let userId: string | null = otp.user_id ?? null;
+    const localForm = phone.startsWith("+234") ? "0" + phone.slice(4) : phone;
 
     // If authenticated caller and no user on OTP, use caller
     const authHeader = req.headers.get("Authorization");
@@ -86,12 +87,22 @@ serve(async (req) => {
       } catch (_) { /* ignore */ }
     }
 
+    // For normal WhatsApp login, the OTP row is usually created before the user
+    // is authenticated, so it has no user_id. Resolve the existing account from
+    // the verified phone before minting the web session.
+    if (!userId) {
+      const { data: existingProfile } = await admin.from("profiles")
+        .select("user_id")
+        .or(`phone.eq.${phone},phone.eq.${localForm}`)
+        .maybeSingle();
+      if (existingProfile?.user_id) userId = existingProfile.user_id;
+    }
+
     // If signup requested and no user yet, provision one
     let sessionEmail: string | null = null;
     let sessionPassword: string | null = null;
     if (!userId && signup) {
       // Check if a profile with this phone already exists (match either raw or normalized)
-      const localForm = phone.startsWith("+234") ? "0" + phone.slice(4) : phone;
       const { data: existingProfile } = await admin.from("profiles")
         .select("user_id").or(`phone.eq.${phone},phone.eq.${localForm}`).maybeSingle();
       if (existingProfile) {
@@ -122,6 +133,11 @@ serve(async (req) => {
           phone_verification_method: otp.channel,
         }, { onConflict: "user_id" });
       }
+    }
+
+    if (!userId && !signup) {
+      return new Response(JSON.stringify({ error: "account_not_found" }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     if (userId) {
