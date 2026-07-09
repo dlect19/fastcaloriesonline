@@ -32,7 +32,7 @@ export function PhoneVerificationGate() {
     if (loading || !user) { setChecked(true); return; }
     (async () => {
       const [{ data: p }, { data: r }] = await Promise.all([
-        supabase.from("profiles").select("phone, phone_verified").eq("id", user.id).maybeSingle(),
+        supabase.from("profiles").select("phone, phone_verified").eq("user_id", user.id).maybeSingle(),
         supabase.from("user_roles").select("role").eq("user_id", user.id),
       ]);
       setProfile({ phone: p?.phone ?? null, phone_verified: !!p?.phone_verified });
