@@ -16,9 +16,12 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    const now = new Date();
-    const dayOfWeek = now.getDay();
-    const currentTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
+    // Use Africa/Lagos (WAT, UTC+1) — vendor working hours are stored in local WAT time
+    const nowUtc = new Date();
+    const watMs = nowUtc.getTime() + 60 * 60 * 1000;
+    const wat = new Date(watMs);
+    const dayOfWeek = wat.getUTCDay();
+    const currentTime = `${String(wat.getUTCHours()).padStart(2, "0")}:${String(wat.getUTCMinutes()).padStart(2, "0")}:${String(wat.getUTCSeconds()).padStart(2, "0")}`;
 
     // Get all working hours for today
     const { data: allHours, error: hoursError } = await supabase
