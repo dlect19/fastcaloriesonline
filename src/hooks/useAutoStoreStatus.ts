@@ -17,9 +17,11 @@ export function useAutoStoreStatus(vendorId: string | null) {
       const vid = vendorIdRef.current;
       if (!vid) return;
 
-      const now = new Date();
-      const dayOfWeek = now.getDay();
-      const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+      // Use Africa/Lagos (WAT, UTC+1) regardless of device timezone
+      const nowUtc = new Date();
+      const wat = new Date(nowUtc.getTime() + 60 * 60 * 1000);
+      const dayOfWeek = wat.getUTCDay();
+      const currentTime = `${String(wat.getUTCHours()).padStart(2, '0')}:${String(wat.getUTCMinutes()).padStart(2, '0')}:${String(wat.getUTCSeconds()).padStart(2, '0')}`;
 
       // Fetch working hours and current vendor status in parallel
       const [hoursResult, vendorResult] = await Promise.all([
