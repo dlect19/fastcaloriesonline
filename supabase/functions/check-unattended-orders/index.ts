@@ -59,10 +59,12 @@ serve(async (req) => {
     const cutoff = new Date(Date.now() - minutes * 60_000).toISOString();
 
     // Find unattended paid orders past cutoff and not yet alerted
+    // Alert if vendor has not moved order into 'preparing' within the threshold.
+    // Covers both 'pending' (not accepted) and 'confirmed' (accepted but prep not started).
     const { data: orders, error: oErr } = await admin
       .from("orders")
-      .select("id, order_number, vendor_id, user_id, total, created_at, delivery_type")
-      .eq("status", "pending")
+      .select("id, order_number, vendor_id, user_id, total, created_at, delivery_type, status")
+      .in("status", ["pending", "confirmed"])
       .eq("payment_status", "paid")
       .is("admin_unattended_alerted_at", null)
       .lte("created_at", cutoff)
