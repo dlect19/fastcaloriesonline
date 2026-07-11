@@ -12,6 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { MapPin, Bike, DollarSign, Settings2, Save, Loader2, CreditCard, Navigation, Clock, Store, Bell, Building2, Package } from 'lucide-react';
 import { OrderControlSettings } from '@/components/admin/OrderControlSettings';
+import { UnattendedOrderAlertSettings } from '@/components/admin/UnattendedOrderAlertSettings';
 import { EnvironmentSwitch } from '@/components/admin/EnvironmentSwitch';
 import { AdminTestModeToggle } from '@/components/admin/AdminTestModeToggle';
 import { PaystackBalanceCard } from '@/components/admin/PaystackBalanceCard';
@@ -607,6 +608,15 @@ export default function AdminSettings() {
               onSave={handleSave}
               saving={saving}
             />
+
+            {/* Unattended Order WhatsApp Alerts */}
+            <UnattendedOrderAlertSettings
+              settings={settings}
+              onSettingChange={handleSettingChange}
+              onSave={handleSave}
+              saving={saving}
+            />
+
 
             {/* Vehicle Type Settings */}
             <VehicleTypeSettings />
