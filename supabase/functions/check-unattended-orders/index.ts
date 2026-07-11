@@ -59,10 +59,12 @@ serve(async (req) => {
     const cutoff = new Date(Date.now() - minutes * 60_000).toISOString();
 
     // Find unattended paid orders past cutoff and not yet alerted
+    // Alert if vendor has not moved order into 'preparing' within the threshold.
+    // Covers both 'pending' (not accepted) and 'confirmed' (accepted but prep not started).
     const { data: orders, error: oErr } = await admin
       .from("orders")
-      .select("id, order_number, vendor_id, user_id, total, created_at, delivery_type")
-      .eq("status", "pending")
+      .select("id, order_number, vendor_id, user_id, total, created_at, delivery_type, status")
+      .in("status", ["pending", "confirmed"])
       .eq("payment_status", "paid")
       .is("admin_unattended_alerted_at", null)
       .lte("created_at", cutoff)
@@ -104,9 +106,10 @@ serve(async (req) => {
       const vendorPhone = vendor?.phone || "N/A";
       const dType = o.delivery_type === "self_pickup" ? "Carryout" : "Delivery";
 
+      const statusLabel = o.status === "pending" ? "not accepted" : "accepted but not started (still Confirmed, not Preparing)";
       const body =
         `⚠️ *Unattended Order Alert*\n` +
-        `Order *#${o.order_number}* has been paid but not accepted after ${ageMin} min.\n\n` +
+        `Order *#${o.order_number}* has been paid but ${statusLabel} after ${ageMin} min.\n\n` +
         `🏪 Vendor: ${vendorName}\n📞 ${vendorPhone}\n\n` +
         `👤 Customer: ${custName}\n📞 ${custPhone}\n\n` +
         `💰 Total: ₦${Number(o.total).toLocaleString()}\n` +
