@@ -4729,6 +4729,7 @@ export type Database = {
       }
       orders: {
         Row: {
+          admin_unattended_alerted_at: string | null
           assisted_created_by: string | null
           attended_at: string | null
           attended_by_staff_id: string | null
@@ -4780,6 +4781,7 @@ export type Database = {
           vendor_id: string
         }
         Insert: {
+          admin_unattended_alerted_at?: string | null
           assisted_created_by?: string | null
           attended_at?: string | null
           attended_by_staff_id?: string | null
@@ -4831,6 +4833,7 @@ export type Database = {
           vendor_id: string
         }
         Update: {
+          admin_unattended_alerted_at?: string | null
           assisted_created_by?: string | null
           attended_at?: string | null
           attended_by_staff_id?: string | null
@@ -9001,6 +9004,7 @@ export type Database = {
       attend_order: {
         Args: { _order_id: string }
         Returns: {
+          admin_unattended_alerted_at: string | null
           assisted_created_by: string | null
           attended_at: string | null
           attended_by_staff_id: string | null
