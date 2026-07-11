@@ -106,9 +106,10 @@ serve(async (req) => {
       const vendorPhone = vendor?.phone || "N/A";
       const dType = o.delivery_type === "self_pickup" ? "Carryout" : "Delivery";
 
+      const statusLabel = o.status === "pending" ? "not accepted" : "accepted but not started (still Confirmed, not Preparing)";
       const body =
         `⚠️ *Unattended Order Alert*\n` +
-        `Order *#${o.order_number}* has been paid but not accepted after ${ageMin} min.\n\n` +
+        `Order *#${o.order_number}* has been paid but ${statusLabel} after ${ageMin} min.\n\n` +
         `🏪 Vendor: ${vendorName}\n📞 ${vendorPhone}\n\n` +
         `👤 Customer: ${custName}\n📞 ${custPhone}\n\n` +
         `💰 Total: ₦${Number(o.total).toLocaleString()}\n` +
