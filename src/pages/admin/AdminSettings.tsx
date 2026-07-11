@@ -609,6 +609,15 @@ export default function AdminSettings() {
               saving={saving}
             />
 
+            {/* Unattended Order WhatsApp Alerts */}
+            <UnattendedOrderAlertSettings
+              settings={settings}
+              onSettingChange={handleSettingChange}
+              onSave={handleSave}
+              saving={saving}
+            />
+
+
             {/* Vehicle Type Settings */}
             <VehicleTypeSettings />
 
