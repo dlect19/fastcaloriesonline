@@ -290,6 +290,24 @@ export default function AdminSettings() {
         }
       }
 
+      // Save unattended order alert settings
+      const unattendedKeys = [
+        'admin_unattended_alert_enabled',
+        'admin_unattended_alert_phone',
+        'admin_unattended_alert_minutes',
+      ];
+      for (const key of unattendedKeys) {
+        if (settings[key] !== undefined) {
+          await supabase.from('platform_settings').upsert({
+            key,
+            value: settings[key],
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'key' });
+        }
+      }
+
+
+
 
       // Log every changed setting (old → new) into the activity log
       const changedKeys = Object.keys(settings).filter(
