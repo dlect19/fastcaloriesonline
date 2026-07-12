@@ -11,6 +11,7 @@ import { ArrowLeft, Pill, Clock, Check, Bell, Play, History, Loader2, Baby, User
 import { useToast } from '@/hooks/use-toast';
 import { format, formatDistanceToNow } from 'date-fns';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
+import { scheduleDrugAlarms } from '@/lib/drugAlarms';
 
 interface DrugUsage {
   id: string;
@@ -59,6 +60,10 @@ export default function DrugTracker() {
     setUsageRecords(usage || []);
     setReminders(rem || []);
     setLoading(false);
+    // Schedule device-level alarms (native only) so reminders fire even offline
+    if (rem && rem.length > 0) {
+      scheduleDrugAlarms(rem as any).catch(e => console.warn('scheduleDrugAlarms', e));
+    }
   };
 
   const startTracking = async (record: DrugUsage) => {
