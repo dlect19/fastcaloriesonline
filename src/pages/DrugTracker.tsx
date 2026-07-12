@@ -60,6 +60,10 @@ export default function DrugTracker() {
     setUsageRecords(usage || []);
     setReminders(rem || []);
     setLoading(false);
+    // Schedule device-level alarms (native only) so reminders fire even offline
+    if (rem && rem.length > 0) {
+      scheduleDrugAlarms(rem as any).catch(e => console.warn('scheduleDrugAlarms', e));
+    }
   };
 
   const startTracking = async (record: DrugUsage) => {
