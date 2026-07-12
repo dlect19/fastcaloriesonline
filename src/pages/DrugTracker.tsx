@@ -11,6 +11,7 @@ import { ArrowLeft, Pill, Clock, Check, Bell, Play, History, Loader2, Baby, User
 import { useToast } from '@/hooks/use-toast';
 import { format, formatDistanceToNow } from 'date-fns';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
+import { scheduleDrugAlarms } from '@/lib/drugAlarms';
 
 interface DrugUsage {
   id: string;
