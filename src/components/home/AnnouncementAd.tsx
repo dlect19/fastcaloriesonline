@@ -79,6 +79,7 @@ export function AnnouncementAd({ userLatitude, userLongitude }: AnnouncementAdPr
       description: pick.description,
       image_url: pick.image_url || '',
       link_url: pick.link_url,
+      cta_label: (pick as any).cta_label ?? null,
       ad_placement_id: pick.id,
     });
 
