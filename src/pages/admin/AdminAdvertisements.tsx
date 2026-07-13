@@ -266,6 +266,7 @@ export default function AdminAdvertisements() {
       description: '',
       image_url: '',
       link_url: '',
+      cta_label: 'Learn More',
       is_active: true,
       display_order: ads.length,
       target_audience: 'all',
