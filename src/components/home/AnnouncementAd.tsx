@@ -43,7 +43,7 @@ export function AnnouncementAd({ userLatitude, userLongitude }: AnnouncementAdPr
     // Get announcement-type ads from ad_placements that are active
     const { data: placements } = await supabase
       .from('ad_placements')
-      .select('id, title, description, image_url, link_url, target_latitude, target_longitude, target_radius_km, advertisement_id')
+      .select('id, title, description, image_url, link_url, cta_label, target_latitude, target_longitude, target_radius_km, advertisement_id')
       .eq('status', 'active')
       .eq('placement_type', 'announcement')
       .lte('starts_at', now)
