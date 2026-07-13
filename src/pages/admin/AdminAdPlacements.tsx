@@ -385,7 +385,7 @@ export default function AdminAdPlacements() {
 
       toast({ title: 'Ad Created!', description: 'Your ad is now live — no payment required.' });
       setCreateDialog(false);
-      setAdminAdForm({ title: '', description: '', image_url: '', link_url: '', placement_type: 'carousel', target_latitude: '', target_longitude: '', target_radius_km: 0, starts_at: '', ends_at: '' });
+      setAdminAdForm({ title: '', description: '', image_url: '', link_url: '', cta_label: 'Learn More', placement_type: 'carousel', target_latitude: '', target_longitude: '', target_radius_km: 0, starts_at: '', ends_at: '' });
       fetchData();
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
@@ -450,7 +450,7 @@ export default function AdminAdPlacements() {
       toast({ title: 'Updated!', description: 'Ad placement updated successfully.' });
       setCreateDialog(false);
       setEditingAd(null);
-      setAdminAdForm({ title: '', description: '', image_url: '', link_url: '', placement_type: 'carousel', target_latitude: '', target_longitude: '', target_radius_km: 0, starts_at: '', ends_at: '' });
+      setAdminAdForm({ title: '', description: '', image_url: '', link_url: '', cta_label: 'Learn More', placement_type: 'carousel', target_latitude: '', target_longitude: '', target_radius_km: 0, starts_at: '', ends_at: '' });
       fetchData();
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
@@ -721,7 +721,7 @@ export default function AdminAdPlacements() {
       </Dialog>
 
       {/* Admin Create/Edit Ad Dialog */}
-      <Dialog open={createDialog} onOpenChange={(open) => { setCreateDialog(open); if (!open) { setEditingAd(null); setAdminAdForm({ title: '', description: '', image_url: '', link_url: '', placement_type: 'carousel', target_latitude: '', target_longitude: '', target_radius_km: 0, starts_at: '', ends_at: '' }); } }}>
+      <Dialog open={createDialog} onOpenChange={(open) => { setCreateDialog(open); if (!open) { setEditingAd(null); setAdminAdForm({ title: '', description: '', image_url: '', link_url: '', cta_label: 'Learn More', placement_type: 'carousel', target_latitude: '', target_longitude: '', target_radius_km: 0, starts_at: '', ends_at: '' }); } }}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
