@@ -10,6 +10,7 @@ interface AnnouncementAdData {
   description: string | null;
   image_url: string;
   link_url: string | null;
+  cta_label?: string | null;
   ad_placement_id: string | null;
 }
 
