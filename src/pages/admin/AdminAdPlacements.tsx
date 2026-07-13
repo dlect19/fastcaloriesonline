@@ -101,6 +101,7 @@ export default function AdminAdPlacements() {
     description: '',
     image_url: '',
     link_url: '',
+    cta_label: 'Learn More',
     placement_type: 'carousel',
     target_latitude: '',
     target_longitude: '',
