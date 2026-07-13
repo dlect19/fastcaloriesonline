@@ -744,11 +744,12 @@ export default function AdminAdPlacements() {
               <Label>Description</Label>
               <Textarea value={adminAdForm.description} onChange={e => setAdminAdForm({ ...adminAdForm, description: e.target.value })} placeholder="Describe your ad" rows={2} />
             </div>
-            <div>
-              <Label>Link URL (optional)</Label>
-              <Input value={adminAdForm.link_url} onChange={e => setAdminAdForm({ ...adminAdForm, link_url: e.target.value })} placeholder="/explore or https://..." />
-              <p className="text-xs text-muted-foreground mt-1">Use internal paths (e.g. /explore) or full URLs</p>
-            </div>
+            <AdCtaLinkPicker
+              ctaLabel={adminAdForm.cta_label}
+              onCtaLabelChange={(v) => setAdminAdForm({ ...adminAdForm, cta_label: v })}
+              linkUrl={adminAdForm.link_url}
+              onLinkUrlChange={(v) => setAdminAdForm({ ...adminAdForm, link_url: v })}
+            />
 
             <div>
               <Label>Placement Type</Label>
