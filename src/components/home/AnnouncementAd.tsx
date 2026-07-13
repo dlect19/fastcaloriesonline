@@ -131,7 +131,7 @@ export function AnnouncementAd({ userLatitude, userLongitude }: AnnouncementAdPr
                 onClick={handleClick}
                 className="flex-1 bg-primary text-primary-foreground text-sm font-medium py-2 px-4 rounded-lg hover:bg-primary/90 transition-colors"
               >
-                Learn More
+                {ad.cta_label?.trim() || 'Learn More'}
               </button>
             )}
             <button
