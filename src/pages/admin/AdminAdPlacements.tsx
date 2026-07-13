@@ -401,6 +401,7 @@ export default function AdminAdPlacements() {
       description: p.description || '',
       image_url: p.image_url || '',
       link_url: p.link_url || '',
+      cta_label: (p as any).cta_label || 'Learn More',
       placement_type: p.placement_type,
       target_latitude: p.target_latitude?.toString() || '',
       target_longitude: p.target_longitude?.toString() || '',
