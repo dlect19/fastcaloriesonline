@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Plus, Pencil, Trash2, GripVertical, Image, Loader2, Eye } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
+import { AdCtaLinkPicker } from '@/components/admin/AdCtaLinkPicker';
 
 type Advertisement = Tables<'advertisements'>;
 
