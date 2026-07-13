@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Plus, Pencil, Trash2, GripVertical, Image, Loader2, Eye } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
+import { AdCtaLinkPicker } from '@/components/admin/AdCtaLinkPicker';
 
 type Advertisement = Tables<'advertisements'>;
 
@@ -70,6 +71,7 @@ export default function AdminAdvertisements() {
     description: '',
     image_url: '',
     link_url: '',
+    cta_label: 'Learn More',
     is_active: true,
     display_order: 0,
     target_audience: 'all',
@@ -149,6 +151,7 @@ export default function AdminAdvertisements() {
             description: formData.description,
             image_url: formData.image_url || 'gradient',
             link_url: formData.link_url || null,
+            cta_label: formData.cta_label || null,
             is_active: formData.is_active,
             display_order: formData.display_order,
             target_audience: formData.target_audience,
@@ -170,6 +173,7 @@ export default function AdminAdvertisements() {
             description: formData.description,
             image_url: formData.image_url || 'gradient',
             link_url: formData.link_url || null,
+            cta_label: formData.cta_label || null,
             is_active: formData.is_active,
             display_order: formData.display_order,
             target_audience: formData.target_audience,
@@ -206,6 +210,7 @@ export default function AdminAdvertisements() {
       description: ad.description || '',
       image_url: ad.image_url,
       link_url: ad.link_url || '',
+      cta_label: (ad as any).cta_label || 'Learn More',
       is_active: ad.is_active ?? true,
       display_order: ad.display_order ?? 0,
       target_audience: ad.target_audience || 'all',
@@ -261,6 +266,7 @@ export default function AdminAdvertisements() {
       description: '',
       image_url: '',
       link_url: '',
+      cta_label: 'Learn More',
       is_active: true,
       display_order: ads.length,
       target_audience: 'all',
@@ -340,14 +346,12 @@ export default function AdminAdvertisements() {
                   </Select>
                 </div>
                 
-                <div>
-                  <Label>Link URL (optional)</Label>
-                  <Input
-                    value={formData.link_url}
-                    onChange={(e) => setFormData({ ...formData, link_url: e.target.value })}
-                    placeholder="/explore?category=restaurant"
-                  />
-                </div>
+                <AdCtaLinkPicker
+                  ctaLabel={formData.cta_label}
+                  onCtaLabelChange={(v) => setFormData({ ...formData, cta_label: v })}
+                  linkUrl={formData.link_url}
+                  onLinkUrlChange={(v) => setFormData({ ...formData, link_url: v })}
+                />
                 
                 <div>
                   <Label>Display Order</Label>

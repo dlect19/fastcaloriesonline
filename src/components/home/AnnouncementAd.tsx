@@ -10,6 +10,7 @@ interface AnnouncementAdData {
   description: string | null;
   image_url: string;
   link_url: string | null;
+  cta_label?: string | null;
   ad_placement_id: string | null;
 }
 
@@ -42,7 +43,7 @@ export function AnnouncementAd({ userLatitude, userLongitude }: AnnouncementAdPr
     // Get announcement-type ads from ad_placements that are active
     const { data: placements } = await supabase
       .from('ad_placements')
-      .select('id, title, description, image_url, link_url, target_latitude, target_longitude, target_radius_km, advertisement_id')
+      .select('id, title, description, image_url, link_url, cta_label, target_latitude, target_longitude, target_radius_km, advertisement_id')
       .eq('status', 'active')
       .eq('placement_type', 'announcement')
       .lte('starts_at', now)
@@ -78,6 +79,7 @@ export function AnnouncementAd({ userLatitude, userLongitude }: AnnouncementAdPr
       description: pick.description,
       image_url: pick.image_url || '',
       link_url: pick.link_url,
+      cta_label: (pick as any).cta_label ?? null,
       ad_placement_id: pick.id,
     });
 
@@ -129,7 +131,7 @@ export function AnnouncementAd({ userLatitude, userLongitude }: AnnouncementAdPr
                 onClick={handleClick}
                 className="flex-1 bg-primary text-primary-foreground text-sm font-medium py-2 px-4 rounded-lg hover:bg-primary/90 transition-colors"
               >
-                Learn More
+                {ad.cta_label?.trim() || 'Learn More'}
               </button>
             )}
             <button

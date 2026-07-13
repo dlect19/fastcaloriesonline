@@ -137,6 +137,7 @@ export type Database = {
           budget: number
           cpm_rate: number
           created_at: string
+          cta_label: string | null
           description: string | null
           ends_at: string
           id: string
@@ -165,6 +166,7 @@ export type Database = {
           budget?: number
           cpm_rate?: number
           created_at?: string
+          cta_label?: string | null
           description?: string | null
           ends_at: string
           id?: string
@@ -193,6 +195,7 @@ export type Database = {
           budget?: number
           cpm_rate?: number
           created_at?: string
+          cta_label?: string | null
           description?: string | null
           ends_at?: string
           id?: string
@@ -795,6 +798,7 @@ export type Database = {
         Row: {
           ad_placement_id: string | null
           created_at: string
+          cta_label: string | null
           description: string | null
           display_order: number | null
           ends_at: string | null
@@ -814,6 +818,7 @@ export type Database = {
         Insert: {
           ad_placement_id?: string | null
           created_at?: string
+          cta_label?: string | null
           description?: string | null
           display_order?: number | null
           ends_at?: string | null
@@ -833,6 +838,7 @@ export type Database = {
         Update: {
           ad_placement_id?: string | null
           created_at?: string
+          cta_label?: string | null
           description?: string | null
           display_order?: number | null
           ends_at?: string | null

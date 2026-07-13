@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2, Eye, MousePointer, DollarSign, CheckCircle, XCircle, Clock, BarChart3, Gift, Search, Plus, Upload, Megaphone, Pencil, Trash2 } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { AdCtaLinkPicker } from '@/components/admin/AdCtaLinkPicker';
 
 type AdPlacement = {
   id: string;
@@ -100,6 +101,7 @@ export default function AdminAdPlacements() {
     description: '',
     image_url: '',
     link_url: '',
+    cta_label: 'Learn More',
     placement_type: 'carousel',
     target_latitude: '',
     target_longitude: '',
@@ -349,6 +351,7 @@ export default function AdminAdPlacements() {
         description: adminAdForm.description || null,
         image_url: adminAdForm.image_url || null,
         link_url: adminAdForm.link_url || null,
+        cta_label: adminAdForm.cta_label || null,
         placement_type: adminAdForm.placement_type,
         target_latitude: adminAdForm.target_latitude ? parseFloat(adminAdForm.target_latitude) : null,
         target_longitude: adminAdForm.target_longitude ? parseFloat(adminAdForm.target_longitude) : null,
@@ -370,6 +373,7 @@ export default function AdminAdPlacements() {
         description: adminAdForm.description || null,
         image_url: adminAdForm.image_url || 'from-primary to-emerald-600',
         link_url: adminAdForm.link_url || null,
+        cta_label: adminAdForm.cta_label || null,
         is_active: true,
         display_order: 99,
         target_audience: 'all',
@@ -383,7 +387,7 @@ export default function AdminAdPlacements() {
 
       toast({ title: 'Ad Created!', description: 'Your ad is now live — no payment required.' });
       setCreateDialog(false);
-      setAdminAdForm({ title: '', description: '', image_url: '', link_url: '', placement_type: 'carousel', target_latitude: '', target_longitude: '', target_radius_km: 0, starts_at: '', ends_at: '' });
+      setAdminAdForm({ title: '', description: '', image_url: '', link_url: '', cta_label: 'Learn More', placement_type: 'carousel', target_latitude: '', target_longitude: '', target_radius_km: 0, starts_at: '', ends_at: '' });
       fetchData();
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
@@ -399,6 +403,7 @@ export default function AdminAdPlacements() {
       description: p.description || '',
       image_url: p.image_url || '',
       link_url: p.link_url || '',
+      cta_label: (p as any).cta_label || 'Learn More',
       placement_type: p.placement_type,
       target_latitude: p.target_latitude?.toString() || '',
       target_longitude: p.target_longitude?.toString() || '',
@@ -421,6 +426,7 @@ export default function AdminAdPlacements() {
         description: adminAdForm.description || null,
         image_url: adminAdForm.image_url || null,
         link_url: adminAdForm.link_url || null,
+        cta_label: adminAdForm.cta_label || null,
         placement_type: adminAdForm.placement_type,
         target_latitude: adminAdForm.target_latitude ? parseFloat(adminAdForm.target_latitude) : null,
         target_longitude: adminAdForm.target_longitude ? parseFloat(adminAdForm.target_longitude) : null,
@@ -437,6 +443,7 @@ export default function AdminAdPlacements() {
           description: adminAdForm.description || null,
           image_url: adminAdForm.image_url || 'from-primary to-emerald-600',
           link_url: adminAdForm.link_url || null,
+          cta_label: adminAdForm.cta_label || null,
           starts_at: watLocalToISO(adminAdForm.starts_at),
           ends_at: watLocalToISO(adminAdForm.ends_at),
           target_latitude: adminAdForm.target_latitude ? parseFloat(adminAdForm.target_latitude) : null,
@@ -448,7 +455,7 @@ export default function AdminAdPlacements() {
       toast({ title: 'Updated!', description: 'Ad placement updated successfully.' });
       setCreateDialog(false);
       setEditingAd(null);
-      setAdminAdForm({ title: '', description: '', image_url: '', link_url: '', placement_type: 'carousel', target_latitude: '', target_longitude: '', target_radius_km: 0, starts_at: '', ends_at: '' });
+      setAdminAdForm({ title: '', description: '', image_url: '', link_url: '', cta_label: 'Learn More', placement_type: 'carousel', target_latitude: '', target_longitude: '', target_radius_km: 0, starts_at: '', ends_at: '' });
       fetchData();
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
@@ -719,7 +726,7 @@ export default function AdminAdPlacements() {
       </Dialog>
 
       {/* Admin Create/Edit Ad Dialog */}
-      <Dialog open={createDialog} onOpenChange={(open) => { setCreateDialog(open); if (!open) { setEditingAd(null); setAdminAdForm({ title: '', description: '', image_url: '', link_url: '', placement_type: 'carousel', target_latitude: '', target_longitude: '', target_radius_km: 0, starts_at: '', ends_at: '' }); } }}>
+      <Dialog open={createDialog} onOpenChange={(open) => { setCreateDialog(open); if (!open) { setEditingAd(null); setAdminAdForm({ title: '', description: '', image_url: '', link_url: '', cta_label: 'Learn More', placement_type: 'carousel', target_latitude: '', target_longitude: '', target_radius_km: 0, starts_at: '', ends_at: '' }); } }}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -737,11 +744,12 @@ export default function AdminAdPlacements() {
               <Label>Description</Label>
               <Textarea value={adminAdForm.description} onChange={e => setAdminAdForm({ ...adminAdForm, description: e.target.value })} placeholder="Describe your ad" rows={2} />
             </div>
-            <div>
-              <Label>Link URL (optional)</Label>
-              <Input value={adminAdForm.link_url} onChange={e => setAdminAdForm({ ...adminAdForm, link_url: e.target.value })} placeholder="/explore or https://..." />
-              <p className="text-xs text-muted-foreground mt-1">Use internal paths (e.g. /explore) or full URLs</p>
-            </div>
+            <AdCtaLinkPicker
+              ctaLabel={adminAdForm.cta_label}
+              onCtaLabelChange={(v) => setAdminAdForm({ ...adminAdForm, cta_label: v })}
+              linkUrl={adminAdForm.link_url}
+              onLinkUrlChange={(v) => setAdminAdForm({ ...adminAdForm, link_url: v })}
+            />
 
             <div>
               <Label>Placement Type</Label>
