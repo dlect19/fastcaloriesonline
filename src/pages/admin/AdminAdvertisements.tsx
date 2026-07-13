@@ -346,14 +346,12 @@ export default function AdminAdvertisements() {
                   </Select>
                 </div>
                 
-                <div>
-                  <Label>Link URL (optional)</Label>
-                  <Input
-                    value={formData.link_url}
-                    onChange={(e) => setFormData({ ...formData, link_url: e.target.value })}
-                    placeholder="/explore?category=restaurant"
-                  />
-                </div>
+                <AdCtaLinkPicker
+                  ctaLabel={formData.cta_label}
+                  onCtaLabelChange={(v) => setFormData({ ...formData, cta_label: v })}
+                  linkUrl={formData.link_url}
+                  onLinkUrlChange={(v) => setFormData({ ...formData, link_url: v })}
+                />
                 
                 <div>
                   <Label>Display Order</Label>
