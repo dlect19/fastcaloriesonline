@@ -4,9 +4,11 @@ import { useNavigate } from 'react-router-dom';
 import fastCaloriesLogo from '@/assets/fast-calories-text-logo.png';
 import vendorRestaurantImg from '@/assets/landing-vendor-restaurant.png';
 import customerAppImg from '@/assets/landing-customer-app.png';
+import { usePlatformStats, formatCount } from '@/hooks/usePlatformStats';
 
 export default function VendorLanding() {
   const navigate = useNavigate();
+  const { stats } = usePlatformStats();
 
   return (
     <div className="min-h-screen bg-background overflow-hidden">
@@ -78,13 +80,13 @@ export default function VendorLanding() {
           {/* Stats */}
           <div className="flex items-center gap-8 sm:gap-12 animate-fade-in">
             <div className="text-center">
-              <p className="text-3xl font-bold text-foreground">500+</p>
+              <p className="text-3xl font-bold text-foreground">{formatCount(stats?.vendors.active)}</p>
               <p className="text-sm text-muted-foreground">Active Vendors</p>
             </div>
             <div className="w-px h-12 bg-border" />
             <div className="text-center">
-              <p className="text-3xl font-bold text-foreground">50K+</p>
-              <p className="text-sm text-muted-foreground">Daily Orders</p>
+              <p className="text-3xl font-bold text-foreground">{formatCount(stats?.orders.delivered)}</p>
+              <p className="text-sm text-muted-foreground">Orders Delivered</p>
             </div>
             <div className="w-px h-12 bg-border" />
             <div className="text-center">
