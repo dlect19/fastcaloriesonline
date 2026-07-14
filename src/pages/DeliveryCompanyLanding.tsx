@@ -4,9 +4,11 @@ import { useNavigate } from 'react-router-dom';
 import fastCaloriesLogo from '@/assets/fast-calories-text-logo.png';
 import riderMotorcycleImg from '@/assets/landing-rider-motorcycle.png';
 import riderBackImg from '@/assets/landing-rider-back.jpeg';
+import { usePlatformStats, formatCount } from '@/hooks/usePlatformStats';
 
 export default function DeliveryCompanyLanding() {
   const navigate = useNavigate();
+  const { stats } = usePlatformStats();
 
   return (
     <div className="min-h-screen bg-background overflow-hidden">
