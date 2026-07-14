@@ -28,6 +28,7 @@ import { FreeMealBanner } from '@/components/home/FreeMealBanner';
 import { LocationSearch } from '@/components/home/LocationSearch';
 import { Button } from '@/components/ui/button';
 import { LogOut, Flame, Star, ChevronRight, Sparkles, Heart, ShieldCheck, Building2, MapPinOff } from 'lucide-react';
+import { usePlatformStats, formatCount } from '@/hooks/usePlatformStats';
 import { useNavigate } from 'react-router-dom';
 import { PushNotificationBanner } from '@/components/shared/PushNotificationBanner';
 import { useCapacitorPush } from '@/hooks/useCapacitorPush';
