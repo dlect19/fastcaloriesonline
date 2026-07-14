@@ -248,7 +248,7 @@ export default function Home() {
             {/* Badge */}
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-secondary border border-border mb-6 animate-fade-in">
               <Sparkles className="w-4 h-4 text-primary" />
-              <span className="text-sm font-medium text-foreground">Nigeria's #1 Health-Aware Delivery</span>
+              <span className="text-sm font-medium text-foreground">Africa's first AI-powered Food, Health & Lifestyle Super App</span>
             </div>
 
             {/* Headline */}
@@ -283,21 +283,18 @@ export default function Home() {
             {/* Stats */}
             <div className="flex items-center gap-8 sm:gap-12 animate-fade-in">
               <div className="text-center">
-                <p className="text-3xl font-bold text-foreground">500+</p>
-                <p className="text-sm text-muted-foreground">Restaurants</p>
+                <p className="text-3xl font-bold text-foreground">{formatCount(stats?.vendors.active)}</p>
+                <p className="text-sm text-muted-foreground">Vendors</p>
               </div>
               <div className="w-px h-12 bg-border" />
               <div className="text-center">
-                <p className="text-3xl font-bold text-foreground">50K+</p>
+                <p className="text-3xl font-bold text-foreground">{formatCount(stats?.users.total)}</p>
                 <p className="text-sm text-muted-foreground">Happy Users</p>
               </div>
               <div className="w-px h-12 bg-border" />
               <div className="text-center">
-                <p className="text-3xl font-bold text-foreground">4.9</p>
-                <div className="flex items-center justify-center gap-1">
-                  <Star className="w-3 h-3 fill-warning text-warning" />
-                  <span className="text-sm text-muted-foreground">Rating</span>
-                </div>
+                <p className="text-3xl font-bold text-foreground">{formatCount(stats?.orders.delivered)}</p>
+                <p className="text-sm text-muted-foreground">Orders Delivered</p>
               </div>
             </div>
           </main>
