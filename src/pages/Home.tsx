@@ -49,6 +49,7 @@ export default function Home() {
   const { user, signOut, loading } = useAuth();
   const { isComplete: profileComplete, loading: profileLoading } = useProfileCompletion(user?.id);
   const { settings: platformSettings } = usePlatformSettings();
+  const { stats } = usePlatformStats();
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [activeTab, setActiveTab] = useState('home');
   const [deliveryLocation, setDeliveryLocation] = useState<DeliveryLocation | null>(() => {
