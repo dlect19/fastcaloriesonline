@@ -5,9 +5,11 @@ import riderLogo from '@/assets/rider-logo.png';
 import riderFrontImg from '@/assets/landing-rider-front.jpeg';
 import riderBackImg from '@/assets/landing-rider-back.jpeg';
 import riderMotorcycleImg from '@/assets/landing-rider-motorcycle.png';
+import { usePlatformStats, formatCount } from '@/hooks/usePlatformStats';
 
 export default function RiderLanding() {
   const navigate = useNavigate();
+  const { stats } = usePlatformStats();
 
   return (
     <div className="min-h-screen bg-background overflow-hidden">
