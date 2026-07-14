@@ -82,18 +82,18 @@ export default function RiderLanding() {
           {/* Stats */}
           <div className="flex items-center gap-8 sm:gap-12 animate-fade-in">
             <div className="text-center">
-              <p className="text-3xl font-bold text-foreground">₦5K+</p>
-              <p className="text-sm text-muted-foreground">Avg. Daily Earnings</p>
-            </div>
-            <div className="w-px h-12 bg-border" />
-            <div className="text-center">
-              <p className="text-3xl font-bold text-foreground">1000+</p>
+              <p className="text-3xl font-bold text-foreground">{formatCount(stats?.riders.verified)}</p>
               <p className="text-sm text-muted-foreground">Active Riders</p>
             </div>
             <div className="w-px h-12 bg-border" />
             <div className="text-center">
-              <p className="text-3xl font-bold text-foreground">Weekly</p>
-              <p className="text-sm text-muted-foreground">Payouts</p>
+              <p className="text-3xl font-bold text-foreground">{formatCount(stats?.orders.delivered)}</p>
+              <p className="text-sm text-muted-foreground">Deliveries</p>
+            </div>
+            <div className="w-px h-12 bg-border" />
+            <div className="text-center">
+              <p className="text-3xl font-bold text-foreground">{formatCount(stats?.riders.online_now, '')}</p>
+              <p className="text-sm text-muted-foreground">Online Now</p>
             </div>
           </div>
         </main>
