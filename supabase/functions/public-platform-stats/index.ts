@@ -70,6 +70,9 @@ Deno.serve(async (req) => {
       orders: {
         delivered: deliveredOrdersRes.count ?? 0,
       },
+      users: {
+        total: usersRes.count ?? 0,
+      },
       generated_at: new Date().toISOString(),
     };
 
