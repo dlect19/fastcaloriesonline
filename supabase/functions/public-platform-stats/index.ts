@@ -31,6 +31,7 @@ Deno.serve(async (req) => {
       onlineRidersRes,
       citiesRes,
       deliveredOrdersRes,
+      usersRes,
     ] = await Promise.all([
       supabase.from('vendors').select('id', { count: 'exact', head: true })
         .eq('is_active', true).eq('is_verified', true).eq('is_test_store', false),
@@ -46,6 +47,7 @@ Deno.serve(async (req) => {
         .eq('is_active', true).eq('is_test_store', false).not('state', 'is', null),
       supabase.from('orders').select('id', { count: 'exact', head: true })
         .eq('status', 'delivered'),
+      supabase.from('profiles').select('id', { count: 'exact', head: true }),
     ]);
 
     const cities = new Set(
