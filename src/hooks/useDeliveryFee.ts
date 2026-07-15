@@ -60,28 +60,31 @@ function getTimePeriod(ss: SurgeSettings): string {
 }
 
 /**
- * Read current weather condition from the shared weather_cache table.
- * Cache is populated by the `refresh-weather` edge function on a schedule —
- * customer orders never call an external weather API directly.
+ * Get the current weather condition for the customer's location.
+ *
+ * Calls the `get-current-weather` edge function, which serves a fresh
+ * `weather_cache` row when one exists and otherwise hits the provider live
+ * and warms the cache. This is intentionally NOT a plain table read —
+ * `dispatch-order` calls the provider live at rider dispatch time, so if the
+ * cache is cold and we default to 'clear' here the customer's delivery_fee
+ * under-prices the ride and the rider payout breakdown ends up with a tiny
+ * base fee (fee − today's surge).
  */
 async function fetchWeatherCondition(lat: number, lon: number): Promise<string> {
   try {
+    const { data, error } = await supabase.functions.invoke('get-current-weather', {
+      body: { lat, lon },
+    });
+    if (!error && data?.condition) return data.condition;
+  } catch (e) {
+    console.warn('[useDeliveryFee] weather lookup failed', e);
+  }
+  // Last-resort fallback — read whatever is in cache so we don't stall
+  try {
     const gridKey = `${lat.toFixed(1)},${lon.toFixed(1)}`;
     const { data } = await supabase
-      .from('weather_cache')
-      .select('condition')
-      .eq('area_key', gridKey)
-      .maybeSingle();
-    if (data?.condition) return data.condition;
-
-    // Fallback: latest global row so pricing still works before the cache is warm
-    const { data: latest } = await supabase
-      .from('weather_cache')
-      .select('condition')
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    return latest?.condition || 'clear';
+      .from('weather_cache').select('condition').eq('area_key', gridKey).maybeSingle();
+    return data?.condition || 'clear';
   } catch {
     return 'clear';
   }
