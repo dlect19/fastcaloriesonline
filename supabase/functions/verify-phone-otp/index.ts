@@ -1,6 +1,7 @@
 // Verify a 6-digit OTP. Optionally auto-signup on success.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { normalizeE164Phone, toLocalNgPhone } from "../_shared/twilioMessaging.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,12 +9,7 @@ const corsHeaders = {
 };
 
 function normalizePhone(raw: string): string {
-  const trimmed = (raw || "").trim().replace(/\s|-/g, "");
-  if (!trimmed) return "";
-  if (trimmed.startsWith("+")) return trimmed;
-  if (trimmed.startsWith("00")) return "+" + trimmed.slice(2);
-  if (trimmed.startsWith("0")) return "+234" + trimmed.slice(1);
-  return "+" + trimmed;
+  return normalizeE164Phone(raw);
 }
 
 async function sha256Hex(input: string): Promise<string> {
@@ -74,7 +70,7 @@ serve(async (req) => {
 
     // Determine which user to mark verified
     let userId: string | null = otp.user_id ?? null;
-    const localForm = phone.startsWith("+234") ? "0" + phone.slice(4) : phone;
+    const localForm = toLocalNgPhone(phone);
 
     // If authenticated caller and no user on OTP, use caller
     const authHeader = req.headers.get("Authorization");
@@ -153,8 +149,8 @@ serve(async (req) => {
     }
 
     if (userId) {
-      // Update by user_id (auth id). Do NOT overwrite the stored phone format.
       await admin.from("profiles").update({
+        phone: localForm,
         phone_verified: true,
         phone_verified_at: new Date().toISOString(),
         phone_verification_method: otp.channel,

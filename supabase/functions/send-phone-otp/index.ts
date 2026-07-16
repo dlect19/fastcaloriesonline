@@ -1,60 +1,22 @@
 // Send a 6-digit OTP to a phone number via WhatsApp, falling back to SMS.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getWhatsAppFromNumber } from "../_shared/whatsapp.ts";
 import { logTwilioCall } from "../_shared/twilioCost.ts";
+import { normalizeE164Phone, sendTwilioMessage } from "../_shared/twilioMessaging.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const GATEWAY = "https://connector-gateway.lovable.dev/twilio";
-
 function normalizePhone(raw: string): string {
-  const trimmed = (raw || "").trim().replace(/\s|-/g, "");
-  if (!trimmed) return "";
-  if (trimmed.startsWith("+")) return trimmed;
-  if (trimmed.startsWith("00")) return "+" + trimmed.slice(2);
-  if (trimmed.startsWith("0")) return "+234" + trimmed.slice(1); // Nigeria default
-  return "+" + trimmed;
+  return normalizeE164Phone(raw);
 }
 
 async function sha256Hex(input: string): Promise<string> {
   const data = new TextEncoder().encode(input);
   const buf = await crypto.subtle.digest("SHA-256", data);
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
-}
-
-async function sendTwilio(supabase: any, kind: "whatsapp" | "sms", to: string, body: string): Promise<{ ok: boolean; sid?: string; error?: string }> {
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  const TWILIO_API_KEY = Deno.env.get("TWILIO_API_KEY");
-  if (!LOVABLE_API_KEY || !TWILIO_API_KEY) return { ok: false, error: "twilio_not_configured" };
-
-  const from = kind === "whatsapp"
-    ? await getWhatsAppFromNumber(supabase)
-    : Deno.env.get("TWILIO_SMS_FROM");
-  if (!from) return { ok: false, error: `${kind}_sender_not_configured` };
-
-  const To = kind === "whatsapp" ? (to.startsWith("whatsapp:") ? to : `whatsapp:${to}`) : to;
-  const From = kind === "whatsapp" ? (from.startsWith("whatsapp:") ? from : `whatsapp:${from}`) : from;
-
-  try {
-    const r = await fetch(`${GATEWAY}/Messages.json`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
-        "X-Connection-Api-Key": TWILIO_API_KEY,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({ To, From, Body: body }),
-    });
-    const data = await r.json();
-    if (!r.ok) return { ok: false, error: JSON.stringify(data) };
-    return { ok: true, sid: data.sid };
-  } catch (e) {
-    return { ok: false, error: (e as Error).message };
-  }
 }
 
 serve(async (req) => {
@@ -113,19 +75,21 @@ serve(async (req) => {
 
     // Try WhatsApp first (unless caller explicitly asked for SMS)
     let channelUsed: "whatsapp" | "sms" = preferSms ? "sms" : "whatsapp";
-    let send = await sendTwilio(admin, channelUsed, phone, message);
+    let send = await sendTwilioMessage(admin, { channel: channelUsed, to: phone, body: message });
 
     // Fallback to SMS if WhatsApp failed and SMS sender exists
     if (!send.ok && channelUsed === "whatsapp" && Deno.env.get("TWILIO_SMS_FROM")) {
       channelUsed = "sms";
-      send = await sendTwilio(admin, "sms", phone, message);
+      send = await sendTwilioMessage(admin, { channel: "sms", to: phone, body: message });
     }
 
     if (!send.ok) {
       await logTwilioCall(admin, {
         user_id: userId, initiated_by: userId, channel: channelUsed,
-        to_phone: phone, body: message, function_name: "send-phone-otp",
-        twilio_status: "failed", error: String(send.error).slice(0, 500),
+        to_phone: phone, from_phone: send.from?.replace("whatsapp:", "") ?? null,
+        body: message, function_name: "send-phone-otp",
+        twilio_sid: send.sid ?? null, twilio_status: send.status ?? "failed",
+        error: String(send.error || send.error_code || "send_failed").slice(0, 500),
       });
       return new Response(JSON.stringify({ error: "send_failed", details: send.error }),
         { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -133,8 +97,9 @@ serve(async (req) => {
 
     await logTwilioCall(admin, {
       user_id: userId, initiated_by: userId, channel: channelUsed,
-      to_phone: phone, body: message, twilio_sid: send.sid ?? null,
-      twilio_status: "queued", function_name: "send-phone-otp",
+      to_phone: phone, from_phone: send.from?.replace("whatsapp:", "") ?? null,
+      body: message, twilio_sid: send.sid ?? null,
+      twilio_status: send.status ?? "queued", function_name: "send-phone-otp",
     });
 
     await admin.from("phone_verification_otps").insert({

@@ -2,24 +2,17 @@
 // Used by admin actions and (later) order-status triggers.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getWhatsAppFromNumber } from "../_shared/whatsapp.ts";
 import { logTwilioCall } from "../_shared/twilioCost.ts";
+import { normalizeE164Phone, sendTwilioMessage } from "../_shared/twilioMessaging.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const GATEWAY = "https://connector-gateway.lovable.dev/twilio";
-
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    const TWILIO_API_KEY = Deno.env.get("TWILIO_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
-    if (!TWILIO_API_KEY) throw new Error("TWILIO_API_KEY not configured (link Twilio connector)");
-
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     // Auth: must be admin (any signed-in user allowed here, callers gate via UI)
@@ -41,54 +34,44 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const from = await getWhatsAppFromNumber(admin);
-    const toFormatted = to.startsWith("whatsapp:") ? to : `whatsapp:${to}`;
-    const phone = to.replace("whatsapp:", "");
+    const phone = normalizeE164Phone(to);
 
     // Resolve target user_id from phone if not supplied
     let resolvedUserId: string | null = targetUserId ?? null;
     if (!resolvedUserId) {
-      const { data: prof } = await admin.from("profiles").select("user_id").eq("phone", phone).maybeSingle();
+      const localPhone = phone.startsWith("+234") ? "0" + phone.slice(4) : phone;
+      const { data: prof } = await admin.from("profiles").select("user_id").or(`phone.eq.${phone},phone.eq.${localPhone}`).maybeSingle();
       resolvedUserId = prof?.user_id ?? null;
     }
 
-    const r = await fetch(`${GATEWAY}/Messages.json`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
-        "X-Connection-Api-Key": TWILIO_API_KEY,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({ To: toFormatted, From: from, Body: body }),
-    });
-    const data = await r.json();
+    const send = await sendTwilioMessage(admin, { channel: "whatsapp", to: phone, body });
 
-    if (!r.ok) {
+    if (!send.ok) {
       await logTwilioCall(admin, {
         user_id: resolvedUserId, initiated_by: initiatedBy, channel: "whatsapp",
-        to_phone: phone, from_phone: from.replace("whatsapp:", ""), body,
-        twilio_sid: null, twilio_status: "failed",
-        function_name: "whatsapp-send", error: JSON.stringify(data).slice(0, 500),
+        to_phone: phone, from_phone: send.from?.replace("whatsapp:", "") ?? null, body,
+        twilio_sid: send.sid ?? null, twilio_status: send.status ?? "failed",
+        function_name: "whatsapp-send", error: String(send.error || send.error_code || "send_failed").slice(0, 500),
         order_id: orderId ?? null,
       });
-      return new Response(JSON.stringify({ error: "twilio_failed", details: data }),
+      return new Response(JSON.stringify({ error: "twilio_failed", details: send.error, status: send.status, code: send.error_code }),
         { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // Log to whatsapp_messages (existing) + twilio_api_logs (new)
     const { data: session } = await admin.from("whatsapp_sessions").select("id").eq("phone", phone).maybeSingle();
     await admin.from("whatsapp_messages").insert({
-      session_id: session?.id ?? null, phone, direction: "out", body, twilio_sid: data.sid ?? null,
+      session_id: session?.id ?? null, phone, direction: "out", body, twilio_sid: send.sid ?? null,
     });
     await logTwilioCall(admin, {
       user_id: resolvedUserId, initiated_by: initiatedBy, channel: "whatsapp",
-      to_phone: phone, from_phone: from.replace("whatsapp:", ""), body,
-      twilio_sid: data.sid ?? null, twilio_status: data.status ?? "queued",
+      to_phone: phone, from_phone: send.from?.replace("whatsapp:", "") ?? null, body,
+      twilio_sid: send.sid ?? null, twilio_status: send.status ?? "queued",
       function_name: "whatsapp-send",
       order_id: orderId ?? null,
     });
 
-    return new Response(JSON.stringify({ success: true, sid: data.sid }),
+    return new Response(JSON.stringify({ success: true, sid: send.sid, status: send.status }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     console.error("whatsapp-send error:", e);
