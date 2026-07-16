@@ -66,7 +66,19 @@ export function ProfileForm({ user, profile, onUpdate }: ProfileFormProps) {
     }
   };
 
-  const handleVerified = () => {
+  const handleVerified = async (verifiedPhone: string) => {
+    const nextPhone = sanitizePhoneInput(verifiedPhone);
+    if (nextPhone) {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ phone: nextPhone, phone_verified: true, phone_verification_method: 'whatsapp', phone_verified_at: new Date().toISOString() } as any)
+        .eq('user_id', user.id);
+      if (error) {
+        toast({ title: 'Phone verified, but profile update failed', description: error.message, variant: 'destructive' });
+        return;
+      }
+      setFormData((prev) => ({ ...prev, phone: nextPhone }));
+    }
     setVerifyOpen(false);
     setIsEditing(false);
     toast({ title: 'Phone updated ✅', description: 'Your new number is verified.' });

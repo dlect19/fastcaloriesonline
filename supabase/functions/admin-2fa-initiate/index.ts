@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { Resend } from 'https://esm.sh/resend@2.0.0';
+import { sendTwilioMessage } from '../_shared/twilioMessaging.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -96,34 +97,16 @@ Deno.serve(async (req) => {
         const normalized = rawPhone.startsWith('+')
           ? rawPhone.replace(/\s|-/g, '')
           : rawPhone.startsWith('0') ? '+234' + rawPhone.slice(1).replace(/\s|-/g, '') : '+' + rawPhone.replace(/\s|-/g, '');
-        const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-        const TWILIO_API_KEY = Deno.env.get('TWILIO_API_KEY');
-        const { data: settingRow } = await supabase.from('platform_settings').select('value').eq('key', 'whatsapp_from_number').maybeSingle();
-        const fromRaw = (settingRow?.value as any)?.number || Deno.env.get('TWILIO_WHATSAPP_FROM') || '+14155238886';
-        const from = fromRaw.startsWith('whatsapp:') ? fromRaw : `whatsapp:${fromRaw}`;
-        if (LOVABLE_API_KEY && TWILIO_API_KEY) {
-          const body = `Fast Calories Admin sign-in code: ${code}\nExpires in 10 minutes. If you didn't request this, change your password immediately.`;
-          const r = await fetch('https://connector-gateway.lovable.dev/twilio/Messages.json', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-              'X-Connection-Api-Key': TWILIO_API_KEY,
-              'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: new URLSearchParams({ To: `whatsapp:${normalized}`, From: from, Body: body }),
-          });
-          const twilioData = await r.json().catch(() => ({}));
-          const sid = (twilioData as any)?.sid ?? null;
-          const status = (twilioData as any)?.status ?? (r.ok ? 'queued' : 'failed');
-          await supabase.from('twilio_api_logs').insert({
-            user_id: userId, initiated_by: userId, direction: 'out', channel: 'whatsapp',
-            to_phone: normalized, from_phone: from.replace('whatsapp:', ''),
-            body_preview: body.slice(0, 200), twilio_sid: sid, twilio_status: status,
-            segments: 1, price_ngn: r.ok ? 25 : 0, function_name: 'admin-2fa-initiate',
-            error: r.ok ? null : JSON.stringify(twilioData).slice(0, 500),
-          });
-          if (r.ok) whatsappSentTo = normalized;
-        }
+        const body = `Fast Calories Admin sign-in code: ${code}\nExpires in 10 minutes. If you didn't request this, change your password immediately.`;
+        const send = await sendTwilioMessage(supabase, { channel: 'whatsapp', to: normalized, body });
+        await supabase.from('twilio_api_logs').insert({
+          user_id: userId, initiated_by: userId, direction: 'out', channel: 'whatsapp',
+          to_phone: normalized, from_phone: send.from?.replace('whatsapp:', '') ?? null,
+          body_preview: body.slice(0, 200), twilio_sid: send.sid ?? null, twilio_status: send.status ?? (send.ok ? 'queued' : 'failed'),
+          segments: 1, price_ngn: send.ok ? 25 : 0, function_name: 'admin-2fa-initiate',
+          error: send.ok ? null : String(send.error || send.error_code || 'send_failed').slice(0, 500),
+        });
+        if (send.ok) whatsappSentTo = normalized;
       }
     } catch (e) {
       console.warn('admin-2fa-initiate: whatsapp copy failed:', e);

@@ -3,24 +3,17 @@
 // WhatsApp alert to the admin phone configured in platform_settings.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getWhatsAppFromNumber } from "../_shared/whatsapp.ts";
 import { logTwilioCall } from "../_shared/twilioCost.ts";
+import { normalizeE164Phone, sendTwilioMessage } from "../_shared/twilioMessaging.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const GATEWAY = "https://connector-gateway.lovable.dev/twilio";
-
 function normalizePhone(raw: string): string | null {
-  if (!raw) return null;
-  let p = String(raw).replace(/[\s\-()]/g, "");
-  if (p.startsWith("whatsapp:")) p = p.slice("whatsapp:".length);
-  if (p.startsWith("+")) return p;
-  if (p.startsWith("0") && p.length === 11) return "+234" + p.slice(1);
-  if (p.startsWith("234")) return "+" + p;
-  return "+" + p;
+  const p = normalizeE164Phone(raw);
+  return p || null;
 }
 
 serve(async (req) => {
@@ -76,16 +69,6 @@ serve(async (req) => {
         { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    const TWILIO_API_KEY = Deno.env.get("TWILIO_API_KEY");
-    if (!LOVABLE_API_KEY || !TWILIO_API_KEY) {
-      return new Response(JSON.stringify({ error: "twilio_not_configured" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
-
-    const from = await getWhatsAppFromNumber(admin);
-    const to = adminPhone.startsWith("whatsapp:") ? adminPhone : `whatsapp:${adminPhone}`;
-
     let sent = 0;
     let failed = 0;
 
@@ -117,25 +100,16 @@ serve(async (req) => {
         `Please call the vendor to check on this order.`;
 
       try {
-        const r = await fetch(`${GATEWAY}/Messages.json`, {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${LOVABLE_API_KEY}`,
-            "X-Connection-Api-Key": TWILIO_API_KEY,
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({ To: to, From: from, Body: body }),
-        });
-        const data = await r.json();
-        if (!r.ok) {
+        const send = await sendTwilioMessage(admin, { channel: "whatsapp", to: adminPhone, body });
+        if (!send.ok) {
           failed++;
-          console.error(`Alert send failed for ${o.order_number}:`, data);
+          console.error(`Alert send failed for ${o.order_number}:`, send.error || send.error_code);
           await logTwilioCall(admin, {
             user_id: null, initiated_by: null, channel: "whatsapp",
-            to_phone: adminPhone, from_phone: from.replace("whatsapp:", ""),
-            body, twilio_sid: null, twilio_status: "failed",
+            to_phone: adminPhone, from_phone: send.from?.replace("whatsapp:", "") ?? null,
+            body, twilio_sid: send.sid ?? null, twilio_status: send.status ?? "failed",
             function_name: "check-unattended-orders",
-            error: JSON.stringify(data).slice(0, 500),
+            error: String(send.error || send.error_code || "send_failed").slice(0, 500),
             order_id: o.id,
           });
           continue;
@@ -146,8 +120,8 @@ serve(async (req) => {
           .eq("id", o.id);
         await logTwilioCall(admin, {
           user_id: null, initiated_by: null, channel: "whatsapp",
-          to_phone: adminPhone, from_phone: from.replace("whatsapp:", ""),
-          body, twilio_sid: data.sid ?? null, twilio_status: data.status ?? "queued",
+          to_phone: adminPhone, from_phone: send.from?.replace("whatsapp:", "") ?? null,
+          body, twilio_sid: send.sid ?? null, twilio_status: send.status ?? "queued",
           function_name: "check-unattended-orders",
           order_id: o.id,
         });

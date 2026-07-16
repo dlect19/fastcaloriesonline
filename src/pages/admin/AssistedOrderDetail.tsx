@@ -245,8 +245,8 @@ export default function AssistedOrderDetail() {
                             const { data, error } = await supabase.functions.invoke('whatsapp-send', {
                               body: { to: `+${intl}`, body: msg, user_id: o.user_id ?? null, order_id: o.order_id ?? o.id ?? null },
                             });
-                            if (error || (data as any)?.error) throw new Error((data as any)?.error || error?.message || 'Send failed');
-                            toast({ title: 'Pushed via WhatsApp', description: 'Customer will receive it from the official FastCalories number.' });
+                            if (error || (data as any)?.error) throw new Error((data as any)?.details || (data as any)?.error || error?.message || 'Send failed');
+                            toast({ title: 'Pushed via WhatsApp', description: `Twilio status: ${(data as any)?.status || 'queued'}.` });
                           } catch (e: any) {
                             toast({ title: 'Push failed', description: e.message, variant: 'destructive' });
                           } finally {
