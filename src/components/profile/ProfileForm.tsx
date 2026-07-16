@@ -67,7 +67,10 @@ export function ProfileForm({ user, profile, onUpdate }: ProfileFormProps) {
   };
 
   const handleVerified = async (verifiedPhone: string) => {
-    const nextPhone = sanitizePhoneInput(verifiedPhone);
+    const digits = verifiedPhone.replace(/\D/g, '');
+    const nextPhone = digits.startsWith('234') && digits.length === 13
+      ? `0${digits.slice(3)}`
+      : sanitizePhoneInput(verifiedPhone);
     if (nextPhone) {
       const { error } = await supabase
         .from('profiles')
