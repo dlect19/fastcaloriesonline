@@ -51,7 +51,8 @@ serve(async (req) => {
     if (aoErr) throw aoErr;
     if (!ao?.orders) return json({ error: 'Order not found' }, 404);
 
-    const order = ao.orders;
+    const order = Array.isArray(ao.orders) ? ao.orders[0] : ao.orders;
+    if (!order) return json({ error: 'Order not found' }, 404);
     if (action === 'resend_payment_link' && !ao.payment_link) return json({ error: 'No payment link exists for this order' }, 400);
     if (action === 'resend_otp' && !order.confirmation_code) return json({ error: 'No delivery OTP exists for this order' }, 400);
 

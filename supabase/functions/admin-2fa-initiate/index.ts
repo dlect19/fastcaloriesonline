@@ -36,6 +36,7 @@ Deno.serve(async (req) => {
     const userId = claims?.claims?.sub;
     const email = claims?.claims?.email;
     if (!userId) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    if (!email) return new Response(JSON.stringify({ error: 'Admin email is missing' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
     const supabase = createClient(supabaseUrl, serviceKey);
 
