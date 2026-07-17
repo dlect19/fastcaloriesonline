@@ -10,7 +10,7 @@ type CommonProps = {
 };
 
 const baseClasses =
-  'inline-flex items-center justify-center gap-3 h-14 min-w-[180px] px-5 rounded-xl bg-black text-white border border-white/10 shadow-lg hover:bg-neutral-900 active:scale-[0.98] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:opacity-60 disabled:pointer-events-none';
+  'group relative inline-flex items-center justify-center gap-3 h-14 min-w-[190px] px-6 rounded-2xl bg-gradient-to-br from-neutral-900 via-black to-neutral-900 text-white border border-white/15 shadow-[0_10px_30px_-8px_rgba(0,0,0,0.6)] hover:shadow-[0_16px_40px_-8px_rgba(0,0,0,0.7)] hover:-translate-y-0.5 hover:border-white/25 active:scale-[0.97] active:translate-y-0 transition-all duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:opacity-60 disabled:pointer-events-none overflow-hidden isolate before:content-[""] before:absolute before:inset-0 before:rounded-2xl before:bg-gradient-to-r before:from-transparent before:via-white/20 before:to-transparent before:-translate-x-full group-hover:before:translate-x-full before:transition-transform before:duration-[900ms] before:ease-out after:content-[""] after:absolute after:-inset-[1px] after:rounded-2xl after:bg-gradient-to-r after:from-primary/0 after:via-primary/40 after:to-primary/0 after:opacity-0 hover:after:opacity-100 after:blur-md after:-z-10 after:transition-opacity after:duration-500';
 
 function Inner({
   icon,
@@ -23,10 +23,10 @@ function Inner({
 }) {
   return (
     <>
-      <span className="shrink-0">{icon}</span>
-      <span className="flex flex-col items-start leading-tight">
-        <span className="text-[10px] font-normal tracking-wide opacity-90">{topLabel}</span>
-        <span className="text-lg font-semibold -mt-0.5">{mainLabel}</span>
+      <span className="relative shrink-0 transition-transform duration-500 group-hover:rotate-[8deg] group-hover:scale-110">{icon}</span>
+      <span className="relative flex flex-col items-start leading-tight">
+        <span className="text-[10px] font-medium tracking-[0.14em] uppercase opacity-80">{topLabel}</span>
+        <span className="text-lg font-semibold -mt-0.5 tracking-tight">{mainLabel}</span>
       </span>
     </>
   );
