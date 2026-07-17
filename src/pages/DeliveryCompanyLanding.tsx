@@ -173,10 +173,10 @@ export default function DeliveryCompanyLanding() {
         </section>
 
         {/* Floating decorations */}
-        <div className="absolute top-20 right-4 sm:right-8 text-2xl sm:text-4xl animate-bounce opacity-60">🚚</div>
-        <div className="absolute top-40 left-4 sm:left-12 text-xl sm:text-3xl animate-bounce opacity-50" style={{ animationDelay: '0.5s' }}>📊</div>
-        <div className="absolute bottom-40 right-4 sm:right-20 text-xl sm:text-3xl animate-bounce opacity-50" style={{ animationDelay: '1s' }}>🤝</div>
-        <div className="absolute bottom-60 left-4 sm:left-8 text-2xl sm:text-4xl animate-bounce opacity-60" style={{ animationDelay: '0.7s' }}>💼</div>
+        <div className="absolute top-32 sm:top-20 right-3 sm:right-8 text-3xl sm:text-4xl animate-bounce opacity-70 pointer-events-none">🚚</div>
+        <div className="absolute top-56 sm:top-40 left-3 sm:left-12 text-2xl sm:text-3xl animate-bounce opacity-60 pointer-events-none" style={{ animationDelay: '0.5s' }}>📊</div>
+        <div className="absolute bottom-32 sm:bottom-40 right-3 sm:right-20 text-2xl sm:text-3xl animate-bounce opacity-60 pointer-events-none" style={{ animationDelay: '1s' }}>🤝</div>
+        <div className="absolute bottom-52 sm:bottom-60 left-3 sm:left-8 text-3xl sm:text-4xl animate-bounce opacity-70 pointer-events-none" style={{ animationDelay: '0.7s' }}>💼</div>
 
         {/* Bottom CTA */}
         <div className="relative z-10 gradient-primary py-6 px-6">
