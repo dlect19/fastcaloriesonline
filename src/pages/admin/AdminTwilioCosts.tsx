@@ -6,7 +6,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, MessageCircle, Phone, Search } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
+import { Loader2, MessageCircle, Phone, RefreshCw, Search } from 'lucide-react';
 import { format } from 'date-fns';
 
 type LogRow = {
@@ -40,36 +42,66 @@ export default function AdminTwilioCosts() {
   const [q, setQ] = useState('');
   const [profiles, setProfiles] = useState<Record<string, { full_name: string | null; phone: string | null }>>({});
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
+  const [refreshingStatuses, setRefreshingStatuses] = useState(false);
+  const { toast } = useToast();
+
+  const loadLogs = async () => {
+    setLoading(true);
+    let query = supabase
+      .from('twilio_api_logs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(2000);
+    const since = rangeToDate(range);
+    if (since) query = query.gte('created_at', since);
+    if (channel !== 'all') query = query.eq('channel', channel);
+    const { data } = await query;
+    const rows = (data || []) as LogRow[];
+    setLogs(rows);
+
+    // Fetch names for unique user_ids
+    const ids = Array.from(new Set(rows.map((r) => r.user_id).filter(Boolean))) as string[];
+    if (ids.length) {
+      const { data: pf } = await supabase
+        .from('profiles')
+        .select('user_id, full_name, phone')
+        .in('user_id', ids);
+      const map: Record<string, any> = {};
+      (pf || []).forEach((p: any) => { map[p.user_id] = { full_name: p.full_name, phone: p.phone }; });
+      setProfiles(map);
+    } else {
+      setProfiles({});
+    }
+    setLoading(false);
+  };
 
   useEffect(() => {
-    (async () => {
-      setLoading(true);
-      let query = supabase
-        .from('twilio_api_logs')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(2000);
-      const since = rangeToDate(range);
-      if (since) query = query.gte('created_at', since);
-      if (channel !== 'all') query = query.eq('channel', channel);
-      const { data } = await query;
-      const rows = (data || []) as LogRow[];
-      setLogs(rows);
-
-      // Fetch names for unique user_ids
-      const ids = Array.from(new Set(rows.map((r) => r.user_id).filter(Boolean))) as string[];
-      if (ids.length) {
-        const { data: pf } = await supabase
-          .from('profiles')
-          .select('user_id, full_name, phone')
-          .in('user_id', ids);
-        const map: Record<string, any> = {};
-        (pf || []).forEach((p: any) => { map[p.user_id] = { full_name: p.full_name, phone: p.phone }; });
-        setProfiles(map);
-      }
-      setLoading(false);
-    })();
+    loadLogs();
   }, [range, channel]);
+
+  const refreshQueuedStatuses = async () => {
+    setRefreshingStatuses(true);
+    try {
+      const rangeDays = range === '1d' ? 1 : range === '30d' || range === 'all' ? 30 : 7;
+      const { data, error } = await supabase.functions.invoke('refresh-twilio-statuses', {
+        body: { rangeDays },
+      });
+      if (error) throw error;
+      await loadLogs();
+      toast({
+        title: 'Statuses refreshed',
+        description: `${data?.updated || 0} Twilio log${data?.updated === 1 ? '' : 's'} updated.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Could not refresh statuses',
+        description: error?.message || 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setRefreshingStatuses(false);
+    }
+  };
 
   const totals = useMemo(() => {
     const t = { count: logs.length, ngn: 0, whatsapp: 0, sms: 0, failed: 0 };
@@ -143,6 +175,10 @@ export default function AdminTwilioCosts() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input placeholder="Search name or phone" value={q} onChange={(e) => setQ(e.target.value)} className="pl-9" />
           </div>
+          <Button type="button" variant="outline" onClick={refreshQueuedStatuses} disabled={refreshingStatuses}>
+            {refreshingStatuses ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+            Refresh queued
+          </Button>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

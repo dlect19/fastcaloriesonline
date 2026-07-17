@@ -52,23 +52,57 @@ async function parseResponse(r: Response): Promise<any> {
   try { return JSON.parse(text); } catch { return { text }; }
 }
 
+async function fetchMessageStatus(lovableKey: string, twilioKey: string, sid: string): Promise<any | null> {
+  const r = await fetch(`${GATEWAY}/Messages/${sid}.json`, {
+    method: "GET",
+    headers: {
+      "Authorization": `Bearer ${lovableKey}`,
+      "X-Connection-Api-Key": twilioKey,
+      "Accept": "application/json",
+    },
+  });
+  const data = await parseResponse(r);
+  return r.ok ? data : null;
+}
+
 async function pollMessageStatus(lovableKey: string, twilioKey: string, sid: string): Promise<any | null> {
-  // WhatsApp delivery failures such as 63016 usually appear 1–4 seconds after Twilio first queues the send.
-  for (const ms of [1200, 1800, 2500]) {
+  // WhatsApp delivery failures such as 63016 usually appear a few seconds after Twilio first reports "sent".
+  // Do not treat "sent" as final; keep polling briefly so the app doesn't show success for messages Meta later rejects.
+  let last: any | null = null;
+  for (const ms of [1200, 1800, 2500, 3500]) {
     await new Promise((resolve) => setTimeout(resolve, ms));
-    const r = await fetch(`${GATEWAY}/Messages/${sid}.json`, {
-      method: "GET",
-      headers: {
-        "Authorization": `Bearer ${lovableKey}`,
-        "X-Connection-Api-Key": twilioKey,
-        "Accept": "application/json",
-      },
-    });
-    const data = await parseResponse(r);
-    if (!r.ok) continue;
-    if (["delivered", "failed", "undelivered", "sent"].includes(data.status)) return data;
+    const data = await fetchMessageStatus(lovableKey, twilioKey, sid);
+    if (!data) continue;
+    last = data;
+    if (data.error_code || ["read", "delivered", "failed", "undelivered"].includes(data.status)) return data;
   }
-  return null;
+  return last;
+}
+
+export async function getTwilioMessageStatus(sid: string): Promise<TwilioSendResult> {
+  const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+  const twilioKey = Deno.env.get("TWILIO_API_KEY");
+  if (!lovableKey || !twilioKey) return { ok: false, error: "twilio_not_configured" };
+  if (!sid) return { ok: false, error: "missing_message_sid" };
+
+  const data = await fetchMessageStatus(lovableKey, twilioKey, sid);
+  if (!data) return { ok: false, error: "status_lookup_failed" };
+
+  const status = data?.status ?? null;
+  const errorCode = data?.error_code ?? null;
+  const errorMessage = data?.error_message ?? null;
+  const failed = ["failed", "undelivered"].includes(status) || !!errorCode;
+  return {
+    ok: !failed,
+    sid: data?.sid ?? sid,
+    status,
+    from: data?.from ?? null,
+    to: data?.to ?? null,
+    error: failed ? describeTwilioFailure(status, errorCode, errorMessage) : null,
+    error_code: errorCode,
+    error_message: errorMessage,
+    raw: data,
+  };
 }
 
 export async function sendTwilioMessage(
