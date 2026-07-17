@@ -23,10 +23,10 @@ function Inner({
 }) {
   return (
     <>
-      <span className="shrink-0">{icon}</span>
-      <span className="flex flex-col items-start leading-tight">
-        <span className="text-[10px] font-normal tracking-wide opacity-90">{topLabel}</span>
-        <span className="text-lg font-semibold -mt-0.5">{mainLabel}</span>
+      <span className="relative shrink-0 transition-transform duration-500 group-hover:rotate-[8deg] group-hover:scale-110">{icon}</span>
+      <span className="relative flex flex-col items-start leading-tight">
+        <span className="text-[10px] font-medium tracking-[0.14em] uppercase opacity-80">{topLabel}</span>
+        <span className="text-lg font-semibold -mt-0.5 tracking-tight">{mainLabel}</span>
       </span>
     </>
   );
