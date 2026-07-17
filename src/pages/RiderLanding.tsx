@@ -75,6 +75,14 @@ export default function RiderLanding() {
             </Button>
           </div>
 
+          {/* Google Play Download */}
+          <div className="flex flex-col items-center gap-2 mb-10 animate-fade-in">
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">Download the Rider App</p>
+            <GooglePlayBadge
+              onClick={() => window.open(RIDER_PLAY_STORE_URL, '_blank', 'noopener,noreferrer')}
+            />
+          </div>
+
           {/* Hero Images */}
           <div className="flex items-center justify-center gap-4 mb-12 animate-fade-in">
             <img src={riderFrontImg} alt="Fast Calories rider" className="w-32 h-44 sm:w-40 sm:h-56 object-cover rounded-2xl shadow-card" />
