@@ -1,5 +1,8 @@
 import { Button } from '@/components/ui/button';
 import { ChevronRight, Bike, Wallet, Clock, MapPin, Shield, Sparkles } from 'lucide-react';
+import { GooglePlayBadge } from '@/components/icons/StoreBadges';
+
+const RIDER_PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.rider.fastcalories.app';
 import { useNavigate } from 'react-router-dom';
 import riderLogo from '@/assets/rider-logo.png';
 import riderFrontImg from '@/assets/landing-rider-front.jpeg';
