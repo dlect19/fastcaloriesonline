@@ -1,5 +1,8 @@
 import { Button } from '@/components/ui/button';
 import { ChevronRight, Bike, Wallet, Clock, MapPin, Shield, Sparkles } from 'lucide-react';
+import { GooglePlayBadge } from '@/components/icons/StoreBadges';
+
+const RIDER_PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.rider.fastcalories.app';
 import { useNavigate } from 'react-router-dom';
 import riderLogo from '@/assets/rider-logo.png';
 import riderFrontImg from '@/assets/landing-rider-front.jpeg';
@@ -70,6 +73,14 @@ export default function RiderLanding() {
             >
               Rider Login
             </Button>
+          </div>
+
+          {/* Google Play Download */}
+          <div className="flex flex-col items-center gap-2 mb-10 animate-fade-in">
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">Download the Rider App</p>
+            <GooglePlayBadge
+              onClick={() => window.open(RIDER_PLAY_STORE_URL, '_blank', 'noopener,noreferrer')}
+            />
           </div>
 
           {/* Hero Images */}

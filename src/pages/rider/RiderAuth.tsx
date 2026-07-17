@@ -13,6 +13,9 @@ import riderLogo from '@/assets/rider-logo.png';
 import { ForgotPasswordModal } from '@/components/auth/ForgotPasswordModal';
 import { EmailVerificationOTP } from '@/components/rider/EmailVerificationOTP';
 import { TermsAcceptanceCheckbox } from '@/components/auth/TermsAcceptanceCheckbox';
+import { GooglePlayBadge } from '@/components/icons/StoreBadges';
+
+const RIDER_PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.rider.fastcalories.app';
 
 
 const VEHICLE_TYPES = ['bicycle', 'motorcycle', 'tricycle', 'car', 'van'] as const;
@@ -572,6 +575,13 @@ export default function RiderAuth() {
             {redirectUrl ? 'Sign in or create an account to join the team' : 'Deliver with Fast Calories'}
           </CardDescription>
         </CardHeader>
+        <div className="px-6 -mt-2 mb-4 flex flex-col items-center gap-2">
+          <p className="text-xs text-muted-foreground uppercase tracking-wide">Get the Rider App</p>
+          <GooglePlayBadge
+            className="min-w-[200px]"
+            onClick={() => window.open(RIDER_PLAY_STORE_URL, '_blank', 'noopener,noreferrer')}
+          />
+        </div>
         <CardContent>
           <Tabs defaultValue={redirectUrl ? 'signup' : 'login'}>
             <TabsList className="grid w-full grid-cols-3">
