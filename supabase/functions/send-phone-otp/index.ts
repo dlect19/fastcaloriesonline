@@ -73,9 +73,17 @@ serve(async (req) => {
         ? `Your Fast Calories sign-up code is: ${code}\n\nUse this code to create your new account. It expires in 10 minutes. Do not share it with anyone.`
         : `Your Fast Calories phone verification code is: ${code}\n\nUse this code to verify your phone number. It expires in 10 minutes. Do not share it with anyone.`;
 
-    // Try WhatsApp first (unless caller explicitly asked for SMS)
+    // Try WhatsApp first (unless caller explicitly asked for SMS). Use approved OTP
+    // template so delivery works even outside the 24-hour customer chat window.
+    const OTP_CONTENT_SID = Deno.env.get("TWILIO_OTP_CONTENT_SID") || "HXdeeb66b6a153acab9852859f86c7e5b4";
     let channelUsed: "whatsapp" | "sms" = preferSms ? "sms" : "whatsapp";
-    let send = await sendTwilioMessage(admin, { channel: channelUsed, to: phone, body: message });
+    let send = await sendTwilioMessage(admin, {
+      channel: channelUsed,
+      to: phone,
+      body: message,
+      contentSid: channelUsed === "whatsapp" ? OTP_CONTENT_SID : undefined,
+      contentVariables: channelUsed === "whatsapp" ? { "1": code } : undefined,
+    });
 
     // Fallback to SMS if WhatsApp failed and SMS sender exists
     if (!send.ok && channelUsed === "whatsapp" && Deno.env.get("TWILIO_SMS_FROM")) {
