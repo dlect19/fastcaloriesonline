@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Capacitor } from '@capacitor/core';
 import { supabase } from '@/integrations/supabase/client';
 import { useState, useEffect } from 'react';
 import { VendorPermission } from '@/hooks/useVendorPermissions';
@@ -303,22 +304,25 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
           })}
         </nav>
 
-        {/* Switch to Customer App (fixed) */}
-        <div className="flex-shrink-0 px-3 pb-1">
-          <button
-            onClick={() => {
-              localStorage.removeItem('fc_last_portal');
-              navigate('/?portal=customer');
-            }}
-            className={cn(
-              "w-full flex items-center gap-3 px-3 py-2 rounded-xl text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors",
-              collapsed && "justify-center px-0"
-            )}
-          >
-            <ExternalLink className="w-4 h-4 flex-shrink-0" />
-            {!collapsed && <span className="text-xs font-medium">Customer App</span>}
-          </button>
-        </div>
+        {/* Switch to Customer App (fixed) — hidden on native mobile apps */}
+        {!Capacitor.isNativePlatform() && (
+          <div className="flex-shrink-0 px-3 pb-1">
+            <button
+              onClick={() => {
+                localStorage.removeItem('fc_last_portal');
+                navigate('/?portal=customer');
+              }}
+              className={cn(
+                "w-full flex items-center gap-3 px-3 py-2 rounded-xl text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors",
+                collapsed && "justify-center px-0"
+              )}
+            >
+              <ExternalLink className="w-4 h-4 flex-shrink-0" />
+              {!collapsed && <span className="text-xs font-medium">Customer App</span>}
+            </button>
+          </div>
+        )}
+
 
         {/* Logout (fixed) */}
         <div className="flex-shrink-0 p-3 border-t border-border space-y-2">
