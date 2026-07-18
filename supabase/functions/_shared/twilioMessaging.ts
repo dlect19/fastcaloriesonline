@@ -107,7 +107,14 @@ export async function getTwilioMessageStatus(sid: string): Promise<TwilioSendRes
 
 export async function sendTwilioMessage(
   supabase: any,
-  params: { channel: TwilioChannel; to: string; body: string; poll?: boolean },
+  params: {
+    channel: TwilioChannel;
+    to: string;
+    body: string;
+    poll?: boolean;
+    contentSid?: string;
+    contentVariables?: Record<string, string>;
+  },
 ): Promise<TwilioSendResult> {
   const lovableKey = Deno.env.get("LOVABLE_API_KEY");
   const twilioKey = Deno.env.get("TWILIO_API_KEY");
@@ -127,6 +134,15 @@ export async function sendTwilioMessage(
     : from;
 
   try {
+    const form: Record<string, string> = { To, From };
+    if (params.contentSid && params.channel === "whatsapp") {
+      form.ContentSid = params.contentSid;
+      if (params.contentVariables) {
+        form.ContentVariables = JSON.stringify(params.contentVariables);
+      }
+    } else {
+      form.Body = params.body;
+    }
     const r = await fetch(`${GATEWAY}/Messages.json`, {
       method: "POST",
       headers: {
@@ -134,7 +150,7 @@ export async function sendTwilioMessage(
         "X-Connection-Api-Key": twilioKey,
         "Content-Type": "application/x-www-form-urlencoded",
       },
-      body: new URLSearchParams({ To, From, Body: params.body }),
+      body: new URLSearchParams(form),
     });
     const data = await parseResponse(r);
     if (!r.ok) {
