@@ -373,6 +373,7 @@ const App = () => {
             </Routes>
           </BrowserRouter>
         </TooltipProvider>
+        </CallProvider>
       </CartProvider>
     </AuthProvider>
   </QueryClientProvider>
