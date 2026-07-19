@@ -196,6 +196,7 @@ const App = () => {
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
       <CartProvider>
+        <CallProvider>
         <TooltipProvider>
           <NetworkStatusOverlay />
           <ForceUpdateOverlay />
