@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { PhoneVerificationGate } from "@/components/auth/PhoneVerificationGate";
 import { CartProvider } from "@/hooks/useCart";
+import { CallProvider } from "@/components/call/CallProvider";
 import { PWAUpdateBanner } from "@/components/PWAUpdateBanner";
 import { ForceUpdateOverlay } from "@/components/ForceUpdateOverlay";
 import { NetworkStatusOverlay } from "@/components/NetworkStatusOverlay";
@@ -195,6 +196,7 @@ const App = () => {
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
       <CartProvider>
+        <CallProvider>
         <TooltipProvider>
           <NetworkStatusOverlay />
           <ForceUpdateOverlay />
@@ -371,6 +373,7 @@ const App = () => {
             </Routes>
           </BrowserRouter>
         </TooltipProvider>
+        </CallProvider>
       </CartProvider>
     </AuthProvider>
   </QueryClientProvider>

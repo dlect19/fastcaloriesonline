@@ -43,11 +43,10 @@ export function usePhoneVerification() {
           sms_sender_not_configured: "SMS fallback isn't set up yet — please contact support.",
         };
         const key = msg.split(":")[0].trim();
-        const friendly = msg.includes("free-form message outside") || msg.includes("customer chat window")
-          ? "WhatsApp could not deliver the code because this number has not recently messaged FastCalories. Open WhatsApp, send Hi to FastCalories, then request the code again."
-          : msg.includes("could not deliver to this recipient")
+        const friendly = msg.includes("could not deliver to this recipient")
           ? "WhatsApp could not deliver to this number. Confirm it is active on WhatsApp, or try SMS."
           : null;
+
         throw new Error(friendly || map[key] || msg);
       }
       if (data?.error) throw new Error(data.error);
