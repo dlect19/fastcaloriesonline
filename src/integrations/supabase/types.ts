@@ -8236,6 +8236,62 @@ export type Database = {
         }
         Relationships: []
       }
+      voice_calls: {
+        Row: {
+          call_type: string
+          caller_id: string
+          caller_role: string
+          created_at: string
+          duration_seconds: number | null
+          ended_at: string | null
+          id: string
+          order_id: string
+          receiver_id: string | null
+          receiver_role: string
+          started_at: string
+          status: string
+          zego_call_id: string | null
+        }
+        Insert: {
+          call_type: string
+          caller_id: string
+          caller_role: string
+          created_at?: string
+          duration_seconds?: number | null
+          ended_at?: string | null
+          id?: string
+          order_id: string
+          receiver_id?: string | null
+          receiver_role: string
+          started_at?: string
+          status?: string
+          zego_call_id?: string | null
+        }
+        Update: {
+          call_type?: string
+          caller_id?: string
+          caller_role?: string
+          created_at?: string
+          duration_seconds?: number | null
+          ended_at?: string | null
+          id?: string
+          order_id?: string
+          receiver_id?: string | null
+          receiver_role?: string
+          started_at?: string
+          status?: string
+          zego_call_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voice_calls_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       voucher_settlements: {
         Row: {
           amount: number
