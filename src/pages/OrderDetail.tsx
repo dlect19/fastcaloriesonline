@@ -127,7 +127,7 @@ export default function OrderDetail() {
     try {
       const { data: orderData } = await supabase
         .from('orders')
-        .select('*, vendors(name, phone, address)')
+        .select('*, vendors(user_id, name, phone, address)')
         .eq('id', id)
         .single();
 
@@ -534,13 +534,13 @@ export default function OrderDetail() {
         <DeliveryTypeSwitcher order={order} onSwitched={fetchOrder} />
 
         {/* Comms to Vendor */}
-        {order.vendor_id && !['cancelled', 'delivered'].includes(order.status) && (
+        {order.vendor_id && order.status !== 'cancelled' && (
           <Card>
             <CardHeader className="pb-2"><CardTitle className="text-base">Contact Restaurant</CardTitle></CardHeader>
             <CardContent>
               <CommButtons
                 orderId={order.id}
-                peerUserId={order.vendor_user_id || null}
+                peerUserId={order.vendors?.user_id || null}
                 peerPhone={order.vendors?.phone}
                 peerName={order.vendors?.name}
                 myRole="customer"
@@ -552,7 +552,7 @@ export default function OrderDetail() {
         )}
 
         {/* Rider Info - Show as soon as rider is assigned */}
-        {order.delivery_type !== 'self_pickup' && order.rider_id && !['pending', 'cancelled', 'delivered'].includes(order.status) && (
+        {order.delivery_type !== 'self_pickup' && order.rider_id && !['pending', 'cancelled'].includes(order.status) && (
           <>
             <RiderInfoCard riderId={order.rider_id} />
             <Card>
