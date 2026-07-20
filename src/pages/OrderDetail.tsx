@@ -532,9 +532,42 @@ export default function OrderDetail() {
         {/* Delivery Type Switcher - Allow customer to change delivery option */}
         <DeliveryTypeSwitcher order={order} onSwitched={fetchOrder} />
 
+        {/* Comms to Vendor */}
+        {order.vendor_id && !['cancelled', 'delivered'].includes(order.status) && (
+          <Card>
+            <CardHeader className="pb-2"><CardTitle className="text-base">Contact Restaurant</CardTitle></CardHeader>
+            <CardContent>
+              <CommButtons
+                orderId={order.id}
+                peerUserId={order.vendor_user_id || null}
+                peerPhone={order.vendors?.phone}
+                peerName={order.vendors?.name}
+                myRole="customer"
+                peerRole="vendor"
+                compact
+              />
+            </CardContent>
+          </Card>
+        )}
+
         {/* Rider Info - Show as soon as rider is assigned */}
         {order.delivery_type !== 'self_pickup' && order.rider_id && !['pending', 'cancelled', 'delivered'].includes(order.status) && (
-          <RiderInfoCard riderId={order.rider_id} />
+          <>
+            <RiderInfoCard riderId={order.rider_id} />
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-base">Contact Rider</CardTitle></CardHeader>
+              <CardContent>
+                <CommButtons
+                  orderId={order.id}
+                  peerUserId={order.rider_id}
+                  peerPhone={null}
+                  myRole="customer"
+                  peerRole="rider"
+                  compact
+                />
+              </CardContent>
+            </Card>
+          </>
         )}
 
         {/* Confirmation Code - Show for self-pickup when ready, or delivery when picked up/on the way */}
