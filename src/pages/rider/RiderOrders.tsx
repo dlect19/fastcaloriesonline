@@ -482,6 +482,15 @@ export default function RiderOrders() {
                           </a>
                         </div>
                       )}
+                      <CommButtons
+                        orderId={order.id}
+                        peerUserId={(order.vendors as any)?.user_id || null}
+                        peerPhone={order.vendors?.phone}
+                        peerName={order.vendors?.name}
+                        myRole="rider"
+                        peerRole="vendor"
+                        compact
+                      />
                     </div>
 
                     {/* Delivery Location */}
@@ -510,6 +519,15 @@ export default function RiderOrders() {
                           </a>
                         </div>
                       )}
+                      <CommButtons
+                        orderId={order.id}
+                        peerUserId={order.user_id || null}
+                        peerPhone={order.customer_profile?.phone}
+                        peerName={order.customer_profile?.full_name || undefined}
+                        myRole="rider"
+                        peerRole="customer"
+                        compact
+                      />
                     </div>
                   </div>
 
