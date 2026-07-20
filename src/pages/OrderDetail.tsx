@@ -12,6 +12,7 @@ import { RiderInfoCard } from '@/components/order/RiderInfoCard';
 import { OrderChat } from '@/components/order/OrderChat';
 import { DeliveryTypeSwitcher } from '@/components/order/DeliveryTypeSwitcher';
 import { CustomerCancelOrderDialog } from '@/components/order/CustomerCancelOrderDialog';
+import { CommButtons } from '@/components/call/CommButtons';
 import { ArrowLeft, Package, Check, Truck, MapPin, Phone, Loader2, Store, Clock, Bike, ShieldCheck, Star, CreditCard, AlertTriangle, XCircle } from 'lucide-react';
 import { format, differenceInMinutes } from 'date-fns';
 import { cn } from '@/lib/utils';
