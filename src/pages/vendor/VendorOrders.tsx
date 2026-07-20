@@ -43,6 +43,7 @@ import { supabase } from '@/integrations/supabase/client';
 import type { Tables, Database } from '@/integrations/supabase/types';
 import { usePersistedOutletId } from '@/hooks/usePersistedOutletId';
 import { cn } from '@/lib/utils';
+import { CommButtons } from '@/components/call/CommButtons';
 
 function PrepCountdown({ estimatedAt, prepMinutes }: { estimatedAt: string; prepMinutes?: number | null }) {
   const [timeLeft, setTimeLeft] = useState('');
@@ -961,6 +962,17 @@ export default function VendorOrders() {
               ) : (
                 <p className="text-xs text-muted-foreground italic">No phone on file</p>
               )}
+              <div className="mt-2" onClick={(e) => e.stopPropagation()}>
+                <CommButtons
+                  orderId={order.id}
+                  peerUserId={order.user_id || null}
+                  peerPhone={order.customer?.phone}
+                  peerName={order.customer?.full_name || undefined}
+                  myRole="vendor"
+                  peerRole="customer"
+                  compact
+                />
+              </div>
               <p className="text-sm text-muted-foreground">{formatDate(order.created_at)}</p>
             </div>
             <div className="flex items-center gap-2">
