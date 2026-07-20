@@ -20,6 +20,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useRepeatingNotificationSound } from '@/hooks/useRepeatingNotificationSound';
 import { useRiderRestrictions } from '@/hooks/useRiderRestrictions';
 import { format } from 'date-fns';
+import { CommButtons } from '@/components/call/CommButtons';
 
 // Generate a random 6-digit confirmation code
 const generateConfirmationCode = (): string => {
@@ -140,7 +141,7 @@ export default function RiderOrders() {
       // Active orders (assigned to this rider, not delivered/cancelled)
       const { data: active } = await supabase
         .from('orders')
-        .select('*, vendors(name, address, phone, latitude, longitude), vendor_outlets(outlet_name, outlet_surname, address, city, state, latitude, longitude), addresses!delivery_address_id(latitude, longitude)')
+        .select('*, vendors(user_id, name, address, phone, latitude, longitude), vendor_outlets(outlet_name, outlet_surname, address, city, state, latitude, longitude), addresses!delivery_address_id(latitude, longitude)')
         .eq('rider_id', user.id)
         .not('status', 'in', '("delivered","cancelled")')
         .order('created_at', { ascending: false });
@@ -481,6 +482,15 @@ export default function RiderOrders() {
                           </a>
                         </div>
                       )}
+                      <CommButtons
+                        orderId={order.id}
+                        peerUserId={(order.vendors as any)?.user_id || null}
+                        peerPhone={order.vendors?.phone}
+                        peerName={order.vendors?.name}
+                        myRole="rider"
+                        peerRole="vendor"
+                        compact
+                      />
                     </div>
 
                     {/* Delivery Location */}
@@ -509,6 +519,15 @@ export default function RiderOrders() {
                           </a>
                         </div>
                       )}
+                      <CommButtons
+                        orderId={order.id}
+                        peerUserId={order.user_id || null}
+                        peerPhone={order.customer_profile?.phone}
+                        peerName={order.customer_profile?.full_name || undefined}
+                        myRole="rider"
+                        peerRole="customer"
+                        compact
+                      />
                     </div>
                   </div>
 
