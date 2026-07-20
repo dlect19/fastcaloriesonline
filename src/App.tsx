@@ -70,6 +70,7 @@ import AdminVendorCommissionPromos from "./pages/admin/AdminVendorCommissionProm
 import AdminRewards from "./pages/admin/AdminRewards";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminTwilioCosts from "./pages/admin/AdminTwilioCosts";
+import AdminCallLogs from "./pages/admin/AdminCallLogs";
 import AdminStaff from "./pages/admin/AdminStaff";
 import AdminActivityLogs from "./pages/admin/AdminActivityLogs";
 import AdminSecurity from "./pages/admin/AdminSecurity";
@@ -293,6 +294,7 @@ const App = () => {
               <Route path="/admin/free-meals" element={<AdminFreeMeals />} />
               <Route path="/admin/users" element={<AdminUsers />} />
               <Route path="/admin/twilio-costs" element={<AdminTwilioCosts />} />
+              <Route path="/admin/call-logs" element={<AdminCallLogs />} />
               <Route path="/admin/staff" element={<AdminStaff />} />
               <Route path="/admin/activity-logs" element={<AdminActivityLogs />} />
               <Route path="/admin/security" element={<AdminSecurity />} />
