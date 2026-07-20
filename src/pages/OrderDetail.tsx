@@ -12,6 +12,7 @@ import { RiderInfoCard } from '@/components/order/RiderInfoCard';
 import { OrderChat } from '@/components/order/OrderChat';
 import { DeliveryTypeSwitcher } from '@/components/order/DeliveryTypeSwitcher';
 import { CustomerCancelOrderDialog } from '@/components/order/CustomerCancelOrderDialog';
+import { CommButtons } from '@/components/call/CommButtons';
 import { ArrowLeft, Package, Check, Truck, MapPin, Phone, Loader2, Store, Clock, Bike, ShieldCheck, Star, CreditCard, AlertTriangle, XCircle } from 'lucide-react';
 import { format, differenceInMinutes } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -532,9 +533,42 @@ export default function OrderDetail() {
         {/* Delivery Type Switcher - Allow customer to change delivery option */}
         <DeliveryTypeSwitcher order={order} onSwitched={fetchOrder} />
 
+        {/* Comms to Vendor */}
+        {order.vendor_id && !['cancelled', 'delivered'].includes(order.status) && (
+          <Card>
+            <CardHeader className="pb-2"><CardTitle className="text-base">Contact Restaurant</CardTitle></CardHeader>
+            <CardContent>
+              <CommButtons
+                orderId={order.id}
+                peerUserId={order.vendor_user_id || null}
+                peerPhone={order.vendors?.phone}
+                peerName={order.vendors?.name}
+                myRole="customer"
+                peerRole="vendor"
+                compact
+              />
+            </CardContent>
+          </Card>
+        )}
+
         {/* Rider Info - Show as soon as rider is assigned */}
         {order.delivery_type !== 'self_pickup' && order.rider_id && !['pending', 'cancelled', 'delivered'].includes(order.status) && (
-          <RiderInfoCard riderId={order.rider_id} />
+          <>
+            <RiderInfoCard riderId={order.rider_id} />
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-base">Contact Rider</CardTitle></CardHeader>
+              <CardContent>
+                <CommButtons
+                  orderId={order.id}
+                  peerUserId={order.rider_id}
+                  peerPhone={null}
+                  myRole="customer"
+                  peerRole="rider"
+                  compact
+                />
+              </CardContent>
+            </Card>
+          </>
         )}
 
         {/* Confirmation Code - Show for self-pickup when ready, or delivery when picked up/on the way */}

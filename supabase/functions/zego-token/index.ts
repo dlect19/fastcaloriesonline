@@ -120,7 +120,8 @@ Deno.serve(async (req) => {
 
     const kitToken = await generateToken04(userId, effective, payload);
 
-    return new Response(JSON.stringify({ token: kitToken, appId: APP_ID, userId, expiresAt: Math.floor(Date.now() / 1000) + effective }), {
+    const appSign = Deno.env.get('ZEGO_APP_SIGN') || '';
+    return new Response(JSON.stringify({ token: kitToken, appId: APP_ID, appSign, userId, expiresAt: Math.floor(Date.now() / 1000) + effective }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (e) {

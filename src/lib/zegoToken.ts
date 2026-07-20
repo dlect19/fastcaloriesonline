@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 export interface ZegoTokenResp {
   token: string;
   appId: number;
+  appSign?: string;
   userId: string;
   expiresAt: number;
 }
