@@ -1,7 +1,6 @@
 package com.customers.fastcalories.app;
 
 import android.Manifest;
-import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -44,9 +43,6 @@ public class ReminderReceiver extends BroadcastReceiver {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
                 ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
             NotificationManagerCompat.from(context).notify(requestCode, builder.build());
-        } else {
-            NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-            if (manager != null) manager.notify(requestCode, builder.build());
         }
 
         ReminderScheduler.removeStored(context, requestCode);

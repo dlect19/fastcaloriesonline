@@ -53,7 +53,10 @@ async function assertMicrophoneReady(engine: ZegoExpressEngine): Promise<void> {
   try {
     const result = await engine.checkSystemRequirements('microphone');
     const supported = (result as any)?.microphone ?? (result as any)?.result ?? true;
-    if (supported === false) throw new Error('Microphone is not available or permission was denied.');
+    if (supported === false) {
+      const info = (result as any)?.errInfo?.microphone;
+      throw new Error(info?.message || info?.name || 'Microphone is not available or permission was denied.');
+    }
   } catch (error) {
     throw new Error(getCallErrorMessage(error));
   }
