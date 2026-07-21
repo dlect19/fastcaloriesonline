@@ -22,6 +22,7 @@ public class ReminderReceiver extends BroadcastReceiver {
         String safeMessage = message == null ? "It's time to take your medication." : message;
 
         Intent openIntent = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+        if (openIntent == null) openIntent = new Intent(context, MainActivity.class);
         PendingIntent openPendingIntent = PendingIntent.getActivity(
                 context,
                 requestCode,
