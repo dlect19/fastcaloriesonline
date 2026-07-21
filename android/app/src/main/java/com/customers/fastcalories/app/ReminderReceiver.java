@@ -19,6 +19,8 @@ public class ReminderReceiver extends BroadcastReceiver {
         String title = intent.getStringExtra("title");
         String message = intent.getStringExtra("message");
         int requestCode = intent.getIntExtra("requestCode", (int) System.currentTimeMillis());
+        String safeTitle = title == null ? "Medication Reminder" : title;
+        String safeMessage = message == null ? "It's time to take your medication." : message;
 
         Intent openIntent = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
         PendingIntent openPendingIntent = PendingIntent.getActivity(
@@ -30,9 +32,9 @@ public class ReminderReceiver extends BroadcastReceiver {
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(context, ReminderScheduler.CHANNEL_ID)
                 .setSmallIcon(context.getApplicationInfo().icon)
-                .setContentTitle(title == null ? "Medication Reminder" : title)
-                .setContentText(message == null ? "It's time to take your medication." : message)
-                .setStyle(new NotificationCompat.BigTextStyle().bigText(message))
+                .setContentTitle(safeTitle)
+                .setContentText(safeMessage)
+                .setStyle(new NotificationCompat.BigTextStyle().bigText(safeMessage))
                 .setPriority(NotificationCompat.PRIORITY_MAX)
                 .setCategory(NotificationCompat.CATEGORY_ALARM)
                 .setDefaults(NotificationCompat.DEFAULT_ALL)
