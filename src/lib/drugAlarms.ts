@@ -2,8 +2,18 @@
 // Works offline once scheduled — the OS fires them even if the app is closed.
 // On native (Capacitor) uses @capacitor/local-notifications. No-op on web.
 
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
+
+interface ReminderPluginBridge {
+  scheduleReminder(options: {
+    title: string;
+    message: string;
+    triggerTime: number;
+  }): Promise<{ success: boolean }>;
+}
+
+const ReminderPlugin = registerPlugin<ReminderPluginBridge>('ReminderPlugin');
 
 interface ReminderRow {
   id: string;
@@ -20,6 +30,24 @@ function hashId(input: string): number {
   let h = 5381;
   for (let i = 0; i < input.length; i++) h = ((h << 5) + h) + input.charCodeAt(i);
   return Math.abs(h) % 2147000000;
+}
+
+export async function scheduleDrugAlarm(drugName: string, time: Date, dosage?: string | null): Promise<boolean> {
+  if (Capacitor.getPlatform() !== 'android') return false;
+  if (!(time instanceof Date) || Number.isNaN(time.getTime()) || time.getTime() <= Date.now()) return false;
+
+  try {
+    await ReminderPlugin.scheduleReminder({
+      title: 'Medication Reminder',
+      message: dosage ? `It's time to take ${dosage} of ${drugName}.` : `It's time to take your ${drugName}.`,
+      triggerTime: time.getTime(),
+    });
+    console.info(`[drugAlarms] native Android alarm set for ${drugName} at ${time.toLocaleString()}`);
+    return true;
+  } catch (error) {
+    console.warn('[drugAlarms] native ReminderPlugin failed, falling back to local notification', error);
+    return false;
+  }
 }
 
 export async function ensureAlarmPermissions(): Promise<boolean> {
@@ -76,6 +104,7 @@ export async function scheduleDrugAlarms(reminders: ReminderRow[]): Promise<{ sc
 
   const now = new Date();
   const toSchedule: any[] = [];
+  const nativeAlarmPromises: Promise<boolean>[] = [];
 
   for (const r of reminders) {
     if (!r.is_active || !Array.isArray(r.reminder_times)) continue;
@@ -106,6 +135,10 @@ export async function scheduleDrugAlarms(reminders: ReminderRow[]): Promise<{ sc
           extra: { kind: 'drug_reminder', reminder_id: r.id, url: '/drug-tracker' },
         });
 
+        if (Capacitor.getPlatform() === 'android') {
+          nativeAlarmPromises.push(scheduleDrugAlarm(r.drug_name, at, r.dosage));
+        }
+
         // Capacitor cap: schedule at most 60 per reminder to stay well under OS limits
         if (toSchedule.length >= 400) break;
       }
@@ -114,11 +147,18 @@ export async function scheduleDrugAlarms(reminders: ReminderRow[]): Promise<{ sc
     if (toSchedule.length >= 400) break;
   }
 
-  if (toSchedule.length === 0) return { scheduled: 0 };
+  const nativeResults = nativeAlarmPromises.length > 0 ? await Promise.all(nativeAlarmPromises) : [];
+  const nativeScheduled = nativeResults.filter(Boolean).length;
+
+  if (Capacitor.getPlatform() === 'android' && nativeScheduled > 0) {
+    return { scheduled: nativeScheduled };
+  }
+
+  if (toSchedule.length === 0) return { scheduled: nativeScheduled };
 
   try {
     await LocalNotifications.schedule({ notifications: toSchedule });
-    return { scheduled: toSchedule.length };
+    return { scheduled: Math.max(toSchedule.length, nativeScheduled) };
   } catch (e) {
     console.error('[drugAlarms] schedule error', e);
     return { scheduled: 0 };
