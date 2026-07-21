@@ -26,6 +26,39 @@ interface ActiveCall {
 
 let engineSingleton: ZegoExpressEngine | null = null;
 
+function getCallErrorMessage(error: unknown): string {
+  const err = error as any;
+  const raw = err?.message || err?.msg || err?.reason || err?.error || (typeof error === 'string' ? error : '');
+  const code = err?.code || err?.errorCode;
+  const message = String(raw || '').trim();
+
+  if (code === 1103064 || /permission|notallowed|denied/i.test(message)) {
+    return 'Microphone permission is blocked. Please allow microphone access for this app, then try again.';
+  }
+  if (code === 1103065 || /in use|busy|device.*not.*available/i.test(message)) {
+    return 'Your microphone is being used by another app. Close the other app and try again.';
+  }
+  if (/mediaDevices|getUserMedia|secure|https/i.test(message)) {
+    return 'Microphone access is only available on HTTPS or inside the installed app.';
+  }
+  if (code) return `Call setup failed with Zego error ${code}. Please try again.`;
+  return message || 'Could not access the microphone. Please check app microphone permission and try again.';
+}
+
+async function assertMicrophoneReady(engine: ZegoExpressEngine): Promise<void> {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new Error('Microphone access is not available on this device/browser.');
+  }
+
+  try {
+    const result = await engine.checkSystemRequirements('microphone');
+    const supported = (result as any)?.microphone ?? (result as any)?.result ?? true;
+    if (supported === false) throw new Error('Microphone is not available or permission was denied.');
+  } catch (error) {
+    throw new Error(getCallErrorMessage(error));
+  }
+}
+
 async function getEngine(appId: number): Promise<ZegoExpressEngine> {
   if (engineSingleton) return engineSingleton;
   // Zego expects appSign for WebRTC init in some versions; token-based init uses server='wss://webliveroom-api.zego.im/ws'
@@ -66,6 +99,7 @@ export function useZegoCall() {
     const { token, appId } = await getZegoToken(roomId);
     const engine = await getEngine(appId);
     engineRef.current = engine;
+    await assertMicrophoneReady(engine);
 
     engine.on('roomStreamUpdate', async (_r, updateType, streamList) => {
       if (updateType === 'ADD' && streamList[0]) {
@@ -75,7 +109,9 @@ export function useZegoCall() {
     });
 
     await engine.loginRoom(roomId, token, { userID: user.id, userName: user.email || user.id }, { userUpdate: true });
-    const stream = await engine.createStream({ camera: { audio: true, video: false } });
+    const stream = await engine.createStream({
+      camera: { audio: true, video: false, AEC: true, ANS: true, AGC: true },
+    });
     localStreamRef.current = stream as unknown as MediaStream;
     engine.startPublishingStream(`s_${user.id}`, stream);
   }, [user]);
@@ -112,7 +148,7 @@ export function useZegoCall() {
     try {
       await joinRoom(roomId);
     } catch (e: any) {
-      toast({ title: 'Mic error', description: e.message, variant: 'destructive' });
+      toast({ title: 'Call setup failed', description: getCallErrorMessage(e), variant: 'destructive' });
       await supabase.from('voice_calls').update({ status: 'Cancelled', ended_at: new Date().toISOString() }).eq('id', row.id);
       cleanup();
     }
@@ -122,7 +158,7 @@ export function useZegoCall() {
     setActive({ ...call, status: 'connected', isIncoming: true, startedAt: Date.now() });
     await supabase.from('voice_calls').update({ status: 'Accepted' }).eq('id', call.callId);
     try { await joinRoom(call.roomId); } catch (e: any) {
-      toast({ title: 'Cannot answer', description: e.message, variant: 'destructive' });
+      toast({ title: 'Cannot answer', description: getCallErrorMessage(e), variant: 'destructive' });
       await supabase.from('voice_calls').update({ status: 'Ended', ended_at: new Date().toISOString() }).eq('id', call.callId);
       cleanup();
     }

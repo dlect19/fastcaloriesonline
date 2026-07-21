@@ -104,7 +104,7 @@ export async function scheduleDrugAlarms(reminders: ReminderRow[]): Promise<{ sc
 
   const now = new Date();
   const toSchedule: any[] = [];
-  let nativeScheduled = 0;
+  const nativeAlarmPromises: Promise<boolean>[] = [];
 
   for (const r of reminders) {
     if (!r.is_active || !Array.isArray(r.reminder_times)) continue;
@@ -136,10 +136,7 @@ export async function scheduleDrugAlarms(reminders: ReminderRow[]): Promise<{ sc
         });
 
         if (Capacitor.getPlatform() === 'android') {
-          scheduleDrugAlarm(r.drug_name, at, r.dosage).then((ok) => {
-            if (!ok) return;
-          }).catch(() => {});
-          nativeScheduled += 1;
+          nativeAlarmPromises.push(scheduleDrugAlarm(r.drug_name, at, r.dosage));
         }
 
         // Capacitor cap: schedule at most 60 per reminder to stay well under OS limits
@@ -149,6 +146,9 @@ export async function scheduleDrugAlarms(reminders: ReminderRow[]): Promise<{ sc
     }
     if (toSchedule.length >= 400) break;
   }
+
+  const nativeResults = nativeAlarmPromises.length > 0 ? await Promise.all(nativeAlarmPromises) : [];
+  const nativeScheduled = nativeResults.filter(Boolean).length;
 
   if (toSchedule.length === 0) return { scheduled: nativeScheduled };
 
