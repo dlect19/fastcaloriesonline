@@ -40,8 +40,9 @@ function fmtDuration(seconds: number) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export function CallOverlay({ active, remoteStream, muted, incoming, onAccept, onReject, onEnd, onToggleMute }: Props) {
-  const audioRef = useRef<HTMLAudioElement>(null);
+export function CallOverlay({ active, remoteStream, muted, speaker, incoming, onAccept, onReject, onEnd, onToggleMute, onToggleSpeaker, remoteAudioRef }: Props) {
+  const localAudioRef = useRef<HTMLAudioElement>(null);
+  const audioRef = remoteAudioRef ?? localAudioRef;
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
@@ -49,7 +50,7 @@ export function CallOverlay({ active, remoteStream, muted, incoming, onAccept, o
       audioRef.current.srcObject = remoteStream;
       audioRef.current.play().catch(() => {});
     }
-  }, [remoteStream]);
+  }, [remoteStream, audioRef]);
 
   useEffect(() => {
     if (!active || active.status !== 'connected') { setElapsed(0); return; }
