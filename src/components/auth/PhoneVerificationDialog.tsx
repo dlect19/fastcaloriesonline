@@ -80,7 +80,7 @@ export function PhoneVerificationDialog({
           </DialogTitle>
           <DialogDescription>
             {step === "phone"
-              ? "We will send a 6-digit code to this number. It should arrive on WhatsApp first, or by SMS if WhatsApp is not available. Make sure this number is your active WhatsApp number."
+              ? "We'll send a 6-digit code straight to this number — WhatsApp first, SMS if WhatsApp isn't available. No need to message us first."
               : `We sent a 6-digit code to ${phone}. Enter it below.`}
           </DialogDescription>
         </DialogHeader>
@@ -104,9 +104,7 @@ export function PhoneVerificationDialog({
             <Alert>
               <MessageCircle className="h-4 w-4" />
               <AlertDescription className="text-xs">
-                This must be your active <strong>WhatsApp</strong> number. If the number here isn't your WhatsApp,
-                open your <a href="/profile" className="underline text-primary font-medium">Profile</a> first, edit
-                your phone to your WhatsApp number, then come back to verify.
+                Your code arrives on <strong>WhatsApp</strong> automatically. If you don't get it, tap <em>Resend via SMS</em> on the next step.
               </AlertDescription>
             </Alert>
             <Button onClick={() => handleSend()} disabled={sending || !phone} className="w-full">
