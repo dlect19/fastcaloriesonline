@@ -29,7 +29,6 @@ export function CallProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const call = useZegoCall();
   const [incoming, setIncoming] = useState<IncomingCall | null>(null);
-  const ringtoneRef = useRef<HTMLAudioElement | null>(null);
 
   // Subscribe for incoming calls where I'm the receiver
   useEffect(() => {
