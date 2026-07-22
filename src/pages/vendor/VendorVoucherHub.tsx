@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Ticket, Trash2, Upload, Wallet, Package } from 'lucide-react';
+import { Plus, Ticket, Trash2, Upload, Wallet, Package, Pencil, Check, X } from 'lucide-react';
 import { VendorLayout } from '@/components/vendor/VendorLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { useVendorResolver } from '@/hooks/useVendorResolver';
