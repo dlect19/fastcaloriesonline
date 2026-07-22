@@ -84,26 +84,33 @@ export function useZegoCall() {
   const engineRef = useRef<ZegoExpressEngine | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const zegoUserIdRef = useRef<string | null>(null);
+  const activeRef = useRef<ActiveCall | null>(null);
+
+  useEffect(() => {
+    activeRef.current = active;
+  }, [active]);
 
   const cleanup = useCallback(async () => {
+    const currentCall = activeRef.current;
     try {
-      if (engineRef.current && active) {
+      if (engineRef.current && currentCall) {
         if (localStreamRef.current) {
           engineRef.current.destroyStream(localStreamRef.current);
           localStreamRef.current.getTracks().forEach((t) => t.stop());
         }
         const zegoUserId = zegoUserIdRef.current || (user?.id ? makeZegoUserId(user.id, 'customer') : '');
         if (zegoUserId) engineRef.current.stopPublishingStream(`s_${zegoUserId}`);
-        await engineRef.current.logoutRoom(active.roomId);
+        await engineRef.current.logoutRoom(currentCall.roomId);
       }
     } catch (e) { console.warn('call cleanup', e); }
     localStreamRef.current = null;
     zegoUserIdRef.current = null;
+    activeRef.current = null;
     setRemoteStream(null);
     setActive(null);
     setMuted(false);
     setSpeaker(true);
-  }, [active, user?.id]);
+  }, [user?.id]);
 
   // Join zego room and publish/subscribe audio
   const joinRoom = useCallback(async (roomId: string, role: CallRole) => {
@@ -259,15 +266,16 @@ export function useZegoCall() {
   }, []);
 
   const endCall = useCallback(async () => {
-    if (!active) return;
-    const duration = Math.round((Date.now() - active.startedAt) / 1000);
+    const currentCall = activeRef.current;
+    if (!currentCall) return;
+    const duration = Math.round((Date.now() - currentCall.startedAt) / 1000);
     await supabase.from('voice_calls').update({
       status: 'Ended',
       ended_at: new Date().toISOString(),
       duration_seconds: duration,
-    }).eq('id', active.callId);
+    }).eq('id', currentCall.callId);
     await cleanup();
-  }, [active, cleanup]);
+  }, [cleanup]);
 
   const toggleMute = useCallback(() => {
     if (!engineRef.current || !localStreamRef.current) return;
@@ -301,26 +309,52 @@ export function useZegoCall() {
     }
   }, [speaker]);
 
+  const handleRemoteCallStatus = useCallback((status: string) => {
+    const currentCall = activeRef.current;
+    if (!currentCall) return;
+
+    if (status === 'Accepted' && !currentCall.isIncoming) {
+      setActive((p) => p ? { ...p, status: 'connected', startedAt: Date.now() } : p);
+      return;
+    }
+
+    if (status === 'Rejected' || status === 'Busy' || status === 'Cancelled' || status === 'Ended') {
+      toast({ title: status === 'Rejected' ? 'Call declined' : 'Call ended' });
+      cleanup();
+    }
+  }, [cleanup, toast]);
+
   // Watch call status for both sides — caller sees accept/reject, both sides see remote End.
   useEffect(() => {
     if (!active) return;
+    const callId = active.callId;
     const ch = supabase
-      .channel(`call-${active.callId}`)
+      .channel(`call-status-${callId}`)
       .on('postgres_changes', {
         event: 'UPDATE', schema: 'public', table: 'voice_calls',
-        filter: `id=eq.${active.callId}`,
+        filter: `id=eq.${callId}`,
       }, (payload) => {
-        const s = (payload.new as any).status;
-        if (s === 'Accepted' && !active.isIncoming) {
-          setActive((p) => p ? { ...p, status: 'connected', startedAt: Date.now() } : p);
-        } else if (s === 'Rejected' || s === 'Busy' || s === 'Cancelled' || s === 'Ended') {
-          toast({ title: s === 'Rejected' ? 'Call declined' : 'Call ended' });
-          cleanup();
-        }
+        handleRemoteCallStatus((payload.new as any).status);
       })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [active, cleanup, toast]);
+  }, [active?.callId, handleRemoteCallStatus]);
+
+  // Fallback for mobile/background cases where Realtime UPDATE events are throttled or missed.
+  useEffect(() => {
+    if (!active) return;
+    const callId = active.callId;
+    const interval = window.setInterval(async () => {
+      if (!activeRef.current || activeRef.current.callId !== callId) return;
+      const { data } = await supabase
+        .from('voice_calls')
+        .select('status')
+        .eq('id', callId)
+        .maybeSingle();
+      if (data?.status) handleRemoteCallStatus(data.status);
+    }, 2500);
+    return () => window.clearInterval(interval);
+  }, [active?.callId, handleRemoteCallStatus]);
 
   return {
     active,
