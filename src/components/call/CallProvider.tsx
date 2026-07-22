@@ -1,8 +1,9 @@
-import { createContext, useContext, useEffect, useState, ReactNode, useRef } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useZegoCall } from '@/hooks/useZegoCall';
 import { CallOverlay } from '@/components/call/CallOverlay';
+import { playRingTone } from '@/lib/callTones';
 
 interface IncomingCall {
   callId: string;
