@@ -165,6 +165,12 @@ async function handleChargeSuccess(supabase: SupabaseClient, data: any, environm
     return;
   }
 
+  // Check if this is a public voucher purchase (guest storefront)
+  if (metadata?.type === "voucher_purchase") {
+    await handleVoucherGuestPurchase(supabase, data, environment);
+    return;
+  }
+
 
   if (!metadata?.order_id) {
     console.log("No order_id in metadata, skipping");
