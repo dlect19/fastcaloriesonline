@@ -95,6 +95,7 @@ export function useZegoCall() {
     setRemoteStream(null);
     setActive(null);
     setMuted(false);
+    setSpeaker(true);
   }, [active, user?.id]);
 
   // Join zego room and publish/subscribe audio
