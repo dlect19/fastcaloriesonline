@@ -331,8 +331,28 @@ export default function AdminCustomers() {
                   <tbody>
                     {pagedCustomers.map((customer) => (
                       <tr key={customer.id} className="border-b hover:bg-secondary/50">
-                        <td className="py-3 px-4 font-medium">{customer.full_name || 'N/A'}</td>
-                        <td className="py-3 px-4">{customer.phone || 'N/A'}</td>
+                        <td className="py-3 px-4 font-medium">
+                          <div className="flex items-center gap-1.5">
+                            {customer.full_name || 'N/A'}
+                            {customer.phone_verified && (
+                              <BadgeCheck className="w-4 h-4 text-primary" aria-label="Phone verified" />
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-1.5">
+                            {customer.phone || 'N/A'}
+                            {customer.phone_verified ? (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-primary/40 text-primary gap-0.5">
+                                <BadgeCheck className="w-3 h-3" /> Verified
+                              </Badge>
+                            ) : customer.phone ? (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-muted-foreground">
+                                Unverified
+                              </Badge>
+                            ) : null}
+                          </div>
+                        </td>
                         <td className="py-3 px-4">
                           <Badge variant="secondary">{customer.order_count}</Badge>
                         </td>
