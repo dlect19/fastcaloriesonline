@@ -552,8 +552,8 @@ export default function VendorEarnings() {
           />
 
           {/* Revenue Breakdown - Separated Pools */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Menu Sales Revenue */}
+          <div className={`grid grid-cols-1 ${vendor?.category !== 'voucher' ? 'lg:grid-cols-2' : ''} gap-4`}>
+            {/* Menu / Voucher Sales Revenue */}
             <Card className="border-0 shadow-soft bg-gradient-to-br from-primary/5 to-primary/10">
               <CardContent className="p-6">
                 <div className="flex items-center gap-3 mb-4">
@@ -561,8 +561,12 @@ export default function VendorEarnings() {
                     <UtensilsCrossed className="w-6 h-6 text-primary" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-foreground">Menu Sales Revenue</h3>
-                    <p className="text-xs text-muted-foreground">Earnings from food orders</p>
+                    <h3 className="font-semibold text-foreground">
+                      {vendor?.category === 'voucher' ? 'Voucher Sales Revenue' : 'Menu Sales Revenue'}
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      {vendor?.category === 'voucher' ? 'Earnings from voucher sales' : 'Earnings from food orders'}
+                    </p>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -591,13 +595,14 @@ export default function VendorEarnings() {
                     onClick={() => navigate('/vendor/withdraw?source=menu_earnings')}
                   >
                     <ArrowUpRight className="w-4 h-4 mr-1" />
-                    Withdraw Menu Earnings
+                    Withdraw {vendor?.category === 'voucher' ? 'Earnings' : 'Menu Earnings'}
                   </Button>
                 )}
               </CardContent>
             </Card>
 
-            {/* Rider Delivery Revenue */}
+            {/* Rider Delivery Revenue — hidden for voucher vendors */}
+            {vendor?.category !== 'voucher' && (
             <Card className="border-0 shadow-soft bg-gradient-to-br from-accent/5 to-accent/10">
               <CardContent className="p-6">
                 <div className="flex items-center gap-3 mb-4">
@@ -644,7 +649,9 @@ export default function VendorEarnings() {
                 </div>
               </CardContent>
             </Card>
+            )}
           </div>
+
 
           {/* Combined Stats Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
