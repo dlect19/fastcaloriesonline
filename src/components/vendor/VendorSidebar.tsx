@@ -207,21 +207,28 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
       : item
   );
 
-  // Add pharmacist review entry for pharmacy vendors (right after Orders)
-  const visibleItems = vendorCategory === 'pharmacy'
-    ? (() => {
-        const idx = visibleItemsBase.findIndex((x) => x.id === 'orders');
-        const out = [...visibleItemsBase];
-        out.splice(idx + 1, 0, {
-          id: 'pharmacy-review',
-          icon: Pill,
-          label: 'Rx Review',
-          path: '/vendor/pharmacy-review',
-          permission: 'process_orders' as VendorPermission,
-        });
-        return out;
-      })()
-    : visibleItemsBase;
+  // Voucher-hub vendors only need voucher-related sections
+  const voucherOnlyIds = new Set([
+    'dashboard', 'voucher-hub', 'earnings', 'withdraw', 'store-settings',
+    'support', 'settings', 'staff', 'advertising',
+  ]);
+
+  const visibleItems = vendorCategory === 'voucher'
+    ? visibleItemsBase.filter((x) => voucherOnlyIds.has(x.id))
+    : vendorCategory === 'pharmacy'
+      ? (() => {
+          const idx = visibleItemsBase.findIndex((x) => x.id === 'orders');
+          const out = [...visibleItemsBase];
+          out.splice(idx + 1, 0, {
+            id: 'pharmacy-review',
+            icon: Pill,
+            label: 'Rx Review',
+            path: '/vendor/pharmacy-review',
+            permission: 'process_orders' as VendorPermission,
+          });
+          return out;
+        })()
+      : visibleItemsBase;
 
   return (
     <>
