@@ -24,11 +24,14 @@ interface Props {
   active: Active | null;
   remoteStream: MediaStream | null;
   muted: boolean;
+  speaker: boolean;
   incoming: Incoming | null;
   onAccept: () => void;
   onReject: () => void;
   onEnd: () => void;
   onToggleMute: () => void;
+  onToggleSpeaker: () => void;
+  remoteAudioRef?: React.MutableRefObject<HTMLAudioElement | null>;
 }
 
 function fmtDuration(seconds: number) {
