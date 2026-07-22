@@ -158,6 +158,8 @@ import VouchersList from "./pages/vouchers/VouchersList";
 import VoucherCategory from "./pages/vouchers/VoucherCategory";
 import MyVouchers from "./pages/vouchers/MyVouchers";
 import AdminVoucherHub from "./pages/admin/AdminVoucherHub";
+import VoucherStorefront from "./pages/public/VoucherStorefront";
+import VoucherStorefrontSuccess from "./pages/public/VoucherStorefrontSuccess";
 import { playGlobalNotificationSound } from '@/lib/globalAudio';
 import { useFcmNotifications } from '@/hooks/useFcmNotifications';
 import { usePortalMemory } from '@/hooks/usePortalMemory';
