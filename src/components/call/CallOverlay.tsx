@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Phone, PhoneOff, Mic, MicOff } from 'lucide-react';
+import { Phone, PhoneOff, Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { playDialTone } from '@/lib/callTones';
 
@@ -24,11 +24,14 @@ interface Props {
   active: Active | null;
   remoteStream: MediaStream | null;
   muted: boolean;
+  speaker: boolean;
   incoming: Incoming | null;
   onAccept: () => void;
   onReject: () => void;
   onEnd: () => void;
   onToggleMute: () => void;
+  onToggleSpeaker: () => void;
+  remoteAudioRef?: React.MutableRefObject<HTMLAudioElement | null>;
 }
 
 function fmtDuration(seconds: number) {
@@ -37,8 +40,9 @@ function fmtDuration(seconds: number) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export function CallOverlay({ active, remoteStream, muted, incoming, onAccept, onReject, onEnd, onToggleMute }: Props) {
-  const audioRef = useRef<HTMLAudioElement>(null);
+export function CallOverlay({ active, remoteStream, muted, speaker, incoming, onAccept, onReject, onEnd, onToggleMute, onToggleSpeaker, remoteAudioRef }: Props) {
+  const localAudioRef = useRef<HTMLAudioElement>(null);
+  const audioRef = remoteAudioRef ?? localAudioRef;
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
@@ -46,7 +50,7 @@ export function CallOverlay({ active, remoteStream, muted, incoming, onAccept, o
       audioRef.current.srcObject = remoteStream;
       audioRef.current.play().catch(() => {});
     }
-  }, [remoteStream]);
+  }, [remoteStream, audioRef]);
 
   useEffect(() => {
     if (!active || active.status !== 'connected') { setElapsed(0); return; }
@@ -134,12 +138,18 @@ export function CallOverlay({ active, remoteStream, muted, incoming, onAccept, o
           {active.status === 'ringing' ? 'Ringing…' : fmtDuration(elapsed)}
         </p>
 
-        <div className="mt-12 flex items-center gap-8">
+        <div className="mt-12 flex items-center gap-6">
           <button onClick={onToggleMute} className="flex flex-col items-center gap-2">
             <div className={`flex h-14 w-14 items-center justify-center rounded-full ${muted ? 'bg-red-500' : 'bg-white/10'} active:scale-95 transition`}>
               {muted ? <MicOff className="h-6 w-6 text-white" /> : <Mic className="h-6 w-6 text-white" />}
             </div>
             <span className="text-xs text-gray-400">{muted ? 'Unmute' : 'Mute'}</span>
+          </button>
+          <button onClick={onToggleSpeaker} className="flex flex-col items-center gap-2" aria-label="Toggle speaker">
+            <div className={`flex h-14 w-14 items-center justify-center rounded-full ${speaker ? 'bg-primary' : 'bg-white/10'} active:scale-95 transition`}>
+              {speaker ? <Volume2 className="h-6 w-6 text-white" /> : <VolumeX className="h-6 w-6 text-white" />}
+            </div>
+            <span className="text-xs text-gray-400">{speaker ? 'Speaker' : 'Earpiece'}</span>
           </button>
           <button onClick={onEnd} className="flex flex-col items-center gap-2">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500 shadow-lg shadow-red-500/40 active:scale-95 transition">

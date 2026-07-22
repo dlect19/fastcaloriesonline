@@ -75,6 +75,7 @@ export function useZegoCall() {
   const [active, setActive] = useState<ActiveCall | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [muted, setMuted] = useState(false);
+  const [speaker, setSpeaker] = useState(true); // default hands-free speaker on
   const localStreamRef = useRef<MediaStream | null>(null);
   const engineRef = useRef<ZegoExpressEngine | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -94,6 +95,7 @@ export function useZegoCall() {
     setRemoteStream(null);
     setActive(null);
     setMuted(false);
+    setSpeaker(true);
   }, [active, user?.id]);
 
   // Join zego room and publish/subscribe audio
@@ -194,6 +196,25 @@ export function useZegoCall() {
       startedAt: Date.now(),
     });
 
+    // Fire push notification so the receiver's device rings even when the app is backgrounded.
+    // Non-blocking — call setup should not fail if push fails.
+    supabase.functions.invoke('send-push-notification', {
+      body: {
+        user_id: input.receiverId,
+        title: `Incoming call`,
+        body: `${input.callerRole === 'customer' ? 'A customer' : input.callerRole === 'vendor' ? 'A vendor' : 'A rider'} is calling you`,
+        url: `/?call=${row.id}`,
+        data: {
+          type: 'CALL',
+          callId: row.id,
+          roomId,
+          orderId: input.orderId,
+          callerRole: input.callerRole,
+          receiverRole: input.receiverRole,
+        },
+      },
+    }).catch((e) => console.warn('[call] push notify failed', e));
+
     try {
       await joinRoom(roomId);
     } catch (e: any) {
@@ -235,6 +256,31 @@ export function useZegoCall() {
     setMuted(next);
   }, [muted]);
 
+  const toggleSpeaker = useCallback(async () => {
+    const next = !speaker;
+    setSpeaker(next);
+    // Best-effort route switch on WebRTC — routes remote audio to speaker vs earpiece
+    // where the platform supports HTMLMediaElement.setSinkId (Chromium/desktop, some Android WebViews).
+    try {
+      const audioEl = remoteAudioRef.current as any;
+      if (audioEl && typeof audioEl.setSinkId === 'function') {
+        // 'default' = system default (usually earpiece on mobile), '' = speaker fallback.
+        // Try to find a "speaker" output device explicitly.
+        let sinkId = 'default';
+        if (next && navigator.mediaDevices?.enumerateDevices) {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const speakerDev = devices.find(
+            (d) => d.kind === 'audiooutput' && /speaker|speakerphone/i.test(d.label)
+          );
+          if (speakerDev) sinkId = speakerDev.deviceId;
+        }
+        await audioEl.setSinkId(sinkId);
+      }
+    } catch (e) {
+      console.warn('[zego] toggleSpeaker setSinkId failed', e);
+    }
+  }, [speaker]);
+
   // Watch call status when we're the caller (peer accepted/rejected)
   useEffect(() => {
     if (!active || active.isIncoming) return;
@@ -259,10 +305,12 @@ export function useZegoCall() {
     active,
     remoteStream,
     muted,
+    speaker,
     remoteAudioRef,
     startCall,
     endCall,
     toggleMute,
+    toggleSpeaker,
     acceptIncoming,
     rejectIncoming,
   };

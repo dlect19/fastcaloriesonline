@@ -58,6 +58,35 @@ export function CallProvider({ children }: { children: ReactNode }) {
     return () => { supabase.removeChannel(ch); };
   }, [user, call.active]);
 
+  // Deep-link: if the app was opened via a CALL push (URL has ?call=<id>), fetch and show incoming.
+  useEffect(() => {
+    if (!user) return;
+    const params = new URLSearchParams(window.location.search);
+    const callId = params.get('call');
+    if (!callId) return;
+    (async () => {
+      const { data: row } = await supabase
+        .from('voice_calls')
+        .select('*')
+        .eq('id', callId)
+        .maybeSingle();
+      if (!row) return;
+      if (row.receiver_id !== user.id) return;
+      if (row.status !== 'Ringing') return;
+      setIncoming({
+        callId: row.id,
+        roomId: row.zego_call_id,
+        peerName: row.caller_role,
+        callerRole: row.caller_role,
+        orderId: row.order_id,
+      });
+      // Clean the query param so a refresh doesn't reopen the prompt.
+      params.delete('call');
+      const q = params.toString();
+      window.history.replaceState({}, '', window.location.pathname + (q ? `?${q}` : ''));
+    })();
+  }, [user]);
+
   // Ringtone loop while incoming (Web Audio, royalty-free)
   useEffect(() => {
     if (!incoming) return;
@@ -99,11 +128,14 @@ export function CallProvider({ children }: { children: ReactNode }) {
         active={call.active}
         remoteStream={call.remoteStream}
         muted={call.muted}
+        speaker={call.speaker}
         incoming={incoming}
         onAccept={accept}
         onReject={reject}
         onEnd={call.endCall}
         onToggleMute={call.toggleMute}
+        onToggleSpeaker={call.toggleSpeaker}
+        remoteAudioRef={call.remoteAudioRef}
       />
     </CallCtx.Provider>
   );
