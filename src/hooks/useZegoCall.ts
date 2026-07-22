@@ -64,8 +64,12 @@ async function assertMicrophoneReady(engine: ZegoExpressEngine): Promise<void> {
 
 async function getEngine(appId: number): Promise<ZegoExpressEngine> {
   if (engineSingleton) return engineSingleton;
-  // Zego expects appSign for WebRTC init in some versions; token-based init uses server='wss://webliveroom-api.zego.im/ws'
-  engineSingleton = new ZegoExpressEngine(appId, 'wss://webliveroom-api.zego.im/ws');
+  // IMPORTANT: Zego Web SDK requires an app-specific edge server URL.
+  // Using the generic `webliveroom-api.zego.im` endpoint causes the RTC socket
+  // to authenticate but then drop with `network timeout` a few seconds later,
+  // which produces "call connects but no audio on either end".
+  const server = `wss://webliveroom${appId}-api.coolzcloud.com/ws`;
+  engineSingleton = new ZegoExpressEngine(appId, server);
   return engineSingleton;
 }
 
