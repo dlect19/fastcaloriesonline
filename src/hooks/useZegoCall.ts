@@ -75,6 +75,7 @@ export function useZegoCall() {
   const [active, setActive] = useState<ActiveCall | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [muted, setMuted] = useState(false);
+  const [speaker, setSpeaker] = useState(true); // default hands-free speaker on
   const localStreamRef = useRef<MediaStream | null>(null);
   const engineRef = useRef<ZegoExpressEngine | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
