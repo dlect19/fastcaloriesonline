@@ -149,6 +149,8 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
 
 export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated }: Props) {
   const { toast } = useToast();
+  const { startCall } = useCall();
+
 
   // Data
   const [vendor, setVendor] = useState<VendorInfo | null>(null);
