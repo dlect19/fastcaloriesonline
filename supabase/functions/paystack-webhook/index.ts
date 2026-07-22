@@ -805,6 +805,7 @@ async function handleVoucherGuestPurchase(supabase: SupabaseClient, data: any, e
   const categoryId = metadata.category_id as string;
   const guestEmail = metadata.guest_email as string;
   const guestPhone = (metadata.guest_phone as string) || null;
+  const guestName = (metadata.guest_name as string) || null;
 
   console.log(`Voucher guest purchase: ref=${reference}, category=${categoryId}, amount=${amount}`);
 
@@ -875,6 +876,7 @@ async function handleVoucherGuestPurchase(supabase: SupabaseClient, data: any, e
       buyer_user_id: null,
       guest_email: guestEmail,
       guest_phone: guestPhone,
+      guest_name: guestName,
       vendor_id: category.vendor_id,
       category_id: category.id,
       code_id: (reserved as any).id,

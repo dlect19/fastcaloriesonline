@@ -38,11 +38,13 @@ serve(async (req: Request) => {
       return json({ error: "Storefront not found" }, 404);
     }
 
-    const { data: categories } = await admin
+    const { data: categories, error: catErr } = await admin
       .from("voucher_categories")
       .select("id, name, description, validity_days, is_active")
       .eq("vendor_id", vendor.id)
       .eq("is_active", true);
+    if (catErr) console.error("voucher-storefront categories error:", catErr);
+
 
     const catIds = (categories || []).map((c: any) => c.id);
     const stock: Record<string, { price: number; available: number }> = {};
