@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 
-type CallRole = 'customer' | 'vendor' | 'rider';
+type CallRole = 'customer' | 'vendor' | 'rider' | 'admin';
 
 export interface StartCallInput {
   orderId: string;
@@ -198,11 +198,16 @@ export function useZegoCall() {
 
     // Fire push notification so the receiver's device rings even when the app is backgrounded.
     // Non-blocking — call setup should not fail if push fails.
+    const callerLabel =
+      input.callerRole === 'admin' ? 'FastCalories'
+      : input.callerRole === 'customer' ? 'A customer'
+      : input.callerRole === 'vendor' ? 'A vendor'
+      : 'A rider';
     supabase.functions.invoke('send-push-notification', {
       body: {
         user_id: input.receiverId,
-        title: `Incoming call`,
-        body: `${input.callerRole === 'customer' ? 'A customer' : input.callerRole === 'vendor' ? 'A vendor' : 'A rider'} is calling you`,
+        title: input.callerRole === 'admin' ? 'FastCalories is calling' : 'Incoming call',
+        body: `${callerLabel} is calling you`,
         url: `/?call=${row.id}`,
         data: {
           type: 'CALL',
