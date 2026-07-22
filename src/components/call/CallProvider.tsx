@@ -10,6 +10,7 @@ interface IncomingCall {
   roomId: string;
   peerName: string;
   callerRole: string;
+  receiverRole: 'customer' | 'vendor' | 'rider' | 'admin';
   orderId: string;
 }
 
@@ -51,6 +52,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
           roomId: row.zego_call_id,
           peerName: row.caller_role === 'admin' ? 'FastCalories Calling' : row.caller_role,
           callerRole: row.caller_role,
+          receiverRole: row.receiver_role,
           orderId: row.order_id,
         });
       })
@@ -78,6 +80,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
         roomId: row.zego_call_id,
         peerName: row.caller_role === 'admin' ? 'FastCalories Calling' : row.caller_role,
         callerRole: row.caller_role,
+        receiverRole: row.receiver_role,
         orderId: row.order_id,
       });
       // Clean the query param so a refresh doesn't reopen the prompt.
@@ -96,7 +99,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
   const accept = async () => {
     if (!incoming) return;
-    await call.acceptIncoming({ callId: incoming.callId, roomId: incoming.roomId, peerName: incoming.peerName });
+    await call.acceptIncoming({ callId: incoming.callId, roomId: incoming.roomId, peerName: incoming.peerName, receiverRole: incoming.receiverRole });
     setIncoming(null);
   };
   const reject = async () => {
