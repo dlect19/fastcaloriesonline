@@ -749,7 +749,8 @@ export default function VendorDashboard() {
             </div>
           )}
 
-          {/* Recent Orders */}
+          {/* Recent Orders — voucher vendors don't have order flow */}
+          {vendor?.category !== 'voucher' && (
           <Card className="border-0 shadow-soft">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-lg">Recent Orders</CardTitle>
