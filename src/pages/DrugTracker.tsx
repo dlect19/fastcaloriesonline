@@ -53,12 +53,24 @@ export default function DrugTracker() {
   }, [user, authLoading]);
 
   const fetchData = async () => {
+    // Only include tracking rows whose linked prescription order has actually been delivered
     const [{ data: usage }, { data: rem }] = await Promise.all([
-      supabase.from('drug_usage_tracking').select('*').eq('user_id', user!.id).order('created_at', { ascending: false }),
-      supabase.from('drug_reminders').select('*').eq('user_id', user!.id).eq('is_active', true).order('created_at', { ascending: false }),
+      supabase
+        .from('drug_usage_tracking')
+        .select('*, prescription_orders!inner(id, delivered_at)')
+        .eq('user_id', user!.id)
+        .not('prescription_orders.delivered_at', 'is', null)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('drug_reminders')
+        .select('*, prescription_orders!inner(id, delivered_at)')
+        .eq('user_id', user!.id)
+        .eq('is_active', true)
+        .not('prescription_orders.delivered_at', 'is', null)
+        .order('created_at', { ascending: false }),
     ]);
-    setUsageRecords(usage || []);
-    setReminders(rem || []);
+    setUsageRecords((usage as any) || []);
+    setReminders((rem as any) || []);
     setLoading(false);
     // Schedule device-level alarms (native only) so reminders fire even offline
     if (rem && rem.length > 0) {
