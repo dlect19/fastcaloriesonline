@@ -86,8 +86,28 @@ export default function VendorVoucherHub() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card><CardContent className="p-4 flex items-center gap-3"><Package className="w-8 h-8 text-primary" /><div><p className="text-xs text-muted-foreground">Vouchers sold</p><p className="text-xl font-bold">{salesStats.totalSold}</p></div></CardContent></Card>
           <Card><CardContent className="p-4 flex items-center gap-3"><Ticket className="w-8 h-8 text-primary" /><div><p className="text-xs text-muted-foreground">Revenue</p><p className="text-xl font-bold">₦{salesStats.totalRevenue.toLocaleString()}</p></div></CardContent></Card>
-          <Card><CardContent className="p-4 flex items-center gap-3"><Wallet className="w-8 h-8 text-primary" /><div><p className="text-xs text-muted-foreground">Wallet balance</p><p className="text-xl font-bold">₦{walletBalance.toLocaleString()}</p><p className="text-[10px] text-muted-foreground">Credits arrive in Phase 2</p></div></CardContent></Card>
+          <Card><CardContent className="p-4 flex items-center gap-3"><Wallet className="w-8 h-8 text-primary" /><div><p className="text-xs text-muted-foreground">Wallet balance</p><p className="text-xl font-bold">₦{walletBalance.toLocaleString()}</p><p className="text-[10px] text-muted-foreground">Withdraw via the standard vendor payout flow.</p></div></CardContent></Card>
         </div>
+
+        {vendorSlug && (
+          <Card>
+            <CardContent className="p-4 flex flex-col md:flex-row md:items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-muted-foreground">Public storefront (no login required)</p>
+                <p className="text-sm font-mono truncate">{window.location.origin}/v/{vendorSlug}</p>
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  navigator.clipboard.writeText(`${window.location.origin}/v/${vendorSlug}`);
+                  toast({ title: 'Link copied', description: 'Share this link with your customers.' });
+                }}
+              >Copy link</Button>
+              <Button onClick={() => window.open(`/v/${vendorSlug}`, '_blank')}>Open</Button>
+            </CardContent>
+          </Card>
+        )}
+
 
         <Tabs defaultValue="categories" className="w-full">
           <TabsList>
