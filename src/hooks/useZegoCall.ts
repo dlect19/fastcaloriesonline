@@ -137,6 +137,10 @@ export function useZegoCall() {
     engineRef.current = engine;
     await assertMicrophoneReady(engine);
 
+    // Remove any prior listener before re-registering — the engine is a singleton,
+    // so back-to-back calls would otherwise accumulate handlers and can drop the
+    // remote stream on the second call.
+    engine.off('roomStreamUpdate');
     engine.on('roomStreamUpdate', async (_r, updateType, streamList) => {
       if (updateType === 'ADD' && streamList[0]) {
         const rs = await engine.startPlayingStream(streamList[0].streamID);
