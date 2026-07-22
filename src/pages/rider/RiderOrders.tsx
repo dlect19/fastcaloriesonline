@@ -489,6 +489,7 @@ export default function RiderOrders() {
                         peerName={order.vendors?.name}
                         myRole="rider"
                         peerRole="vendor"
+                        orderStatus={order.status}
                         compact
                       />
                     </div>
@@ -526,6 +527,7 @@ export default function RiderOrders() {
                         peerName={order.customer_profile?.full_name || undefined}
                         myRole="rider"
                         peerRole="customer"
+                        orderStatus={order.status}
                         compact
                       />
                     </div>
