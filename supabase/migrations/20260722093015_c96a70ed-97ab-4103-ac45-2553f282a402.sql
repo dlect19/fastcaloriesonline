@@ -1,0 +1,2 @@
+ALTER TABLE public.voice_calls DROP CONSTRAINT IF EXISTS voice_calls_caller_role_check;
+ALTER TABLE public.voice_calls ADD CONSTRAINT voice_calls_caller_role_check CHECK (caller_role IN ('customer','vendor','rider','admin'));
