@@ -66,6 +66,27 @@
             </intent-filter>
         </receiver>
 
+        <!-- Full-screen incoming call activity -->
+        <activity
+            android:name=".IncomingCallActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleInstance"
+            android:showOnLockScreen="true"
+            android:showWhenLocked="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:turnScreenOn="true" />
+
+        <!-- FCM receiver for CALL data messages -->
+        <service
+            android:name=".FastCaloriesMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
     </application>
 
     <!-- Network -->
