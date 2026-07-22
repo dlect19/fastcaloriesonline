@@ -64,6 +64,44 @@ export function CallProvider({ children }: { children: ReactNode }) {
     return () => { supabase.removeChannel(ch); };
   }, [user, call.active]);
 
+  // Production safety net: if realtime is delayed/missing or a mobile WebView
+  // throttles subscriptions, poll for very recent ringing calls while the app is open.
+  useEffect(() => {
+    if (!user || call.active || incoming) return;
+
+    let cancelled = false;
+    const checkIncoming = async () => {
+      const recentCutoff = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+      const { data: row } = await supabase
+        .from('voice_calls')
+        .select('id, zego_call_id, caller_role, receiver_role, order_id, status, call_type, created_at')
+        .eq('receiver_id', user.id)
+        .eq('call_type', 'InApp')
+        .eq('status', 'Ringing')
+        .gte('created_at', recentCutoff)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (cancelled || !row) return;
+      setIncoming({
+        callId: row.id,
+        roomId: row.zego_call_id,
+        peerName: row.caller_role === 'admin' ? 'FastCalories Calling' : row.caller_role,
+        callerRole: row.caller_role,
+        receiverRole: normalizeCallRole(row.receiver_role),
+        orderId: row.order_id,
+      });
+    };
+
+    checkIncoming();
+    const interval = window.setInterval(checkIncoming, 2500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [user, call.active, incoming]);
+
   // Deep-link: if the app was opened via a CALL push (URL has ?call=<id>), fetch and show incoming.
   useEffect(() => {
     if (!user) return;
