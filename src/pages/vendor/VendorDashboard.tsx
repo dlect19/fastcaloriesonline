@@ -661,8 +661,8 @@ export default function VendorDashboard() {
             );
           })()}
 
-          {/* Revenue Pools - Menu & Rider Revenue */}
-          {hasPermission('view_earnings') && walletData && (
+          {/* Revenue Pools - Menu & Rider Revenue — hidden for voucher vendors */}
+          {vendor?.category !== 'voucher' && hasPermission('view_earnings') && walletData && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Card className="border-0 shadow-soft">
                 <CardContent className="p-6">
