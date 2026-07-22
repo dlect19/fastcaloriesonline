@@ -1,88 +1,69 @@
 
-# Voucher Hub — Phase 1
+# Voucher Vendor account type + Voucher Hub Phase 2
 
-A digital voucher marketplace built generically (starting with data/WiFi vouchers). Phase 1 covers vendor management, in-app customer purchase, admin oversight, and full data model so Phase 2 (guest checkout, wallet crediting, withdrawals) drops in cleanly.
+## 1. "Voucher Vendor" as a vendor category
 
-## Assumptions (flag if wrong)
+Extend the existing `vendor_category` enum with a new `'voucher'` value so voucher vendors sign up through the exact same flow as restaurants / pharmacies / markets.
 
-- **Payment**: Phase 1 in-app purchase uses the existing customer wallet (same pattern as food orders — "Order-First then Debit"). No Paystack direct-charge here; that belongs to Phase 2 guest checkout.
-- **Voucher-hub commission is separate** from the existing food/vendor commission. It lives in a new `vendor_commission_rates` table dedicated to voucher sales so it doesn't collide with `commission_overrides`.
-- **Template rendering**: Voucher image rendered client-side on an HTML `<canvas>` at purchase time and uploaded to a new `voucher-images` public storage bucket. Fixed layout as you specified (logo, vendor name, category, code, expiry, purchase timestamp).
-- **CSV bulk upload**: Parsed client-side, inserted via a batched insert. Duplicate codes within the same category are rejected (unique constraint on `(category_id, code)`).
-- **Wallet credit in Phase 1**: The `vendor_wallets` row is created and `commission_amount` is recorded on every order, but no automatic credit yet — Phase 2 will add the trigger/edge function that moves funds. Balance stays at 0.
-- **Existing vendors only**: Any active vendor can use Voucher Hub. No new onboarding gate.
-- **Currency**: Naira, matching platform.
+- **DB migration**: `ALTER TYPE public.vendor_category ADD VALUE 'voucher'`. No new auth surface.
+- **Vendor signup (`src/pages/vendor/VendorAuth.tsx`)**: add a "Voucher Hub" option to both the create-business and link-business business-category selects. Voucher vendors still get a default `vendor_outlets` row like other categories (needed so the existing wallet, which is keyed by `user_id + wallet_type='vendor' + outlet_id`, still works).
+- **Vendor dashboard routing**: when `vendor.category === 'voucher'`, the sidebar shows only voucher-relevant sections (Voucher Hub, Orders/Sales, Withdraw, Settings, Support) and hides restaurant/pharmacy-only entries (Menu, Hours, POS, Riders, etc.). Voucher Hub becomes the default landing page for that category.
+- **Admin (`src/pages/admin/AdminVendors.tsx`)**: add a category filter with the new "Voucher" option so admin can filter/approve voucher vendors distinctly.
 
-## Data model (migration)
+## 2. Voucher Hub Phase 2
 
-All in `public`, with GRANTs + RLS in the same migration.
+### Public storefront (no login)
+- Add a `slug` column to `vendors` (unique, auto-generated from business name on signup / migration backfill).
+- New public route `/v/:slug` served by `src/pages/public/VoucherStorefront.tsx`. Fetches the vendor + their voucher categories + their brand template via a new **public** edge function `voucher-storefront` (uses service role, only returns non-sensitive fields, filters to `category='voucher'` + approved vendors).
+- Storefront lists categories with price, remaining-stock indicator, and a "Buy" button that opens a guest checkout dialog: email input + Paystack inline.
 
-- `voucher_categories` — `id, vendor_id, name, validity_days (int), is_active, created_at, updated_at`
-- `voucher_codes` — `id, category_id, code, value (numeric), status ('available'|'sold'|'expired'), sold_at, order_id, created_at`; unique `(category_id, code)`
-- `vendor_templates` — `id, vendor_id UNIQUE, logo_url, background_color, background_image_url, created_at, updated_at`
-- `voucher_orders` — `id, buyer_user_id, vendor_id, category_id, code_id, amount, commission_amount, commission_rate, expiry_date, purchased_at, rendered_image_url, status ('paid'|'refunded'|'failed'), created_at`
-- `vendor_wallets` — `id, vendor_id UNIQUE, balance (numeric default 0), updated_at` (Phase 2 will add ledger)
-- `vendor_commission_rates` — `id, vendor_id UNIQUE, percentage (numeric nullable), updated_at`
-- `platform_settings` key `voucher_hub_default_commission_pct` (default 10)
+### Guest checkout via Paystack
+- New edge function `voucher-guest-initiate` — validates category, computes amount, initializes a Paystack transaction with metadata `{ category_id, guest_email, vendor_id }`, returns `authorization_url` + `reference`.
+- Existing `paystack-webhook` extended to detect `metadata.type === 'voucher_purchase'` and call a shared handler `assignVoucherAndCredit()` that:
+  1. Atomically reserves the next `available` voucher code for that category (row-locked `UPDATE ... WHERE status='available' LIMIT 1 RETURNING *`).
+  2. Creates a `voucher_orders` row (`buyer_user_id` null for guests, `guest_email` set).
+  3. Renders the vendor's branded template server-side (see below) and stores PNG in the existing `voucher-images` storage bucket; saves signed URL on the order.
+  4. **Credits the vendor wallet** (see wallet section).
+  5. Emails the buyer via the existing `send-transactional-email` function with a new template `voucher-delivery` that embeds the rendered image URL.
+- Guest success page `/v/:slug/success?ref=...` polls the order by reference and renders the same voucher image on-screen.
 
-RLS summary:
-- Vendors manage their own categories/codes/template; customers read active categories with stock; buyers read their own orders; admins read all.
-- `vendor_wallets`: vendor reads own, admin reads all, no client writes (service role only).
-- Storage: new public bucket `voucher-images` (rendered vouchers) + reuse `campaign-images` for logos/backgrounds.
+### Wallet crediting — reuses existing vendor wallet + withdrawal system
+The existing withdrawal flow reads from `wallets` (keyed by `user_id`, `wallet_type='vendor'`, `outlet_id`) and creates `payout_requests`. To avoid a parallel system, voucher sales credit the SAME `wallets` row used by restaurants/pharmacies:
+- On every voucher sale (both Phase 1 in-app flow and Phase 2 public flow), insert a `wallet_transactions` row: `wallet_type='vendor'`, `transaction_type='credit'`, `category='voucher_sale'`, `amount = sale − commission`, `reference = voucher order id`. This is the audit ledger you asked for — `wallet_transactions` already serves that role for every other vendor earning, so we reuse it instead of creating a parallel `vendor_wallet_transactions` table.
+- Update the vendor `wallets` row's `balance` (or `test_balance` per environment) by the net amount, respecting the existing `prevent_balance_manipulation` trigger (do it through a `SECURITY DEFINER` helper `credit_vendor_wallet_for_voucher(order_id)` — same pattern as other order-completion credits).
+- Phase 1 stub tables `vendor_wallets` and `vendor_wallet_transactions` are **deprecated** — I'll leave the tables in place (harmless, no code will write to them) but rewire the `purchase-voucher` edge function and admin queries to the real `wallets` / `wallet_transactions`. Flag: this is the one deviation from your spec — see "Decisions needed" below.
 
-## Backend
+### Withdrawals
+No new code. Because voucher balances live in the same `wallets` row, the vendor's existing `VendorWithdraw.tsx` page and admin `AdminPayouts.tsx` already work; voucher sales just show up as additional credits. Admin filter on `AdminPayouts` gets a small "vendor category" column for clarity.
 
-- **Edge function `purchase-voucher`**: authenticated. Validates wallet balance → picks one `available` code (row-locked) → marks it `sold` → creates `voucher_order` with `commission_amount = amount * effective_rate/100` → debits customer wallet via existing ledger pattern → returns order + code + expiry. Wallet-credit to vendor is a TODO comment for Phase 2.
-- **Helper SQL function `get_vendor_voucher_commission(vendor_id)`** returning the override or platform default.
+### Server-side template rendering
+Phase 1 renders vouchers to a canvas in the browser — that's not available in an edge function for the email/guest flow. I'll add a shared `renderVoucherPng()` helper in `supabase/functions/_shared/voucher-render.ts` using Deno's `@napi-rs/canvas`-compatible Skia bindings (or fall back to a simple SVG-to-PNG via `resvg-wasm`) that mirrors the client layout. Both the Phase 1 flow (updated) and Phase 2 webhook use this so the image is identical whether purchased in-app or via storefront.
 
-## Frontend
+## Files touched
 
-**Vendor (`/vendor/voucher-hub`)**
-- Tabs: Categories · Stock · Template · Sales
-- Categories: create/edit (name, validity in days with presets 7/30/90/custom)
-- Stock: pick category → CSV upload (drag-drop) + manual add + table with status filter
-- Template: single form (logo upload via existing `ImageUploadField`, color picker or background image) + live preview via shared `<VoucherPreview />` component
-- Sales: total sold, remaining stock per category, read-only wallet balance card
+**Migration** (one)
+- Add `'voucher'` to `vendor_category`, add `vendors.slug` (unique), backfill slugs, add `credit_vendor_wallet_for_voucher(uuid)` SECURITY DEFINER function, GRANTs.
 
-**Customer (`/vouchers`)**
-- Grid of vendors with active categories that have stock
-- Category detail → "Buy for ₦X" → wallet confirm → success dialog shows the rendered voucher (`<VoucherPreview />`), download button, "View in My Vouchers"
-- `/vouchers/my` — purchased voucher history
+**Frontend**
+- `src/pages/vendor/VendorAuth.tsx` — add voucher option in both selects
+- `src/components/vendor/VendorSidebar.tsx` — category-gated menu
+- `src/pages/admin/AdminVendors.tsx` — category filter incl. voucher
+- `src/pages/admin/AdminPayouts.tsx` — small category label column
+- `src/pages/public/VoucherStorefront.tsx` (new) + `VoucherStorefrontSuccess.tsx` (new)
+- `src/App.tsx` — add `/v/:slug` and success route
+- `src/pages/vendor/VendorVoucherHub.tsx` — surface the public link ("Share your storefront") using the vendor's slug
 
-**Admin (`/admin/voucher-hub`)**
-- KPIs: total sold, revenue, commission earned (all-time + this month)
-- Breakdown table by vendor and by category
-- Commission control: platform default input + per-vendor override table
+**Edge functions**
+- `voucher-storefront` (new, public)
+- `voucher-guest-initiate` (new, public)
+- `paystack-webhook` (extend for voucher purchases)
+- `purchase-voucher` (rewire to credit real `wallets` + `wallet_transactions`)
+- `_shared/voucher-render.ts` (new)
 
-## Shared component
+**Email**
+- New template `supabase/functions/_shared/transactional-email-templates/voucher-delivery.tsx`
 
-- `<VoucherPreview vendor category code expiry purchasedAt template />` — used identically in vendor preview, purchase success dialog, and admin previews. Also exposes `renderToBlob()` for canvas → PNG upload.
-
-## Nav wiring
-
-- Add "Voucher Hub" to `VendorSidebar` (feature-gated behind existing vendor auth).
-- Add "Vouchers" entry to customer nav (Explore area).
-- Add "Voucher Hub" to `AdminSidebar`.
-
-## Files to create
-
-Migration (1), edge function `purchase-voucher/index.ts`, and roughly:
-- `src/pages/vendor/VendorVoucherHub.tsx`
-- `src/components/vendor/voucher/{CategoriesTab,StockTab,TemplateTab,SalesTab,CsvUploadDialog}.tsx`
-- `src/pages/vouchers/{VouchersList,VoucherCategory,MyVouchers}.tsx`
-- `src/components/vouchers/{VoucherPreview,PurchaseSuccessDialog}.tsx`
-- `src/pages/admin/AdminVoucherHub.tsx`
-- `src/hooks/{useVoucherCategories,useVendorTemplate,useVoucherPurchase}.ts`
-- Route wiring in `App.tsx` + sidebar entries
-
-## Out of scope (Phase 2)
-
-Public no-login storefront, Paystack guest checkout, email delivery of voucher image, automatic wallet crediting per sale, vendor withdrawals.
-
-## Decisions I'd like you to confirm before I build
-
-1. **Payment source for Phase 1 in-app buyers**: use customer wallet (matches existing food-order pattern) — OK?
-2. **Separate commission table** (`vendor_commission_rates`) dedicated to voucher hub, vs reusing existing `commission_overrides` with a new entity_type — I'd prefer separate for clean Phase 2 wallet wiring. OK?
-3. **Template**: one canvas layout, fixed — confirm you don't also want a couple preset layouts to pick from.
-
-If all three are OK, reply "go" and I'll build straight through.
+## Decisions needed
+1. **Ledger table**: existing vendor earnings already flow through `wallet_transactions`, and reusing it is what makes the "reuse existing withdrawal system" requirement actually work with zero new plumbing. I plan to skip the new `vendor_wallet_transactions` table and use `wallet_transactions` with `category='voucher_sale'` — same auditability. OK to proceed this way? (Alternative: keep a parallel `vendor_wallet_transactions` that mirrors every credit — extra write on every sale, no functional benefit.)
+2. **Voucher vendor outlet**: to plug into the existing wallet/withdrawal schema (which requires an `outlet_id`), voucher vendors will get one auto-created "Main" outlet on signup with no address requirements. OK?
+3. **Storefront URL**: `/v/:slug` on the app domain (`app.fastcalories.online/v/mtn-store`). Confirm — or do you want it on the marketing domain?
