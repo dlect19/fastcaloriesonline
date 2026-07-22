@@ -46,6 +46,7 @@ const menuItems: MenuItem[] = [
   { icon: Percent, label: 'Commission Promos', path: '/admin/commission-promos', requiredPermission: 'manage_promos' },
   { icon: Gift, label: 'Rewards & Spins', path: '/admin/rewards', requiredPermission: 'manage_promos' },
   { icon: UtensilsCrossed, label: 'Free Meals', path: '/admin/free-meals', requiredPermission: 'manage_promos' },
+  { icon: Ticket, label: 'Voucher Hub', path: '/admin/voucher-hub', requiredPermission: 'manage_vendors' },
   { icon: Image, label: 'Carousel', path: '/admin/advertisements', requiredPermission: 'manage_vendors' },
   { icon: Sparkles, label: 'Campaigns', path: '/admin/campaigns', requiredPermission: 'manage_vendors' },
   { icon: Megaphone, label: 'Ad Placements', path: '/admin/ad-placements', requiredPermission: 'manage_vendors' },

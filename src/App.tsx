@@ -153,6 +153,11 @@ import OrganizerAuth from "./pages/OrganizerAuth";
 import OrganizerDashboard from "./pages/OrganizerDashboard";
 import EventPlannersLanding from "./pages/EventPlannersLanding";
 import AdminEventVerify from "./pages/admin/AdminEventVerify";
+import VendorVoucherHub from "./pages/vendor/VendorVoucherHub";
+import VouchersList from "./pages/vouchers/VouchersList";
+import VoucherCategory from "./pages/vouchers/VoucherCategory";
+import MyVouchers from "./pages/vouchers/MyVouchers";
+import AdminVoucherHub from "./pages/admin/AdminVoucherHub";
 import { playGlobalNotificationSound } from '@/lib/globalAudio';
 import { useFcmNotifications } from '@/hooks/useFcmNotifications';
 import { usePortalMemory } from '@/hooks/usePortalMemory';
@@ -263,6 +268,12 @@ const App = () => {
               <Route path="/vendor/pos/reports" element={<VendorPosReports />} />
               <Route path="/vendor/pos/pricing" element={<VendorPosPricing />} />
               <Route path="/vendor/voucher-verify" element={<VendorVoucherVerify />} />
+              <Route path="/vendor/voucher-hub" element={<VendorVoucherHub />} />
+              {/* Voucher Hub (customer) */}
+              <Route path="/vouchers" element={<VouchersList />} />
+              <Route path="/vouchers/my" element={<MyVouchers />} />
+              <Route path="/vouchers/:id" element={<VoucherCategory />} />
+              <Route path="/admin/voucher-hub" element={<AdminVoucherHub />} />
               {/* Rider Portal Routes */}
               <Route path="/rider/auth" element={<RiderAuth />} />
               <Route path="/rider/dashboard" element={<RiderDashboard />} />
