@@ -56,7 +56,7 @@ export default function VendorAuth() {
   const [linkPassword, setLinkPassword] = useState('');
   const [showLinkPassword, setShowLinkPassword] = useState(false);
   const [linkBusinessName, setLinkBusinessName] = useState('');
-  const [linkBusinessCategory, setLinkBusinessCategory] = useState<'restaurant' | 'pharmacy' | 'market'>('restaurant');
+  const [linkBusinessCategory, setLinkBusinessCategory] = useState<'restaurant' | 'pharmacy' | 'market' | 'voucher'>('restaurant');
   const [linkAddress, setLinkAddress] = useState('');
   const [linkCity, setLinkCity] = useState('');
   const [linkState, setLinkState] = useState('Lagos');
