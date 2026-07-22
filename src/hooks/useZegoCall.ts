@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { ZegoExpressEngine } from 'zego-express-engine-webrtc';
-import { getZegoToken, makeCallRoomId } from '@/lib/zegoToken';
+import { getZegoToken, makeCallRoomId, makeZegoUserId } from '@/lib/zegoToken';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
@@ -83,6 +83,7 @@ export function useZegoCall() {
   const localStreamRef = useRef<MediaStream | null>(null);
   const engineRef = useRef<ZegoExpressEngine | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const zegoUserIdRef = useRef<string | null>(null);
 
   const cleanup = useCallback(async () => {
     try {
@@ -91,11 +92,13 @@ export function useZegoCall() {
           engineRef.current.destroyStream(localStreamRef.current);
           localStreamRef.current.getTracks().forEach((t) => t.stop());
         }
-        engineRef.current.stopPublishingStream(`s_${user?.id}`);
+        const zegoUserId = zegoUserIdRef.current || (user?.id ? makeZegoUserId(user.id, 'customer') : '');
+        if (zegoUserId) engineRef.current.stopPublishingStream(`s_${zegoUserId}`);
         await engineRef.current.logoutRoom(active.roomId);
       }
     } catch (e) { console.warn('call cleanup', e); }
     localStreamRef.current = null;
+    zegoUserIdRef.current = null;
     setRemoteStream(null);
     setActive(null);
     setMuted(false);
@@ -103,8 +106,10 @@ export function useZegoCall() {
   }, [active, user?.id]);
 
   // Join zego room and publish/subscribe audio
-  const joinRoom = useCallback(async (roomId: string) => {
+  const joinRoom = useCallback(async (roomId: string, role: CallRole) => {
     if (!user) throw new Error('No user');
+    const zegoUserId = makeZegoUserId(user.id, role);
+    zegoUserIdRef.current = zegoUserId;
     const host = typeof window !== 'undefined' ? window.location.hostname : 'ssr';
     const isPreview = /lovableproject\.com$|id-preview--/.test(host);
     const isPublished = /lovable\.app$/.test(host) && !isPreview;
@@ -114,13 +119,15 @@ export function useZegoCall() {
       environment: isPreview ? 'preview' : isPublished ? 'published' : 'other',
       protocol: typeof window !== 'undefined' ? window.location.protocol : 'ssr',
     });
-    const tokenResp = await getZegoToken(roomId);
+    const tokenResp = await getZegoToken(roomId, zegoUserId);
     const { token, appId, userId: tokenUserId, expiresAt } = tokenResp;
     console.log('[zego] token received', {
       appId,
       tokenUserId,
-      clientUserId: user.id,
-      userIdMatches: tokenUserId === user.id,
+      clientUserId: zegoUserId,
+      authUserId: user.id,
+      role,
+      userIdMatches: tokenUserId === zegoUserId,
       roomId,
       tokenReceived: !!token,
       tokenLen: token?.length ?? 0,
@@ -129,8 +136,8 @@ export function useZegoCall() {
       secondsUntilExpiry: expiresAt ? expiresAt - Math.floor(Date.now() / 1000) : null,
     });
     if (!token) throw new Error('No Zego token returned from server');
-    if (tokenUserId && tokenUserId !== user.id) {
-      throw new Error(`Zego token userId mismatch: token=${tokenUserId} client=${user.id}`);
+    if (tokenUserId && tokenUserId !== zegoUserId) {
+      throw new Error(`Zego token userId mismatch: token=${tokenUserId} client=${zegoUserId}`);
     }
 
     const engine = await getEngine(appId);
@@ -152,7 +159,7 @@ export function useZegoCall() {
       const loginResp = await engine.loginRoom(
         roomId,
         token,
-        { userID: user.id, userName: user.email || user.id },
+        { userID: zegoUserId, userName: user.email || role },
         { userUpdate: true },
       );
       console.log('[zego] loginRoom ok', { roomId, loginResp });
@@ -172,7 +179,7 @@ export function useZegoCall() {
       camera: { audio: true, video: false, AEC: true, ANS: true, AGC: true },
     });
     localStreamRef.current = stream as unknown as MediaStream;
-    engine.startPublishingStream(`s_${user.id}`, stream);
+    engine.startPublishingStream(`s_${zegoUserId}`, stream);
   }, [user]);
 
   const startCall = useCallback(async (input: StartCallInput) => {
@@ -229,7 +236,7 @@ export function useZegoCall() {
     }).catch((e) => console.warn('[call] push notify failed', e));
 
     try {
-      await joinRoom(roomId);
+      await joinRoom(roomId, input.callerRole);
     } catch (e: any) {
       toast({ title: 'Call setup failed', description: getCallErrorMessage(e), variant: 'destructive' });
       await supabase.from('voice_calls').update({ status: 'Cancelled', ended_at: new Date().toISOString() }).eq('id', row.id);
@@ -237,10 +244,10 @@ export function useZegoCall() {
     }
   }, [user, toast, joinRoom, cleanup]);
 
-  const acceptIncoming = useCallback(async (call: { callId: string; roomId: string; peerName: string }) => {
+  const acceptIncoming = useCallback(async (call: { callId: string; roomId: string; peerName: string; receiverRole: CallRole }) => {
     setActive({ ...call, status: 'connected', isIncoming: true, startedAt: Date.now() });
     await supabase.from('voice_calls').update({ status: 'Accepted' }).eq('id', call.callId);
-    try { await joinRoom(call.roomId); } catch (e: any) {
+    try { await joinRoom(call.roomId, call.receiverRole); } catch (e: any) {
       toast({ title: 'Cannot answer', description: getCallErrorMessage(e), variant: 'destructive' });
       await supabase.from('voice_calls').update({ status: 'Ended', ended_at: new Date().toISOString() }).eq('id', call.callId);
       cleanup();

@@ -89,23 +89,33 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-    const userId = String(claims.claims.sub);
+    const authUserId = String(claims.claims.sub);
 
     const body = await req.json().catch(() => ({}));
     const roomId: string = body.roomId || '';
+    const zegoUserId: string = body.zegoUserId || authUserId;
     const effective = Math.max(60, Math.min(24 * 3600, Number(body.effectiveTimeSeconds || 3600)));
+
+    const allowedZegoUserId = new RegExp(`^${authUserId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:_(customer|vendor|rider|admin))?$`);
+    if (!allowedZegoUserId.test(zegoUserId)) {
+      return new Response(JSON.stringify({ error: 'Invalid Zego user identity' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     // For Express-Web SDK loginRoom, room-scoped privileges are required.
     const payload = roomId
       ? JSON.stringify({ room_id: roomId, privilege: { 1: 1, 2: 1 }, stream_id_list: null })
       : '';
 
-    const kitToken = await generateToken04(userId, effective, payload);
+    const kitToken = await generateToken04(zegoUserId, effective, payload);
     const expiresAt = Math.floor(Date.now() / 1000) + effective;
 
     console.log('[zego-token] issued', {
       appId: APP_ID,
-      userId,
+      authUserId,
+      zegoUserId,
       roomId,
       tokenLen: kitToken.length,
       expiresAt,
@@ -114,7 +124,7 @@ Deno.serve(async (req) => {
     });
 
     return new Response(
-      JSON.stringify({ token: kitToken, appId: APP_ID, userId, expiresAt }),
+      JSON.stringify({ token: kitToken, appId: APP_ID, userId: zegoUserId, expiresAt }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   } catch (e) {
