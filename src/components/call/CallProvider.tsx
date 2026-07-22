@@ -99,11 +99,14 @@ export function CallProvider({ children }: { children: ReactNode }) {
         active={call.active}
         remoteStream={call.remoteStream}
         muted={call.muted}
+        speaker={call.speaker}
         incoming={incoming}
         onAccept={accept}
         onReject={reject}
         onEnd={call.endCall}
         onToggleMute={call.toggleMute}
+        onToggleSpeaker={call.toggleSpeaker}
+        remoteAudioRef={call.remoteAudioRef}
       />
     </CallCtx.Provider>
   );
