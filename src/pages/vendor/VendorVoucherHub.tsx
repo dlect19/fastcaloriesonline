@@ -257,6 +257,20 @@ function StockTab({ categories }: { categories: any[] }) {
     refetch();
   };
 
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editCode, setEditCode] = useState('');
+  const [editValue, setEditValue] = useState<number>(0);
+  const startEdit = (c: any) => { setEditingId(c.id); setEditCode(c.code); setEditValue(Number(c.value)); };
+  const cancelEdit = () => { setEditingId(null); setEditCode(''); setEditValue(0); };
+  const saveEdit = async (id: string) => {
+    if (!editCode.trim() || editValue <= 0) return;
+    const { error } = await supabase.from('voucher_codes').update({ code: editCode.trim(), value: editValue }).eq('id', id);
+    if (error) return toast({ title: error.message, variant: 'destructive' });
+    toast({ title: 'Voucher updated' });
+    cancelEdit();
+    refetch();
+  };
+
   if (categories.length === 0) return <Card><CardContent className="p-6 text-center text-sm text-muted-foreground">Create a category first.</CardContent></Card>;
 
   return (
@@ -292,17 +306,39 @@ function StockTab({ categories }: { categories: any[] }) {
           <Table>
             <TableHeader><TableRow><TableHead>Code</TableHead><TableHead>Value</TableHead><TableHead>Status</TableHead><TableHead>Added</TableHead><TableHead></TableHead></TableRow></TableHeader>
             <TableBody>
-              {filtered.slice(0, 200).map(c => (
+              {filtered.slice(0, 200).map(c => {
+                const isEditing = editingId === c.id;
+                return (
                 <TableRow key={c.id}>
-                  <TableCell className="font-mono">{c.code}</TableCell>
-                  <TableCell>₦{Number(c.value).toLocaleString()}</TableCell>
+                  <TableCell className="font-mono">
+                    {isEditing
+                      ? <Input value={editCode} onChange={(e) => setEditCode(e.target.value)} className="h-8 font-mono" />
+                      : c.code}
+                  </TableCell>
+                  <TableCell>
+                    {isEditing
+                      ? <Input type="number" min={0} value={editValue || ''} onChange={(e) => setEditValue(Number(e.target.value))} className="h-8 w-28" />
+                      : `₦${Number(c.value).toLocaleString()}`}
+                  </TableCell>
                   <TableCell><Badge variant={c.status === 'available' ? 'default' : 'secondary'}>{c.status}</Badge></TableCell>
                   <TableCell className="text-xs text-muted-foreground">{new Date(c.created_at).toLocaleDateString()}</TableCell>
-                  <TableCell className="text-right">
-                    {c.status === 'available' && <Button size="sm" variant="ghost" onClick={() => remove(c.id)}><Trash2 className="w-4 h-4" /></Button>}
+                  <TableCell className="text-right space-x-1">
+                    {c.status === 'available' && !isEditing && (
+                      <>
+                        <Button size="sm" variant="ghost" onClick={() => startEdit(c)}><Pencil className="w-4 h-4" /></Button>
+                        <Button size="sm" variant="ghost" onClick={() => remove(c.id)}><Trash2 className="w-4 h-4" /></Button>
+                      </>
+                    )}
+                    {isEditing && (
+                      <>
+                        <Button size="sm" variant="ghost" onClick={() => saveEdit(c.id)}><Check className="w-4 h-4" /></Button>
+                        <Button size="sm" variant="ghost" onClick={cancelEdit}><X className="w-4 h-4" /></Button>
+                      </>
+                    )}
                   </TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
         )}
@@ -311,6 +347,7 @@ function StockTab({ categories }: { categories: any[] }) {
     </Card>
   );
 }
+
 
 function TemplateTab({ vendorId, vendorName, template, refetch, setTemplate }: any) {
   const { toast } = useToast();
