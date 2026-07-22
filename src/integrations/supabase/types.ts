@@ -8478,6 +8478,7 @@ export type Database = {
           created_at: string
           expiry_date: string
           guest_email: string | null
+          guest_phone: string | null
           id: string
           paystack_reference: string | null
           purchased_at: string
@@ -8495,6 +8496,7 @@ export type Database = {
           created_at?: string
           expiry_date: string
           guest_email?: string | null
+          guest_phone?: string | null
           id?: string
           paystack_reference?: string | null
           purchased_at?: string
@@ -8512,6 +8514,7 @@ export type Database = {
           created_at?: string
           expiry_date?: string
           guest_email?: string | null
+          guest_phone?: string | null
           id?: string
           paystack_reference?: string | null
           purchased_at?: string

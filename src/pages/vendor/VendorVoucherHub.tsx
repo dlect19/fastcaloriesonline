@@ -350,16 +350,46 @@ function StockTab({ categories }: { categories: any[] }) {
 
 
 function TemplateTab({ vendorId, vendorName, template, refetch, setTemplate }: any) {
+  const { user } = useAuth();
   const { toast } = useToast();
   const [bgMode, setBgMode] = useState<'color' | 'image'>(template?.background_image_url ? 'image' : 'color');
   const [saving, setSaving] = useState(false);
+  const [uploadingBg, setUploadingBg] = useState(false);
+  const [vendorLogo, setVendorLogo] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!vendorId) return;
+    supabase.from('vendors').select('logo_url').eq('id', vendorId).maybeSingle()
+      .then(({ data }) => setVendorLogo((data as any)?.logo_url || null));
+  }, [vendorId]);
+
+  const uploadBg = async (file: File) => {
+    if (!user) return;
+    if (!file.type.startsWith('image/')) return toast({ title: 'Please pick an image', variant: 'destructive' });
+    if (file.size > 5 * 1024 * 1024) return toast({ title: 'Image too large (max 5MB)', variant: 'destructive' });
+    setUploadingBg(true);
+    try {
+      const ext = file.name.split('.').pop() || 'jpg';
+      const path = `${user.id}/voucher-bg-${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from('vendor-assets').upload(path, file, { contentType: file.type });
+      if (error) throw error;
+      const { data } = supabase.storage.from('vendor-assets').getPublicUrl(path);
+      setTemplate({ ...template, background_image_url: data.publicUrl });
+      toast({ title: 'Background uploaded' });
+    } catch (e: any) {
+      toast({ title: 'Upload failed', description: e.message, variant: 'destructive' });
+    } finally {
+      setUploadingBg(false);
+    }
+  };
 
   const save = async () => {
     if (!template) return;
     setSaving(true);
     const payload = {
       vendor_id: vendorId,
-      logo_url: template.logo_url,
+      // Storefront uses your business logo automatically — no separate upload needed.
+      logo_url: null,
       background_color: bgMode === 'color' ? (template.background_color || '#0F172A') : null,
       background_image_url: bgMode === 'image' ? template.background_image_url : null,
     };
@@ -375,7 +405,17 @@ function TemplateTab({ vendorId, vendorName, template, refetch, setTemplate }: a
       <Card>
         <CardHeader><CardTitle>Brand template</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          <ImageUploadField label="Store logo" value={template?.logo_url || ''} onChange={(url) => setTemplate({ ...template, logo_url: url })} folder="voucher-templates" />
+          <div className="rounded-lg border border-dashed p-3 flex items-center gap-3 bg-muted/40">
+            {vendorLogo ? (
+              <img src={vendorLogo} alt="Business logo" className="w-14 h-14 rounded-lg object-cover" />
+            ) : (
+              <div className="w-14 h-14 rounded-lg bg-muted flex items-center justify-center text-xs text-muted-foreground">No logo</div>
+            )}
+            <div className="text-xs text-muted-foreground">
+              Your <span className="font-medium text-foreground">business logo</span> is used automatically on the storefront and voucher image.{' '}
+              {!vendorLogo && <>Add one from <span className="font-medium">Store Settings</span>.</>}
+            </div>
+          </div>
           <div>
             <Label>Background</Label>
             <div className="flex gap-2 mt-1">
@@ -392,7 +432,25 @@ function TemplateTab({ vendorId, vendorName, template, refetch, setTemplate }: a
               </div>
             </div>
           ) : (
-            <ImageUploadField label="Background image" value={template?.background_image_url || ''} onChange={(url) => setTemplate({ ...template, background_image_url: url })} folder="voucher-backgrounds" />
+            <div className="space-y-2">
+              <Label>Background image</Label>
+              {template?.background_image_url && (
+                <div className="relative inline-block">
+                  <img src={template.background_image_url} alt="" className="w-full max-w-xs h-32 object-cover rounded border" />
+                  <button
+                    type="button"
+                    className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1 shadow"
+                    onClick={() => setTemplate({ ...template, background_image_url: null })}
+                    aria-label="Remove background"
+                  ><X className="w-3 h-3" /></button>
+                </div>
+              )}
+              <label className="flex items-center gap-2 px-3 py-2 rounded-md border border-dashed cursor-pointer text-sm hover:bg-muted/50 w-fit">
+                <Upload className="w-4 h-4" />
+                {uploadingBg ? 'Uploading…' : (template?.background_image_url ? 'Replace image' : 'Upload background image')}
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadBg(f); e.currentTarget.value = ''; }} />
+              </label>
+            </div>
           )}
           <Button onClick={save} disabled={saving} className="w-full">{saving ? 'Saving…' : 'Save template'}</Button>
         </CardContent>
@@ -402,7 +460,7 @@ function TemplateTab({ vendorId, vendorName, template, refetch, setTemplate }: a
         <CardContent className="flex justify-center">
           <VoucherPreview
             vendorName={vendorName}
-            vendorLogoUrl={template?.logo_url}
+            vendorLogoUrl={vendorLogo}
             categoryName="Sample Category"
             code="SAMPLE-CODE-1234"
             expiryDate={new Date(Date.now() + 30 * 86400000)}
@@ -419,9 +477,11 @@ function TemplateTab({ vendorId, vendorName, template, refetch, setTemplate }: a
 
 function SalesTab({ vendorId, categories }: { vendorId: string; categories: any[] }) {
   const [perCategory, setPerCategory] = useState<Record<string, { sold: number; available: number }>>({});
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(true);
 
   useEffect(() => {
-    if (!vendorId || categories.length === 0) return;
+    if (!vendorId || categories.length === 0) { setPerCategory({}); return; }
     const load = async () => {
       const ids = categories.map(c => c.id);
       const { data: codes } = await supabase.from('voucher_codes').select('category_id, status').in('category_id', ids);
@@ -437,25 +497,114 @@ function SalesTab({ vendorId, categories }: { vendorId: string; categories: any[
     load();
   }, [vendorId, categories]);
 
+  useEffect(() => {
+    if (!vendorId) return;
+    setLoadingOrders(true);
+    (async () => {
+      const { data } = await supabase
+        .from('voucher_orders')
+        .select('id, amount, status, purchased_at, guest_email, guest_phone, paystack_reference, category_id, code_id')
+        .eq('vendor_id', vendorId)
+        .order('purchased_at', { ascending: false })
+        .limit(200);
+      const rows = (data || []) as any[];
+      const codeIds = rows.map(r => r.code_id).filter(Boolean);
+      let codeMap: Record<string, string> = {};
+      if (codeIds.length) {
+        const { data: codes } = await supabase.from('voucher_codes').select('id, code').in('id', codeIds);
+        for (const c of codes || []) codeMap[(c as any).id] = (c as any).code;
+      }
+      const catMap: Record<string, string> = {};
+      categories.forEach(c => { catMap[c.id] = c.name; });
+      setOrders(rows.map(r => ({ ...r, code: codeMap[r.code_id] || '—', categoryName: catMap[r.category_id] || '—' })));
+      setLoadingOrders(false);
+    })();
+  }, [vendorId, categories]);
+
+  const exportCsv = () => {
+    const header = ['Purchased At', 'Category', 'Code', 'Amount', 'Email', 'Phone', 'Reference', 'Status'];
+    const rows = orders.map(o => [
+      new Date(o.purchased_at).toISOString(),
+      o.categoryName,
+      o.code,
+      o.amount,
+      o.guest_email || '',
+      o.guest_phone || '',
+      o.paystack_reference || '',
+      o.status,
+    ]);
+    const csv = [header, ...rows].map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `voucher-sales-${Date.now()}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
-    <Card>
-      <CardHeader><CardTitle>Sales & stock by category</CardTitle></CardHeader>
-      <CardContent>
-        {categories.length === 0 ? <p className="text-sm text-muted-foreground text-center py-6">No categories yet.</p> : (
-          <Table>
-            <TableHeader><TableRow><TableHead>Category</TableHead><TableHead>Sold</TableHead><TableHead>Remaining</TableHead></TableRow></TableHeader>
-            <TableBody>
-              {categories.map(c => (
-                <TableRow key={c.id}>
-                  <TableCell>{c.name}</TableCell>
-                  <TableCell>{perCategory[c.id]?.sold ?? 0}</TableCell>
-                  <TableCell>{perCategory[c.id]?.available ?? 0}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </CardContent>
-    </Card>
+    <div className="space-y-4">
+      <Card>
+        <CardHeader><CardTitle>Sales & stock by category</CardTitle></CardHeader>
+        <CardContent>
+          {categories.length === 0 ? <p className="text-sm text-muted-foreground text-center py-6">No categories yet.</p> : (
+            <Table>
+              <TableHeader><TableRow><TableHead>Category</TableHead><TableHead>Sold</TableHead><TableHead>Remaining</TableHead></TableRow></TableHeader>
+              <TableBody>
+                {categories.map(c => (
+                  <TableRow key={c.id}>
+                    <TableCell>{c.name}</TableCell>
+                    <TableCell>{perCategory[c.id]?.sold ?? 0}</TableCell>
+                    <TableCell>{perCategory[c.id]?.available ?? 0}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Buyer reconciliation ({orders.length})</CardTitle>
+          <Button size="sm" variant="outline" onClick={exportCsv} disabled={orders.length === 0}>Export CSV</Button>
+        </CardHeader>
+        <CardContent>
+          {loadingOrders ? (
+            <p className="text-sm text-muted-foreground text-center py-6">Loading…</p>
+          ) : orders.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">No sales yet.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Code issued</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Phone</TableHead>
+                    <TableHead>Reference</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {orders.map(o => (
+                    <TableRow key={o.id}>
+                      <TableCell className="text-xs whitespace-nowrap">{new Date(o.purchased_at).toLocaleString()}</TableCell>
+                      <TableCell>{o.categoryName}</TableCell>
+                      <TableCell className="font-mono text-xs">{o.code}</TableCell>
+                      <TableCell>₦{Number(o.amount).toLocaleString()}</TableCell>
+                      <TableCell className="text-xs">{o.guest_email || <span className="text-muted-foreground">—</span>}</TableCell>
+                      <TableCell className="text-xs">{o.guest_phone || <span className="text-muted-foreground">—</span>}</TableCell>
+                      <TableCell className="font-mono text-[10px] text-muted-foreground">{o.paystack_reference || '—'}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }

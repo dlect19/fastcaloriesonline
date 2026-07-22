@@ -1,0 +1,1 @@
+ALTER TABLE public.voucher_orders ADD COLUMN IF NOT EXISTS guest_phone TEXT;
