@@ -147,6 +147,7 @@ export default function AdminCustomers() {
          user_id: profile.user_id,
          full_name: profile.full_name,
          phone: profile.phone,
+         phone_verified: !!(profile as any).phone_verified,
          created_at: profile.created_at,
          order_count: orderStatsByUser[profile.user_id]?.count || 0,
          total_spent: orderStatsByUser[profile.user_id]?.total || 0,
