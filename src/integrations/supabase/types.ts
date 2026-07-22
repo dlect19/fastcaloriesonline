@@ -8470,14 +8470,16 @@ export type Database = {
       voucher_orders: {
         Row: {
           amount: number
-          buyer_user_id: string
+          buyer_user_id: string | null
           category_id: string
           code_id: string
           commission_amount: number
           commission_rate: number
           created_at: string
           expiry_date: string
+          guest_email: string | null
           id: string
+          paystack_reference: string | null
           purchased_at: string
           rendered_image_url: string | null
           status: string
@@ -8485,14 +8487,16 @@ export type Database = {
         }
         Insert: {
           amount: number
-          buyer_user_id: string
+          buyer_user_id?: string | null
           category_id: string
           code_id: string
           commission_amount?: number
           commission_rate?: number
           created_at?: string
           expiry_date: string
+          guest_email?: string | null
           id?: string
+          paystack_reference?: string | null
           purchased_at?: string
           rendered_image_url?: string | null
           status?: string
@@ -8500,14 +8504,16 @@ export type Database = {
         }
         Update: {
           amount?: number
-          buyer_user_id?: string
+          buyer_user_id?: string | null
           category_id?: string
           code_id?: string
           commission_amount?: number
           commission_rate?: number
           created_at?: string
           expiry_date?: string
+          guest_email?: string | null
           id?: string
+          paystack_reference?: string | null
           purchased_at?: string
           rendered_image_url?: string | null
           status?: string
@@ -9391,6 +9397,10 @@ export type Database = {
         Args: { p_order_id: string; p_vendor_id: string; p_voucher_id: string }
         Returns: undefined
       }
+      credit_vendor_wallet_for_voucher: {
+        Args: { _order_id: string }
+        Returns: undefined
+      }
       debug_wallet_tx_insert: {
         Args: { p_amount: number; p_order_id: string; p_wallet_id: string }
         Returns: string
@@ -9406,6 +9416,10 @@ export type Database = {
       gen_event_order_number: { Args: never; Returns: string }
       gen_event_ticket_code: { Args: never; Returns: string }
       generate_slug: { Args: { input_text: string }; Returns: string }
+      generate_vendor_slug: {
+        Args: { _name: string; _vendor_id: string }
+        Returns: string
+      }
       generate_voucher_code: { Args: never; Returns: string }
       get_admin_staff_role: {
         Args: { _user_id: string }
@@ -9808,7 +9822,7 @@ export type Database = {
         | "general"
       support_ticket_status: "open" | "in_progress" | "resolved" | "closed"
       support_user_type: "customer" | "vendor" | "rider" | "logistics"
-      vendor_category: "restaurant" | "pharmacy" | "market"
+      vendor_category: "restaurant" | "pharmacy" | "market" | "voucher"
       vendor_staff_role: "owner" | "manager" | "cashier" | "viewer"
       vendor_verification_status:
         | "unverified"
@@ -10020,7 +10034,7 @@ export const Constants = {
       ],
       support_ticket_status: ["open", "in_progress", "resolved", "closed"],
       support_user_type: ["customer", "vendor", "rider", "logistics"],
-      vendor_category: ["restaurant", "pharmacy", "market"],
+      vendor_category: ["restaurant", "pharmacy", "market", "voucher"],
       vendor_staff_role: ["owner", "manager", "cashier", "viewer"],
       vendor_verification_status: [
         "unverified",
