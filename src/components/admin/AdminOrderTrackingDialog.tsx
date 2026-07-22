@@ -67,7 +67,9 @@ interface VendorInfo {
   outletAddress: string | null;
   latitude: number | null;
   longitude: number | null;
+  userId: string | null;
 }
+
 
 interface CustomerInfo {
   name: string;
