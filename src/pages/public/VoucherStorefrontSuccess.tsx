@@ -34,8 +34,10 @@ export default function VoucherStorefrontSuccess() {
           return;
         }
       } catch { /* ignore */ }
-      if (attempts >= 20) { setStatus('failed'); return; }
-      setTimeout(poll, 1500);
+      if (attempts >= 30) { setStatus('failed'); return; }
+      // First few attempts are quick so the fallback verify path can resolve fast.
+      const delay = attempts < 5 ? 800 : 1500;
+      setTimeout(poll, delay);
     };
     poll();
     return () => { cancelled = true; };

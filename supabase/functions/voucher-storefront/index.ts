@@ -69,16 +69,20 @@ serve(async (req: Request) => {
       .eq("vendor_id", vendor.id)
       .maybeSingle();
 
-    // Active ads for the storefront (opt-in — vendors/platform ads with is_active=true)
+    // Active ads for the storefront — only real hosted images, skip legacy gradient-class entries.
     const nowIso = new Date().toISOString();
-    const { data: ads } = await admin
+    const { data: adsRaw } = await admin
       .from("advertisements")
-      .select("id, title, description, image_url, link_url, cta_label")
+      .select("id, title, description, image_url, link_url, cta_label, starts_at, ends_at")
       .eq("is_active", true)
-      .or(`starts_at.is.null,starts_at.lte.${nowIso}`)
-      .or(`ends_at.is.null,ends_at.gte.${nowIso}`)
       .order("display_order", { ascending: true })
-      .limit(3);
+      .limit(20);
+    const ads = (adsRaw || []).filter((a: any) => {
+      const url = typeof a.image_url === "string" && /^https?:\/\//i.test(a.image_url);
+      const started = !a.starts_at || a.starts_at <= nowIso;
+      const notEnded = !a.ends_at || a.ends_at >= nowIso;
+      return url && started && notEnded;
+    }).slice(0, 3);
 
     return json({
       vendor: {
