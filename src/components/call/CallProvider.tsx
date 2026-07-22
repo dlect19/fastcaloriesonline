@@ -58,18 +58,11 @@ export function CallProvider({ children }: { children: ReactNode }) {
     return () => { supabase.removeChannel(ch); };
   }, [user, call.active]);
 
-  // Ringtone loop while incoming
+  // Ringtone loop while incoming (Web Audio, royalty-free)
   useEffect(() => {
-    if (!incoming) {
-      ringtoneRef.current?.pause();
-      return;
-    }
-    const a = new Audio('/notification.mp3');
-    a.loop = true;
-    a.volume = 0.9;
-    a.play().catch(() => {});
-    ringtoneRef.current = a;
-    return () => { a.pause(); };
+    if (!incoming) return;
+    const stop = playRingTone();
+    return () => stop();
   }, [incoming]);
 
   const accept = async () => {
