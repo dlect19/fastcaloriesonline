@@ -44,7 +44,7 @@ export default function VendorAuth() {
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [businessName, setBusinessName] = useState('');
-  const [businessCategory, setBusinessCategory] = useState<'restaurant' | 'pharmacy' | 'market'>('restaurant');
+  const [businessCategory, setBusinessCategory] = useState<'restaurant' | 'pharmacy' | 'market' | 'voucher'>('restaurant');
   const [address, setAddress] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('Lagos');
