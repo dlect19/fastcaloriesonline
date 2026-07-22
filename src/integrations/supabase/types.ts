@@ -8391,6 +8391,7 @@ export type Database = {
       voucher_categories: {
         Row: {
           created_at: string
+          description: string | null
           id: string
           is_active: boolean
           name: string
@@ -8400,6 +8401,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          description?: string | null
           id?: string
           is_active?: boolean
           name: string
@@ -8409,6 +8411,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          description?: string | null
           id?: string
           is_active?: boolean
           name?: string
@@ -8478,6 +8481,7 @@ export type Database = {
           created_at: string
           expiry_date: string
           guest_email: string | null
+          guest_name: string | null
           guest_phone: string | null
           id: string
           paystack_reference: string | null
@@ -8496,6 +8500,7 @@ export type Database = {
           created_at?: string
           expiry_date: string
           guest_email?: string | null
+          guest_name?: string | null
           guest_phone?: string | null
           id?: string
           paystack_reference?: string | null
@@ -8514,6 +8519,7 @@ export type Database = {
           created_at?: string
           expiry_date?: string
           guest_email?: string | null
+          guest_name?: string | null
           guest_phone?: string | null
           id?: string
           paystack_reference?: string | null

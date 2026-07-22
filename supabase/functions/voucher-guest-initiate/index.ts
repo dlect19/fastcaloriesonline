@@ -25,11 +25,12 @@ serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    const { categoryId, email, phone, callbackUrl } = await req.json();
+    const { categoryId, email, phone, name, callbackUrl } = await req.json();
     if (!categoryId || !email) return json({ error: "categoryId and email required" }, 400);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: "Invalid email" }, 400);
     const cleanPhone = (phone || "").toString().trim().replace(/\s+/g, "");
     if (cleanPhone && !/^\+?[0-9]{7,15}$/.test(cleanPhone)) return json({ error: "Invalid phone" }, 400);
+    const cleanName = (name || "").toString().trim().slice(0, 120);
 
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       auth: { autoRefreshToken: false, persistSession: false },
@@ -78,6 +79,7 @@ serve(async (req: Request) => {
           vendor_id: category.vendor_id,
           guest_email: email,
           guest_phone: cleanPhone || null,
+          guest_name: cleanName || null,
           environment: env,
         },
       }),

@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Ticket, Store, ShieldCheck, Sparkles, Clock, Zap } from 'lucide-react';
+import { Loader2, Ticket, Store, ShieldCheck, Sparkles, Clock, Zap, LayoutGrid, List } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Category {
@@ -43,9 +43,11 @@ export default function VoucherStorefront() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [buyCategory, setBuyCategory] = useState<Category | null>(null);
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [viewMode, setViewMode] = useState<'card' | 'list'>('card');
 
   useEffect(() => {
     if (!slug) return;
@@ -68,6 +70,10 @@ export default function VoucherStorefront() {
 
   const handleBuy = async () => {
     if (!buyCategory) return;
+    if (!name.trim() || name.trim().length < 2) {
+      toast.error('Please enter your full name');
+      return;
+    }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       toast.error('Please enter a valid email');
       return;
@@ -82,6 +88,7 @@ export default function VoucherStorefront() {
       const { data: res, error } = await supabase.functions.invoke('voucher-guest-initiate', {
         body: {
           categoryId: buyCategory.id,
+          name: name.trim(),
           email,
           phone: cleanPhone,
           callbackUrl: `${window.location.origin}/v/${slug}/success?ref=__REF__`,
@@ -173,27 +180,34 @@ export default function VoucherStorefront() {
         {/* Ads slot */}
         {data.ads && data.ads.length > 0 && (
           <section aria-label="Sponsored" className="grid gap-3 md:grid-cols-3">
-            {data.ads.map(ad => (
-              <a
-                key={ad.id}
-                href={ad.link_url || '#'}
-                target={ad.link_url ? '_blank' : undefined}
-                rel="noreferrer"
-                className="group relative overflow-hidden rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition"
-              >
-                {ad.image_url && (
-                  <img src={ad.image_url} alt={ad.title} className="w-full h-28 object-cover opacity-80 group-hover:opacity-100 transition" />
-                )}
-                <div className="p-3">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary" className="text-[10px]">Ad</Badge>
-                    <p className="font-semibold text-sm truncate">{ad.title}</p>
+            {data.ads.map(ad => {
+              const isImg = typeof ad.image_url === 'string' && /^https?:\/\//i.test(ad.image_url);
+              return (
+                <a
+                  key={ad.id}
+                  href={ad.link_url || '#'}
+                  target={ad.link_url ? '_blank' : undefined}
+                  rel="noreferrer"
+                  className="group relative overflow-hidden rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition"
+                >
+                  {isImg ? (
+                    <img src={ad.image_url as string} alt={ad.title} className="w-full h-28 object-cover opacity-80 group-hover:opacity-100 transition" />
+                  ) : (
+                    <div className="w-full h-28 bg-gradient-to-br from-primary/40 via-fuchsia-500/30 to-sky-500/30 flex items-center justify-center">
+                      <Sparkles className="w-8 h-8 opacity-80" />
+                    </div>
+                  )}
+                  <div className="p-3">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-[10px]">Ad</Badge>
+                      <p className="font-semibold text-sm truncate">{ad.title}</p>
+                    </div>
+                    {ad.description && <p className="text-xs opacity-70 mt-1 line-clamp-2">{ad.description}</p>}
+                    {ad.cta_label && <p className="text-xs text-primary-foreground/90 mt-2 underline">{ad.cta_label}</p>}
                   </div>
-                  {ad.description && <p className="text-xs opacity-70 mt-1 line-clamp-2">{ad.description}</p>}
-                  {ad.cta_label && <p className="text-xs text-primary-foreground/90 mt-2 underline">{ad.cta_label}</p>}
-                </div>
-              </a>
-            ))}
+                </a>
+              );
+            })}
           </section>
         )}
 
@@ -206,17 +220,48 @@ export default function VoucherStorefront() {
           </Card>
         ) : (
           <>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {inStock.map((c) => (
-                <VoucherCard key={c.id} c={c} onBuy={() => { setBuyCategory(c); setEmail(''); setPhone(''); }} />
-              ))}
+            <div className="flex items-center justify-between">
+              <p className="text-sm opacity-80">Choose a voucher</p>
+              <div className="inline-flex rounded-lg bg-white/10 p-1 border border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('card')}
+                  className={`px-2.5 py-1 rounded-md text-xs flex items-center gap-1 ${viewMode === 'card' ? 'bg-white/20' : 'opacity-70 hover:opacity-100'}`}
+                  aria-label="Card view"
+                ><LayoutGrid className="w-3.5 h-3.5" /> Cards</button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('list')}
+                  className={`px-2.5 py-1 rounded-md text-xs flex items-center gap-1 ${viewMode === 'list' ? 'bg-white/20' : 'opacity-70 hover:opacity-100'}`}
+                  aria-label="List view"
+                ><List className="w-3.5 h-3.5" /> List</button>
+              </div>
             </div>
+            {viewMode === 'card' ? (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {inStock.map((c) => (
+                  <VoucherCard key={c.id} c={c} onBuy={() => { setBuyCategory(c); setName(''); setEmail(''); setPhone(''); }} />
+                ))}
+              </div>
+            ) : (
+              <div className="divide-y divide-white/10 rounded-xl border border-white/10 bg-white/5 overflow-hidden">
+                {inStock.map((c) => (
+                  <VoucherRow key={c.id} c={c} onBuy={() => { setBuyCategory(c); setName(''); setEmail(''); setPhone(''); }} />
+                ))}
+              </div>
+            )}
             {outStock.length > 0 && (
               <div className="pt-4">
                 <p className="text-xs uppercase tracking-wider opacity-60 mb-2">Sold out</p>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 opacity-60">
-                  {outStock.map((c) => <VoucherCard key={c.id} c={c} onBuy={() => {}} />)}
-                </div>
+                {viewMode === 'card' ? (
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 opacity-60">
+                    {outStock.map((c) => <VoucherCard key={c.id} c={c} onBuy={() => {}} />)}
+                  </div>
+                ) : (
+                  <div className="divide-y divide-white/10 rounded-xl border border-white/10 bg-white/5 overflow-hidden opacity-60">
+                    {outStock.map((c) => <VoucherRow key={c.id} c={c} onBuy={() => {}} />)}
+                  </div>
+                )}
               </div>
             )}
           </>
@@ -239,8 +284,13 @@ export default function VoucherStorefront() {
               <p className="text-xs text-muted-foreground mt-1">Valid for {buyCategory?.validity_days} days after purchase</p>
             </div>
             <div className="space-y-2">
+              <Label>Full name</Label>
+              <Input placeholder="John Doe" value={name} onChange={(e) => setName(e.target.value)} />
+            </div>
+            <div className="space-y-2">
               <Label>Email address</Label>
               <Input type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <p className="text-xs text-muted-foreground">Your voucher code and receipt will be sent here.</p>
             </div>
             <div className="space-y-2">
               <Label>Phone number</Label>
@@ -282,5 +332,27 @@ function VoucherCard({ c, onBuy }: { c: Category; onBuy: () => void }) {
         </Button>
       </CardContent>
     </Card>
+  );
+}
+
+function VoucherRow({ c, onBuy }: { c: Category; onBuy: () => void }) {
+  const sold = c.available === 0;
+  return (
+    <div className="flex items-center gap-3 p-3 hover:bg-white/5 transition">
+      <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
+        <Ticket className="w-5 h-5 text-amber-300" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-sm truncate">{c.name}</p>
+        {c.description && <p className="text-xs opacity-70 truncate">{c.description}</p>}
+        <p className="text-[11px] opacity-60 mt-0.5">Valid {c.validity_days} days • {sold ? 'Sold out' : `${c.available} in stock`}</p>
+      </div>
+      <div className="text-right shrink-0">
+        <p className="text-base font-bold">₦{c.price.toLocaleString()}</p>
+        <Button size="sm" className="mt-1 h-7 px-3 text-xs" disabled={sold} onClick={onBuy}>
+          {sold ? 'Sold out' : 'Buy'}
+        </Button>
+      </div>
+    </div>
   );
 }

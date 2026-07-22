@@ -140,17 +140,19 @@ function CategoriesTab({ vendorId, categories, refetch }: { vendorId: string; ca
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
   const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
   const [preset, setPreset] = useState('30');
   const [customDays, setCustomDays] = useState(30);
 
   const openNew = () => {
     setEditing(null);
-    setName(''); setPreset('30'); setCustomDays(30);
+    setName(''); setDescription(''); setPreset('30'); setCustomDays(30);
     setOpen(true);
   };
   const openEdit = (c: any) => {
     setEditing(c);
     setName(c.name);
+    setDescription(c.description || '');
     const matched = VALIDITY_PRESETS.find(p => p.days === c.validity_days);
     if (matched && matched.days !== 0) { setPreset(String(matched.days)); }
     else { setPreset('0'); setCustomDays(c.validity_days); }
@@ -161,16 +163,17 @@ function CategoriesTab({ vendorId, categories, refetch }: { vendorId: string; ca
     if (!name.trim()) return;
     const days = preset === '0' ? customDays : Number(preset);
     if (days <= 0) return;
+    const payload = { name: name.trim(), description: description.trim() || null, validity_days: days };
     if (editing) {
-      const { error } = await supabase.from('voucher_categories').update({ name: name.trim(), validity_days: days }).eq('id', editing.id);
+      const { error } = await supabase.from('voucher_categories').update(payload).eq('id', editing.id);
       if (error) return toast({ title: error.message, variant: 'destructive' });
       toast({ title: 'Category updated' });
     } else {
-      const { error } = await supabase.from('voucher_categories').insert({ vendor_id: vendorId, name: name.trim(), validity_days: days });
+      const { error } = await supabase.from('voucher_categories').insert({ vendor_id: vendorId, ...payload });
       if (error) return toast({ title: error.message, variant: 'destructive' });
       toast({ title: 'Category created' });
     }
-    setName(''); setPreset('30'); setOpen(false); setEditing(null);
+    setName(''); setDescription(''); setPreset('30'); setOpen(false); setEditing(null);
     refetch();
   };
 
@@ -193,6 +196,7 @@ function CategoriesTab({ vendorId, categories, refetch }: { vendorId: string; ca
           <DialogContent><DialogHeader><DialogTitle>{editing ? 'Edit voucher category' : 'New voucher category'}</DialogTitle></DialogHeader>
             <div className="space-y-3">
               <div><Label>Name</Label><Input placeholder="e.g. MTN Data" value={name} onChange={(e) => setName(e.target.value)} /></div>
+              <div><Label>Description (optional)</Label><Input placeholder="e.g. 1GB valid for 30 days" value={description} onChange={(e) => setDescription(e.target.value)} /></div>
               <div><Label>Validity</Label>
                 <Select value={preset} onValueChange={setPreset}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
