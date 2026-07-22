@@ -49,7 +49,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
         setIncoming({
           callId: row.id,
           roomId: row.zego_call_id,
-          peerName: row.caller_role,
+          peerName: row.caller_role === 'admin' ? 'FastCalories Calling' : row.caller_role,
           callerRole: row.caller_role,
           orderId: row.order_id,
         });
@@ -76,7 +76,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
       setIncoming({
         callId: row.id,
         roomId: row.zego_call_id,
-        peerName: row.caller_role,
+        peerName: row.caller_role === 'admin' ? 'FastCalories Calling' : row.caller_role,
         callerRole: row.caller_role,
         orderId: row.order_id,
       });

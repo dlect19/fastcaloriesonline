@@ -7,7 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Loader2, XCircle, Eye, Search, Gift, DollarSign, Clock, CheckCircle2 } from 'lucide-react';
+import { Loader2, XCircle, Eye, Search, Gift, DollarSign, Clock, CheckCircle2, PhoneCall } from 'lucide-react';
+import { useCall } from '@/components/call/CallProvider';
 import { format, differenceInMinutes, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { AdminCancelOrderDialog } from '@/components/admin/AdminCancelOrderDialog';
 import { AdminOrderTrackingDialog } from '@/components/admin/AdminOrderTrackingDialog';
@@ -22,6 +23,28 @@ const PAST_STATUSES = ['delivered', 'cancelled'];
 
 export default function AdminOrders() {
   const navigate = useNavigate();
+  const { startCall } = useCall();
+  const isTerminal = (s: string) => ['delivered', 'cancelled', 'completed', 'refunded'].includes(s);
+  const callVendor = (order: any) => {
+    if (!order.vendors?.user_id) return;
+    startCall({
+      orderId: order.id,
+      receiverId: order.vendors.user_id,
+      callerRole: 'admin' as any,
+      receiverRole: 'vendor',
+      receiverName: order.vendors?.name || 'Vendor',
+    });
+  };
+  const callRider = (order: any) => {
+    if (!order.rider_id) return;
+    startCall({
+      orderId: order.id,
+      receiverId: order.rider_id,
+      callerRole: 'admin' as any,
+      receiverRole: 'rider',
+      receiverName: order.rider_name || 'Rider',
+    });
+  };
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<any[]>([]);
   const [statusFilter, setStatusFilter] = useState('all');
@@ -108,7 +131,7 @@ export default function AdminOrders() {
     try {
       let query = supabase
         .from('orders')
-        .select('*, vendors(name)')
+        .select('*, vendors(name, user_id)')
         .order('created_at', { ascending: false })
         .limit(1000);
 
@@ -496,7 +519,22 @@ export default function AdminOrders() {
                           </div>
                         </td>
                         <td className="py-3 px-4 text-muted-foreground">{order.customer_phone}</td>
-                        <td className="py-3 px-4">{order.vendors?.name}</td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-1.5">
+                            <span>{order.vendors?.name}</span>
+                            {order.vendors?.user_id && !isTerminal(order.status) && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-6 w-6 text-primary"
+                                title="Call vendor as FastCalories"
+                                onClick={() => callVendor(order)}
+                              >
+                                <PhoneCall className="w-3.5 h-3.5" />
+                              </Button>
+                            )}
+                          </div>
+                        </td>
                         <td className="py-3 px-4">
                           {order.channel === 'pos' ? (
                             <Badge className="bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/20 text-xs">🧾 POS</Badge>
@@ -528,10 +566,23 @@ export default function AdminOrders() {
                          <td className="py-3 px-4">{getStatusBadge(order.status)}</td>
                          <td className="py-3 px-4">
                            {order.rider_name ? (
-                             <span className="text-sm flex items-center gap-1">
-                               <span className="text-primary">🏍️</span>
-                               {order.rider_name}
-                             </span>
+                             <div className="flex items-center gap-1.5">
+                               <span className="text-sm flex items-center gap-1">
+                                 <span className="text-primary">🏍️</span>
+                                 {order.rider_name}
+                               </span>
+                               {order.rider_id && !isTerminal(order.status) && (
+                                 <Button
+                                   size="icon"
+                                   variant="ghost"
+                                   className="h-6 w-6 text-primary"
+                                   title="Call rider as FastCalories"
+                                   onClick={() => callRider(order)}
+                                 >
+                                   <PhoneCall className="w-3.5 h-3.5" />
+                                 </Button>
+                               )}
+                             </div>
                            ) : (
                              <span className="text-xs text-muted-foreground">—</span>
                            )}

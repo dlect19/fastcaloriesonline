@@ -50,7 +50,7 @@ export function canRiderCallCustomer(status: OrderStatus | null | undefined) {
   return ['assigned', 'ready_for_pickup', 'searching_for_rider', 'picked_up', 'on_the_way'].includes(norm(status));
 }
 
-type Role = 'customer' | 'vendor' | 'rider';
+type Role = 'customer' | 'vendor' | 'rider' | 'admin';
 
 /** Resolve a call permission for any (myRole → peerRole) pair. */
 export function canCall(
@@ -59,6 +59,8 @@ export function canCall(
   status: OrderStatus | null | undefined,
 ): boolean {
   if (isTerminalStatus(status)) return false;
+  // Platform/admin can always contact vendors or riders on any active order.
+  if (myRole === 'admin') return peerRole === 'vendor' || peerRole === 'rider';
   if (myRole === 'customer' && peerRole === 'vendor') return canCustomerCallVendor(status);
   if (myRole === 'vendor' && peerRole === 'customer') return canVendorCallCustomer(status);
   if (myRole === 'customer' && peerRole === 'rider') return canCustomerCallRider(status);

@@ -5,7 +5,7 @@ import { logExternalCall } from '@/hooks/useZegoCall';
 import { useAuth } from '@/hooks/useAuth';
 import { canCall, isTerminalStatus, type OrderStatus } from '@/lib/callPermissions';
 
-type Role = 'customer' | 'vendor' | 'rider';
+type Role = 'customer' | 'vendor' | 'rider' | 'admin';
 
 interface Props {
   orderId: string;

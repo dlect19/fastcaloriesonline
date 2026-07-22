@@ -497,12 +497,6 @@ export default function OrderDetail() {
               <MapPin className="w-5 h-5 text-muted-foreground mt-0.5" />
               <span className="text-muted-foreground">{order.vendors?.address}</span>
             </div>
-            {order.vendors?.phone && (
-              <a href={`tel:${order.vendors.phone}`} className="flex items-center gap-3 text-primary">
-                <Phone className="w-5 h-5" />
-                <span>{order.vendors.phone}</span>
-              </a>
-            )}
           </CardContent>
         </Card>
 
@@ -533,24 +527,6 @@ export default function OrderDetail() {
         {/* Delivery Type Switcher - Allow customer to change delivery option */}
         <DeliveryTypeSwitcher order={order} onSwitched={fetchOrder} />
 
-        {/* Comms to Vendor */}
-        {order.vendor_id && order.status !== 'cancelled' && (
-          <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-base">Contact Restaurant</CardTitle></CardHeader>
-            <CardContent>
-              <CommButtons
-                orderId={order.id}
-                peerUserId={order.vendors?.user_id || null}
-                peerPhone={order.vendors?.phone}
-                peerName={order.vendors?.name}
-                myRole="customer"
-                peerRole="vendor"
-                orderStatus={order.status}
-                compact
-              />
-            </CardContent>
-          </Card>
-        )}
 
         {/* Rider Info - Show as soon as rider is assigned */}
         {order.delivery_type !== 'self_pickup' && order.rider_id && !['pending', 'cancelled'].includes(order.status) && (
