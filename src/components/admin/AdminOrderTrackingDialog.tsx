@@ -211,7 +211,7 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
     // Vendor
     const { data: v } = await supabase
       .from('vendors')
-      .select('name, phone, address, latitude, longitude')
+      .select('name, phone, address, latitude, longitude, user_id')
       .eq('id', o.vendor_id)
       .maybeSingle();
 
@@ -242,7 +242,9 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
       outletAddress: outletAddr,
       latitude: oLat,
       longitude: oLng,
+      userId: (v as any)?.user_id || null,
     });
+
 
     // Customer profile (registered customer)
     const { data: cp } = o.user_id
