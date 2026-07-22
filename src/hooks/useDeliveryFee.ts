@@ -244,8 +244,16 @@ export function useDeliveryFee({ vendorLat, vendorLon, customerLat, customerLon,
     if (distanceKm === null || settingsLoading) {
       return settings.baseDeliveryFee;
     }
+    // Defensive: cached distance from Google can inch slightly above the
+    // base-distance band due to routing detours. Anything within +10% of the
+    // base band is still treated as within-base — never charge per-km on top
+    // of the base fee for what is essentially a base-distance ride.
+    const effectiveDistance =
+      distanceKm <= settings.baseDeliveryDistanceKm * 1.1
+        ? Math.min(distanceKm, settings.baseDeliveryDistanceKm)
+        : distanceKm;
     return calculateDeliveryFee(
-      distanceKm,
+      effectiveDistance,
       settings.baseDeliveryFee,
       settings.baseDeliveryDistanceKm,
       settings.perKmFee
