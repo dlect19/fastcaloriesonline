@@ -840,10 +840,11 @@ export default function VendorDashboard() {
               )}
             </CardContent>
           </Card>
+          )}
 
           {/* Quick Actions */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {hasPermission('manage_menu') && (
+            {hasPermission('manage_menu') && vendor?.category !== 'voucher' && (
               <Button
                 variant="outline"
                 className="h-auto p-6 flex flex-col items-start gap-2"
