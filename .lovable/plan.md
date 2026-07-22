@@ -1,49 +1,88 @@
-## What we're building
 
-**1. Admin "Push via WhatsApp" button (Assisted Order detail)**
-- Keep the existing green wa.me "Send via WhatsApp" button (opens the operator's WhatsApp).
-- Add a new button **"Push via Twilio"** next to it that silently POSTs the exact same customer message to the customer's WhatsApp through our existing `whatsapp-send` edge function (uses the official FastCalories Twilio number).
-- Shows a toast on success/failure and logs the call to the new tracking table (see #3).
+# Voucher Hub — Phase 1
 
-**2. Blue verified tick on profile avatars — verified accounts only**
-- New reusable component `src/components/shared/VerifiedAvatar.tsx` that renders an avatar with a blue check overlay when `verified === true`.
-- New hook `src/hooks/useIsVerified.ts` that resolves verification for a `user_id`:
-  - **Customer**: `profiles.email` present AND `profiles.phone_verified_at IS NOT NULL`.
-  - **Vendor owner / staff**: vendor row with `status = 'approved'`.
-  - **Rider**: `rider_profiles.status = 'approved'`.
-- Wire the badge into the highest-traffic surfaces first:
-  - Vendor sidebar header (image 2 — the circled icon).
-  - `ProfileHeader.tsx` (customer profile).
-  - `AdminLayout` / rider layout headers.
-  - Vendor cards on Home / Explore / VendorDetail (small badge on vendor logo).
-- No badge shown when unverified — no red/grey state.
+A digital voucher marketplace built generically (starting with data/WiFi vouchers). Phase 1 covers vendor management, in-app customer purchase, admin oversight, and full data model so Phase 2 (guest checkout, wallet crediting, withdrawals) drops in cleanly.
 
-**3. Per-user Twilio cost tracking + admin report**
-- New table `twilio_api_logs`:
-  - `user_id` (uuid — the person the message was sent to OR on behalf of),
-  - `initiated_by` (uuid — admin/vendor/system actor),
-  - `direction` (`out` / `in`), `channel` (`whatsapp` / `sms`),
-  - `to_phone`, `from_phone`, `body_preview` (first 120 chars),
-  - `twilio_sid`, `twilio_status`, `segments`, `price_ngn` (numeric),
-  - `function_name`, `error`, `created_at`.
-- Estimated cost per send (config in `platform_settings`, defaults):
-  - WhatsApp: ₦25/msg. SMS: ₦20/segment × segments.
-- Instrument every outgoing Twilio call:
-  - `whatsapp-send`, `send-phone-otp`, and the new push-from-admin path all write one row.
-- New admin page `src/pages/admin/AdminTwilioCosts.tsx` at `/admin/twilio-costs`:
-  - Top cards: total sends, total ₦ spent (today / 7d / 30d / all time).
-  - Table grouped by user (name, phone, role, message count, total ₦), sortable, paginated, date filter.
-  - Row drilldown: recent messages for that user with body preview + status + cost.
-- Add sidebar link under Admin → "Twilio Costs".
+## Assumptions (flag if wrong)
 
-## Technical notes
+- **Payment**: Phase 1 in-app purchase uses the existing customer wallet (same pattern as food orders — "Order-First then Debit"). No Paystack direct-charge here; that belongs to Phase 2 guest checkout.
+- **Voucher-hub commission is separate** from the existing food/vendor commission. It lives in a new `vendor_commission_rates` table dedicated to voucher sales so it doesn't collide with `commission_overrides`.
+- **Template rendering**: Voucher image rendered client-side on an HTML `<canvas>` at purchase time and uploaded to a new `voucher-images` public storage bucket. Fixed layout as you specified (logo, vendor name, category, code, expiry, purchase timestamp).
+- **CSV bulk upload**: Parsed client-side, inserted via a batched insert. Duplicate codes within the same category are rejected (unique constraint on `(category_id, code)`).
+- **Wallet credit in Phase 1**: The `vendor_wallets` row is created and `commission_amount` is recorded on every order, but no automatic credit yet — Phase 2 will add the trigger/edge function that moves funds. Balance stays at 0.
+- **Existing vendors only**: Any active vendor can use Voucher Hub. No new onboarding gate.
+- **Currency**: Naira, matching platform.
 
-- Verified logic runs via a single SECURITY DEFINER SQL function `public.is_user_verified(_user_id uuid)` returning boolean, so the hook is one round trip.
-- `useIsVerified` batches by memoizing per user_id in a small `React.useContext` cache to avoid N+1 on list pages.
-- `twilio_api_logs` RLS: only admins can read; edge functions insert via service role.
-- Cost calc lives in a shared helper `supabase/functions/_shared/twilioCost.ts` so all senders record the same numbers.
-- No changes to Twilio itself — we already have the connector wired.
+## Data model (migration)
 
-## Out of scope (unless you ask)
-- Badge on order chat bubbles / review author lines.
-- Real invoice reconciliation against Twilio's actual billing (we log our *estimate*; can add a nightly reconcile job later).
+All in `public`, with GRANTs + RLS in the same migration.
+
+- `voucher_categories` — `id, vendor_id, name, validity_days (int), is_active, created_at, updated_at`
+- `voucher_codes` — `id, category_id, code, value (numeric), status ('available'|'sold'|'expired'), sold_at, order_id, created_at`; unique `(category_id, code)`
+- `vendor_templates` — `id, vendor_id UNIQUE, logo_url, background_color, background_image_url, created_at, updated_at`
+- `voucher_orders` — `id, buyer_user_id, vendor_id, category_id, code_id, amount, commission_amount, commission_rate, expiry_date, purchased_at, rendered_image_url, status ('paid'|'refunded'|'failed'), created_at`
+- `vendor_wallets` — `id, vendor_id UNIQUE, balance (numeric default 0), updated_at` (Phase 2 will add ledger)
+- `vendor_commission_rates` — `id, vendor_id UNIQUE, percentage (numeric nullable), updated_at`
+- `platform_settings` key `voucher_hub_default_commission_pct` (default 10)
+
+RLS summary:
+- Vendors manage their own categories/codes/template; customers read active categories with stock; buyers read their own orders; admins read all.
+- `vendor_wallets`: vendor reads own, admin reads all, no client writes (service role only).
+- Storage: new public bucket `voucher-images` (rendered vouchers) + reuse `campaign-images` for logos/backgrounds.
+
+## Backend
+
+- **Edge function `purchase-voucher`**: authenticated. Validates wallet balance → picks one `available` code (row-locked) → marks it `sold` → creates `voucher_order` with `commission_amount = amount * effective_rate/100` → debits customer wallet via existing ledger pattern → returns order + code + expiry. Wallet-credit to vendor is a TODO comment for Phase 2.
+- **Helper SQL function `get_vendor_voucher_commission(vendor_id)`** returning the override or platform default.
+
+## Frontend
+
+**Vendor (`/vendor/voucher-hub`)**
+- Tabs: Categories · Stock · Template · Sales
+- Categories: create/edit (name, validity in days with presets 7/30/90/custom)
+- Stock: pick category → CSV upload (drag-drop) + manual add + table with status filter
+- Template: single form (logo upload via existing `ImageUploadField`, color picker or background image) + live preview via shared `<VoucherPreview />` component
+- Sales: total sold, remaining stock per category, read-only wallet balance card
+
+**Customer (`/vouchers`)**
+- Grid of vendors with active categories that have stock
+- Category detail → "Buy for ₦X" → wallet confirm → success dialog shows the rendered voucher (`<VoucherPreview />`), download button, "View in My Vouchers"
+- `/vouchers/my` — purchased voucher history
+
+**Admin (`/admin/voucher-hub`)**
+- KPIs: total sold, revenue, commission earned (all-time + this month)
+- Breakdown table by vendor and by category
+- Commission control: platform default input + per-vendor override table
+
+## Shared component
+
+- `<VoucherPreview vendor category code expiry purchasedAt template />` — used identically in vendor preview, purchase success dialog, and admin previews. Also exposes `renderToBlob()` for canvas → PNG upload.
+
+## Nav wiring
+
+- Add "Voucher Hub" to `VendorSidebar` (feature-gated behind existing vendor auth).
+- Add "Vouchers" entry to customer nav (Explore area).
+- Add "Voucher Hub" to `AdminSidebar`.
+
+## Files to create
+
+Migration (1), edge function `purchase-voucher/index.ts`, and roughly:
+- `src/pages/vendor/VendorVoucherHub.tsx`
+- `src/components/vendor/voucher/{CategoriesTab,StockTab,TemplateTab,SalesTab,CsvUploadDialog}.tsx`
+- `src/pages/vouchers/{VouchersList,VoucherCategory,MyVouchers}.tsx`
+- `src/components/vouchers/{VoucherPreview,PurchaseSuccessDialog}.tsx`
+- `src/pages/admin/AdminVoucherHub.tsx`
+- `src/hooks/{useVoucherCategories,useVendorTemplate,useVoucherPurchase}.ts`
+- Route wiring in `App.tsx` + sidebar entries
+
+## Out of scope (Phase 2)
+
+Public no-login storefront, Paystack guest checkout, email delivery of voucher image, automatic wallet crediting per sale, vendor withdrawals.
+
+## Decisions I'd like you to confirm before I build
+
+1. **Payment source for Phase 1 in-app buyers**: use customer wallet (matches existing food-order pattern) — OK?
+2. **Separate commission table** (`vendor_commission_rates`) dedicated to voucher hub, vs reusing existing `commission_overrides` with a new entity_type — I'd prefer separate for clean Phase 2 wallet wiring. OK?
+3. **Template**: one canvas layout, fixed — confirm you don't also want a couple preset layouts to pick from.
+
+If all three are OK, reply "go" and I'll build straight through.
