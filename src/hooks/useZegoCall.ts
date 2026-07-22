@@ -99,7 +99,25 @@ export function useZegoCall() {
   // Join zego room and publish/subscribe audio
   const joinRoom = useCallback(async (roomId: string) => {
     if (!user) throw new Error('No user');
-    const { token, appId } = await getZegoToken(roomId);
+    const tokenResp = await getZegoToken(roomId);
+    const { token, appId, userId: tokenUserId, expiresAt } = tokenResp;
+    console.log('[zego] token received', {
+      appId,
+      tokenUserId,
+      clientUserId: user.id,
+      userIdMatches: tokenUserId === user.id,
+      roomId,
+      tokenReceived: !!token,
+      tokenLen: token?.length ?? 0,
+      tokenPrefix: token?.slice(0, 2),
+      expiresAt,
+      secondsUntilExpiry: expiresAt ? expiresAt - Math.floor(Date.now() / 1000) : null,
+    });
+    if (!token) throw new Error('No Zego token returned from server');
+    if (tokenUserId && tokenUserId !== user.id) {
+      throw new Error(`Zego token userId mismatch: token=${tokenUserId} client=${user.id}`);
+    }
+
     const engine = await getEngine(appId);
     engineRef.current = engine;
     await assertMicrophoneReady(engine);
@@ -111,7 +129,26 @@ export function useZegoCall() {
       }
     });
 
-    await engine.loginRoom(roomId, token, { userID: user.id, userName: user.email || user.id }, { userUpdate: true });
+    try {
+      const loginResp = await engine.loginRoom(
+        roomId,
+        token,
+        { userID: user.id, userName: user.email || user.id },
+        { userUpdate: true },
+      );
+      console.log('[zego] loginRoom ok', { roomId, loginResp });
+    } catch (loginErr: any) {
+      console.error('[zego] loginRoom failed', {
+        roomId,
+        appId,
+        userId: user.id,
+        errCode: loginErr?.code ?? loginErr?.errorCode,
+        errMsg: loginErr?.message ?? loginErr?.msg ?? String(loginErr),
+        full: loginErr,
+      });
+      throw loginErr;
+    }
+
     const stream = await engine.createStream({
       camera: { audio: true, video: false, AEC: true, ANS: true, AGC: true },
     });
