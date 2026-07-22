@@ -524,8 +524,27 @@ export default function VendorDashboard() {
           {/* Push Notification Banner */}
           <PushNotificationBanner />
 
-          {/* Date Range Filter */}
-          <DateRangeFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
+          {/* Date Range Filter (not relevant for voucher vendors) */}
+          {vendor?.category !== 'voucher' && (
+            <DateRangeFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
+          )}
+
+          {/* Voucher vendor summary */}
+          {vendor?.category === 'voucher' && (
+            <Card className="border-0 shadow-soft bg-gradient-to-br from-primary/5 to-primary/10">
+              <CardContent className="p-6 flex flex-col md:flex-row md:items-center gap-4">
+                <div className="w-14 h-14 rounded-xl bg-primary/15 flex items-center justify-center flex-shrink-0">
+                  <Wallet className="w-7 h-7 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-foreground">Welcome to your Voucher Hub</p>
+                  <p className="text-sm text-muted-foreground">Manage voucher categories, stock and sales in one place. Customers pay via your storefront — no delivery or service fees, just your commission with the platform.</p>
+                </div>
+                <Button onClick={() => navigate('/vendor/voucher-hub')}>Open Voucher Hub</Button>
+              </CardContent>
+            </Card>
+          )}
+
 
           {/* Stats Grid — food/delivery metrics hidden for voucher vendors */}
           {vendor?.category !== 'voucher' && (
