@@ -781,6 +781,28 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
                   <CheckCircle2 className="w-3.5 h-3.5" /> I'm on it
                 </Button>
               )}
+              {vendor?.userId && activeOrder && (
+                <Button
+                  size="sm"
+                  variant="default"
+                  className="gap-1"
+                  onClick={() => {
+                    startCall({
+                      orderId: activeOrder.id,
+                      receiverId: vendor.userId!,
+                      callerRole: 'admin',
+                      receiverRole: 'vendor',
+                      receiverName: vendor.name,
+                    });
+                    logActivity('vendor_called', 'order', activeOrder.id, {
+                      order_number: activeOrder.order_number,
+                      channel: 'in_app',
+                    });
+                  }}
+                >
+                  <PhoneCall className="w-3.5 h-3.5" /> In-App Call
+                </Button>
+              )}
               {vendor?.phone && (
                 <a href={`tel:${vendor.phone}`}>
                   <Button size="sm" variant="destructive" className="gap-1"
@@ -794,6 +816,7 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
                   </Button>
                 </a>
               )}
+
             </CardContent>
           </Card>
         )}
