@@ -608,6 +608,8 @@ export default function VendorDashboard() {
               </CardContent>
             </Card>
           </div>
+          )}
+
 
           {/* Settlement Period Notice — Pending Funds Hold */}
           {hasPermission('view_earnings') && walletData && settlementInfo && (() => {
