@@ -276,6 +276,9 @@ const App = () => {
               <Route path="/vouchers/my" element={<MyVouchers />} />
               <Route path="/vouchers/:id" element={<VoucherCategory />} />
               <Route path="/admin/voucher-hub" element={<AdminVoucherHub />} />
+              {/* Public voucher storefront (no login) */}
+              <Route path="/v/:slug" element={<VoucherStorefront />} />
+              <Route path="/v/:slug/success" element={<VoucherStorefrontSuccess />} />
               {/* Rider Portal Routes */}
               <Route path="/rider/auth" element={<RiderAuth />} />
               <Route path="/rider/dashboard" element={<RiderDashboard />} />
