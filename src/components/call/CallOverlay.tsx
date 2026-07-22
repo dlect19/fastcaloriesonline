@@ -85,7 +85,7 @@ export function CallOverlay({ active, remoteStream, muted, speaker, incoming, on
             </div>
           </div>
           <p className="text-sm uppercase tracking-widest text-green-400">Incoming Call</p>
-          <h2 className="mt-1 text-3xl font-bold text-white capitalize">{incoming.callerRole}</h2>
+          <h2 className="mt-1 text-3xl font-bold text-white capitalize">{incoming.callerRole === 'admin' ? 'FastCalories Calling' : incoming.peerName || incoming.callerRole}</h2>
           <p className="mb-12 text-sm text-gray-400">Order #{incoming.orderId.slice(0, 8)}</p>
           <div className="flex items-center gap-12">
             <button onClick={onReject} className="flex flex-col items-center gap-2">
