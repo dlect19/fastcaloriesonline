@@ -527,7 +527,8 @@ export default function VendorDashboard() {
           {/* Date Range Filter */}
           <DateRangeFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
 
-          {/* Stats Grid */}
+          {/* Stats Grid — food/delivery metrics hidden for voucher vendors */}
+          {vendor?.category !== 'voucher' && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <Card className="border-0 shadow-soft">
               <CardContent className="p-6">
