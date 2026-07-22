@@ -519,7 +519,22 @@ export default function AdminOrders() {
                           </div>
                         </td>
                         <td className="py-3 px-4 text-muted-foreground">{order.customer_phone}</td>
-                        <td className="py-3 px-4">{order.vendors?.name}</td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-1.5">
+                            <span>{order.vendors?.name}</span>
+                            {order.vendors?.user_id && !isTerminal(order.status) && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-6 w-6 text-primary"
+                                title="Call vendor as FastCalories"
+                                onClick={() => callVendor(order)}
+                              >
+                                <PhoneCall className="w-3.5 h-3.5" />
+                              </Button>
+                            )}
+                          </div>
+                        </td>
                         <td className="py-3 px-4">
                           {order.channel === 'pos' ? (
                             <Badge className="bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/20 text-xs">🧾 POS</Badge>
