@@ -664,6 +664,7 @@ export default function VendorAuth() {
                         <SelectItem value="restaurant">Restaurant</SelectItem>
                         <SelectItem value="pharmacy">Pharmacy</SelectItem>
                         <SelectItem value="market">Market</SelectItem>
+                        <SelectItem value="voucher">Voucher Hub</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
