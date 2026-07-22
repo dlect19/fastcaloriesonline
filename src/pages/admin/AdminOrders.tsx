@@ -566,10 +566,23 @@ export default function AdminOrders() {
                          <td className="py-3 px-4">{getStatusBadge(order.status)}</td>
                          <td className="py-3 px-4">
                            {order.rider_name ? (
-                             <span className="text-sm flex items-center gap-1">
-                               <span className="text-primary">🏍️</span>
-                               {order.rider_name}
-                             </span>
+                             <div className="flex items-center gap-1.5">
+                               <span className="text-sm flex items-center gap-1">
+                                 <span className="text-primary">🏍️</span>
+                                 {order.rider_name}
+                               </span>
+                               {order.rider_id && !isTerminal(order.status) && (
+                                 <Button
+                                   size="icon"
+                                   variant="ghost"
+                                   className="h-6 w-6 text-primary"
+                                   title="Call rider as FastCalories"
+                                   onClick={() => callRider(order)}
+                                 >
+                                   <PhoneCall className="w-3.5 h-3.5" />
+                                 </Button>
+                               )}
+                             </div>
                            ) : (
                              <span className="text-xs text-muted-foreground">—</span>
                            )}
