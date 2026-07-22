@@ -7,7 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Loader2, XCircle, Eye, Search, Gift, DollarSign, Clock, CheckCircle2 } from 'lucide-react';
+import { Loader2, XCircle, Eye, Search, Gift, DollarSign, Clock, CheckCircle2, PhoneCall } from 'lucide-react';
+import { useCall } from '@/components/call/CallProvider';
 import { format, differenceInMinutes, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { AdminCancelOrderDialog } from '@/components/admin/AdminCancelOrderDialog';
 import { AdminOrderTrackingDialog } from '@/components/admin/AdminOrderTrackingDialog';
@@ -22,6 +23,28 @@ const PAST_STATUSES = ['delivered', 'cancelled'];
 
 export default function AdminOrders() {
   const navigate = useNavigate();
+  const { startCall } = useCall();
+  const isTerminal = (s: string) => ['delivered', 'cancelled', 'completed', 'refunded'].includes(s);
+  const callVendor = (order: any) => {
+    if (!order.vendors?.user_id) return;
+    startCall({
+      orderId: order.id,
+      receiverId: order.vendors.user_id,
+      callerRole: 'admin' as any,
+      receiverRole: 'vendor',
+      receiverName: order.vendors?.name || 'Vendor',
+    });
+  };
+  const callRider = (order: any) => {
+    if (!order.rider_id) return;
+    startCall({
+      orderId: order.id,
+      receiverId: order.rider_id,
+      callerRole: 'admin' as any,
+      receiverRole: 'rider',
+      receiverName: order.rider_name || 'Rider',
+    });
+  };
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<any[]>([]);
   const [statusFilter, setStatusFilter] = useState('all');
@@ -108,7 +131,7 @@ export default function AdminOrders() {
     try {
       let query = supabase
         .from('orders')
-        .select('*, vendors(name)')
+        .select('*, vendors(name, user_id)')
         .order('created_at', { ascending: false })
         .limit(1000);
 
