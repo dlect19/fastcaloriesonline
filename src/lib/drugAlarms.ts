@@ -180,6 +180,10 @@ export async function scheduleDrugAlarms(reminders: ReminderRow[]): Promise<{ sc
 
   const nativeResults = nativeAlarmPromises.length > 0 ? await Promise.all(nativeAlarmPromises) : [];
   const nativeScheduled = nativeResults.filter(Boolean).length;
+  console.info('[drugAlarms] native alarm scheduling complete', {
+    attempted: nativeAlarmPromises.length,
+    succeeded: nativeScheduled,
+  });
 
   if (Capacitor.getPlatform() === 'android' && nativeScheduled > 0) {
     return { scheduled: nativeScheduled };
