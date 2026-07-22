@@ -15,7 +15,13 @@ serve(async (req: Request) => {
 
   try {
     const url = new URL(req.url);
-    const slug = url.searchParams.get("slug");
+    let slug = url.searchParams.get("slug");
+    if (!slug && (req.method === "POST" || req.method === "PUT")) {
+      try {
+        const body = await req.json();
+        slug = body?.slug || null;
+      } catch { /* ignore */ }
+    }
     if (!slug) return json({ error: "slug required" }, 400);
 
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
@@ -39,7 +45,7 @@ serve(async (req: Request) => {
       .eq("is_active", true);
 
     const catIds = (categories || []).map((c: any) => c.id);
-    let stock: Record<string, { price: number; available: number }> = {};
+    const stock: Record<string, { price: number; available: number }> = {};
     if (catIds.length) {
       const { data: codes } = await admin
         .from("voucher_codes")
@@ -51,7 +57,6 @@ serve(async (req: Request) => {
         const val = Number((c as any).value) || 0;
         if (!stock[cid]) stock[cid] = { price: val, available: 0 };
         stock[cid].available += 1;
-        // Use lowest available price
         if (val < stock[cid].price || stock[cid].price === 0) stock[cid].price = val;
       }
     }
@@ -62,6 +67,17 @@ serve(async (req: Request) => {
       .eq("vendor_id", vendor.id)
       .maybeSingle();
 
+    // Active ads for the storefront (opt-in — vendors/platform ads with is_active=true)
+    const nowIso = new Date().toISOString();
+    const { data: ads } = await admin
+      .from("advertisements")
+      .select("id, title, description, image_url, link_url, cta_label")
+      .eq("is_active", true)
+      .or(`starts_at.is.null,starts_at.lte.${nowIso}`)
+      .or(`ends_at.is.null,ends_at.gte.${nowIso}`)
+      .order("display_order", { ascending: true })
+      .limit(3);
+
     return json({
       vendor: {
         id: vendor.id,
@@ -70,11 +86,15 @@ serve(async (req: Request) => {
         logo_url: vendor.logo_url,
       },
       template: template || null,
-      categories: (categories || []).map((c: any) => ({
-        ...c,
-        price: stock[c.id]?.price ?? 0,
-        available: stock[c.id]?.available ?? 0,
-      })),
+      categories: (categories || [])
+        .map((c: any) => ({
+          ...c,
+          price: stock[c.id]?.price ?? 0,
+          available: stock[c.id]?.available ?? 0,
+        }))
+        // Show categories with stock first, but include out-of-stock as sold out
+        .sort((a: any, b: any) => (b.available > 0 ? 1 : 0) - (a.available > 0 ? 1 : 0)),
+      ads: ads || [],
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
