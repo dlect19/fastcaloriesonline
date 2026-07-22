@@ -14,10 +14,12 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import {
-  Loader2, Clock, Store, User, Bike, Phone, Star, MapPin,
+  Loader2, Clock, Store, User, Bike, Phone, PhoneCall, Star, MapPin,
   AlertTriangle, CheckCircle2, Package, Search, Globe, Gift,
   RefreshCw, ArrowRight, Repeat,
 } from 'lucide-react';
+import { useCall } from '@/components/call/CallProvider';
+
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -67,7 +69,9 @@ interface VendorInfo {
   outletAddress: string | null;
   latitude: number | null;
   longitude: number | null;
+  userId: string | null;
 }
+
 
 interface CustomerInfo {
   name: string;
@@ -145,6 +149,8 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
 
 export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated }: Props) {
   const { toast } = useToast();
+  const { startCall } = useCall();
+
 
   // Data
   const [vendor, setVendor] = useState<VendorInfo | null>(null);
@@ -209,7 +215,7 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
     // Vendor
     const { data: v } = await supabase
       .from('vendors')
-      .select('name, phone, address, latitude, longitude')
+      .select('name, phone, address, latitude, longitude, user_id')
       .eq('id', o.vendor_id)
       .maybeSingle();
 
@@ -240,7 +246,9 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
       outletAddress: outletAddr,
       latitude: oLat,
       longitude: oLng,
+      userId: (v as any)?.user_id || null,
     });
+
 
     // Customer profile (registered customer)
     const { data: cp } = o.user_id
@@ -777,6 +785,28 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
                   <CheckCircle2 className="w-3.5 h-3.5" /> I'm on it
                 </Button>
               )}
+              {vendor?.userId && activeOrder && (
+                <Button
+                  size="sm"
+                  variant="default"
+                  className="gap-1"
+                  onClick={() => {
+                    startCall({
+                      orderId: activeOrder.id,
+                      receiverId: vendor.userId!,
+                      callerRole: 'admin',
+                      receiverRole: 'vendor',
+                      receiverName: vendor.name,
+                    });
+                    logActivity('vendor_called', 'order', activeOrder.id, {
+                      order_number: activeOrder.order_number,
+                      channel: 'in_app',
+                    });
+                  }}
+                >
+                  <PhoneCall className="w-3.5 h-3.5" /> In-App Call
+                </Button>
+              )}
               {vendor?.phone && (
                 <a href={`tel:${vendor.phone}`}>
                   <Button size="sm" variant="destructive" className="gap-1"
@@ -790,6 +820,7 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
                   </Button>
                 </a>
               )}
+
             </CardContent>
           </Card>
         )}
