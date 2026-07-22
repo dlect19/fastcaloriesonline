@@ -99,6 +99,15 @@ export function useZegoCall() {
   // Join zego room and publish/subscribe audio
   const joinRoom = useCallback(async (roomId: string) => {
     if (!user) throw new Error('No user');
+    const host = typeof window !== 'undefined' ? window.location.hostname : 'ssr';
+    const isPreview = /lovableproject\.com$|id-preview--/.test(host);
+    const isPublished = /lovable\.app$/.test(host) && !isPreview;
+    console.log('[zego] env', {
+      host,
+      origin: typeof window !== 'undefined' ? window.location.origin : 'ssr',
+      environment: isPreview ? 'preview' : isPublished ? 'published' : 'other',
+      protocol: typeof window !== 'undefined' ? window.location.protocol : 'ssr',
+    });
     const tokenResp = await getZegoToken(roomId);
     const { token, appId, userId: tokenUserId, expiresAt } = tokenResp;
     console.log('[zego] token received', {

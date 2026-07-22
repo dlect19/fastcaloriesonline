@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Phone, PhoneOff, Mic, MicOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { playDialTone } from '@/lib/callTones';
 
 interface Active {
   callId: string;
@@ -52,6 +53,13 @@ export function CallOverlay({ active, remoteStream, muted, incoming, onAccept, o
     const t = setInterval(() => setElapsed(Math.floor((Date.now() - active.startedAt) / 1000)), 1000);
     return () => clearInterval(t);
   }, [active]);
+
+  // Outgoing dial/ringback tone while our call is ringing (not for incoming side).
+  useEffect(() => {
+    if (!active || active.isIncoming || active.status !== 'ringing') return;
+    const stop = playDialTone();
+    return () => stop();
+  }, [active?.status, active?.isIncoming, active?.callId]);
 
   // Incoming call ringing overlay
   if (incoming && !active) {

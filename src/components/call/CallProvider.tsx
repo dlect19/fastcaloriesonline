@@ -1,8 +1,9 @@
-import { createContext, useContext, useEffect, useState, ReactNode, useRef } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useZegoCall } from '@/hooks/useZegoCall';
 import { CallOverlay } from '@/components/call/CallOverlay';
+import { playRingTone } from '@/lib/callTones';
 
 interface IncomingCall {
   callId: string;
@@ -28,7 +29,6 @@ export function CallProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const call = useZegoCall();
   const [incoming, setIncoming] = useState<IncomingCall | null>(null);
-  const ringtoneRef = useRef<HTMLAudioElement | null>(null);
 
   // Subscribe for incoming calls where I'm the receiver
   useEffect(() => {
@@ -58,18 +58,11 @@ export function CallProvider({ children }: { children: ReactNode }) {
     return () => { supabase.removeChannel(ch); };
   }, [user, call.active]);
 
-  // Ringtone loop while incoming
+  // Ringtone loop while incoming (Web Audio, royalty-free)
   useEffect(() => {
-    if (!incoming) {
-      ringtoneRef.current?.pause();
-      return;
-    }
-    const a = new Audio('/notification.mp3');
-    a.loop = true;
-    a.volume = 0.9;
-    a.play().catch(() => {});
-    ringtoneRef.current = a;
-    return () => { a.pause(); };
+    if (!incoming) return;
+    const stop = playRingTone();
+    return () => stop();
   }, [incoming]);
 
   const accept = async () => {
