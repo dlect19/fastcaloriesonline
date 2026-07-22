@@ -96,8 +96,12 @@ Deno.serve(async (req) => {
     const zegoUserId: string = body.zegoUserId || authUserId;
     const effective = Math.max(60, Math.min(24 * 3600, Number(body.effectiveTimeSeconds || 3600)));
 
-    const allowedZegoUserId = new RegExp(`^${authUserId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:_(customer|vendor|rider|admin))?$`);
+    // Client sanitizes the auth user id (replaces non [A-Za-z0-9_] with _) before
+    // appending the role, so match against the same sanitized prefix.
+    const sanitizedAuthId = authUserId.replace(/[^A-Za-z0-9_]/g, '_');
+    const allowedZegoUserId = new RegExp(`^${sanitizedAuthId}(?:_(customer|vendor|rider|admin))?$`);
     if (!allowedZegoUserId.test(zegoUserId)) {
+      console.warn('[zego-token] identity mismatch', { authUserId, sanitizedAuthId, zegoUserId });
       return new Response(JSON.stringify({ error: 'Invalid Zego user identity' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
