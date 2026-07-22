@@ -14,10 +14,12 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import {
-  Loader2, Clock, Store, User, Bike, Phone, Star, MapPin,
+  Loader2, Clock, Store, User, Bike, Phone, PhoneCall, Star, MapPin,
   AlertTriangle, CheckCircle2, Package, Search, Globe, Gift,
   RefreshCw, ArrowRight, Repeat,
 } from 'lucide-react';
+import { useCall } from '@/components/call/CallProvider';
+
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
