@@ -524,10 +524,30 @@ export default function VendorDashboard() {
           {/* Push Notification Banner */}
           <PushNotificationBanner />
 
-          {/* Date Range Filter */}
-          <DateRangeFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
+          {/* Date Range Filter (not relevant for voucher vendors) */}
+          {vendor?.category !== 'voucher' && (
+            <DateRangeFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
+          )}
 
-          {/* Stats Grid */}
+          {/* Voucher vendor summary */}
+          {vendor?.category === 'voucher' && (
+            <Card className="border-0 shadow-soft bg-gradient-to-br from-primary/5 to-primary/10">
+              <CardContent className="p-6 flex flex-col md:flex-row md:items-center gap-4">
+                <div className="w-14 h-14 rounded-xl bg-primary/15 flex items-center justify-center flex-shrink-0">
+                  <Wallet className="w-7 h-7 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-foreground">Welcome to your Voucher Hub</p>
+                  <p className="text-sm text-muted-foreground">Manage voucher categories, stock and sales in one place. Customers pay via your storefront — no delivery or service fees, just your commission with the platform.</p>
+                </div>
+                <Button onClick={() => navigate('/vendor/voucher-hub')}>Open Voucher Hub</Button>
+              </CardContent>
+            </Card>
+          )}
+
+
+          {/* Stats Grid — food/delivery metrics hidden for voucher vendors */}
+          {vendor?.category !== 'voucher' && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <Card className="border-0 shadow-soft">
               <CardContent className="p-6">
@@ -607,6 +627,8 @@ export default function VendorDashboard() {
               </CardContent>
             </Card>
           </div>
+          )}
+
 
           {/* Settlement Period Notice — Pending Funds Hold */}
           {hasPermission('view_earnings') && walletData && settlementInfo && (() => {
@@ -658,8 +680,8 @@ export default function VendorDashboard() {
             );
           })()}
 
-          {/* Revenue Pools - Menu & Rider Revenue */}
-          {hasPermission('view_earnings') && walletData && (
+          {/* Revenue Pools - Menu & Rider Revenue — hidden for voucher vendors */}
+          {vendor?.category !== 'voucher' && hasPermission('view_earnings') && walletData && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Card className="border-0 shadow-soft">
                 <CardContent className="p-6">
@@ -727,7 +749,8 @@ export default function VendorDashboard() {
             </div>
           )}
 
-          {/* Recent Orders */}
+          {/* Recent Orders — voucher vendors don't have order flow */}
+          {vendor?.category !== 'voucher' && (
           <Card className="border-0 shadow-soft">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-lg">Recent Orders</CardTitle>
@@ -817,10 +840,11 @@ export default function VendorDashboard() {
               )}
             </CardContent>
           </Card>
+          )}
 
           {/* Quick Actions */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {hasPermission('manage_menu') && (
+            {hasPermission('manage_menu') && vendor?.category !== 'voucher' && (
               <Button
                 variant="outline"
                 className="h-auto p-6 flex flex-col items-start gap-2"

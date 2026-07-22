@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Ticket, Trash2, Upload, Wallet, Package } from 'lucide-react';
+import { Plus, Ticket, Trash2, Upload, Wallet, Package, Pencil, Check, X } from 'lucide-react';
 import { VendorLayout } from '@/components/vendor/VendorLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { useVendorResolver } from '@/hooks/useVendorResolver';
@@ -138,18 +138,39 @@ export default function VendorVoucherHub() {
 function CategoriesTab({ vendorId, categories, refetch }: { vendorId: string; categories: any[]; refetch: () => void }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<any | null>(null);
   const [name, setName] = useState('');
   const [preset, setPreset] = useState('30');
   const [customDays, setCustomDays] = useState(30);
+
+  const openNew = () => {
+    setEditing(null);
+    setName(''); setPreset('30'); setCustomDays(30);
+    setOpen(true);
+  };
+  const openEdit = (c: any) => {
+    setEditing(c);
+    setName(c.name);
+    const matched = VALIDITY_PRESETS.find(p => p.days === c.validity_days);
+    if (matched && matched.days !== 0) { setPreset(String(matched.days)); }
+    else { setPreset('0'); setCustomDays(c.validity_days); }
+    setOpen(true);
+  };
 
   const save = async () => {
     if (!name.trim()) return;
     const days = preset === '0' ? customDays : Number(preset);
     if (days <= 0) return;
-    const { error } = await supabase.from('voucher_categories').insert({ vendor_id: vendorId, name: name.trim(), validity_days: days });
-    if (error) return toast({ title: error.message, variant: 'destructive' });
-    toast({ title: 'Category created' });
-    setName(''); setPreset('30'); setOpen(false);
+    if (editing) {
+      const { error } = await supabase.from('voucher_categories').update({ name: name.trim(), validity_days: days }).eq('id', editing.id);
+      if (error) return toast({ title: error.message, variant: 'destructive' });
+      toast({ title: 'Category updated' });
+    } else {
+      const { error } = await supabase.from('voucher_categories').insert({ vendor_id: vendorId, name: name.trim(), validity_days: days });
+      if (error) return toast({ title: error.message, variant: 'destructive' });
+      toast({ title: 'Category created' });
+    }
+    setName(''); setPreset('30'); setOpen(false); setEditing(null);
     refetch();
   };
 
@@ -167,9 +188,9 @@ function CategoriesTab({ vendorId, categories, refetch }: { vendorId: string; ca
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between"><CardTitle>Voucher categories</CardTitle>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild><Button size="sm"><Plus className="w-4 h-4 mr-1" /> New category</Button></DialogTrigger>
-          <DialogContent><DialogHeader><DialogTitle>New voucher category</DialogTitle></DialogHeader>
+        <Button size="sm" onClick={openNew}><Plus className="w-4 h-4 mr-1" /> New category</Button>
+        <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setEditing(null); }}>
+          <DialogContent><DialogHeader><DialogTitle>{editing ? 'Edit voucher category' : 'New voucher category'}</DialogTitle></DialogHeader>
             <div className="space-y-3">
               <div><Label>Name</Label><Input placeholder="e.g. MTN Data" value={name} onChange={(e) => setName(e.target.value)} /></div>
               <div><Label>Validity</Label>
@@ -179,7 +200,7 @@ function CategoriesTab({ vendorId, categories, refetch }: { vendorId: string; ca
                 </Select>
               </div>
               {preset === '0' && <div><Label>Custom days</Label><Input type="number" min={1} value={customDays} onChange={(e) => setCustomDays(Number(e.target.value))} /></div>}
-              <Button onClick={save} className="w-full">Create</Button>
+              <Button onClick={save} className="w-full">{editing ? 'Save changes' : 'Create'}</Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -194,7 +215,8 @@ function CategoriesTab({ vendorId, categories, refetch }: { vendorId: string; ca
                   <TableCell className="font-medium">{c.name}</TableCell>
                   <TableCell>{c.validity_days} days</TableCell>
                   <TableCell><Badge variant={c.is_active ? 'default' : 'secondary'}>{c.is_active ? 'Active' : 'Inactive'}</Badge></TableCell>
-                  <TableCell className="text-right space-x-2">
+                  <TableCell className="text-right space-x-1">
+                    <Button size="sm" variant="ghost" onClick={() => openEdit(c)}><Pencil className="w-4 h-4" /></Button>
                     <Button size="sm" variant="ghost" onClick={() => toggleActive(c.id, c.is_active)}>{c.is_active ? 'Disable' : 'Enable'}</Button>
                     <Button size="sm" variant="ghost" onClick={() => remove(c.id)}><Trash2 className="w-4 h-4" /></Button>
                   </TableCell>
@@ -207,6 +229,7 @@ function CategoriesTab({ vendorId, categories, refetch }: { vendorId: string; ca
     </Card>
   );
 }
+
 
 function StockTab({ categories }: { categories: any[] }) {
   const { toast } = useToast();
@@ -231,6 +254,20 @@ function StockTab({ categories }: { categories: any[] }) {
 
   const remove = async (id: string) => {
     await supabase.from('voucher_codes').delete().eq('id', id);
+    refetch();
+  };
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editCode, setEditCode] = useState('');
+  const [editValue, setEditValue] = useState<number>(0);
+  const startEdit = (c: any) => { setEditingId(c.id); setEditCode(c.code); setEditValue(Number(c.value)); };
+  const cancelEdit = () => { setEditingId(null); setEditCode(''); setEditValue(0); };
+  const saveEdit = async (id: string) => {
+    if (!editCode.trim() || editValue <= 0) return;
+    const { error } = await supabase.from('voucher_codes').update({ code: editCode.trim(), value: editValue }).eq('id', id);
+    if (error) return toast({ title: error.message, variant: 'destructive' });
+    toast({ title: 'Voucher updated' });
+    cancelEdit();
     refetch();
   };
 
@@ -269,17 +306,39 @@ function StockTab({ categories }: { categories: any[] }) {
           <Table>
             <TableHeader><TableRow><TableHead>Code</TableHead><TableHead>Value</TableHead><TableHead>Status</TableHead><TableHead>Added</TableHead><TableHead></TableHead></TableRow></TableHeader>
             <TableBody>
-              {filtered.slice(0, 200).map(c => (
+              {filtered.slice(0, 200).map(c => {
+                const isEditing = editingId === c.id;
+                return (
                 <TableRow key={c.id}>
-                  <TableCell className="font-mono">{c.code}</TableCell>
-                  <TableCell>₦{Number(c.value).toLocaleString()}</TableCell>
+                  <TableCell className="font-mono">
+                    {isEditing
+                      ? <Input value={editCode} onChange={(e) => setEditCode(e.target.value)} className="h-8 font-mono" />
+                      : c.code}
+                  </TableCell>
+                  <TableCell>
+                    {isEditing
+                      ? <Input type="number" min={0} value={editValue || ''} onChange={(e) => setEditValue(Number(e.target.value))} className="h-8 w-28" />
+                      : `₦${Number(c.value).toLocaleString()}`}
+                  </TableCell>
                   <TableCell><Badge variant={c.status === 'available' ? 'default' : 'secondary'}>{c.status}</Badge></TableCell>
                   <TableCell className="text-xs text-muted-foreground">{new Date(c.created_at).toLocaleDateString()}</TableCell>
-                  <TableCell className="text-right">
-                    {c.status === 'available' && <Button size="sm" variant="ghost" onClick={() => remove(c.id)}><Trash2 className="w-4 h-4" /></Button>}
+                  <TableCell className="text-right space-x-1">
+                    {c.status === 'available' && !isEditing && (
+                      <>
+                        <Button size="sm" variant="ghost" onClick={() => startEdit(c)}><Pencil className="w-4 h-4" /></Button>
+                        <Button size="sm" variant="ghost" onClick={() => remove(c.id)}><Trash2 className="w-4 h-4" /></Button>
+                      </>
+                    )}
+                    {isEditing && (
+                      <>
+                        <Button size="sm" variant="ghost" onClick={() => saveEdit(c.id)}><Check className="w-4 h-4" /></Button>
+                        <Button size="sm" variant="ghost" onClick={cancelEdit}><X className="w-4 h-4" /></Button>
+                      </>
+                    )}
                   </TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
         )}
@@ -288,6 +347,7 @@ function StockTab({ categories }: { categories: any[] }) {
     </Card>
   );
 }
+
 
 function TemplateTab({ vendorId, vendorName, template, refetch, setTemplate }: any) {
   const { toast } = useToast();
