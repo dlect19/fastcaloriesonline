@@ -138,12 +138,18 @@ export function CallOverlay({ active, remoteStream, muted, speaker, incoming, on
           {active.status === 'ringing' ? 'Ringing…' : fmtDuration(elapsed)}
         </p>
 
-        <div className="mt-12 flex items-center gap-8">
+        <div className="mt-12 flex items-center gap-6">
           <button onClick={onToggleMute} className="flex flex-col items-center gap-2">
             <div className={`flex h-14 w-14 items-center justify-center rounded-full ${muted ? 'bg-red-500' : 'bg-white/10'} active:scale-95 transition`}>
               {muted ? <MicOff className="h-6 w-6 text-white" /> : <Mic className="h-6 w-6 text-white" />}
             </div>
             <span className="text-xs text-gray-400">{muted ? 'Unmute' : 'Mute'}</span>
+          </button>
+          <button onClick={onToggleSpeaker} className="flex flex-col items-center gap-2" aria-label="Toggle speaker">
+            <div className={`flex h-14 w-14 items-center justify-center rounded-full ${speaker ? 'bg-primary' : 'bg-white/10'} active:scale-95 transition`}>
+              {speaker ? <Volume2 className="h-6 w-6 text-white" /> : <VolumeX className="h-6 w-6 text-white" />}
+            </div>
+            <span className="text-xs text-gray-400">{speaker ? 'Speaker' : 'Earpiece'}</span>
           </button>
           <button onClick={onEnd} className="flex flex-col items-center gap-2">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500 shadow-lg shadow-red-500/40 active:scale-95 transition">
