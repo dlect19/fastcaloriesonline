@@ -47,7 +47,11 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  const url = event.notification.data?.url || '/';
+  const notifData = event.notification.data || {};
+  let url = notifData.url || '/';
+  if (notifData.type === 'CALL' && notifData.callId) {
+    url = `/?call=${notifData.callId}`;
+  }
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
