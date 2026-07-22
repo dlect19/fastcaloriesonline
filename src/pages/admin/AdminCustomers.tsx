@@ -22,6 +22,7 @@ import { AdminDeleteUserButton } from '@/components/admin/AdminDeleteUserButton'
    user_id: string;
    full_name: string | null;
    phone: string | null;
+   phone_verified: boolean;
    created_at: string;
    order_count: number;
    total_spent: number;
