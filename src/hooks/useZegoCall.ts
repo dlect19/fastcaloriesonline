@@ -237,6 +237,31 @@ export function useZegoCall() {
     setMuted(next);
   }, [muted]);
 
+  const toggleSpeaker = useCallback(async () => {
+    const next = !speaker;
+    setSpeaker(next);
+    // Best-effort route switch on WebRTC — routes remote audio to speaker vs earpiece
+    // where the platform supports HTMLMediaElement.setSinkId (Chromium/desktop, some Android WebViews).
+    try {
+      const audioEl = remoteAudioRef.current as any;
+      if (audioEl && typeof audioEl.setSinkId === 'function') {
+        // 'default' = system default (usually earpiece on mobile), '' = speaker fallback.
+        // Try to find a "speaker" output device explicitly.
+        let sinkId = 'default';
+        if (next && navigator.mediaDevices?.enumerateDevices) {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const speakerDev = devices.find(
+            (d) => d.kind === 'audiooutput' && /speaker|speakerphone/i.test(d.label)
+          );
+          if (speakerDev) sinkId = speakerDev.deviceId;
+        }
+        await audioEl.setSinkId(sinkId);
+      }
+    } catch (e) {
+      console.warn('[zego] toggleSpeaker setSinkId failed', e);
+    }
+  }, [speaker]);
+
   // Watch call status when we're the caller (peer accepted/rejected)
   useEffect(() => {
     if (!active || active.isIncoming) return;
@@ -261,10 +286,12 @@ export function useZegoCall() {
     active,
     remoteStream,
     muted,
+    speaker,
     remoteAudioRef,
     startCall,
     endCall,
     toggleMute,
+    toggleSpeaker,
     acceptIncoming,
     rejectIncoming,
   };
