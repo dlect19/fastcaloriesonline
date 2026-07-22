@@ -54,6 +54,13 @@ export function CallOverlay({ active, remoteStream, muted, incoming, onAccept, o
     return () => clearInterval(t);
   }, [active]);
 
+  // Outgoing dial/ringback tone while our call is ringing (not for incoming side).
+  useEffect(() => {
+    if (!active || active.isIncoming || active.status !== 'ringing') return;
+    const stop = playDialTone();
+    return () => stop();
+  }, [active?.status, active?.isIncoming, active?.callId]);
+
   // Incoming call ringing overlay
   if (incoming && !active) {
     return (
