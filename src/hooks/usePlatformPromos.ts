@@ -108,7 +108,22 @@ export function usePlatformPromos() {
       // If error or no stats, treat as new user
       const completedOrders = stats?.completed_orders ?? 0;
       const firstOrderUsed = stats?.first_order_promo_used ?? false;
-      const firstPharmacyUsed = (stats as any)?.first_pharmacy_order_promo_used ?? false;
+      let firstPharmacyUsed = (stats as any)?.first_pharmacy_order_promo_used ?? false;
+
+      // Belt-and-braces: even if the flag was never set (client crashed / older
+      // order flow), any existing pharmacy order for this user disqualifies
+      // them from the pharmacy welcome bonus. This prevents the promo from
+      // being auto-applied on the customer's 2nd, 3rd, ... pharmacy order.
+      if (!firstPharmacyUsed) {
+        const { count: pharmacyOrderCount } = await supabase
+          .from('orders')
+          .select('id, vendors!inner(category)', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .eq('vendors.category', 'pharmacy');
+        if ((pharmacyOrderCount || 0) > 0) {
+          firstPharmacyUsed = true;
+        }
+      }
 
       let firstOrderDiscount: number | null = null;
       let loyaltyDiscount: number | null = null;
