@@ -102,7 +102,9 @@ export function useCapacitorPush() {
         PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
           const data = action.notification.data;
           console.log('Push action performed:', data);
-          if (data?.type === 'CALL' && data?.orderId) {
+          if (data?.type === 'CALL' && data?.callId) {
+            window.location.href = `/?call=${data.callId}`;
+          } else if (data?.type === 'CALL' && data?.orderId) {
             window.location.href = '/vendor/orders';
           } else if (data?.url) {
             window.location.href = data.url;
