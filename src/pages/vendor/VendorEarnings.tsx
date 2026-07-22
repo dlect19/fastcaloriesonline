@@ -511,7 +511,7 @@ export default function VendorEarnings() {
                     : 'All Time'
                   }
                 />
-                {financialBreakdown.deliveryOrderCount > 0 && (() => {
+                {financialBreakdown.deliveryOrderCount > 0 && vendor?.category !== 'voucher' && (() => {
                   const gross = financialBreakdown.deliveryGrossRevenue;
                   const net = financialBreakdown.deliveryNetRevenue;
                   const platformFee = gross - net;
