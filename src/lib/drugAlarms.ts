@@ -131,6 +131,12 @@ export async function scheduleDrugAlarms(reminders: ReminderRow[]): Promise<{ sc
   const toSchedule: any[] = [];
   const nativeAlarmPromises: Promise<boolean>[] = [];
 
+  console.info('[drugAlarms] scheduleDrugAlarms called', {
+    platform: Capacitor.getPlatform(),
+    reminderCount: reminders.length,
+    reminderPluginAvailable: Capacitor.isPluginAvailable('ReminderPlugin'),
+  });
+
   for (const r of reminders) {
     if (!r.is_active || !Array.isArray(r.reminder_times)) continue;
     const start = r.start_date ? new Date(r.start_date + 'T00:00:00') : now;
