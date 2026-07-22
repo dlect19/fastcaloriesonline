@@ -33,19 +33,44 @@ function hashId(input: string): number {
 }
 
 export async function scheduleDrugAlarm(drugName: string, time: Date, dosage?: string | null): Promise<boolean> {
-  if (Capacitor.getPlatform() !== 'android') return false;
-  if (!(time instanceof Date) || Number.isNaN(time.getTime()) || time.getTime() <= Date.now()) return false;
+  const platform = Capacitor.getPlatform();
+  if (platform !== 'android') {
+    console.info('[drugAlarms] scheduleDrugAlarm skipped — platform is', platform);
+    return false;
+  }
+  if (!(time instanceof Date) || Number.isNaN(time.getTime()) || time.getTime() <= Date.now()) {
+    console.warn('[drugAlarms] scheduleDrugAlarm skipped — invalid or past triggerTime', { drugName, time });
+    return false;
+  }
+
+  const isAvailable = Capacitor.isPluginAvailable('ReminderPlugin');
+  console.info('[drugAlarms] invoking ReminderPlugin.scheduleReminder', {
+    drugName,
+    triggerTime: time.getTime(),
+    triggerAt: time.toISOString(),
+    pluginAvailable: isAvailable,
+  });
+
+  if (!isAvailable) {
+    console.error('[drugAlarms] ReminderPlugin is NOT registered on this build. Run `npx cap sync` and confirm MainActivity.registerPlugin(ReminderPlugin.class).');
+    return false;
+  }
 
   try {
-    await ReminderPlugin.scheduleReminder({
+    const res = await ReminderPlugin.scheduleReminder({
       title: 'Medication Reminder',
       message: dosage ? `It's time to take ${dosage} of ${drugName}.` : `It's time to take your ${drugName}.`,
       triggerTime: time.getTime(),
     });
-    console.info(`[drugAlarms] native Android alarm set for ${drugName} at ${time.toLocaleString()}`);
+    console.info('[drugAlarms] native alarm scheduled OK', { drugName, at: time.toLocaleString(), res });
     return true;
-  } catch (error) {
-    console.warn('[drugAlarms] native ReminderPlugin failed, falling back to local notification', error);
+  } catch (error: any) {
+    console.error('[drugAlarms] ReminderPlugin.scheduleReminder threw', {
+      drugName,
+      message: error?.message,
+      code: error?.code,
+      error,
+    });
     return false;
   }
 }
