@@ -7562,6 +7562,35 @@ export type Database = {
           },
         ]
       }
+      vendor_commission_rates: {
+        Row: {
+          id: string
+          percentage: number | null
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          id?: string
+          percentage?: number | null
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          id?: string
+          percentage?: number | null
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_commission_rates_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: true
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendor_location_logs: {
         Row: {
           action: string
@@ -8000,6 +8029,44 @@ export type Database = {
           },
         ]
       }
+      vendor_templates: {
+        Row: {
+          background_color: string | null
+          background_image_url: string | null
+          created_at: string
+          id: string
+          logo_url: string | null
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          background_color?: string | null
+          background_image_url?: string | null
+          created_at?: string
+          id?: string
+          logo_url?: string | null
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          background_color?: string | null
+          background_image_url?: string | null
+          created_at?: string
+          id?: string
+          logo_url?: string | null
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_templates_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: true
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendor_verification_documents: {
         Row: {
           created_at: string | null
@@ -8045,6 +8112,35 @@ export type Database = {
             foreignKeyName: "vendor_verification_documents_vendor_id_fkey"
             columns: ["vendor_id"]
             isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vendor_wallets: {
+        Row: {
+          balance: number
+          id: string
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          balance?: number
+          id?: string
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          balance?: number
+          id?: string
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_wallets_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: true
             referencedRelation: "vendors"
             referencedColumns: ["id"]
           },
@@ -8288,6 +8384,155 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      voucher_categories: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+          validity_days: number
+          vendor_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+          validity_days: number
+          vendor_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+          validity_days?: number
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voucher_categories_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      voucher_codes: {
+        Row: {
+          category_id: string
+          code: string
+          created_at: string
+          id: string
+          order_id: string | null
+          sold_at: string | null
+          status: string
+          value: number
+        }
+        Insert: {
+          category_id: string
+          code: string
+          created_at?: string
+          id?: string
+          order_id?: string | null
+          sold_at?: string | null
+          status?: string
+          value: number
+        }
+        Update: {
+          category_id?: string
+          code?: string
+          created_at?: string
+          id?: string
+          order_id?: string | null
+          sold_at?: string | null
+          status?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voucher_codes_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "voucher_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      voucher_orders: {
+        Row: {
+          amount: number
+          buyer_user_id: string
+          category_id: string
+          code_id: string
+          commission_amount: number
+          commission_rate: number
+          created_at: string
+          expiry_date: string
+          id: string
+          purchased_at: string
+          rendered_image_url: string | null
+          status: string
+          vendor_id: string
+        }
+        Insert: {
+          amount: number
+          buyer_user_id: string
+          category_id: string
+          code_id: string
+          commission_amount?: number
+          commission_rate?: number
+          created_at?: string
+          expiry_date: string
+          id?: string
+          purchased_at?: string
+          rendered_image_url?: string | null
+          status?: string
+          vendor_id: string
+        }
+        Update: {
+          amount?: number
+          buyer_user_id?: string
+          category_id?: string
+          code_id?: string
+          commission_amount?: number
+          commission_rate?: number
+          created_at?: string
+          expiry_date?: string
+          id?: string
+          purchased_at?: string
+          rendered_image_url?: string | null
+          status?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voucher_orders_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "voucher_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voucher_orders_code_id_fkey"
+            columns: ["code_id"]
+            isOneToOne: false
+            referencedRelation: "voucher_codes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voucher_orders_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
             referencedColumns: ["id"]
           },
         ]
@@ -9210,6 +9455,10 @@ export type Database = {
       get_vendor_staff_role: {
         Args: { _user_id: string; _vendor_id: string }
         Returns: Database["public"]["Enums"]["vendor_staff_role"]
+      }
+      get_vendor_voucher_commission: {
+        Args: { _vendor_id: string }
+        Returns: number
       }
       has_role: {
         Args: {
