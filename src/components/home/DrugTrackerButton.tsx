@@ -29,12 +29,13 @@ export function DrugTrackerButton({ className }: { className?: string }) {
     const fetchDrugs = async () => {
       const { data } = await supabase
         .from('drug_usage_tracking')
-        .select('id, drug_name, doses_taken, total_doses, is_completed')
+        .select('id, drug_name, doses_taken, total_doses, is_completed, prescription_orders!inner(id, delivered_at)')
         .eq('user_id', user.id)
         .eq('is_completed', false)
+        .not('prescription_orders.delivered_at', 'is', null)
         .order('created_at', { ascending: false });
 
-      setDrugs(data || []);
+      setDrugs((data as any) || []);
       setLoading(false);
     };
 
