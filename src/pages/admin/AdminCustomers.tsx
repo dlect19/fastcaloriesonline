@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Search, Loader2, Users, ShoppingBag, Wallet, Plus } from 'lucide-react';
+import { Search, Loader2, Users, ShoppingBag, Wallet, Plus, BadgeCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 import { format } from 'date-fns';
