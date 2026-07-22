@@ -301,9 +301,9 @@ export function useZegoCall() {
     }
   }, [speaker]);
 
-  // Watch call status when we're the caller (peer accepted/rejected)
+  // Watch call status for both sides — caller sees accept/reject, both sides see remote End.
   useEffect(() => {
-    if (!active || active.isIncoming) return;
+    if (!active) return;
     const ch = supabase
       .channel(`call-${active.callId}`)
       .on('postgres_changes', {
@@ -311,8 +311,9 @@ export function useZegoCall() {
         filter: `id=eq.${active.callId}`,
       }, (payload) => {
         const s = (payload.new as any).status;
-        if (s === 'Accepted') setActive((p) => p ? { ...p, status: 'connected', startedAt: Date.now() } : p);
-        else if (s === 'Rejected' || s === 'Busy' || s === 'Cancelled' || s === 'Ended') {
+        if (s === 'Accepted' && !active.isIncoming) {
+          setActive((p) => p ? { ...p, status: 'connected', startedAt: Date.now() } : p);
+        } else if (s === 'Rejected' || s === 'Busy' || s === 'Cancelled' || s === 'Ended') {
           toast({ title: s === 'Rejected' ? 'Call declined' : 'Call ended' });
           cleanup();
         }
