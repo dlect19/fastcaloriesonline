@@ -158,6 +158,8 @@ import VouchersList from "./pages/vouchers/VouchersList";
 import VoucherCategory from "./pages/vouchers/VoucherCategory";
 import MyVouchers from "./pages/vouchers/MyVouchers";
 import AdminVoucherHub from "./pages/admin/AdminVoucherHub";
+import VoucherStorefront from "./pages/public/VoucherStorefront";
+import VoucherStorefrontSuccess from "./pages/public/VoucherStorefrontSuccess";
 import { playGlobalNotificationSound } from '@/lib/globalAudio';
 import { useFcmNotifications } from '@/hooks/useFcmNotifications';
 import { usePortalMemory } from '@/hooks/usePortalMemory';
@@ -274,6 +276,9 @@ const App = () => {
               <Route path="/vouchers/my" element={<MyVouchers />} />
               <Route path="/vouchers/:id" element={<VoucherCategory />} />
               <Route path="/admin/voucher-hub" element={<AdminVoucherHub />} />
+              {/* Public voucher storefront (no login) */}
+              <Route path="/v/:slug" element={<VoucherStorefront />} />
+              <Route path="/v/:slug/success" element={<VoucherStorefrontSuccess />} />
               {/* Rider Portal Routes */}
               <Route path="/rider/auth" element={<RiderAuth />} />
               <Route path="/rider/dashboard" element={<RiderDashboard />} />

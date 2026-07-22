@@ -44,7 +44,7 @@ export default function VendorAuth() {
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [businessName, setBusinessName] = useState('');
-  const [businessCategory, setBusinessCategory] = useState<'restaurant' | 'pharmacy' | 'market'>('restaurant');
+  const [businessCategory, setBusinessCategory] = useState<'restaurant' | 'pharmacy' | 'market' | 'voucher'>('restaurant');
   const [address, setAddress] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('Lagos');
@@ -56,7 +56,7 @@ export default function VendorAuth() {
   const [linkPassword, setLinkPassword] = useState('');
   const [showLinkPassword, setShowLinkPassword] = useState(false);
   const [linkBusinessName, setLinkBusinessName] = useState('');
-  const [linkBusinessCategory, setLinkBusinessCategory] = useState<'restaurant' | 'pharmacy' | 'market'>('restaurant');
+  const [linkBusinessCategory, setLinkBusinessCategory] = useState<'restaurant' | 'pharmacy' | 'market' | 'voucher'>('restaurant');
   const [linkAddress, setLinkAddress] = useState('');
   const [linkCity, setLinkCity] = useState('');
   const [linkState, setLinkState] = useState('Lagos');
@@ -534,6 +534,7 @@ export default function VendorAuth() {
                         <SelectItem value="restaurant">Restaurant</SelectItem>
                         <SelectItem value="pharmacy">Pharmacy</SelectItem>
                         <SelectItem value="market">Market</SelectItem>
+                        <SelectItem value="voucher">Voucher Hub</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -663,6 +664,7 @@ export default function VendorAuth() {
                         <SelectItem value="restaurant">Restaurant</SelectItem>
                         <SelectItem value="pharmacy">Pharmacy</SelectItem>
                         <SelectItem value="market">Market</SelectItem>
+                        <SelectItem value="voucher">Voucher Hub</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

@@ -14,9 +14,7 @@ serve(async (req: Request) => {
 
   try {
     const { categoryId } = await req.json();
-    if (!categoryId) {
-      return json({ error: "categoryId required" }, 400);
-    }
+    if (!categoryId) return json({ error: "categoryId required" }, 400);
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return json({ error: "Unauthorized" }, 401);
@@ -29,7 +27,6 @@ serve(async (req: Request) => {
     const { data: { user }, error: userErr } = await admin.auth.getUser(token);
     if (userErr || !user) return json({ error: "Invalid token" }, 401);
 
-    // Load category + vendor
     const { data: category } = await admin
       .from("voucher_categories")
       .select("id, name, vendor_id, validity_days, is_active")
@@ -37,7 +34,6 @@ serve(async (req: Request) => {
       .maybeSingle();
     if (!category || !category.is_active) return json({ error: "Category not available" }, 404);
 
-    // Pick one available code (no strict row-lock in supabase-js; rely on unique code status update)
     const { data: candidate } = await admin
       .from("voucher_codes")
       .select("id, code, value")
@@ -48,7 +44,6 @@ serve(async (req: Request) => {
       .maybeSingle();
     if (!candidate) return json({ error: "Out of stock" }, 409);
 
-    // Reserve the code atomically: only succeeds if still 'available'
     const { data: reserved, error: reserveErr } = await admin
       .from("voucher_codes")
       .update({ status: "sold", sold_at: new Date().toISOString() })
@@ -60,12 +55,10 @@ serve(async (req: Request) => {
 
     const amount = Number(reserved.value);
 
-    // Effective commission %
     const { data: rateData } = await admin.rpc("get_vendor_voucher_commission", { _vendor_id: category.vendor_id });
     const commissionRate = Number(rateData ?? 10);
     const commissionAmount = +(amount * commissionRate / 100).toFixed(2);
 
-    // Wallet debit
     const { data: envSetting } = await admin
       .from("platform_settings").select("value").eq("key", "platform_environment").maybeSingle();
     const environment = envSetting?.value || "development";
@@ -85,7 +78,6 @@ serve(async (req: Request) => {
     const purchasedAt = new Date();
     const expiryDate = new Date(purchasedAt.getTime() + category.validity_days * 24 * 60 * 60 * 1000);
 
-    // Create voucher order first
     const { data: order, error: orderErr } = await admin
       .from("voucher_orders")
       .insert({
@@ -105,10 +97,9 @@ serve(async (req: Request) => {
 
     if (orderErr || !order) { await releaseCode(admin, reserved.id); return json({ error: "Failed to create order" }, 500); }
 
-    // Link code -> order
     await admin.from("voucher_codes").update({ order_id: order.id }).eq("id", reserved.id);
 
-    // Debit wallet + ledger entry
+    // Debit buyer wallet
     const newBalance = balance - amount;
     const reference = `VH-${order.id.slice(0, 8)}-${Date.now()}`;
     await admin.from("wallet_transactions").insert({
@@ -129,8 +120,9 @@ serve(async (req: Request) => {
       await admin.from("wallets").update({ balance: newBalance, updated_at: new Date().toISOString() }).eq("id", wallet.id);
     }
 
-    // Ensure vendor wallet row exists (Phase 2 will credit it)
-    await admin.from("vendor_wallets").upsert({ vendor_id: category.vendor_id }, { onConflict: "vendor_id" });
+    // Credit vendor wallet through the standard withdrawal-eligible pipeline
+    const { error: creditErr } = await admin.rpc("credit_vendor_wallet_for_voucher", { _order_id: order.id });
+    if (creditErr) console.error("credit_vendor_wallet_for_voucher failed:", creditErr);
 
     return json({
       success: true,

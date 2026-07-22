@@ -33,6 +33,7 @@ export default function VendorVoucherHub() {
   const { toast } = useToast();
   const { vendorId, loading: vendorLoading } = useVendorResolver();
   const [vendorName, setVendorName] = useState<string>('My Store');
+  const [vendorSlug, setVendorSlug] = useState<string | null>(null);
   const [walletBalance, setWalletBalance] = useState(0);
   const [salesStats, setSalesStats] = useState({ totalSold: 0, totalRevenue: 0 });
 
@@ -41,10 +42,23 @@ export default function VendorVoucherHub() {
 
   useEffect(() => {
     if (!vendorId) return;
-    supabase.from('vendors').select('name').eq('id', vendorId).maybeSingle()
-      .then(({ data }) => data?.name && setVendorName(data.name));
-    supabase.from('vendor_wallets').select('balance').eq('vendor_id', vendorId).maybeSingle()
-      .then(({ data }) => setWalletBalance(Number(data?.balance || 0)));
+    supabase.from('vendors').select('name, slug, user_id').eq('id', vendorId).maybeSingle()
+      .then(async ({ data }) => {
+        if (data?.name) setVendorName(data.name);
+        if (data?.slug) setVendorSlug(data.slug);
+        if (data?.user_id) {
+          const { data: w } = await supabase
+            .from('wallets')
+            .select('balance, test_balance')
+            .eq('user_id', data.user_id)
+            .eq('wallet_type', 'vendor')
+            .maybeSingle();
+          const { data: env } = await supabase
+            .from('platform_settings').select('value').eq('key', 'platform_environment').maybeSingle();
+          const isTest = (env?.value || 'development') === 'development';
+          setWalletBalance(Number((isTest ? (w as any)?.test_balance : (w as any)?.balance) || 0));
+        }
+      });
     supabase.from('voucher_orders').select('amount').eq('vendor_id', vendorId).eq('status', 'paid')
       .then(({ data }) => {
         const rows = data || [];
@@ -72,8 +86,28 @@ export default function VendorVoucherHub() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card><CardContent className="p-4 flex items-center gap-3"><Package className="w-8 h-8 text-primary" /><div><p className="text-xs text-muted-foreground">Vouchers sold</p><p className="text-xl font-bold">{salesStats.totalSold}</p></div></CardContent></Card>
           <Card><CardContent className="p-4 flex items-center gap-3"><Ticket className="w-8 h-8 text-primary" /><div><p className="text-xs text-muted-foreground">Revenue</p><p className="text-xl font-bold">₦{salesStats.totalRevenue.toLocaleString()}</p></div></CardContent></Card>
-          <Card><CardContent className="p-4 flex items-center gap-3"><Wallet className="w-8 h-8 text-primary" /><div><p className="text-xs text-muted-foreground">Wallet balance</p><p className="text-xl font-bold">₦{walletBalance.toLocaleString()}</p><p className="text-[10px] text-muted-foreground">Credits arrive in Phase 2</p></div></CardContent></Card>
+          <Card><CardContent className="p-4 flex items-center gap-3"><Wallet className="w-8 h-8 text-primary" /><div><p className="text-xs text-muted-foreground">Wallet balance</p><p className="text-xl font-bold">₦{walletBalance.toLocaleString()}</p><p className="text-[10px] text-muted-foreground">Withdraw via the standard vendor payout flow.</p></div></CardContent></Card>
         </div>
+
+        {vendorSlug && (
+          <Card>
+            <CardContent className="p-4 flex flex-col md:flex-row md:items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-muted-foreground">Public storefront (no login required)</p>
+                <p className="text-sm font-mono truncate">{window.location.origin}/v/{vendorSlug}</p>
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  navigator.clipboard.writeText(`${window.location.origin}/v/${vendorSlug}`);
+                  toast({ title: 'Link copied', description: 'Share this link with your customers.' });
+                }}
+              >Copy link</Button>
+              <Button onClick={() => window.open(`/v/${vendorSlug}`, '_blank')}>Open</Button>
+            </CardContent>
+          </Card>
+        )}
+
 
         <Tabs defaultValue="categories" className="w-full">
           <TabsList>
