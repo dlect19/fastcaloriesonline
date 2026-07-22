@@ -794,5 +794,117 @@ async function handleEventPurchase(supabase: SupabaseClient, data: any, environm
   console.log(`Event order paid: ${orderId}`, result);
 }
 
+// Voucher Hub Phase 2 — guest storefront purchase.
+// Reserves a voucher code, creates a guest voucher_order, credits vendor wallet
+// via the SECURITY DEFINER helper. Idempotent on paystack_reference.
+// deno-lint-ignore no-explicit-any
+async function handleVoucherGuestPurchase(supabase: SupabaseClient, data: any, environment: string) {
+  const reference = data.reference as string;
+  const amount = (data.amount as number) / 100;
+  const metadata = data.metadata || {};
+  const categoryId = metadata.category_id as string;
+  const guestEmail = metadata.guest_email as string;
+
+  console.log(`Voucher guest purchase: ref=${reference}, category=${categoryId}, amount=${amount}`);
+
+  if (!categoryId) {
+    console.error("voucher_purchase missing category_id");
+    return;
+  }
+
+  // Idempotency: if this reference has already been processed, bail.
+  const { data: existing } = await supabase
+    .from("voucher_orders")
+    .select("id, status")
+    .eq("paystack_reference", reference)
+    .maybeSingle();
+  if (existing) {
+    console.log(`Voucher order for ${reference} already exists, skipping`);
+    return;
+  }
+
+  const { data: category } = await supabase
+    .from("voucher_categories")
+    .select("id, name, vendor_id, validity_days, is_active")
+    .eq("id", categoryId)
+    .maybeSingle();
+  if (!category) {
+    console.error(`Voucher category ${categoryId} missing — cannot fulfil ${reference}`);
+    return;
+  }
+
+  // Reserve a code atomically
+  const { data: candidate } = await supabase
+    .from("voucher_codes")
+    .select("id, code, value")
+    .eq("category_id", categoryId)
+    .eq("status", "available")
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (!candidate) {
+    console.error(`Out of stock for category ${categoryId} — payment ${reference} will require manual refund`);
+    return;
+  }
+  const { data: reserved } = await supabase
+    .from("voucher_codes")
+    .update({ status: "sold", sold_at: new Date().toISOString() })
+    .eq("id", (candidate as any).id)
+    .eq("status", "available")
+    .select("id, code, value")
+    .maybeSingle();
+  if (!reserved) {
+    console.error(`Race lost reserving code for ${reference}`);
+    return;
+  }
+
+  const codeValue = Number((reserved as any).value) || amount;
+
+  // Commission
+  const { data: rateData } = await supabase.rpc("get_vendor_voucher_commission", { _vendor_id: category.vendor_id });
+  const commissionRate = Number(rateData ?? 10);
+  const commissionAmount = +(codeValue * commissionRate / 100).toFixed(2);
+
+  const purchasedAt = new Date();
+  const expiryDate = new Date(purchasedAt.getTime() + (category as any).validity_days * 86400000);
+
+  const { data: order, error: orderErr } = await supabase
+    .from("voucher_orders")
+    .insert({
+      buyer_user_id: null,
+      guest_email: guestEmail,
+      vendor_id: category.vendor_id,
+      category_id: category.id,
+      code_id: (reserved as any).id,
+      amount: codeValue,
+      commission_amount: commissionAmount,
+      commission_rate: commissionRate,
+      expiry_date: expiryDate.toISOString(),
+      purchased_at: purchasedAt.toISOString(),
+      status: "paid",
+      paystack_reference: reference,
+    })
+    .select()
+    .maybeSingle();
+
+  if (orderErr || !order) {
+    console.error(`Failed to insert voucher order for ${reference}:`, orderErr);
+    // Release the code so it can be resold; refund needs manual handling.
+    await supabase.from("voucher_codes").update({ status: "available", sold_at: null }).eq("id", (reserved as any).id);
+    return;
+  }
+
+  await supabase.from("voucher_codes").update({ order_id: (order as any).id }).eq("id", (reserved as any).id);
+
+  // Credit vendor wallet via SECURITY DEFINER helper (bypasses balance trigger)
+  const { error: creditErr } = await supabase.rpc("credit_vendor_wallet_for_voucher", { _order_id: (order as any).id });
+  if (creditErr) {
+    console.error(`credit_vendor_wallet_for_voucher failed for ${reference}:`, creditErr);
+  }
+
+  console.log(`Voucher guest purchase completed: order=${(order as any).id}, ref=${reference}`);
+}
+
 serve(handler);
+
 
