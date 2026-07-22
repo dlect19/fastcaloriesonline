@@ -970,6 +970,7 @@ export default function VendorOrders() {
                   peerName={order.customer?.full_name || undefined}
                   myRole="vendor"
                   peerRole="customer"
+                  orderStatus={order.status}
                   compact
                 />
               </div>

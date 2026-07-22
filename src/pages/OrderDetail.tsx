@@ -545,6 +545,7 @@ export default function OrderDetail() {
                 peerName={order.vendors?.name}
                 myRole="customer"
                 peerRole="vendor"
+                orderStatus={order.status}
                 compact
               />
             </CardContent>
@@ -564,6 +565,7 @@ export default function OrderDetail() {
                   peerPhone={null}
                   myRole="customer"
                   peerRole="rider"
+                  orderStatus={order.status}
                   compact
                 />
               </CardContent>
