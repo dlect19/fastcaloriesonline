@@ -231,7 +231,6 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
           return out;
         })()
       : visibleItemsBase.filter((x) => x.id !== 'voucher-hub');
-      : visibleItemsBase;
 
   return (
     <>
