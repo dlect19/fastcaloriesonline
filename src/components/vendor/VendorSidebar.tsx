@@ -50,6 +50,7 @@ const navItems: {
   { id: 'pos', icon: Receipt, label: 'POS', path: '/vendor/pos', permission: 'use_pos' },
   { id: 'promos', icon: Ticket, label: 'Promos', path: '/vendor/promos', permission: 'manage_promos' },
   { id: 'voucher-verify', icon: Ticket, label: 'Event Vouchers', path: '/vendor/voucher-verify' },
+  // 'voucher-hub' is filtered in below — only shown for vendors with category 'voucher'
   { id: 'voucher-hub', icon: Ticket, label: 'Voucher Hub', path: '/vendor/voucher-hub' },
   { id: 'riders', icon: Users, label: 'My Riders', path: '/vendor/riders', permission: 'manage_riders' },
   { id: 'staff', icon: Users, label: 'Staff', path: '/vendor/staff', permission: 'manage_staff' },
