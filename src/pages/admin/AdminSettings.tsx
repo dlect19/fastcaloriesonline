@@ -717,6 +717,9 @@ export default function AdminSettings() {
                   <p className="text-sm text-muted-foreground">
                     🛒 Market vendors: <span className="text-primary font-medium">{settings['settlement_hours_market'] === '0' ? 'Immediate' : `${settings['settlement_hours_market'] || '24'} hours`}</span>
                   </p>
+                  <p className="text-sm text-muted-foreground">
+                    🎟️ Voucher vendors: <span className="text-primary font-medium">{settings['settlement_hours_voucher'] === '0' ? 'Immediate' : `${settings['settlement_hours_voucher'] || '24'} hours`}</span>
+                  </p>
                 </div>
 
                 <div className="flex justify-end">
