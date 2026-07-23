@@ -218,8 +218,9 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
     ? visibleItemsBase.filter((x) => voucherOnlyIds.has(x.id))
     : vendorCategory === 'pharmacy'
       ? (() => {
-          const idx = visibleItemsBase.findIndex((x) => x.id === 'orders');
-          const out = [...visibleItemsBase];
+          const base = visibleItemsBase.filter((x) => x.id !== 'voucher-hub');
+          const idx = base.findIndex((x) => x.id === 'orders');
+          const out = [...base];
           out.splice(idx + 1, 0, {
             id: 'pharmacy-review',
             icon: Pill,
@@ -229,6 +230,7 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
           });
           return out;
         })()
+      : visibleItemsBase.filter((x) => x.id !== 'voucher-hub');
       : visibleItemsBase;
 
   return (
