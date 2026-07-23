@@ -59,6 +59,7 @@ export default function AdminSettings() {
     { type: 'restaurant', modeKey: 'vendor_settlement_mode_restaurant', hoursKey: 'settlement_hours_restaurant', label: '🍽️ Restaurant', description: 'Settlement timing for restaurant vendors', defaultHours: '0' },
     { type: 'pharmacy', modeKey: 'vendor_settlement_mode_pharmacy', hoursKey: 'settlement_hours_pharmacy', label: '💊 Pharmacy', description: 'Settlement timing for pharmacy vendors', defaultHours: '36' },
     { type: 'market', modeKey: 'vendor_settlement_mode_market', hoursKey: 'settlement_hours_market', label: '🛒 Market', description: 'Settlement timing for market vendors', defaultHours: '24' },
+    { type: 'voucher', modeKey: 'vendor_settlement_mode_voucher', hoursKey: 'settlement_hours_voucher', label: '🎟️ Voucher Hub', description: 'Settlement timing for voucher vendors', defaultHours: '24' },
   ];
 
   const vendorSettlementTimingOptions = [
