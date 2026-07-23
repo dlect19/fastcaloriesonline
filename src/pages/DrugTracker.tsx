@@ -57,16 +57,16 @@ export default function DrugTracker() {
     const [{ data: usage }, { data: rem }] = await Promise.all([
       supabase
         .from('drug_usage_tracking')
-        .select('*, prescription_orders!inner(id, delivered_at)')
+        .select('*, prescription_orders!inner(id, order_id, orders!inner(delivered_at))')
         .eq('user_id', user!.id)
-        .not('prescription_orders.delivered_at', 'is', null)
+        .not('prescription_orders.orders.delivered_at', 'is', null)
         .order('created_at', { ascending: false }),
       supabase
         .from('drug_reminders')
-        .select('*, prescription_orders!inner(id, delivered_at)')
+        .select('*, prescription_orders!inner(id, order_id, orders!inner(delivered_at))')
         .eq('user_id', user!.id)
         .eq('is_active', true)
-        .not('prescription_orders.delivered_at', 'is', null)
+        .not('prescription_orders.orders.delivered_at', 'is', null)
         .order('created_at', { ascending: false }),
     ]);
     setUsageRecords((usage as any) || []);
