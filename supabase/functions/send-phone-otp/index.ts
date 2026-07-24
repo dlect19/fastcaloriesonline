@@ -77,18 +77,32 @@ serve(async (req) => {
     // template so delivery works even outside the 24-hour customer chat window.
     const OTP_CONTENT_SID = Deno.env.get("TWILIO_OTP_CONTENT_SID") || "HXdeeb66b6a153acab9852859f86c7e5b4";
     let channelUsed: "whatsapp" | "sms" = preferSms ? "sms" : "whatsapp";
+    const useTemplate = channelUsed === "whatsapp" && !!OTP_CONTENT_SID;
+    console.log("[send-phone-otp] send attempt", JSON.stringify({
+      phone, purpose, channel: channelUsed,
+      method: useTemplate ? "content_template" : "freeform_body",
+      content_sid: useTemplate ? OTP_CONTENT_SID : null,
+    }));
     let send = await sendTwilioMessage(admin, {
       channel: channelUsed,
       to: phone,
       body: message,
-      contentSid: channelUsed === "whatsapp" ? OTP_CONTENT_SID : undefined,
-      contentVariables: channelUsed === "whatsapp" ? { "1": code } : undefined,
+      contentSid: useTemplate ? OTP_CONTENT_SID : undefined,
+      contentVariables: useTemplate ? { "1": code } : undefined,
     });
+    console.log("[send-phone-otp] twilio result", JSON.stringify({
+      ok: send.ok, sid: send.sid, status: send.status, from: send.from,
+      error: send.error, error_code: send.error_code, error_message: send.error_message,
+    }));
 
     // Fallback to SMS if WhatsApp failed and SMS sender exists
     if (!send.ok && channelUsed === "whatsapp" && Deno.env.get("TWILIO_SMS_FROM")) {
+      console.log("[send-phone-otp] WhatsApp failed — falling back to SMS");
       channelUsed = "sms";
       send = await sendTwilioMessage(admin, { channel: "sms", to: phone, body: message });
+      console.log("[send-phone-otp] sms fallback result", JSON.stringify({
+        ok: send.ok, sid: send.sid, status: send.status, error: send.error, error_code: send.error_code,
+      }));
     }
 
     if (!send.ok) {
