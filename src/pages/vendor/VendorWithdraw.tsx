@@ -1094,7 +1094,7 @@ export default function VendorWithdraw() {
                         <div>
                           <p className="font-medium text-foreground">{formatCurrency(withdrawal.amount)}</p>
                           <p className="text-sm text-muted-foreground">
-                            {withdrawal.withdrawal_source === 'rider_revenue' ? 'Rider Revenue' : 'Menu Earnings'} • {new Date(withdrawal.requested_at).toLocaleDateString('en-NG', { dateStyle: 'medium' })}
+                            {withdrawal.withdrawal_source === 'rider_revenue' ? 'Rider Revenue' : vendor?.category === 'voucher' ? 'Voucher Earnings' : 'Menu Earnings'} • {new Date(withdrawal.requested_at).toLocaleDateString('en-NG', { dateStyle: 'medium' })}
                           </p>
                         </div>
                       </div>
