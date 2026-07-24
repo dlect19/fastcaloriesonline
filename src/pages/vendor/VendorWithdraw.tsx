@@ -923,7 +923,7 @@ export default function VendorWithdraw() {
             <DialogTrigger asChild>
               <Button size="lg" className="gap-2">
                 <ArrowUpRight className="w-5 h-5" />
-                Withdraw {withdrawalSource === 'rider_revenue' ? 'Rider Revenue' : 'Menu Earnings'}
+                Withdraw {withdrawalSource === 'rider_revenue' ? 'Rider Revenue' : vendor?.category === 'voucher' ? 'Voucher Earnings' : 'Menu Earnings'}
               </Button>
             </DialogTrigger>
             <DialogContent>
@@ -934,7 +934,7 @@ export default function VendorWithdraw() {
                 </DialogTitle>
                 <DialogDescription>
                   {otpStep === 'amount' 
-                    ? `Withdraw ${withdrawalSource === 'rider_revenue' ? 'rider delivery revenue' : 'menu sales earnings'} to your bank account` 
+                    ? `Withdraw ${withdrawalSource === 'rider_revenue' ? 'rider delivery revenue' : vendor?.category === 'voucher' ? 'voucher sales earnings' : 'menu sales earnings'} to your bank account` 
                     : 'Enter the 6-digit code sent to your email'}
                 </DialogDescription>
               </DialogHeader>
