@@ -838,13 +838,13 @@ export default function VendorWithdraw() {
                     <p className="text-sm text-muted-foreground">Total Pending</p>
                     <p className="text-2xl font-bold text-foreground">{formatCurrency(wallet?.pending_balance || 0)}</p>
                     <p className="text-xs text-muted-foreground">
-                      {settlementMode === 'next_day'
-                        ? 'Next-day settlement'
-                        : settlementMode === 'third_day'
-                          ? 'Third-day settlement'
-                          : settlementHours !== null && settlementHours > 0
-                            ? `Menu sales (${settlementHours}hr hold)`
-                            : 'Menu sales (no hold)'}
+                      {(() => {
+                        const label = vendor?.category === 'voucher' ? 'Voucher sales' : 'Menu sales';
+                        if (settlementMode === 'next_day') return 'Next-day settlement';
+                        if (settlementMode === 'third_day') return 'Third-day settlement';
+                        if (settlementHours !== null && settlementHours > 0) return `${label} (${settlementHours}hr hold)`;
+                        return `${label} (no hold)`;
+                      })()}
                     </p>
                   </div>
                   <div className="w-12 h-12 rounded-xl bg-warning/10 flex items-center justify-center">
