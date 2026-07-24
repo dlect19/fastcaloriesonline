@@ -683,7 +683,7 @@ export default function VendorEarnings() {
                       {formatCurrency(computedMenuPending)}
                     </p>
                     <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Clock className="w-3 h-3" /> Menu sales only
+                      <Clock className="w-3 h-3" /> {vendor?.category === 'voucher' ? 'Voucher sales only' : 'Menu sales only'}
                     </p>
                   </div>
                   <div className="w-12 h-12 rounded-xl bg-warning/10 flex items-center justify-center">
