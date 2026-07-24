@@ -953,7 +953,7 @@ export default function VendorWithdraw() {
                       <UtensilsCrossed className="w-5 h-5 text-primary" />
                     )}
                     <span className="font-medium">
-                      {withdrawalSource === 'rider_revenue' ? 'Rider Delivery Revenue' : 'Menu Sales Revenue'}
+                      {withdrawalSource === 'rider_revenue' ? 'Rider Delivery Revenue' : vendor?.category === 'voucher' ? 'Voucher Sales Revenue' : 'Menu Sales Revenue'}
                     </span>
                   </div>
 
