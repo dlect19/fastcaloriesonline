@@ -838,13 +838,13 @@ export default function VendorWithdraw() {
                     <p className="text-sm text-muted-foreground">Total Pending</p>
                     <p className="text-2xl font-bold text-foreground">{formatCurrency(wallet?.pending_balance || 0)}</p>
                     <p className="text-xs text-muted-foreground">
-                      {settlementMode === 'next_day'
-                        ? 'Next-day settlement'
-                        : settlementMode === 'third_day'
-                          ? 'Third-day settlement'
-                          : settlementHours !== null && settlementHours > 0
-                            ? `Menu sales (${settlementHours}hr hold)`
-                            : 'Menu sales (no hold)'}
+                      {(() => {
+                        const label = vendor?.category === 'voucher' ? 'Voucher sales' : 'Menu sales';
+                        if (settlementMode === 'next_day') return 'Next-day settlement';
+                        if (settlementMode === 'third_day') return 'Third-day settlement';
+                        if (settlementHours !== null && settlementHours > 0) return `${label} (${settlementHours}hr hold)`;
+                        return `${label} (no hold)`;
+                      })()}
                     </p>
                   </div>
                   <div className="w-12 h-12 rounded-xl bg-warning/10 flex items-center justify-center">
@@ -923,7 +923,7 @@ export default function VendorWithdraw() {
             <DialogTrigger asChild>
               <Button size="lg" className="gap-2">
                 <ArrowUpRight className="w-5 h-5" />
-                Withdraw {withdrawalSource === 'rider_revenue' ? 'Rider Revenue' : 'Menu Earnings'}
+                Withdraw {withdrawalSource === 'rider_revenue' ? 'Rider Revenue' : vendor?.category === 'voucher' ? 'Voucher Earnings' : 'Menu Earnings'}
               </Button>
             </DialogTrigger>
             <DialogContent>
@@ -934,7 +934,7 @@ export default function VendorWithdraw() {
                 </DialogTitle>
                 <DialogDescription>
                   {otpStep === 'amount' 
-                    ? `Withdraw ${withdrawalSource === 'rider_revenue' ? 'rider delivery revenue' : 'menu sales earnings'} to your bank account` 
+                    ? `Withdraw ${withdrawalSource === 'rider_revenue' ? 'rider delivery revenue' : vendor?.category === 'voucher' ? 'voucher sales earnings' : 'menu sales earnings'} to your bank account` 
                     : 'Enter the 6-digit code sent to your email'}
                 </DialogDescription>
               </DialogHeader>
@@ -953,7 +953,7 @@ export default function VendorWithdraw() {
                       <UtensilsCrossed className="w-5 h-5 text-primary" />
                     )}
                     <span className="font-medium">
-                      {withdrawalSource === 'rider_revenue' ? 'Rider Delivery Revenue' : 'Menu Sales Revenue'}
+                      {withdrawalSource === 'rider_revenue' ? 'Rider Delivery Revenue' : vendor?.category === 'voucher' ? 'Voucher Sales Revenue' : 'Menu Sales Revenue'}
                     </span>
                   </div>
 
@@ -1094,7 +1094,7 @@ export default function VendorWithdraw() {
                         <div>
                           <p className="font-medium text-foreground">{formatCurrency(withdrawal.amount)}</p>
                           <p className="text-sm text-muted-foreground">
-                            {withdrawal.withdrawal_source === 'rider_revenue' ? 'Rider Revenue' : 'Menu Earnings'} • {new Date(withdrawal.requested_at).toLocaleDateString('en-NG', { dateStyle: 'medium' })}
+                            {withdrawal.withdrawal_source === 'rider_revenue' ? 'Rider Revenue' : vendor?.category === 'voucher' ? 'Voucher Earnings' : 'Menu Earnings'} • {new Date(withdrawal.requested_at).toLocaleDateString('en-NG', { dateStyle: 'medium' })}
                           </p>
                         </div>
                       </div>
