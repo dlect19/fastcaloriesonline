@@ -378,11 +378,18 @@ export default function VendorWithdraw() {
     return false;
   };
 
+  const isMenuRevenueCredit = (tx: any) => ['vendor_share', 'voucher_sale'].includes(tx.category);
+  const isReleased = (tx: any) => {
+    const releaseTime = tx.release_at || tx.created_at;
+    return new Date(releaseTime).getTime() <= Date.now();
+  };
+
   // Compute balances from ledger (source of truth) - same logic as VendorEarnings
   const computedMenuBalance = Math.max(0, allTransactions
     .reduce((sum: number, tx: any) => {
-      if (tx.category === 'vendor_share' && tx.status === 'completed') {
-        return tx.transaction_type === 'credit' ? sum + Number(tx.amount) : sum - Number(tx.amount);
+      if (isMenuRevenueCredit(tx) && tx.status === 'completed') {
+        if (tx.transaction_type === 'credit') return isReleased(tx) ? sum + Number(tx.amount) : sum;
+        return sum - Number(tx.amount);
       }
       if (tx.category === 'withdrawal' && tx.transaction_type === 'debit' && !isRiderRevenueWithdrawal(tx)) {
         return sum - Number(tx.amount);
@@ -407,7 +414,7 @@ export default function VendorWithdraw() {
     }, 0));
 
   const computedMenuPending = Math.max(0, allTransactions
-    .filter((tx: any) => tx.category === 'vendor_share' && tx.transaction_type === 'credit' && tx.status === 'pending')
+    .filter((tx: any) => isMenuRevenueCredit(tx) && tx.transaction_type === 'credit' && (tx.status === 'pending' || (tx.status === 'completed' && !isReleased(tx))))
     .reduce((sum: number, tx: any) => sum + Number(tx.amount), 0));
 
   const computedRiderBalance = Math.max(0, allTransactions
