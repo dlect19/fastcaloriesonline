@@ -34,7 +34,7 @@ export default function VendorVoucherHub() {
   const { vendorId, loading: vendorLoading } = useVendorResolver();
   const [vendorName, setVendorName] = useState<string>('My Store');
   const [vendorSlug, setVendorSlug] = useState<string | null>(null);
-  const [walletBalance, setWalletBalance] = useState(0);
+  const [walletPools, setWalletPools] = useState({ available: 0, pending: 0, earned: 0 });
   const [salesStats, setSalesStats] = useState({ totalSold: 0, totalRevenue: 0 });
 
   const { categories, refetch: refetchCategories } = useVoucherCategories(vendorId);
@@ -49,14 +49,18 @@ export default function VendorVoucherHub() {
         if (data?.user_id) {
           const { data: w } = await supabase
             .from('wallets')
-            .select('balance, test_balance')
+            .select('balance, test_balance, pending_balance, test_pending_balance, menu_earnings_balance, test_menu_earnings_balance, menu_earnings_pending, test_menu_earnings_pending, total_earned')
             .eq('user_id', data.user_id)
             .eq('wallet_type', 'vendor')
             .maybeSingle();
           const { data: env } = await supabase
             .from('platform_settings').select('value').eq('key', 'platform_environment').maybeSingle();
           const isTest = (env?.value || 'development') === 'development';
-          setWalletBalance(Number((isTest ? (w as any)?.test_balance : (w as any)?.balance) || 0));
+          setWalletPools({
+            available: Number((isTest ? (w as any)?.test_menu_earnings_balance : (w as any)?.menu_earnings_balance) || (isTest ? (w as any)?.test_balance : (w as any)?.balance) || 0),
+            pending: Number((isTest ? (w as any)?.test_menu_earnings_pending : (w as any)?.menu_earnings_pending) || (isTest ? (w as any)?.test_pending_balance : (w as any)?.pending_balance) || 0),
+            earned: Number((w as any)?.total_earned || 0),
+          });
         }
       });
     supabase.from('voucher_orders').select('amount').eq('vendor_id', vendorId).eq('status', 'paid')
@@ -86,7 +90,7 @@ export default function VendorVoucherHub() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card><CardContent className="p-4 flex items-center gap-3"><Package className="w-8 h-8 text-primary" /><div><p className="text-xs text-muted-foreground">Vouchers sold</p><p className="text-xl font-bold">{salesStats.totalSold}</p></div></CardContent></Card>
           <Card><CardContent className="p-4 flex items-center gap-3"><Ticket className="w-8 h-8 text-primary" /><div><p className="text-xs text-muted-foreground">Revenue</p><p className="text-xl font-bold">₦{salesStats.totalRevenue.toLocaleString()}</p></div></CardContent></Card>
-          <Card><CardContent className="p-4 flex items-center gap-3"><Wallet className="w-8 h-8 text-primary" /><div><p className="text-xs text-muted-foreground">Wallet balance</p><p className="text-xl font-bold">₦{walletBalance.toLocaleString()}</p><p className="text-[10px] text-muted-foreground">Withdraw via the standard vendor payout flow.</p></div></CardContent></Card>
+          <Card><CardContent className="p-4 flex items-center gap-3"><Wallet className="w-8 h-8 text-primary" /><div><p className="text-xs text-muted-foreground">Wallet pools</p><p className="text-xl font-bold">₦{walletPools.available.toLocaleString()} available</p><p className="text-[10px] text-muted-foreground">₦{walletPools.pending.toLocaleString()} pending • ₦{walletPools.earned.toLocaleString()} earned</p></div></CardContent></Card>
         </div>
 
         {vendorSlug && (
