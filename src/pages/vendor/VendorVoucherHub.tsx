@@ -34,7 +34,7 @@ export default function VendorVoucherHub() {
   const { vendorId, loading: vendorLoading } = useVendorResolver();
   const [vendorName, setVendorName] = useState<string>('My Store');
   const [vendorSlug, setVendorSlug] = useState<string | null>(null);
-  const [walletBalance, setWalletBalance] = useState(0);
+  const [walletPools, setWalletPools] = useState({ available: 0, pending: 0, earned: 0 });
   const [salesStats, setSalesStats] = useState({ totalSold: 0, totalRevenue: 0 });
 
   const { categories, refetch: refetchCategories } = useVoucherCategories(vendorId);
@@ -49,14 +49,18 @@ export default function VendorVoucherHub() {
         if (data?.user_id) {
           const { data: w } = await supabase
             .from('wallets')
-            .select('balance, test_balance')
+            .select('balance, test_balance, pending_balance, test_pending_balance, menu_earnings_balance, test_menu_earnings_balance, menu_earnings_pending, test_menu_earnings_pending, total_earned')
             .eq('user_id', data.user_id)
             .eq('wallet_type', 'vendor')
             .maybeSingle();
           const { data: env } = await supabase
             .from('platform_settings').select('value').eq('key', 'platform_environment').maybeSingle();
           const isTest = (env?.value || 'development') === 'development';
-          setWalletBalance(Number((isTest ? (w as any)?.test_balance : (w as any)?.balance) || 0));
+          setWalletPools({
+            available: Number((isTest ? (w as any)?.test_menu_earnings_balance : (w as any)?.menu_earnings_balance) || (isTest ? (w as any)?.test_balance : (w as any)?.balance) || 0),
+            pending: Number((isTest ? (w as any)?.test_menu_earnings_pending : (w as any)?.menu_earnings_pending) || (isTest ? (w as any)?.test_pending_balance : (w as any)?.pending_balance) || 0),
+            earned: Number((w as any)?.total_earned || 0),
+          });
         }
       });
     supabase.from('voucher_orders').select('amount').eq('vendor_id', vendorId).eq('status', 'paid')
@@ -86,7 +90,7 @@ export default function VendorVoucherHub() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card><CardContent className="p-4 flex items-center gap-3"><Package className="w-8 h-8 text-primary" /><div><p className="text-xs text-muted-foreground">Vouchers sold</p><p className="text-xl font-bold">{salesStats.totalSold}</p></div></CardContent></Card>
           <Card><CardContent className="p-4 flex items-center gap-3"><Ticket className="w-8 h-8 text-primary" /><div><p className="text-xs text-muted-foreground">Revenue</p><p className="text-xl font-bold">₦{salesStats.totalRevenue.toLocaleString()}</p></div></CardContent></Card>
-          <Card><CardContent className="p-4 flex items-center gap-3"><Wallet className="w-8 h-8 text-primary" /><div><p className="text-xs text-muted-foreground">Wallet balance</p><p className="text-xl font-bold">₦{walletBalance.toLocaleString()}</p><p className="text-[10px] text-muted-foreground">Withdraw via the standard vendor payout flow.</p></div></CardContent></Card>
+          <Card><CardContent className="p-4 flex items-center gap-3"><Wallet className="w-8 h-8 text-primary" /><div><p className="text-xs text-muted-foreground">Wallet pools</p><p className="text-xl font-bold">₦{walletPools.available.toLocaleString()} available</p><p className="text-[10px] text-muted-foreground">₦{walletPools.pending.toLocaleString()} pending • ₦{walletPools.earned.toLocaleString()} earned</p></div></CardContent></Card>
         </div>
 
         {vendorSlug && (
@@ -482,6 +486,7 @@ function TemplateTab({ vendorId, vendorName, template, refetch, setTemplate }: a
 function SalesTab({ vendorId, categories }: { vendorId: string; categories: any[] }) {
   const [perCategory, setPerCategory] = useState<Record<string, { sold: number; available: number }>>({});
   const [orders, setOrders] = useState<any[]>([]);
+  const [reconciliation, setReconciliation] = useState<any[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
 
   useEffect(() => {
@@ -521,9 +526,23 @@ function SalesTab({ vendorId, categories }: { vendorId: string; categories: any[
       const catMap: Record<string, string> = {};
       categories.forEach(c => { catMap[c.id] = c.name; });
       setOrders(rows.map(r => ({ ...r, code: codeMap[r.code_id] || '—', categoryName: catMap[r.category_id] || '—' })));
+      const { data: reconRows } = await (supabase as any).rpc('get_voucher_wallet_reconciliation', {
+        p_vendor_id: vendorId,
+        p_environment: null,
+      });
+      setReconciliation(reconRows || []);
       setLoadingOrders(false);
     })();
   }, [vendorId, categories]);
+
+  const totals = useMemo(() => reconciliation.reduce((acc, row) => {
+    acc.gross += Number(row.gross_amount || 0);
+    acc.ledger += Number(row.ledger_amount || 0);
+    acc.pending += row.wallet_pool === 'pending' ? Number(row.ledger_amount || 0) : 0;
+    acc.available += row.wallet_pool === 'available' ? Number(row.ledger_amount || 0) : 0;
+    acc.missing += row.wallet_pool === 'missing' ? 1 : 0;
+    return acc;
+  }, { gross: 0, ledger: 0, pending: 0, available: 0, missing: 0 }), [reconciliation]);
 
   const exportCsv = () => {
     const header = ['Purchased At', 'Category', 'Code', 'Amount', 'Email', 'Phone', 'Reference', 'Status'];
@@ -601,6 +620,57 @@ function SalesTab({ vendorId, categories }: { vendorId: string; categories: any[
                       <TableCell className="text-xs">{o.guest_email || <span className="text-muted-foreground">—</span>}</TableCell>
                       <TableCell className="text-xs">{o.guest_phone || <span className="text-muted-foreground">—</span>}</TableCell>
                       <TableCell className="font-mono text-[10px] text-muted-foreground">{o.paystack_reference || '—'}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Wallet reconciliation</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Gross voucher revenue</p><p className="font-bold">₦{totals.gross.toLocaleString()}</p></div>
+            <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Net ledger credited</p><p className="font-bold">₦{totals.ledger.toLocaleString()}</p></div>
+            <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Pending pool</p><p className="font-bold text-warning">₦{totals.pending.toLocaleString()}</p></div>
+            <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Available pool</p><p className="font-bold text-success">₦{totals.available.toLocaleString()}</p></div>
+          </div>
+          {totals.missing > 0 && <Badge variant="destructive">{totals.missing} paid sale{totals.missing === 1 ? '' : 's'} missing wallet credit</Badge>}
+          {loadingOrders ? (
+            <p className="text-sm text-muted-foreground text-center py-6">Loading…</p>
+          ) : reconciliation.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">No paid voucher sales to reconcile.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Gross</TableHead>
+                    <TableHead>Commission</TableHead>
+                    <TableHead>Expected net</TableHead>
+                    <TableHead>Ledger credit</TableHead>
+                    <TableHead>Wallet pool</TableHead>
+                    <TableHead>Release</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {reconciliation.map(row => (
+                    <TableRow key={row.order_id}>
+                      <TableCell className="text-xs whitespace-nowrap">{new Date(row.purchased_at).toLocaleString()}</TableCell>
+                      <TableCell>{row.category_name || '—'}</TableCell>
+                      <TableCell>₦{Number(row.gross_amount || 0).toLocaleString()}</TableCell>
+                      <TableCell>₦{Number(row.commission_amount || 0).toLocaleString()}</TableCell>
+                      <TableCell>₦{Number(row.net_expected || 0).toLocaleString()}</TableCell>
+                      <TableCell className={Number(row.ledger_amount || 0) === Number(row.net_expected || 0) ? 'text-success font-medium' : 'text-destructive font-medium'}>₦{Number(row.ledger_amount || 0).toLocaleString()}</TableCell>
+                      <TableCell><Badge variant={row.wallet_pool === 'missing' ? 'destructive' : row.wallet_pool === 'pending' ? 'secondary' : 'default'}>{row.wallet_pool}</Badge></TableCell>
+                      <TableCell className="text-xs whitespace-nowrap">{row.release_at ? new Date(row.release_at).toLocaleString() : '—'}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

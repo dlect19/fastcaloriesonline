@@ -9483,6 +9483,27 @@ export type Database = {
         Args: { _vendor_id: string }
         Returns: number
       }
+      get_voucher_wallet_reconciliation: {
+        Args: { p_environment?: string; p_vendor_id: string }
+        Returns: {
+          buyer_email: string
+          buyer_phone: string
+          category_name: string
+          commission_amount: number
+          gross_amount: number
+          ledger_amount: number
+          ledger_status: string
+          net_expected: number
+          order_id: string
+          paystack_reference: string
+          purchased_at: string
+          release_at: string
+          released: boolean
+          transaction_id: string
+          wallet_id: string
+          wallet_pool: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
