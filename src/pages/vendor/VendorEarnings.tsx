@@ -346,10 +346,18 @@ export default function VendorEarnings() {
   };
 
   // Compute balances from ALL transactions (ledger = source of truth)
+  const isMenuRevenueCredit = (tx: WalletTransaction) => ['vendor_share', 'voucher_sale'].includes(tx.category);
+  const isReleased = (tx: WalletTransaction) => {
+    const releaseAt = typeof tx.metadata?.release_at === 'string' ? tx.metadata.release_at : undefined;
+    const releaseTime = releaseAt || (tx as any).release_at || tx.created_at;
+    return new Date(releaseTime).getTime() <= Date.now();
+  };
+
   const computedMenuBalance = Math.max(0, allTransactions
     .reduce((sum, tx) => {
-      if (tx.category === 'vendor_share' && tx.status === 'completed') {
-        return tx.transaction_type === 'credit' ? sum + tx.amount : sum - tx.amount;
+      if (isMenuRevenueCredit(tx) && tx.status === 'completed') {
+        if (tx.transaction_type === 'credit') return isReleased(tx) ? sum + tx.amount : sum;
+        return sum - tx.amount;
       }
       if (tx.category === 'withdrawal' && tx.transaction_type === 'debit' && !isRiderRevenueWithdrawal(tx)) {
         return sum - tx.amount;
@@ -367,7 +375,7 @@ export default function VendorEarnings() {
     }, 0));
 
   const computedMenuPending = Math.max(0, allTransactions
-    .filter(tx => tx.category === 'vendor_share' && tx.transaction_type === 'credit' && tx.status === 'pending')
+    .filter(tx => isMenuRevenueCredit(tx) && tx.transaction_type === 'credit' && (tx.status === 'pending' || (tx.status === 'completed' && !isReleased(tx))))
     .reduce((sum, tx) => sum + tx.amount, 0));
 
   const computedRiderBalance = Math.max(0, allTransactions
@@ -389,7 +397,7 @@ export default function VendorEarnings() {
   // Calculate accurate total earned from ledger (net credits minus reversal debits)
   const computedTotalEarned = allTransactions
     .filter(tx => 
-      ['vendor_share', 'vendor_rider_share'].includes(tx.category) && 
+      ['vendor_share', 'vendor_rider_share', 'voucher_sale'].includes(tx.category) && 
       tx.status === 'completed'
     )
     .reduce((sum, tx) => {
