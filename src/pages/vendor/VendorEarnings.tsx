@@ -501,11 +501,13 @@ export default function VendorEarnings() {
                       label: 'Platform Commission',
                       amount: financialBreakdown.totalCommission,
                       percentage: financialBreakdown.commissionRate,
-                      description: 'Commission calculated on menu price only. Packaging, delivery fees and service fees are not included.',
+                      description: vendor?.category === 'voucher'
+                        ? 'Commission is deducted from the voucher face value on each sale.'
+                        : 'Commission calculated on menu price only. Packaging, delivery fees and service fees are not included.',
                     },
                   ]}
                   netAmount={financialBreakdown.netRevenue}
-                  title="Menu Earnings Breakdown"
+                  title={vendor?.category === 'voucher' ? 'Voucher Earnings Breakdown' : 'Menu Earnings Breakdown'}
                   period={dateRange.from || dateRange.to 
                     ? `${dateRange.from?.toLocaleDateString() || 'Start'} - ${dateRange.to?.toLocaleDateString() || 'Now'}`
                     : 'All Time'
