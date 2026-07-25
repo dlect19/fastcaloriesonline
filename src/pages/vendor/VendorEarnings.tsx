@@ -52,6 +52,7 @@ interface WalletTransaction {
   status: string;
   order_id: string | null;
   created_at: string;
+  release_at?: string | null;
   notes: string | null;
   metadata: Record<string, unknown>;
 }
@@ -285,6 +286,7 @@ export default function VendorEarnings() {
             status: tx.status || 'completed',
             order_id: tx.order_id,
             created_at: tx.created_at,
+            release_at: tx.release_at,
             notes: tx.notes || null,
             metadata: (tx.metadata as Record<string, unknown>) || {},
           });
