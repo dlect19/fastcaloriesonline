@@ -357,7 +357,7 @@ export default function VendorDashboard() {
   };
 
   const computedMenuBalance = Math.max(0, allTransactions.reduce((sum: number, tx: any) => {
-    if (tx.category === 'vendor_share' && tx.status === 'completed') {
+    if (['vendor_share', 'voucher_sale'].includes(tx.category) && tx.status === 'completed') {
       if (tx.transaction_type === 'credit') {
         return _isReleased(tx) ? sum + Number(tx.amount) : sum;
       }
@@ -373,7 +373,7 @@ export default function VendorDashboard() {
   }, 0));
 
   const computedMenuPending = Math.max(0, allTransactions
-    .filter((tx: any) => tx.category === 'vendor_share' && tx.transaction_type === 'credit'
+    .filter((tx: any) => ['vendor_share', 'voucher_sale'].includes(tx.category) && tx.transaction_type === 'credit'
       && (tx.status === 'pending' || (tx.status === 'completed' && !_isReleased(tx))))
     .reduce((sum: number, tx: any) => sum + Number(tx.amount), 0));
 
