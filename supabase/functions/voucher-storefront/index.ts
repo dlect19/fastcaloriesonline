@@ -100,13 +100,13 @@ serve(async (req: Request) => {
         logo_url: vendor.logo_url,
       },
       template: template || null,
+      locations: (locations || []),
       categories: (categories || [])
         .map((c: any) => ({
           ...c,
           price: stock[c.id]?.price ?? 0,
           available: stock[c.id]?.available ?? 0,
         }))
-        // Show categories with stock first, but include out-of-stock as sold out
         .sort((a: any, b: any) => (b.available > 0 ? 1 : 0) - (a.available > 0 ? 1 : 0)),
       ads: ads || [],
     });
