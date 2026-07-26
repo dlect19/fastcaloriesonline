@@ -54,6 +54,7 @@ export default function VoucherStorefront() {
   const [phone, setPhone] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [viewMode, setViewMode] = useState<'card' | 'list'>('card');
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!slug) return;
