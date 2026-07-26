@@ -17,6 +17,11 @@ interface Category {
   validity_days: number;
   price: number;
   available: number;
+  location_id: string;
+}
+interface Location {
+  id: string;
+  name: string;
 }
 interface Ad {
   id: string;
@@ -29,6 +34,7 @@ interface Ad {
 interface Storefront {
   vendor: { id: string; name: string; slug: string; logo_url: string | null };
   template: { logo_url: string | null; background_color: string | null; background_image_url: string | null } | null;
+  locations: Location[];
   categories: Category[];
   ads: Ad[];
 }
