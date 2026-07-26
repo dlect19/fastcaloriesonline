@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { useVoucherCategories, useVoucherCodes, useVendorTemplate } from '@/hooks/useVoucherHub';
+import { useVoucherCategories, useVoucherCodes, useVendorTemplate, useVoucherLocations, VoucherLocation } from '@/hooks/useVoucherHub';
 import { ImageUploadField } from '@/components/admin/ImageUploadField';
 import { CsvUploadDialog } from '@/components/vendor/voucher/CsvUploadDialog';
 import { VoucherPreview } from '@/components/vouchers/VoucherPreview';
