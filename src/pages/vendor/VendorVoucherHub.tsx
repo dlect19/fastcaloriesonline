@@ -38,7 +38,21 @@ export default function VendorVoucherHub() {
   const [salesStats, setSalesStats] = useState({ totalSold: 0, totalRevenue: 0 });
 
   const { categories, refetch: refetchCategories } = useVoucherCategories(vendorId);
+  const { locations, refetch: refetchLocations } = useVoucherLocations(vendorId);
   const { template, refetch: refetchTemplate, setTemplate } = useVendorTemplate(vendorId);
+  const [activeLocationId, setActiveLocationId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!activeLocationId && locations.length > 0) setActiveLocationId(locations[0].id);
+    if (activeLocationId && !locations.find(l => l.id === activeLocationId)) {
+      setActiveLocationId(locations[0]?.id ?? null);
+    }
+  }, [locations, activeLocationId]);
+
+  const scopedCategories = useMemo(
+    () => activeLocationId ? categories.filter((c: any) => c.location_id === activeLocationId) : categories,
+    [categories, activeLocationId],
+  );
 
   useEffect(() => {
     if (!vendorId) return;
