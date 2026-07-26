@@ -38,9 +38,17 @@ serve(async (req: Request) => {
       return json({ error: "Storefront not found" }, 404);
     }
 
+    const { data: locations } = await admin
+      .from("voucher_locations")
+      .select("id, name, is_active, sort_order, created_at")
+      .eq("vendor_id", vendor.id)
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true });
+
     const { data: categories, error: catErr } = await admin
       .from("voucher_categories")
-      .select("id, name, description, validity_days, is_active")
+      .select("id, name, description, validity_days, is_active, location_id")
       .eq("vendor_id", vendor.id)
       .eq("is_active", true);
     if (catErr) console.error("voucher-storefront categories error:", catErr);
