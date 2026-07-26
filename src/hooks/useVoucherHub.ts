@@ -8,6 +8,38 @@ export interface VoucherCategory {
   validity_days: number;
   is_active: boolean;
   created_at: string;
+  location_id: string;
+  description?: string | null;
+}
+
+export interface VoucherLocation {
+  id: string;
+  vendor_id: string;
+  name: string;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+}
+
+export function useVoucherLocations(vendorId: string | null) {
+  const [locations, setLocations] = useState<VoucherLocation[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const refetch = useCallback(async () => {
+    if (!vendorId) { setLocations([]); setLoading(false); return; }
+    setLoading(true);
+    const { data } = await (supabase as any)
+      .from('voucher_locations')
+      .select('*')
+      .eq('vendor_id', vendorId)
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true });
+    setLocations((data || []) as VoucherLocation[]);
+    setLoading(false);
+  }, [vendorId]);
+
+  useEffect(() => { refetch(); }, [refetch]);
+  return { locations, loading, refetch };
 }
 
 export interface VoucherCode {
