@@ -127,19 +127,38 @@ export default function VendorVoucherHub() {
         )}
 
 
-        <Tabs defaultValue="categories" className="w-full">
+        <Tabs defaultValue="locations" className="w-full">
           <TabsList>
+            <TabsTrigger value="locations">Locations</TabsTrigger>
             <TabsTrigger value="categories">Categories</TabsTrigger>
             <TabsTrigger value="stock">Stock</TabsTrigger>
             <TabsTrigger value="template">Template</TabsTrigger>
             <TabsTrigger value="sales">Sales</TabsTrigger>
           </TabsList>
 
+          <TabsContent value="locations" className="mt-4">
+            <LocationsTab vendorId={vendorId} locations={locations} refetch={refetchLocations} />
+          </TabsContent>
           <TabsContent value="categories" className="mt-4">
-            <CategoriesTab vendorId={vendorId} categories={categories} refetch={refetchCategories} />
+            {locations.length === 0 ? (
+              <Card><CardContent className="p-6 text-center text-sm text-muted-foreground">
+                Create a location first (e.g. "Ikeja", "Lekki") — every category must belong to a location.
+              </CardContent></Card>
+            ) : (
+              <>
+                <div className="mb-3 flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-muted-foreground" />
+                  <Select value={activeLocationId ?? ''} onValueChange={setActiveLocationId}>
+                    <SelectTrigger className="w-56"><SelectValue placeholder="Choose location" /></SelectTrigger>
+                    <SelectContent>{locations.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <CategoriesTab vendorId={vendorId} locationId={activeLocationId} locations={locations} categories={scopedCategories} refetch={refetchCategories} />
+              </>
+            )}
           </TabsContent>
           <TabsContent value="stock" className="mt-4">
-            <StockTab categories={categories} />
+            <StockTab categories={scopedCategories} />
           </TabsContent>
           <TabsContent value="template" className="mt-4">
             <TemplateTab vendorId={vendorId} vendorName={vendorName} template={template} refetch={refetchTemplate} setTemplate={setTemplate} />
