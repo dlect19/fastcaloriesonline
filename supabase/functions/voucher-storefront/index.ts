@@ -38,9 +38,17 @@ serve(async (req: Request) => {
       return json({ error: "Storefront not found" }, 404);
     }
 
+    const { data: locations } = await admin
+      .from("voucher_locations")
+      .select("id, name, is_active, sort_order, created_at")
+      .eq("vendor_id", vendor.id)
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true });
+
     const { data: categories, error: catErr } = await admin
       .from("voucher_categories")
-      .select("id, name, description, validity_days, is_active")
+      .select("id, name, description, validity_days, is_active, location_id")
       .eq("vendor_id", vendor.id)
       .eq("is_active", true);
     if (catErr) console.error("voucher-storefront categories error:", catErr);
@@ -92,13 +100,13 @@ serve(async (req: Request) => {
         logo_url: vendor.logo_url,
       },
       template: template || null,
+      locations: (locations || []),
       categories: (categories || [])
         .map((c: any) => ({
           ...c,
           price: stock[c.id]?.price ?? 0,
           available: stock[c.id]?.available ?? 0,
         }))
-        // Show categories with stock first, but include out-of-stock as sold out
         .sort((a: any, b: any) => (b.available > 0 ? 1 : 0) - (a.available > 0 ? 1 : 0)),
       ads: ads || [],
     });

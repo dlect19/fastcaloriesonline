@@ -17,6 +17,11 @@ interface Category {
   validity_days: number;
   price: number;
   available: number;
+  location_id: string;
+}
+interface Location {
+  id: string;
+  name: string;
 }
 interface Ad {
   id: string;
@@ -29,6 +34,7 @@ interface Ad {
 interface Storefront {
   vendor: { id: string; name: string; slug: string; logo_url: string | null };
   template: { logo_url: string | null; background_color: string | null; background_image_url: string | null } | null;
+  locations: Location[];
   categories: Category[];
   ads: Ad[];
 }
@@ -48,6 +54,7 @@ export default function VoucherStorefront() {
   const [phone, setPhone] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [viewMode, setViewMode] = useState<'card' | 'list'>('card');
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!slug) return;
@@ -144,8 +151,14 @@ export default function VoucherStorefront() {
   }
 
   const logo = data.template?.logo_url || data.vendor.logo_url;
-  const inStock = data.categories.filter(c => c.available > 0);
-  const outStock = data.categories.filter(c => c.available === 0);
+  const activeLocations = data.locations || [];
+  const effectiveLocationId = selectedLocationId ?? (activeLocations.length === 1 ? activeLocations[0].id : null);
+  const locationScoped = effectiveLocationId
+    ? data.categories.filter(c => c.location_id === effectiveLocationId)
+    : [];
+  const inStock = locationScoped.filter(c => c.available > 0);
+  const outStock = locationScoped.filter(c => c.available === 0);
+  const activeLocation = activeLocations.find(l => l.id === effectiveLocationId) || null;
 
   return (
     <div className="min-h-screen text-white" style={bg}>
@@ -211,11 +224,54 @@ export default function VoucherStorefront() {
           </section>
         )}
 
+        {/* Location picker */}
+        {activeLocations.length > 1 && (
+          <section aria-label="Choose location" className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-4 md:p-6">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <p className="text-xs uppercase tracking-wider opacity-70">Step 1</p>
+                <h2 className="text-lg font-semibold">Choose a location</h2>
+                {activeLocation && <p className="text-xs opacity-70 mt-1">Showing vouchers for <span className="font-medium">{activeLocation.name}</span></p>}
+              </div>
+              {activeLocation && (
+                <Button size="sm" variant="outline" className="text-white border-white/30 bg-white/10 hover:bg-white/20" onClick={() => setSelectedLocationId(null)}>
+                  Change location
+                </Button>
+              )}
+            </div>
+            {!effectiveLocationId && (
+              <div className="mt-4 grid gap-2 sm:grid-cols-2 md:grid-cols-3">
+                {activeLocations.map(l => (
+                  <button
+                    key={l.id}
+                    type="button"
+                    onClick={() => setSelectedLocationId(l.id)}
+                    className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/10 hover:bg-white/20 transition p-3 text-left"
+                  >
+                    <div className="w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center">
+                      <Store className="w-4 h-4" />
+                    </div>
+                    <span className="font-medium">{l.name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
         {/* Categories */}
-        {data.categories.length === 0 ? (
+        {activeLocations.length === 0 || !effectiveLocationId ? (
+          activeLocations.length === 0 ? (
+            <Card className="bg-white/5 border-white/10 text-white">
+              <CardContent className="pt-6 text-center opacity-80">
+                This vendor hasn't opened any locations yet.
+              </CardContent>
+            </Card>
+          ) : null
+        ) : locationScoped.length === 0 ? (
           <Card className="bg-white/5 border-white/10 text-white">
             <CardContent className="pt-6 text-center opacity-80">
-              This vendor has no active voucher categories yet.
+              No active vouchers for this location yet.
             </CardContent>
           </Card>
         ) : (

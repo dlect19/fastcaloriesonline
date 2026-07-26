@@ -8394,6 +8394,7 @@ export type Database = {
           description: string | null
           id: string
           is_active: boolean
+          location_id: string
           name: string
           updated_at: string
           validity_days: number
@@ -8404,6 +8405,7 @@ export type Database = {
           description?: string | null
           id?: string
           is_active?: boolean
+          location_id: string
           name: string
           updated_at?: string
           validity_days: number
@@ -8414,12 +8416,20 @@ export type Database = {
           description?: string | null
           id?: string
           is_active?: boolean
+          location_id?: string
           name?: string
           updated_at?: string
           validity_days?: number
           vendor_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "voucher_categories_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "voucher_locations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "voucher_categories_vendor_id_fkey"
             columns: ["vendor_id"]
@@ -8470,6 +8480,44 @@ export type Database = {
           },
         ]
       }
+      voucher_locations: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          sort_order: number
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          sort_order?: number
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          sort_order?: number
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voucher_locations_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       voucher_orders: {
         Row: {
           amount: number
@@ -8489,6 +8537,8 @@ export type Database = {
           rendered_image_url: string | null
           status: string
           vendor_id: string
+          wallet_credit_error: string | null
+          wallet_credited_at: string | null
         }
         Insert: {
           amount: number
@@ -8508,6 +8558,8 @@ export type Database = {
           rendered_image_url?: string | null
           status?: string
           vendor_id: string
+          wallet_credit_error?: string | null
+          wallet_credited_at?: string | null
         }
         Update: {
           amount?: number
@@ -8527,6 +8579,8 @@ export type Database = {
           rendered_image_url?: string | null
           status?: string
           vendor_id?: string
+          wallet_credit_error?: string | null
+          wallet_credited_at?: string | null
         }
         Relationships: [
           {

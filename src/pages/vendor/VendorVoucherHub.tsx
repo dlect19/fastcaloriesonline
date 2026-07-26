@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Ticket, Trash2, Upload, Wallet, Package, Pencil, Check, X } from 'lucide-react';
+import { Plus, Ticket, Trash2, Upload, Wallet, Package, Pencil, Check, X, MapPin } from 'lucide-react';
 import { VendorLayout } from '@/components/vendor/VendorLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { useVendorResolver } from '@/hooks/useVendorResolver';
@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { useVoucherCategories, useVoucherCodes, useVendorTemplate } from '@/hooks/useVoucherHub';
+import { useVoucherCategories, useVoucherCodes, useVendorTemplate, useVoucherLocations, VoucherLocation } from '@/hooks/useVoucherHub';
 import { ImageUploadField } from '@/components/admin/ImageUploadField';
 import { CsvUploadDialog } from '@/components/vendor/voucher/CsvUploadDialog';
 import { VoucherPreview } from '@/components/vouchers/VoucherPreview';
@@ -38,7 +38,21 @@ export default function VendorVoucherHub() {
   const [salesStats, setSalesStats] = useState({ totalSold: 0, totalRevenue: 0 });
 
   const { categories, refetch: refetchCategories } = useVoucherCategories(vendorId);
+  const { locations, refetch: refetchLocations } = useVoucherLocations(vendorId);
   const { template, refetch: refetchTemplate, setTemplate } = useVendorTemplate(vendorId);
+  const [activeLocationId, setActiveLocationId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!activeLocationId && locations.length > 0) setActiveLocationId(locations[0].id);
+    if (activeLocationId && !locations.find(l => l.id === activeLocationId)) {
+      setActiveLocationId(locations[0]?.id ?? null);
+    }
+  }, [locations, activeLocationId]);
+
+  const scopedCategories = useMemo(
+    () => activeLocationId ? categories.filter((c: any) => c.location_id === activeLocationId) : categories,
+    [categories, activeLocationId],
+  );
 
   useEffect(() => {
     if (!vendorId) return;
@@ -113,19 +127,38 @@ export default function VendorVoucherHub() {
         )}
 
 
-        <Tabs defaultValue="categories" className="w-full">
+        <Tabs defaultValue="locations" className="w-full">
           <TabsList>
+            <TabsTrigger value="locations">Locations</TabsTrigger>
             <TabsTrigger value="categories">Categories</TabsTrigger>
             <TabsTrigger value="stock">Stock</TabsTrigger>
             <TabsTrigger value="template">Template</TabsTrigger>
             <TabsTrigger value="sales">Sales</TabsTrigger>
           </TabsList>
 
+          <TabsContent value="locations" className="mt-4">
+            <LocationsTab vendorId={vendorId} locations={locations} refetch={refetchLocations} />
+          </TabsContent>
           <TabsContent value="categories" className="mt-4">
-            <CategoriesTab vendorId={vendorId} categories={categories} refetch={refetchCategories} />
+            {locations.length === 0 ? (
+              <Card><CardContent className="p-6 text-center text-sm text-muted-foreground">
+                Create a location first (e.g. "Ikeja", "Lekki") — every category must belong to a location.
+              </CardContent></Card>
+            ) : (
+              <>
+                <div className="mb-3 flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-muted-foreground" />
+                  <Select value={activeLocationId ?? ''} onValueChange={setActiveLocationId}>
+                    <SelectTrigger className="w-56"><SelectValue placeholder="Choose location" /></SelectTrigger>
+                    <SelectContent>{locations.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <CategoriesTab vendorId={vendorId} locationId={activeLocationId} locations={locations} categories={scopedCategories} refetch={refetchCategories} />
+              </>
+            )}
           </TabsContent>
           <TabsContent value="stock" className="mt-4">
-            <StockTab categories={categories} />
+            <StockTab categories={scopedCategories} />
           </TabsContent>
           <TabsContent value="template" className="mt-4">
             <TemplateTab vendorId={vendorId} vendorName={vendorName} template={template} refetch={refetchTemplate} setTemplate={setTemplate} />
@@ -139,7 +172,7 @@ export default function VendorVoucherHub() {
   );
 }
 
-function CategoriesTab({ vendorId, categories, refetch }: { vendorId: string; categories: any[]; refetch: () => void }) {
+function CategoriesTab({ vendorId, locationId, locations, categories, refetch }: { vendorId: string; locationId: string | null; locations: VoucherLocation[]; categories: any[]; refetch: () => void }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
@@ -173,7 +206,8 @@ function CategoriesTab({ vendorId, categories, refetch }: { vendorId: string; ca
       if (error) return toast({ title: error.message, variant: 'destructive' });
       toast({ title: 'Category updated' });
     } else {
-      const { error } = await supabase.from('voucher_categories').insert({ vendor_id: vendorId, ...payload });
+      if (!locationId) return toast({ title: 'Choose a location first', variant: 'destructive' });
+      const { error } = await supabase.from('voucher_categories').insert({ vendor_id: vendorId, location_id: locationId, ...payload });
       if (error) return toast({ title: error.message, variant: 'destructive' });
       toast({ title: 'Category created' });
     }
@@ -680,5 +714,86 @@ function SalesTab({ vendorId, categories }: { vendorId: string; categories: any[
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function LocationsTab({ vendorId, locations, refetch }: { vendorId: string; locations: VoucherLocation[]; refetch: () => void }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<VoucherLocation | null>(null);
+  const [name, setName] = useState('');
+
+  const openNew = () => { setEditing(null); setName(''); setOpen(true); };
+  const openEdit = (l: VoucherLocation) => { setEditing(l); setName(l.name); setOpen(true); };
+
+  const save = async () => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    if (editing) {
+      const { error } = await (supabase as any).from('voucher_locations').update({ name: trimmed }).eq('id', editing.id);
+      if (error) return toast({ title: error.message, variant: 'destructive' });
+      toast({ title: 'Location updated' });
+    } else {
+      const { error } = await (supabase as any).from('voucher_locations').insert({ vendor_id: vendorId, name: trimmed });
+      if (error) return toast({ title: error.message, variant: 'destructive' });
+      toast({ title: 'Location added' });
+    }
+    setName(''); setOpen(false); setEditing(null);
+    refetch();
+  };
+
+  const toggleActive = async (l: VoucherLocation) => {
+    await (supabase as any).from('voucher_locations').update({ is_active: !l.is_active }).eq('id', l.id);
+    refetch();
+  };
+
+  const remove = async (l: VoucherLocation) => {
+    if (!confirm(`Delete "${l.name}" and ALL its categories and codes?`)) return;
+    const { error } = await (supabase as any).from('voucher_locations').delete().eq('id', l.id);
+    if (error) return toast({ title: error.message, variant: 'destructive' });
+    refetch();
+  };
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle>Locations</CardTitle>
+          <p className="text-xs text-muted-foreground mt-1">Customers pick a location first, then browse categories under it.</p>
+        </div>
+        <Button size="sm" onClick={openNew}><Plus className="w-4 h-4 mr-1" /> Add location</Button>
+        <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setEditing(null); }}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>{editing ? 'Rename location' : 'New location'}</DialogTitle></DialogHeader>
+            <div className="space-y-3">
+              <div><Label>Name</Label><Input placeholder="e.g. Ikeja" value={name} onChange={(e) => setName(e.target.value)} /></div>
+              <Button onClick={save} className="w-full">{editing ? 'Save' : 'Create'}</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </CardHeader>
+      <CardContent>
+        {locations.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-6">No locations yet. Add one to start grouping your voucher categories.</p>
+        ) : (
+          <Table>
+            <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Status</TableHead><TableHead></TableHead></TableRow></TableHeader>
+            <TableBody>
+              {locations.map(l => (
+                <TableRow key={l.id}>
+                  <TableCell className="font-medium flex items-center gap-2"><MapPin className="w-4 h-4 text-muted-foreground" /> {l.name}</TableCell>
+                  <TableCell><Badge variant={l.is_active ? 'default' : 'secondary'}>{l.is_active ? 'Active' : 'Inactive'}</Badge></TableCell>
+                  <TableCell className="text-right space-x-1">
+                    <Button size="sm" variant="ghost" onClick={() => openEdit(l)}><Pencil className="w-4 h-4" /></Button>
+                    <Button size="sm" variant="ghost" onClick={() => toggleActive(l)}>{l.is_active ? 'Disable' : 'Enable'}</Button>
+                    <Button size="sm" variant="ghost" onClick={() => remove(l)}><Trash2 className="w-4 h-4" /></Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
   );
 }
