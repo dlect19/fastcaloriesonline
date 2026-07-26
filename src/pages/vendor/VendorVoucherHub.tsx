@@ -206,7 +206,8 @@ function CategoriesTab({ vendorId, locationId, locations, categories, refetch }:
       if (error) return toast({ title: error.message, variant: 'destructive' });
       toast({ title: 'Category updated' });
     } else {
-      const { error } = await supabase.from('voucher_categories').insert({ vendor_id: vendorId, ...payload });
+      if (!locationId) return toast({ title: 'Choose a location first', variant: 'destructive' });
+      const { error } = await supabase.from('voucher_categories').insert({ vendor_id: vendorId, location_id: locationId, ...payload });
       if (error) return toast({ title: error.message, variant: 'destructive' });
       toast({ title: 'Category created' });
     }
