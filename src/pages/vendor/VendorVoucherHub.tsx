@@ -716,3 +716,84 @@ function SalesTab({ vendorId, categories }: { vendorId: string; categories: any[
     </div>
   );
 }
+
+function LocationsTab({ vendorId, locations, refetch }: { vendorId: string; locations: VoucherLocation[]; refetch: () => void }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<VoucherLocation | null>(null);
+  const [name, setName] = useState('');
+
+  const openNew = () => { setEditing(null); setName(''); setOpen(true); };
+  const openEdit = (l: VoucherLocation) => { setEditing(l); setName(l.name); setOpen(true); };
+
+  const save = async () => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    if (editing) {
+      const { error } = await (supabase as any).from('voucher_locations').update({ name: trimmed }).eq('id', editing.id);
+      if (error) return toast({ title: error.message, variant: 'destructive' });
+      toast({ title: 'Location updated' });
+    } else {
+      const { error } = await (supabase as any).from('voucher_locations').insert({ vendor_id: vendorId, name: trimmed });
+      if (error) return toast({ title: error.message, variant: 'destructive' });
+      toast({ title: 'Location added' });
+    }
+    setName(''); setOpen(false); setEditing(null);
+    refetch();
+  };
+
+  const toggleActive = async (l: VoucherLocation) => {
+    await (supabase as any).from('voucher_locations').update({ is_active: !l.is_active }).eq('id', l.id);
+    refetch();
+  };
+
+  const remove = async (l: VoucherLocation) => {
+    if (!confirm(`Delete "${l.name}" and ALL its categories and codes?`)) return;
+    const { error } = await (supabase as any).from('voucher_locations').delete().eq('id', l.id);
+    if (error) return toast({ title: error.message, variant: 'destructive' });
+    refetch();
+  };
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle>Locations</CardTitle>
+          <p className="text-xs text-muted-foreground mt-1">Customers pick a location first, then browse categories under it.</p>
+        </div>
+        <Button size="sm" onClick={openNew}><Plus className="w-4 h-4 mr-1" /> Add location</Button>
+        <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setEditing(null); }}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>{editing ? 'Rename location' : 'New location'}</DialogTitle></DialogHeader>
+            <div className="space-y-3">
+              <div><Label>Name</Label><Input placeholder="e.g. Ikeja" value={name} onChange={(e) => setName(e.target.value)} /></div>
+              <Button onClick={save} className="w-full">{editing ? 'Save' : 'Create'}</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </CardHeader>
+      <CardContent>
+        {locations.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-6">No locations yet. Add one to start grouping your voucher categories.</p>
+        ) : (
+          <Table>
+            <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Status</TableHead><TableHead></TableHead></TableRow></TableHeader>
+            <TableBody>
+              {locations.map(l => (
+                <TableRow key={l.id}>
+                  <TableCell className="font-medium flex items-center gap-2"><MapPin className="w-4 h-4 text-muted-foreground" /> {l.name}</TableCell>
+                  <TableCell><Badge variant={l.is_active ? 'default' : 'secondary'}>{l.is_active ? 'Active' : 'Inactive'}</Badge></TableCell>
+                  <TableCell className="text-right space-x-1">
+                    <Button size="sm" variant="ghost" onClick={() => openEdit(l)}><Pencil className="w-4 h-4" /></Button>
+                    <Button size="sm" variant="ghost" onClick={() => toggleActive(l)}>{l.is_active ? 'Disable' : 'Enable'}</Button>
+                    <Button size="sm" variant="ghost" onClick={() => remove(l)}><Trash2 className="w-4 h-4" /></Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
