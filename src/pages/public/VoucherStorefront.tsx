@@ -151,8 +151,14 @@ export default function VoucherStorefront() {
   }
 
   const logo = data.template?.logo_url || data.vendor.logo_url;
-  const inStock = data.categories.filter(c => c.available > 0);
-  const outStock = data.categories.filter(c => c.available === 0);
+  const activeLocations = data.locations || [];
+  const effectiveLocationId = selectedLocationId ?? (activeLocations.length === 1 ? activeLocations[0].id : null);
+  const locationScoped = effectiveLocationId
+    ? data.categories.filter(c => c.location_id === effectiveLocationId)
+    : [];
+  const inStock = locationScoped.filter(c => c.available > 0);
+  const outStock = locationScoped.filter(c => c.available === 0);
+  const activeLocation = activeLocations.find(l => l.id === effectiveLocationId) || null;
 
   return (
     <div className="min-h-screen text-white" style={bg}>
