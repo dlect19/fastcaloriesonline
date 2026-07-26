@@ -172,7 +172,7 @@ export default function VendorVoucherHub() {
   );
 }
 
-function CategoriesTab({ vendorId, categories, refetch }: { vendorId: string; categories: any[]; refetch: () => void }) {
+function CategoriesTab({ vendorId, locationId, locations, categories, refetch }: { vendorId: string; locationId: string | null; locations: VoucherLocation[]; categories: any[]; refetch: () => void }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
