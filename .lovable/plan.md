@@ -1,69 +1,101 @@
+# Voucher Hub — Auto-credit fix, Confirmation emails, Location grouping
 
-# Voucher Vendor account type + Voucher Hub Phase 2
+## Findings from investigation
 
-## 1. "Voucher Vendor" as a vendor category
+**#1 Root cause of missing wallet credit for Jul 26 sale (order `eb84742e`):**
+- The credit function `credit_vendor_wallet_for_voucher` works correctly when called (I just ran it manually and it credited ₦2,250 into pending pool with proper ledger row).
+- All three call sites (`purchase-voucher`, `paystack-webhook → handleVoucherGuestPurchase`, `voucher-guest-lookup`) invoke the RPC, BUT they each swallow errors:
+  - `voucher-guest-lookup:84` — uses `.catch(() => {})` — silent
+  - `paystack-webhook:906` and `purchase-voucher:125` — only `console.error`, no retry, no marker on the order
+- Because `voucher-guest-lookup` fulfils inline when the buyer lands on the success page before the Paystack webhook arrives, and both the webhook and lookup race, a transient RPC failure (network blip, lock contention, service-role token hiccup) leaves the `voucher_orders` row inserted with **no** ledger credit and no visible trace.
+- No signal on the order itself distinguishes "credited" from "not credited", so there's nothing to detect the drift.
 
-Extend the existing `vendor_category` enum with a new `'voucher'` value so voucher vendors sign up through the exact same flow as restaurants / pharmacies / markets.
+**#2 Confirmation email:** No email is being sent anywhere. There is no call to `send-transactional-email` in `purchase-voucher`, `voucher-guest-lookup`, or `paystack-webhook`'s voucher branch. It was never wired.
 
-- **DB migration**: `ALTER TYPE public.vendor_category ADD VALUE 'voucher'`. No new auth surface.
-- **Vendor signup (`src/pages/vendor/VendorAuth.tsx`)**: add a "Voucher Hub" option to both the create-business and link-business business-category selects. Voucher vendors still get a default `vendor_outlets` row like other categories (needed so the existing wallet, which is keyed by `user_id + wallet_type='vendor' + outlet_id`, still works).
-- **Vendor dashboard routing**: when `vendor.category === 'voucher'`, the sidebar shows only voucher-relevant sections (Voucher Hub, Orders/Sales, Withdraw, Settings, Support) and hides restaurant/pharmacy-only entries (Menu, Hours, POS, Riders, etc.). Voucher Hub becomes the default landing page for that category.
-- **Admin (`src/pages/admin/AdminVendors.tsx`)**: add a category filter with the new "Voucher" option so admin can filter/approve voucher vendors distinctly.
+**#3 Location grouping:** Currently `voucher_categories.vendor_id` is a direct FK. A `voucher_locations` layer needs to sit between vendor and categories.
 
-## 2. Voucher Hub Phase 2
+---
 
-### Public storefront (no login)
-- Add a `slug` column to `vendors` (unique, auto-generated from business name on signup / migration backfill).
-- New public route `/v/:slug` served by `src/pages/public/VoucherStorefront.tsx`. Fetches the vendor + their voucher categories + their brand template via a new **public** edge function `voucher-storefront` (uses service role, only returns non-sensitive fields, filters to `category='voucher'` + approved vendors).
-- Storefront lists categories with price, remaining-stock indicator, and a "Buy" button that opens a guest checkout dialog: email input + Paystack inline.
+## Part 1 — Auto-credit voucher wallet at source (no more backfills)
 
-### Guest checkout via Paystack
-- New edge function `voucher-guest-initiate` — validates category, computes amount, initializes a Paystack transaction with metadata `{ category_id, guest_email, vendor_id }`, returns `authorization_url` + `reference`.
-- Existing `paystack-webhook` extended to detect `metadata.type === 'voucher_purchase'` and call a shared handler `assignVoucherAndCredit()` that:
-  1. Atomically reserves the next `available` voucher code for that category (row-locked `UPDATE ... WHERE status='available' LIMIT 1 RETURNING *`).
-  2. Creates a `voucher_orders` row (`buyer_user_id` null for guests, `guest_email` set).
-  3. Renders the vendor's branded template server-side (see below) and stores PNG in the existing `voucher-images` storage bucket; saves signed URL on the order.
-  4. **Credits the vendor wallet** (see wallet section).
-  5. Emails the buyer via the existing `send-transactional-email` function with a new template `voucher-delivery` that embeds the rendered image URL.
-- Guest success page `/v/:slug/success?ref=...` polls the order by reference and renders the same voucher image on-screen.
+Move the credit into a **database trigger** so it is impossible to insert a paid `voucher_orders` row without a wallet credit attempt.
 
-### Wallet crediting — reuses existing vendor wallet + withdrawal system
-The existing withdrawal flow reads from `wallets` (keyed by `user_id`, `wallet_type='vendor'`, `outlet_id`) and creates `payout_requests`. To avoid a parallel system, voucher sales credit the SAME `wallets` row used by restaurants/pharmacies:
-- On every voucher sale (both Phase 1 in-app flow and Phase 2 public flow), insert a `wallet_transactions` row: `wallet_type='vendor'`, `transaction_type='credit'`, `category='voucher_sale'`, `amount = sale − commission`, `reference = voucher order id`. This is the audit ledger you asked for — `wallet_transactions` already serves that role for every other vendor earning, so we reuse it instead of creating a parallel `vendor_wallet_transactions` table.
-- Update the vendor `wallets` row's `balance` (or `test_balance` per environment) by the net amount, respecting the existing `prevent_balance_manipulation` trigger (do it through a `SECURITY DEFINER` helper `credit_vendor_wallet_for_voucher(order_id)` — same pattern as other order-completion credits).
-- Phase 1 stub tables `vendor_wallets` and `vendor_wallet_transactions` are **deprecated** — I'll leave the tables in place (harmless, no code will write to them) but rewire the `purchase-voucher` edge function and admin queries to the real `wallets` / `wallet_transactions`. Flag: this is the one deviation from your spec — see "Decisions needed" below.
+1. **Migration:**
+   - Add columns to `voucher_orders`: `wallet_credited_at TIMESTAMPTZ`, `wallet_credit_error TEXT`.
+   - Refactor `credit_vendor_wallet_for_voucher(_order_id uuid)` to set `wallet_credited_at = NOW()` on success and store any exception message in `wallet_credit_error` (via a nested `BEGIN … EXCEPTION` block) so failures are visible on the row itself.
+   - Add trigger `trg_voucher_order_credit_wallet` AFTER INSERT OR UPDATE OF status ON `voucher_orders` — when NEW.status='paid' AND wallet_credited_at IS NULL, call the credit function. Trigger runs as SECURITY DEFINER via a wrapper.
+   - Add trigger `trg_voucher_order_email` AFTER INSERT OR UPDATE OF status calling `pg_notify('voucher_paid', order_id)` — used only as a marker; actual email is invoked from the edge functions (see Part 2) since Postgres cannot call HTTP.
 
-### Withdrawals
-No new code. Because voucher balances live in the same `wallets` row, the vendor's existing `VendorWithdraw.tsx` page and admin `AdminPayouts.tsx` already work; voucher sales just show up as additional credits. Admin filter on `AdminPayouts` gets a small "vendor category" column for clarity.
+2. **Edge functions:**
+   - `purchase-voucher`, `paystack-webhook → handleVoucherGuestPurchase`, and `voucher-guest-lookup`:
+     - Remove the `.catch(() => {})` swallow; log with tag `[voucher-credit]`.
+     - After insert of the `voucher_orders` row, re-read `wallet_credited_at`. If null after RPC, log `[voucher-credit] MISSED` with order id, vendor id, reference — this makes future misses grep-visible in edge logs.
+     - The trigger is now the primary path; the explicit RPC call becomes a belt-and-suspenders safety.
 
-### Server-side template rendering
-Phase 1 renders vouchers to a canvas in the browser — that's not available in an edge function for the email/guest flow. I'll add a shared `renderVoucherPng()` helper in `supabase/functions/_shared/voucher-render.ts` using Deno's `@napi-rs/canvas`-compatible Skia bindings (or fall back to a simple SVG-to-PNG via `resvg-wasm`) that mirrors the client layout. Both the Phase 1 flow (updated) and Phase 2 webhook use this so the image is identical whether purchased in-app or via storefront.
+3. **Backfill the Jul 26 sale (`eb84742e`)** in the same migration — already re-credited during investigation, but the migration will `SELECT credit_vendor_wallet_for_voucher(id) FROM voucher_orders WHERE status='paid' AND wallet_credited_at IS NULL` to catch any others in one pass.
 
-## Files touched
+## Part 2 — Wire voucher confirmation email
 
-**Migration** (one)
-- Add `'voucher'` to `vendor_category`, add `vendors.slug` (unique), backfill slugs, add `credit_vendor_wallet_for_voucher(uuid)` SECURITY DEFINER function, GRANTs.
+1. **New template** `supabase/functions/_shared/transactional-email-templates/voucher-purchase-confirmation.tsx` — matches the on-screen voucher preview (vendor name, category, code, value, expiry, purchase timestamp) with a note that the voucher image is also available in-app.
+2. Register in `TEMPLATES` registry.
+3. **Invoke from the three completion paths** (`purchase-voucher`, `paystack-webhook.handleVoucherGuestPurchase`, `voucher-guest-lookup.fulfilVoucherPurchase`) using `supabase.functions.invoke('send-transactional-email', …)` with:
+   - `templateName: 'voucher-purchase-confirmation'`
+   - `recipientEmail`: buyer email (auth user email for logged-in, guest_email for guest)
+   - `idempotencyKey: voucher-confirm-<order_id>`
+   - `templateData`: vendor name, category, code, value, expiry_date, purchased_at
+4. Log `[voucher-email]` success/failure explicitly. Email failure must NOT throw — the sale is already complete.
+5. Confirm project has an email domain via `email_domain--check_email_domain_status` before scaffolding; if missing, surface the setup dialog.
 
-**Frontend**
-- `src/pages/vendor/VendorAuth.tsx` — add voucher option in both selects
-- `src/components/vendor/VendorSidebar.tsx` — category-gated menu
-- `src/pages/admin/AdminVendors.tsx` — category filter incl. voucher
-- `src/pages/admin/AdminPayouts.tsx` — small category label column
-- `src/pages/public/VoucherStorefront.tsx` (new) + `VoucherStorefrontSuccess.tsx` (new)
-- `src/App.tsx` — add `/v/:slug` and success route
-- `src/pages/vendor/VendorVoucherHub.tsx` — surface the public link ("Share your storefront") using the vendor's slug
+## Part 3 — Location grouping for voucher vendors
 
-**Edge functions**
-- `voucher-storefront` (new, public)
-- `voucher-guest-initiate` (new, public)
-- `paystack-webhook` (extend for voucher purchases)
-- `purchase-voucher` (rewire to credit real `wallets` + `wallet_transactions`)
-- `_shared/voucher-render.ts` (new)
+### Schema
+- **New table `voucher_locations`**: `id`, `vendor_id`, `name`, `is_active` (default true), `sort_order`, `created_at`, `updated_at`.
+- **Alter `voucher_categories`**: add `location_id UUID REFERENCES voucher_locations(id) ON DELETE CASCADE`. Keep `vendor_id` (denormalised for RLS convenience, kept in sync with the location's vendor).
+- **Migration data**: for each existing vendor with voucher_categories, create a default location "Main" and set `location_id` on all their categories. Then `ALTER COLUMN location_id SET NOT NULL`.
+- RLS: policies match `voucher_categories` (owner + admin + public read of active), GRANTs to `authenticated` + `anon` (public storefront needs read) + `service_role`.
 
-**Email**
-- New template `supabase/functions/_shared/transactional-email-templates/voucher-delivery.tsx`
+### Vendor dashboard (`VendorVoucherHub.tsx`)
+- Add a Location selector at the top of the Voucher Hub tab (create/edit/delete locations, activate/deactivate).
+- Categories, Stock tabs operate within the selected location — new categories are created with the current `location_id`.
+- Template tab remains vendor-scoped (shared across all locations).
+- Sales/Reconciliation tab shows a Location filter.
 
-## Decisions needed
-1. **Ledger table**: existing vendor earnings already flow through `wallet_transactions`, and reusing it is what makes the "reuse existing withdrawal system" requirement actually work with zero new plumbing. I plan to skip the new `vendor_wallet_transactions` table and use `wallet_transactions` with `category='voucher_sale'` — same auditability. OK to proceed this way? (Alternative: keep a parallel `vendor_wallet_transactions` that mirrors every credit — extra write on every sale, no functional benefit.)
-2. **Voucher vendor outlet**: to plug into the existing wallet/withdrawal schema (which requires an `outlet_id`), voucher vendors will get one auto-created "Main" outlet on signup with no address requirements. OK?
-3. **Storefront URL**: `/v/:slug` on the app domain (`app.fastcalories.online/v/mtn-store`). Confirm — or do you want it on the marketing domain?
+### In-app purchase flow (`src/pages/vouchers/VouchersList.tsx`, `VoucherCategory.tsx`)
+- After selecting the vendor, show a Location picker before listing categories. Route: `/vouchers/:vendorSlug/:locationId`.
+- `VoucherCategory` scoped to `(vendor, location, category)`.
+
+### Public storefront (`src/pages/public/VoucherStorefront.tsx` + `voucher-storefront` edge function)
+- The storefront edge function returns `{ vendor, template, locations: [{id, name, categories: […]}] }`.
+- Front-end: after landing on `/v/:slug`, show Location grid → clicking a location reveals that location's categories in the existing Card/List view.
+- If a vendor has exactly one active location, skip the selector automatically (backwards-compatible with single-site vendors).
+
+### Guest checkout (`voucher-guest-initiate`)
+- Accepts `categoryId` as before — `location_id` is inferred from the category row (no wire change needed for Paystack metadata).
+
+---
+
+## Technical notes / open decisions
+
+- **Decision needed from you (non-blocking, sensible default chosen):** Vendors migrating in will get an auto-created "Main" location. If a vendor tells us they want a different default name (e.g. "Head Office"), they can rename it in the UI.
+- Trigger-based crediting is idempotent because the credit function already short-circuits when a `VH-CREDIT-<id>` ledger row exists — safe to run from both trigger and explicit RPC.
+- No breaking change to existing category IDs / URLs; only the storefront adds a location step.
+
+## Files that will change
+
+**DB migrations (one file):**
+- `credit_vendor_wallet_for_voucher` refactor + new columns on `voucher_orders` + trigger + new `voucher_locations` table + `location_id` on `voucher_categories` + data backfill.
+
+**Edge functions:**
+- `supabase/functions/purchase-voucher/index.ts` — logging + email invocation.
+- `supabase/functions/paystack-webhook/index.ts` — logging + email invocation in voucher branch.
+- `supabase/functions/voucher-guest-lookup/index.ts` — remove `.catch(()=>{})`, add logging + email.
+- `supabase/functions/voucher-storefront/index.ts` — return locations list.
+- `supabase/functions/_shared/transactional-email-templates/voucher-purchase-confirmation.tsx` + registry.
+
+**Front-end:**
+- `src/pages/vendor/VendorVoucherHub.tsx` — location selector + scoped category/stock management.
+- `src/pages/vouchers/VouchersList.tsx`, `VoucherCategory.tsx` — location step.
+- `src/pages/public/VoucherStorefront.tsx` — location step.
+- `src/hooks/useVoucherHub.ts` — new `useVoucherLocations` hook, `useVoucherCategories` accepts `locationId`.
+
+Once approved I'll implement DB + auto-credit fix first (highest priority), then email wiring, then the location feature.
