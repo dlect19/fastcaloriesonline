@@ -106,7 +106,7 @@ export function VendorCheckoutSection({
   const { calculateServiceFee, loading: serviceFeeLoading } = useServiceFee();
   const riderAvailability = useRiderAvailability();
   const { updateProgress: updateFreeMealProgress } = useFreeMealPromos();
-  const serviceFee = calculateServiceFee(group.subtotal, deliveryType);
+  const serviceFee = calculateServiceFee(group.subtotal, deliveryType, vendorCategory);
   const extraPackageFee = deliveryType === 'self_pickup' ? 0 : getExtraPackageFee(group.vendorId, group.outletId);
   const packageCount = getPackageCount(group.vendorId, group.outletId);
   const deliveryFee = deliveryType === 'self_pickup' ? 0 : vendorFees.deliveryFee;
