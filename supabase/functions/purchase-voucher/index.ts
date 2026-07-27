@@ -125,6 +125,13 @@ serve(async (req: Request) => {
     const { error: creditErr } = await admin.rpc("credit_vendor_wallet_for_voucher", { _order_id: order.id });
     if (creditErr) console.error("credit_vendor_wallet_for_voucher failed:", creditErr);
 
+    // Send voucher confirmation email (async, never blocks response)
+    const buyerEmail = user.email || "";
+    const buyerName = (user.user_metadata?.full_name as string) || null;
+    if (buyerEmail) {
+      await sendVoucherEmailForOrder(admin, order.id, buyerEmail, buyerName);
+    }
+
     return json({
       success: true,
       order,
