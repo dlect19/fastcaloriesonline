@@ -195,7 +195,7 @@ export function PhoneAuthModal({ open, onOpenChange }: Props) {
                 />
               </div>
             )}
-         <div className="space-y-2">
+            <div className="space-y-2">
               <Label htmlFor="pa-phone">WhatsApp phone number</Label>
               <div className="relative">
                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
@@ -211,16 +211,16 @@ export function PhoneAuthModal({ open, onOpenChange }: Props) {
               <p className="text-xs text-muted-foreground">11 digits, no country code (e.g. 08012345678).</p>
             </div>
             <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-              Haven&apos;t chatted with our official WhatsApp number before? To make sure your code arrives, please tap the link below to say hi on WhatsApp first, then come back and tap &quot;Send code.&quot;
-              <br />
-              
+              Haven't chatted with our official WhatsApp number before? To make sure your code arrives, please{" "}
+              <a
                 href="https://wa.me/2348103128494?text=Hi"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="font-semibold underline"
               >
-                Message us on WhatsApp first
+                tap here to say hi on WhatsApp first
               </a>
+              , then come back and tap "Send code."
             </div>
             <Button onClick={handleSendPhone} disabled={sending} className="w-full h-12">
               {sending ? <Loader2 className="w-5 h-5 animate-spin" /> : "Send code on WhatsApp"}
