@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { sendVoucherEmailForOrder } from "../_shared/voucher-email.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -82,6 +83,10 @@ async function fulfilVoucherPurchase(admin: Sb, tx: any, reference: string) {
   }
   await admin.from("voucher_codes").update({ order_id: (order as any).id }).eq("id", (reserved as any).id);
   await admin.rpc("credit_vendor_wallet_for_voucher", { _order_id: (order as any).id }).catch(() => {});
+  const emailTo = metadata.guest_email || tx.customer?.email;
+  if (emailTo) {
+    await sendVoucherEmailForOrder(admin, (order as any).id, emailTo, metadata.guest_name || null);
+  }
   return { ok: true, orderId: (order as any).id };
 }
 

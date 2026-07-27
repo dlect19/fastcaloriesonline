@@ -297,8 +297,8 @@ export default function AssistedOrderCreate() {
 
   useEffect(() => {
     if (serviceFeeOverridden) return;
-    setServiceFee(Math.round(calculateServiceFee(subtotal, deliveryType)));
-  }, [subtotal, deliveryType, calculateServiceFee, serviceFeeOverridden]);
+    setServiceFee(Math.round(calculateServiceFee(subtotal, deliveryType, (selectedVendor as any)?.category)));
+  }, [subtotal, deliveryType, calculateServiceFee, serviceFeeOverridden, selectedVendor]);
 
   const effectiveDiscount = Math.min(discount, subtotal);
   const total = Math.max(0, subtotal - effectiveDiscount + packagingFee + (deliveryType === 'delivery' ? deliveryFee : 0) + serviceFee);
@@ -863,7 +863,7 @@ export default function AssistedOrderCreate() {
                 </Label>
                 <Input type="number" value={serviceFee}
                   onChange={(e) => { setServiceFee(Number(e.target.value) || 0); setServiceFeeOverridden(true); }} />
-                <p className="text-xs text-muted-foreground mt-1">Auto: ₦{Math.round(calculateServiceFee(subtotal, deliveryType)).toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground mt-1">Auto: ₦{Math.round(calculateServiceFee(subtotal, deliveryType, (selectedVendor as any)?.category)).toLocaleString()}</p>
               </div>
             </div>
             <div className="border-t pt-3 space-y-2">

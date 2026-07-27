@@ -16,6 +16,8 @@ import { format } from 'date-fns';
 import { PaginationControls } from '@/components/shared/PaginationControls';
 import { usePagination } from '@/hooks/usePagination';
 import { AdminDeleteUserButton } from '@/components/admin/AdminDeleteUserButton';
+import { AdminManageRolesDialog } from '@/components/admin/AdminManageRolesDialog';
+import { Shield } from 'lucide-react';
  
  interface Customer {
    id: string;
@@ -45,6 +47,10 @@ export default function AdminCustomers() {
   const [loadReason, setLoadReason] = useState('');
   const [loadReference, setLoadReference] = useState('');
   const [loadingWallet, setLoadingWallet] = useState(false);
+
+  // Roles dialog
+  const [rolesDialogOpen, setRolesDialogOpen] = useState(false);
+  const [rolesTarget, setRolesTarget] = useState<Customer | null>(null);
  
    useEffect(() => {
      if (!envLoading) {
@@ -398,6 +404,15 @@ export default function AdminCustomers() {
                               <Plus className="w-4 h-4 text-primary mr-1" />
                               Load
                             </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              title="Manage Roles"
+                              onClick={() => { setRolesTarget(customer); setRolesDialogOpen(true); }}
+                            >
+                              <Shield className="w-4 h-4 text-primary mr-1" />
+                              Roles
+                            </Button>
                             <AdminDeleteUserButton
                               userId={customer.user_id}
                               scope="all"
@@ -494,6 +509,14 @@ export default function AdminCustomers() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <AdminManageRolesDialog
+          open={rolesDialogOpen}
+          onOpenChange={setRolesDialogOpen}
+          userId={rolesTarget?.user_id ?? null}
+          userName={rolesTarget?.full_name || rolesTarget?.phone || 'Customer'}
+          onChanged={fetchCustomers}
+        />
     </AdminLayout>
     );
   }

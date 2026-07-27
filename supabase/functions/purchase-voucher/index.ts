@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { sendVoucherEmailForOrder } from "../_shared/voucher-email.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -123,6 +124,13 @@ serve(async (req: Request) => {
     // Credit vendor wallet through the standard withdrawal-eligible pipeline
     const { error: creditErr } = await admin.rpc("credit_vendor_wallet_for_voucher", { _order_id: order.id });
     if (creditErr) console.error("credit_vendor_wallet_for_voucher failed:", creditErr);
+
+    // Send voucher confirmation email (async, never blocks response)
+    const buyerEmail = user.email || "";
+    const buyerName = (user.user_metadata?.full_name as string) || null;
+    if (buyerEmail) {
+      await sendVoucherEmailForOrder(admin, order.id, buyerEmail, buyerName);
+    }
 
     return json({
       success: true,

@@ -906,6 +906,16 @@ async function handleVoucherGuestPurchase(supabase: SupabaseClient, data: any, e
     console.error(`credit_vendor_wallet_for_voucher failed for ${reference}:`, creditErr);
   }
 
+  // Send confirmation email to guest buyer
+  if (guestEmail) {
+    try {
+      const { sendVoucherEmailForOrder } = await import("../_shared/voucher-email.ts");
+      await sendVoucherEmailForOrder(supabase, (order as any).id, guestEmail, guestName);
+    } catch (e) {
+      console.error("voucher email dispatch failed:", e);
+    }
+  }
+
   console.log(`Voucher guest purchase completed: order=${(order as any).id}, ref=${reference}`);
 }
 
