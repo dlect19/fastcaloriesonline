@@ -218,6 +218,7 @@ export function PhoneAuthModal({ open, onOpenChange }: Props) {
                 rel="noopener noreferrer"
                 className="font-semibold underline"
               >
+              <a>
                 tap here to say hi on WhatsApp first
               </a>
               , then come back and tap "Send code."
