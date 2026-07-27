@@ -195,7 +195,7 @@ export function PhoneAuthModal({ open, onOpenChange }: Props) {
                 />
               </div>
             )}
-          <div className="space-y-2">
+         <div className="space-y-2">
               <Label htmlFor="pa-phone">WhatsApp phone number</Label>
               <div className="relative">
                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
