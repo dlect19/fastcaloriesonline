@@ -19,7 +19,11 @@ interface Props {
 }
 
 export function PhoneVerificationDialog({
-  open, onOpenChange, defaultPhone = "", onVerified, blocking = false,
+  open,
+  onOpenChange,
+  defaultPhone = "",
+  onVerified,
+  blocking = false,
   title = "Verify your number",
 }: Props) {
   const { sendOtp, verify, sending, verifying, channel } = usePhoneVerification();
@@ -29,11 +33,13 @@ export function PhoneVerificationDialog({
   const [code, setCode] = useState("");
   const [cooldown, setCooldown] = useState(0);
 
-  useEffect(() => { setPhone(defaultPhone); }, [defaultPhone]);
+  useEffect(() => {
+    setPhone(defaultPhone);
+  }, [defaultPhone]);
 
   useEffect(() => {
     if (cooldown <= 0) return;
-    const t = setInterval(() => setCooldown(s => Math.max(0, s - 1)), 1000);
+    const t = setInterval(() => setCooldown((s) => Math.max(0, s - 1)), 1000);
     return () => clearInterval(t);
   }, [cooldown]);
 
@@ -80,7 +86,7 @@ export function PhoneVerificationDialog({
           </DialogTitle>
           <DialogDescription>
             {step === "phone"
-              ? "We'll send a 6-digit code straight to this number — WhatsApp first, SMS if WhatsApp isn't available. No need to message us first."
+              ? "We'll send a 6-digit code straight to this number — WhatsApp first, SMS if WhatsApp isn't available."
               : `We sent a 6-digit code to ${phone}. Enter it below.`}
           </DialogDescription>
         </DialogHeader>
@@ -94,19 +100,34 @@ export function PhoneVerificationDialog({
                 inputMode="tel"
                 placeholder="08012345678 or +2348012345678"
                 value={phone}
-                onChange={e => setPhone(e.target.value)}
+                onChange={(e) => setPhone(e.target.value)}
                 autoFocus
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Nigerian numbers (starting with 0) work without a country code — we add +234 for you. For other countries, include the country code (e.g. +44...).
+                Nigerian numbers (starting with 0) work without a country code — we add +234 for you. For other
+                countries, include the country code (e.g. +44...).
               </p>
             </div>
             <Alert>
               <MessageCircle className="h-4 w-4" />
               <AlertDescription className="text-xs">
-                Your code arrives on <strong>WhatsApp</strong> automatically. If you don't get it, tap <em>Resend via SMS</em> on the next step.
+                Your code arrives on <strong>WhatsApp</strong> automatically. If you don't get it, tap{" "}
+                <em>Resend via SMS</em> on the next step.
               </AlertDescription>
             </Alert>
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+              Haven&apos;t chatted with our official WhatsApp number before? To make sure your code arrives, tap the
+              link below to say hi first, then come back and tap &quot;Send code.&quot;
+              <br />
+              <a
+                href="https://wa.me/2348103128494?text=Hi"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold underline"
+              >
+                Message us on WhatsApp first
+              </a>
+            </div>
             <Button onClick={() => handleSend()} disabled={sending || !phone} className="w-full">
               {sending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <MessageCircle className="h-4 w-4 mr-2" />}
               Send code
@@ -121,13 +142,11 @@ export function PhoneVerificationDialog({
                 maxLength={6}
                 placeholder="123456"
                 value={code}
-                onChange={e => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                 autoFocus
                 className="text-center text-2xl tracking-widest font-mono"
               />
-              {channel === "sms" && (
-                <p className="text-xs text-muted-foreground mt-1">Sent via SMS.</p>
-              )}
+              {channel === "sms" && <p className="text-xs text-muted-foreground mt-1">Sent via SMS.</p>}
             </div>
             <Button onClick={handleVerify} disabled={verifying || code.length !== 6} className="w-full">
               {verifying && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
@@ -136,7 +155,10 @@ export function PhoneVerificationDialog({
             <div className="flex justify-between text-xs">
               <button
                 type="button"
-                onClick={() => { setStep("phone"); setCode(""); }}
+                onClick={() => {
+                  setStep("phone");
+                  setCode("");
+                }}
                 className="text-muted-foreground hover:text-foreground"
               >
                 ← Change number
