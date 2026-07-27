@@ -10,24 +10,33 @@ interface ServiceFeeConfig {
 }
 
 const defaultDeliveryConfig: ServiceFeeConfig = {
-  type: 'fixed',
-  fixed: 100,
-  percentage: 5,
-  min: 100,
-  max: 1000,
+  type: 'fixed', fixed: 100, percentage: 5, min: 100, max: 1000,
+};
+const defaultPickupConfig: ServiceFeeConfig = {
+  type: 'fixed', fixed: 50, percentage: 3, min: 50, max: 500,
+};
+const defaultPharmacyConfig: ServiceFeeConfig = {
+  type: 'hybrid', fixed: 100, percentage: 15, min: 100, max: 5000,
+};
+const defaultGroceryConfig: ServiceFeeConfig = {
+  type: 'hybrid', fixed: 100, percentage: 15, min: 100, max: 7500,
 };
 
-const defaultPickupConfig: ServiceFeeConfig = {
-  type: 'fixed',
-  fixed: 50,
-  percentage: 3,
-  min: 50,
-  max: 500,
-};
+export type VendorFeeCategory = 'food' | 'pharmacy' | 'grocery' | null | undefined;
+
+function normalizeCategory(cat?: string | null): VendorFeeCategory {
+  if (!cat) return 'food';
+  const c = cat.toLowerCase();
+  if (c === 'pharmacy') return 'pharmacy';
+  if (c === 'grocery' || c === 'market' || c === 'marketplace') return 'grocery';
+  return 'food';
+}
 
 export function useServiceFee() {
   const [deliveryConfig, setDeliveryConfig] = useState<ServiceFeeConfig>(defaultDeliveryConfig);
   const [pickupConfig, setPickupConfig] = useState<ServiceFeeConfig>(defaultPickupConfig);
+  const [pharmacyConfig, setPharmacyConfig] = useState<ServiceFeeConfig>(defaultPharmacyConfig);
+  const [groceryConfig, setGroceryConfig] = useState<ServiceFeeConfig>(defaultGroceryConfig);
   const [includeTwilio, setIncludeTwilio] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
 
@@ -42,6 +51,10 @@ export function useServiceFee() {
             'service_fee_min', 'service_fee_max',
             'service_fee_type_pickup', 'service_fee_fixed_pickup', 'service_fee_percentage_pickup',
             'service_fee_min_pickup', 'service_fee_max_pickup',
+            'service_fee_type_pharmacy', 'service_fee_fixed_pharmacy', 'service_fee_percentage_pharmacy',
+            'service_fee_min_pharmacy', 'service_fee_max_pharmacy',
+            'service_fee_type_grocery', 'service_fee_fixed_grocery', 'service_fee_percentage_grocery',
+            'service_fee_min_grocery', 'service_fee_max_grocery',
             'service_fee_include_twilio',
           ]);
 
@@ -49,22 +62,18 @@ export function useServiceFee() {
           const m: Record<string, string> = {};
           data.forEach(s => { m[s.key] = s.value as string; });
 
-          setDeliveryConfig({
-            type: (m.service_fee_type as ServiceFeeConfig['type']) || 'fixed',
-            fixed: parseFloat(m.service_fee_fixed || '100'),
-            percentage: parseFloat(m.service_fee_percentage || '5'),
-            min: parseFloat(m.service_fee_min || '100'),
-            max: parseFloat(m.service_fee_max || '1000'),
+          const build = (suffix: string, def: ServiceFeeConfig): ServiceFeeConfig => ({
+            type: (m[`service_fee_type${suffix}`] as ServiceFeeConfig['type']) || def.type,
+            fixed: parseFloat(m[`service_fee_fixed${suffix}`] || String(def.fixed)),
+            percentage: parseFloat(m[`service_fee_percentage${suffix}`] || String(def.percentage)),
+            min: parseFloat(m[`service_fee_min${suffix}`] || String(def.min)),
+            max: parseFloat(m[`service_fee_max${suffix}`] || String(def.max)),
           });
 
-          setPickupConfig({
-            type: (m.service_fee_type_pickup as ServiceFeeConfig['type']) || 'fixed',
-            fixed: parseFloat(m.service_fee_fixed_pickup || '50'),
-            percentage: parseFloat(m.service_fee_percentage_pickup || '3'),
-            min: parseFloat(m.service_fee_min_pickup || '50'),
-            max: parseFloat(m.service_fee_max_pickup || '500'),
-          });
-
+          setDeliveryConfig(build('', defaultDeliveryConfig));
+          setPickupConfig(build('_pickup', defaultPickupConfig));
+          setPharmacyConfig(build('_pharmacy', defaultPharmacyConfig));
+          setGroceryConfig(build('_grocery', defaultGroceryConfig));
           setIncludeTwilio(String(m.service_fee_include_twilio || 'false') === 'true');
         }
       } catch (err) {
@@ -91,15 +100,19 @@ export function useServiceFee() {
     }
   };
 
-  const calculateServiceFee = useCallback((orderAmount: number, deliveryType: string = 'delivery'): number => {
+  const calculateServiceFee = useCallback((
+    orderAmount: number,
+    deliveryType: string = 'delivery',
+    vendorCategory?: string | null,
+  ): number => {
+    const cat = normalizeCategory(vendorCategory);
+    if (cat === 'pharmacy') return calcFee(pharmacyConfig, orderAmount);
+    if (cat === 'grocery') return calcFee(groceryConfig, orderAmount);
+    // Food (default): delivery vs carryout
     const config = deliveryType === 'self_pickup' ? pickupConfig : deliveryConfig;
     return calcFee(config, orderAmount);
-  }, [deliveryConfig, pickupConfig]);
+  }, [deliveryConfig, pickupConfig, pharmacyConfig, groceryConfig]);
 
-  /**
-   * Sum of Twilio message cost logged against this order.
-   * Returns 0 if the platform toggle is off or the order has no messages.
-   */
   const getOrderTwilioSurcharge = useCallback(async (orderId: string | null | undefined): Promise<number> => {
     if (!includeTwilio || !orderId) return 0;
     const { data, error } = await supabase
@@ -113,6 +126,8 @@ export function useServiceFee() {
   return {
     deliveryConfig,
     pickupConfig,
+    pharmacyConfig,
+    groceryConfig,
     config: deliveryConfig,
     calculateServiceFee,
     includeTwilio,
