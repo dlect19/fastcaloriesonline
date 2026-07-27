@@ -1,31 +1,29 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { VendorGroup, useCart } from '@/hooks/useCart';
-import { VendorGroupCard } from '@/components/cart/VendorGroupCard';
-import { OrderSummary } from '@/components/cart/OrderSummary';
-import { ActiveDiscountSelector } from '@/components/cart/ActiveDiscountSelector';
-import { FundWalletDialog } from '@/components/profile/FundWalletDialog';
-import { DeliveryAddressConfirmDialog } from '@/components/cart/DeliveryAddressConfirmDialog';
-import { PrescriptionCheckoutDialog, PrescriptionData } from '@/components/pharmacy/PrescriptionCheckoutDialog';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
-import {
-  Store, Phone, MapPin, Navigation, Wallet, Loader2, AlertTriangle, TrendingUp,
-} from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import { useSpinWheel } from '@/hooks/useSpinWheel';
-import { usePlatformPromos } from '@/hooks/usePlatformPromos';
-import { useFreeMealPromos } from '@/hooks/useFreeMealPromos';
-import { supabase } from '@/integrations/supabase/client';
-import { useServiceFee } from '@/hooks/useServiceFee';
-import { useRiderAvailability } from '@/hooks/useRiderAvailability';
-import { useGeolocation } from '@/hooks/useGeolocation';
-import { PromoCodeInput } from '@/components/cart/PromoCodeInput';
-import { PhoneVerificationDialog } from '@/components/auth/PhoneVerificationDialog';
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { VendorGroup, useCart } from "@/hooks/useCart";
+import { VendorGroupCard } from "@/components/cart/VendorGroupCard";
+import { OrderSummary } from "@/components/cart/OrderSummary";
+import { ActiveDiscountSelector } from "@/components/cart/ActiveDiscountSelector";
+import { FundWalletDialog } from "@/components/profile/FundWalletDialog";
+import { DeliveryAddressConfirmDialog } from "@/components/cart/DeliveryAddressConfirmDialog";
+import { PrescriptionCheckoutDialog, PrescriptionData } from "@/components/pharmacy/PrescriptionCheckoutDialog";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { Store, Phone, MapPin, Navigation, Wallet, Loader2, AlertTriangle, TrendingUp } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { useSpinWheel } from "@/hooks/useSpinWheel";
+import { usePlatformPromos } from "@/hooks/usePlatformPromos";
+import { useFreeMealPromos } from "@/hooks/useFreeMealPromos";
+import { supabase } from "@/integrations/supabase/client";
+import { useServiceFee } from "@/hooks/useServiceFee";
+import { useRiderAvailability } from "@/hooks/useRiderAvailability";
+import { useGeolocation } from "@/hooks/useGeolocation";
+import { PromoCodeInput } from "@/components/cart/PromoCodeInput";
+import { PhoneVerificationDialog } from "@/components/auth/PhoneVerificationDialog";
 
 interface VendorLocation {
   latitude: number | null;
@@ -47,7 +45,7 @@ interface VendorFees {
   surgeFee: number;
 }
 
-type DeliveryType = 'delivery' | 'self_pickup';
+type DeliveryType = "delivery" | "self_pickup";
 
 interface VendorCheckoutSectionProps {
   group: VendorGroup;
@@ -81,17 +79,28 @@ export function VendorCheckoutSection({
   const { toast } = useToast();
   const navigate = useNavigate();
   const { activeDiscounts, getBestDiscount, useDiscount } = useSpinWheel();
-  const { eligibility, getBestPlatformPromo, markFirstOrderUsed, markFirstPharmacyOrderUsed, loading: platformPromosLoading } = usePlatformPromos();
+  const {
+    eligibility,
+    getBestPlatformPromo,
+    markFirstOrderUsed,
+    markFirstPharmacyOrderUsed,
+    loading: platformPromosLoading,
+  } = usePlatformPromos();
   const { latitude: gpsLat, longitude: gpsLon, getCurrentPosition, loading: gpsLoading } = useGeolocation();
 
-  const [deliveryType, setDeliveryType] = useState<DeliveryType>('delivery');
-  const [receiverPhone, setReceiverPhone] = useState('');
-  const [orderNote, setOrderNote] = useState('');
+  const [deliveryType, setDeliveryType] = useState<DeliveryType>("delivery");
+  const [receiverPhone, setReceiverPhone] = useState("");
+  const [orderNote, setOrderNote] = useState("");
   const [promoDiscount, setPromoDiscount] = useState(0);
   const [appliedPromoCode, setAppliedPromoCode] = useState<string | null>(null);
-  const [selectedDiscountType, setSelectedDiscountType] = useState<'none' | 'spin' | 'platform'>('none');
+  const [selectedDiscountType, setSelectedDiscountType] = useState<"none" | "spin" | "platform">("none");
   const [selectedSpinDiscountId, setSelectedSpinDiscountId] = useState<string | null>(null);
-  const [vendorFees, setVendorFees] = useState<VendorFees>({ deliveryFee: 0, packagingFee: 0, distanceKm: null, surgeFee: 0 });
+  const [vendorFees, setVendorFees] = useState<VendorFees>({
+    deliveryFee: 0,
+    packagingFee: 0,
+    distanceKm: null,
+    surgeFee: 0,
+  });
   const [feeCalculating, setFeeCalculating] = useState(false);
   const [showFundDialog, setShowFundDialog] = useState(false);
   const [showAddressConfirm, setShowAddressConfirm] = useState(false);
@@ -99,18 +108,19 @@ export function VendorCheckoutSection({
   const [prescriptionData, setPrescriptionData] = useState<PrescriptionData[] | null>(null);
   const [vendorCategory, setVendorCategory] = useState<string | null>(null);
   const [phoneVerified, setPhoneVerified] = useState<boolean | null>(null);
-  const [userPhone, setUserPhone] = useState<string>('');
+  const [userPhone, setUserPhone] = useState<string>("");
   const [showPhoneVerify, setShowPhoneVerify] = useState(false);
+  const [phoneVerificationEnforced, setPhoneVerificationEnforced] = useState(true);
   const autoAppliedRef = useRef(false);
 
   const { calculateServiceFee, loading: serviceFeeLoading } = useServiceFee();
   const riderAvailability = useRiderAvailability();
   const { updateProgress: updateFreeMealProgress } = useFreeMealPromos();
   const serviceFee = calculateServiceFee(group.subtotal, deliveryType, vendorCategory);
-  const extraPackageFee = deliveryType === 'self_pickup' ? 0 : getExtraPackageFee(group.vendorId, group.outletId);
+  const extraPackageFee = deliveryType === "self_pickup" ? 0 : getExtraPackageFee(group.vendorId, group.outletId);
   const packageCount = getPackageCount(group.vendorId, group.outletId);
-  const deliveryFee = deliveryType === 'self_pickup' ? 0 : vendorFees.deliveryFee;
-  const surgeFee = deliveryType === 'self_pickup' ? 0 : vendorFees.surgeFee;
+  const deliveryFee = deliveryType === "self_pickup" ? 0 : vendorFees.deliveryFee;
+  const surgeFee = deliveryType === "self_pickup" ? 0 : vendorFees.surgeFee;
   const total = group.subtotal + vendorFees.packagingFee + deliveryFee + serviceFee - promoDiscount;
   const insufficientBalance = walletBalance < total;
   const shortfall = total - walletBalance;
@@ -120,40 +130,64 @@ export function VendorCheckoutSection({
 
   const hasDeliveryLocation = deliveryLocation && deliveryLocation.lat !== null && deliveryLocation.lon !== null;
 
-  const isDeliveryFeeCalculating = deliveryType === 'delivery' && !!hasDeliveryLocation && (feeCalculating || vendorFees.distanceKm === null);
+  const isDeliveryFeeCalculating =
+    deliveryType === "delivery" && !!hasDeliveryLocation && (feeCalculating || vendorFees.distanceKm === null);
   const isPricingCalculating = serviceFeeLoading || isDeliveryFeeCalculating;
 
-  const handleFeesCalculated = useCallback((_vendorId: string, df: number, pf: number, dk: number | null, sf: number, loading: boolean) => {
-    setFeeCalculating(loading);
-    setVendorFees(prev => {
-      if (prev.deliveryFee === df && prev.packagingFee === pf && prev.distanceKm === dk && prev.surgeFee === sf) return prev;
-      return { deliveryFee: df, packagingFee: pf, distanceKm: dk, surgeFee: sf };
-    });
-  }, []);
+  const handleFeesCalculated = useCallback(
+    (_vendorId: string, df: number, pf: number, dk: number | null, sf: number, loading: boolean) => {
+      setFeeCalculating(loading);
+      setVendorFees((prev) => {
+        if (prev.deliveryFee === df && prev.packagingFee === pf && prev.distanceKm === dk && prev.surgeFee === sf)
+          return prev;
+        return { deliveryFee: df, packagingFee: pf, distanceKm: dk, surgeFee: sf };
+      });
+    },
+    [],
+  );
 
   // Fetch vendor category to detect pharmacy
   useEffect(() => {
-    supabase.from('vendors').select('category').eq('id', group.vendorId).single()
+    supabase
+      .from("vendors")
+      .select("category")
+      .eq("id", group.vendorId)
+      .single()
       .then(({ data }) => setVendorCategory(data?.category || null));
   }, [group.vendorId]);
 
   // Fetch user's phone verification status
   useEffect(() => {
     if (!userId) return;
-    supabase.from('profiles').select('phone, phone_verified').eq('user_id', userId).maybeSingle()
+    supabase
+      .from("profiles")
+      .select("phone, phone_verified")
+      .eq("user_id", userId)
+      .maybeSingle()
       .then(({ data }) => {
         setPhoneVerified(!!data?.phone_verified);
-        setUserPhone(data?.phone || '');
+        setUserPhone(data?.phone || "");
       });
   }, [userId]);
 
-  const isPharmacy = vendorCategory === 'pharmacy';
+  // Respect the admin-controlled enforcement setting — checkout's own phone-verify
+  // requirement is skipped when force_phone_verification is "off".
+  useEffect(() => {
+    supabase
+      .from("platform_settings")
+      .select("value")
+      .eq("key", "force_phone_verification")
+      .maybeSingle()
+      .then(({ data }) => {
+        const enforcement = data?.value || "off";
+        setPhoneVerificationEnforced(["customers", "all", "all_and_signups"].includes(enforcement));
+      });
+  }, []);
+
+  const isPharmacy = vendorCategory === "pharmacy";
 
   // Compute the platform promo specific to this vendor (pharmacy vs non-pharmacy)
-  const activePlatformPromo = useMemo(
-    () => getBestPlatformPromo(isPharmacy),
-    [getBestPlatformPromo, isPharmacy]
-  );
+  const activePlatformPromo = useMemo(() => getBestPlatformPromo(isPharmacy), [getBestPlatformPromo, isPharmacy]);
 
   // Spin-wheel & loyalty/welcome are not allowed on pharmacy carts
   const allowSpinDiscounts = !isPharmacy;
@@ -161,14 +195,14 @@ export function VendorCheckoutSection({
 
   // Helper: compute discount amount from a promo (handles % vs fixed)
   const computePromoAmount = useCallback(
-    (promo: { discount: number; discountKind?: 'percent' | 'fixed' } | null) => {
+    (promo: { discount: number; discountKind?: "percent" | "fixed" } | null) => {
       if (!promo) return 0;
-      if (promo.discountKind === 'fixed') {
+      if (promo.discountKind === "fixed") {
         return Math.min(promo.discount, group.subtotal);
       }
       return Math.round((group.subtotal * promo.discount) / 100);
     },
-    [group.subtotal]
+    [group.subtotal],
   );
 
   // Auto-apply the best platform promo (welcome / loyalty / pharmacy welcome) on mount
@@ -176,17 +210,17 @@ export function VendorCheckoutSection({
     if (autoAppliedRef.current) return;
     if (vendorCategory === null) return; // wait until we know if vendor is pharmacy
     if (platformPromosLoading) return; // wait until real promo % is loaded from platform_settings
-    if (activePlatformPromo && selectedDiscountType === 'none') {
+    if (activePlatformPromo && selectedDiscountType === "none") {
       autoAppliedRef.current = true;
-      setSelectedDiscountType('platform');
+      setSelectedDiscountType("platform");
       const discount = computePromoAmount(activePlatformPromo);
       setPromoDiscount(discount);
       const codeLabel =
-        activePlatformPromo.type === 'first_order'
-          ? 'WELCOME10'
-          : activePlatformPromo.type === 'pharmacy_welcome'
-            ? 'PHARMACY-WELCOME'
-            : 'LOYALTY';
+        activePlatformPromo.type === "first_order"
+          ? "WELCOME10"
+          : activePlatformPromo.type === "pharmacy_welcome"
+            ? "PHARMACY-WELCOME"
+            : "LOYALTY";
       setAppliedPromoCode(codeLabel);
       toast({
         title: `🎉 ${activePlatformPromo.label} applied!`,
@@ -203,35 +237,47 @@ export function VendorCheckoutSection({
   // Auto-set delivery location from GPS if prompted
   useEffect(() => {
     if (gpsLat && gpsLon && !hasDeliveryLocation && !gpsLoading) {
-      const loc = { lat: gpsLat, lon: gpsLon, label: 'My GPS Location', state: null as string | null };
-      localStorage.setItem('fc_delivery_location', JSON.stringify(loc));
+      const loc = { lat: gpsLat, lon: gpsLon, label: "My GPS Location", state: null as string | null };
+      localStorage.setItem("fc_delivery_location", JSON.stringify(loc));
       window.location.reload();
     }
   }, [gpsLat, gpsLon, gpsLoading, hasDeliveryLocation]);
 
   const handleCheckout = async () => {
     if (isPricingCalculating) {
-      toast({ title: 'Still calculating fees', description: 'Please wait a moment before paying.', variant: 'default' });
-      return;
-    }
-
-    // Gate: phone must be verified before placing any order
-    if (phoneVerified === false) {
-      setShowPhoneVerify(true);
       toast({
-        title: 'Verify your number',
-        description: 'For your safety, please verify your phone before placing this order.',
+        title: "Still calculating fees",
+        description: "Please wait a moment before paying.",
+        variant: "default",
       });
       return;
     }
 
+    // Gate: phone must be verified before placing any order — only enforced
+    // when admin's force_phone_verification setting includes customers.
+    if (phoneVerificationEnforced && phoneVerified === false) {
+      setShowPhoneVerify(true);
+      toast({
+        title: "Verify your number",
+        description: "For your safety, please verify your phone before placing this order.",
+      });
+      return;
+    }
 
-    if (deliveryType === 'delivery' && !hasDeliveryLocation) {
-      toast({ title: 'No delivery location', description: 'Please set your delivery location from the home screen header.', variant: 'destructive' });
+    if (deliveryType === "delivery" && !hasDeliveryLocation) {
+      toast({
+        title: "No delivery location",
+        description: "Please set your delivery location from the home screen header.",
+        variant: "destructive",
+      });
       return;
     }
     if (isWalletDisabled) {
-      toast({ title: 'Wallet Disabled', description: 'Your wallet has been disabled. Contact support.', variant: 'destructive' });
+      toast({
+        title: "Wallet Disabled",
+        description: "Your wallet has been disabled. Contact support.",
+        variant: "destructive",
+      });
       return;
     }
     if (insufficientBalance) {
@@ -245,7 +291,7 @@ export function VendorCheckoutSection({
       return;
     }
 
-    if (deliveryType === 'delivery' && hasDeliveryLocation) {
+    if (deliveryType === "delivery" && hasDeliveryLocation) {
       setShowAddressConfirm(true);
       return;
     }
@@ -258,19 +304,27 @@ export function VendorCheckoutSection({
     onPlacingChange(group.vendorId);
     try {
       // Validate products
-      const itemIds = group.items.filter(i => i.productId).map(i => i.productId);
+      const itemIds = group.items.filter((i) => i.productId).map((i) => i.productId);
       const existingIds = new Set<string>();
       if (itemIds.length > 0) {
         const [productsResult, combosResult] = await Promise.all([
-          supabase.from('products').select('id, is_available').in('id', itemIds),
-          supabase.from('combos').select('id, is_available').in('id', itemIds),
+          supabase.from("products").select("id, is_available").in("id", itemIds),
+          supabase.from("combos").select("id, is_available").in("id", itemIds),
         ]);
-        productsResult.data?.forEach(p => { if (p.is_available) existingIds.add(p.id); });
-        combosResult.data?.forEach(c => { if (c.is_available) existingIds.add(c.id); });
+        productsResult.data?.forEach((p) => {
+          if (p.is_available) existingIds.add(p.id);
+        });
+        combosResult.data?.forEach((c) => {
+          if (c.is_available) existingIds.add(c.id);
+        });
       }
-      const missingItems = group.items.filter(i => i.productId && !existingIds.has(i.productId));
+      const missingItems = group.items.filter((i) => i.productId && !existingIds.has(i.productId));
       if (missingItems.length > 0) {
-        toast({ title: 'Menu Updated', description: `"${missingItems[0].productName}" is no longer available.`, variant: 'destructive' });
+        toast({
+          title: "Menu Updated",
+          description: `"${missingItems[0].productName}" is no longer available.`,
+          variant: "destructive",
+        });
         onPlacingChange(null);
         return;
       }
@@ -278,16 +332,16 @@ export function VendorCheckoutSection({
       // Validate outlet still exists & is active (prevents stale-cart FK violation)
       if (group.outletId) {
         const { data: outletCheck, error: outletErr } = await supabase
-          .from('vendor_outlets')
-          .select('id, is_active, is_approved, outlet_name')
-          .eq('id', group.outletId)
+          .from("vendor_outlets")
+          .select("id, is_active, is_approved, outlet_name")
+          .eq("id", group.outletId)
           .maybeSingle();
 
         if (outletErr || !outletCheck) {
           toast({
-            title: 'Outlet Unavailable',
+            title: "Outlet Unavailable",
             description: `This branch is no longer available. Removing it from your cart — please re-add items from an active branch.`,
-            variant: 'destructive',
+            variant: "destructive",
           });
           clearVendorGroup(group.vendorId, group.outletId);
           onPlacingChange(null);
@@ -295,46 +349,48 @@ export function VendorCheckoutSection({
         }
         if (!outletCheck.is_active || !outletCheck.is_approved) {
           toast({
-            title: 'Branch Closed',
+            title: "Branch Closed",
             description: `${outletCheck.outlet_name} is no longer accepting orders. Please choose another branch.`,
-            variant: 'destructive',
+            variant: "destructive",
           });
           onPlacingChange(null);
           return;
         }
       }
 
-      const promoType = selectedDiscountType === 'spin' ? 'spin'
-        : selectedDiscountType === 'platform' ? 'platform_promo'
-        : null;
+      const promoType =
+        selectedDiscountType === "spin" ? "spin" : selectedDiscountType === "platform" ? "platform_promo" : null;
 
-      const deliveryInstructions = [
-        receiverPhone.trim() ? `Receiver Phone: ${receiverPhone.trim()}` : null,
-        orderNote.trim() ? `Customer Note: ${orderNote.trim()}` : null,
-      ].filter(Boolean).join('\n') || null;
+      const deliveryInstructions =
+        [
+          receiverPhone.trim() ? `Receiver Phone: ${receiverPhone.trim()}` : null,
+          orderNote.trim() ? `Customer Note: ${orderNote.trim()}` : null,
+        ]
+          .filter(Boolean)
+          .join("\n") || null;
 
       const groupTotal = total;
 
       const groupKey = group.outletId ? `${group.vendorId}|${group.outletId}` : `${group.vendorId}|`;
-      const metas = packageMetas[groupKey] || [{ recipientName: '', note: '' }];
+      const metas = packageMetas[groupKey] || [{ recipientName: "", note: "" }];
 
-      const normalizedGroupItems = group.items.map(item =>
-        item.isFreeMeal || !item.freeMealPromoId ? item : { ...item, isFreeMeal: true }
+      const normalizedGroupItems = group.items.map((item) =>
+        item.isFreeMeal || !item.freeMealPromoId ? item : { ...item, isFreeMeal: true },
       );
 
       const freeMealItemsMissingOriginal = normalizedGroupItems.filter(
-        i => i.isFreeMeal && (!i.originalPrice || i.originalPrice <= 0) && !!i.productId
+        (i) => i.isFreeMeal && (!i.originalPrice || i.originalPrice <= 0) && !!i.productId,
       );
 
       const originalPriceByProductId = new Map<string, number>();
       if (freeMealItemsMissingOriginal.length > 0) {
-        const fallbackProductIds = Array.from(new Set(freeMealItemsMissingOriginal.map(i => i.productId)));
+        const fallbackProductIds = Array.from(new Set(freeMealItemsMissingOriginal.map((i) => i.productId)));
         const { data: fallbackProducts } = await supabase
-          .from('products')
-          .select('id, price')
-          .in('id', fallbackProductIds);
+          .from("products")
+          .select("id, price")
+          .in("id", fallbackProductIds);
 
-        fallbackProducts?.forEach(p => {
+        fallbackProducts?.forEach((p) => {
           originalPriceByProductId.set(p.id, Number(p.price || 0));
         });
       }
@@ -345,14 +401,14 @@ export function VendorCheckoutSection({
         return originalPriceByProductId.get(item.productId) || 0;
       };
 
-      const hasFreeMealItems = normalizedGroupItems.some(i => i.isFreeMeal);
+      const hasFreeMealItems = normalizedGroupItems.some((i) => i.isFreeMeal);
       const freeMealValue = hasFreeMealItems
         ? normalizedGroupItems
-            .filter(i => i.isFreeMeal)
+            .filter((i) => i.isFreeMeal)
             .reduce((sum, i) => sum + getResolvedOriginalPrice(i) * (i._adminFreeQty || i.quantity), 0)
         : 0;
       const freeMealPromoId = hasFreeMealItems
-        ? normalizedGroupItems.find(i => i.isFreeMeal)?.freeMealPromoId || null
+        ? normalizedGroupItems.find((i) => i.isFreeMeal)?.freeMealPromoId || null
         : null;
 
       const actualMenuSubtotal = hasFreeMealItems
@@ -367,30 +423,28 @@ export function VendorCheckoutSection({
       let resolvedOutletId: string | null = group.outletId || null;
       if (!resolvedOutletId) {
         const { data: fallbackOutlets } = await supabase
-          .from('vendor_outlets')
-          .select('id, is_default, is_active, is_approved, created_at')
-          .eq('vendor_id', group.vendorId)
-          .eq('is_active', true)
-          .eq('is_approved', true)
-          .order('is_default', { ascending: false })
-          .order('created_at', { ascending: true })
+          .from("vendor_outlets")
+          .select("id, is_default, is_active, is_approved, created_at")
+          .eq("vendor_id", group.vendorId)
+          .eq("is_active", true)
+          .eq("is_approved", true)
+          .order("is_default", { ascending: false })
+          .order("created_at", { ascending: true })
           .limit(1);
         resolvedOutletId = fallbackOutlets?.[0]?.id ?? null;
         if (!resolvedOutletId) {
-          console.warn(
-            `[checkout] No active outlet found for vendor ${group.vendorId}; order will have no outlet_id`
-          );
+          console.warn(`[checkout] No active outlet found for vendor ${group.vendorId}; order will have no outlet_id`);
         }
       }
 
       const { data: order, error: orderError } = await supabase
-        .from('orders')
+        .from("orders")
         .insert({
           user_id: userId,
-          promo_code: appliedPromoCode || (promoType === 'spin' ? `SPIN-${selectedSpinDiscountId}` : null),
+          promo_code: appliedPromoCode || (promoType === "spin" ? `SPIN-${selectedSpinDiscountId}` : null),
           discount: promoDiscount,
           vendor_id: group.vendorId,
-          order_number: '',
+          order_number: "",
           menu_subtotal: actualMenuSubtotal,
           subtotal: group.subtotal + vendorFees.packagingFee - promoDiscount,
           packaging_fee: vendorFees.packagingFee,
@@ -399,14 +453,13 @@ export function VendorCheckoutSection({
           total: groupTotal,
           total_calories: group.totalCalories,
           delivery_address_id: null,
-          delivery_address_text: deliveryType === 'delivery'
-            ? deliveryLocation?.label || 'GPS Location'
-            : `Carryout at ${group.vendorName}`,
+          delivery_address_text:
+            deliveryType === "delivery" ? deliveryLocation?.label || "GPS Location" : `Carryout at ${group.vendorName}`,
           delivery_instructions: deliveryInstructions,
           delivery_type: deliveryType,
-          status: 'pending',
-          payment_status: 'pending',
-          payment_method: 'wallet',
+          status: "pending",
+          payment_status: "pending",
+          payment_method: "wallet",
           outlet_id: resolvedOutletId,
           package_count: packageCount,
           extra_package_fee: extraPackageFee,
@@ -428,24 +481,26 @@ export function VendorCheckoutSection({
       }));
 
       const { data: createdPackages, error: pkgError } = await supabase
-        .from('order_packages')
+        .from("order_packages")
         .insert(packageInserts)
         .select();
 
       if (pkgError) throw pkgError;
 
       // Look up sachets_per_pack so the stock-decrement trigger deducts the right number of sachet-units
-      const packLookupIds = Array.from(new Set(
-        normalizedGroupItems
-          .filter(it => (it as any).purchaseUnit !== 'sachet' && it.productId && !it.addonsDescription)
-          .map(it => it.productId!)
-      ));
+      const packLookupIds = Array.from(
+        new Set(
+          normalizedGroupItems
+            .filter((it) => (it as any).purchaseUnit !== "sachet" && it.productId && !it.addonsDescription)
+            .map((it) => it.productId!),
+        ),
+      );
       const packMultiplierMap: Record<string, number> = {};
       if (packLookupIds.length > 0) {
         const { data: prodRows } = await supabase
-          .from('products')
-          .select('id, sachets_per_pack, allows_sachet')
-          .in('id', packLookupIds);
+          .from("products")
+          .select("id, sachets_per_pack, allows_sachet")
+          .in("id", packLookupIds);
         (prodRows || []).forEach((r: any) => {
           if (r.allows_sachet && Number(r.sachets_per_pack) > 0) {
             packMultiplierMap[r.id] = Number(r.sachets_per_pack);
@@ -454,16 +509,15 @@ export function VendorCheckoutSection({
       }
 
       // Create order items with package_id linking
-      const orderItems = normalizedGroupItems.map(item => {
-        const pkg = createdPackages?.find(p => p.sort_order === item.packageIndex);
+      const orderItems = normalizedGroupItems.map((item) => {
+        const pkg = createdPackages?.find((p) => p.sort_order === item.packageIndex);
         const actualUnitPrice = item.isFreeMeal ? getResolvedOriginalPrice(item) : item.price;
-        const actualTotalPrice = item.isFreeMeal 
-          ? getResolvedOriginalPrice(item) * item.quantity 
+        const actualTotalPrice = item.isFreeMeal
+          ? getResolvedOriginalPrice(item) * item.quantity
           : item.price * item.quantity;
-        const purchaseUnit = (item as any).purchaseUnit === 'sachet' ? 'sachet' : 'pack';
-        const unitMultiplier = purchaseUnit === 'sachet'
-          ? 1
-          : (item.productId && packMultiplierMap[item.productId]) || 1;
+        const purchaseUnit = (item as any).purchaseUnit === "sachet" ? "sachet" : "pack";
+        const unitMultiplier =
+          purchaseUnit === "sachet" ? 1 : (item.productId && packMultiplierMap[item.productId]) || 1;
         return {
           order_id: order.id,
           package_id: pkg?.id || null,
@@ -483,7 +537,7 @@ export function VendorCheckoutSection({
       });
 
       const { data: insertedItems, error: itemsError } = await supabase
-        .from('order_items')
+        .from("order_items")
         .insert(orderItems as any)
         .select();
       if (itemsError) throw itemsError;
@@ -503,7 +557,7 @@ export function VendorCheckoutSection({
           if (cartItem.addons && cartItem.addons.length > 0) {
             const orderItem = insertedItems[index];
             if (orderItem) {
-              cartItem.addons.forEach(addon => {
+              cartItem.addons.forEach((addon) => {
                 addonRecords.push({
                   order_item_id: orderItem.id,
                   addon_group_name: addon.groupName,
@@ -518,37 +572,37 @@ export function VendorCheckoutSection({
         });
 
         if (addonRecords.length > 0) {
-          await supabase.from('order_item_addons').insert(addonRecords);
+          await supabase.from("order_item_addons").insert(addonRecords);
         }
       }
 
       // Create prescription orders for pharmacy items
       if (isPharmacy) {
         const prescriptionInserts = group.items
-          .filter(item => item.productId)
-          .map(item => {
-            const rxData = prescriptionData?.find(p => p.productId === item.productId);
+          .filter((item) => item.productId)
+          .map((item) => {
+            const rxData = prescriptionData?.find((p) => p.productId === item.productId);
             return {
               order_id: order.id,
               product_id: item.productId,
               user_id: userId,
               vendor_id: group.vendorId,
-              is_prescription: rxData?.prescriptionType === 'doctor',
-              prescription_type: rxData?.prescriptionType || 'pharmacist',
-              dose_unit: rxData?.doseUnit || 'tablet',
+              is_prescription: rxData?.prescriptionType === "doctor",
+              prescription_type: rxData?.prescriptionType || "pharmacist",
+              dose_unit: rxData?.doseUnit || "tablet",
               morning_dose: rxData?.morningDose || 0,
               afternoon_dose: rxData?.afternoonDose || 0,
               night_dose: rxData?.nightDose || 0,
               doctor_name: rxData?.doctorName || null,
               hospital_name: rxData?.hospitalName || null,
-              doctor_instructions: rxData?.doctorInstructions || '',
-              pharmacist_instructions: rxData?.pharmacistInstructions || (item as any).pharmacistInstructions || '',
-              dosage_frequency: rxData?.dosageFrequency || 'twice_daily',
+              doctor_instructions: rxData?.doctorInstructions || "",
+              pharmacist_instructions: rxData?.pharmacistInstructions || (item as any).pharmacistInstructions || "",
+              dosage_frequency: rxData?.dosageFrequency || "twice_daily",
               dosage_duration_days: rxData?.dosageDurationDays || 7,
               quantity_per_dose: rxData?.quantityPerDose || 1,
               total_quantity: item.quantity,
               requires_approval: rxData?.requiresApproval || false,
-              approval_status: rxData?.requiresApproval ? 'pending' : 'approved',
+              approval_status: rxData?.requiresApproval ? "pending" : "approved",
               prescription_image_url: rxData?.prescriptionImageUrl || null,
               is_emergency: rxData?.isEmergency || false,
               emergency_reason: rxData?.emergencyReason || null,
@@ -557,20 +611,20 @@ export function VendorCheckoutSection({
           });
 
         if (prescriptionInserts.length > 0) {
-          await supabase.from('prescription_orders').insert(prescriptionInserts);
+          await supabase.from("prescription_orders").insert(prescriptionInserts);
           try {
-            await supabase.functions.invoke('setup-drug-reminders', { body: { orderId: order.id } });
+            await supabase.functions.invoke("setup-drug-reminders", { body: { orderId: order.id } });
           } catch (e) {
-            console.error('Drug reminder setup failed:', e);
+            console.error("Drug reminder setup failed:", e);
           }
         }
       }
 
       // Handle promo usage
-      if (selectedDiscountType === 'spin' && selectedSpinDiscountId) {
+      if (selectedDiscountType === "spin" && selectedSpinDiscountId) {
         await useDiscount(selectedSpinDiscountId, order.id);
       }
-      if (selectedDiscountType === 'platform') {
+      if (selectedDiscountType === "platform") {
         if (isPharmacy && eligibility.pharmacyWelcomeValue) {
           await markFirstPharmacyOrderUsed();
         } else if (!isPharmacy && eligibility.firstOrderDiscount) {
@@ -579,7 +633,7 @@ export function VendorCheckoutSection({
       }
 
       // Pay via wallet
-      const { data: paymentResult, error: paymentError } = await supabase.functions.invoke('process-wallet-payment', {
+      const { data: paymentResult, error: paymentError } = await supabase.functions.invoke("process-wallet-payment", {
         body: { orderIds: [order.id] },
       });
       if (paymentError) throw paymentError;
@@ -589,7 +643,7 @@ export function VendorCheckoutSection({
       clearVendorGroup(group.vendorId, group.outletId);
 
       toast({
-        title: 'Order Placed!',
+        title: "Order Placed!",
         description: `Your order from ${group.vendorName} has been paid.`,
       });
 
@@ -598,24 +652,25 @@ export function VendorCheckoutSection({
         const foodOnlySubtotal = actualMenuSubtotal;
         await updateFreeMealProgress(foodOnlySubtotal, order.id, group.vendorId);
       } catch (e) {
-        console.error('Free meal progress update failed:', e);
+        console.error("Free meal progress update failed:", e);
       }
 
       onOrderPlaced(group.vendorId, order.id);
     } catch (error: any) {
-      console.error('Error placing order:', error);
+      console.error("Error placing order:", error);
       // Surface a friendly message for known constraint violations, otherwise show real error
-      const raw = error?.message || error?.error_description || '';
-      let friendly = raw || 'Failed to place order. Please try again.';
-      if (raw.includes('orders_outlet_id_fkey') || raw.toLowerCase().includes('outlet')) {
-        friendly = 'This outlet is no longer available. Clearing it from your cart — please re-add items from an active branch.';
+      const raw = error?.message || error?.error_description || "";
+      let friendly = raw || "Failed to place order. Please try again.";
+      if (raw.includes("orders_outlet_id_fkey") || raw.toLowerCase().includes("outlet")) {
+        friendly =
+          "This outlet is no longer available. Clearing it from your cart — please re-add items from an active branch.";
         clearVendorGroup(group.vendorId, group.outletId);
-      } else if (raw.includes('orders_vendor_id_fkey')) {
-        friendly = 'This vendor is no longer available. Please clear your cart and choose another vendor.';
-      } else if (raw.toLowerCase().includes('insufficient')) {
-        friendly = 'Insufficient wallet balance. Please top up and try again.';
+      } else if (raw.includes("orders_vendor_id_fkey")) {
+        friendly = "This vendor is no longer available. Please clear your cart and choose another vendor.";
+      } else if (raw.toLowerCase().includes("insufficient")) {
+        friendly = "Insufficient wallet balance. Please top up and try again.";
       }
-      toast({ title: 'Error', description: friendly, variant: 'destructive' });
+      toast({ title: "Error", description: friendly, variant: "destructive" });
     } finally {
       onPlacingChange(null);
     }
@@ -652,23 +707,26 @@ export function VendorCheckoutSection({
               </div>
             </div>
             <Switch
-              checked={deliveryType === 'self_pickup'}
-              onCheckedChange={(checked) => setDeliveryType(checked ? 'self_pickup' : 'delivery')}
+              checked={deliveryType === "self_pickup"}
+              onCheckedChange={(checked) => setDeliveryType(checked ? "self_pickup" : "delivery")}
             />
           </div>
 
-
           {/* Supply surge notice */}
-          {deliveryType === 'delivery' && !riderAvailability.loading && riderAvailability.deliveryAllowed && riderAvailability.supplyBasedSurge.isActive && (
-            <div className="flex items-center gap-2 p-3 bg-warning/10 rounded-lg border border-warning/20">
-              <TrendingUp className="w-4 h-4 text-warning shrink-0" />
-              <p className="text-sm text-warning">
-                Delivery surge applied due to limited rider availability (+{riderAvailability.supplyBasedSurge.currentSurgePct}%)
-              </p>
-            </div>
-          )}
+          {deliveryType === "delivery" &&
+            !riderAvailability.loading &&
+            riderAvailability.deliveryAllowed &&
+            riderAvailability.supplyBasedSurge.isActive && (
+              <div className="flex items-center gap-2 p-3 bg-warning/10 rounded-lg border border-warning/20">
+                <TrendingUp className="w-4 h-4 text-warning shrink-0" />
+                <p className="text-sm text-warning">
+                  Delivery surge applied due to limited rider availability (+
+                  {riderAvailability.supplyBasedSurge.currentSurgePct}%)
+                </p>
+              </div>
+            )}
 
-          {deliveryType === 'delivery' && (
+          {deliveryType === "delivery" && (
             <>
               <div className="border-t border-border pt-4">
                 {hasDeliveryLocation ? (
@@ -678,12 +736,7 @@ export function VendorCheckoutSection({
                       <p className="text-xs text-muted-foreground">Delivering to</p>
                       <p className="text-sm font-medium text-foreground truncate">{deliveryLocation?.label}</p>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="shrink-0 text-xs"
-                      onClick={() => navigate('/')}
-                    >
+                    <Button variant="ghost" size="sm" className="shrink-0 text-xs" onClick={() => navigate("/")}>
                       Change
                     </Button>
                   </div>
@@ -696,11 +749,16 @@ export function VendorCheckoutSection({
                       </p>
                     </div>
                     <div className="flex gap-2">
-                      <Button variant="outline" className="flex-1 gap-2" onClick={handlePromptGps} disabled={gpsLoading}>
+                      <Button
+                        variant="outline"
+                        className="flex-1 gap-2"
+                        onClick={handlePromptGps}
+                        disabled={gpsLoading}
+                      >
                         {gpsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Navigation className="w-4 h-4" />}
-                        {gpsLoading ? 'Getting location...' : 'Use My GPS'}
+                        {gpsLoading ? "Getting location..." : "Use My GPS"}
                       </Button>
-                      <Button variant="default" className="flex-1 gap-2" onClick={() => navigate('/')}>
+                      <Button variant="default" className="flex-1 gap-2" onClick={() => navigate("/")}>
                         <MapPin className="w-4 h-4" />
                         Set Location
                       </Button>
@@ -746,9 +804,9 @@ export function VendorCheckoutSection({
       {/* Pharmacy notice — explain why other promos aren't available */}
       {isPharmacy && (activeDiscounts.length > 0 || eligibility.firstOrderDiscount || eligibility.loyaltyDiscount) && (
         <div className="p-3 rounded-lg border border-info/30 bg-info/5 text-xs text-muted-foreground">
-          💊 Pharmacy orders use a separate welcome bonus funded from the platform service charge.
-          Spin-wheel discounts, the WELCOME10 bonus, and loyalty rewards do not apply here so drug
-          prices stay exactly as the pharmacy listed them.
+          💊 Pharmacy orders use a separate welcome bonus funded from the platform service charge. Spin-wheel discounts,
+          the WELCOME10 bonus, and loyalty rewards do not apply here so drug prices stay exactly as the pharmacy listed
+          them.
         </div>
       )}
 
@@ -761,11 +819,11 @@ export function VendorCheckoutSection({
         selectedSpinId={selectedSpinDiscountId}
         onSelect={(type, spinId) => {
           setSelectedDiscountType(type);
-          if (type === 'spin' && spinId) {
+          if (type === "spin" && spinId) {
             setSelectedSpinDiscountId(spinId);
-            const spinDiscount = activeDiscounts.find(d => d.id === spinId);
+            const spinDiscount = activeDiscounts.find((d) => d.id === spinId);
             if (spinDiscount) setPromoDiscount(Math.round((group.subtotal * spinDiscount.discount_percentage) / 100));
-          } else if (type === 'platform') {
+          } else if (type === "platform") {
             if (activePlatformPromo) setPromoDiscount(computePromoAmount(activePlatformPromo));
             setSelectedSpinDiscountId(null);
           } else {
@@ -781,7 +839,7 @@ export function VendorCheckoutSection({
         vendorId={group.vendorId}
         onDiscountApplied={(discount, code) => {
           if (discount > 0 && code) {
-            setSelectedDiscountType('none');
+            setSelectedDiscountType("none");
             setSelectedSpinDiscountId(null);
             setPromoDiscount(discount);
             setAppliedPromoCode(code);
@@ -790,7 +848,7 @@ export function VendorCheckoutSection({
             setAppliedPromoCode(null);
           }
         }}
-        disabled={selectedDiscountType !== 'none'}
+        disabled={selectedDiscountType !== "none"}
       />
 
       {/* Wallet Payment Info */}
@@ -800,9 +858,7 @@ export function VendorCheckoutSection({
             <Wallet className="w-5 h-5 text-primary" />
             <h3 className="font-semibold text-foreground">Payment</h3>
           </div>
-          <p className="text-sm font-medium text-muted-foreground">
-            Balance: ₦{walletBalance.toLocaleString()}
-          </p>
+          <p className="text-sm font-medium text-muted-foreground">Balance: ₦{walletBalance.toLocaleString()}</p>
         </div>
 
         {isWalletDisabled && (
@@ -816,9 +872,7 @@ export function VendorCheckoutSection({
           <div className="space-y-3">
             <div className="flex items-center gap-2 p-3 bg-warning/10 rounded-lg">
               <AlertTriangle className="w-4 h-4 text-warning" />
-              <p className="text-xs text-warning">
-                You need ₦{shortfall.toLocaleString()} more.
-              </p>
+              <p className="text-xs text-warning">You need ₦{shortfall.toLocaleString()} more.</p>
             </div>
             <Button variant="outline" className="w-full gap-2" onClick={() => setShowFundDialog(true)}>
               <Wallet className="w-4 h-4" />
@@ -863,7 +917,13 @@ export function VendorCheckoutSection({
       <Button
         className="w-full h-14 text-base font-semibold shadow-button gradient-primary border-0"
         onClick={handleCheckout}
-        disabled={isPlacing || isOtherPlacing || isWalletDisabled || (deliveryType === 'delivery' && !hasDeliveryLocation) || isPricingCalculating}
+        disabled={
+          isPlacing ||
+          isOtherPlacing ||
+          isWalletDisabled ||
+          (deliveryType === "delivery" && !hasDeliveryLocation) ||
+          isPricingCalculating
+        }
       >
         {isPlacing ? (
           <>
@@ -873,7 +933,7 @@ export function VendorCheckoutSection({
         ) : isPricingCalculating ? (
           <>
             <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-            {isDeliveryFeeCalculating ? 'Calculating delivery fee...' : 'Calculating total...'}
+            {isDeliveryFeeCalculating ? "Calculating delivery fee..." : "Calculating total..."}
           </>
         ) : insufficientBalance ? (
           <>
@@ -900,7 +960,7 @@ export function VendorCheckoutSection({
       {/* Delivery Address Confirmation Dialog */}
       <DeliveryAddressConfirmDialog
         open={showAddressConfirm}
-        addressLabel={deliveryLocation?.label || 'Unknown location'}
+        addressLabel={deliveryLocation?.label || "Unknown location"}
         onConfirm={proceedWithOrder}
         onCancel={() => setShowAddressConfirm(false)}
       />
@@ -912,24 +972,27 @@ export function VendorCheckoutSection({
           onClose={() => setShowPrescriptionDialog(false)}
           vendorId={group.vendorId}
           userId={userId}
-          pharmacyItems={group.items.filter(i => i.productId).map(item => ({
-            productId: item.productId,
-            productName: item.productName,
-            quantity: item.quantity,
-            requiresPrescription: (item as any).requiresPrescription || false,
-            pharmacistInstructions: (item as any).pharmacistInstructions || null,
-            defaultFrequency: (item as any).defaultFrequency || null,
-            defaultDuration: (item as any).defaultDuration || null,
-            defaultQtyPerDose: (item as any).defaultQtyPerDose || null,
-            dosageForm: (item as any).dosageForm || null,
-            targetAgeGroup: (item as any).targetAgeGroup || null,
-            medicineClassification: (item as any).medicineClassification || ((item as any).requiresPrescription ? 'prescription' : 'otc'),
-          }))}
+          pharmacyItems={group.items
+            .filter((i) => i.productId)
+            .map((item) => ({
+              productId: item.productId,
+              productName: item.productName,
+              quantity: item.quantity,
+              requiresPrescription: (item as any).requiresPrescription || false,
+              pharmacistInstructions: (item as any).pharmacistInstructions || null,
+              defaultFrequency: (item as any).defaultFrequency || null,
+              defaultDuration: (item as any).defaultDuration || null,
+              defaultQtyPerDose: (item as any).defaultQtyPerDose || null,
+              dosageForm: (item as any).dosageForm || null,
+              targetAgeGroup: (item as any).targetAgeGroup || null,
+              medicineClassification:
+                (item as any).medicineClassification || ((item as any).requiresPrescription ? "prescription" : "otc"),
+            }))}
           onComplete={(rxData) => {
             setPrescriptionData(rxData);
             setShowPrescriptionDialog(false);
             // Continue checkout flow
-            if (deliveryType === 'delivery' && deliveryLocation && deliveryLocation.lat !== null) {
+            if (deliveryType === "delivery" && deliveryLocation && deliveryLocation.lat !== null) {
               setShowAddressConfirm(true);
             } else {
               proceedWithOrder();
@@ -947,7 +1010,7 @@ export function VendorCheckoutSection({
         onVerified={() => {
           setPhoneVerified(true);
           setShowPhoneVerify(false);
-          toast({ title: 'Verified ✅', description: 'You can now place your order.' });
+          toast({ title: "Verified ✅", description: "You can now place your order." });
         }}
       />
     </div>
