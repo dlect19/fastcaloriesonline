@@ -2613,6 +2613,42 @@ export type Database = {
           },
         ]
       }
+      email_send_log: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          id: string
+          message_id: string | null
+          metadata: Json | null
+          provider: string | null
+          recipient_email: string
+          status: string
+          template_name: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          message_id?: string | null
+          metadata?: Json | null
+          provider?: string | null
+          recipient_email: string
+          status?: string
+          template_name: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          message_id?: string | null
+          metadata?: Json | null
+          provider?: string | null
+          recipient_email?: string
+          status?: string
+          template_name?: string
+        }
+        Relationships: []
+      }
       email_verification_otps: {
         Row: {
           created_at: string | null
@@ -9365,6 +9401,14 @@ export type Database = {
           p_reason: string
           p_source: string
           p_wallet_id: string
+        }
+        Returns: Json
+      }
+      admin_set_user_role: {
+        Args: {
+          _action: string
+          _role: Database["public"]["Enums"]["app_role"]
+          _target_user_id: string
         }
         Returns: Json
       }
