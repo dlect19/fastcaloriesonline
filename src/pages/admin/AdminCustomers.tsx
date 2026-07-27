@@ -404,6 +404,15 @@ export default function AdminCustomers() {
                               <Plus className="w-4 h-4 text-primary mr-1" />
                               Load
                             </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              title="Manage Roles"
+                              onClick={() => { setRolesTarget(customer); setRolesDialogOpen(true); }}
+                            >
+                              <Shield className="w-4 h-4 text-primary mr-1" />
+                              Roles
+                            </Button>
                             <AdminDeleteUserButton
                               userId={customer.user_id}
                               scope="all"
@@ -500,6 +509,14 @@ export default function AdminCustomers() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <AdminManageRolesDialog
+          open={rolesDialogOpen}
+          onOpenChange={setRolesDialogOpen}
+          userId={rolesTarget?.user_id ?? null}
+          userName={rolesTarget?.full_name || rolesTarget?.phone || 'Customer'}
+          onChanged={fetchCustomers}
+        />
     </AdminLayout>
     );
   }
