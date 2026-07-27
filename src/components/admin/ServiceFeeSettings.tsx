@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { DollarSign, Save, Loader2, Truck, Store, MessageCircle } from 'lucide-react';
+import { DollarSign, Save, Loader2, Truck, Store, Pill, ShoppingBasket, MessageCircle } from 'lucide-react';
 
 interface ServiceFeeSettingsProps {
   settings: Record<string, string>;
@@ -14,16 +14,16 @@ interface ServiceFeeSettingsProps {
   saving: boolean;
 }
 
-function FeeConfigSection({ 
-  settings, 
-  onSettingChange, 
+function FeeConfigSection({
+  settings,
+  onSettingChange,
   suffix = '',
   defaultFixed = '100',
   defaultPercentage = '5',
   defaultMin = '100',
   defaultMax = '1000',
-}: { 
-  settings: Record<string, string>; 
+}: {
+  settings: Record<string, string>;
   onSettingChange: (key: string, value: string) => void;
   suffix?: string;
   defaultFixed?: string;
@@ -86,7 +86,7 @@ function FeeConfigSection({
 
       {feeType === 'hybrid' && (
         <div className="space-y-2">
-          <Label>Maximum Fee</Label>
+          <Label>Maximum Fee (Cap)</Label>
           <div className="relative">
             <Input
               type="number"
@@ -101,7 +101,6 @@ function FeeConfigSection({
         </div>
       )}
 
-      {/* Formula Preview */}
       <div className="p-4 bg-secondary rounded-lg">
         <h4 className="text-sm font-medium text-foreground mb-2">Service Fee Formula</h4>
         {feeType === 'fixed' && (
@@ -120,7 +119,7 @@ function FeeConfigSection({
               <span className="text-primary font-medium">{settings[`service_fee_percentage${suffix}`] || defaultPercentage}%</span> of order subtotal
             </p>
             <p className="text-sm text-muted-foreground">
-              Min: <span className="text-primary font-medium">₦{parseInt(settings[`service_fee_min${suffix}`] || defaultMin).toLocaleString()}</span> | 
+              Min: <span className="text-primary font-medium">₦{parseInt(settings[`service_fee_min${suffix}`] || defaultMin).toLocaleString()}</span> |
               Max: <span className="text-primary font-medium">₦{parseInt(settings[`service_fee_max${suffix}`] || defaultMax).toLocaleString()}</span>
             </p>
           </>
@@ -139,41 +138,49 @@ export function ServiceFeeSettings({ settings, onSettingChange, onSave, saving }
           Service Fee Configuration
         </CardTitle>
         <CardDescription>
-          Configure separate service fees for delivery and carryout orders
+          Independent service fees per order type. Food uses Delivery/Carryout; Pharmacy and Grocery/Marketplace each have their own settings.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         <Tabs defaultValue="delivery" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="delivery" className="flex items-center gap-2">
-              <Truck className="w-4 h-4" />
-              Delivery
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="delivery" className="flex items-center gap-1.5 text-xs md:text-sm">
+              <Truck className="w-4 h-4" /> Food · Delivery
             </TabsTrigger>
-            <TabsTrigger value="pickup" className="flex items-center gap-2">
-              <Store className="w-4 h-4" />
-              Carryout
+            <TabsTrigger value="pickup" className="flex items-center gap-1.5 text-xs md:text-sm">
+              <Store className="w-4 h-4" /> Food · Carryout
+            </TabsTrigger>
+            <TabsTrigger value="pharmacy" className="flex items-center gap-1.5 text-xs md:text-sm">
+              <Pill className="w-4 h-4" /> Pharmacy
+            </TabsTrigger>
+            <TabsTrigger value="grocery" className="flex items-center gap-1.5 text-xs md:text-sm">
+              <ShoppingBasket className="w-4 h-4" /> Grocery
             </TabsTrigger>
           </TabsList>
           <TabsContent value="delivery" className="mt-4">
             <FeeConfigSection
-              settings={settings}
-              onSettingChange={onSettingChange}
-              suffix=""
-              defaultFixed="100"
-              defaultPercentage="5"
-              defaultMin="100"
-              defaultMax="1000"
+              settings={settings} onSettingChange={onSettingChange}
+              suffix="" defaultFixed="100" defaultPercentage="5" defaultMin="100" defaultMax="1000"
             />
           </TabsContent>
           <TabsContent value="pickup" className="mt-4">
             <FeeConfigSection
-              settings={settings}
-              onSettingChange={onSettingChange}
-              suffix="_pickup"
-              defaultFixed="50"
-              defaultPercentage="3"
-              defaultMin="50"
-              defaultMax="500"
+              settings={settings} onSettingChange={onSettingChange}
+              suffix="_pickup" defaultFixed="50" defaultPercentage="3" defaultMin="50" defaultMax="500"
+            />
+          </TabsContent>
+          <TabsContent value="pharmacy" className="mt-4">
+            <p className="text-xs text-muted-foreground mb-3">Applies to orders from pharmacy vendors (any delivery type).</p>
+            <FeeConfigSection
+              settings={settings} onSettingChange={onSettingChange}
+              suffix="_pharmacy" defaultFixed="100" defaultPercentage="15" defaultMin="100" defaultMax="5000"
+            />
+          </TabsContent>
+          <TabsContent value="grocery" className="mt-4">
+            <p className="text-xs text-muted-foreground mb-3">Applies to orders from grocery/marketplace vendors (any delivery type).</p>
+            <FeeConfigSection
+              settings={settings} onSettingChange={onSettingChange}
+              suffix="_grocery" defaultFixed="100" defaultPercentage="15" defaultMin="100" defaultMax="7500"
             />
           </TabsContent>
         </Tabs>

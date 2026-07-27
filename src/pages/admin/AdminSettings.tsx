@@ -250,6 +250,10 @@ export default function AdminSettings() {
         'service_fee_min', 'service_fee_max',
         'service_fee_type_pickup', 'service_fee_fixed_pickup', 'service_fee_percentage_pickup',
         'service_fee_min_pickup', 'service_fee_max_pickup',
+        'service_fee_type_pharmacy', 'service_fee_fixed_pharmacy', 'service_fee_percentage_pharmacy',
+        'service_fee_min_pharmacy', 'service_fee_max_pharmacy',
+        'service_fee_type_grocery', 'service_fee_fixed_grocery', 'service_fee_percentage_grocery',
+        'service_fee_min_grocery', 'service_fee_max_grocery',
         'service_fee_include_twilio',
         'pos_wallet_fee_percentage',
       ];
