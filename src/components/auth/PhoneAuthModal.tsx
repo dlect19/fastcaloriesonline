@@ -195,6 +195,18 @@ export function PhoneAuthModal({ open, onOpenChange }: Props) {
               </div>
               <p className="text-xs text-muted-foreground">11 digits, no country code (e.g. 08012345678).</p>
             </div>
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+              Haven't chatted with our official WhatsApp number before? To make sure your code arrives, please{' '}
+              
+                href="https://wa.me/2348103128494?text=Hi"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold underline"
+              >
+                tap here to say hi on WhatsApp first
+              </a>
+              , then come back and tap "Send code."
+            </div>
             <Button onClick={handleSendPhone} disabled={sending} className="w-full h-12">
               {sending ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Send code on WhatsApp'}
             </Button>
