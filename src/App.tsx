@@ -7,6 +7,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { PhoneVerificationGate } from "@/components/auth/PhoneVerificationGate";
 import { CartProvider } from "@/hooks/useCart";
 import { CallProvider } from "@/components/call/CallProvider";
+import { MedicationAlarmBootstrap } from "@/components/pharmacy/MedicationAlarmBootstrap";
 import { PWAUpdateBanner } from "@/components/PWAUpdateBanner";
 import { ForceUpdateOverlay } from "@/components/ForceUpdateOverlay";
 import { NetworkStatusOverlay } from "@/components/NetworkStatusOverlay";
