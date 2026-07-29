@@ -1,83 +1,111 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { corsHeaders } from "https://esm.sh/@supabase/supabase-js@2.95.0/cors";
 
+/**
+ * Prepares DRAFT medication schedules from a delivered pharmacy order.
+ * It never activates reminders and never invents clock times — if the
+ * instructions do not state exact times, the customer picks them on review.
+ */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
     const { orderId } = await req.json();
-    if (!orderId) return new Response(JSON.stringify({ error: "orderId required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (!orderId) {
+      return new Response(JSON.stringify({ error: "orderId required" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-    // Get prescription orders for this order
     const { data: prescriptions } = await supabase
       .from("prescription_orders")
-      .select("*, products:product_id(name, pharmacist_dosage_instructions, default_dosage_frequency, default_dosage_duration_days, default_quantity_per_dose)")
+      .select("*, products:product_id(name, strength, pharmacist_dosage_instructions)")
       .eq("order_id", orderId);
 
     if (!prescriptions || prescriptions.length === 0) {
-      return new Response(JSON.stringify({ message: "No prescriptions found" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ message: "No prescriptions found" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    const frequencyToTimes: Record<string, string[]> = {
-      once_daily: ["08:00"],
-      twice_daily: ["08:00", "20:00"],
-      three_times_daily: ["08:00", "14:00", "20:00"],
-      four_times_daily: ["08:00", "12:00", "16:00", "20:00"],
-      every_6_hours: ["06:00", "12:00", "18:00", "00:00"],
-      every_8_hours: ["08:00", "16:00", "00:00"],
-      five_times_daily: ["06:00", "10:00", "14:00", "18:00", "22:00"],
-      as_needed: ["08:00"],
-    };
-
-    const frequencyToTimesPerDay: Record<string, number> = {
+    // Doses per day implied by the documented frequency. Times are NOT inferred.
+    const dosesPerDay: Record<string, number> = {
       once_daily: 1, twice_daily: 2, three_times_daily: 3, four_times_daily: 4,
       every_6_hours: 4, every_8_hours: 3, five_times_daily: 5, as_needed: 1,
     };
 
-    for (const rx of prescriptions) {
-      const product = rx.products as any;
-      const drugName = product?.name || "Unknown Drug";
-      const freq = rx.dosage_frequency || "twice_daily";
-      const duration = rx.dosage_duration_days || 7;
-      const qtyPerDose = rx.quantity_per_dose || 1;
-      const timesPerDay = frequencyToTimesPerDay[freq] || 1;
-      const totalDoses = timesPerDay * duration * qtyPerDose;
+    let created = 0;
 
-      // Create drug usage tracking
+    for (const rx of prescriptions as any[]) {
+      // Idempotent: never prepare a second draft for the same prescription line.
+      const { data: existing } = await supabase
+        .from("drug_reminders")
+        .select("id")
+        .eq("prescription_order_id", rx.id)
+        .maybeSingle();
+      if (existing) continue;
+
+      const product = rx.products as any;
+      const drugName = product?.name || "Medication";
+      const freq = rx.dosage_frequency || null;
+      const duration = rx.dosage_duration_days || null;
+      const qtyPerDose = rx.quantity_per_dose || 1;
+      const perDay = freq ? (dosesPerDay[freq] ?? null) : null;
+
+      // Explicit times only exist when the prescription records specific slots.
+      const explicitTimes: string[] = [];
+
+      const unit = rx.dose_unit || (qtyPerDose > 1 ? "units" : "unit");
+      const totalDoses = perDay && duration ? perDay * duration * qtyPerDose : qtyPerDose;
+
       const { data: usage } = await supabase.from("drug_usage_tracking").insert({
         prescription_order_id: rx.id,
         user_id: rx.user_id,
         drug_name: drugName,
         total_doses: totalDoses,
         doses_taken: 0,
-        next_dose_at: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
       }).select().single();
 
-      // Create drug reminder
-      const reminderTimes = frequencyToTimes[freq] || ["08:00"];
-      const endDate = new Date();
-      endDate.setDate(endDate.getDate() + duration);
+      const endDate = duration
+        ? new Date(Date.now() + duration * 86400000).toISOString().split("T")[0]
+        : null;
 
-      await supabase.from("drug_reminders").insert({
+      const verified = rx.approval_status === "approved" && rx.approved_by;
+
+      const { error } = await supabase.from("drug_reminders").insert({
         user_id: rx.user_id,
         drug_name: drugName,
-        dosage: `${qtyPerDose} ${qtyPerDose > 1 ? "units" : "unit"}`,
-        frequency: freq,
-        reminder_times: reminderTimes,
+        strength: product?.strength ?? null,
+        dosage: `${qtyPerDose} ${unit}`,
+        instructions: rx.doctor_instructions || rx.pharmacist_instructions || product?.pharmacist_dosage_instructions || null,
+        frequency: freq || "as_instructed",
+        doses_per_day: perDay,
+        reminder_times: explicitTimes,
+        times_needed: explicitTimes.length === 0,
         start_date: new Date().toISOString().split("T")[0],
-        end_date: endDate.toISOString().split("T")[0],
-        is_active: true,
+        end_date: endDate,
+        // DRAFT: prepared for the customer, but no notification is scheduled yet.
+        status: "draft",
+        is_active: false,
+        source: "pharmacy_order",
+        instruction_source: rx.prescription_type === "doctor" ? "doctor_prescription" : "pharmacist_instruction",
+        verification_status: verified ? "verified" : "pending_verification",
+        verified_by: verified ? rx.approved_by : null,
+        verified_at: verified ? rx.approved_at : null,
         prescription_order_id: rx.id,
         drug_usage_tracking_id: usage?.id || null,
       });
+
+      if (!error) created++;
     }
 
-    return new Response(JSON.stringify({ success: true, count: prescriptions.length }), {
+    return new Response(JSON.stringify({ success: true, drafts_prepared: created }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
+    console.error("setup-drug-reminders error", err);
     return new Response(JSON.stringify({ error: String(err) }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

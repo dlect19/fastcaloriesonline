@@ -2493,49 +2493,88 @@ export type Database = {
       }
       drug_reminders: {
         Row: {
+          activated_at: string | null
           created_at: string
+          days_of_week: number[] | null
           dosage: string | null
+          doses_per_day: number | null
           drug_name: string
           drug_usage_tracking_id: string | null
           end_date: string | null
           frequency: string
           id: string
+          instruction_source: string | null
+          instructions: string | null
           is_active: boolean | null
           prescription_order_id: string | null
           reminder_times: string[]
+          source: string
           start_date: string | null
+          status: string
+          strength: string | null
+          times_needed: boolean
+          timezone: string
           updated_at: string
           user_id: string
+          verification_status: string
+          verified_at: string | null
+          verified_by: string | null
         }
         Insert: {
+          activated_at?: string | null
           created_at?: string
+          days_of_week?: number[] | null
           dosage?: string | null
+          doses_per_day?: number | null
           drug_name: string
           drug_usage_tracking_id?: string | null
           end_date?: string | null
           frequency: string
           id?: string
+          instruction_source?: string | null
+          instructions?: string | null
           is_active?: boolean | null
           prescription_order_id?: string | null
-          reminder_times: string[]
+          reminder_times?: string[]
+          source?: string
           start_date?: string | null
+          status?: string
+          strength?: string | null
+          times_needed?: boolean
+          timezone?: string
           updated_at?: string
           user_id: string
+          verification_status?: string
+          verified_at?: string | null
+          verified_by?: string | null
         }
         Update: {
+          activated_at?: string | null
           created_at?: string
+          days_of_week?: number[] | null
           dosage?: string | null
+          doses_per_day?: number | null
           drug_name?: string
           drug_usage_tracking_id?: string | null
           end_date?: string | null
           frequency?: string
           id?: string
+          instruction_source?: string | null
+          instructions?: string | null
           is_active?: boolean | null
           prescription_order_id?: string | null
           reminder_times?: string[]
+          source?: string
           start_date?: string | null
+          status?: string
+          strength?: string | null
+          times_needed?: boolean
+          timezone?: string
           updated_at?: string
           user_id?: string
+          verification_status?: string
+          verified_at?: string | null
+          verified_by?: string | null
         }
         Relationships: [
           {
@@ -4340,6 +4379,131 @@ export type Database = {
           title?: string
           updated_at?: string
           version?: number
+        }
+        Relationships: []
+      }
+      medication_doses: {
+        Row: {
+          client_key: string
+          created_at: string
+          drug_usage_tracking_id: string | null
+          id: string
+          reminder_id: string
+          scheduled_for: string
+          snooze_count: number
+          snoozed_until: string | null
+          status: string
+          taken_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          client_key: string
+          created_at?: string
+          drug_usage_tracking_id?: string | null
+          id?: string
+          reminder_id: string
+          scheduled_for: string
+          snooze_count?: number
+          snoozed_until?: string | null
+          status?: string
+          taken_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          client_key?: string
+          created_at?: string
+          drug_usage_tracking_id?: string | null
+          id?: string
+          reminder_id?: string
+          scheduled_for?: string
+          snooze_count?: number
+          snoozed_until?: string | null
+          status?: string
+          taken_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "medication_doses_reminder_id_fkey"
+            columns: ["reminder_id"]
+            isOneToOne: false
+            referencedRelation: "drug_reminders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      medication_reminder_diagnostics: {
+        Row: {
+          app_version: string | null
+          created_at: string
+          detail: string | null
+          event_type: string
+          id: string
+          os_version: string | null
+          platform: string | null
+          user_id: string | null
+        }
+        Insert: {
+          app_version?: string | null
+          created_at?: string
+          detail?: string | null
+          event_type: string
+          id?: string
+          os_version?: string | null
+          platform?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          app_version?: string | null
+          created_at?: string
+          detail?: string | null
+          event_type?: string
+          id?: string
+          os_version?: string | null
+          platform?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      medication_settings: {
+        Row: {
+          calendar_sync_enabled: boolean
+          created_at: string
+          notifications_enabled: boolean
+          privacy_mode: boolean
+          snooze_minutes: number
+          sound_enabled: boolean
+          timezone: string | null
+          updated_at: string
+          user_id: string
+          vibration_enabled: boolean
+        }
+        Insert: {
+          calendar_sync_enabled?: boolean
+          created_at?: string
+          notifications_enabled?: boolean
+          privacy_mode?: boolean
+          snooze_minutes?: number
+          sound_enabled?: boolean
+          timezone?: string | null
+          updated_at?: string
+          user_id: string
+          vibration_enabled?: boolean
+        }
+        Update: {
+          calendar_sync_enabled?: boolean
+          created_at?: string
+          notifications_enabled?: boolean
+          privacy_mode?: boolean
+          snooze_minutes?: number
+          sound_enabled?: boolean
+          timezone?: string | null
+          updated_at?: string
+          user_id?: string
+          vibration_enabled?: boolean
         }
         Relationships: []
       }
