@@ -923,7 +923,11 @@ serve(async (req) => {
         const list = nextContext.vendors || [];
         if (Number.isFinite(idx) && list[idx]) vendorId = list[idx].id;
       }
-      if (!vendorId) return await replyText("Please reply with a vendor number from the list, or *menu* to restart.");
+      if (!vendorId) {
+        const nlVend = await tryNaturalLanguage();
+        if (nlVend) return nlVend;
+        return await replyText("Please reply with a vendor number from the list, or *menu* to restart.");
+      }
       const vendor = (nextContext.vendors || []).find((v: any) => v.id === vendorId);
       // Look up vendor category (pharmacy gets special handling)
       const { data: vendorRow } = await supabase.from("vendors").select("category").eq("id", vendorId).maybeSingle();
