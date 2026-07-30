@@ -1292,6 +1292,10 @@ serve(async (req) => {
       return await doCheckout(supabase, { ...session, context: merged }, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
     }
 
+    // 🤖 Last chance: try to understand a plain-English request before bouncing.
+    const nlFallback = await tryNaturalLanguage();
+    if (nlFallback) return nlFallback;
+
     // Default: bounce to main menu
     await persistSession(supabase, session.id, "menu", nextContext, nextCart);
     return await sendToUser("wa_main_menu", {}, MAIN_MENU);
