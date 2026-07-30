@@ -1102,6 +1102,8 @@ serve(async (req) => {
         await persistSession(supabase, session.id, "menu", nextContext, nextCart);
       return await sendToUser("wa_main_menu", {}, MENU_OPTIONS);
     }
+    const nlCart = await tryNaturalLanguage();
+    if (nlCart) return nlCart;
     const cartBody = renderCart(nextCart, false);
     return await sendToUser("wa_cart_actions", { "1": cartBody },
       renderCart(nextCart) + "\n\nReply *checkout* to pay, *clear* to empty, or *menu* to restart.");
