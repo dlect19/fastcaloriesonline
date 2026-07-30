@@ -968,7 +968,11 @@ serve(async (req) => {
           if (Number.isFinite(idx) && items[idx]) itemId = items[idx].id;
         }
       }
-      if (!itemId) return await replyText("Reply with item number (e.g. *2*) or *<item>x<qty>* (e.g. *2x3*), *checkout* to pay, or *menu* to restart.");
+      if (!itemId) {
+        const nlRes = await tryNaturalLanguage();
+        if (nlRes) return nlRes;
+        return await replyText("Reply with item number (e.g. *2*) or *<item>x<qty>* (e.g. *2x3*), *checkout* to pay, or *menu* to restart.");
+      }
       const it = (nextContext.items || []).find((x: any) => x.id === itemId);
       if (!it) return await replyText("That item is no longer available.");
 
