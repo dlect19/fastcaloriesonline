@@ -735,14 +735,23 @@ serve(async (req) => {
 
         // No vendor selected yet — find real vendors that actually stock the item.
         const term = nl.items[0].name;
-        const { data: hits } = await supabase
+        // Search on the whole phrase AND on each meaningful word, so "2 jollof rice"
+        // still finds "Jollof Rice (Special)" etc.
+        const words = term.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/)
+          .filter((w) => w.length > 2 && !["the", "and", "with", "some", "please", "plate", "portion"].includes(w));
+        const terms = Array.from(new Set([term, ...words])).slice(0, 4);
+        const orFilter = terms.map((t) => `name.ilike.%${t.replace(/[,%()]/g, " ").trim()}%`).join(",");
+        const { data: hits, error: hitsErr } = await supabase
           .from("products")
           .select("id, name, price, vendor_id, vendors!inner(id, name, is_active)")
-          .ilike("name", `%${term}%`)
+          .or(orFilter)
           .eq("vendors.is_active", true)
-          .limit(25);
+          .limit(40);
+        if (hitsErr) console.error("[wa-nl] product search failed", hitsErr.message);
+        // Keep only rows that actually score against the request.
+        const scored = (hits || []).filter((h: any) => scoreMatch(term, h.name) > 0.3);
         const byVendor = new Map<string, { id: string; name: string; sample: string }>();
-        for (const h of (hits || []) as any[]) {
+        for (const h of (scored.length ? scored : (hits || [])) as any[]) {
           const v = h.vendors;
           if (!v?.name || byVendor.has(v.id)) continue;
           byVendor.set(v.id, { id: v.id, name: v.name, sample: h.name });
@@ -750,7 +759,14 @@ serve(async (req) => {
         const options = Array.from(byVendor.values()).slice(0, 5);
         if (!options.length) {
           console.log("[wa-nl] no vendor stocks", term);
-          return null; // fall back to the numbered flow
+          // Don't silently bounce to the numbered main menu — acknowledge what they asked for.
+          nextContext.category = undefined;
+          await persistSession(supabase, session.id, "choosing_category", nextContext, nextCart);
+          return await replyText(
+            `😕 I couldn't find *${term}* at any open vendor near you right now.\n\n` +
+            `Tell me another item, or pick a category:\n` +
+            `1️⃣ 🍔 Restaurants\n2️⃣ 💊 Pharmacy\n3️⃣ 🛒 Market / Grocery\n4️⃣ 🌐 All vendors`,
+          );
         }
         nextContext.nl_pending_items = nl.items;
         nextContext.nl_vendor_options = options;
@@ -760,6 +776,7 @@ serve(async (req) => {
           options.map((o, i) => `${i + 1}. ${o.name} — _${o.sample}_`).join("\n") +
           `\n\nReply with a number to order from that vendor, or *menu* to go back.`,
         );
+
       } catch (e) {
         console.error("[wa-nl] handler failed", e);
         return null;
