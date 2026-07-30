@@ -813,6 +813,8 @@ serve(async (req) => {
       else if (tap === "BTN_CAT_MARKET" || lower === "3") picked = "market";
       else if (tap === "BTN_CAT_ALL" || lower === "4" || lower === "all") picked = null;
       else {
+        const nlCat = await tryNaturalLanguage();
+        if (nlCat) return nlCat;
         return await replyText(`Please reply 1, 2, 3 or 4.\n\n${CATEGORY_PROMPT}`);
       }
       nextContext.category = picked;
