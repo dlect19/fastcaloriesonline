@@ -592,6 +592,201 @@ serve(async (req) => {
       return await sendToUser("wa_vendor_list", vars, text);
     };
 
+    // ============================================================
+    // 🤖 Phase 1 — natural-language ordering layer
+    // Only runs AFTER the deterministic/numeric handlers fail to understand the
+    // message. Gemini classifies intent; everything else is resolved against
+    // real menu rows. Any failure returns null so the numbered flow continues.
+    // ============================================================
+    const loadVendorMenu = async (vendorId: string, vendorName: string) => {
+      const { data: vendorRow } = await supabase.from("vendors").select("category, name").eq("id", vendorId).maybeSingle();
+      const items = await fetchMenuItems(supabase, vendorId);
+      nextContext.vendor_id = vendorId;
+      nextContext.vendor_name = vendorName || vendorRow?.name || "";
+      nextContext.vendor_category = vendorRow?.category || "restaurant";
+      nextContext.items = items.map((m: any) => ({
+        id: m.id, name: m.name, price: m.price, calories: m.calories,
+        requires_prescription: !!m.requires_prescription,
+        serving_unit: m.serving_unit || null,
+        is_available: m.is_available !== false,
+        addon_groups: m.addon_groups || [],
+      }));
+      return nextContext.items as any[];
+    };
+
+    // Apply resolved add/update/remove requests against the live cart.
+    const nlApplyItems = async (intent: string, reqs: { name: string; qty?: number | null }[], menuItems: any[]) => {
+      const added: string[] = [];
+      const problems: string[] = [];
+
+      for (const req of reqs) {
+        if (intent === "remove_item") {
+          const inCart = matchProduct(req.name, nextCart as any[]);
+          if (!inCart.best) { problems.push(`I couldn't find *${req.name}* in your cart.`); continue; }
+          nextCart = nextCart.filter((c: any) => c !== inCart.best);
+          added.push(`🗑️ Removed *${(inCart.best as any).name}*`);
+          continue;
+        }
+        if (intent === "update_quantity") {
+          const inCart = matchProduct(req.name, nextCart as any[]);
+          if (!inCart.best) { problems.push(`*${req.name}* isn't in your cart yet.`); continue; }
+          const q = Math.max(1, Number(req.qty) || 1);
+          (inCart.best as any).qty = q;
+          added.push(`🔁 *${(inCart.best as any).name}* set to ${q}`);
+          continue;
+        }
+        // add_to_cart
+        const m = matchProduct(req.name, menuItems);
+        if (m.ambiguous.length) {
+          problems.push(
+            `Which one did you mean by *${req.name}*?\n` +
+            m.ambiguous.map((x: any, i: number) => `${i + 1}. ${x.name} — ₦${Number(x.price).toLocaleString()}`).join("\n"),
+          );
+          continue;
+        }
+        if (!m.best) {
+          const alts = m.suggestions.slice(0, 4)
+            .map((x: any, i: number) => `${i + 1}. ${x.name} — ₦${Number(x.price).toLocaleString()}`).join("\n");
+          problems.push(`😕 I couldn't find *${req.name}*${alts ? `.\n\nAvailable here:\n${alts}` : " on this menu."}`);
+          continue;
+        }
+        const it: any = m.best;
+        const qty = Math.max(1, Number(req.qty) || 1);
+        if ((it.addon_groups || []).length) {
+          // Hand back to the existing add-on picker flow for this item.
+          nextContext.pending_item = { item_id: it.id, qty, group_idx: 0, selections: [] };
+          await persistSession(supabase, session.id, "selecting_addons", nextContext, nextCart);
+          const pre = added.length ? added.join("\n") + "\n\n" : "";
+          return await replyText(pre + renderAddonGroupPrompt(it.name, it.addon_groups[0], 0, it.addon_groups.length));
+        }
+        const existingLine = nextCart.find((c: any) => c.id === it.id && !(c.addons && c.addons.length));
+        if (existingLine) existingLine.qty += qty;
+        else {
+          nextCart.push({
+            id: it.id, name: it.name, price: it.price, calories: it.calories,
+            qty, serving_unit: it.serving_unit || null,
+            vendor_id: nextContext.vendor_id, vendor_name: nextContext.vendor_name,
+            is_pharmacy: nextContext.vendor_category === "pharmacy",
+            requires_prescription: !!it.requires_prescription,
+            addons: [],
+          });
+        }
+        added.push(`✅ *${qty} × ${it.name}* — ₦${(Number(it.price) * qty).toLocaleString()}`);
+      }
+
+      if (!added.length && problems.length) {
+        await persistSession(supabase, session.id, session.state, nextContext, nextCart);
+        return await replyText(problems.join("\n\n") + "\n\nYou can also reply with the item number from the menu, or *menu* to start over.");
+      }
+      if (!added.length) return null;
+
+      nextContext = { ...nextContext, pending_total: undefined };
+      await persistSession(supabase, session.id, nextContext.vendor_id ? "browsing_menu" : "cart", nextContext, nextCart);
+      const head = added.join("\n") + (problems.length ? "\n\n" + problems.join("\n\n") : "");
+      const txt = `${head}\n\n${renderCart(nextCart)}`;
+      const cartBody = `${head}\n\n${renderCart(nextCart, false)}`;
+      return await sendToUser("wa_cart_actions", { "1": cartBody }, txt + "\n\nAnything else, or reply *checkout* to pay?");
+    };
+
+    // Returns a Response when it handled the message, otherwise null (→ fallback).
+    const tryNaturalLanguage = async (): Promise<Response | null> => {
+      if (tap || !body || body.trim().length < 3) return null;
+      if (/^\d+([x*]\d+)?$/.test(lower.replace(/\s+/g, ""))) return null; // numeric flow owns this
+      let nl: Awaited<ReturnType<typeof parseIntent>> = null;
+      try {
+        nl = await parseIntent(body);
+      } catch (e) {
+        console.error("[wa-nl] parseIntent crash", e);
+      }
+      if (!nl || nl.intent === "unknown" || nl.confidence < 0.5) return null;
+
+      try {
+        if (nl.intent === "show_cart") {
+          const txt = renderCart(nextCart);
+          await persistSession(supabase, session.id, nextCart.length ? "cart" : session.state, nextContext, nextCart);
+          if (!nextCart.length) return await replyText(txt + HELP_HINT);
+          return await sendToUser("wa_cart_actions", { "1": renderCart(nextCart, false) }, txt + "\n\nReply *checkout* to pay, or tell me what else to add.");
+        }
+        if (nl.intent === "reset") {
+          nextCart = [];
+          nextContext = {};
+          await persistSession(supabase, session.id, "menu", nextContext, nextCart);
+          return await sendToUser("wa_main_menu", {}, "🔄 Started over — your cart is empty.\n\n" + MENU_OPTIONS);
+        }
+        if (nl.intent === "checkout") {
+          if (!nextCart.length) return await replyText("🛒 Your cart is empty — tell me what you'd like to order." + HELP_HINT);
+          await persistSession(supabase, session.id, session.state, nextContext, nextCart);
+          return await doCheckout(supabase, { ...session, context: nextContext }, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
+        }
+        if (!nl.items.length) return null;
+
+        if (nl.intent === "remove_item" || nl.intent === "update_quantity") {
+          if (!nextCart.length) return await replyText("🛒 Your cart is empty right now." + HELP_HINT);
+          return await nlApplyItems(nl.intent, nl.items, []);
+        }
+
+        // add_to_cart — needs a vendor context
+        let menuItems: any[] = Array.isArray(nextContext.items) ? nextContext.items : [];
+        if (nextContext.vendor_id && !menuItems.length) {
+          menuItems = await loadVendorMenu(nextContext.vendor_id, nextContext.vendor_name || "");
+        }
+        if (menuItems.length) return await nlApplyItems("add_to_cart", nl.items, menuItems);
+
+        // No vendor selected yet — find real vendors that actually stock the item.
+        const term = nl.items[0].name;
+        const { data: hits } = await supabase
+          .from("products")
+          .select("id, name, price, vendor_id, vendors!inner(id, name, is_active)")
+          .ilike("name", `%${term}%`)
+          .eq("vendors.is_active", true)
+          .limit(25);
+        const byVendor = new Map<string, { id: string; name: string; sample: string }>();
+        for (const h of (hits || []) as any[]) {
+          const v = h.vendors;
+          if (!v?.name || byVendor.has(v.id)) continue;
+          byVendor.set(v.id, { id: v.id, name: v.name, sample: h.name });
+        }
+        const options = Array.from(byVendor.values()).slice(0, 5);
+        if (!options.length) {
+          console.log("[wa-nl] no vendor stocks", term);
+          return null; // fall back to the numbered flow
+        }
+        nextContext.nl_pending_items = nl.items;
+        nextContext.nl_vendor_options = options;
+        await persistSession(supabase, session.id, "nl_choose_vendor", nextContext, nextCart);
+        return await replyText(
+          `🔎 I found *${term}* at these vendors:\n\n` +
+          options.map((o, i) => `${i + 1}. ${o.name} — _${o.sample}_`).join("\n") +
+          `\n\nReply with a number to order from that vendor, or *menu* to go back.`,
+        );
+      } catch (e) {
+        console.error("[wa-nl] handler failed", e);
+        return null;
+      }
+    };
+
+    // Vendor choice after a natural-language product search
+    if (session.state === "nl_choose_vendor") {
+      const opts: any[] = nextContext.nl_vendor_options || [];
+      const idx = parseInt(lower, 10) - 1;
+      if (Number.isFinite(idx) && opts[idx]) {
+        const chosen = opts[idx];
+        const menuItems = await loadVendorMenu(chosen.id, chosen.name);
+        const pending = nextContext.nl_pending_items || [];
+        nextContext.nl_pending_items = undefined;
+        nextContext.nl_vendor_options = undefined;
+        const res = await nlApplyItems("add_to_cart", pending, menuItems);
+        if (res) return res;
+        await persistSession(supabase, session.id, "browsing_menu", nextContext, nextCart);
+        return await replyText(`🏪 *${chosen.name}* — tell me what you'd like, or reply *menu*.`);
+      }
+      const nl = await tryNaturalLanguage();
+      if (nl) return nl;
+      return await replyText("Please reply with one of the vendor numbers above, or *menu* to go back.");
+    }
+
+
+
     // Handle category picker replies
     if (session.state === "choosing_category") {
       let picked: string | null = null;
