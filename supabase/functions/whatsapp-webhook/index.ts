@@ -689,13 +689,54 @@ serve(async (req) => {
       return await sendToUser("wa_cart_actions", { "1": cartBody }, txt + "\n\nAnything else, or reply *checkout* to pay?");
     };
 
+    // Deterministic calorie maths from the REAL cart. Gemini never computes this.
+    const renderCartCalories = (): string => {
+      if (!nextCart.length) return "🛒 Your cart is empty, so there are no calories to add up yet." + HELP_HINT;
+      const lines: string[] = [];
+      const missing: string[] = [];
+      let total = 0;
+      for (const c of nextCart as any[]) {
+        const qty = Math.max(1, Number(c.qty) || 1);
+        const cal = Number(c.calories);
+        if (!Number.isFinite(cal) || cal <= 0) {
+          missing.push(c.name);
+          lines.push(`• ${c.name} × ${qty} — _no calorie info_`);
+          continue;
+        }
+        const lineTotal = cal * qty;
+        total += lineTotal;
+        const addonNote = (c.addons || []).length ? " _(incl. add-ons)_" : "";
+        lines.push(`• ${c.name} × ${qty} — ${lineTotal.toLocaleString()} kcal${addonNote}`);
+      }
+      let out = `🔥 *Calories in your order*\n\n${lines.join("\n")}\n\n*Total: ${total.toLocaleString()} kcal*`;
+      if (missing.length) {
+        out += `\n\n_We don't have calorie data for: ${missing.join(", ")} — so they aren't counted in the total._`;
+      }
+      return out + "\n\nReply *checkout* to pay, or tell me what else to add.";
+    };
+
+    const renderVendorMenuText = (items: any[], vendorName: string): string => {
+      const shown = items.slice(0, 10);
+      return `📋 *${vendorName}*\n\n` +
+        shown.map((m: any, i: number) => {
+          const off = m.is_available === false ? " 🔴 _Unavailable_" : "";
+          return `${i + 1}. ${m.name}${off} — ₦${Number(m.price).toLocaleString()}${m.calories ? ` (${m.calories} cal)` : ""}`;
+        }).join("\n") +
+        "\n\nReply with the item number to add it, or just tell me what you want.";
+    };
+
     // Returns a Response when it handled the message, otherwise null (→ fallback).
     const tryNaturalLanguage = async (): Promise<Response | null> => {
       if (tap || !body || body.trim().length < 3) return null;
       if (/^\d+([x*]\d+)?$/.test(lower.replace(/\s+/g, ""))) return null; // numeric flow owns this
       let nl: Awaited<ReturnType<typeof parseIntent>> = null;
       try {
-        nl = await parseIntent(body);
+        nl = await parseIntent(body, {
+          state: session.state,
+          vendor_name: nextContext.vendor_name || null,
+          cart: (nextCart as any[]).map((c: any) => ({ name: c.name, qty: Number(c.qty) || 1 })),
+          last_vendor_list: (nextContext.vendors || []).map((v: any) => v.name).filter(Boolean),
+        });
       } catch (e) {
         console.error("[wa-nl] parseIntent crash", e);
       }
@@ -719,12 +760,98 @@ serve(async (req) => {
           await persistSession(supabase, session.id, session.state, nextContext, nextCart);
           return await doCheckout(supabase, { ...session, context: nextContext }, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
         }
+
+        // 🔥 Calories of the current cart — computed here from stored calorie fields.
+        if (nl.intent === "cart_calories") {
+          await persistSession(supabase, session.id, session.state, nextContext, nextCart);
+          return await replyText(renderCartCalories());
+        }
+
+        // 📍 Nearby vendors — real vendors from the DB, never invented.
+        if (nl.intent === "find_vendors") {
+          if (nl.category) nextContext.category = nl.category;
+          if (nextContext.lat != null && nextContext.lon != null) return await showVendors();
+          const savedCoords = await fetchSavedAddressCoords(supabase, session.customer_user_id);
+          if (savedCoords) {
+            nextContext.lat = savedCoords.lat;
+            nextContext.lon = savedCoords.lon;
+            nextContext.location_label = savedCoords.label;
+            return await showVendors();
+          }
+          await persistSession(supabase, session.id, "awaiting_location", nextContext, nextCart);
+          return await sendToUser("wa_request_location", {},
+            `📍 I need your location to show vendors near you.\n\nTap *📎* → *Location* → *Send your current location*.\n\nOr reply *skip* to see top vendors, or *menu* to go back.`);
+        }
+
+        // 📋 Vendor menu
+        if (nl.intent === "vendor_menu") {
+          if (nextContext.vendor_id) {
+            const items = Array.isArray(nextContext.items) && nextContext.items.length
+              ? nextContext.items
+              : await loadVendorMenu(nextContext.vendor_id, nextContext.vendor_name || "");
+            if (items.length) {
+              await persistSession(supabase, session.id, "browsing_menu", nextContext, nextCart);
+              return await replyText(renderVendorMenuText(items, nextContext.vendor_name || "Menu"));
+            }
+          }
+          if (nl.category) nextContext.category = nl.category;
+          if (nextContext.lat != null && nextContext.lon != null) return await showVendors();
+          await persistSession(supabase, session.id, "choosing_category", nextContext, nextCart);
+          return await replyText(CATEGORY_PROMPT);
+        }
+
+        // 📦 Order status
+        if (nl.intent === "order_status") {
+          const text = await renderRecentOrders(supabase, phone, session.customer_user_id) + HELP_HINT;
+          await persistSession(supabase, session.id, session.state, nextContext, nextCart);
+          return await replyText(text);
+        }
+
+        if (nl.intent === "help") {
+          await persistSession(supabase, session.id, session.state, nextContext, nextCart);
+          return await replyText(
+            `🤖 *How I can help*\n\nJust tell me things like:\n• _"I want 2 jollof rice and a Coke"_\n• _"Show my cart"_\n• _"Total calories of my order"_\n• _"Show nearby vendors"_\n• _"Where is my order?"_\n• _"Checkout"_\n\nOr reply *menu* for the classic numbered menu.`,
+          );
+        }
+
+        // ℹ️ Info about a specific item — only real stored price/calorie values.
+        if (nl.intent === "food_info" && nl.items.length) {
+          const pool: any[] = (Array.isArray(nextContext.items) && nextContext.items.length)
+            ? nextContext.items
+            : (nextCart as any[]);
+          if (pool.length) {
+            const hit = matchProduct(nl.items[0].name, pool);
+            if (hit.best) {
+              const it: any = hit.best;
+              const calTxt = Number(it.calories) > 0 ? `${Number(it.calories).toLocaleString()} kcal` : "no calorie data on file";
+              await persistSession(supabase, session.id, session.state, nextContext, nextCart);
+              return await replyText(
+                `ℹ️ *${it.name}*\n₦${Number(it.price).toLocaleString()} — ${calTxt}` +
+                (it.is_available === false ? "\n🔴 Currently unavailable" : "") +
+                `\n\nWant it? Just say _"add ${it.name}"_.`,
+              );
+            }
+          }
+          return null;
+        }
+
+        if (nl.intent === "general_question") {
+          await persistSession(supabase, session.id, session.state, nextContext, nextCart);
+          const cartLine = nextCart.length
+            ? `\n\nYour cart still has ${nextCart.length} item${nextCart.length > 1 ? "s" : ""} — reply *cart* to see it.`
+            : "";
+          return await replyText(
+            `🙂 I can help you order food, medicine or groceries, check your cart, count calories, find nearby vendors and track orders.${cartLine}\n\nWhat would you like to do? (Reply *menu* for the full menu.)`,
+          );
+        }
+
         if (!nl.items.length) return null;
 
         if (nl.intent === "remove_item" || nl.intent === "update_quantity") {
           if (!nextCart.length) return await replyText("🛒 Your cart is empty right now." + HELP_HINT);
           return await nlApplyItems(nl.intent, nl.items, []);
         }
+
 
         // add_to_cart — needs a vendor context
         let menuItems: any[] = Array.isArray(nextContext.items) ? nextContext.items : [];
@@ -782,6 +909,40 @@ serve(async (req) => {
         return null;
       }
     };
+
+    // ============================================================
+    // 🧠 Conversational router — runs BEFORE the state-specific fallbacks for
+    // normal sentences/questions, so questions like "total calories of my order"
+    // or "show nearby vendors" are answered instead of being bounced back into
+    // the current state's numbered instructions. Deterministic inputs (taps,
+    // numbers, keywords, and free-text-capturing states) are untouched.
+    // ============================================================
+    {
+      const FREE_TEXT_STATES = new Set([
+        "ai_suggest",
+        "awaiting_location",
+        "wallet_awaiting_amount",
+        "confirming_order",
+        "selecting_addons",
+        "pharmacy_rx_awaiting_instructions",
+        "pharmacy_rx_awaiting_image",
+        "nl_choose_vendor",
+      ]);
+      const trimmed = (body || "").trim();
+      const wordCount = trimmed.split(/\s+/).filter(Boolean).length;
+      const looksConversational =
+        !tap &&
+        trimmed.length >= 8 &&
+        (wordCount >= 3 || /\?$/.test(trimmed)) &&
+        !/^\d+([x*]\d+)?$/.test(lower.replace(/\s+/g, "")) &&
+        !FREE_TEXT_STATES.has(session.state);
+
+      if (looksConversational) {
+        const routed = await tryNaturalLanguage();
+        if (routed) return routed;
+      }
+    }
+
 
     // Vendor choice after a natural-language product search
     if (session.state === "nl_choose_vendor") {
