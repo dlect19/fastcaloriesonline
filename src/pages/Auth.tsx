@@ -53,8 +53,11 @@ export default function Auth() {
   }, [urlRef]);
 
   const { signIn, signUp, user } = useAuth();
+  const { loginEnabled: waLoginEnabled, signupEnabled: waSignupEnabled } = useWhatsAppAuthFlags();
+  const whatsappAuthVisible = isLogin ? waLoginEnabled : waSignupEnabled;
   const navigate = useNavigate();
   const { toast } = useToast();
+
 
   useEffect(() => {
     if (user) {
