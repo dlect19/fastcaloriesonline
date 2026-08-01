@@ -952,14 +952,21 @@ serve(async (req) => {
         "pharmacy_rx_awaiting_image",
         "nl_choose_vendor",
       ]);
+      // Explicit deterministic commands always keep their existing behaviour.
+      const RESERVED = new Set([
+        "menu", "hi", "hello", "start", "back", "0", "cart", "clear", "checkout",
+        "help", "skip", "pay", "orders", "wallet",
+      ]);
       const trimmed = (body || "").trim();
       const wordCount = trimmed.split(/\s+/).filter(Boolean).length;
       const looksConversational =
         !tap &&
-        trimmed.length >= 8 &&
-        (wordCount >= 3 || /\?$/.test(trimmed)) &&
+        !RESERVED.has(lower) &&
+        trimmed.length >= 5 &&
+        (wordCount >= 2 || /\?$/.test(trimmed)) &&
         !/^\d+([x*]\d+)?$/.test(lower.replace(/\s+/g, "")) &&
         !FREE_TEXT_STATES.has(session.state);
+
 
       if (looksConversational) {
         const routed = await tryNaturalLanguage();
