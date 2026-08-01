@@ -205,15 +205,28 @@ serve(async (req) => {
 
     const fromRaw = params["From"] || ""; // whatsapp:+234...
     const phone = fromRaw.replace("whatsapp:", "").trim();
-    const body = (params["Body"] || "").trim();
+    let body = (params["Body"] || "").trim();
     const messageSid = params["MessageSid"];
     if (!phone) return emptyTwiml();
+
+    // ---- Voice notes: transcribe with Gemini, then continue as normal text ----
+    const voice = detectVoiceNote(params);
+    if (voice) {
+      const transcript = await transcribeVoiceNote(voice.url, voice.contentType);
+      if (!transcript) {
+        return twiml(VOICE_FAIL_TEXT);
+      }
+      body = transcript;
+      // Treat this turn as a plain text message from here on.
+      params["NumMedia"] = "0";
+    }
 
     // Twilio interactive replies come as ButtonPayload (Quick Reply) or
     // ListId (List Picker). Fall back to plain Body otherwise.
     const buttonPayload = (params["ButtonPayload"] || params["ListId"] || "").trim();
     const lower = body.toLowerCase();
     const tap = buttonPayload || ""; // e.g. "BTN_ORDER", "LIST_VENDOR_<uuid>"
+
 
     // ---- Dedupe ----
     if (messageSid) {
