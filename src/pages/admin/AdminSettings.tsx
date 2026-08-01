@@ -654,6 +654,16 @@ export default function AdminSettings() {
               saving={saving}
             />
 
+            {/* WhatsApp Authentication Feature Flags */}
+            <WhatsAppAuthSettings
+              settings={settings}
+              onSettingChange={handleSettingChange}
+              onSave={handleSave}
+              saving={saving}
+            />
+
+
+
 
             {/* Vehicle Type Settings */}
             <VehicleTypeSettings />
