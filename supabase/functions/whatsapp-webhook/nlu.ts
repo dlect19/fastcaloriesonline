@@ -37,7 +37,10 @@ export interface NlContext {
   vendor_name?: string | null;
   cart?: { name: string; qty: number }[];
   last_vendor_list?: string[];
+  /** Last few turns ("customer: ..." / "assistant intent: ...") for follow-ups. */
+  recent_messages?: string[];
 }
+
 
 const ALL_INTENTS = [
   "add_to_cart", "update_quantity", "remove_item", "show_cart", "checkout", "reset",
