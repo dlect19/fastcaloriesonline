@@ -271,7 +271,7 @@ serve(async (req) => {
     // ---- Log inbound ----
     await supabase.from("whatsapp_messages").insert({
       session_id: session.id, phone, direction: "in",
-      body: tap ? `[tap:${tap}] ${body}` : body,
+      body: tap ? `[tap:${tap}] ${body}` : voice ? `[voice] ${body}` : body,
       twilio_sid: messageSid ?? null,
     });
 
