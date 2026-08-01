@@ -13,6 +13,8 @@ import { useToast } from '@/hooks/use-toast';
 import { MapPin, Bike, DollarSign, Settings2, Save, Loader2, CreditCard, Navigation, Clock, Store, Bell, Building2, Package } from 'lucide-react';
 import { OrderControlSettings } from '@/components/admin/OrderControlSettings';
 import { UnattendedOrderAlertSettings } from '@/components/admin/UnattendedOrderAlertSettings';
+import { WhatsAppAuthSettings } from '@/components/admin/WhatsAppAuthSettings';
+
 import { EnvironmentSwitch } from '@/components/admin/EnvironmentSwitch';
 import { AdminTestModeToggle } from '@/components/admin/AdminTestModeToggle';
 import { PaystackBalanceCard } from '@/components/admin/PaystackBalanceCard';
