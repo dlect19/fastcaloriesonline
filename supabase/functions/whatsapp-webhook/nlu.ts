@@ -103,6 +103,8 @@ export async function parseIntent(message: string, ctx?: NlContext): Promise<NlR
                   vendor: ctx.vendor_name || null,
                   cart: (ctx.cart || []).slice(0, 10),
                   recent_vendors: (ctx.last_vendor_list || []).slice(0, 8),
+                  recent_turns: (ctx.recent_messages || []).slice(-4),
+
                 }),
             }]
             : []),
