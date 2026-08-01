@@ -509,7 +509,10 @@ export default function Auth() {
         platform="customer"
       />
 
-      <PhoneAuthModal open={showPhoneAuth} onOpenChange={setShowPhoneAuth} />
+      {whatsappAuthVisible && (
+        <PhoneAuthModal open={showPhoneAuth} onOpenChange={setShowPhoneAuth} />
+      )}
+
     </div>
   );
 }
