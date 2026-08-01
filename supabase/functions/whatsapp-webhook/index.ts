@@ -4,6 +4,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getWhatsAppFromNumber } from "../_shared/whatsapp.ts";
 import { parseIntent, matchProduct, scoreMatch } from "./nlu.ts";
+import { detectVoiceNote, transcribeVoiceNote, VOICE_FAIL_TEXT } from "./voice.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -205,15 +207,28 @@ serve(async (req) => {
 
     const fromRaw = params["From"] || ""; // whatsapp:+234...
     const phone = fromRaw.replace("whatsapp:", "").trim();
-    const body = (params["Body"] || "").trim();
+    let body = (params["Body"] || "").trim();
     const messageSid = params["MessageSid"];
     if (!phone) return emptyTwiml();
+
+    // ---- Voice notes: transcribe with Gemini, then continue as normal text ----
+    const voice = detectVoiceNote(params);
+    if (voice) {
+      const transcript = await transcribeVoiceNote(voice.url, voice.contentType);
+      if (!transcript) {
+        return twiml(VOICE_FAIL_TEXT);
+      }
+      body = transcript;
+      // Treat this turn as a plain text message from here on.
+      params["NumMedia"] = "0";
+    }
 
     // Twilio interactive replies come as ButtonPayload (Quick Reply) or
     // ListId (List Picker). Fall back to plain Body otherwise.
     const buttonPayload = (params["ButtonPayload"] || params["ListId"] || "").trim();
     const lower = body.toLowerCase();
     const tap = buttonPayload || ""; // e.g. "BTN_ORDER", "LIST_VENDOR_<uuid>"
+
 
     // ---- Dedupe ----
     if (messageSid) {
@@ -256,7 +271,7 @@ serve(async (req) => {
     // ---- Log inbound ----
     await supabase.from("whatsapp_messages").insert({
       session_id: session.id, phone, direction: "in",
-      body: tap ? `[tap:${tap}] ${body}` : body,
+      body: tap ? `[tap:${tap}] ${body}` : voice ? `[voice] ${body}` : body,
       twilio_sid: messageSid ?? null,
     });
 
@@ -730,17 +745,26 @@ serve(async (req) => {
       if (tap || !body || body.trim().length < 3) return null;
       if (/^\d+([x*]\d+)?$/.test(lower.replace(/\s+/g, ""))) return null; // numeric flow owns this
       let nl: Awaited<ReturnType<typeof parseIntent>> = null;
+      const recentTurns: string[] = Array.isArray(nextContext.recent_turns) ? nextContext.recent_turns : [];
       try {
         nl = await parseIntent(body, {
           state: session.state,
           vendor_name: nextContext.vendor_name || null,
           cart: (nextCart as any[]).map((c: any) => ({ name: c.name, qty: Number(c.qty) || 1 })),
           last_vendor_list: (nextContext.vendors || []).map((v: any) => v.name).filter(Boolean),
+          recent_messages: recentTurns,
         });
       } catch (e) {
         console.error("[wa-nl] parseIntent crash", e);
       }
+      // Short-term conversation memory so follow-ups like "how many calories is that?"
+      // or "the first one" keep working across messages.
+      nextContext.recent_turns = [
+        ...recentTurns,
+        `customer: ${body.slice(0, 120)}${nl ? ` (intent: ${nl.intent})` : ""}`,
+      ].slice(-4);
       if (!nl || nl.intent === "unknown" || nl.confidence < 0.5) return null;
+
 
       try {
         if (nl.intent === "show_cart") {
@@ -928,14 +952,21 @@ serve(async (req) => {
         "pharmacy_rx_awaiting_image",
         "nl_choose_vendor",
       ]);
+      // Explicit deterministic commands always keep their existing behaviour.
+      const RESERVED = new Set([
+        "menu", "hi", "hello", "start", "back", "0", "cart", "clear", "checkout",
+        "help", "skip", "pay", "orders", "wallet",
+      ]);
       const trimmed = (body || "").trim();
       const wordCount = trimmed.split(/\s+/).filter(Boolean).length;
       const looksConversational =
         !tap &&
-        trimmed.length >= 8 &&
-        (wordCount >= 3 || /\?$/.test(trimmed)) &&
+        !RESERVED.has(lower) &&
+        trimmed.length >= 5 &&
+        (wordCount >= 2 || /\?$/.test(trimmed)) &&
         !/^\d+([x*]\d+)?$/.test(lower.replace(/\s+/g, "")) &&
         !FREE_TEXT_STATES.has(session.state);
+
 
       if (looksConversational) {
         const routed = await tryNaturalLanguage();

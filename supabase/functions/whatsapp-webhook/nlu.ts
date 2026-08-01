@@ -37,7 +37,10 @@ export interface NlContext {
   vendor_name?: string | null;
   cart?: { name: string; qty: number }[];
   last_vendor_list?: string[];
+  /** Last few turns ("customer: ..." / "assistant intent: ...") for follow-ups. */
+  recent_messages?: string[];
 }
+
 
 const ALL_INTENTS = [
   "add_to_cart", "update_quantity", "remove_item", "show_cart", "checkout", "reset",
@@ -100,6 +103,8 @@ export async function parseIntent(message: string, ctx?: NlContext): Promise<NlR
                   vendor: ctx.vendor_name || null,
                   cart: (ctx.cart || []).slice(0, 10),
                   recent_vendors: (ctx.last_vendor_list || []).slice(0, 8),
+                  recent_turns: (ctx.recent_messages || []).slice(-4),
+
                 }),
             }]
             : []),

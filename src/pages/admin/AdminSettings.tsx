@@ -13,6 +13,8 @@ import { useToast } from '@/hooks/use-toast';
 import { MapPin, Bike, DollarSign, Settings2, Save, Loader2, CreditCard, Navigation, Clock, Store, Bell, Building2, Package } from 'lucide-react';
 import { OrderControlSettings } from '@/components/admin/OrderControlSettings';
 import { UnattendedOrderAlertSettings } from '@/components/admin/UnattendedOrderAlertSettings';
+import { WhatsAppAuthSettings } from '@/components/admin/WhatsAppAuthSettings';
+
 import { EnvironmentSwitch } from '@/components/admin/EnvironmentSwitch';
 import { AdminTestModeToggle } from '@/components/admin/AdminTestModeToggle';
 import { PaystackBalanceCard } from '@/components/admin/PaystackBalanceCard';
@@ -310,6 +312,18 @@ export default function AdminSettings() {
           }, { onConflict: 'key' });
         }
       }
+
+      // Save WhatsApp auth feature flags
+      for (const key of ['whatsapp_login_enabled', 'whatsapp_signup_enabled']) {
+        if (settings[key] !== undefined) {
+          await supabase.from('platform_settings').upsert({
+            key,
+            value: settings[key],
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'key' });
+        }
+      }
+
 
 
 
@@ -639,6 +653,16 @@ export default function AdminSettings() {
               onSave={handleSave}
               saving={saving}
             />
+
+            {/* WhatsApp Authentication Feature Flags */}
+            <WhatsAppAuthSettings
+              settings={settings}
+              onSettingChange={handleSettingChange}
+              onSave={handleSave}
+              saving={saving}
+            />
+
+
 
 
             {/* Vehicle Type Settings */}
