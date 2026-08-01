@@ -311,6 +311,18 @@ export default function AdminSettings() {
         }
       }
 
+      // Save WhatsApp auth feature flags
+      for (const key of ['whatsapp_login_enabled', 'whatsapp_signup_enabled']) {
+        if (settings[key] !== undefined) {
+          await supabase.from('platform_settings').upsert({
+            key,
+            value: settings[key],
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'key' });
+        }
+      }
+
+
 
 
 
