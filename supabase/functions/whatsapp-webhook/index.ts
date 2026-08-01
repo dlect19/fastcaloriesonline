@@ -745,17 +745,26 @@ serve(async (req) => {
       if (tap || !body || body.trim().length < 3) return null;
       if (/^\d+([x*]\d+)?$/.test(lower.replace(/\s+/g, ""))) return null; // numeric flow owns this
       let nl: Awaited<ReturnType<typeof parseIntent>> = null;
+      const recentTurns: string[] = Array.isArray(nextContext.recent_turns) ? nextContext.recent_turns : [];
       try {
         nl = await parseIntent(body, {
           state: session.state,
           vendor_name: nextContext.vendor_name || null,
           cart: (nextCart as any[]).map((c: any) => ({ name: c.name, qty: Number(c.qty) || 1 })),
           last_vendor_list: (nextContext.vendors || []).map((v: any) => v.name).filter(Boolean),
+          recent_messages: recentTurns,
         });
       } catch (e) {
         console.error("[wa-nl] parseIntent crash", e);
       }
+      // Short-term conversation memory so follow-ups like "how many calories is that?"
+      // or "the first one" keep working across messages.
+      nextContext.recent_turns = [
+        ...recentTurns,
+        `customer: ${body.slice(0, 120)}${nl ? ` (intent: ${nl.intent})` : ""}`,
+      ].slice(-4);
       if (!nl || nl.intent === "unknown" || nl.confidence < 0.5) return null;
+
 
       try {
         if (nl.intent === "show_cart") {
