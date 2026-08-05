@@ -100,7 +100,8 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       workbox: {
-        globPatterns: ["**/*.{css,html,ico,png,svg,woff2}"],
+        globPatterns: ["**/*.{js,css,ico,png,svg,woff2}"],
+        navigateFallback: null,
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         navigateFallbackDenylist: [/^\/~oauth/],
         skipWaiting: true,
