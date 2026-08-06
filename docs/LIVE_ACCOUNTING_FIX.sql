@@ -299,11 +299,15 @@ CREATE UNIQUE INDEX IF NOT EXISTS wallet_transactions_wallet_reference_uniq
 -- ============================================================================
 
 -- C1. Open the ledger where history is missing: any wallet whose ledger total is
--- negative gets ONE opening_balance credit so sum(ledger) starts at 0.
+-- negative gets ONE cutover credit so sum(ledger) starts at 0.
 -- (No history is fabricated — the gap is recorded explicitly.)
+-- Vendor wallets use category 'admin_credit' because that is the category the
+-- vendor reconcile formula recognises; everyone else uses 'opening_balance'.
 INSERT INTO public.wallet_transactions
   (wallet_id, wallet_type, transaction_type, category, amount, status, environment, notes, reference)
-SELECT w.id, w.wallet_type, 'credit', 'opening_balance', ABS(t.net), 'completed', 'production',
+SELECT w.id, w.wallet_type, 'credit',
+       CASE WHEN w.wallet_type = 'vendor' THEN 'admin_credit' ELSE 'opening_balance' END,
+       ABS(t.net), 'completed', 'production',
        'Ledger cutover opening balance (unledgered historical credits)',
        'OPENING-' || w.id::text
 FROM wallets w
@@ -316,7 +320,8 @@ JOIN (
 WHERE t.net < 0
   AND NOT EXISTS (
     SELECT 1 FROM wallet_transactions x
-    WHERE x.wallet_id = w.id AND x.category = 'opening_balance');
+    WHERE x.wallet_id = w.id AND x.reference = 'OPENING-' || w.id::text);
+
 
 -- C2. Dry run — review the corrections it WOULD make
 SELECT public.full_reconcile_wallets('production', true);
