@@ -100,7 +100,7 @@ BEGIN
   -- Keep negative balances visible. They are amounts owed back to the
   -- platform and future earnings must first clear them.
   SET balance          = COALESCE(t.settled, 0),
-      eligible_balance = COALESCE(t.settled, 0),
+      eligible_balance = GREATEST(COALESCE(t.settled, 0), 0),
       pending_balance  = COALESCE(t.held, 0),
       total_earned     = GREATEST(COALESCE(t.earned, 0), 0),
       total_withdrawn  = GREATEST(COALESCE(t.withdrawn, 0), 0),
@@ -137,4 +137,4 @@ SELECT w.id, w.wallet_type, w.balance, w.eligible_balance,
 FROM wallets w
 LEFT JOIN truth t ON t.wallet_id = w.id
 WHERE w.balance <> COALESCE(t.settled, 0)
-   OR w.eligible_balance <> COALESCE(t.settled, 0);
+   OR w.eligible_balance <> GREATEST(COALESCE(t.settled, 0), 0);
