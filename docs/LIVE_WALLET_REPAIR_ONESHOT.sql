@@ -93,9 +93,11 @@ BEGIN
     GROUP BY wallet_id
   )
   UPDATE public.wallets w
-  SET balance          = GREATEST(COALESCE(t.settled, 0), 0),
-      eligible_balance = GREATEST(COALESCE(t.settled, 0), 0),
-      pending_balance  = GREATEST(COALESCE(t.held, 0), 0),
+  -- Never clamp settled balances to zero. A negative balance is a real
+  -- platform receivable and future earnings must first repay it.
+  SET balance          = COALESCE(t.settled, 0),
+      eligible_balance = COALESCE(t.settled, 0),
+      pending_balance  = COALESCE(t.held, 0),
       total_earned     = GREATEST(COALESCE(t.earned, 0), 0),
       total_withdrawn  = GREATEST(COALESCE(t.withdrawn, 0), 0),
       updated_at       = now()
@@ -127,10 +129,11 @@ WITH truth AS (
   GROUP BY wallet_id
 )
 SELECT w.id, w.wallet_type, w.balance AS balance_now,
-       GREATEST(COALESCE(t.settled, 0), 0) AS expected
+       COALESCE(t.settled, 0) AS expected
 FROM public.wallets w
 LEFT JOIN truth t ON t.wallet_id = w.id
-WHERE w.balance <> GREATEST(COALESCE(t.settled, 0), 0);
+WHERE w.balance <> COALESCE(t.settled, 0)
+   OR w.eligible_balance <> COALESCE(t.settled, 0);
 
 -- Want to see what changed afterwards? Run:
 --   SELECT * FROM public.wallet_repair_audit_2026_08 ORDER BY ABS(drift) DESC;
