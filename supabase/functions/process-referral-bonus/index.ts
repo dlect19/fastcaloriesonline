@@ -97,7 +97,7 @@ serve(async (req: Request) => {
     }
 
     const referrerBonus = Number(cfg.referral_referrer_bonus) || 300;
-    const isTestMode = order.environment === "development";
+    
 
     // Get referrer's user_id from profile
     const { data: referrerProfile } = await supabase
