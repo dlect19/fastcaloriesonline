@@ -8832,6 +8832,72 @@ export type Database = {
           },
         ]
       }
+      wallet_balance_guard_log: {
+        Row: {
+          column_name: string
+          created_at: string
+          current_role_name: string | null
+          delta: number | null
+          id: string
+          new_value: number | null
+          old_value: number | null
+          session_user_name: string | null
+          wallet_id: string
+        }
+        Insert: {
+          column_name: string
+          created_at?: string
+          current_role_name?: string | null
+          delta?: number | null
+          id?: string
+          new_value?: number | null
+          old_value?: number | null
+          session_user_name?: string | null
+          wallet_id: string
+        }
+        Update: {
+          column_name?: string
+          created_at?: string
+          current_role_name?: string | null
+          delta?: number | null
+          id?: string
+          new_value?: number | null
+          old_value?: number | null
+          session_user_name?: string | null
+          wallet_id?: string
+        }
+        Relationships: []
+      }
+      wallet_drift_audit: {
+        Row: {
+          detected_at: string
+          drift: number
+          environment: string
+          id: string
+          ledger_balance: number
+          wallet_balance: number
+          wallet_id: string
+        }
+        Insert: {
+          detected_at?: string
+          drift?: number
+          environment?: string
+          id?: string
+          ledger_balance?: number
+          wallet_balance?: number
+          wallet_id: string
+        }
+        Update: {
+          detected_at?: string
+          drift?: number
+          environment?: string
+          id?: string
+          ledger_balance?: number
+          wallet_balance?: number
+          wallet_id?: string
+        }
+        Relationships: []
+      }
       wallet_repair_audit_2026_08: {
         Row: {
           balance_before: number | null
@@ -9681,6 +9747,14 @@ export type Database = {
       debug_wallet_tx_insert: {
         Args: { p_amount: number; p_order_id: string; p_wallet_id: string }
         Returns: string
+      }
+      detect_wallet_drift: {
+        Args: { p_environment?: string }
+        Returns: {
+          drifted: number
+          total_drift: number
+          wallets_checked: number
+        }[]
       }
       ensure_event_organizer_wallet: {
         Args: { _organizer_id: string }
