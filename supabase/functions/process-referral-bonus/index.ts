@@ -97,7 +97,7 @@ serve(async (req: Request) => {
     }
 
     const referrerBonus = Number(cfg.referral_referrer_bonus) || 300;
-    const isTestMode = order.environment === "development";
+    
 
     // Get referrer's user_id from profile
     const { data: referrerProfile } = await supabase
@@ -126,14 +126,8 @@ serve(async (req: Request) => {
       return new Response(JSON.stringify({ skipped: true, reason: "Daily limit reached" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Get platform wallet for recording referral cost
-    const { data: platformWallet } = await supabase
-      .from("platform_wallet")
-      .select("id")
-      .limit(1)
-      .single();
-
     const totalBonusCost = referrerBonus;
+
 
     // Credit referrer MAIN wallet balance
     const { data: referrerWallet } = await supabase
@@ -175,45 +169,28 @@ serve(async (req: Request) => {
 
 
 
-    // Record referral cost as platform loss (debit from platform wallet)
-    if (platformWallet?.id) {
-      // Debit platform wallet for referral bonus cost
-      if (isTestMode) {
-        await supabase.from("platform_wallet").update({
-          test_balance: undefined, // Will use raw SQL approach below
-        }).eq("id", "never"); // no-op, use RPC below
-
-        // Use direct update with current balance
-        const { data: pw } = await supabase.from("platform_wallet").select("test_balance").eq("id", platformWallet.id).single();
-        const currentPlatformBal = Number(pw?.test_balance) || 0;
-        await supabase.from("platform_wallet").update({
-          test_balance: currentPlatformBal - totalBonusCost,
-          updated_at: new Date().toISOString(),
-        }).eq("id", platformWallet.id);
-      } else {
-        const { data: pw } = await supabase.from("platform_wallet").select("balance").eq("id", platformWallet.id).single();
-        const currentPlatformBal = Number(pw?.balance) || 0;
-        await supabase.from("platform_wallet").update({
-          balance: currentPlatformBal - totalBonusCost,
-          updated_at: new Date().toISOString(),
-        }).eq("id", platformWallet.id);
-      }
-
-      // Log referral cost as platform debit transaction
-      const { error: costErr } = await supabase.from("wallet_transactions").insert({
-        wallet_type: "platform",
-        category: "referral_cost",
-        transaction_type: "debit",
-        amount: totalBonusCost,
-        platform_wallet_id: platformWallet.id,
-        environment: order.environment,
-        status: "completed",
-        notes: `Referral bonus cost - Referrer: ₦${referrerBonus} (Order #${order.order_number})`,
+    // Record referral cost as platform loss via the platform ledger
+    {
+      const { error: costErr } = await supabase.rpc("post_platform_entry", {
+        p_amount: totalBonusCost,
+        p_category: "referral_cost",
+        p_transaction_type: "debit",
+        p_reference: `REF-COST-${orderId}`,
+        p_order_id: orderId,
+        p_environment: order.environment,
+        p_status: "completed",
+        p_notes: `Referral bonus cost - Referrer: ₦${referrerBonus} (Order #${order.order_number})`,
+        p_metadata: {
+          referral_id: existingReferral.id,
+          referrer_user_id: referrerProfile.user_id,
+          source: "process-referral-bonus",
+        },
       });
       if (costErr) {
-        console.error("Failed to log referral_cost transaction:", costErr);
+        console.error("Failed to post referral_cost platform entry:", costErr.message);
       }
     }
+
 
     // Update referral record
     await supabase.from("referrals").update({

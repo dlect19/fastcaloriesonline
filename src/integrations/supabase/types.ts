@@ -8842,7 +8842,7 @@ export type Database = {
           new_value: number | null
           old_value: number | null
           session_user_name: string | null
-          wallet_id: string
+          wallet_id: string | null
         }
         Insert: {
           column_name: string
@@ -8853,7 +8853,7 @@ export type Database = {
           new_value?: number | null
           old_value?: number | null
           session_user_name?: string | null
-          wallet_id: string
+          wallet_id?: string | null
         }
         Update: {
           column_name?: string
@@ -8864,7 +8864,7 @@ export type Database = {
           new_value?: number | null
           old_value?: number | null
           session_user_name?: string | null
-          wallet_id?: string
+          wallet_id?: string | null
         }
         Relationships: []
       }

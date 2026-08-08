@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS public.post_platform_entry(text,text,numeric,text,text,uuid,text,jsonb,text);
