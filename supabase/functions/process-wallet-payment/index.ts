@@ -225,18 +225,9 @@ serve(async (req: Request) => {
       );
     }
 
-    // Debit the full amount from wallet in one update (only for successfully processed orders)
-    if (isTestMode) {
-      await supabaseAdmin
-        .from("wallets")
-        .update({ test_balance: runningBalance, updated_at: new Date().toISOString() })
-        .eq("id", customerWallet.id);
-    } else {
-      await supabaseAdmin
-        .from("wallets")
-        .update({ balance: runningBalance, updated_at: new Date().toISOString() })
-        .eq("id", customerWallet.id);
-    }
+    // NOTE: balances are already updated atomically by post_wallet_entry above.
+    // Absolute-balance writes were removed to eliminate race conditions and drift.
+
 
     console.log(`Wallet payment processed: ${batchRef}, total: ₦${grandTotal}, orders: ${orders.length}, user: ${user.id}`);
 
