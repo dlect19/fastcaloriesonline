@@ -162,17 +162,10 @@ Deno.serve(async (req) => {
       }).select("id").single();
       if (prErr) return json({ error: prErr.message }, 500);
 
-      // Ledger debit (pending until processed)
-      await supabase.from("wallet_transactions").insert({
-        wallet_id: walletId,
-        amount: -amt,
-        type: "withdrawal",
-        status: "pending",
-        description: `Withdrawal request ${pr.id}`,
-        reference_id: pr.id,
-        environment,
-      });
+      // Ledger debit + balance movement is handled atomically by the
+      // deduct_wallet_on_payout_request trigger via post_wallet_entry.
       await supabase.rpc("reconcile_event_organizer_wallet", { _wallet_id: walletId });
+
 
       return json({ ok: true, payout_request_id: pr.id });
     }
