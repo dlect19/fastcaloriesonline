@@ -108,7 +108,8 @@ export default function AdminWalletIntegrity() {
   const totalDrift = drift.reduce((s, r) => s + Math.abs(Number(r.drift || 0)), 0);
   const lastRun = drift[0]?.detected_at;
 
-  const walletLabel = (id: string) => {
+  const walletLabel = (id: string | null, fallbackType?: string | null) => {
+    if (!id) return fallbackType || 'platform';
     const w = wallets[id];
     return w?.wallet_type ? `${w.wallet_type}` : id.slice(0, 8);
   };
