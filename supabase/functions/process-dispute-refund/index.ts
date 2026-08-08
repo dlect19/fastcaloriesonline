@@ -141,18 +141,29 @@ serve(async (req: Request) => {
     }
 
     const custBalField = isTest ? "test_balance" : "balance";
-    const currentCustBal = Number(customerWallet![custBalField]) || 0;
-    const newCustBal = currentCustBal + refundAmount;
     const customerRef = `DSP-CUST-${order.order_number}-${refTimestamp}`;
 
-    await admin.from("wallets").update({ [custBalField]: newCustBal, updated_at: new Date().toISOString() }).eq("id", customerWallet!.id);
-    await admin.from("wallet_transactions").insert({
-      wallet_id: customerWallet!.id, wallet_type: "customer", transaction_type: "credit",
-      category: "refund", amount: refundAmount, balance_after: newCustBal,
-      reference: customerRef, order_id: order.id, status: "completed", environment,
-      notes: `Dispute refund: ${reason}`,
-      metadata: { dispute: true, fault_party: faultParty, refunded_by: user.id },
+    const { error: custPostErr } = await admin.rpc("post_wallet_entry", {
+      p_wallet_id: customerWallet!.id,
+      p_wallet_type: "customer",
+      p_transaction_type: "credit",
+      p_category: "refund",
+      p_amount: refundAmount,
+      p_reference: customerRef,
+      p_environment: environment,
+      p_order_id: order.id,
+      p_notes: `Dispute refund: ${reason}`,
+      p_metadata: { dispute: true, fault_party: faultParty, refunded_by: user.id, source: "process-dispute-refund" },
     });
+    if (custPostErr) {
+      console.error("[process-dispute-refund] customer post_wallet_entry failed:", custPostErr.message);
+      return new Response(JSON.stringify({ error: "Refund could not be credited: " + custPostErr.message }), {
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const { data: freshCust } = await admin.from("wallets").select("balance, test_balance").eq("id", customerWallet!.id).maybeSingle();
+    const newCustBal = Number((freshCust as any)?.[custBalField] ?? 0);
+
 
     // ---- 2. Debit vendor if applicable ----
     let vendorDebitRef = null;
@@ -170,24 +181,29 @@ serve(async (req: Request) => {
         const vBalField = isTest ? "test_balance" : "balance";
         const vEligField = isTest ? "test_eligible_balance" : "eligible_balance";
         const vMenuField = isTest ? "test_menu_earnings_balance" : "menu_earnings_balance";
-        const curVBal = Number(vendorWallet[vBalField]) || 0;
-        const newVBal = curVBal - vendorDeduction;
         vendorDebitRef = `DSP-VEND-${order.order_number}-${refTimestamp}`;
 
+        const { error: vErr } = await admin.rpc("post_wallet_entry", {
+          p_wallet_id: vendorWallet.id,
+          p_wallet_type: "vendor",
+          p_transaction_type: "debit",
+          p_category: "dispute_deduction",
+          p_amount: vendorDeduction,
+          p_reference: vendorDebitRef,
+          p_environment: environment,
+          p_order_id: order.id,
+          p_notes: `[DISPUTE] Vendor fault deduction for order #${order.order_number}: ${reason}`,
+          p_metadata: { dispute: true, fault_party: faultParty, source: "process-dispute-refund" },
+        });
+        if (vErr) console.error("[process-dispute-refund] vendor post_wallet_entry failed:", vErr.message);
+
+        // Keep auxiliary earning buckets in sync (no extra ledger row)
         await admin.from("wallets").update({
-          [vBalField]: newVBal,
           [vEligField]: Math.max((Number(vendorWallet[vEligField]) || 0) - vendorDeduction, -5000),
           [vMenuField]: Math.max((Number(vendorWallet[vMenuField]) || 0) - vendorDeduction, -5000),
           updated_at: new Date().toISOString(),
         }).eq("id", vendorWallet.id);
 
-        await admin.from("wallet_transactions").insert({
-          wallet_id: vendorWallet.id, wallet_type: "vendor", transaction_type: "debit",
-          category: "dispute_deduction", amount: vendorDeduction, balance_after: newVBal,
-          reference: vendorDebitRef, order_id: order.id, status: "completed", environment,
-          notes: `[DISPUTE] Vendor fault deduction for order #${order.order_number}: ${reason}`,
-          metadata: { dispute: true, fault_party: faultParty },
-        });
       }
     }
 
@@ -220,26 +236,28 @@ serve(async (req: Request) => {
       }
 
       if (riderWallet) {
-        const rBalField = isTest ? "test_balance" : "balance";
         const rEligField = isTest ? "test_eligible_balance" : "eligible_balance";
-        const curRBal = Number(riderWallet[rBalField]) || 0;
-        const newRBal = curRBal - riderDeduction;
         riderDebitRef = `DSP-RIDER-${order.order_number}-${refTimestamp}`;
 
+        const { error: rErr } = await admin.rpc("post_wallet_entry", {
+          p_wallet_id: riderWallet.id,
+          p_wallet_type: riderWallet.wallet_type,
+          p_transaction_type: "debit",
+          p_category: "dispute_deduction",
+          p_amount: riderDeduction,
+          p_reference: riderDebitRef,
+          p_environment: environment,
+          p_order_id: order.id,
+          p_notes: `[DISPUTE] Rider fault deduction for order #${order.order_number}: ${reason}`,
+          p_metadata: { dispute: true, fault_party: faultParty, source: "process-dispute-refund" },
+        });
+        if (rErr) console.error("[process-dispute-refund] rider post_wallet_entry failed:", rErr.message);
+
         await admin.from("wallets").update({
-          [rBalField]: newRBal,
           [rEligField]: Math.max((Number(riderWallet[rEligField]) || 0) - riderDeduction, -5000),
           updated_at: new Date().toISOString(),
         }).eq("id", riderWallet.id);
 
-        await admin.from("wallet_transactions").insert({
-          wallet_id: riderWallet.id, wallet_type: riderWallet.wallet_type,
-          transaction_type: "debit", category: "dispute_deduction",
-          amount: riderDeduction, balance_after: newRBal,
-          reference: riderDebitRef, order_id: order.id, status: "completed", environment,
-          notes: `[DISPUTE] Rider fault deduction for order #${order.order_number}: ${reason}`,
-          metadata: { dispute: true, fault_party: faultParty },
-        });
       }
     }
 
