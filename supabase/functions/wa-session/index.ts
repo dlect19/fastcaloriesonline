@@ -331,24 +331,25 @@ serve(async (req) => {
       }));
       await supabase.from("order_items").insert(items);
 
-      // Debit wallet
+      // Debit wallet through the safe ledger function (atomic + idempotent)
       const newBalance = balance - summary.total;
-      await supabase.from("wallet_transactions").insert({
-        wallet_id: wallet.id,
-        wallet_type: "customer",
-        transaction_type: "debit",
-        category: "wallet_payment",
-        amount: summary.total,
-        balance_after: newBalance,
-        reference: `WA-${order.order_number}`,
-        order_id: order.id,
-        status: "completed",
-        environment: env,
-        notes: `WhatsApp order #${order.order_number}`,
+      const { error: postErr } = await supabase.rpc("post_wallet_entry", {
+        p_wallet_id: wallet.id,
+        p_wallet_type: "customer",
+        p_transaction_type: "debit",
+        p_category: "wallet_payment",
+        p_amount: summary.total,
+        p_reference: `WA-${order.order_number}`,
+        p_environment: env,
+        p_order_id: order.id,
+        p_notes: `WhatsApp order #${order.order_number}`,
+        p_metadata: { source: "wa-session" },
       });
-      const walletUpdate: any = { updated_at: new Date().toISOString() };
-      if (env === "development") walletUpdate.test_balance = newBalance; else walletUpdate.balance = newBalance;
-      await supabase.from("wallets").update(walletUpdate).eq("id", wallet.id);
+      if (postErr) {
+        await supabase.from("orders").update({ payment_status: "pending", status: "pending" }).eq("id", order.id);
+        return json({ error: "wallet_debit_failed", detail: postErr.message }, 500);
+      }
+
 
       // Clear cart + consume PIN
       nextContext.pin_verified_at = null;
