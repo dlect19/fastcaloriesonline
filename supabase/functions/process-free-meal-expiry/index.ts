@@ -83,42 +83,29 @@ Deno.serve(async (req) => {
       // Credit vendor wallet for the free meal value
       const mealValue = record.vendor_credit || record.meal_value;
 
-      // Insert wallet transaction
-      await supabase.from("wallet_transactions").insert({
-        wallet_id: wallet.id,
-        wallet_type: "vendor",
-        transaction_type: "credit",
-        category: "vendor_share",
-        amount: mealValue,
-        environment: record.environment || "production",
-        status: "completed",
-        notes: `Free meal vendor payment - ${record.notes || ""}`,
-        metadata: {
+      // Post vendor credit through the single safe ledger entry point
+      const { error: postErr } = await supabase.rpc("post_wallet_entry", {
+        p_wallet_id: wallet.id,
+        p_wallet_type: "vendor",
+        p_transaction_type: "credit",
+        p_category: "vendor_share",
+        p_amount: mealValue,
+        p_reference: `FREEMEAL-VENDOR-${record.id}`,
+        p_environment: record.environment || "production",
+        p_notes: `Free meal vendor payment - ${record.notes || ""}`,
+        p_metadata: {
           free_meal_audit_id: record.id,
           promo_id: record.promo_id,
           type: "free_meal_vendor_credit",
+          source: "process-free-meal-expiry",
         },
       });
 
-      // Update wallet balance
-      await supabase.rpc("admin_adjust_wallet_balance", {
-        // We can't use this directly - let's just update via the transaction
-      }).catch(() => {});
-
-      // Update the vendor wallet directly
-      const { data: currentWallet } = await supabase
-        .from("wallets")
-        .select("balance, eligible_balance, menu_earnings_balance, total_earned")
-        .eq("id", wallet.id)
-        .single();
-
-      if (currentWallet) {
-        // Use bypass flag approach
-        await supabase.rpc("full_reconcile_wallets", {
-          p_environment: record.environment || "production",
-          p_dry_run: false,
-        });
+      if (postErr) {
+        console.error("[free-meal-expiry] post_wallet_entry failed:", postErr.message);
+        continue;
       }
+
 
       // Mark audit as vendor_paid
       await supabase
