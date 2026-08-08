@@ -126,14 +126,8 @@ serve(async (req: Request) => {
       return new Response(JSON.stringify({ skipped: true, reason: "Daily limit reached" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Get platform wallet for recording referral cost
-    const { data: platformWallet } = await supabase
-      .from("platform_wallet")
-      .select("id")
-      .limit(1)
-      .single();
-
     const totalBonusCost = referrerBonus;
+
 
     // Credit referrer MAIN wallet balance
     const { data: referrerWallet } = await supabase
