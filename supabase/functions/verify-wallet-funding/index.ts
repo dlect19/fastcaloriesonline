@@ -159,36 +159,30 @@ serve(async (req: Request) => {
 
     const newBalance = currentBalance + amount;
 
-    if (isTestMode) {
-      await supabaseAdmin
-        .from("wallets")
-        .update({ test_balance: newBalance, updated_at: new Date().toISOString() })
-        .eq("id", customerWallet.id);
-    } else {
-      await supabaseAdmin
-        .from("wallets")
-        .update({ balance: newBalance, updated_at: new Date().toISOString() })
-        .eq("id", customerWallet.id);
-    }
-
-    // Log wallet transaction
-    await supabaseAdmin.from("wallet_transactions").insert({
-      wallet_id: customerWallet.id,
-      wallet_type: "customer",
-      transaction_type: "credit",
-      category: "wallet_funding",
-      amount: amount,
-      balance_after: newBalance,
-      paystack_reference: reference,
-      status: "completed",
-      environment,
-      notes: `Wallet funding via Paystack`,
-      metadata: {
+    const { error: postErr } = await supabaseAdmin.rpc("post_wallet_entry", {
+      p_wallet_id: customerWallet.id,
+      p_wallet_type: "customer",
+      p_transaction_type: "credit",
+      p_category: "wallet_funding",
+      p_amount: amount,
+      p_reference: `PS-FUND-${reference}`,
+      p_environment: environment,
+      p_notes: "Wallet funding via Paystack",
+      p_metadata: {
         payment_channel: paymentData.channel,
         card_type: paymentData.authorization?.card_type,
         bank: paymentData.authorization?.bank,
       },
+      p_paystack_reference: reference,
     });
+    if (postErr) {
+      console.error("[verify-wallet-funding] post_wallet_entry failed:", postErr.message);
+      return new Response(
+        JSON.stringify({ success: false, error: "Could not credit wallet: " + postErr.message }),
+        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
 
     console.log(`Wallet funding verified: ${reference}, amount: ₦${amount}, new balance: ₦${newBalance}`);
 
