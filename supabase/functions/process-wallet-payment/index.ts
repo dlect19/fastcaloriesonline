@@ -154,22 +154,34 @@ serve(async (req: Request) => {
         continue;
       }
 
+      // Post the wallet debit through the single safe ledger entrypoint.
+      // post_wallet_entry is atomic + idempotent (by wallet_id + reference) and
+      // updates the balance by delta, so no absolute-balance write is needed.
+      const { error: postError } = await supabaseAdmin.rpc("post_wallet_entry", {
+        p_wallet_id: customerWallet.id,
+        p_wallet_type: "customer",
+        p_transaction_type: "debit",
+        p_category: "wallet_payment",
+        p_amount: orderTotal,
+        p_reference: reference,
+        p_environment: environment,
+        p_order_id: order.id,
+        p_notes: `Payment for order #${order.order_number}${orders.length > 1 ? ` (batch: ${batchRef})` : ''}`,
+        p_metadata: { source: "process-wallet-payment", batch: batchRef },
+      });
+
+      if (postError) {
+        console.error(`Wallet posting failed for ${order.order_number}:`, postError.message);
+        // Revert the order back to unpaid so the customer is never charged silently
+        await supabaseAdmin
+          .from("orders")
+          .update({ payment_status: "pending", status: "pending", payment_reference: null })
+          .eq("id", order.id);
+        continue;
+      }
+
       runningBalance -= orderTotal;
 
-      // Log wallet debit transaction AFTER successful order update
-      await supabaseAdmin.from("wallet_transactions").insert({
-        wallet_id: customerWallet.id,
-        wallet_type: "customer",
-        transaction_type: "debit",
-        category: "wallet_payment",
-        amount: orderTotal,
-        balance_after: runningBalance,
-        reference,
-        order_id: order.id,
-        status: "completed",
-        environment,
-        notes: `Payment for order #${order.order_number}${orders.length > 1 ? ` (batch: ${batchRef})` : ''}`,
-      });
 
       // Log promo usage if discount was applied
       if (Number(order.discount) > 0) {
@@ -213,18 +225,9 @@ serve(async (req: Request) => {
       );
     }
 
-    // Debit the full amount from wallet in one update (only for successfully processed orders)
-    if (isTestMode) {
-      await supabaseAdmin
-        .from("wallets")
-        .update({ test_balance: runningBalance, updated_at: new Date().toISOString() })
-        .eq("id", customerWallet.id);
-    } else {
-      await supabaseAdmin
-        .from("wallets")
-        .update({ balance: runningBalance, updated_at: new Date().toISOString() })
-        .eq("id", customerWallet.id);
-    }
+    // NOTE: balances are already updated atomically by post_wallet_entry above.
+    // Absolute-balance writes were removed to eliminate race conditions and drift.
+
 
     console.log(`Wallet payment processed: ${batchRef}, total: ₦${grandTotal}, orders: ${orders.length}, user: ${user.id}`);
 
