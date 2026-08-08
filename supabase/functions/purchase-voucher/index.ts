@@ -100,26 +100,34 @@ serve(async (req: Request) => {
 
     await admin.from("voucher_codes").update({ order_id: order.id }).eq("id", reserved.id);
 
-    // Debit buyer wallet
-    const newBalance = balance - amount;
-    const reference = `VH-${order.id.slice(0, 8)}-${Date.now()}`;
-    await admin.from("wallet_transactions").insert({
-      wallet_id: wallet.id,
-      wallet_type: "customer",
-      transaction_type: "debit",
-      category: "voucher_purchase",
-      amount,
-      balance_after: newBalance,
-      reference,
-      status: "completed",
-      environment,
-      notes: `Voucher purchase (${category.name})`,
+    // Debit buyer wallet through the ledger (single source of truth)
+    const reference = `VH-${order.id}`;
+    const { error: debitErr } = await admin.rpc("post_wallet_entry", {
+      p_wallet_id: wallet.id,
+      p_wallet_type: "customer",
+      p_transaction_type: "debit",
+      p_category: "voucher_purchase",
+      p_amount: amount,
+      p_reference: reference,
+      p_environment: environment,
+      p_notes: `Voucher purchase (${category.name})`,
+      p_metadata: {
+        voucher_order_id: order.id,
+        category_id: category.id,
+        vendor_id: category.vendor_id,
+        source: "purchase-voucher",
+      },
     });
-    if (isTest) {
-      await admin.from("wallets").update({ test_balance: newBalance, updated_at: new Date().toISOString() }).eq("id", wallet.id);
-    } else {
-      await admin.from("wallets").update({ balance: newBalance, updated_at: new Date().toISOString() }).eq("id", wallet.id);
+    if (debitErr) {
+      console.error("purchase-voucher debit failed:", debitErr.message);
+      await admin.from("voucher_orders").update({ status: "failed" }).eq("id", order.id);
+      await releaseCode(admin, reserved.id);
+      return json({ error: "Payment could not be completed: " + debitErr.message }, 500);
     }
+    const { data: freshWallet } = await admin
+      .from("wallets").select("balance, test_balance").eq("id", wallet.id).maybeSingle();
+    const newBalance = Number((isTest ? freshWallet?.test_balance : freshWallet?.balance) ?? balance - amount);
+
 
     // Credit vendor wallet through the standard withdrawal-eligible pipeline
     const { error: creditErr } = await admin.rpc("credit_vendor_wallet_for_voucher", { _order_id: order.id });
