@@ -2497,7 +2497,6 @@ export type Database = {
           created_at: string
           days_of_week: number[] | null
           dosage: string | null
-          doses_per_day: number | null
           drug_name: string
           drug_usage_tracking_id: string | null
           end_date: string | null
@@ -2506,26 +2505,22 @@ export type Database = {
           instruction_source: string | null
           instructions: string | null
           is_active: boolean | null
+          notes: string | null
           prescription_order_id: string | null
           reminder_times: string[]
           source: string
           start_date: string | null
           status: string
-          strength: string | null
-          times_needed: boolean
-          timezone: string
+          timezone: string | null
           updated_at: string
           user_id: string
-          verification_status: string
-          verified_at: string | null
-          verified_by: string | null
+          verification_status: string | null
         }
         Insert: {
           activated_at?: string | null
           created_at?: string
           days_of_week?: number[] | null
           dosage?: string | null
-          doses_per_day?: number | null
           drug_name: string
           drug_usage_tracking_id?: string | null
           end_date?: string | null
@@ -2534,26 +2529,22 @@ export type Database = {
           instruction_source?: string | null
           instructions?: string | null
           is_active?: boolean | null
+          notes?: string | null
           prescription_order_id?: string | null
-          reminder_times?: string[]
+          reminder_times: string[]
           source?: string
           start_date?: string | null
           status?: string
-          strength?: string | null
-          times_needed?: boolean
-          timezone?: string
+          timezone?: string | null
           updated_at?: string
           user_id: string
-          verification_status?: string
-          verified_at?: string | null
-          verified_by?: string | null
+          verification_status?: string | null
         }
         Update: {
           activated_at?: string | null
           created_at?: string
           days_of_week?: number[] | null
           dosage?: string | null
-          doses_per_day?: number | null
           drug_name?: string
           drug_usage_tracking_id?: string | null
           end_date?: string | null
@@ -2562,19 +2553,16 @@ export type Database = {
           instruction_source?: string | null
           instructions?: string | null
           is_active?: boolean | null
+          notes?: string | null
           prescription_order_id?: string | null
           reminder_times?: string[]
           source?: string
           start_date?: string | null
           status?: string
-          strength?: string | null
-          times_needed?: boolean
-          timezone?: string
+          timezone?: string | null
           updated_at?: string
           user_id?: string
-          verification_status?: string
-          verified_at?: string | null
-          verified_by?: string | null
+          verification_status?: string | null
         }
         Relationships: [
           {
@@ -4390,7 +4378,6 @@ export type Database = {
           id: string
           reminder_id: string
           scheduled_for: string
-          snooze_count: number
           snoozed_until: string | null
           status: string
           taken_at: string | null
@@ -4404,7 +4391,6 @@ export type Database = {
           id?: string
           reminder_id: string
           scheduled_for: string
-          snooze_count?: number
           snoozed_until?: string | null
           status?: string
           taken_at?: string | null
@@ -4418,7 +4404,6 @@ export type Database = {
           id?: string
           reminder_id?: string
           scheduled_for?: string
-          snooze_count?: number
           snoozed_until?: string | null
           status?: string
           taken_at?: string | null
@@ -4437,34 +4422,28 @@ export type Database = {
       }
       medication_reminder_diagnostics: {
         Row: {
-          app_version: string | null
           created_at: string
           detail: string | null
           event_type: string
           id: string
-          os_version: string | null
           platform: string | null
-          user_id: string | null
+          user_id: string
         }
         Insert: {
-          app_version?: string | null
           created_at?: string
           detail?: string | null
           event_type: string
           id?: string
-          os_version?: string | null
           platform?: string | null
-          user_id?: string | null
+          user_id: string
         }
         Update: {
-          app_version?: string | null
           created_at?: string
           detail?: string | null
           event_type?: string
           id?: string
-          os_version?: string | null
           platform?: string | null
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -4472,11 +4451,11 @@ export type Database = {
         Row: {
           calendar_sync_enabled: boolean
           created_at: string
+          id: string
           notifications_enabled: boolean
           privacy_mode: boolean
           snooze_minutes: number
           sound_enabled: boolean
-          timezone: string | null
           updated_at: string
           user_id: string
           vibration_enabled: boolean
@@ -4484,11 +4463,11 @@ export type Database = {
         Insert: {
           calendar_sync_enabled?: boolean
           created_at?: string
+          id?: string
           notifications_enabled?: boolean
           privacy_mode?: boolean
           snooze_minutes?: number
           sound_enabled?: boolean
-          timezone?: string | null
           updated_at?: string
           user_id: string
           vibration_enabled?: boolean
@@ -4496,11 +4475,11 @@ export type Database = {
         Update: {
           calendar_sync_enabled?: boolean
           created_at?: string
+          id?: string
           notifications_enabled?: boolean
           privacy_mode?: boolean
           snooze_minutes?: number
           sound_enabled?: boolean
-          timezone?: string | null
           updated_at?: string
           user_id?: string
           vibration_enabled?: boolean
@@ -8853,6 +8832,33 @@ export type Database = {
           },
         ]
       }
+      wallet_repair_audit_2026_08: {
+        Row: {
+          balance_before: number | null
+          captured_at: string
+          drift: number | null
+          ledger_truth: number | null
+          wallet_id: string | null
+          wallet_type: string | null
+        }
+        Insert: {
+          balance_before?: number | null
+          captured_at?: string
+          drift?: number | null
+          ledger_truth?: number | null
+          wallet_id?: string | null
+          wallet_type?: string | null
+        }
+        Update: {
+          balance_before?: number | null
+          captured_at?: string
+          drift?: number | null
+          ledger_truth?: number | null
+          wallet_id?: string | null
+          wallet_type?: string | null
+        }
+        Relationships: []
+      }
       wallet_transactions: {
         Row: {
           amount: number
@@ -9946,6 +9952,23 @@ export type Database = {
       owns_vendor: {
         Args: { _user_id: string; _vendor_id: string }
         Returns: boolean
+      }
+      post_wallet_entry: {
+        Args: {
+          p_amount: number
+          p_category: string
+          p_environment?: string
+          p_metadata?: Json
+          p_notes?: string
+          p_order_id?: string
+          p_reference: string
+          p_status?: string
+          p_target?: string
+          p_transaction_type: string
+          p_wallet_id: string
+          p_wallet_type: string
+        }
+        Returns: string
       }
       purchase_event_tickets: {
         Args: {
