@@ -158,50 +158,35 @@ serve(async (req: Request): Promise<Response> => {
 
     const newBalance = currentBalance + amount;
 
-    const updateField = isTestMode ? { test_balance: newBalance } : { balance: newBalance };
-    
-    const { error: updateError } = await supabaseAdmin
-      .from("wallets")
-      .update({ ...updateField, updated_at: new Date().toISOString() })
-      .eq("id", wallet.id);
+    const { data: postedTxId, error: postErr } = await supabaseAdmin.rpc("post_wallet_entry", {
+      p_wallet_id: wallet.id,
+      p_wallet_type: "customer",
+      p_transaction_type: "credit",
+      p_category: "dva_funding",
+      p_amount: amount,
+      p_reference: `DVA-${reference}`,
+      p_environment: environment,
+      p_notes: `Wallet funding via Virtual Account from ${senderName}`,
+      p_metadata: {
+        funding_method: "virtual_account",
+        customer_code: customerCode,
+        dva_account_number: accountNumber,
+        bank_name: data.dedicated_account?.bank?.name || data.metadata?.receiver_bank || "Wema Bank",
+        sender_name: senderName,
+        sender_bank: data.authorization?.sender_bank || data.authorization?.bank || "Unknown",
+      },
+      p_paystack_reference: reference,
+    });
 
-    if (updateError) {
-      console.error("Failed to update wallet:", updateError);
+    if (postErr) {
+      console.error("Failed to credit wallet:", postErr);
       return new Response(
         JSON.stringify({ error: "Failed to update wallet" }),
         { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
+    const newTransaction = { id: postedTxId };
 
-    // Log transaction
-    const { data: newTransaction, error: txError } = await supabaseAdmin
-      .from("wallet_transactions")
-      .insert({
-        wallet_id: wallet.id,
-        wallet_type: "customer",
-        transaction_type: "credit",
-        category: "dva_funding",
-        amount: amount,
-        balance_after: newBalance,
-        paystack_reference: reference,
-        status: "completed",
-        environment,
-        notes: `Wallet funding via Virtual Account from ${senderName}`,
-        metadata: {
-          funding_method: "virtual_account",
-          customer_code: customerCode,
-          dva_account_number: accountNumber,
-          bank_name: data.dedicated_account?.bank?.name || data.metadata?.receiver_bank || "Wema Bank",
-          sender_name: senderName,
-          sender_bank: data.authorization?.sender_bank || data.authorization?.bank || "Unknown",
-        },
-      })
-      .select()
-      .single();
-
-    if (txError) {
-      console.error("Failed to log transaction:", txError);
-    }
 
     console.log(`Wallet funding successful: ${reference}, wallet ${wallet.id}, new balance: ${newBalance}`);
 
