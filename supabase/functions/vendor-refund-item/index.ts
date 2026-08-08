@@ -188,27 +188,20 @@ serve(async (req: Request) => {
       if (wallet) {
         const current = isTest ? Number(wallet.test_balance) || 0 : Number(wallet.balance) || 0;
         newBalance = current + refundAmount;
-        await admin.from("wallets").update(
-          isTest ? { test_balance: newBalance, updated_at: new Date().toISOString() }
-                 : { balance: newBalance, updated_at: new Date().toISOString() }
-        ).eq("id", wallet.id);
-
-        await admin.from("wallet_transactions").insert({
-          wallet_id: wallet.id,
-          wallet_type: "customer",
-          transaction_type: "credit",
-          category: "refund",
-          amount: refundAmount,
-          balance_after: newBalance,
-          reference,
-          order_id: order.id,
-          status: "completed",
-          environment,
-          notes: body.reason ||
+        const { error: postErr } = await admin.rpc("post_wallet_entry", {
+          p_wallet_id: wallet.id,
+          p_wallet_type: "customer",
+          p_transaction_type: "credit",
+          p_category: "refund",
+          p_amount: refundAmount,
+          p_reference: reference,
+          p_environment: environment,
+          p_order_id: order.id,
+          p_notes: body.reason ||
             (action === "substitute"
               ? `Substitute partial refund: ${displayName} (#${order.order_number})`
               : `${scope === "addon" ? "Add-on" : "Item"} refund: ${displayName} (#${order.order_number})`),
-          metadata: {
+          p_metadata: {
             refunded_by: user.id,
             order_item_id: item.id,
             addon_id: addon?.id || null,
@@ -219,8 +212,15 @@ serve(async (req: Request) => {
             substitute_name: body.substituteName || null,
           },
         });
+        if (postErr) {
+          console.error("[vendor-refund-item] post_wallet_entry failed:", postErr.message);
+          return new Response(JSON.stringify({ error: "Refund could not be credited: " + postErr.message }), {
+            status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
         refundedToWallet = true;
       }
+
     }
 
     // ---- Apply DB changes ----
