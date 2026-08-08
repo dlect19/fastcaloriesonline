@@ -157,33 +157,27 @@ Deno.serve(async (req) => {
       }
 
       if (order.payment_status === "paid" && customerWallet) {
-        const balanceField = isTest ? "test_balance" : "balance";
-        const newBal = walletBalance - baseDeliveryFee;
-
-        const { error: walletErr } = await supabase
-          .from("wallets")
-          .update({ [balanceField]: newBal, updated_at: new Date().toISOString() })
-          .eq("id", customerWallet.id);
+        const { error: walletErr } = await supabase.rpc("post_wallet_entry", {
+          p_wallet_id: customerWallet.id,
+          p_wallet_type: "customer",
+          p_transaction_type: "debit",
+          p_category: "admin_debit",
+          p_amount: baseDeliveryFee,
+          p_reference: `SDT-CHARGE-${orderId}`,
+          p_environment: isTest ? "development" : "production",
+          p_order_id: orderId,
+          p_notes: `Delivery fee charge - order #${order.order_number} switched to delivery by admin`,
+          p_metadata: { source: "switch-delivery-type", direction: "to_delivery" },
+        });
 
         if (walletErr) {
           console.error("Wallet debit error:", walletErr);
           throw new Error("Failed to charge delivery fee from customer wallet");
         }
 
-        await supabase.from("wallet_transactions").insert({
-          wallet_id: customerWallet.id,
-          wallet_type: "customer",
-          transaction_type: "debit",
-          category: "admin_debit",
-          amount: baseDeliveryFee,
-          balance_after: newBal,
-          status: "completed",
-          environment: isTest ? "development" : "production",
-          notes: `Delivery fee charge - order #${order.order_number} switched to delivery by admin`,
-        });
-
         console.log(`Charged ₦${baseDeliveryFee} from customer wallet ${customerWallet.id}`);
       }
+
 
       const newTotal = Number(order.total) + baseDeliveryFee;
       const { error: updateErr } = await supabase
