@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS public.post_wallet_entry(uuid, text, text, text, numeric, text, text, uuid, text, jsonb, text, text);

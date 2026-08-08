@@ -173,19 +173,16 @@ serve(async (req: Request): Promise<Response> => {
 
         const newBalance = currentBalance + amount;
 
-        // Insert transaction first - unique index will reject duplicates
-        const { error: insertError } = await supabaseAdmin.from("wallet_transactions").insert({
-          wallet_id: wallet.id,
-          wallet_type: "customer",
-          transaction_type: "credit",
-          category: "dva_funding",
-          amount: amount,
-          balance_after: newBalance,
-          paystack_reference: reference,
-          status: "completed",
-          environment,
-          notes: `Wallet funding via Virtual Account from ${senderName}`,
-          metadata: {
+        const { error: postErr } = await supabaseAdmin.rpc("post_wallet_entry", {
+          p_wallet_id: wallet.id,
+          p_wallet_type: "customer",
+          p_transaction_type: "credit",
+          p_category: "dva_funding",
+          p_amount: amount,
+          p_reference: `DVA-${reference}`,
+          p_environment: environment,
+          p_notes: `Wallet funding via Virtual Account from ${senderName}`,
+          p_metadata: {
             requeried: true,
             query_date: queryDate,
             funding_method: "virtual_account",
@@ -195,25 +192,14 @@ serve(async (req: Request): Promise<Response> => {
             sender_bank: tx.authorization?.sender_bank || tx.authorization?.bank || "Unknown",
             payment_channel: tx.channel,
           },
+          p_paystack_reference: reference,
         });
 
-        if (insertError) {
-          // Unique constraint violation = already processed by webhook
-          console.log(`Transaction ${reference} already exists (constraint), skipping`);
+        if (postErr) {
+          console.error(`Failed to credit wallet for ${reference}:`, postErr.message);
           continue;
         }
 
-        // Only update wallet balance AFTER successful insert
-        const updateField = isTestMode ? { test_balance: newBalance } : { balance: newBalance };
-        const { error: updateError } = await supabaseAdmin
-          .from("wallets")
-          .update({ ...updateField, updated_at: new Date().toISOString() })
-          .eq("id", wallet.id);
-
-        if (updateError) {
-          console.error(`Failed to update wallet for ${reference}:`, updateError);
-          continue;
-        }
 
         processedCount++;
         totalAmount += amount;

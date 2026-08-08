@@ -9961,6 +9961,7 @@ export type Database = {
           p_metadata?: Json
           p_notes?: string
           p_order_id?: string
+          p_paystack_reference?: string
           p_reference: string
           p_status?: string
           p_target?: string
