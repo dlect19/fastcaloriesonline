@@ -151,33 +151,24 @@ const handler = async (req: Request): Promise<Response> => {
       paid_by: userData.user.id,
     }).eq("id", requisition_id);
 
-    // Deduct from platform wallet
-    const { data: platformWallet } = await supabase
-      .from("platform_wallet")
-      .select("id, balance, test_balance")
-      .limit(1)
-      .maybeSingle();
+    // Deduct from platform ledger
+    const { error: platErr } = await supabase.rpc("post_platform_entry", {
+      p_amount: requisition.amount,
+      p_category: "expense",
+      p_transaction_type: "debit",
+      p_reference: `EXP-${requisition_id}`,
+      p_environment: environment,
+      p_status: "completed",
+      p_notes: `Expense: ${requisition.title} (Paystack transfer)`,
+      p_metadata: {
+        requisition_id,
+        paystack_reference: reference,
+        transfer_code: transferData.data.transfer_code,
+        source: "process-expense",
+      },
+    });
+    if (platErr) console.error("[process-expense] post_platform_entry failed:", platErr.message);
 
-    if (platformWallet) {
-      const balanceField = environment === "development" ? "test_balance" : "balance";
-      const currentBal = Number((platformWallet as Record<string, unknown>)[balanceField]) || 0;
-
-      await supabase.from("platform_wallet").update({
-        [balanceField]: Math.max(currentBal - requisition.amount, 0),
-        updated_at: new Date().toISOString(),
-      }).eq("id", platformWallet.id);
-
-      await supabase.from("wallet_transactions").insert({
-        wallet_type: "platform",
-        category: "expense",
-        transaction_type: "debit",
-        amount: requisition.amount,
-        platform_wallet_id: platformWallet.id,
-        environment,
-        status: "completed",
-        notes: `Expense: ${requisition.title} (Paystack transfer)`,
-      });
-    }
 
     return new Response(JSON.stringify({
       success: true,
