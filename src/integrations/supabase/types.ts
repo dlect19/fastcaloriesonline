@@ -9810,6 +9810,23 @@ export type Database = {
         Args: { _user_id: string; _vendor_id: string }
         Returns: boolean
       }
+      post_wallet_entry: {
+        Args: {
+          p_amount: number
+          p_category: string
+          p_environment?: string
+          p_metadata?: Json
+          p_notes?: string
+          p_order_id?: string
+          p_reference: string
+          p_status?: string
+          p_target?: string
+          p_transaction_type: string
+          p_wallet_id: string
+          p_wallet_type: string
+        }
+        Returns: string
+      }
       purchase_event_tickets: {
         Args: {
           p_environment?: string
