@@ -92,6 +92,7 @@ import AdminWalletFunding from "./pages/admin/AdminWalletFunding";
 import AdminChargebacks from "./pages/admin/AdminChargebacks";
 import AdminRefundAudit from "./pages/admin/AdminRefundAudit";
 import AdminLedgerAudit from "./pages/admin/AdminLedgerAudit";
+import AdminWalletIntegrity from "./pages/admin/AdminWalletIntegrity";
 import AdminDisputes from "./pages/admin/AdminDisputes";
 import AdminDeliveryCompanies from "./pages/admin/AdminDeliveryCompanies";
 import AdminCustomers from "./pages/admin/AdminCustomers";
