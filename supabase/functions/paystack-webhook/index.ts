@@ -317,43 +317,39 @@ async function handleWalletFunding(supabase: SupabaseClient, data: any, environm
     return;
   }
 
-  // Credit wallet - INSERT first for idempotency via unique index
-  const currentBalance = isTestMode
-    ? Number(customerWallet.test_balance) || 0
-    : Number(customerWallet.balance) || 0;
-
-  const newBalance = currentBalance + amount;
-
-  // Insert transaction first - unique index prevents duplicates
-  const { error: insertError } = await supabase.from("wallet_transactions").insert({
-    wallet_id: customerWallet.id,
-    wallet_type: "customer",
-    transaction_type: "credit",
-    category: "wallet_funding",
-    amount: amount,
-    balance_after: newBalance,
-    paystack_reference: reference,
-    status: "completed",
-    environment,
-    notes: `Wallet funding via Paystack`,
-    metadata: {
+  // Credit wallet through the single safe ledger entrypoint (atomic + idempotent by reference)
+  const { error: postError } = await supabase.rpc("post_wallet_entry", {
+    p_wallet_id: customerWallet.id,
+    p_wallet_type: "customer",
+    p_transaction_type: "credit",
+    p_category: "wallet_funding",
+    p_amount: amount,
+    p_reference: reference,
+    p_environment: environment,
+    p_notes: `Wallet funding via Paystack`,
+    p_metadata: {
+      paystack_reference: reference,
       payment_channel: data.channel,
       card_type: data.authorization?.card_type,
       bank: data.authorization?.bank,
+      source: "paystack-webhook",
     },
   });
 
-  if (insertError) {
-    console.log(`Wallet funding ${reference} blocked by unique constraint, skipping`);
+  if (postError) {
+    console.error(`Wallet funding ${reference} posting failed:`, postError.message);
     return;
   }
 
-  // Only update balance after successful insert
-  const updateField = isTestMode ? { test_balance: newBalance } : { balance: newBalance };
-  await supabase
+  // Read back the authoritative balance for notifications
+  const { data: freshWallet } = await supabase
     .from("wallets")
-    .update({ ...updateField, updated_at: new Date().toISOString() })
-    .eq("id", customerWallet.id);
+    .select("balance, test_balance")
+    .eq("id", customerWallet.id)
+    .maybeSingle();
+  const newBalance = isTestMode
+    ? Number(freshWallet?.test_balance) || 0
+    : Number(freshWallet?.balance) || 0;
 
   console.log(`Wallet funding successful: ${reference}, new balance: ${newBalance}`);
 
