@@ -509,25 +509,22 @@ serve(async (req) => {
 
       if (combinedWalletUsed > 0) {
         const reference = `CMB-W-${order.id.slice(0, 8)}-${Date.now()}`;
-        const newBalance = currentBalance - combinedWalletUsed;
-        await supabase.from('wallet_transactions').insert({
-          wallet_id: wallet.id,
-          wallet_type: 'customer',
-          transaction_type: 'debit',
-          category: 'wallet_payment',
-          amount: combinedWalletUsed,
-          balance_after: newBalance,
-          reference,
-          order_id: order.id,
-          status: 'completed',
-          environment,
-          notes: `Combined payment (wallet portion) for #${order.order_number}`,
+        const { error: postErr } = await supabase.rpc('post_wallet_entry', {
+          p_wallet_id: wallet.id,
+          p_wallet_type: 'customer',
+          p_transaction_type: 'debit',
+          p_category: 'wallet_payment',
+          p_amount: combinedWalletUsed,
+          p_reference: reference,
+          p_environment: environment,
+          p_order_id: order.id,
+          p_notes: `Combined payment (wallet portion) for #${order.order_number}`,
+          p_metadata: { source: 'assisted-order-create', combined: true },
         });
-        await supabase.from('wallets')
-          .update(isTestMode
-            ? { test_balance: newBalance, updated_at: new Date().toISOString() }
-            : { balance: newBalance, updated_at: new Date().toISOString() })
-          .eq('id', wallet.id);
+        if (postErr) {
+          return json({ error: 'Failed to debit wallet portion: ' + postErr.message }, 500);
+        }
+
       }
 
       // 2) Consume shadow credits next
