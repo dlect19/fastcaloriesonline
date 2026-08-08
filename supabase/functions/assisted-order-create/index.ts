@@ -352,26 +352,23 @@ serve(async (req) => {
         walletShortfall = Math.round(total - currentBalance);
         if (currentBalance > 0) {
           const reference = `WP-PART-${order.id.slice(0, 8)}-${Date.now()}`;
-          const newBalance = 0;
-          await supabase.from('wallet_transactions').insert({
-            wallet_id: wallet.id,
-            wallet_type: 'customer',
-            transaction_type: 'debit',
-            category: 'wallet_payment',
-            amount: currentBalance,
-            balance_after: newBalance,
-            reference,
-            order_id: order.id,
-            status: 'completed',
-            environment,
-            notes: `Partial wallet payment for #${order.order_number} (Paystack covers the rest)`,
+          const { error: postErr } = await supabase.rpc('post_wallet_entry', {
+            p_wallet_id: wallet.id,
+            p_wallet_type: 'customer',
+            p_transaction_type: 'debit',
+            p_category: 'wallet_payment',
+            p_amount: currentBalance,
+            p_reference: reference,
+            p_environment: environment,
+            p_order_id: order.id,
+            p_notes: `Partial wallet payment for #${order.order_number} (Paystack covers the rest)`,
+            p_metadata: { source: 'assisted-order-create', partial: true },
           });
-          await supabase.from('wallets')
-            .update(isTestMode
-              ? { test_balance: newBalance, updated_at: new Date().toISOString() }
-              : { balance: newBalance, updated_at: new Date().toISOString() })
-            .eq('id', wallet.id);
+          if (postErr) {
+            return json({ error: 'Failed to debit wallet portion: ' + postErr.message }, 500);
+          }
         }
+
         const res = await initPaystackLink(walletShortfall, 'topup');
         if (!res) {
           return json({ error: 'Order created and wallet portion reserved, but Paystack top-up link generation failed. Retry from order page.' }, 502);
