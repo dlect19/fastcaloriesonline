@@ -263,44 +263,36 @@ serve(async (req: Request) => {
     // Generate unique reference
     const reference = `RF-${orderId.slice(0, 8)}-${Date.now()}`;
 
-    // Credit customer wallet
-    const currentBalance = isTestMode 
-      ? Number(customerWallet.test_balance) || 0
-      : Number(customerWallet.balance) || 0;
-
-    const newBalance = currentBalance + refundAmount;
-
-    if (isTestMode) {
-      await supabaseAdmin
-        .from("wallets")
-        .update({ test_balance: newBalance, updated_at: new Date().toISOString() })
-        .eq("id", customerWallet.id);
-    } else {
-      await supabaseAdmin
-        .from("wallets")
-        .update({ balance: newBalance, updated_at: new Date().toISOString() })
-        .eq("id", customerWallet.id);
-    }
-
-    // Log refund transaction
-    await supabaseAdmin.from("wallet_transactions").insert({
-      wallet_id: customerWallet.id,
-      wallet_type: "customer",
-      transaction_type: "credit",
-      category: "refund",
-      amount: refundAmount,
-      balance_after: newBalance,
-      reference,
-      order_id: orderId,
-      status: "completed",
-      environment,
-      notes: reason || `Refund for order #${order.order_number}`,
-      metadata: {
+    // Credit customer wallet through the ledger (single source of truth)
+    const { error: postErr } = await supabaseAdmin.rpc("post_wallet_entry", {
+      p_wallet_id: customerWallet.id,
+      p_wallet_type: "customer",
+      p_transaction_type: "credit",
+      p_category: "refund",
+      p_amount: refundAmount,
+      p_reference: reference,
+      p_environment: environment,
+      p_order_id: orderId,
+      p_notes: reason || `Refund for order #${order.order_number}`,
+      p_metadata: {
         refunded_by: user.id,
         original_total: order.total,
         refund_reason: reason,
+        source: "process-refund",
       },
     });
+    if (postErr) {
+      console.error("[process-refund] post_wallet_entry failed:", postErr.message);
+      return new Response(
+        JSON.stringify({ error: "Refund could not be credited: " + postErr.message }),
+        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    const { data: freshWallet } = await supabaseAdmin
+      .from("wallets").select("balance, test_balance").eq("id", customerWallet.id).maybeSingle();
+    const newBalance = Number((isTestMode ? freshWallet?.test_balance : freshWallet?.balance) ?? 0);
+
 
     console.log(`Refund processed: ${reference}, amount: ₦${refundAmount}, order: ${order.order_number}`);
 
