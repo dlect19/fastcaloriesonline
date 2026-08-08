@@ -75,34 +75,33 @@ serve(async (req) => {
         if (refundAmount > 0) {
           const { data: w } = await supabase
             .from('wallets')
-            .select('id, balance, test_balance')
+            .select('id')
             .eq('user_id', ord.user_id).eq('wallet_type', 'customer').maybeSingle();
           if (w) {
-            const isTest = (ord.environment || 'development') !== 'production';
-            const current = Number((isTest ? w.test_balance : w.balance) ?? 0);
-            const newBal = current + refundAmount;
-            const ref = `RF-${order_id.slice(0, 8)}-${Date.now()}`;
-            await supabase.from('wallet_transactions').insert({
-              wallet_id: w.id,
-              wallet_type: 'customer',
-              transaction_type: 'credit',
-              category: 'refund',
-              amount: refundAmount,
-              balance_after: newBal,
-              reference: ref,
-              order_id,
-              status: 'completed',
-              environment: ord.environment || 'development',
-              notes: `Refund for cancelled assisted order #${ord.order_number}`,
+            const ref = `RF-AO-${order_id}`;
+            const { error: postErr } = await supabase.rpc('post_wallet_entry', {
+              p_wallet_id: w.id,
+              p_wallet_type: 'customer',
+              p_transaction_type: 'credit',
+              p_category: 'refund',
+              p_amount: refundAmount,
+              p_reference: ref,
+              p_environment: ord.environment || 'development',
+              p_order_id: order_id,
+              p_notes: `Refund for cancelled assisted order #${ord.order_number}`,
+              p_metadata: { source: 'assisted-order-verify-payment', reason: 'order_cancelled' },
             });
-            await supabase.from('wallets').update(
-              isTest
-                ? { test_balance: newBal, updated_at: new Date().toISOString() }
-                : { balance: newBal, updated_at: new Date().toISOString() }
-            ).eq('id', w.id);
-            walletRefunded = refundAmount;
-            newWalletBalance = newBal;
+            if (!postErr) {
+              walletRefunded = refundAmount;
+              const { data: fresh } = await supabase.from('wallets')
+                .select('balance, test_balance').eq('id', w.id).maybeSingle();
+              const isTest = (ord.environment || 'development') !== 'production';
+              newWalletBalance = Number((isTest ? fresh?.test_balance : fresh?.balance) ?? 0);
+            } else {
+              console.error('[assisted-order-verify-payment] post_wallet_entry failed:', postErr.message);
+            }
           }
+
         }
       }
 
