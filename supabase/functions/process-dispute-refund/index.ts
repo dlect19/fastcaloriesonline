@@ -236,26 +236,28 @@ serve(async (req: Request) => {
       }
 
       if (riderWallet) {
-        const rBalField = isTest ? "test_balance" : "balance";
         const rEligField = isTest ? "test_eligible_balance" : "eligible_balance";
-        const curRBal = Number(riderWallet[rBalField]) || 0;
-        const newRBal = curRBal - riderDeduction;
         riderDebitRef = `DSP-RIDER-${order.order_number}-${refTimestamp}`;
 
+        const { error: rErr } = await admin.rpc("post_wallet_entry", {
+          p_wallet_id: riderWallet.id,
+          p_wallet_type: riderWallet.wallet_type,
+          p_transaction_type: "debit",
+          p_category: "dispute_deduction",
+          p_amount: riderDeduction,
+          p_reference: riderDebitRef,
+          p_environment: environment,
+          p_order_id: order.id,
+          p_notes: `[DISPUTE] Rider fault deduction for order #${order.order_number}: ${reason}`,
+          p_metadata: { dispute: true, fault_party: faultParty, source: "process-dispute-refund" },
+        });
+        if (rErr) console.error("[process-dispute-refund] rider post_wallet_entry failed:", rErr.message);
+
         await admin.from("wallets").update({
-          [rBalField]: newRBal,
           [rEligField]: Math.max((Number(riderWallet[rEligField]) || 0) - riderDeduction, -5000),
           updated_at: new Date().toISOString(),
         }).eq("id", riderWallet.id);
 
-        await admin.from("wallet_transactions").insert({
-          wallet_id: riderWallet.id, wallet_type: riderWallet.wallet_type,
-          transaction_type: "debit", category: "dispute_deduction",
-          amount: riderDeduction, balance_after: newRBal,
-          reference: riderDebitRef, order_id: order.id, status: "completed", environment,
-          notes: `[DISPUTE] Rider fault deduction for order #${order.order_number}: ${reason}`,
-          metadata: { dispute: true, fault_party: faultParty },
-        });
       }
     }
 
