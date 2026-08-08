@@ -9605,6 +9605,10 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_financial_reconciliation: {
+        Args: { p_from?: string; p_to?: string }
+        Returns: Json
+      }
       admin_get_entity_wallets: {
         Args: { _user_id: string; _wallet_type: string }
         Returns: {
