@@ -15,7 +15,8 @@ import { format } from 'date-fns';
 
 interface DriftRow {
   id: string;
-  wallet_id: string;
+  wallet_id: string | null;
+  wallet_type?: string | null;
   wallet_balance: number;
   ledger_balance: number;
   drift: number;
@@ -25,7 +26,7 @@ interface DriftRow {
 
 interface GuardRow {
   id: string;
-  wallet_id: string;
+  wallet_id: string | null;
   column_name: string;
   old_value: number | null;
   new_value: number | null;
