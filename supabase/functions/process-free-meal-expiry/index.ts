@@ -118,37 +118,23 @@ Deno.serve(async (req) => {
         })
         .eq("id", record.id);
 
-      // Debit platform wallet
-      const { data: platformWallet } = await supabase
-        .from("platform_wallet")
-        .select("id, balance")
-        .limit(1)
-        .single();
+      // Debit platform ledger for the free-meal cost
+      const { error: platErr } = await supabase.rpc("post_platform_entry", {
+        p_amount: mealValue,
+        p_category: "free_meal_cost",
+        p_transaction_type: "debit",
+        p_reference: `FM-COST-${record.id}`,
+        p_environment: record.environment || "production",
+        p_status: "completed",
+        p_notes: `Free meal cost - vendor payment for ${(record as any).free_meal_promos?.vendor_name || "vendor"}`,
+        p_metadata: {
+          free_meal_audit_id: record.id,
+          promo_id: record.promo_id,
+          source: "process-free-meal-expiry",
+        },
+      });
+      if (platErr) console.error("[free-meal-expiry] post_platform_entry failed:", platErr.message);
 
-      if (platformWallet) {
-        await supabase
-          .from("platform_wallet")
-          .update({
-            balance: (platformWallet.balance || 0) - mealValue,
-            updated_at: now,
-          })
-          .eq("id", platformWallet.id);
-
-        await supabase.from("wallet_transactions").insert({
-          wallet_type: "platform",
-          transaction_type: "debit",
-          category: "free_meal_cost",
-          amount: mealValue,
-          platform_wallet_id: platformWallet.id,
-          environment: record.environment || "production",
-          status: "completed",
-          notes: `Free meal cost - vendor payment for ${(record as any).free_meal_promos?.vendor_name || "vendor"}`,
-          metadata: {
-            free_meal_audit_id: record.id,
-            promo_id: record.promo_id,
-          },
-        });
-      }
 
       vendorPaidCount++;
       vendorPaidAmount += mealValue;
