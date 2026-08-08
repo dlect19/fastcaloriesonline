@@ -77,35 +77,31 @@ serve(async (req) => {
     }
 
     const order = orderResult[0];
-    const newBalance = currentBalance - Number(order.total);
 
-    // Insert wallet transaction (insert-first to avoid double-debit)
-    const { error: txErr } = await admin.from('wallet_transactions').insert({
-      wallet_id: wallet.id,
-      wallet_type: 'customer',
-      transaction_type: 'debit',
-      category: 'event_ticket_purchase',
-      amount: Number(order.total),
-      balance_after: newBalance,
-      reference,
-      status: 'completed',
-      environment,
-      notes: `Event tickets - ${order.order_number}`,
+    // Debit through the ledger (single source of truth, idempotent by reference)
+    const { error: txErr } = await admin.rpc('post_wallet_entry', {
+      p_wallet_id: wallet.id,
+      p_wallet_type: 'customer',
+      p_transaction_type: 'debit',
+      p_category: 'event_ticket_purchase',
+      p_amount: Number(order.total),
+      p_reference: reference,
+      p_environment: environment,
+      p_notes: `Event tickets - ${order.order_number}`,
+      p_metadata: {
+        event_id,
+        order_id: order.order_id,
+        order_number: order.order_number,
+        source: 'purchase-event-tickets',
+      },
     });
 
     if (txErr) {
-      // Rollback: cancel order + tickets, restore stock via UPDATE
-      console.error('wallet tx failed, cancelling order', txErr);
+      console.error('wallet debit failed, cancelling order', txErr);
       await admin.from('event_ticket_orders').update({ payment_status: 'failed' }).eq('id', order.order_id);
-      // Restore stock
-      for (const it of items) {
-        await admin.rpc('purchase_event_tickets_rollback' as any, {}).catch(() => null);
-      }
       return new Response(JSON.stringify({ error: 'Payment failed' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // Update wallet balance
-    await admin.from('wallets').update({ [balanceField]: newBalance, updated_at: new Date().toISOString() }).eq('id', wallet.id);
 
     // Mark order paid
     await admin.from('event_ticket_orders').update({ payment_status: 'paid', paid_at: new Date().toISOString() }).eq('id', order.order_id);
