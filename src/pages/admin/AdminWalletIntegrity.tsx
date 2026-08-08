@@ -205,8 +205,8 @@ export default function AdminWalletIntegrity() {
                               </Badge>
                             </TableCell>
                             <TableCell className="text-xs">
-                              <span className="capitalize">{walletLabel(row.wallet_id)}</span>
-                              <span className="block font-mono text-muted-foreground">{row.wallet_id.slice(0, 8)}</span>
+                              <span className="capitalize">{walletLabel(row.wallet_id, (row as any).wallet_type)}</span>
+                              <span className="block font-mono text-muted-foreground">{row.wallet_id ? row.wallet_id.slice(0, 8) : "company account"}</span>
                             </TableCell>
                             <TableCell className="text-right font-mono text-sm">₦{Number(row.wallet_balance).toLocaleString()}</TableCell>
                             <TableCell className="text-right font-mono text-sm">₦{Number(row.ledger_balance).toLocaleString()}</TableCell>
@@ -264,8 +264,8 @@ export default function AdminWalletIntegrity() {
                                 {format(new Date(row.created_at), 'dd MMM, HH:mm')}
                               </TableCell>
                               <TableCell className="text-xs">
-                                <span className="capitalize">{walletLabel(row.wallet_id)}</span>
-                                <span className="block font-mono text-muted-foreground">{row.wallet_id.slice(0, 8)}</span>
+                                <span className="capitalize">{walletLabel(row.wallet_id, (row as any).wallet_type)}</span>
+                                <span className="block font-mono text-muted-foreground">{row.wallet_id ? row.wallet_id.slice(0, 8) : "company account"}</span>
                               </TableCell>
                               <TableCell className="text-xs font-mono">{row.column_name}</TableCell>
                               <TableCell className="text-right font-mono text-sm">₦{Number(row.old_value || 0).toLocaleString()}</TableCell>
