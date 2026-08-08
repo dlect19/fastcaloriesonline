@@ -126,78 +126,57 @@ serve(async (req: Request) => {
       });
     }
 
-    // Debit customer ledger
-    await admin.from("wallet_transactions").insert({
-      wallet_id: customerWallet.id,
-      wallet_type: "customer",
-      transaction_type: "debit",
-      category: "pos_purchase",
-      amount: Number(amount),
-      balance_after: customerBalAfter,
-      reference,
-      order_id: orderId,
-      status: "completed",
-      environment,
-      notes: `In-store purchase at ${vendorName || "vendor"} (fee ₦${fee.toLocaleString()})`,
+    // Debit customer through the ledger (single source of truth)
+    const { error: custErr } = await admin.rpc("post_wallet_entry", {
+      p_wallet_id: customerWallet.id,
+      p_wallet_type: "customer",
+      p_transaction_type: "debit",
+      p_category: "pos_purchase",
+      p_amount: Number(amount),
+      p_reference: reference,
+      p_environment: environment,
+      p_order_id: orderId,
+      p_notes: `In-store purchase at ${vendorName || "vendor"} (fee ₦${fee.toLocaleString()})`,
+      p_metadata: { vendor_id: vendorId, outlet_id: outletId ?? null, fee, fee_pct: feePct, source: "process-pos-wallet-payment" },
     });
-
-    // Update customer wallet balance
-    if (isTest) {
-      await admin.from("wallets").update({ test_balance: customerBalAfter, updated_at: new Date().toISOString() }).eq("id", customerWallet.id);
-    } else {
-      await admin.from("wallets").update({ balance: customerBalAfter, updated_at: new Date().toISOString() }).eq("id", customerWallet.id);
-    }
-
-    // Credit vendor (net of fee)
-    const vendorBalBefore = isTest ? Number(vendorWallet.test_balance) || 0 : Number(vendorWallet.balance) || 0;
-    const vendorEligBefore = isTest ? Number(vendorWallet.test_eligible_balance) || 0 : Number(vendorWallet.eligible_balance) || 0;
-    const vendorBalAfter = vendorBalBefore + vendorCredit;
-    const vendorEligAfter = vendorEligBefore + vendorCredit;
-
-    await admin.from("wallet_transactions").insert({
-      wallet_id: vendorWallet.id,
-      wallet_type: "vendor",
-      transaction_type: "credit",
-      category: "pos_sale",
-      amount: vendorCredit,
-      balance_after: vendorBalAfter,
-      reference,
-      order_id: orderId,
-      status: "completed",
-      environment,
-      notes: `POS sale — gross ₦${Number(amount).toLocaleString()}, platform fee ₦${fee.toLocaleString()} (${feePct}%)`,
-    });
-
-    if (isTest) {
-      await admin.from("wallets").update({
-        test_balance: vendorBalAfter,
-        test_eligible_balance: vendorEligAfter,
-        updated_at: new Date().toISOString(),
-      }).eq("id", vendorWallet.id);
-    } else {
-      await admin.from("wallets").update({
-        balance: vendorBalAfter,
-        eligible_balance: vendorEligAfter,
-        updated_at: new Date().toISOString(),
-      }).eq("id", vendorWallet.id);
-    }
-
-    // Log platform fee revenue (no wallet, just ledger for tracking)
-    if (fee > 0) {
-      await admin.from("wallet_transactions").insert({
-        wallet_id: vendorWallet.id,
-        wallet_type: "vendor",
-        transaction_type: "debit",
-        category: "pos_platform_fee",
-        amount: 0, // not affecting balance — informational
-        balance_after: vendorBalAfter,
-        reference: `${reference}-FEE`,
-        order_id: orderId,
-        status: "completed",
-        environment,
-        notes: `Platform service fee ₦${fee.toLocaleString()} (${feePct}%) retained on POS wallet payment`,
+    if (custErr) {
+      console.error("[pos-wallet] customer debit failed:", custErr.message);
+      await admin.from("pos_wallet_auth_codes").update({ used_at: null, used_by_vendor_id: null, used_for_order_id: null }).eq("id", codeRow.id);
+      return new Response(JSON.stringify({ error: "Payment failed: " + custErr.message }), {
+        status: 500, headers: { "Content-Type": "application/json", ...corsHeaders }
       });
     }
+
+    // Credit vendor (net of fee) through the ledger
+    const { error: vendErr } = await admin.rpc("post_wallet_entry", {
+      p_wallet_id: vendorWallet.id,
+      p_wallet_type: "vendor",
+      p_transaction_type: "credit",
+      p_category: "pos_sale",
+      p_amount: vendorCredit,
+      p_reference: `${reference}-V`,
+      p_environment: environment,
+      p_order_id: orderId,
+      p_notes: `POS sale — gross ₦${Number(amount).toLocaleString()}, platform fee ₦${fee.toLocaleString()} (${feePct}%)`,
+      p_metadata: { gross: Number(amount), fee, fee_pct: feePct, source: "process-pos-wallet-payment" },
+    });
+    if (vendErr) console.error("[pos-wallet] vendor credit failed:", vendErr.message);
+
+    // Keep the vendor's withdrawal-eligible bucket in sync (ledger already moved balance)
+    if (!vendErr && vendorCredit > 0) {
+      const eligField = isTest ? "test_eligible_balance" : "eligible_balance";
+      const { data: freshVendor } = await admin
+        .from("wallets").select("eligible_balance, test_eligible_balance").eq("id", vendorWallet.id).maybeSingle();
+      const eligBefore = Number((isTest ? freshVendor?.test_eligible_balance : freshVendor?.eligible_balance) ?? 0);
+      await admin.from("wallets").update({
+        [eligField]: eligBefore + vendorCredit,
+        updated_at: new Date().toISOString(),
+      }).eq("id", vendorWallet.id);
+    }
+
+    const { data: freshCustomer } = await admin
+      .from("wallets").select("balance, test_balance").eq("id", customerWallet.id).maybeSingle();
+    const customerBalanceAfter = Number((isTest ? freshCustomer?.test_balance : freshCustomer?.balance) ?? customerBalAfter);
 
     return new Response(JSON.stringify({
       success: true,
@@ -205,8 +184,9 @@ serve(async (req: Request) => {
       amount: Number(amount),
       fee,
       vendor_credit: vendorCredit,
-      customer_balance: customerBalAfter,
+      customer_balance: customerBalanceAfter,
     }), { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } });
+
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
     console.error("process-pos-wallet-payment error:", msg);
