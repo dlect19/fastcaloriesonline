@@ -46,27 +46,28 @@ Deno.serve(async (req) => {
     if (mode === 'wallet') {
       if (!ord.user_id) return json({ error: 'Customer has no account. Use shadow or offline mode.' }, 400);
       const { data: w } = await supabase.from('wallets')
-        .select('id, balance, test_balance')
+        .select('id')
         .eq('user_id', ord.user_id).eq('wallet_type', 'customer').maybeSingle();
       if (!w) return json({ error: 'Customer wallet not found' }, 404);
-      const isTest = env !== 'production';
-      const current = Number((isTest ? w.test_balance : w.balance) ?? 0);
-      const newBal = current + amt;
       const ref = `AOREF-${order_id.slice(0, 8)}-${Date.now()}`;
-      const { error: txErr } = await supabase.from('wallet_transactions').insert({
-        wallet_id: w.id, wallet_type: 'customer', transaction_type: 'credit', category: 'refund',
-        amount: amt, balance_after: newBal, reference: ref, order_id, status: 'completed',
-        environment: env, notes: `Admin refund (${reason || 'manual'}) for #${ord.order_number}${notes ? ' — ' + notes : ''}`,
+      const { error: postErr } = await supabase.rpc('post_wallet_entry', {
+        p_wallet_id: w.id,
+        p_wallet_type: 'customer',
+        p_transaction_type: 'credit',
+        p_category: 'refund',
+        p_amount: amt,
+        p_reference: ref,
+        p_environment: env,
+        p_order_id: order_id,
+        p_notes: `Admin refund (${reason || 'manual'}) for #${ord.order_number}${notes ? ' — ' + notes : ''}`,
+        p_metadata: { refunded_by: adminId, reason: reason || 'manual', notes: notes || null, source: 'assisted-order-refund' },
       });
-      if (txErr) return json({ error: 'Ledger write failed: ' + txErr.message }, 500);
-      await supabase.from('wallets').update(
-        isTest ? { test_balance: newBal, updated_at: new Date().toISOString() }
-               : { balance: newBal, updated_at: new Date().toISOString() }
-      ).eq('id', w.id);
+      if (postErr) return json({ error: 'Ledger write failed: ' + postErr.message }, 500);
       await supabase.from('assisted_order_audit').insert({
         order_id, actor_id: adminId, action: 'refund_wallet',
-        details: { amount: amt, reason, notes, reference: ref, new_balance: newBal },
+        details: { amount: amt, reason, notes, reference: ref },
       });
+
       return json({ ok: true, message: `₦${amt.toLocaleString()} refunded to customer wallet.` });
     }
 
