@@ -8876,7 +8876,8 @@ export type Database = {
           id: string
           ledger_balance: number
           wallet_balance: number
-          wallet_id: string
+          wallet_id: string | null
+          wallet_type: string
         }
         Insert: {
           detected_at?: string
@@ -8885,7 +8886,8 @@ export type Database = {
           id?: string
           ledger_balance?: number
           wallet_balance?: number
-          wallet_id: string
+          wallet_id?: string | null
+          wallet_type?: string
         }
         Update: {
           detected_at?: string
@@ -8894,7 +8896,8 @@ export type Database = {
           id?: string
           ledger_balance?: number
           wallet_balance?: number
-          wallet_id?: string
+          wallet_id?: string | null
+          wallet_type?: string
         }
         Relationships: []
       }
@@ -10027,6 +10030,20 @@ export type Database = {
         Args: { _user_id: string; _vendor_id: string }
         Returns: boolean
       }
+      post_platform_entry: {
+        Args: {
+          p_amount: number
+          p_category: string
+          p_environment?: string
+          p_metadata?: Json
+          p_notes?: string
+          p_order_id?: string
+          p_reference: string
+          p_status?: string
+          p_transaction_type: string
+        }
+        Returns: string
+      }
       post_wallet_entry: {
         Args: {
           p_amount: number
@@ -10075,6 +10092,14 @@ export type Database = {
       reconcile_event_organizer_wallet: {
         Args: { _wallet_id: string }
         Returns: undefined
+      }
+      reconcile_platform_wallet: {
+        Args: { p_environment?: string }
+        Returns: {
+          correction: number
+          ledger_balance: number
+          previous_balance: number
+        }[]
       }
       reconcile_rider_wallet: {
         Args: { p_wallet_id: string }
