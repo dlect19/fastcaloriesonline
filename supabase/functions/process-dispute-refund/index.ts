@@ -264,28 +264,21 @@ serve(async (req: Request) => {
     // ---- 4. Debit platform if applicable ----
     let platformDebitRef = null;
     if (platformDeduction > 0) {
-      const { data: platformWallet } = await admin.from("platform_wallet").select("*").limit(1).single();
-      if (platformWallet) {
-        const pBalField = isTest ? "test_balance" : "balance";
-        const curPBal = Number(platformWallet[pBalField]) || 0;
-        const newPBal = curPBal - platformDeduction;
-        platformDebitRef = `DSP-PLAT-${order.order_number}-${refTimestamp}`;
-
-        await admin.from("platform_wallet").update({
-          [pBalField]: newPBal,
-          updated_at: new Date().toISOString(),
-        }).eq("id", platformWallet.id);
-
-        await admin.from("wallet_transactions").insert({
-          platform_wallet_id: platformWallet.id, wallet_type: "platform",
-          transaction_type: "debit", category: "dispute_deduction",
-          amount: platformDeduction, balance_after: newPBal,
-          reference: platformDebitRef, order_id: order.id, status: "completed", environment,
-          notes: `[DISPUTE] Platform absorbs ₦${platformDeduction} for order #${order.order_number}: ${reason}`,
-          metadata: { dispute: true, fault_party: faultParty },
-        });
-      }
+      platformDebitRef = `DSP-PLAT-${order.order_number}-${refTimestamp}`;
+      const { error: platErr } = await admin.rpc("post_platform_entry", {
+        p_amount: platformDeduction,
+        p_category: "dispute_deduction",
+        p_transaction_type: "debit",
+        p_reference: platformDebitRef,
+        p_order_id: order.id,
+        p_environment: environment,
+        p_status: "completed",
+        p_notes: `[DISPUTE] Platform absorbs ₦${platformDeduction} for order #${order.order_number}: ${reason}`,
+        p_metadata: { dispute: true, fault_party: faultParty, source: "process-dispute-refund" },
+      });
+      if (platErr) console.error("[dispute-refund] post_platform_entry failed:", platErr.message);
     }
+
 
     // ---- 5. Create dispute record ----
     const { data: dispute, error: disputeError } = await admin.from("disputes").insert({
