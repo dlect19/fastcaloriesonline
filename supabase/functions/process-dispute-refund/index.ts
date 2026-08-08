@@ -141,18 +141,29 @@ serve(async (req: Request) => {
     }
 
     const custBalField = isTest ? "test_balance" : "balance";
-    const currentCustBal = Number(customerWallet![custBalField]) || 0;
-    const newCustBal = currentCustBal + refundAmount;
     const customerRef = `DSP-CUST-${order.order_number}-${refTimestamp}`;
 
-    await admin.from("wallets").update({ [custBalField]: newCustBal, updated_at: new Date().toISOString() }).eq("id", customerWallet!.id);
-    await admin.from("wallet_transactions").insert({
-      wallet_id: customerWallet!.id, wallet_type: "customer", transaction_type: "credit",
-      category: "refund", amount: refundAmount, balance_after: newCustBal,
-      reference: customerRef, order_id: order.id, status: "completed", environment,
-      notes: `Dispute refund: ${reason}`,
-      metadata: { dispute: true, fault_party: faultParty, refunded_by: user.id },
+    const { error: custPostErr } = await admin.rpc("post_wallet_entry", {
+      p_wallet_id: customerWallet!.id,
+      p_wallet_type: "customer",
+      p_transaction_type: "credit",
+      p_category: "refund",
+      p_amount: refundAmount,
+      p_reference: customerRef,
+      p_environment: environment,
+      p_order_id: order.id,
+      p_notes: `Dispute refund: ${reason}`,
+      p_metadata: { dispute: true, fault_party: faultParty, refunded_by: user.id, source: "process-dispute-refund" },
     });
+    if (custPostErr) {
+      console.error("[process-dispute-refund] customer post_wallet_entry failed:", custPostErr.message);
+      return new Response(JSON.stringify({ error: "Refund could not be credited: " + custPostErr.message }), {
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const { data: freshCust } = await admin.from("wallets").select("balance, test_balance").eq("id", customerWallet!.id).maybeSingle();
+    const newCustBal = Number((freshCust as any)?.[custBalField] ?? 0);
+
 
     // ---- 2. Debit vendor if applicable ----
     let vendorDebitRef = null;
