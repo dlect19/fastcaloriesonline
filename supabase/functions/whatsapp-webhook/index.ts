@@ -2238,23 +2238,22 @@ async function confirmWhatsAppOrder(
     }
   }
 
-  const newBalance = balance - summary.total;
-  await supabase.from("wallet_transactions").insert({
-    wallet_id: wallet.id,
-    wallet_type: "customer",
-    transaction_type: "debit",
-    category: "wallet_payment",
-    amount: summary.total,
-    balance_after: newBalance,
-    reference: `WA-${order.order_number}`,
-    order_id: order.id,
-    status: "completed",
-    environment,
-    notes: `WhatsApp order #${order.order_number}`,
+  // Debit through the single safe ledger entry point (atomic + idempotent)
+  const { error: debitErr } = await supabase.rpc("post_wallet_entry", {
+    p_wallet_id: wallet.id,
+    p_wallet_type: "customer",
+    p_transaction_type: "debit",
+    p_category: "wallet_payment",
+    p_amount: summary.total,
+    p_reference: `WA-${order.order_number}`,
+    p_environment: environment,
+    p_order_id: order.id,
+    p_notes: `WhatsApp order #${order.order_number}`,
+    p_metadata: { source: "whatsapp-webhook", order_number: order.order_number },
   });
-  const walletUpdate: any = { updated_at: new Date().toISOString() };
-  if (isTestMode) walletUpdate.test_balance = newBalance; else walletUpdate.balance = newBalance;
-  await supabase.from("wallets").update(walletUpdate).eq("id", wallet.id);
+  if (debitErr) console.error("[whatsapp] post_wallet_entry failed:", debitErr.message);
+  const newBalance = balance - summary.total;
+
 
   await persistSession(supabase, session.id, "menu", { last_order_id: order.id, last_order_number: order.order_number }, []);
   const pharmaNote = isPharmacyOrder
