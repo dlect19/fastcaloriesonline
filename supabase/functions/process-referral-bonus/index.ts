@@ -154,27 +154,25 @@ serve(async (req: Request) => {
     }
 
     if (referrerWalletId) {
-      const balCol = isTestMode ? "test_balance" : "balance";
-      const { data: rw } = await supabase.from("wallets").select(balCol).eq("id", referrerWalletId).single();
-      const currentBal = Number(rw?.[balCol]) || 0;
-
-      await supabase.from("wallets").update({
-        [balCol]: currentBal + referrerBonus,
-        updated_at: new Date().toISOString(),
-      }).eq("id", referrerWalletId);
-
-      await supabase.from("wallet_transactions").insert({
-        wallet_id: referrerWalletId,
-        wallet_type: "customer",
-        transaction_type: "credit",
-        category: "referral_bonus",
-        amount: referrerBonus,
-        balance_after: currentBal + referrerBonus,
-        status: "completed",
-        environment: order.environment,
-        notes: `Referral bonus - friend completed first order #${order.order_number}`,
+      const { error: refErr } = await supabase.rpc("post_wallet_entry", {
+        p_wallet_id: referrerWalletId,
+        p_wallet_type: "customer",
+        p_transaction_type: "credit",
+        p_category: "referral_bonus",
+        p_amount: referrerBonus,
+        p_reference: `REF-BONUS-${order.id}`,
+        p_environment: order.environment,
+        p_order_id: order.id,
+        p_notes: `Referral bonus - friend completed first order #${order.order_number}`,
+        p_metadata: {
+          referral_id: existingReferral?.id ?? null,
+          referrer_user_id: referrerProfile.user_id,
+          source: "process-referral-bonus",
+        },
       });
+      if (refErr) console.error("[referral-bonus] post_wallet_entry failed:", refErr.message);
     }
+
 
 
     // Record referral cost as platform loss (debit from platform wallet)
