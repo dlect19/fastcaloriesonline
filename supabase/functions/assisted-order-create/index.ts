@@ -329,51 +329,46 @@ serve(async (req) => {
           await supabase.from('orders').delete().eq('id', order.id);
           return json({ error: 'Failed to mark order paid: ' + updErr.message }, 500);
         }
-        const newBalance = currentBalance - total;
-        await supabase.from('wallet_transactions').insert({
-          wallet_id: wallet.id,
-          wallet_type: 'customer',
-          transaction_type: 'debit',
-          category: 'wallet_payment',
-          amount: total,
-          balance_after: newBalance,
-          reference,
-          order_id: order.id,
-          status: 'completed',
-          environment,
-          notes: `Assisted order payment for #${order.order_number}`,
+        const { error: postErr } = await supabase.rpc('post_wallet_entry', {
+          p_wallet_id: wallet.id,
+          p_wallet_type: 'customer',
+          p_transaction_type: 'debit',
+          p_category: 'wallet_payment',
+          p_amount: total,
+          p_reference: reference,
+          p_environment: environment,
+          p_order_id: order.id,
+          p_notes: `Assisted order payment for #${order.order_number}`,
+          p_metadata: { source: 'assisted-order-create' },
         });
-        await supabase.from('wallets')
-          .update(isTestMode
-            ? { test_balance: newBalance, updated_at: new Date().toISOString() }
-            : { balance: newBalance, updated_at: new Date().toISOString() })
-          .eq('id', wallet.id);
+        if (postErr) {
+          await supabase.from('orders').update({ payment_status: 'pending', status: 'pending' }).eq('id', order.id);
+          return json({ error: 'Failed to debit wallet: ' + postErr.message }, 500);
+        }
         walletPaid = true;
+
       } else {
         // Shortfall — debit whatever wallet has now, generate Paystack link for the remainder
         walletShortfall = Math.round(total - currentBalance);
         if (currentBalance > 0) {
           const reference = `WP-PART-${order.id.slice(0, 8)}-${Date.now()}`;
-          const newBalance = 0;
-          await supabase.from('wallet_transactions').insert({
-            wallet_id: wallet.id,
-            wallet_type: 'customer',
-            transaction_type: 'debit',
-            category: 'wallet_payment',
-            amount: currentBalance,
-            balance_after: newBalance,
-            reference,
-            order_id: order.id,
-            status: 'completed',
-            environment,
-            notes: `Partial wallet payment for #${order.order_number} (Paystack covers the rest)`,
+          const { error: postErr } = await supabase.rpc('post_wallet_entry', {
+            p_wallet_id: wallet.id,
+            p_wallet_type: 'customer',
+            p_transaction_type: 'debit',
+            p_category: 'wallet_payment',
+            p_amount: currentBalance,
+            p_reference: reference,
+            p_environment: environment,
+            p_order_id: order.id,
+            p_notes: `Partial wallet payment for #${order.order_number} (Paystack covers the rest)`,
+            p_metadata: { source: 'assisted-order-create', partial: true },
           });
-          await supabase.from('wallets')
-            .update(isTestMode
-              ? { test_balance: newBalance, updated_at: new Date().toISOString() }
-              : { balance: newBalance, updated_at: new Date().toISOString() })
-            .eq('id', wallet.id);
+          if (postErr) {
+            return json({ error: 'Failed to debit wallet portion: ' + postErr.message }, 500);
+          }
         }
+
         const res = await initPaystackLink(walletShortfall, 'topup');
         if (!res) {
           return json({ error: 'Order created and wallet portion reserved, but Paystack top-up link generation failed. Retry from order page.' }, 502);
@@ -514,25 +509,22 @@ serve(async (req) => {
 
       if (combinedWalletUsed > 0) {
         const reference = `CMB-W-${order.id.slice(0, 8)}-${Date.now()}`;
-        const newBalance = currentBalance - combinedWalletUsed;
-        await supabase.from('wallet_transactions').insert({
-          wallet_id: wallet.id,
-          wallet_type: 'customer',
-          transaction_type: 'debit',
-          category: 'wallet_payment',
-          amount: combinedWalletUsed,
-          balance_after: newBalance,
-          reference,
-          order_id: order.id,
-          status: 'completed',
-          environment,
-          notes: `Combined payment (wallet portion) for #${order.order_number}`,
+        const { error: postErr } = await supabase.rpc('post_wallet_entry', {
+          p_wallet_id: wallet.id,
+          p_wallet_type: 'customer',
+          p_transaction_type: 'debit',
+          p_category: 'wallet_payment',
+          p_amount: combinedWalletUsed,
+          p_reference: reference,
+          p_environment: environment,
+          p_order_id: order.id,
+          p_notes: `Combined payment (wallet portion) for #${order.order_number}`,
+          p_metadata: { source: 'assisted-order-create', combined: true },
         });
-        await supabase.from('wallets')
-          .update(isTestMode
-            ? { test_balance: newBalance, updated_at: new Date().toISOString() }
-            : { balance: newBalance, updated_at: new Date().toISOString() })
-          .eq('id', wallet.id);
+        if (postErr) {
+          return json({ error: 'Failed to debit wallet portion: ' + postErr.message }, 500);
+        }
+
       }
 
       // 2) Consume shadow credits next
