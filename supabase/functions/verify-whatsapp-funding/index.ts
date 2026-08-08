@@ -90,34 +90,24 @@ serve(async (req: Request) => {
     const currentBalance = isTestMode ? Number(wallet.test_balance) || 0 : Number(wallet.balance) || 0;
     const newBalance = currentBalance + amount;
 
-    // Insert transaction first (idempotency via unique index on paystack_reference+category)
-    const { error: insertErr } = await supabase.from("wallet_transactions").insert({
-      wallet_id: wallet.id,
-      wallet_type: "customer",
-      transaction_type: "credit",
-      category: "wallet_funding",
-      amount,
-      balance_after: newBalance,
-      paystack_reference: reference,
-      status: "completed",
-      environment,
-      notes: `WhatsApp wallet funding via Paystack`,
-      metadata: { source: "whatsapp", phone: meta.phone || null, channel: payment.channel },
+    const { error: postErr } = await supabase.rpc("post_wallet_entry", {
+      p_wallet_id: wallet.id,
+      p_wallet_type: "customer",
+      p_transaction_type: "credit",
+      p_category: "wallet_funding",
+      p_amount: amount,
+      p_reference: `WA-FUND-${reference}`,
+      p_environment: environment,
+      p_notes: "WhatsApp wallet funding via Paystack",
+      p_metadata: { source: "whatsapp", phone: meta.phone || null, channel: payment.channel },
+      p_paystack_reference: reference,
     });
 
-    if (insertErr) {
-      // If duplicate, treat as already processed
-      if ((insertErr as any).code === "23505") {
-        return new Response(JSON.stringify({ success: true, alreadyProcessed: true }), {
-          status: 200, headers: { "Content-Type": "application/json", ...corsHeaders },
-        });
-      }
-      throw insertErr;
+    if (postErr) {
+      console.error("[verify-whatsapp-funding] post_wallet_entry failed:", postErr.message);
+      throw postErr;
     }
 
-    // Update wallet balance
-    const updateField = isTestMode ? { test_balance: newBalance } : { balance: newBalance };
-    await supabase.from("wallets").update({ ...updateField, updated_at: new Date().toISOString() }).eq("id", wallet.id);
 
     return new Response(JSON.stringify({ success: true, amount, newBalance }), {
       status: 200, headers: { "Content-Type": "application/json", ...corsHeaders },
