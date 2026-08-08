@@ -8842,7 +8842,7 @@ export type Database = {
           new_value: number | null
           old_value: number | null
           session_user_name: string | null
-          wallet_id: string
+          wallet_id: string | null
         }
         Insert: {
           column_name: string
@@ -8853,7 +8853,7 @@ export type Database = {
           new_value?: number | null
           old_value?: number | null
           session_user_name?: string | null
-          wallet_id: string
+          wallet_id?: string | null
         }
         Update: {
           column_name?: string
@@ -8864,7 +8864,7 @@ export type Database = {
           new_value?: number | null
           old_value?: number | null
           session_user_name?: string | null
-          wallet_id?: string
+          wallet_id?: string | null
         }
         Relationships: []
       }
@@ -10030,20 +10030,35 @@ export type Database = {
         Args: { _user_id: string; _vendor_id: string }
         Returns: boolean
       }
-      post_platform_entry: {
-        Args: {
-          p_amount: number
-          p_category: string
-          p_environment?: string
-          p_metadata?: Json
-          p_notes?: string
-          p_order_id?: string
-          p_reference: string
-          p_status?: string
-          p_transaction_type: string
-        }
-        Returns: string
-      }
+      post_platform_entry:
+        | {
+            Args: {
+              p_amount: number
+              p_category: string
+              p_environment?: string
+              p_metadata?: Json
+              p_notes?: string
+              p_order_id?: string
+              p_reference: string
+              p_status?: string
+              p_transaction_type: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_amount: number
+              p_category: string
+              p_environment?: string
+              p_metadata?: Json
+              p_notes?: string
+              p_order_id?: string
+              p_reference: string
+              p_status?: string
+              p_transaction_type: string
+            }
+            Returns: string
+          }
       post_wallet_entry: {
         Args: {
           p_amount: number
