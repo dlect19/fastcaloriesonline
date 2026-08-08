@@ -333,6 +333,7 @@ const App = () => {
               <Route path="/admin/chargebacks" element={<AdminChargebacks />} />
               <Route path="/admin/refund-audit" element={<AdminRefundAudit />} />
               <Route path="/admin/ledger-audit" element={<AdminLedgerAudit />} />
+              <Route path="/admin/wallet-integrity" element={<AdminWalletIntegrity />} />
               <Route path="/admin/disputes" element={<AdminDisputes />} />
               <Route path="/admin/delivery-companies" element={<AdminDeliveryCompanies />} />
               <Route path="/admin/customers" element={<AdminCustomers />} />
