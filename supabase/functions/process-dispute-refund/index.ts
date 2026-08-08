@@ -181,24 +181,29 @@ serve(async (req: Request) => {
         const vBalField = isTest ? "test_balance" : "balance";
         const vEligField = isTest ? "test_eligible_balance" : "eligible_balance";
         const vMenuField = isTest ? "test_menu_earnings_balance" : "menu_earnings_balance";
-        const curVBal = Number(vendorWallet[vBalField]) || 0;
-        const newVBal = curVBal - vendorDeduction;
         vendorDebitRef = `DSP-VEND-${order.order_number}-${refTimestamp}`;
 
+        const { error: vErr } = await admin.rpc("post_wallet_entry", {
+          p_wallet_id: vendorWallet.id,
+          p_wallet_type: "vendor",
+          p_transaction_type: "debit",
+          p_category: "dispute_deduction",
+          p_amount: vendorDeduction,
+          p_reference: vendorDebitRef,
+          p_environment: environment,
+          p_order_id: order.id,
+          p_notes: `[DISPUTE] Vendor fault deduction for order #${order.order_number}: ${reason}`,
+          p_metadata: { dispute: true, fault_party: faultParty, source: "process-dispute-refund" },
+        });
+        if (vErr) console.error("[process-dispute-refund] vendor post_wallet_entry failed:", vErr.message);
+
+        // Keep auxiliary earning buckets in sync (no extra ledger row)
         await admin.from("wallets").update({
-          [vBalField]: newVBal,
           [vEligField]: Math.max((Number(vendorWallet[vEligField]) || 0) - vendorDeduction, -5000),
           [vMenuField]: Math.max((Number(vendorWallet[vMenuField]) || 0) - vendorDeduction, -5000),
           updated_at: new Date().toISOString(),
         }).eq("id", vendorWallet.id);
 
-        await admin.from("wallet_transactions").insert({
-          wallet_id: vendorWallet.id, wallet_type: "vendor", transaction_type: "debit",
-          category: "dispute_deduction", amount: vendorDeduction, balance_after: newVBal,
-          reference: vendorDebitRef, order_id: order.id, status: "completed", environment,
-          notes: `[DISPUTE] Vendor fault deduction for order #${order.order_number}: ${reason}`,
-          metadata: { dispute: true, fault_party: faultParty },
-        });
       }
     }
 
