@@ -234,10 +234,27 @@ serve(async (req: Request) => {
       }
 
       const spinRef = `SPIN-${wheelType.toUpperCase()}-${user.id.slice(0, 8)}-${Date.now()}`;
-...
+
+      const { error: spinDebitErr } = await supabaseAdmin.rpc("post_wallet_entry", {
+        p_wallet_id: wallet.id,
+        p_wallet_type: "customer",
+        p_transaction_type: "debit",
+        p_category: "spin_purchase",
+        p_amount: cost,
+        p_reference: spinRef,
+        p_environment: environment,
+        p_notes: `Purchased ${wheelType} spin pack (${totalSpinsInPack} spins)`,
+        p_metadata: { wheel_type: wheelType, spins: totalSpinsInPack, source: "process-spin" },
+      });
+      if (spinDebitErr) {
+        console.error("[process-spin] debit failed:", spinDebitErr.message);
+        return new Response(
+          JSON.stringify({ error: "Could not charge your wallet: " + spinDebitErr.message }),
+          { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
         );
       }
     }
+
 
 
 
