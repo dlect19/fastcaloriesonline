@@ -15,7 +15,8 @@ import { format } from 'date-fns';
 
 interface DriftRow {
   id: string;
-  wallet_id: string;
+  wallet_id: string | null;
+  wallet_type?: string | null;
   wallet_balance: number;
   ledger_balance: number;
   drift: number;
@@ -25,7 +26,7 @@ interface DriftRow {
 
 interface GuardRow {
   id: string;
-  wallet_id: string;
+  wallet_id: string | null;
   column_name: string;
   old_value: number | null;
   new_value: number | null;
@@ -107,7 +108,8 @@ export default function AdminWalletIntegrity() {
   const totalDrift = drift.reduce((s, r) => s + Math.abs(Number(r.drift || 0)), 0);
   const lastRun = drift[0]?.detected_at;
 
-  const walletLabel = (id: string) => {
+  const walletLabel = (id: string | null, fallbackType?: string | null) => {
+    if (!id) return fallbackType || 'platform';
     const w = wallets[id];
     return w?.wallet_type ? `${w.wallet_type}` : id.slice(0, 8);
   };
@@ -203,8 +205,8 @@ export default function AdminWalletIntegrity() {
                               </Badge>
                             </TableCell>
                             <TableCell className="text-xs">
-                              <span className="capitalize">{walletLabel(row.wallet_id)}</span>
-                              <span className="block font-mono text-muted-foreground">{row.wallet_id.slice(0, 8)}</span>
+                              <span className="capitalize">{walletLabel(row.wallet_id, (row as any).wallet_type)}</span>
+                              <span className="block font-mono text-muted-foreground">{row.wallet_id ? row.wallet_id.slice(0, 8) : "company account"}</span>
                             </TableCell>
                             <TableCell className="text-right font-mono text-sm">₦{Number(row.wallet_balance).toLocaleString()}</TableCell>
                             <TableCell className="text-right font-mono text-sm">₦{Number(row.ledger_balance).toLocaleString()}</TableCell>
@@ -262,8 +264,8 @@ export default function AdminWalletIntegrity() {
                                 {format(new Date(row.created_at), 'dd MMM, HH:mm')}
                               </TableCell>
                               <TableCell className="text-xs">
-                                <span className="capitalize">{walletLabel(row.wallet_id)}</span>
-                                <span className="block font-mono text-muted-foreground">{row.wallet_id.slice(0, 8)}</span>
+                                <span className="capitalize">{walletLabel(row.wallet_id, (row as any).wallet_type)}</span>
+                                <span className="block font-mono text-muted-foreground">{row.wallet_id ? row.wallet_id.slice(0, 8) : "company account"}</span>
                               </TableCell>
                               <TableCell className="text-xs font-mono">{row.column_name}</TableCell>
                               <TableCell className="text-right font-mono text-sm">₦{Number(row.old_value || 0).toLocaleString()}</TableCell>
