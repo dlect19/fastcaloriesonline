@@ -329,26 +329,24 @@ serve(async (req) => {
           await supabase.from('orders').delete().eq('id', order.id);
           return json({ error: 'Failed to mark order paid: ' + updErr.message }, 500);
         }
-        const newBalance = currentBalance - total;
-        await supabase.from('wallet_transactions').insert({
-          wallet_id: wallet.id,
-          wallet_type: 'customer',
-          transaction_type: 'debit',
-          category: 'wallet_payment',
-          amount: total,
-          balance_after: newBalance,
-          reference,
-          order_id: order.id,
-          status: 'completed',
-          environment,
-          notes: `Assisted order payment for #${order.order_number}`,
+        const { error: postErr } = await supabase.rpc('post_wallet_entry', {
+          p_wallet_id: wallet.id,
+          p_wallet_type: 'customer',
+          p_transaction_type: 'debit',
+          p_category: 'wallet_payment',
+          p_amount: total,
+          p_reference: reference,
+          p_environment: environment,
+          p_order_id: order.id,
+          p_notes: `Assisted order payment for #${order.order_number}`,
+          p_metadata: { source: 'assisted-order-create' },
         });
-        await supabase.from('wallets')
-          .update(isTestMode
-            ? { test_balance: newBalance, updated_at: new Date().toISOString() }
-            : { balance: newBalance, updated_at: new Date().toISOString() })
-          .eq('id', wallet.id);
+        if (postErr) {
+          await supabase.from('orders').update({ payment_status: 'pending', status: 'pending' }).eq('id', order.id);
+          return json({ error: 'Failed to debit wallet: ' + postErr.message }, 500);
+        }
         walletPaid = true;
+
       } else {
         // Shortfall — debit whatever wallet has now, generate Paystack link for the remainder
         walletShortfall = Math.round(total - currentBalance);
