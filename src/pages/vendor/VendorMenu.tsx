@@ -161,7 +161,46 @@ export default function VendorMenu() {
     // Stock tracking
     stock_quantity: '',
     low_stock_threshold: '5',
+    // Portion sizes & fulfillment
+    portion_unit: 'plate',
+    base_portion_size: '1',
+    fulfillment_type: 'instant' as 'instant' | 'preorder',
+    preorder_lead_days: '',
   });
+
+  const [portions, setPortions] = useState<PortionDraft[]>([]);
+  const [removedPortionIds, setRemovedPortionIds] = useState<string[]>([]);
+
+  const handlePortionsChange = (next: PortionDraft[]) => {
+    const removed = portions.filter(p => p.id && !next.some(n => n.id === p.id)).map(p => p.id!);
+    if (removed.length) setRemovedPortionIds(prev => [...prev, ...removed]);
+    setPortions(next);
+  };
+
+  const syncPortions = async (productId: string) => {
+    if (removedPortionIds.length) {
+      await supabase.from('product_portions').delete().in('id', removedPortionIds);
+    }
+    const valid = portions.filter(p => p.label.trim() && Number(p.price) > 0);
+    for (const [index, p] of valid.entries()) {
+      const row = {
+        product_id: productId,
+        label: p.label.trim(),
+        portion_size: Number(p.portion_size) || 1,
+        unit: formData.portion_unit,
+        price: Number(p.price),
+        calorie_multiplier: p.calorie_multiplier ? Number(p.calorie_multiplier) : null,
+        is_available: p.is_available,
+        sort_order: index,
+      };
+      if (p.id) {
+        await supabase.from('product_portions').update(row).eq('id', p.id);
+      } else {
+        await supabase.from('product_portions').insert(row);
+      }
+    }
+  };
+
 
   // Auto-calculate calories from macros (fiber ~2 kcal/g)
   const calculateCalories = (carbs: number, protein: number, fats: number, fiber: number) => {
