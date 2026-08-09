@@ -706,6 +706,60 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
             </div>
           </div>
 
+          {/* Food portion / size selector (litres, plates, etc.) */}
+          {portions.length > 0 && (
+            <div className="bg-secondary/60 rounded-xl p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Settings2 className="w-4 h-4 text-primary" />
+                <span className="font-semibold text-foreground">
+                  Choose size ({(product as any).portion_unit || 'plate'})
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {portions.map((p: any) => {
+                  const mult = Number(p.calorie_multiplier) ||
+                    (Number(p.portion_size) || 1) / (Number((product as any).base_portion_size) || 1);
+                  const cals = Math.round((product.calories || 0) * mult);
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setSelectedPortionId(p.id)}
+                      className={cn(
+                        'rounded-lg border p-3 text-left transition-colors',
+                        selectedPortionId === p.id
+                          ? 'border-primary bg-primary/10'
+                          : 'border-border bg-background hover:border-primary/30'
+                      )}
+                    >
+                      <div className="text-xs text-muted-foreground">{p.label}</div>
+                      <div className="font-semibold text-foreground">
+                        ₦{Number(p.price || 0).toLocaleString()}
+                      </div>
+                      {cals > 0 && (
+                        <div className="text-[11px] text-muted-foreground">{cals} kcal</div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Pre-order notice */}
+          {((product as any).fulfillment_type === 'preorder') && (
+            <div className="rounded-xl border border-primary/30 bg-primary/5 p-3">
+              <p className="text-sm font-medium text-foreground">Pre-order item</p>
+              <p className="text-xs text-muted-foreground">
+                This meal is prepared after you order — ready in about{' '}
+                {(product as any).preorder_lead_days || 1} day
+                {((product as any).preorder_lead_days || 1) > 1 ? 's' : ''}.
+              </p>
+            </div>
+          )}
+
+
+
           {/* Pharmacy: Pack vs Sachet selector */}
           {sachetEnabled && (
             <div className="bg-secondary/60 rounded-xl p-4 space-y-3">
