@@ -791,8 +791,15 @@ export default function VendorMenu() {
       sachets_per_pack: '',
       stock_quantity: '',
       low_stock_threshold: '5',
+      portion_unit: 'plate',
+      base_portion_size: '1',
+      fulfillment_type: 'instant',
+      preorder_lead_days: '',
     });
+    setPortions([]);
+    setRemovedPortionIds([]);
   };
+
 
   const toggleNutrientTag = (tag: NutrientTag) => {
     setFormData(prev => ({
