@@ -501,6 +501,14 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
       quantity,
       calories: unitCalories,
       imageUrl: product.image_url || undefined,
+      portionId: selectedPortion?.id,
+      portionLabel: selectedPortion?.label,
+      portionSize: selectedPortion ? Number(selectedPortion.portion_size) : undefined,
+      portionUnit: selectedPortion ? ((product as any).portion_unit || 'plate') : undefined,
+      fulfillmentType: (product as any).fulfillment_type || 'instant',
+      preorderLeadDays: (product as any).preorder_lead_days ?? undefined,
+
+
 
       addons: addonsList.length > 0 ? addonsList.map(a => ({
         groupName: a.groupName,
