@@ -23,10 +23,13 @@ interface PrepTimeDialogProps {
   vendorCategory: string;
   onConfirmed: () => void;
   prepTimeOptions?: number[];
+  /** Order contains pre-order items prepared over days */
+  isPreorder?: boolean;
 }
 
 const DEFAULT_PHYSICAL_OPTIONS = [5, 10, 15, 30];
 const DEFAULT_SOCIAL_OPTIONS = [10, 15, 20, 25, 30, 35, 40];
+const DAY_OPTIONS = [1, 2, 3, 5, 7];
 
 export function PrepTimeDialog({
   open,
@@ -36,36 +39,55 @@ export function PrepTimeDialog({
   vendorCategory,
   onConfirmed,
   prepTimeOptions,
+  isPreorder = false,
 }: PrepTimeDialogProps) {
   const { toast } = useToast();
+  const [unit, setUnit] = useState<'minutes' | 'days'>(isPreorder ? 'days' : 'minutes');
   const [selectedTime, setSelectedTime] = useState<number | null>(null);
   const [customTime, setCustomTime] = useState('');
   const [processing, setProcessing] = useState(false);
 
   // Determine which options to show
   const isPhysical = vendorCategory === 'restaurant';
-  const options = prepTimeOptions || (isPhysical ? DEFAULT_PHYSICAL_OPTIONS : DEFAULT_SOCIAL_OPTIONS);
+  const minuteOptions = prepTimeOptions || (isPhysical ? DEFAULT_PHYSICAL_OPTIONS : DEFAULT_SOCIAL_OPTIONS);
+  const options = unit === 'days' ? DAY_OPTIONS : minuteOptions;
+
+  const switchUnit = (next: 'minutes' | 'days') => {
+    setUnit(next);
+    setSelectedTime(null);
+    setCustomTime('');
+  };
 
   const handleConfirm = async () => {
-    const minutes = selectedTime === -1 ? parseInt(customTime) : selectedTime;
-    if (!minutes || minutes <= 0) {
+    const value = selectedTime === -1 ? parseInt(customTime) : selectedTime;
+    if (!value || value <= 0) {
       toast({ title: 'Select a time', description: 'Please select how long the order will take', variant: 'destructive' });
       return;
     }
 
     setProcessing(true);
     try {
+      const isDays = unit === 'days';
+      const readyAt = new Date(
+        Date.now() + (isDays ? value * 24 * 60 : value) * 60 * 1000
+      ).toISOString();
+
       const { error } = await supabase
         .from('orders')
         .update({
           status: 'preparing',
-          prep_minutes: minutes,
+          prep_minutes: isDays ? value * 24 * 60 : value,
+          prep_days: isDays ? value : null,
+          estimated_ready_at: readyAt,
         })
         .eq('id', orderId);
 
       if (error) throw error;
 
-      toast({ title: `Preparing Order`, description: `Est. ready in ${minutes} minutes` });
+      toast({
+        title: 'Preparing Order',
+        description: `Est. ready in ${value} ${isDays ? (value > 1 ? 'days' : 'day') : 'minutes'}`,
+      });
       onConfirmed();
       onOpenChange(false);
       setSelectedTime(null);
@@ -86,24 +108,45 @@ export function PrepTimeDialog({
             Set Prep Time — #{orderNumber}
           </DialogTitle>
           <DialogDescription>
-            How long will this order take to prepare? The customer will be notified.
+            {isPreorder
+              ? 'This is a pre-order. Tell the customer how many days it will take.'
+              : 'How long will this order take to prepare? The customer will be notified.'}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
+          <div className="grid grid-cols-2 gap-2 rounded-lg bg-muted p-1">
+            <Button
+              type="button"
+              size="sm"
+              variant={unit === 'minutes' ? 'default' : 'ghost'}
+              onClick={() => switchUnit('minutes')}
+            >
+              In hours
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={unit === 'days' ? 'default' : 'ghost'}
+              onClick={() => switchUnit('days')}
+            >
+              In days
+            </Button>
+          </div>
+
           <div className="grid grid-cols-2 gap-2">
-            {options.map(min => (
+            {options.map(val => (
               <Button
-                key={min}
+                key={val}
                 type="button"
-                variant={selectedTime === min ? 'default' : 'outline'}
+                variant={selectedTime === val ? 'default' : 'outline'}
                 className={cn(
                   'h-12 text-base font-medium',
-                  selectedTime === min && 'ring-2 ring-primary/30'
+                  selectedTime === val && 'ring-2 ring-primary/30'
                 )}
-                onClick={() => { setSelectedTime(min); setCustomTime(''); }}
+                onClick={() => { setSelectedTime(val); setCustomTime(''); }}
               >
-                {min} min
+                {val} {unit === 'days' ? (val > 1 ? 'days' : 'day') : 'min'}
               </Button>
             ))}
           </div>
@@ -114,8 +157,8 @@ export function PrepTimeDialog({
               <Input
                 type="number"
                 min="1"
-                max="120"
-                placeholder="e.g. 25"
+                max={unit === 'days' ? 30 : 120}
+                placeholder={unit === 'days' ? 'e.g. 3' : 'e.g. 25'}
                 value={customTime}
                 onChange={e => {
                   setCustomTime(e.target.value);
@@ -123,7 +166,7 @@ export function PrepTimeDialog({
                 }}
                 className="flex-1"
               />
-              <span className="text-sm text-muted-foreground">minutes</span>
+              <span className="text-sm text-muted-foreground">{unit}</span>
             </div>
           </div>
         </div>
