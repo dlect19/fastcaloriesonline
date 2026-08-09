@@ -525,8 +525,9 @@ export default function VendorMenu() {
     }
   };
 
-  const handleEdit = (product: Product) => {
+  const handleEdit = async (product: Product) => {
     setEditingProduct(product);
+    setRemovedPortionIds([]);
     setFormData({
       name: product.name,
       description: product.description || '',
@@ -561,13 +562,34 @@ export default function VendorMenu() {
       sachets_per_pack: (product as any).sachets_per_pack?.toString() || '',
       stock_quantity: (product as any).stock_quantity?.toString() ?? '',
       low_stock_threshold: (product as any).low_stock_threshold?.toString() ?? '5',
+      portion_unit: (product as any).portion_unit || 'plate',
+      base_portion_size: (product as any).base_portion_size?.toString() || '1',
+      fulfillment_type: ((product as any).fulfillment_type as 'instant' | 'preorder') || 'instant',
+      preorder_lead_days: (product as any).preorder_lead_days?.toString() || '',
     });
+    // Load existing portion/size options
+    const { data: portionRows } = await supabase
+      .from('product_portions')
+      .select('*')
+      .eq('product_id', product.id)
+      .order('sort_order');
+    setPortions(
+      (portionRows || []).map((p: any) => ({
+        id: p.id,
+        label: p.label,
+        portion_size: p.portion_size?.toString() || '1',
+        price: p.price?.toString() || '',
+        calorie_multiplier: p.calorie_multiplier?.toString() || '',
+        is_available: p.is_available ?? true,
+      }))
+    );
     // Set image preview from existing URL
     if (product.image_url) {
       setImagePreview(product.image_url);
     }
     setDialogOpen(true);
   };
+
 
   const handleDelete = async (productId: string) => {
     if (!confirm('Are you sure you want to delete this product?')) return;
