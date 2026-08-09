@@ -327,10 +327,19 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
     ? (product as any).discount_price
     : product.price;
   const sachetBasePrice = Number((product as any).sachet_price) || 0;
-  const effectivePrice = (sachetEnabled && purchaseUnit === 'sachet') ? sachetBasePrice : packBasePrice;
+  const selectedPortion = portions.find(p => p.id === selectedPortionId) || null;
+  const portionMultiplier = selectedPortion
+    ? Number(selectedPortion.calorie_multiplier) ||
+      (Number(selectedPortion.portion_size) || 1) / (Number((product as any).base_portion_size) || 1)
+    : 1;
+  const effectivePrice = selectedPortion && Number(selectedPortion.price) > 0
+    ? Number(selectedPortion.price)
+    : (sachetEnabled && purchaseUnit === 'sachet') ? sachetBasePrice : packBasePrice;
+  const unitCalories = Math.round((product.calories || 0) * portionMultiplier);
   const menuTotal = effectivePrice * quantity;
   const totalPrice = menuTotal + totalAddonPrice;
-  const totalCalories = ((product.calories || 0) * quantity) + totalAddonCalories;
+  const totalCalories = (unitCalories * quantity) + totalAddonCalories;
+
 
   // Validation: all required groups must have selections + required choices
   const missingRequiredGroups = addonGroups.filter(g => 
