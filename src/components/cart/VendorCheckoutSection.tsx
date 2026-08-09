@@ -533,7 +533,12 @@ export function VendorCheckoutSection({
           special_instructions: item.addonsDescription || null,
           purchase_unit: purchaseUnit,
           unit_multiplier: unitMultiplier,
+          portion_id: item.portionId || null,
+          portion_label: item.portionLabel || null,
+          portion_size: item.portionSize ?? null,
+          portion_unit: item.portionUnit || null,
         };
+
       });
 
       const { data: insertedItems, error: itemsError } = await supabase
