@@ -30,6 +30,8 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables, Database } from '@/integrations/supabase/types';
 import { DrugSearchDialog } from '@/components/pharmacy/DrugSearchDialog';
+import { ProductPortionsEditor, type PortionDraft } from '@/components/vendor/ProductPortionsEditor';
+
 
 type Product = Tables<'products'>;
 type Vendor = Tables<'vendors'>;
