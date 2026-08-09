@@ -1484,6 +1484,8 @@ export default function VendorOrders() {
               orderId={prepTimeDialog.order.id}
               orderNumber={prepTimeDialog.order.order_number}
               vendorCategory={vendor.category || 'restaurant'}
+              isPreorder={!!(prepTimeDialog.order as any).is_preorder}
+
               prepTimeOptions={
                 vendor.category === 'restaurant'
                   ? prepTimeSettings.restaurantOptions
