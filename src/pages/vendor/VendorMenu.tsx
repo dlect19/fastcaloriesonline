@@ -466,7 +466,15 @@ export default function VendorMenu() {
         nutrient_tags: formData.nutrient_tags.length > 0 ? formData.nutrient_tags : null,
         image_url: imageUrl,
         cuisine_category_id: formData.cuisine_category_id || null,
+        portion_unit: formData.portion_unit || 'plate',
+        base_portion_size: formData.base_portion_size ? parseFloat(formData.base_portion_size) : 1,
+        fulfillment_type: formData.fulfillment_type,
+        preorder_lead_days:
+          formData.fulfillment_type === 'preorder' && formData.preorder_lead_days
+            ? parseInt(formData.preorder_lead_days, 10)
+            : null,
       };
+
 
       // Add pharmacy-specific fields
       if (vendor.category === 'pharmacy') {
