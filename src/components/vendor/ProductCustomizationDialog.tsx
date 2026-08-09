@@ -486,7 +486,9 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
     // Prefix the unit (Per Sachet / Per Pack) for pharmacy sachet products
     const unitPrefix = sachetEnabled
       ? `Per ${purchaseUnit === 'sachet' ? sachetLabel : packLabel}`
-      : undefined;
+      : selectedPortion
+        ? selectedPortion.label
+        : undefined;
     const addonsDescription = [unitPrefix, baseAddonsDesc].filter(Boolean).join(' • ') || undefined;
 
     const itemData: any = {
@@ -497,8 +499,9 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
       outletId,
       price: effectivePrice,
       quantity,
-      calories: (product.calories || 0),
+      calories: unitCalories,
       imageUrl: product.image_url || undefined,
+
       addons: addonsList.length > 0 ? addonsList.map(a => ({
         groupName: a.groupName,
         itemName: a.itemName,
