@@ -324,7 +324,7 @@ async function handleWalletFunding(supabase: SupabaseClient, data: any, environm
     p_transaction_type: "credit",
     p_category: "wallet_funding",
     p_amount: amount,
-    p_reference: reference,
+    p_reference: `PS-FUND-${reference}`,
     p_environment: environment,
     p_notes: `Wallet funding via Paystack`,
     p_metadata: {
@@ -334,6 +334,7 @@ async function handleWalletFunding(supabase: SupabaseClient, data: any, environm
       bank: data.authorization?.bank,
       source: "paystack-webhook",
     },
+    p_paystack_reference: reference,
   });
 
   if (postError) {

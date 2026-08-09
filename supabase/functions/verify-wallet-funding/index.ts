@@ -152,6 +152,27 @@ serve(async (req: Request) => {
       );
     }
 
+    // Idempotency: skip if this Paystack reference was already credited by
+    // any path (webhook or verify), matching either reference column.
+    const { data: alreadyCredited } = await supabaseAdmin
+      .from("wallet_transactions")
+      .select("id, balance_after")
+      .eq("category", "wallet_funding")
+      .or(`paystack_reference.eq.${reference},reference.eq.${reference},reference.eq.PS-FUND-${reference}`)
+      .maybeSingle();
+
+    if (alreadyCredited) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          alreadyProcessed: true,
+          amount,
+          newBalance: alreadyCredited.balance_after,
+        }),
+        { headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
     // Credit wallet
     const currentBalance = isTestMode
       ? Number(customerWallet.test_balance) || 0
