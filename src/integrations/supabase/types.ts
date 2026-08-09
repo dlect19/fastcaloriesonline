@@ -4689,6 +4689,9 @@ export type Database = {
           order_id: string
           original_unit_price: number | null
           package_id: string | null
+          portion_label: string | null
+          portion_size: number | null
+          portion_unit: string | null
           product_id: string | null
           product_name: string
           purchase_unit: string
@@ -4717,6 +4720,9 @@ export type Database = {
           order_id: string
           original_unit_price?: number | null
           package_id?: string | null
+          portion_label?: string | null
+          portion_size?: number | null
+          portion_unit?: string | null
           product_id?: string | null
           product_name: string
           purchase_unit?: string
@@ -4745,6 +4751,9 @@ export type Database = {
           order_id?: string
           original_unit_price?: number | null
           package_id?: string | null
+          portion_label?: string | null
+          portion_size?: number | null
+          portion_unit?: string | null
           product_id?: string | null
           product_name?: string
           purchase_unit?: string
@@ -4933,11 +4942,13 @@ export type Database = {
           discount: number | null
           environment: string | null
           estimated_delivery_at: string | null
+          estimated_ready_at: string | null
           extra_package_fee: number
           free_meal_promo_id: string | null
           free_meal_value: number | null
           id: string
           is_free_meal: boolean | null
+          is_preorder: boolean
           menu_subtotal: number | null
           order_number: string
           outlet_id: string | null
@@ -4950,6 +4961,7 @@ export type Database = {
           pos_cashier_id: string | null
           pos_payment_method: string | null
           pos_session_id: string | null
+          prep_days: number | null
           prep_minutes: number | null
           promo_code: string | null
           receiver_name: string | null
@@ -4985,11 +4997,13 @@ export type Database = {
           discount?: number | null
           environment?: string | null
           estimated_delivery_at?: string | null
+          estimated_ready_at?: string | null
           extra_package_fee?: number
           free_meal_promo_id?: string | null
           free_meal_value?: number | null
           id?: string
           is_free_meal?: boolean | null
+          is_preorder?: boolean
           menu_subtotal?: number | null
           order_number: string
           outlet_id?: string | null
@@ -5002,6 +5016,7 @@ export type Database = {
           pos_cashier_id?: string | null
           pos_payment_method?: string | null
           pos_session_id?: string | null
+          prep_days?: number | null
           prep_minutes?: number | null
           promo_code?: string | null
           receiver_name?: string | null
@@ -5037,11 +5052,13 @@ export type Database = {
           discount?: number | null
           environment?: string | null
           estimated_delivery_at?: string | null
+          estimated_ready_at?: string | null
           extra_package_fee?: number
           free_meal_promo_id?: string | null
           free_meal_value?: number | null
           id?: string
           is_free_meal?: boolean | null
+          is_preorder?: boolean
           menu_subtotal?: number | null
           order_number?: string
           outlet_id?: string | null
@@ -5054,6 +5071,7 @@ export type Database = {
           pos_cashier_id?: string | null
           pos_payment_method?: string | null
           pos_session_id?: string | null
+          prep_days?: number | null
           prep_minutes?: number | null
           promo_code?: string | null
           receiver_name?: string | null
@@ -6206,9 +6224,60 @@ export type Database = {
           },
         ]
       }
+      product_portions: {
+        Row: {
+          calorie_multiplier: number | null
+          created_at: string
+          id: string
+          is_available: boolean
+          label: string
+          portion_size: number
+          price: number
+          product_id: string
+          sort_order: number
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          calorie_multiplier?: number | null
+          created_at?: string
+          id?: string
+          is_available?: boolean
+          label: string
+          portion_size?: number
+          price: number
+          product_id: string
+          sort_order?: number
+          unit?: string
+          updated_at?: string
+        }
+        Update: {
+          calorie_multiplier?: number | null
+          created_at?: string
+          id?: string
+          is_available?: boolean
+          label?: string
+          portion_size?: number
+          price?: number
+          product_id?: string
+          sort_order?: number
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_portions_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           allows_sachet: boolean
+          base_portion_size: number | null
           calorie_classes: Database["public"]["Enums"]["calorie_class"][] | null
           calories: number | null
           carbs_grams: number | null
@@ -6224,6 +6293,7 @@ export type Database = {
           drug_database_id: string | null
           fats_grams: number | null
           fiber_grams: number | null
+          fulfillment_type: string
           id: string
           image_url: string | null
           in_store_price: number | null
@@ -6238,6 +6308,8 @@ export type Database = {
           outlet_id: string | null
           pack_unit_label: string | null
           pharmacist_dosage_instructions: string | null
+          portion_unit: string | null
+          preorder_lead_days: number | null
           price: number
           protein_grams: number | null
           requires_prescription: boolean | null
@@ -6254,6 +6326,7 @@ export type Database = {
         }
         Insert: {
           allows_sachet?: boolean
+          base_portion_size?: number | null
           calorie_classes?:
             | Database["public"]["Enums"]["calorie_class"][]
             | null
@@ -6271,6 +6344,7 @@ export type Database = {
           drug_database_id?: string | null
           fats_grams?: number | null
           fiber_grams?: number | null
+          fulfillment_type?: string
           id?: string
           image_url?: string | null
           in_store_price?: number | null
@@ -6285,6 +6359,8 @@ export type Database = {
           outlet_id?: string | null
           pack_unit_label?: string | null
           pharmacist_dosage_instructions?: string | null
+          portion_unit?: string | null
+          preorder_lead_days?: number | null
           price: number
           protein_grams?: number | null
           requires_prescription?: boolean | null
@@ -6301,6 +6377,7 @@ export type Database = {
         }
         Update: {
           allows_sachet?: boolean
+          base_portion_size?: number | null
           calorie_classes?:
             | Database["public"]["Enums"]["calorie_class"][]
             | null
@@ -6318,6 +6395,7 @@ export type Database = {
           drug_database_id?: string | null
           fats_grams?: number | null
           fiber_grams?: number | null
+          fulfillment_type?: string
           id?: string
           image_url?: string | null
           in_store_price?: number | null
@@ -6332,6 +6410,8 @@ export type Database = {
           outlet_id?: string | null
           pack_unit_label?: string | null
           pharmacist_dosage_instructions?: string | null
+          portion_unit?: string | null
+          preorder_lead_days?: number | null
           price?: number
           protein_grams?: number | null
           requires_prescription?: boolean | null
@@ -8381,17 +8461,20 @@ export type Database = {
           combos_only: boolean
           commission_rate: number | null
           created_at: string
+          default_preorder_lead_days: number | null
           delivery_fee: number | null
           delivery_mode: string | null
           description: string | null
           email: string | null
           estimated_delivery_minutes: number | null
+          fulfillment_mode: string
           geo_lock_reason: string | null
           geo_locked_at: string | null
           geo_verification_status: string | null
           id: string
           is_active: boolean | null
           is_open: boolean
+          is_social_vendor: boolean
           is_test_store: boolean | null
           is_verified: boolean | null
           latitude: number | null
@@ -8427,17 +8510,20 @@ export type Database = {
           combos_only?: boolean
           commission_rate?: number | null
           created_at?: string
+          default_preorder_lead_days?: number | null
           delivery_fee?: number | null
           delivery_mode?: string | null
           description?: string | null
           email?: string | null
           estimated_delivery_minutes?: number | null
+          fulfillment_mode?: string
           geo_lock_reason?: string | null
           geo_locked_at?: string | null
           geo_verification_status?: string | null
           id?: string
           is_active?: boolean | null
           is_open?: boolean
+          is_social_vendor?: boolean
           is_test_store?: boolean | null
           is_verified?: boolean | null
           latitude?: number | null
@@ -8473,17 +8559,20 @@ export type Database = {
           combos_only?: boolean
           commission_rate?: number | null
           created_at?: string
+          default_preorder_lead_days?: number | null
           delivery_fee?: number | null
           delivery_mode?: string | null
           description?: string | null
           email?: string | null
           estimated_delivery_minutes?: number | null
+          fulfillment_mode?: string
           geo_lock_reason?: string | null
           geo_locked_at?: string | null
           geo_verification_status?: string | null
           id?: string
           is_active?: boolean | null
           is_open?: boolean
+          is_social_vendor?: boolean
           is_test_store?: boolean | null
           is_verified?: boolean | null
           latitude?: number | null
@@ -9686,11 +9775,13 @@ export type Database = {
           discount: number | null
           environment: string | null
           estimated_delivery_at: string | null
+          estimated_ready_at: string | null
           extra_package_fee: number
           free_meal_promo_id: string | null
           free_meal_value: number | null
           id: string
           is_free_meal: boolean | null
+          is_preorder: boolean
           menu_subtotal: number | null
           order_number: string
           outlet_id: string | null
@@ -9703,6 +9794,7 @@ export type Database = {
           pos_cashier_id: string | null
           pos_payment_method: string | null
           pos_session_id: string | null
+          prep_days: number | null
           prep_minutes: number | null
           promo_code: string | null
           receiver_name: string | null
@@ -10149,6 +10241,7 @@ export type Database = {
         Args: { p_voucher_id: string }
         Returns: undefined
       }
+      repair_wallet_revenue_buckets: { Args: never; Returns: number }
       reserve_voucher_for_delivery: {
         Args: { p_order_id: string; p_voucher_id: string }
         Returns: Json
