@@ -96,6 +96,30 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
   const sachetLabel = (product as any).sachet_unit_label || 'sachet';
   const packLabel = (product as any).pack_unit_label || 'pack';
   const [purchaseUnit, setPurchaseUnit] = useState<'pack' | 'sachet'>('pack');
+  // Food portion/size variants (e.g. litres, plates)
+  const [portions, setPortions] = useState<any[]>([]);
+  const [selectedPortionId, setSelectedPortionId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open || !product.id) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from('product_portions')
+        .select('*')
+        .eq('product_id', product.id)
+        .eq('is_available', true)
+        .order('portion_size');
+      if (cancelled) return;
+      const rows = data || [];
+      setPortions(rows);
+      const fromEdit = (editItem as any)?.portionId;
+      setSelectedPortionId(
+        rows.length ? (rows.some((r: any) => r.id === fromEdit) ? fromEdit : rows[0].id) : null
+      );
+    })();
+    return () => { cancelled = true; };
+  }, [open, product.id]);
 
   useEffect(() => {
     if (open && product.id) {
@@ -124,6 +148,7 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
       }
     }
   }, [open, product.id]);
+
 
   // Restore addon selections when editing and addon groups are loaded
   useEffect(() => {
