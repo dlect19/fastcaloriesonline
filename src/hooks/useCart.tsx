@@ -28,7 +28,16 @@ export interface CartItem {
   freeMealPromoId?: string;
   originalPrice?: number;
   _adminFreeQty?: number; // admin-set free quantity (extras charged at originalPrice)
+  // Portion / size variant (e.g. 2 litres, large plate)
+  portionId?: string;
+  portionLabel?: string;
+  portionSize?: number;
+  portionUnit?: string;
+  // Fulfillment (social-media vendors may prepare in days)
+  fulfillmentType?: 'instant' | 'preorder';
+  preorderLeadDays?: number;
   packageIndex: number; // which package this item belongs to (0-based)
+
 }
 
 export interface PackageMeta {
