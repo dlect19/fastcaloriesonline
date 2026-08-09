@@ -511,15 +511,20 @@ export default function VendorMenu() {
           .eq('id', editingProduct.id);
 
         if (error) throw error;
+        await syncPortions(editingProduct.id);
         toast({ title: 'Product updated successfully' });
       } else {
-        const { error } = await supabase
+        const { data: inserted, error } = await supabase
           .from('products')
-          .insert(productData);
+          .insert(productData)
+          .select('id')
+          .single();
 
         if (error) throw error;
+        if (inserted?.id) await syncPortions(inserted.id);
         toast({ title: 'Product added successfully' });
       }
+
 
       setDialogOpen(false);
       resetForm();
