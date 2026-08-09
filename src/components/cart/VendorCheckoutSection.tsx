@@ -437,10 +437,24 @@ export function VendorCheckoutSection({
         }
       }
 
+      // Pre-order detection: any item prepared over days rather than hours
+      const preorderItems = normalizedGroupItems.filter((i) => i.fulfillmentType === "preorder");
+      const isPreorder = preorderItems.length > 0;
+      const preorderDays = isPreorder
+        ? Math.max(...preorderItems.map((i) => Number(i.preorderLeadDays) || 1))
+        : 0;
+      const estimatedReadyAt = isPreorder
+        ? new Date(Date.now() + preorderDays * 24 * 60 * 60 * 1000).toISOString()
+        : null;
+
       const { data: order, error: orderError } = await supabase
         .from("orders")
         .insert({
           user_id: userId,
+          is_preorder: isPreorder,
+          prep_days: isPreorder ? preorderDays : null,
+          estimated_ready_at: estimatedReadyAt,
+
           promo_code: appliedPromoCode || (promoType === "spin" ? `SPIN-${selectedSpinDiscountId}` : null),
           discount: promoDiscount,
           vendor_id: group.vendorId,
@@ -533,7 +547,12 @@ export function VendorCheckoutSection({
           special_instructions: item.addonsDescription || null,
           purchase_unit: purchaseUnit,
           unit_multiplier: unitMultiplier,
+          portion_label: item.portionLabel || null,
+
+          portion_size: item.portionSize ?? null,
+          portion_unit: item.portionUnit || null,
         };
+
       });
 
       const { data: insertedItems, error: itemsError } = await supabase

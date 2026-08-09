@@ -30,6 +30,8 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables, Database } from '@/integrations/supabase/types';
 import { DrugSearchDialog } from '@/components/pharmacy/DrugSearchDialog';
+import { ProductPortionsEditor, type PortionDraft } from '@/components/vendor/ProductPortionsEditor';
+
 
 type Product = Tables<'products'>;
 type Vendor = Tables<'vendors'>;
@@ -161,7 +163,46 @@ export default function VendorMenu() {
     // Stock tracking
     stock_quantity: '',
     low_stock_threshold: '5',
+    // Portion sizes & fulfillment
+    portion_unit: 'plate',
+    base_portion_size: '1',
+    fulfillment_type: 'instant' as 'instant' | 'preorder',
+    preorder_lead_days: '',
   });
+
+  const [portions, setPortions] = useState<PortionDraft[]>([]);
+  const [removedPortionIds, setRemovedPortionIds] = useState<string[]>([]);
+
+  const handlePortionsChange = (next: PortionDraft[]) => {
+    const removed = portions.filter(p => p.id && !next.some(n => n.id === p.id)).map(p => p.id!);
+    if (removed.length) setRemovedPortionIds(prev => [...prev, ...removed]);
+    setPortions(next);
+  };
+
+  const syncPortions = async (productId: string) => {
+    if (removedPortionIds.length) {
+      await supabase.from('product_portions').delete().in('id', removedPortionIds);
+    }
+    const valid = portions.filter(p => p.label.trim() && Number(p.price) > 0);
+    for (const [index, p] of valid.entries()) {
+      const row = {
+        product_id: productId,
+        label: p.label.trim(),
+        portion_size: Number(p.portion_size) || 1,
+        unit: formData.portion_unit,
+        price: Number(p.price),
+        calorie_multiplier: p.calorie_multiplier ? Number(p.calorie_multiplier) : null,
+        is_available: p.is_available,
+        sort_order: index,
+      };
+      if (p.id) {
+        await supabase.from('product_portions').update(row).eq('id', p.id);
+      } else {
+        await supabase.from('product_portions').insert(row);
+      }
+    }
+  };
+
 
   // Auto-calculate calories from macros (fiber ~2 kcal/g)
   const calculateCalories = (carbs: number, protein: number, fats: number, fiber: number) => {
@@ -425,7 +466,15 @@ export default function VendorMenu() {
         nutrient_tags: formData.nutrient_tags.length > 0 ? formData.nutrient_tags : null,
         image_url: imageUrl,
         cuisine_category_id: formData.cuisine_category_id || null,
+        portion_unit: formData.portion_unit || 'plate',
+        base_portion_size: formData.base_portion_size ? parseFloat(formData.base_portion_size) : 1,
+        fulfillment_type: formData.fulfillment_type,
+        preorder_lead_days:
+          formData.fulfillment_type === 'preorder' && formData.preorder_lead_days
+            ? parseInt(formData.preorder_lead_days, 10)
+            : null,
       };
+
 
       // Add pharmacy-specific fields
       if (vendor.category === 'pharmacy') {
@@ -462,15 +511,20 @@ export default function VendorMenu() {
           .eq('id', editingProduct.id);
 
         if (error) throw error;
+        await syncPortions(editingProduct.id);
         toast({ title: 'Product updated successfully' });
       } else {
-        const { error } = await supabase
+        const { data: inserted, error } = await supabase
           .from('products')
-          .insert(productData);
+          .insert(productData)
+          .select('id')
+          .single();
 
         if (error) throw error;
+        if (inserted?.id) await syncPortions(inserted.id);
         toast({ title: 'Product added successfully' });
       }
+
 
       setDialogOpen(false);
       resetForm();
@@ -484,8 +538,9 @@ export default function VendorMenu() {
     }
   };
 
-  const handleEdit = (product: Product) => {
+  const handleEdit = async (product: Product) => {
     setEditingProduct(product);
+    setRemovedPortionIds([]);
     setFormData({
       name: product.name,
       description: product.description || '',
@@ -520,13 +575,34 @@ export default function VendorMenu() {
       sachets_per_pack: (product as any).sachets_per_pack?.toString() || '',
       stock_quantity: (product as any).stock_quantity?.toString() ?? '',
       low_stock_threshold: (product as any).low_stock_threshold?.toString() ?? '5',
+      portion_unit: (product as any).portion_unit || 'plate',
+      base_portion_size: (product as any).base_portion_size?.toString() || '1',
+      fulfillment_type: ((product as any).fulfillment_type as 'instant' | 'preorder') || 'instant',
+      preorder_lead_days: (product as any).preorder_lead_days?.toString() || '',
     });
+    // Load existing portion/size options
+    const { data: portionRows } = await supabase
+      .from('product_portions')
+      .select('*')
+      .eq('product_id', product.id)
+      .order('sort_order');
+    setPortions(
+      (portionRows || []).map((p: any) => ({
+        id: p.id,
+        label: p.label,
+        portion_size: p.portion_size?.toString() || '1',
+        price: p.price?.toString() || '',
+        calorie_multiplier: p.calorie_multiplier?.toString() || '',
+        is_available: p.is_available ?? true,
+      }))
+    );
     // Set image preview from existing URL
     if (product.image_url) {
       setImagePreview(product.image_url);
     }
     setDialogOpen(true);
   };
+
 
   const handleDelete = async (productId: string) => {
     if (!confirm('Are you sure you want to delete this product?')) return;
@@ -728,8 +804,15 @@ export default function VendorMenu() {
       sachets_per_pack: '',
       stock_quantity: '',
       low_stock_threshold: '5',
+      portion_unit: 'plate',
+      base_portion_size: '1',
+      fulfillment_type: 'instant',
+      preorder_lead_days: '',
     });
+    setPortions([]);
+    setRemovedPortionIds([]);
   };
+
 
   const toggleNutrientTag = (tag: NutrientTag) => {
     setFormData(prev => ({
@@ -1327,6 +1410,59 @@ export default function VendorMenu() {
                         ))}
                       </select>
                     </div>
+                  )}
+
+                  {/* Portion / size options (litres, plates...) */}
+                  {vendor?.category === 'restaurant' && (
+                    <ProductPortionsEditor
+                      portionUnit={formData.portion_unit}
+                      onPortionUnitChange={(unit) => setFormData({ ...formData, portion_unit: unit })}
+                      basePortionSize={formData.base_portion_size}
+                      onBasePortionSizeChange={(size) => setFormData({ ...formData, base_portion_size: size })}
+                      portions={portions}
+                      onChange={handlePortionsChange}
+                      basePrice={formData.price}
+                      baseCalories={formData.calories || (calculatedCalories > 0 ? String(calculatedCalories) : '')}
+                    />
+                  )}
+
+                  {/* Availability: instant vs pre-order */}
+                  {vendor?.category === 'restaurant' && (
+                    <div className="space-y-2 rounded-xl border p-3">
+                      <Label className="text-xs font-semibold uppercase tracking-wide">
+                        How is this item fulfilled?
+                      </Label>
+                      <Select
+                        value={formData.fulfillment_type}
+                        onValueChange={(v) => setFormData({ ...formData, fulfillment_type: v as 'instant' | 'preorder' })}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="instant">Instant — ready same day (in hours)</SelectItem>
+                          <SelectItem value="preorder">Pre-order — prepared after order (in days)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {formData.fulfillment_type === 'preorder' && (
+                        <div className="space-y-1">
+                          <Label className="text-xs">Lead time (days)</Label>
+                          <Input
+                            className="h-9"
+                            type="number"
+                            min="1"
+                            max="30"
+                            value={formData.preorder_lead_days}
+                            onChange={(e) => setFormData({ ...formData, preorder_lead_days: e.target.value })}
+                            placeholder="2"
+                          />
+                          <p className="text-[11px] text-muted-foreground">
+                            Customers will be told this item is ready in about this many days.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
                   )}
 
                   {/* Cuisine Category */}

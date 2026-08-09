@@ -96,6 +96,30 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
   const sachetLabel = (product as any).sachet_unit_label || 'sachet';
   const packLabel = (product as any).pack_unit_label || 'pack';
   const [purchaseUnit, setPurchaseUnit] = useState<'pack' | 'sachet'>('pack');
+  // Food portion/size variants (e.g. litres, plates)
+  const [portions, setPortions] = useState<any[]>([]);
+  const [selectedPortionId, setSelectedPortionId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open || !product.id) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from('product_portions')
+        .select('*')
+        .eq('product_id', product.id)
+        .eq('is_available', true)
+        .order('portion_size');
+      if (cancelled) return;
+      const rows = data || [];
+      setPortions(rows);
+      const fromEdit = (editItem as any)?.portionId;
+      setSelectedPortionId(
+        rows.length ? (rows.some((r: any) => r.id === fromEdit) ? fromEdit : rows[0].id) : null
+      );
+    })();
+    return () => { cancelled = true; };
+  }, [open, product.id]);
 
   useEffect(() => {
     if (open && product.id) {
@@ -124,6 +148,7 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
       }
     }
   }, [open, product.id]);
+
 
   // Restore addon selections when editing and addon groups are loaded
   useEffect(() => {
@@ -302,10 +327,19 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
     ? (product as any).discount_price
     : product.price;
   const sachetBasePrice = Number((product as any).sachet_price) || 0;
-  const effectivePrice = (sachetEnabled && purchaseUnit === 'sachet') ? sachetBasePrice : packBasePrice;
+  const selectedPortion = portions.find(p => p.id === selectedPortionId) || null;
+  const portionMultiplier = selectedPortion
+    ? Number(selectedPortion.calorie_multiplier) ||
+      (Number(selectedPortion.portion_size) || 1) / (Number((product as any).base_portion_size) || 1)
+    : 1;
+  const effectivePrice = selectedPortion && Number(selectedPortion.price) > 0
+    ? Number(selectedPortion.price)
+    : (sachetEnabled && purchaseUnit === 'sachet') ? sachetBasePrice : packBasePrice;
+  const unitCalories = Math.round((product.calories || 0) * portionMultiplier);
   const menuTotal = effectivePrice * quantity;
   const totalPrice = menuTotal + totalAddonPrice;
-  const totalCalories = ((product.calories || 0) * quantity) + totalAddonCalories;
+  const totalCalories = (unitCalories * quantity) + totalAddonCalories;
+
 
   // Validation: all required groups must have selections + required choices
   const missingRequiredGroups = addonGroups.filter(g => 
@@ -452,7 +486,9 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
     // Prefix the unit (Per Sachet / Per Pack) for pharmacy sachet products
     const unitPrefix = sachetEnabled
       ? `Per ${purchaseUnit === 'sachet' ? sachetLabel : packLabel}`
-      : undefined;
+      : selectedPortion
+        ? selectedPortion.label
+        : undefined;
     const addonsDescription = [unitPrefix, baseAddonsDesc].filter(Boolean).join(' • ') || undefined;
 
     const itemData: any = {
@@ -463,8 +499,17 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
       outletId,
       price: effectivePrice,
       quantity,
-      calories: (product.calories || 0),
+      calories: unitCalories,
       imageUrl: product.image_url || undefined,
+      portionId: selectedPortion?.id,
+      portionLabel: selectedPortion?.label,
+      portionSize: selectedPortion ? Number(selectedPortion.portion_size) : undefined,
+      portionUnit: selectedPortion ? ((product as any).portion_unit || 'plate') : undefined,
+      fulfillmentType: (product as any).fulfillment_type || 'instant',
+      preorderLeadDays: (product as any).preorder_lead_days ?? undefined,
+
+
+
       addons: addonsList.length > 0 ? addonsList.map(a => ({
         groupName: a.groupName,
         itemName: a.itemName,
@@ -660,6 +705,60 @@ export function ProductCustomizationDialog({ product, vendor, outletId, open, on
               </Badge>
             </div>
           </div>
+
+          {/* Food portion / size selector (litres, plates, etc.) */}
+          {portions.length > 0 && (
+            <div className="bg-secondary/60 rounded-xl p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Settings2 className="w-4 h-4 text-primary" />
+                <span className="font-semibold text-foreground">
+                  Choose size ({(product as any).portion_unit || 'plate'})
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {portions.map((p: any) => {
+                  const mult = Number(p.calorie_multiplier) ||
+                    (Number(p.portion_size) || 1) / (Number((product as any).base_portion_size) || 1);
+                  const cals = Math.round((product.calories || 0) * mult);
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setSelectedPortionId(p.id)}
+                      className={cn(
+                        'rounded-lg border p-3 text-left transition-colors',
+                        selectedPortionId === p.id
+                          ? 'border-primary bg-primary/10'
+                          : 'border-border bg-background hover:border-primary/30'
+                      )}
+                    >
+                      <div className="text-xs text-muted-foreground">{p.label}</div>
+                      <div className="font-semibold text-foreground">
+                        ₦{Number(p.price || 0).toLocaleString()}
+                      </div>
+                      {cals > 0 && (
+                        <div className="text-[11px] text-muted-foreground">{cals} kcal</div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Pre-order notice */}
+          {((product as any).fulfillment_type === 'preorder') && (
+            <div className="rounded-xl border border-primary/30 bg-primary/5 p-3">
+              <p className="text-sm font-medium text-foreground">Pre-order item</p>
+              <p className="text-xs text-muted-foreground">
+                This meal is prepared after you order — ready in about{' '}
+                {(product as any).preorder_lead_days || 1} day
+                {((product as any).preorder_lead_days || 1) > 1 ? 's' : ''}.
+              </p>
+            </div>
+          )}
+
+
 
           {/* Pharmacy: Pack vs Sachet selector */}
           {sachetEnabled && (
