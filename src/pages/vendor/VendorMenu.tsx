@@ -1412,6 +1412,59 @@ export default function VendorMenu() {
                     </div>
                   )}
 
+                  {/* Portion / size options (litres, plates...) */}
+                  {vendor?.category === 'restaurant' && (
+                    <ProductPortionsEditor
+                      portionUnit={formData.portion_unit}
+                      onPortionUnitChange={(unit) => setFormData({ ...formData, portion_unit: unit })}
+                      basePortionSize={formData.base_portion_size}
+                      onBasePortionSizeChange={(size) => setFormData({ ...formData, base_portion_size: size })}
+                      portions={portions}
+                      onChange={handlePortionsChange}
+                      basePrice={formData.price}
+                      baseCalories={formData.calories || (calculatedCalories > 0 ? String(calculatedCalories) : '')}
+                    />
+                  )}
+
+                  {/* Availability: instant vs pre-order */}
+                  {vendor?.category === 'restaurant' && (
+                    <div className="space-y-2 rounded-xl border p-3">
+                      <Label className="text-xs font-semibold uppercase tracking-wide">
+                        How is this item fulfilled?
+                      </Label>
+                      <Select
+                        value={formData.fulfillment_type}
+                        onValueChange={(v) => setFormData({ ...formData, fulfillment_type: v as 'instant' | 'preorder' })}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="instant">Instant — ready same day (in hours)</SelectItem>
+                          <SelectItem value="preorder">Pre-order — prepared after order (in days)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {formData.fulfillment_type === 'preorder' && (
+                        <div className="space-y-1">
+                          <Label className="text-xs">Lead time (days)</Label>
+                          <Input
+                            className="h-9"
+                            type="number"
+                            min="1"
+                            max="30"
+                            value={formData.preorder_lead_days}
+                            onChange={(e) => setFormData({ ...formData, preorder_lead_days: e.target.value })}
+                            placeholder="2"
+                          />
+                          <p className="text-[11px] text-muted-foreground">
+                            Customers will be told this item is ready in about this many days.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                  )}
+
                   {/* Cuisine Category */}
                   {vendor?.category === 'restaurant' && cuisineCategories.length > 0 && (
                     <div className="space-y-2">
