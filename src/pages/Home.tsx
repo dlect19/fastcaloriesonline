@@ -193,6 +193,11 @@ export default function Home() {
       isCancelled = true;
     };
   }, [deliveryLocation?.lat, deliveryLocation?.lon, deliveryLocation?.state]);
+  // Signing in supersedes guest browsing
+  useEffect(() => {
+    if (user && isGuest) exitGuestMode();
+  }, [user, isGuest, exitGuestMode]);
+
   const handleSignOut = async () => {
     await signOut();
     navigate('/auth');
