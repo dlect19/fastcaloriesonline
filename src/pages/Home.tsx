@@ -26,6 +26,8 @@ import { ScanFoodBanner } from '@/components/home/ScanFoodBanner';
 import { DrugTrackerButton } from '@/components/home/DrugTrackerButton';
 import { FreeMealBanner } from '@/components/home/FreeMealBanner';
 import { LocationSearch } from '@/components/home/LocationSearch';
+import { GuestBanner } from '@/components/home/GuestBanner';
+import { useGuestMode } from '@/hooks/useGuestMode';
 import { Button } from '@/components/ui/button';
 import { LogOut, Flame, Star, ChevronRight, Sparkles, Heart, ShieldCheck, Building2, MapPinOff } from 'lucide-react';
 import { usePlatformStats, formatCount } from '@/hooks/usePlatformStats';
@@ -47,6 +49,7 @@ interface DeliveryLocation {
 
 export default function Home() {
   const { user, signOut, loading } = useAuth();
+  const { isGuest, enableGuestMode, exitGuestMode } = useGuestMode();
   const { isComplete: profileComplete, loading: profileLoading } = useProfileCompletion(user?.id);
   const { settings: platformSettings } = usePlatformSettings();
   const { stats } = usePlatformStats();
@@ -217,6 +220,62 @@ export default function Home() {
     );
   }
 
+  // Guest browsing: discovery-only view of the app, no account required
+  if (!user && isGuest) {
+    return (
+      <div className="min-h-screen bg-background pb-24">
+        <Header
+          userName="Guest"
+          address={deliveryLocation?.label || 'Set your location'}
+          onLocationClick={() => setLocationDialogOpen(true)}
+        />
+
+        <main className="container py-6 space-y-6">
+          <GuestBanner />
+
+          <MenuCarousel nearbyVendorIds={nearbyVendorIds} nearbyOutletIds={nearbyOutletIds} />
+          <CombosCarousel nearbyVendorIds={nearbyVendorIds} nearbyOutletIds={nearbyOutletIds} />
+          <DiscountsCarousel nearbyVendorIds={nearbyVendorIds} nearbyOutletIds={nearbyOutletIds} />
+
+          <LocationSearch
+            onLocationSelect={handleLocationSelect}
+            currentLocation={deliveryLocation}
+            onClearLocation={handleClearLocation}
+            externalOpen={locationDialogOpen}
+            onExternalOpenChange={setLocationDialogOpen}
+          />
+
+          <EventsCarousel />
+          <CuisineCategoryRow />
+          <CategoryPills onSelect={setSelectedCategory} />
+
+          <VendorGrid
+            category={selectedCategory}
+            externalLat={deliveryLocation?.lat}
+            externalLon={deliveryLocation?.lon}
+            addressState={deliveryLocation?.state}
+            gpsLat={autoLat}
+            gpsLon={autoLon}
+          />
+
+          <div className="rounded-2xl gradient-primary p-5 text-center space-y-2">
+            <p className="font-semibold text-primary-foreground">Ready to place your first order?</p>
+            <p className="text-primary-foreground/80 text-sm">Sign up free in under a minute.</p>
+            <Button
+              variant="secondary"
+              className="font-semibold"
+              onClick={() => { exitGuestMode(); navigate('/auth'); }}
+            >
+              Create free account
+            </Button>
+          </div>
+        </main>
+
+        <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+      </div>
+    );
+  }
+
   if (!user) {
     return (
       <div className="min-h-screen bg-background overflow-hidden">
@@ -272,11 +331,11 @@ export default function Home() {
                 <ChevronRight className="w-5 h-5 ml-1 group-hover:translate-x-1 transition-transform" />
               </Button>
               <Button
-                onClick={() => navigate('/auth')}
+                onClick={enableGuestMode}
                 variant="outline"
                 className="flex-1 h-14 text-base font-semibold"
               >
-                Explore Menu
+                Browse as Guest
               </Button>
             </div>
 
