@@ -64,12 +64,15 @@ serve(async (req: Request) => {
     const environment = envSetting?.value || "production";
     const isTest = environment === "development";
 
-    // Get fee percentage
+    // Get fee percentage — this is a CUSTOMER-side transaction fee.
+    // No vendor commission is taken on POS wallet sales: the vendor is credited
+    // the full sale amount, and the customer is debited amount + fee.
     const { data: feeSetting } = await admin
       .from("platform_settings").select("value").eq("key", "pos_wallet_fee_percentage").maybeSingle();
     const feePct = Number(feeSetting?.value ?? 1.5);
     const fee = Math.round((Number(amount) * feePct) / 100);
-    const vendorCredit = Number(amount) - fee;
+    const vendorCredit = Number(amount);
+    const customerDebit = Number(amount) + fee;
 
     // Get customer wallet
     const { data: customerWallet, error: cwErr } = await admin
