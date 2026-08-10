@@ -90,8 +90,8 @@ serve(async (req: Request) => {
     }
 
     const customerBal = isTest ? Number(customerWallet.test_balance) || 0 : Number(customerWallet.balance) || 0;
-    if (customerBal < Number(amount)) {
-      return new Response(JSON.stringify({ error: "Insufficient wallet balance", balance: customerBal }), {
+    if (customerBal < customerDebit) {
+      return new Response(JSON.stringify({ error: `Insufficient wallet balance (needs ₦${customerDebit.toLocaleString()} incl. ₦${fee.toLocaleString()} transaction fee)`, balance: customerBal, required: customerDebit, fee }), {
         status: 400, headers: { "Content-Type": "application/json", ...corsHeaders }
       });
     }
@@ -116,7 +116,7 @@ serve(async (req: Request) => {
     }
 
     const reference = `POS-${orderId.slice(0, 8)}-${Date.now()}`;
-    const customerBalAfter = customerBal - Number(amount);
+    const customerBalAfter = customerBal - customerDebit;
 
     // Mark code used FIRST (idempotency)
     const { error: markErr } = await admin
@@ -135,12 +135,12 @@ serve(async (req: Request) => {
       p_wallet_type: "customer",
       p_transaction_type: "debit",
       p_category: "pos_purchase",
-      p_amount: Number(amount),
+      p_amount: customerDebit,
       p_reference: reference,
       p_environment: environment,
       p_order_id: orderId,
-      p_notes: `In-store purchase at ${vendorName || "vendor"} (fee ₦${fee.toLocaleString()})`,
-      p_metadata: { vendor_id: vendorId, outlet_id: outletId ?? null, fee, fee_pct: feePct, source: "process-pos-wallet-payment" },
+      p_notes: `In-store purchase at ${vendorName || "vendor"} — ₦${Number(amount).toLocaleString()} + ₦${fee.toLocaleString()} transaction fee (${feePct}%)`,
+      p_metadata: { vendor_id: vendorId, outlet_id: outletId ?? null, sale_amount: Number(amount), fee, fee_pct: feePct, fee_payer: "customer", source: "process-pos-wallet-payment" },
     });
     if (custErr) {
       console.error("[pos-wallet] customer debit failed:", custErr.message);
@@ -150,7 +150,7 @@ serve(async (req: Request) => {
       });
     }
 
-    // Credit vendor (net of fee) through the ledger
+    // Credit vendor the FULL sale amount (no vendor commission on POS wallet sales)
     const { error: vendErr } = await admin.rpc("post_wallet_entry", {
       p_wallet_id: vendorWallet.id,
       p_wallet_type: "vendor",
@@ -160,10 +160,25 @@ serve(async (req: Request) => {
       p_reference: `${reference}-V`,
       p_environment: environment,
       p_order_id: orderId,
-      p_notes: `POS sale — gross ₦${Number(amount).toLocaleString()}, platform fee ₦${fee.toLocaleString()} (${feePct}%)`,
-      p_metadata: { gross: Number(amount), fee, fee_pct: feePct, source: "process-pos-wallet-payment" },
+      p_notes: `POS wallet sale — ₦${Number(amount).toLocaleString()} (no commission; ₦${fee.toLocaleString()} fee paid by customer)`,
+      p_metadata: { gross: Number(amount), fee, fee_pct: feePct, fee_payer: "customer", source: "process-pos-wallet-payment" },
     });
     if (vendErr) console.error("[pos-wallet] vendor credit failed:", vendErr.message);
+
+    // Platform earns the customer transaction fee
+    if (fee > 0) {
+      const { error: platErr } = await admin.rpc("post_platform_entry", {
+        p_amount: fee,
+        p_category: "pos_wallet_fee",
+        p_transaction_type: "credit",
+        p_reference: `${reference}-FEE`,
+        p_environment: environment,
+        p_status: "completed",
+        p_notes: `POS wallet transaction fee (${feePct}%) on ₦${Number(amount).toLocaleString()} sale`,
+        p_metadata: { order_id: orderId, vendor_id: vendorId, outlet_id: outletId ?? null, sale_amount: Number(amount), fee_pct: feePct, source: "process-pos-wallet-payment" },
+      });
+      if (platErr) console.error("[pos-wallet] platform fee entry failed:", platErr.message);
+    }
 
     // Keep the vendor's withdrawal-eligible bucket in sync (ledger already moved balance)
     if (!vendErr && vendorCredit > 0) {
@@ -186,6 +201,7 @@ serve(async (req: Request) => {
       reference,
       amount: Number(amount),
       fee,
+      total_debited: customerDebit,
       vendor_credit: vendorCredit,
       customer_balance: customerBalanceAfter,
     }), { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } });
