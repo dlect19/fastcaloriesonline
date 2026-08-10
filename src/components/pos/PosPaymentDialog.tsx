@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,10 +36,28 @@ export function PosPaymentDialog({ open, onOpenChange, total, onConfirm }: Props
 
   const [authCode, setAuthCode] = useState('');
 
+  const [walletFeePct, setWalletFeePct] = useState(1.5);
+
+  useEffect(() => {
+    if (!open) return;
+    supabase
+      .from('platform_settings')
+      .select('value')
+      .eq('key', 'pos_wallet_fee_percentage')
+      .maybeSingle()
+      .then(({ data }) => {
+        const pct = Number((data as any)?.value);
+        if (!Number.isNaN(pct)) setWalletFeePct(pct);
+      });
+  }, [open]);
+
+  const walletFee = Math.round((total * walletFeePct) / 100);
+  const walletTotal = total + walletFee;
+
   const paid = parseFloat(amountPaid) || 0;
   const change = method === 'cash' ? Math.max(0, paid - total) : 0;
   const insufficient = method === 'cash' && paid < total;
-  const walletInsufficient = method === 'wallet' && (foundCustomer?.wallet_balance ?? 0) < total;
+  const walletInsufficient = method === 'wallet' && (foundCustomer?.wallet_balance ?? 0) < walletTotal;
   const codeMissing = method === 'wallet' && authCode.trim().length !== 6;
 
   const handleSearchCustomer = async () => {
@@ -208,6 +226,23 @@ export function PosPaymentDialog({ open, onOpenChange, total, onConfirm }: Props
                       {walletInsufficient && ' — insufficient'}
                     </p>
                   </div>
+                  <div className="rounded-lg bg-muted p-3 text-sm space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Sale amount</span>
+                      <span className="font-medium">₦{total.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Wallet transaction fee ({walletFeePct}%)</span>
+                      <span className="font-medium">₦{walletFee.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between border-t pt-1 mt-1">
+                      <span className="font-semibold">Customer pays</span>
+                      <span className="font-semibold">₦{walletTotal.toLocaleString()}</span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground pt-1">
+                      You receive the full ₦{total.toLocaleString()} — no commission on wallet sales.
+                    </p>
+                  </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Authorization code (from customer app)</Label>
                     <Input
@@ -243,7 +278,7 @@ export function PosPaymentDialog({ open, onOpenChange, total, onConfirm }: Props
           )}
 
           <Button onClick={handleSubmit} disabled={submitting || insufficient || (method === 'wallet' && (!foundCustomer || walletInsufficient || codeMissing))} className="w-full h-14 text-base">
-            {submitting ? 'Processing...' : `Confirm Payment ₦${total.toLocaleString()}`}
+            {submitting ? 'Processing...' : `Confirm Payment ₦${(method === 'wallet' ? walletTotal : total).toLocaleString()}`}
           </Button>
         </div>
       </DialogContent>

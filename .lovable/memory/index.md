@@ -1,0 +1,2 @@
+- [Guest Mode](mem://features/end-user-app/guest-mode) — 'Browse as Guest' via fc_guest_mode localStorage; discovery-only Home, no personalized widgets
+- [POS Wallet Fee](mem://features/pos-wallet-fee-model) — No vendor commission on POS wallet sales; customer pays the transaction fee
