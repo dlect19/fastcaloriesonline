@@ -107,13 +107,21 @@ serve(async (req: Request) => {
     }
     vwQuery = vwQuery.eq("user_id", vendorRow.user_id);
     if (outletId) vwQuery = vwQuery.eq("outlet_id", outletId);
-    const { data: vendorWallets } = await vwQuery;
+    let { data: vendorWallets } = await vwQuery;
+    // Fall back to the vendor's main wallet when no outlet-specific wallet exists
+    if ((!vendorWallets || vendorWallets.length === 0) && outletId) {
+      const { data: mainWallets } = await admin
+        .from("wallets").select("*")
+        .eq("wallet_type", "vendor").eq("user_id", vendorRow.user_id);
+      vendorWallets = mainWallets;
+    }
     const vendorWallet = vendorWallets?.[0];
     if (!vendorWallet) {
       return new Response(JSON.stringify({ error: "Vendor wallet not found" }), {
         status: 404, headers: { "Content-Type": "application/json", ...corsHeaders }
       });
     }
+
 
     const reference = `POS-${orderId.slice(0, 8)}-${Date.now()}`;
     const customerBalAfter = customerBal - customerDebit;
