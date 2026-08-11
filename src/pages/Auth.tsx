@@ -60,6 +60,8 @@ export default function Auth() {
   const { loginEnabled: waLoginEnabled, signupEnabled: waSignupEnabled } = useWhatsAppAuthFlags();
   const whatsappAuthVisible = isLogin ? waLoginEnabled : waSignupEnabled;
   const navigate = useNavigate();
+  const { enableGuestMode } = useGuestMode();
+
   const { toast } = useToast();
 
 
