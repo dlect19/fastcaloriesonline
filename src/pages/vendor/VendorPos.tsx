@@ -722,15 +722,25 @@ export default function VendorPos() {
           },
         });
         if (payErr || (payRes as any)?.error) {
+          // Pull the real message out of the edge function response body
+          let detail = (payRes as any)?.error || payErr?.message || 'Authorization failed';
+          try {
+            const ctx: any = (payErr as any)?.context;
+            if (ctx && typeof ctx.json === 'function') {
+              const body = await ctx.json();
+              if (body?.error) detail = body.error;
+            }
+          } catch { /* keep default message */ }
           // Roll back the order so vendor isn't charged
           await supabase.from('orders').update({ payment_status: 'unpaid', status: 'cancelled' }).eq('id', orderRow.id);
           toast({
             title: 'Wallet payment failed',
-            description: (payRes as any)?.error || payErr?.message || 'Authorization failed',
+            description: detail,
             variant: 'destructive',
           });
           return;
         }
+
       }
 
       await recordSale(subtotal, data.paymentMethod);
