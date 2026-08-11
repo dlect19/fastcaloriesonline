@@ -2,12 +2,14 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useWhatsAppAuthFlags } from '@/hooks/useWhatsAppAuthFlags';
+import { useGuestMode } from '@/hooks/useGuestMode';
+
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Mail, Lock, User, ArrowRight, Loader2, Eye, EyeOff, Gift } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight, Loader2, Eye, EyeOff, Gift, Compass } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
@@ -58,6 +60,8 @@ export default function Auth() {
   const { loginEnabled: waLoginEnabled, signupEnabled: waSignupEnabled } = useWhatsAppAuthFlags();
   const whatsappAuthVisible = isLogin ? waLoginEnabled : waSignupEnabled;
   const navigate = useNavigate();
+  const { enableGuestMode } = useGuestMode();
+
   const { toast } = useToast();
 
 
@@ -448,7 +452,22 @@ export default function Auth() {
                 </>
               )}
             </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full h-11 text-sm font-medium text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                enableGuestMode();
+                navigate('/');
+              }}
+              disabled={isLoading}
+            >
+              <Compass className="w-4 h-4 mr-2" />
+              Browse as Guest
+            </Button>
           </form>
+
 
           {/* WhatsApp / phone auth (feature-flagged, hidden by default) */}
           {whatsappAuthVisible && (
