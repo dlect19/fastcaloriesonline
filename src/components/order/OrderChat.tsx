@@ -103,6 +103,10 @@ export function OrderChat({ orderId, orderStatus, riderId, vendorId, senderRole 
       .then(() => setUnreadCount(0));
   }, [isOpen, messages.length]);
 
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   const fetchMessages = async () => {
     const { data } = await supabase
       .from('order_chat_messages')
@@ -113,29 +117,40 @@ export function OrderChat({ orderId, orderStatus, riderId, vendorId, senderRole 
     setTimeout(scrollToBottom, 100);
   };
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  // Polling safety net so messages appear live even if the websocket drops
+  useEffect(() => {
+    if (!isOpen || !orderId) return;
+    const t = setInterval(fetchMessages, 4000);
+    return () => clearInterval(t);
+  }, [isOpen, orderId]);
+
+  const appendMessage = (msg: ChatMessage) => {
+    setMessages(prev => (prev.some(m => m.id === msg.id) ? prev : [...prev, msg]));
+    setTimeout(scrollToBottom, 50);
   };
+
 
   const handleSend = async () => {
     if (!newMessage.trim() || !user || sending) return;
     setSending(true);
     try {
-      const { error } = await supabase.from('order_chat_messages').insert({
+      const { data, error } = await supabase.from('order_chat_messages').insert({
         order_id: orderId,
         sender_id: user.id,
         sender_role: senderRole,
         message_type: 'text',
         content: newMessage.trim(),
-      });
+      }).select('*').single();
       if (error) throw error;
       setNewMessage('');
+      if (data) appendMessage(data as ChatMessage);
     } catch (err: any) {
       toast({ title: 'Failed to send', description: err.message, variant: 'destructive' });
     } finally {
       setSending(false);
     }
   };
+
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -151,15 +166,16 @@ export function OrderChat({ orderId, orderStatus, riderId, vendorId, senderRole 
 
       const { data: urlData } = supabase.storage.from('chat-media').getPublicUrl(path);
 
-      const { error } = await supabase.from('order_chat_messages').insert({
+      const { data: inserted, error } = await supabase.from('order_chat_messages').insert({
         order_id: orderId,
         sender_id: user.id,
         sender_role: senderRole,
         message_type: 'image',
         media_url: urlData.publicUrl,
         storage_path: path,
-      });
+      }).select('*').single();
       if (error) throw error;
+      if (inserted) appendMessage(inserted as ChatMessage);
     } catch (err: any) {
       toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
     } finally {
@@ -211,15 +227,16 @@ export function OrderChat({ orderId, orderStatus, riderId, vendorId, senderRole 
 
       const { data: urlData } = supabase.storage.from('chat-media').getPublicUrl(path);
 
-      const { error } = await supabase.from('order_chat_messages').insert({
+      const { data: inserted, error } = await supabase.from('order_chat_messages').insert({
         order_id: orderId,
         sender_id: user.id,
         sender_role: senderRole,
         message_type: 'voice',
         media_url: urlData.publicUrl,
         storage_path: path,
-      });
+      }).select('*').single();
       if (error) throw error;
+      if (inserted) appendMessage(inserted as ChatMessage);
     } catch (err: any) {
       toast({ title: 'Voice upload failed', description: err.message, variant: 'destructive' });
     } finally {

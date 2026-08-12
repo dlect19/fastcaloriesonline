@@ -951,22 +951,14 @@ export default function VendorOrders() {
                   <span className="text-muted-foreground font-normal"> • {order.customer.full_name}</span>
                 )}
               </p>
-              {order.customer?.phone ? (
-                <a
-                  href={`tel:${order.customer.phone}`}
-                  className="inline-flex items-center gap-1 text-xs text-primary font-medium hover:underline"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  📞 {order.customer.phone}
-                </a>
-              ) : (
-                <p className="text-xs text-muted-foreground italic">No phone on file</p>
-              )}
+              <p className="text-xs text-muted-foreground italic">
+                Customer contact is protected — use in-app call or chat
+              </p>
               <div className="mt-2" onClick={(e) => e.stopPropagation()}>
                 <CommButtons
                   orderId={order.id}
                   peerUserId={order.user_id || null}
-                  peerPhone={order.customer?.phone}
+                  peerPhone={null}
                   peerName={order.customer?.full_name || undefined}
                   myRole="vendor"
                   peerRole="customer"
@@ -974,6 +966,7 @@ export default function VendorOrders() {
                   compact
                 />
               </div>
+
               <p className="text-sm text-muted-foreground">{formatDate(order.created_at)}</p>
             </div>
             <div className="flex items-center gap-2">
