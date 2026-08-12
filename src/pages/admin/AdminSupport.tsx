@@ -186,6 +186,14 @@ export default function AdminSupport() {
     fetchMessages();
   }, [fetchMessages]);
 
+  // Polling safety net so replies show live even if the websocket drops
+  useEffect(() => {
+    if (!activeTicket) return;
+    const t = setInterval(fetchMessages, 4000);
+    return () => clearInterval(t);
+  }, [activeTicket, fetchMessages]);
+
+
   // Realtime messages on active ticket
   useEffect(() => {
     if (!activeTicket) return;
