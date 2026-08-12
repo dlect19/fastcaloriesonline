@@ -103,6 +103,10 @@ export function OrderChat({ orderId, orderStatus, riderId, vendorId, senderRole 
       .then(() => setUnreadCount(0));
   }, [isOpen, messages.length]);
 
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   const fetchMessages = async () => {
     const { data } = await supabase
       .from('order_chat_messages')
@@ -125,7 +129,6 @@ export function OrderChat({ orderId, orderStatus, riderId, vendorId, senderRole 
     setTimeout(scrollToBottom, 50);
   };
 
-  const scrollToBottomSafe = scrollToBottom;
 
   const handleSend = async () => {
     if (!newMessage.trim() || !user || sending) return;
