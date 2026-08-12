@@ -103,6 +103,18 @@ export function VendorOrderChat({ orderId, orderNumber, vendorId }: VendorOrderC
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  // Polling safety net so messages appear live even if the websocket drops
+  useEffect(() => {
+    if (!isOpen || !orderId) return;
+    const t = setInterval(fetchMessages, 4000);
+    return () => clearInterval(t);
+  }, [isOpen, orderId]);
+
+  const appendMessage = (msg: ChatMessage) => {
+    setMessages(prev => (prev.some(m => m.id === msg.id) ? prev : [...prev, msg]));
+    setTimeout(scrollToBottom, 50);
+  };
+
   const handleSend = async () => {
     if (!newMessage.trim() || !user || sending) return;
     setSending(true);
