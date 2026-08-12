@@ -73,6 +73,14 @@ export function useSupportChat(userId: string | undefined, userType: SupportUser
     fetchMessages();
   }, [fetchMessages]);
 
+  // Polling safety net so messages show live even if the websocket drops
+  useEffect(() => {
+    if (!activeTicket) return;
+    const t = setInterval(fetchMessages, 4000);
+    return () => clearInterval(t);
+  }, [activeTicket, fetchMessages]);
+
+
   // Subscribe to realtime updates for messages on the active ticket
   useEffect(() => {
     if (!activeTicket) return;
