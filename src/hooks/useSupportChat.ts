@@ -215,16 +215,21 @@ export function useSupportChat(userId: string | undefined, userType: SupportUser
 
     setSendingMessage(true);
     try {
-      const { error } = await supabase
+      const { data: inserted, error } = await supabase
         .from('support_messages')
         .insert({
           ticket_id: activeTicket.id,
           sender_id: userId,
           sender_type: 'user',
           message: message.trim(),
-        });
+        })
+        .select('*')
+        .single();
 
       if (error) throw error;
+      if (inserted) {
+        setMessages(prev => (prev.some(m => m.id === inserted.id) ? prev : [...prev, inserted]));
+      }
     } catch (error) {
       console.error('Error sending message:', error);
     } finally {
