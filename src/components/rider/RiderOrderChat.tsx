@@ -104,14 +104,15 @@ export function RiderOrderChat({ orderId, orderNumber }: RiderOrderChatProps) {
     if (!newMessage.trim() || !user || sending) return;
     setSending(true);
     try {
-      const { error } = await supabase.from('order_chat_messages').insert({
+      const { data: inserted, error } = await supabase.from('order_chat_messages').insert({
         order_id: orderId,
         sender_id: user.id,
         sender_role: 'rider',
         message_type: 'text',
         content: newMessage.trim(),
-      });
+      }).select('*').single();
       if (error) throw error;
+      if (inserted) appendMessage(inserted as ChatMessage);
       setNewMessage('');
     } catch (err: any) {
       toast({ title: 'Failed to send', description: err.message, variant: 'destructive' });
@@ -132,15 +133,16 @@ export function RiderOrderChat({ orderId, orderNumber }: RiderOrderChatProps) {
         .upload(path, file, { contentType: file.type });
       if (uploadError) throw uploadError;
       const { data: urlData } = supabase.storage.from('chat-media').getPublicUrl(path);
-      const { error } = await supabase.from('order_chat_messages').insert({
+      const { data: inserted, error } = await supabase.from('order_chat_messages').insert({
         order_id: orderId,
         sender_id: user.id,
         sender_role: 'rider',
         message_type: 'image',
         media_url: urlData.publicUrl,
         storage_path: path,
-      });
+      }).select('*').single();
       if (error) throw error;
+      if (inserted) appendMessage(inserted as ChatMessage);
     } catch (err: any) {
       toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
     } finally {
@@ -181,11 +183,12 @@ export function RiderOrderChat({ orderId, orderNumber }: RiderOrderChatProps) {
       const { error: uploadError } = await supabase.storage.from('chat-media').upload(path, blob, { contentType: 'audio/webm' });
       if (uploadError) throw uploadError;
       const { data: urlData } = supabase.storage.from('chat-media').getPublicUrl(path);
-      const { error } = await supabase.from('order_chat_messages').insert({
+      const { data: inserted, error } = await supabase.from('order_chat_messages').insert({
         order_id: orderId, sender_id: user.id, sender_role: 'rider',
         message_type: 'voice', media_url: urlData.publicUrl, storage_path: path,
-      });
+      }).select('*').single();
       if (error) throw error;
+      if (inserted) appendMessage(inserted as ChatMessage);
     } catch (err: any) {
       toast({ title: 'Voice upload failed', description: err.message, variant: 'destructive' });
     } finally { setUploading(false); }
