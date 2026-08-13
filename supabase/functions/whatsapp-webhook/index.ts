@@ -1623,6 +1623,19 @@ async function reverseGeocode(lat: number, lon: number): Promise<string | null> 
     return j?.results?.[0]?.formatted_address ?? null;
   } catch (_) { return null; }
 }
+// Strip conversational filler from a natural-language address message.
+function cleanAddressText(raw: string): string {
+  let s = String(raw || "").trim();
+  s = s.replace(/^(please\s+)?(you can\s+)?(pls\s+)?/i, "");
+  s = s.replace(/^(deliver|delivery|send|bring|drop)\s*(it|them|the order|my order)?\s*(to|at|@)\s*/i, "");
+  s = s.replace(/^(my\s+)?(delivery\s+)?address\s*(is|:)?\s*/i, "");
+  s = s.replace(/^(i\s+(am|m)|i'm|am)\s+(at|in|on)\s+/i, "");
+  s = s.replace(/^(it'?s|its)\s+/i, "");
+  s = s.replace(/\s*(thank you|thanks|pls|please)[.!]*$/i, "");
+  s = s.replace(/\s+/g, " ").trim();
+  return s.length >= 4 ? s : String(raw || "").trim();
+}
+
 async function geocodeText(query: string): Promise<{ lat: number; lon: number; address: string } | null> {
   const lk = Deno.env.get("LOVABLE_API_KEY");
   const gk = Deno.env.get("GOOGLE_MAPS_API_KEY");
