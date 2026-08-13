@@ -1399,11 +1399,53 @@ serve(async (req) => {
     }
 
 
+    // ===== Confirming a geocoded free-text address =====
+    if (session.state === "awaiting_address_confirm") {
+      const pend = nextContext.pending_address;
+      const isYes = ["1", "yes", "y", "yeah", "yep", "correct", "ok", "okay", "confirm", "that's right", "thats right", "sure"]
+        .includes(lower) || lower.startsWith("yes");
+      const isNo = ["2", "no", "n", "wrong", "not correct", "change", "retype", "edit"].includes(lower) || lower.startsWith("no");
+      if (isYes && pend) {
+        nextContext.address_confirmed = true;
+        nextContext.delivery_address_text = pend.address_text;
+        if (Number.isFinite(Number(pend.lat)) && Number.isFinite(Number(pend.lon))) {
+          nextContext.lat = Number(pend.lat);
+          nextContext.lon = Number(pend.lon);
+        }
+        nextContext.pending_address = undefined;
+        await saveDefaultAddress(supabase, session.customer_user_id, Number(pend.lat), Number(pend.lon), pend.address_text);
+        await persistSession(supabase, session.id, "menu", nextContext, nextCart);
+        return await doCheckout(supabase, { ...session, context: nextContext }, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
+      }
+      if (isNo) {
+        nextContext.pending_address = undefined;
+        await persistSession(supabase, session.id, "awaiting_delivery_address", { ...nextContext, awaiting_new_address: true }, nextCart);
+        return await sendToUser("wa_request_location", {},
+          "📍 No problem — type your delivery address again with a nearby *landmark* (e.g. _12 Admiralty Way, beside Zenith Bank, Lekki Phase 1_), or share your location pin (📎 → Location).");
+      }
+      if (hasSharedLocation) {
+        nextContext.address_confirmed = true;
+        nextContext.delivery_address_text = nextContext.location_label || `Pinned location (${sharedLat.toFixed(5)}, ${sharedLon.toFixed(5)})`;
+        nextContext.pending_address = undefined;
+        await persistSession(supabase, session.id, "menu", nextContext, nextCart);
+        return await doCheckout(supabase, { ...session, context: nextContext }, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
+      }
+      // Treat any other longer text as a corrected address
+      if (body && body.trim().length >= 5) {
+        return await handleTypedAddress(body.trim());
+      }
+      return await replyText(`Is *${pend?.address_text || "that address"}* correct?\n\nReply *1* (yes) or *2* to type it again.`);
+    }
+
     // ===== Awaiting delivery address (asked during checkout) =====
     if (session.state === "awaiting_delivery_address") {
       const saved = nextContext.saved_address;
+      const wantsSaved = ["1", "yes", "use saved", "same", "same as last time", "same place", "usual", "my usual", "my house", "home", "my home"]
+        .includes(lower) ||
+        /\b(saved|usual|same as (last|before)|my (house|home|place)|default)\b/.test(lower) ||
+        tap === "BTN_USE_SAVED_ADDR";
       // Option 1: use saved address
-      if (lower === "1" || lower === "yes" || lower === "use saved" || lower.includes("saved address") || tap === "BTN_USE_SAVED_ADDR") {
+      if (wantsSaved) {
         if (!saved?.address_text && !saved?.label) {
           return await replyText("⚠️ No saved address found. Please reply with your full delivery address or share a location pin.");
         }
@@ -1417,7 +1459,7 @@ serve(async (req) => {
         return await doCheckout(supabase, { ...session, context: nextContext }, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
       }
       // Option 2: ask for a new address
-      if (lower === "2" || lower === "new" || lower === "different") {
+      if (["2", "new", "different", "another", "somewhere else", "new address", "different address"].includes(lower)) {
         await persistSession(supabase, session.id, "awaiting_delivery_address", { ...nextContext, awaiting_new_address: true }, nextCart);
         return await sendToUser("wa_request_location", {},
           `📍 Please reply with the *full delivery address* (street, area, landmark), or share your location pin (📎 → Location → Send your current location).\n\nReply *menu* to go back.`);
@@ -1429,18 +1471,13 @@ serve(async (req) => {
         await persistSession(supabase, session.id, "menu", nextContext, nextCart);
         return await doCheckout(supabase, { ...session, context: nextContext }, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
       }
-      // Typed a free-text address
+      // Typed a free-text / natural-language address
       if (body && body.trim().length >= 5) {
-        nextContext.address_confirmed = true;
-        nextContext.delivery_address_text = body.trim();
-        // Clear any old coords so delivery falls back to text address
-        nextContext.lat = undefined;
-        nextContext.lon = undefined;
-        await persistSession(supabase, session.id, "menu", nextContext, nextCart);
-        return await doCheckout(supabase, { ...session, context: nextContext }, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
+        return await handleTypedAddress(body.trim());
       }
-      return await replyText("Reply *1* to use your saved address, *2* for a different address, share a location pin, or type the full delivery address.\n\nReply *menu* to cancel and go back to the main menu.");
+      return await replyText("Reply *1* to use your saved address, *2* for a different address, share a location pin, or just type the full delivery address in your own words.\n\nReply *menu* to cancel and go back to the main menu.");
     }
+
 
     // ===== Pharmacy Rx capture (asked during checkout when cart contains pharmacy items) =====
     if (session.state === "pharmacy_rx_choice") {
