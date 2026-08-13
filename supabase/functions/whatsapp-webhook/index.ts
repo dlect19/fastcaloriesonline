@@ -2380,8 +2380,8 @@ async function doCheckout(
     );
 
     const prompt = savedLabel
-      ? `📍 *Where should we deliver this order?*\n\nSaved address: *${savedLabel}*\n\nReply:\n1️⃣ Use this saved address\n2️⃣ Deliver to a *different* address\n\nOr share a new location pin (📎 → Location).\n\nReply *menu* to cancel.`
-      : `📍 *Where should we deliver this order?*\n\nYou don't have a saved address yet. Please reply with the *full delivery address* (street, area, landmark) or share your location pin (📎 → Location).\n\nReply *menu* to cancel.`;
+      ? `📍 *Where should we deliver this order?*\n\nSaved address: *${savedLabel}*\n\nReply:\n1️⃣ Use this saved address\n2️⃣ Deliver to a *different* address\n\nOr just type the address in your own words (e.g. _deliver to 12 Admiralty Way, beside Zenith Bank, Lekki_), or share a location pin (📎 → Location).\n\nReply *menu* to cancel.`
+      : `📍 *Where should we deliver this order?*\n\nYou don't have a saved address yet. Just type where you want it delivered in your own words (street, area, landmark) — e.g. _12 Admiralty Way, beside Zenith Bank, Lekki_ — or share your location pin (📎 → Location).\n\nReply *menu* to cancel.`;
     return await replyText(prompt);
   }
 
