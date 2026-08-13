@@ -1398,6 +1398,27 @@ serve(async (req) => {
         `📍 Share your location so I can show vendors near you.\n\n• Tap *📎* → *Location* → *Send your current location*\n• Or type an area/landmark (e.g. _Lekki Phase 1_)\n• Or reply *skip* to see top vendors\n• Or reply *menu* to go back`);
     }
 
+    // Natural-language delivery address capture: clean filler words, geocode, then confirm.
+    async function handleTypedAddress(raw: string) {
+      const cleaned = cleanAddressText(raw);
+      const geo = await geocodeText(cleaned);
+      if (geo) {
+        const pending = { lat: geo.lat, lon: geo.lon, address_text: geo.address, typed: cleaned };
+        await persistSession(supabase, session.id, "awaiting_address_confirm",
+          { ...nextContext, pending_address: pending, awaiting_new_address: false }, nextCart);
+        return await replyText(
+          `📍 I found:\n*${geo.address}*\n\nIs this your delivery address?\n\n1️⃣ Yes, deliver here\n2️⃣ No, let me type it again\n\n_You can also share your location pin (📎 → Location) for the most accurate delivery fee._`);
+      }
+      // Couldn't geocode — accept the typed address as-is so checkout isn't blocked.
+      nextContext.address_confirmed = true;
+      nextContext.delivery_address_text = cleaned;
+      nextContext.lat = undefined;
+      nextContext.lon = undefined;
+      nextContext.pending_address = undefined;
+      await persistSession(supabase, session.id, "menu", nextContext, nextCart);
+      return await doCheckout(supabase, { ...session, context: nextContext }, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
+    }
+
 
     // ===== Confirming a geocoded free-text address =====
     if (session.state === "awaiting_address_confirm") {
