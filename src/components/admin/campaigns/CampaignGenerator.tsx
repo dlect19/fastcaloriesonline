@@ -19,7 +19,9 @@ const SOCIAL_FORMATS = [
   { value: 'x_post', label: 'X / Twitter Post', size: '1200×675' },
   { value: 'whatsapp_status', label: 'WhatsApp Status', size: '1080×1920' },
   { value: 'youtube_thumbnail', label: 'YouTube Thumbnail', size: '1280×720' },
+  { value: 'custom', label: 'Custom Size', size: 'set below' },
 ];
+
 
 interface Vendor {
   id: string;
@@ -46,6 +48,8 @@ export function CampaignGenerator() {
   const [title, setTitle] = useState('');
   const [prompt, setPrompt] = useState('');
   const [format, setFormat] = useState('app_carousel');
+  const [customWidth, setCustomWidth] = useState('1200');
+  const [customHeight, setCustomHeight] = useState('600');
   const [menuItems, setMenuItems] = useState<string[]>([]);
   const [generatedImageUrl, setGeneratedImageUrl] = useState('');
   const [storagePath, setStoragePath] = useState('');
@@ -111,6 +115,13 @@ export function CampaignGenerator() {
       return;
     }
 
+    const cw = parseInt(customWidth, 10);
+    const ch = parseInt(customHeight, 10);
+    if (format === 'custom' && (!cw || !ch || cw < 256 || ch < 256 || cw > 4096 || ch > 4096)) {
+      toast({ title: 'Invalid custom size', description: 'Width and height must be between 256 and 4096 px', variant: 'destructive' });
+      return;
+    }
+
     setGenerating(true);
     setGeneratedImageUrl('');
     try {
@@ -133,6 +144,8 @@ export function CampaignGenerator() {
           platform_logo_base64: platformLogoBase64,
           menu_items: menuItems,
           format,
+          custom_width: format === 'custom' ? cw : undefined,
+          custom_height: format === 'custom' ? ch : undefined,
         },
       });
 
@@ -233,7 +246,10 @@ export function CampaignGenerator() {
   };
 
   const selectedVendor = vendors.find(v => v.id === selectedVendorId);
-  const selectedFormatInfo = SOCIAL_FORMATS.find(f => f.value === format);
+  const baseFormatInfo = SOCIAL_FORMATS.find(f => f.value === format);
+  const selectedFormatInfo = format === 'custom'
+    ? { value: 'custom', label: 'Custom', size: `${customWidth || '?'}×${customHeight || '?'}` }
+    : baseFormatInfo;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -282,6 +298,34 @@ export function CampaignGenerator() {
               </Select>
             </div>
           </div>
+
+          {format === 'custom' && (
+            <div className="grid grid-cols-2 gap-3 p-3 rounded-lg bg-muted/50">
+              <div>
+                <Label>Custom Width (px)</Label>
+                <Input
+                  type="number"
+                  min={256}
+                  max={4096}
+                  value={customWidth}
+                  onChange={(e) => setCustomWidth(e.target.value)}
+                  placeholder="1200"
+                />
+              </div>
+              <div>
+                <Label>Custom Height (px)</Label>
+                <Input
+                  type="number"
+                  min={256}
+                  max={4096}
+                  value={customHeight}
+                  onChange={(e) => setCustomHeight(e.target.value)}
+                  placeholder="600"
+                />
+              </div>
+              <p className="col-span-2 text-xs text-muted-foreground">Allowed range: 256–4096 px per side.</p>
+            </div>
+          )}
 
           {campaignType === 'vendor_promo' && (
             <div className="space-y-3">
