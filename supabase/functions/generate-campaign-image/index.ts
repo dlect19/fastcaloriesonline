@@ -32,7 +32,7 @@ serve(async (req) => {
       throw new Error("Admin access required");
     }
 
-    const { prompt, campaign_type, vendor_name, vendor_logo_url, platform_logo_base64, menu_items, format } = await req.json();
+    const { prompt, campaign_type, vendor_name, vendor_logo_url, platform_logo_base64, menu_items, format, custom_width, custom_height } = await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
@@ -50,7 +50,19 @@ serve(async (req) => {
       app_carousel: { w: 1200, h: 600, label: "App Carousel (1200×600)" },
     };
 
-    const selectedFormat = FORMAT_SIZES[format] || FORMAT_SIZES.app_carousel;
+    let selectedFormat = FORMAT_SIZES[format] || FORMAT_SIZES.app_carousel;
+
+    if (format === "custom") {
+      const w = Math.round(Number(custom_width));
+      const h = Math.round(Number(custom_height));
+      if (!Number.isFinite(w) || !Number.isFinite(h) || w < 256 || h < 256 || w > 4096 || h > 4096) {
+        return new Response(
+          JSON.stringify({ error: "Custom size must be between 256 and 4096 pixels for width and height." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      selectedFormat = { w, h, label: `Custom (${w}×${h})` };
+    }
 
     // Build prompt
     let imagePrompt = "";
