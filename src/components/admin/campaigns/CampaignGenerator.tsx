@@ -19,7 +19,9 @@ const SOCIAL_FORMATS = [
   { value: 'x_post', label: 'X / Twitter Post', size: '1200×675' },
   { value: 'whatsapp_status', label: 'WhatsApp Status', size: '1080×1920' },
   { value: 'youtube_thumbnail', label: 'YouTube Thumbnail', size: '1280×720' },
+  { value: 'custom', label: 'Custom Size', size: 'set below' },
 ];
+
 
 interface Vendor {
   id: string;
