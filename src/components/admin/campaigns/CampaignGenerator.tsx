@@ -117,8 +117,8 @@ export function CampaignGenerator() {
 
     const cw = parseInt(customWidth, 10);
     const ch = parseInt(customHeight, 10);
-    if (format === 'custom' && (!cw || !ch || cw < 256 || ch < 256 || cw > 4096 || ch > 4096)) {
-      toast({ title: 'Invalid custom size', description: 'Width and height must be between 256 and 4096 px', variant: 'destructive' });
+    if (format === 'custom' && (!cw || !ch || cw < 256 || ch < 256 || cw > 6000 || ch > 6000)) {
+      toast({ title: 'Invalid custom size', description: 'Width and height must be between 256 and 6000 px', variant: 'destructive' });
       return;
     }
 
@@ -306,7 +306,7 @@ export function CampaignGenerator() {
                 <Input
                   type="number"
                   min={256}
-                  max={4096}
+                  max={6000}
                   value={customWidth}
                   onChange={(e) => setCustomWidth(e.target.value)}
                   placeholder="1200"
@@ -317,13 +317,13 @@ export function CampaignGenerator() {
                 <Input
                   type="number"
                   min={256}
-                  max={4096}
+                  max={6000}
                   value={customHeight}
                   onChange={(e) => setCustomHeight(e.target.value)}
                   placeholder="600"
                 />
               </div>
-              <p className="col-span-2 text-xs text-muted-foreground">Allowed range: 256–4096 px per side.</p>
+              <p className="col-span-2 text-xs text-muted-foreground">Allowed range: 256–6000 px per side.</p>
             </div>
           )}
 

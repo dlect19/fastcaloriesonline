@@ -55,9 +55,9 @@ serve(async (req) => {
     if (format === "custom") {
       const w = Math.round(Number(custom_width));
       const h = Math.round(Number(custom_height));
-      if (!Number.isFinite(w) || !Number.isFinite(h) || w < 256 || h < 256 || w > 4096 || h > 4096) {
+      if (!Number.isFinite(w) || !Number.isFinite(h) || w < 256 || h < 256 || w > 6000 || h > 6000) {
         return new Response(
-          JSON.stringify({ error: "Custom size must be between 256 and 4096 pixels for width and height." }),
+          JSON.stringify({ error: "Custom size must be between 256 and 6000 pixels for width and height." }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
