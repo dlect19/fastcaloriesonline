@@ -67,6 +67,10 @@ export default function AdminDashboard() {
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [stats, setStats] = useState<PlatformStats>({
     totalOrders: 0,
+    onlineOrders: 0,
+    posOrders: 0,
+    assistedOrders: 0,
+    whatsappOrders: 0,
     totalVendors: 0,
     totalRiders: 0,
     totalUsers: 0,
