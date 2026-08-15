@@ -33,6 +33,10 @@ interface FinancialStats {
 
 interface PlatformStats {
   totalOrders: number;
+  onlineOrders: number;
+  posOrders: number;
+  assistedOrders: number;
+  whatsappOrders: number;
   totalVendors: number;
   totalRiders: number;
   totalUsers: number;
@@ -63,6 +67,10 @@ export default function AdminDashboard() {
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [stats, setStats] = useState<PlatformStats>({
     totalOrders: 0,
+    onlineOrders: 0,
+    posOrders: 0,
+    assistedOrders: 0,
+    whatsappOrders: 0,
     totalVendors: 0,
     totalRiders: 0,
     totalUsers: 0,
@@ -132,16 +140,28 @@ export default function AdminDashboard() {
     try {
       const envFilter = isTestMode ? 'development' : 'production';
       
-      const [ordersRes, vendorsRes, ridersRes, usersRes, pendingVendorsRes] = await Promise.all([
-        supabase.from('orders').select('id', { count: 'exact' }).eq('environment', envFilter),
+      const orderCount = (channel: string) =>
+        supabase.from('orders').select('id', { count: 'exact', head: true })
+          .eq('environment', envFilter).eq('channel', channel);
+
+      const [ordersRes, vendorsRes, ridersRes, usersRes, pendingVendorsRes, onlineRes, posRes, assistedRes, whatsappRes] = await Promise.all([
+        supabase.from('orders').select('id', { count: 'exact', head: true }).eq('environment', envFilter),
         supabase.from('vendors').select('id', { count: 'exact' }).eq('is_verified', true).eq('is_test_store', isTestMode),
         supabase.from('rider_profiles').select('id', { count: 'exact' }).eq('is_verified', true).eq('is_test_rider', isTestMode),
         supabase.from('profiles').select('id', { count: 'exact' }),
         supabase.from('vendors').select('id', { count: 'exact' }).eq('is_verified', false),
+        orderCount('online'),
+        orderCount('pos'),
+        orderCount('assisted'),
+        orderCount('whatsapp'),
       ]);
 
       setStats({
         totalOrders: ordersRes.count || 0,
+        onlineOrders: onlineRes.count || 0,
+        posOrders: posRes.count || 0,
+        assistedOrders: assistedRes.count || 0,
+        whatsappOrders: whatsappRes.count || 0,
         totalVendors: vendorsRes.count || 0,
         totalRiders: ridersRes.count || 0,
         totalUsers: usersRes.count || 0,
@@ -431,6 +451,19 @@ export default function AdminDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{stats.totalOrders}</div>
+                <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                  {[
+                    { label: 'Online', value: stats.onlineOrders },
+                    { label: 'POS', value: stats.posOrders },
+                    { label: 'Assisted', value: stats.assistedOrders },
+                    { label: 'WhatsApp', value: stats.whatsappOrders },
+                  ].map(row => (
+                    <div key={row.label} className="flex items-center justify-between gap-2">
+                      <span className="text-muted-foreground">{row.label}</span>
+                      <span className="font-semibold text-foreground">{row.value}</span>
+                    </div>
+                  ))}
+                </div>
               </CardContent>
             </Card>
 
