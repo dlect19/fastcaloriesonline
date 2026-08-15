@@ -140,16 +140,28 @@ export default function AdminDashboard() {
     try {
       const envFilter = isTestMode ? 'development' : 'production';
       
-      const [ordersRes, vendorsRes, ridersRes, usersRes, pendingVendorsRes] = await Promise.all([
-        supabase.from('orders').select('id', { count: 'exact' }).eq('environment', envFilter),
+      const orderCount = (channel: string) =>
+        supabase.from('orders').select('id', { count: 'exact', head: true })
+          .eq('environment', envFilter).eq('channel', channel);
+
+      const [ordersRes, vendorsRes, ridersRes, usersRes, pendingVendorsRes, onlineRes, posRes, assistedRes, whatsappRes] = await Promise.all([
+        supabase.from('orders').select('id', { count: 'exact', head: true }).eq('environment', envFilter),
         supabase.from('vendors').select('id', { count: 'exact' }).eq('is_verified', true).eq('is_test_store', isTestMode),
         supabase.from('rider_profiles').select('id', { count: 'exact' }).eq('is_verified', true).eq('is_test_rider', isTestMode),
         supabase.from('profiles').select('id', { count: 'exact' }),
         supabase.from('vendors').select('id', { count: 'exact' }).eq('is_verified', false),
+        orderCount('online'),
+        orderCount('pos'),
+        orderCount('assisted'),
+        orderCount('whatsapp'),
       ]);
 
       setStats({
         totalOrders: ordersRes.count || 0,
+        onlineOrders: onlineRes.count || 0,
+        posOrders: posRes.count || 0,
+        assistedOrders: assistedRes.count || 0,
+        whatsappOrders: whatsappRes.count || 0,
         totalVendors: vendorsRes.count || 0,
         totalRiders: ridersRes.count || 0,
         totalUsers: usersRes.count || 0,
