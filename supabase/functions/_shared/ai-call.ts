@@ -41,18 +41,27 @@ export interface ChatCompletionResult {
   provider: "lovable" | "gemini";
 }
 
-async function callLovable(body: ChatCompletionBody, apiKey: string): Promise<Response> {
+async function callLovable(
+  body: ChatCompletionBody,
+  apiKey: string,
+  signal?: AbortSignal,
+): Promise<Response> {
   return await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
+    signal,
     body: JSON.stringify(body),
   });
 }
 
-async function callGemini(body: ChatCompletionBody, apiKey: string): Promise<Response> {
+async function callGemini(
+  body: ChatCompletionBody,
+  apiKey: string,
+  signal?: AbortSignal,
+): Promise<Response> {
   const geminiModel = MODEL_MAP_TO_GEMINI[body.model] || "gemini-2.5-flash";
   // Gemini exposes an OpenAI-compatible chat completions endpoint.
   return await fetch(
@@ -63,6 +72,7 @@ async function callGemini(body: ChatCompletionBody, apiKey: string): Promise<Res
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
+      signal,
       body: JSON.stringify({ ...body, model: geminiModel }),
     },
   );
@@ -74,6 +84,7 @@ async function callGemini(body: ChatCompletionBody, apiKey: string): Promise<Res
  */
 export async function chatCompletionWithFallback(
   body: ChatCompletionBody,
+  opts?: { signal?: AbortSignal },
 ): Promise<ChatCompletionResult> {
   const lovableKey = Deno.env.get("LOVABLE_API_KEY");
   const geminiKey = Deno.env.get("GEMINI_API_KEY");
@@ -81,7 +92,7 @@ export async function chatCompletionWithFallback(
   // Primary attempt: Lovable AI
   if (lovableKey) {
     try {
-      const resp = await callLovable(body, lovableKey);
+      const resp = await callLovable(body, lovableKey, opts?.signal);
       if (resp.ok) {
         const data = await resp.json();
         // Validate response shape; some failures return 200 with error body
@@ -121,7 +132,7 @@ export async function chatCompletionWithFallback(
   console.log("[ai-call] Calling Gemini fallback...");
 
   try {
-    const resp = await callGemini(body, geminiKey);
+    const resp = await callGemini(body, geminiKey, opts?.signal);
     if (resp.ok) {
       return { ok: true, status: resp.status, data: await resp.json(), provider: "gemini" };
     }
