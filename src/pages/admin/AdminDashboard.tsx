@@ -33,6 +33,10 @@ interface FinancialStats {
 
 interface PlatformStats {
   totalOrders: number;
+  onlineOrders: number;
+  posOrders: number;
+  assistedOrders: number;
+  whatsappOrders: number;
   totalVendors: number;
   totalRiders: number;
   totalUsers: number;
