@@ -451,6 +451,19 @@ export default function AdminDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{stats.totalOrders}</div>
+                <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                  {[
+                    { label: 'Online', value: stats.onlineOrders },
+                    { label: 'POS', value: stats.posOrders },
+                    { label: 'Assisted', value: stats.assistedOrders },
+                    { label: 'WhatsApp', value: stats.whatsappOrders },
+                  ].map(row => (
+                    <div key={row.label} className="flex items-center justify-between gap-2">
+                      <span className="text-muted-foreground">{row.label}</span>
+                      <span className="font-semibold text-foreground">{row.value}</span>
+                    </div>
+                  ))}
+                </div>
               </CardContent>
             </Card>
 
