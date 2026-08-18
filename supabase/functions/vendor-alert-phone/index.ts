@@ -169,26 +169,33 @@ serve(async (req) => {
       return json({ error: "phone_not_verified" }, 400);
     }
 
-    const testBody =
-      `✅ Fast Calories test alert\n\n` +
-      `This number will receive order alerts for *${outlet.outlet_name}*.`;
-
-    // Free-form WhatsApp only works inside the 24h window, so send the test through
-    // the approved vendor_new_order template with sample values instead.
+    // Free-form WhatsApp only works inside the 24h window, so the test alert MUST go
+    // through the approved vendor_new_order template. If it isn't provisioned yet,
+    // fail with a clear, actionable message instead of a generic Meta rejection.
     const { data: tpl } = await admin
       .from("whatsapp_templates")
       .select("content_sid")
       .eq("template_key", "vendor_new_order")
       .maybeSingle();
 
+    if (!tpl?.content_sid) {
+      return json({
+        error: "template_not_provisioned",
+        message:
+          "The 'vendor_new_order' WhatsApp template isn't provisioned yet. Go to Admin → WhatsApp → Provision Templates and wait for Meta approval, then retry the test alert.",
+      }, 400);
+    }
+
+    const testBody =
+      `✅ Fast Calories test alert\n\n` +
+      `This number will receive order alerts for *${outlet.outlet_name}*.`;
+
     const send = await sendTwilioMessage(admin, {
       channel: "whatsapp",
       to: settings.phone,
       body: testBody,
-      contentSid: tpl?.content_sid || undefined,
-      contentVariables: tpl?.content_sid
-        ? { "1": "TEST-0000", "2": "1", "3": "₦0", "4": "Test alert" }
-        : undefined,
+      contentSid: tpl.content_sid,
+      contentVariables: { "1": "TEST-0000", "2": "1", "3": "₦0", "4": "Test alert" },
     });
     await logTwilioCall(admin, {
       user_id: user.id,
