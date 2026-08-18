@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { MessageCircle, CheckCircle2, Send, Loader2 } from 'lucide-react';
+import { MessageCircle, CheckCircle2, Send, Loader2, ExternalLink } from 'lucide-react';
 
 interface Outlet {
   id: string;
@@ -38,6 +38,7 @@ export function VendorWhatsAppAlerts({ vendorId, vendorPhone }: Props) {
   const [codeSentFor, setCodeSentFor] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [waNumber, setWaNumber] = useState<string>('');
 
   useEffect(() => {
     if (vendorId) load();
@@ -57,6 +58,13 @@ export function VendorWhatsAppAlerts({ vendorId, vendorPhone }: Props) {
         .select('outlet_id, phone, phone_verified, enabled, alert_new_order, alert_unattended, alert_daily_summary')
         .eq('vendor_id', vendorId),
     ]);
+
+    const { data: fromSetting } = await supabase
+      .from('platform_settings')
+      .select('value')
+      .eq('key', 'whatsapp_from_number')
+      .maybeSingle();
+    setWaNumber(String(fromSetting?.value || '').replace(/[^0-9]/g, ''));
 
     setOutlets(outletData || []);
     const map: Record<string, AlertRow> = {};
@@ -211,7 +219,29 @@ export function VendorWhatsAppAlerts({ vendorId, vendorPhone }: Props) {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-xs">WhatsApp number</Label>
+                <Label className="text-xs">Step 1 — activate chat</Label>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full gap-2"
+                  disabled={!waNumber}
+                  onClick={() =>
+                    window.open(
+                      `https://wa.me/${waNumber}?text=${encodeURIComponent('I need to activate chat for order alerts')}`,
+                      '_blank',
+                      'noopener,noreferrer',
+                    )
+                  }
+                >
+                  <ExternalLink className="w-4 h-4" /> I need to activate chat
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Send that WhatsApp message from the number below, then come back and tap "Send code".
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs">Step 2 — WhatsApp number</Label>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <Input
                     value={phoneInput[outlet.id] || ''}
