@@ -298,26 +298,38 @@ export default function RiderWithdraw() {
     }
   };
 
-  const handleRequestOTP = async () => {
+  // Step 1: server-side quote (balance, charge, net, bank, ETA) before any submission
+  const handleContinueToConfirm = async () => {
     const amount = Number(withdrawAmount);
-    const availableBalance = wallet?.balance || 0;
-
     if (!amount || amount <= 0) {
       toast({ title: 'Enter a valid amount', variant: 'destructive' });
       return;
     }
-
-    if (amount > availableBalance) {
-      toast({ title: 'Amount exceeds available balance', variant: 'destructive' });
-      return;
-    }
-
     if (!wallet?.bank_name || !wallet?.bank_account_number) {
       toast({ title: 'Please add bank details first', variant: 'destructive' });
       setBankDialogOpen(true);
       return;
     }
 
+    setQuoting(true);
+    try {
+      const q = await payoutOptions.getQuote(amount);
+      setQuote(q);
+      if (q.errors.length > 0) {
+        toast({ title: 'Cannot withdraw this amount', description: q.errors[0], variant: 'destructive' });
+        return;
+      }
+      setOtpStep('confirm');
+    } catch (error: any) {
+      toast({ title: 'Could not prepare withdrawal', description: error.message, variant: 'destructive' });
+    } finally {
+      setQuoting(false);
+    }
+  };
+
+  // Step 2: rider explicitly confirms, then we send the email OTP
+  const handleRequestOTP = async () => {
+    const amount = Number(withdrawAmount);
     setSendingOtp(true);
     try {
       const { error } = await supabase.functions.invoke('send-withdrawal-otp', {
@@ -331,6 +343,8 @@ export default function RiderWithdraw() {
 
       if (error) throw error;
 
+      // Stable idempotency key for this confirmed attempt — retrying can never duplicate the transfer
+      setIdempotencyKey((prev) => prev || `instant:${Date.now()}:${amount}`);
       toast({ title: 'OTP sent!', description: 'Check your email for the verification code.' });
       setOtpStep('otp');
     } catch (error: any) {
@@ -340,6 +354,7 @@ export default function RiderWithdraw() {
     }
   };
 
+  // Step 3: verify OTP, then create the withdrawal through the backend (charge + ledger handled server-side)
   const handleVerifyAndWithdraw = async () => {
     if (otp.length !== 6) {
       toast({ title: 'Please enter the 6-digit OTP', variant: 'destructive' });
@@ -347,88 +362,40 @@ export default function RiderWithdraw() {
     }
 
     const amount = Number(withdrawAmount);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
     setSubmitting(true);
     try {
-      // Verify OTP
       const { data: verifyData, error: verifyError } = await supabase.functions.invoke('verify-withdrawal-otp', {
-        body: {
-          email: userEmail,
-          otp,
-          expectedAmount: amount,
-        },
+        body: { email: userEmail, otp, expectedAmount: amount },
       });
 
       if (verifyError || !verifyData?.valid) {
         throw new Error('Invalid or expired OTP');
       }
 
-      // CRITICAL: Re-check balance server-side to prevent race conditions
-      const { data: freshWallet } = await supabase
-        .from('wallets')
-        .select('eligible_balance, test_eligible_balance')
-        .eq('id', wallet!.id)
-        .single();
+      const result = await payoutOptions.requestWithdrawal(amount, idempotencyKey || undefined);
 
-      if (!freshWallet) throw new Error('Wallet not found');
-
-      const freshBalance = isTestMode
-        ? Number(freshWallet.test_eligible_balance) || 0
-        : Number(freshWallet.eligible_balance) || 0;
-
-      if (amount > freshBalance) {
-        throw new Error('Insufficient balance. Your available balance may have changed.');
-      }
-
-      // Process withdrawal - insert into payout_requests table
-      const { data: insertedPayout, error } = await supabase
-        .from('payout_requests')
-        .insert({
-          wallet_id: wallet!.id,
-          user_id: user.id,
-          amount,
-          bank_name: wallet!.bank_name,
-          bank_account_number: wallet!.bank_account_number,
-          bank_account_name: wallet!.bank_account_name || '',
-          user_type: 'rider',
-          status: 'pending',
-        })
-        .select('id')
-        .single();
-
-      if (error) throw error;
-
-      // Check if auto-approval is enabled
-      const { data: approvalSetting } = await supabase
-        .from('platform_settings')
-        .select('value')
-        .eq('key', 'payout_approval_mode')
-        .single();
-
-      if (approvalSetting?.value === 'auto' && insertedPayout?.id) {
-        toast({ title: 'Processing withdrawal...', description: 'Auto-approval is enabled. Processing your payout now.' });
-        try {
-          const { data: payoutResult, error: payoutError } = await supabase.functions.invoke('process-payout', {
-            body: { payout_request_id: insertedPayout.id }
-          });
-          if (payoutError || !payoutResult?.success) {
-            toast({ title: 'Payout queued', description: payoutResult?.error || 'Payout will be retried by admin.', variant: 'destructive' });
-          } else {
-            toast({ title: '✅ Withdrawal processing', description: payoutResult?.data?.message || 'Your payout is being processed.' });
-          }
-        } catch {
-          toast({ title: 'Payout queued', description: 'Auto-processing encountered an issue. Admin will review.' });
-        }
+      if (result.duplicate) {
+        toast({ title: 'Withdrawal already submitted', description: 'This request was already received.' });
+      } else if (result.processing) {
+        toast({
+          title: '✅ Withdrawal processing',
+          description: `Net ₦${result.net_amount.toLocaleString()} on the way. Ref ${result.withdrawal_reference}.`,
+        });
       } else {
-        toast({ title: 'Withdrawal request submitted', description: 'Your request will be processed shortly.' });
+        toast({
+          title: 'Withdrawal request submitted',
+          description: `Ref ${result.withdrawal_reference}. Net ₦${result.net_amount.toLocaleString()} after ₦${result.transfer_charge.toLocaleString()} transfer charge.`,
+        });
       }
+
       setWithdrawDialogOpen(false);
       setWithdrawAmount('');
       setOtp('');
+      setQuote(null);
+      setIdempotencyKey('');
       setOtpStep('amount');
       checkAuth();
+      payoutOptions.refresh();
     } catch (error: any) {
       toast({ title: 'Withdrawal failed', description: error.message, variant: 'destructive' });
     } finally {
