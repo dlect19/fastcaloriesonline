@@ -413,16 +413,17 @@ export function AddonMealsList({ vendor, addonProducts, onRefresh, getEffectiveA
             Create reusable add-on meals that can be linked to any main menu item
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" className="gap-2" onClick={() => setMenuPickerOpen(true)}>
-            <UtensilsCrossed className="w-4 h-4" />
-            Create from Menu
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" className="gap-1.5 flex-1 sm:flex-none min-w-0 text-xs sm:text-sm" onClick={() => setMenuPickerOpen(true)}>
+            <UtensilsCrossed className="w-4 h-4 shrink-0" />
+            <span className="truncate">Create from Menu</span>
           </Button>
-          <Button className="gap-2" onClick={() => { resetForm(); setDialogOpen(true); }}>
-            <Plus className="w-4 h-4" />
-            Add Add-On Meal
+          <Button size="sm" className="gap-1.5 flex-1 sm:flex-none min-w-0 text-xs sm:text-sm" onClick={() => { resetForm(); setDialogOpen(true); }}>
+            <Plus className="w-4 h-4 shrink-0" />
+            <span className="truncate">Add Add-On Meal</span>
           </Button>
         </div>
+
       </div>
 
       {/* Search */}
@@ -457,32 +458,41 @@ export function AddonMealsList({ vendor, addonProducts, onRefresh, getEffectiveA
 
             return (
               <div key={product.id} className="bg-card rounded-xl border border-border overflow-hidden">
-              <div className="p-4 flex items-center gap-4">
+              <div className="p-3 sm:p-4 flex items-start gap-3 sm:gap-4">
                 {product.image_url ? (
-                  <img src={product.image_url} alt={product.name} className="w-14 h-14 rounded-lg object-cover" />
+                  <img src={product.image_url} alt={product.name} className="w-14 h-14 rounded-lg object-cover shrink-0" />
                 ) : (
-                  <div className="w-14 h-14 rounded-lg bg-muted flex items-center justify-center text-xl">🍲</div>
+                  <div className="w-14 h-14 rounded-lg bg-muted flex items-center justify-center text-xl shrink-0">🍲</div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="font-semibold text-foreground truncate">{product.name}</h3>
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="font-semibold text-foreground text-sm sm:text-base break-words min-w-0">{product.name}</h3>
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      <Switch checked={effectiveAvailability} onCheckedChange={() => toggleAvailability(product)} />
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(product)}>
+                        <Edit2 className="w-4 h-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => handleDelete(product.id)}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-wrap mt-1">
                     <Badge variant="secondary" className="text-xs">Add-On</Badge>
                     {!effectiveAvailability && <Badge variant="outline" className="text-xs">Unavailable</Badge>}
                     {product.calorie_classes && (product.calorie_classes as string[]).length > 0 && (
-                      <div className="flex gap-0.5">
-                        {(product.calorie_classes as string[]).map((cls) => (
-                          <Badge key={cls} variant="outline" className="text-xs py-0 px-1">
-                            {cls === 'carbs' && <Wheat className="w-3 h-3" />}
-                            {cls === 'protein' && <Drumstick className="w-3 h-3" />}
-                            {cls === 'fats' && <Droplets className="w-3 h-3" />}
-                            {cls === 'fiber' && <Leaf className="w-3 h-3" />}
-                          </Badge>
-                        ))}
-                      </div>
+                      (product.calorie_classes as string[]).map((cls) => (
+                        <Badge key={cls} variant="outline" className="text-xs py-0 px-1">
+                          {cls === 'carbs' && <Wheat className="w-3 h-3" />}
+                          {cls === 'protein' && <Drumstick className="w-3 h-3" />}
+                          {cls === 'fats' && <Droplets className="w-3 h-3" />}
+                          {cls === 'fiber' && <Leaf className="w-3 h-3" />}
+                        </Badge>
+                      ))
                     )}
                   </div>
-                  <div className="flex items-center gap-3 mt-1">
-                    <span className="font-bold text-primary">
+                  <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                    <span className="font-bold text-primary text-sm">
                       {product.price > 0 ? `₦${product.price.toLocaleString()}` : 'Free'}
                     </span>
                     {product.calories && (
@@ -492,17 +502,9 @@ export function AddonMealsList({ vendor, addonProducts, onRefresh, getEffectiveA
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Switch checked={effectiveAvailability} onCheckedChange={() => toggleAvailability(product)} />
-                  <Button variant="ghost" size="icon" onClick={() => handleEdit(product)}>
-                    <Edit2 className="w-4 h-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleDelete(product.id)}>
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
               </div>
             </div>
+
             );
           })}
         </div>
