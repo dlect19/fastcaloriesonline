@@ -81,11 +81,20 @@ export function VendorWhatsAppAlerts({ vendorId, vendorPhone }: Props) {
       let details = error.message;
       try {
         const ctx = (error as any).context;
-        if (ctx?.text) details = await ctx.text();
+        if (ctx?.text) {
+          const raw = await ctx.text();
+          try {
+            const parsed = JSON.parse(raw);
+            details = parsed?.message || parsed?.error || raw;
+          } catch {
+            details = raw || details;
+          }
+        }
       } catch { /* ignore */ }
       throw new Error(details);
     }
     if ((data as any)?.error) throw new Error((data as any).message || (data as any).error);
+
     return data;
   };
 

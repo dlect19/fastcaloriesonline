@@ -73,11 +73,19 @@ serve(async (req) => {
         ? `Your Fast Calories sign-up code is: ${code}\n\nUse this code to create your new account. It expires in 10 minutes. Do not share it with anyone.`
         : `Your Fast Calories phone verification code is: ${code}\n\nUse this code to verify your phone number. It expires in 10 minutes. Do not share it with anyone.`;
 
-    // Try WhatsApp first (unless caller explicitly asked for SMS). Use approved OTP
-    // template so delivery works even outside the 24-hour customer chat window.
-    const OTP_CONTENT_SID = Deno.env.get("TWILIO_OTP_CONTENT_SID") || "HXdeeb66b6a153acab9852859f86c7e5b4";
+    // Try WhatsApp first (unless caller explicitly asked for SMS). Use the approved
+    // wa_otp_code content template so delivery works even outside the 24-hour window.
+    // Never hard-code a SID: an unapproved/unknown SID makes Twilio fall back to
+    // free-form text, which Meta rejects with error 63016.
+    const { data: otpTpl } = await admin
+      .from("whatsapp_templates")
+      .select("content_sid, approval_status")
+      .eq("template_key", "wa_otp_code")
+      .maybeSingle();
+    const OTP_CONTENT_SID = Deno.env.get("TWILIO_OTP_CONTENT_SID") || otpTpl?.content_sid || "";
     let channelUsed: "whatsapp" | "sms" = preferSms ? "sms" : "whatsapp";
     const useTemplate = channelUsed === "whatsapp" && !!OTP_CONTENT_SID;
+
     console.log("[send-phone-otp] send attempt", JSON.stringify({
       phone, purpose, channel: channelUsed,
       method: useTemplate ? "content_template" : "freeform_body",

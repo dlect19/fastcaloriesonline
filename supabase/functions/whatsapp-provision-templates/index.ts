@@ -14,9 +14,12 @@ type TemplateDef = {
   description: string;
   variables: Record<string, string>;
   types: Record<string, unknown>;
+  /** WhatsApp approval category. Defaults to UTILITY. */
+  category?: "UTILITY" | "MARKETING" | "AUTHENTICATION";
 };
 
 const TEMPLATES: TemplateDef[] = [
+
   {
     key: "wa_main_menu",
     friendly_name: "wa_main_menu",
@@ -217,7 +220,71 @@ const TEMPLATES: TemplateDef[] = [
       },
     },
   },
+  {
+    key: "wa_otp_code",
+    friendly_name: "wa_otp_code",
+    language: "en",
+    description: "One-time verification / login code",
+    category: "AUTHENTICATION",
+    variables: { "1": "123456" },
+    types: {
+      "twilio/text": {
+        body: "{{1}} is your Fast Calories verification code. It expires in 10 minutes. For your security, do not share this code with anyone.",
+      },
+    },
+  },
 ];
+
+const APPROVAL_BASE = "https://content.twilio.com/v1/Content";
+
+async function submitForApproval(
+  basic: string,
+  contentSid: string,
+  name: string,
+  category: string,
+): Promise<{ status: string; rejection_reason?: string | null; error?: string }> {
+  try {
+    const res = await fetch(`${APPROVAL_BASE}/${contentSid}/ApprovalRequests/whatsapp`, {
+      method: "POST",
+      headers: { Authorization: `Basic ${basic}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ name, category }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      // Already submitted / already approved is not a failure.
+      const msg = JSON.stringify(body);
+      if (/already/i.test(msg)) return { status: "pending" };
+      return { status: "submission_failed", error: msg };
+    }
+    return {
+      status: String(body?.status ?? body?.whatsapp?.status ?? "pending"),
+      rejection_reason: body?.rejection_reason ?? body?.whatsapp?.rejection_reason ?? null,
+    };
+  } catch (e) {
+    return { status: "submission_failed", error: (e as Error).message };
+  }
+}
+
+async function fetchApprovalStatus(
+  basic: string,
+  contentSid: string,
+): Promise<{ status: string; rejection_reason?: string | null }> {
+  try {
+    const res = await fetch(`${APPROVAL_BASE}/${contentSid}/ApprovalRequests`, {
+      headers: { Authorization: `Basic ${basic}` },
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) return { status: "unknown" };
+    const wa = body?.whatsapp ?? body?.approval_requests?.whatsapp ?? null;
+    return {
+      status: String(wa?.status ?? "not_submitted"),
+      rejection_reason: wa?.rejection_reason ?? null,
+    };
+  } catch {
+    return { status: "unknown" };
+  }
+}
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -243,53 +310,97 @@ Deno.serve(async (req) => {
     if (!isAdmin) throw new Error("Admin only");
 
     const basic = btoa(`${sid}:${token}`);
-    const results: Array<{ key: string; content_sid?: string; status: string; error?: string }> = [];
+    const payload = await req.json().catch(() => ({}));
+    const action = String((payload as any)?.action || "provision");
+
+    // --- Refresh approval status only ---
+    if (action === "refresh_status") {
+      const { data: rows } = await supabase
+        .from("whatsapp_templates")
+        .select("template_key, content_sid")
+        .not("content_sid", "is", null);
+      const results: Array<{ key: string; approval_status: string }> = [];
+      for (const row of rows || []) {
+        if (!row.content_sid) continue;
+        const st = await fetchApprovalStatus(basic, row.content_sid);
+        await supabase.from("whatsapp_templates").update({
+          approval_status: st.status,
+          approval_rejection_reason: st.rejection_reason ?? null,
+          approval_checked_at: new Date().toISOString(),
+        }).eq("template_key", row.template_key);
+        results.push({ key: row.template_key, approval_status: st.status });
+      }
+      return new Response(JSON.stringify({ ok: true, results }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const results: Array<{ key: string; content_sid?: string; status: string; approval_status?: string; error?: string }> = [];
 
     for (const t of TEMPLATES) {
       try {
         // Check existing
         const { data: existing } = await supabase
           .from("whatsapp_templates")
-          .select("content_sid")
+          .select("content_sid, approval_status")
           .eq("template_key", t.key)
           .maybeSingle();
 
-        if (existing?.content_sid) {
-          results.push({ key: t.key, content_sid: existing.content_sid, status: "already_exists" });
-          continue;
+        let contentSid = existing?.content_sid || "";
+        let createdStatus = "already_exists";
+
+        if (!contentSid) {
+          // Create on Twilio
+          const res = await fetch("https://content.twilio.com/v1/Content", {
+            method: "POST",
+            headers: {
+              Authorization: `Basic ${basic}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              friendly_name: t.friendly_name,
+              language: t.language,
+              variables: t.variables,
+              types: t.types,
+            }),
+          });
+          const body = await res.json();
+          if (!res.ok) {
+            results.push({ key: t.key, status: "failed", error: JSON.stringify(body) });
+            continue;
+          }
+          contentSid = body.sid as string;
+          createdStatus = "created";
         }
 
-        // Create on Twilio
-        const res = await fetch("https://content.twilio.com/v1/Content", {
-          method: "POST",
-          headers: {
-            Authorization: `Basic ${basic}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            friendly_name: t.friendly_name,
-            language: t.language,
-            variables: t.variables,
-            types: t.types,
-          }),
-        });
-        const body = await res.json();
-        if (!res.ok) {
-          results.push({ key: t.key, status: "failed", error: JSON.stringify(body) });
-          continue;
+        // Submit for WhatsApp (Meta) approval unless already approved.
+        let approval = existing?.approval_status ?? null;
+        if (approval !== "approved") {
+          const sub = await submitForApproval(basic, contentSid, t.friendly_name, t.category ?? "UTILITY");
+          approval = sub.status;
+          if (sub.status !== "submission_failed") {
+            const live = await fetchApprovalStatus(basic, contentSid);
+            if (live.status && live.status !== "unknown") approval = live.status;
+          }
         }
-        const contentSid = body.sid as string;
 
         await supabase.from("whatsapp_templates").upsert(
-          { template_key: t.key, content_sid: contentSid, description: t.description },
+          {
+            template_key: t.key,
+            content_sid: contentSid,
+            description: t.description,
+            approval_status: approval,
+            approval_checked_at: new Date().toISOString(),
+          },
           { onConflict: "template_key" },
         );
 
-        results.push({ key: t.key, content_sid: contentSid, status: "created" });
+        results.push({ key: t.key, content_sid: contentSid, status: createdStatus, approval_status: approval ?? undefined });
       } catch (e) {
         results.push({ key: t.key, status: "failed", error: (e as Error).message });
       }
     }
+
 
     return new Response(JSON.stringify({ ok: true, results }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

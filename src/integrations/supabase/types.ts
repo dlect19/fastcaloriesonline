@@ -9500,6 +9500,9 @@ export type Database = {
       }
       whatsapp_templates: {
         Row: {
+          approval_checked_at: string | null
+          approval_rejection_reason: string | null
+          approval_status: string | null
           content_sid: string
           created_at: string
           description: string | null
@@ -9508,6 +9511,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          approval_checked_at?: string | null
+          approval_rejection_reason?: string | null
+          approval_status?: string | null
           content_sid: string
           created_at?: string
           description?: string | null
@@ -9516,6 +9522,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          approval_checked_at?: string | null
+          approval_rejection_reason?: string | null
+          approval_status?: string | null
           content_sid?: string
           created_at?: string
           description?: string | null

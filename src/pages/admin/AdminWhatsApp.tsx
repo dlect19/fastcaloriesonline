@@ -22,7 +22,7 @@ export default function AdminWhatsApp() {
   const [loading, setLoading] = useState(true);
   const [testTo, setTestTo] = useState("");
   const [testBody, setTestBody] = useState("Hello from FastCalories 👋");
-  const [templates, setTemplates] = useState<Array<{ template_key: string; content_sid: string; description: string | null }>>([]);
+  const [templates, setTemplates] = useState<Array<{ template_key: string; content_sid: string; description: string | null; approval_status: string | null; approval_rejection_reason: string | null }>>([]);
   const [savingTpl, setSavingTpl] = useState<string | null>(null);
   const [fromNumber, setFromNumber] = useState("");
   const [savingFrom, setSavingFrom] = useState(false);
@@ -35,7 +35,7 @@ export default function AdminWhatsApp() {
       supabase.from("platform_settings").select("value").eq("key", "whatsapp_from_number").maybeSingle(),
       supabase.from("whatsapp_sessions").select("*").order("last_message_at", { ascending: false }).limit(50),
       supabase.from("whatsapp_orders").select("*, orders(order_number, status, total_amount)").order("created_at", { ascending: false }).limit(50),
-      supabase.from("whatsapp_templates").select("template_key, content_sid, description").order("template_key"),
+      supabase.from("whatsapp_templates").select("template_key, content_sid, description, approval_status, approval_rejection_reason").order("template_key"),
     ]);
     setEnabled(setting.data?.value === "true");
     const currentFrom = fromSetting.data?.value || "whatsapp:+14155238886";
@@ -138,6 +138,20 @@ export default function AdminWhatsApp() {
     if (failed.length) console.error("Template provisioning failures:", failed);
     load();
   };
+
+  const [refreshingStatus, setRefreshingStatus] = useState(false);
+  const refreshApprovalStatus = async () => {
+    setRefreshingStatus(true);
+    const { data, error } = await supabase.functions.invoke("whatsapp-provision-templates", { body: { action: "refresh_status" } });
+    setRefreshingStatus(false);
+    if (error || (data as any)?.ok === false) {
+      toast({ title: "Status refresh failed", description: error?.message || (data as any)?.error || "Unknown error", variant: "destructive" });
+      return;
+    }
+    toast({ title: "Approval status refreshed" });
+    load();
+  };
+
 
   return (
     <AdminLayout>
@@ -263,13 +277,20 @@ export default function AdminWhatsApp() {
 
         <TabsContent value="templates">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <CardTitle>Twilio Content Template SIDs</CardTitle>
-              <Button size="sm" onClick={provisionTemplates} disabled={provisioning}>
-                <Wand2 className="h-4 w-4 mr-2" />
-                {provisioning ? "Creating in Twilio..." : "Auto-create all in Twilio"}
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="outline" onClick={refreshApprovalStatus} disabled={refreshingStatus}>
+                  <RefreshCw className={`h-4 w-4 mr-2 ${refreshingStatus ? "animate-spin" : ""}`} />
+                  {refreshingStatus ? "Checking Meta..." : "Refresh approval status"}
+                </Button>
+                <Button size="sm" onClick={provisionTemplates} disabled={provisioning}>
+                  <Wand2 className="h-4 w-4 mr-2" />
+                  {provisioning ? "Creating in Twilio..." : "Auto-create + submit for approval"}
+                </Button>
+              </div>
             </CardHeader>
+
             <CardContent className="space-y-4 text-sm">
               <div className="rounded-md bg-muted/50 p-3 text-xs space-y-2">
                 <p>Click <strong>Auto-create all in Twilio</strong> to provision the 9 templates and save their <code>HX...</code> SIDs automatically. (Sandbox auto-approves; production requires Meta approval ~24h.)</p>
@@ -297,9 +318,36 @@ export default function AdminWhatsApp() {
                         if (e.target.value !== (t.content_sid || "")) saveTemplate(t.template_key, e.target.value);
                       }}
                     />
-                    <Badge variant={t.content_sid ? "default" : "outline"}>
-                      {t.content_sid ? "Active" : "Not set"}
-                    </Badge>
+                    <div className="flex flex-col items-start gap-1">
+                      <Badge variant={t.content_sid ? "default" : "outline"}>
+                        {t.content_sid ? "Active" : "Not set"}
+                      </Badge>
+                      {t.content_sid && (
+                        <Badge
+                          variant={
+                            t.approval_status === "approved"
+                              ? "default"
+                              : t.approval_status === "rejected" || t.approval_status === "submission_failed"
+                              ? "destructive"
+                              : "secondary"
+                          }
+                        >
+                          {t.approval_status === "approved"
+                            ? "Meta approved"
+                            : t.approval_status === "rejected"
+                            ? "Rejected"
+                            : t.approval_status === "submission_failed"
+                            ? "Submit failed"
+                            : t.approval_status
+                            ? t.approval_status
+                            : "Not submitted"}
+                        </Badge>
+                      )}
+                      {t.approval_rejection_reason && (
+                        <span className="text-[10px] text-destructive max-w-[180px]">{t.approval_rejection_reason}</span>
+                      )}
+                    </div>
+
                   </div>
                 ))}
                 {!templates.length && !loading && (
