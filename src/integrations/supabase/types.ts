@@ -4976,6 +4976,8 @@ export type Database = {
           user_id: string | null
           vendor_called_at: string | null
           vendor_id: string
+          vendor_wa_new_order_alerted_at: string | null
+          vendor_wa_unattended_alerted_at: string | null
         }
         Insert: {
           admin_unattended_alerted_at?: string | null
@@ -5031,6 +5033,8 @@ export type Database = {
           user_id?: string | null
           vendor_called_at?: string | null
           vendor_id: string
+          vendor_wa_new_order_alerted_at?: string | null
+          vendor_wa_unattended_alerted_at?: string | null
         }
         Update: {
           admin_unattended_alerted_at?: string | null
@@ -5086,6 +5090,8 @@ export type Database = {
           user_id?: string | null
           vendor_called_at?: string | null
           vendor_id?: string
+          vendor_wa_new_order_alerted_at?: string | null
+          vendor_wa_unattended_alerted_at?: string | null
         }
         Relationships: [
           {
@@ -8405,6 +8411,66 @@ export type Database = {
           },
         ]
       }
+      vendor_whatsapp_alerts: {
+        Row: {
+          alert_daily_summary: boolean
+          alert_new_order: boolean
+          alert_unattended: boolean
+          created_at: string
+          enabled: boolean
+          id: string
+          last_alert_at: string | null
+          outlet_id: string
+          phone: string | null
+          phone_verified: boolean
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          alert_daily_summary?: boolean
+          alert_new_order?: boolean
+          alert_unattended?: boolean
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          last_alert_at?: string | null
+          outlet_id: string
+          phone?: string | null
+          phone_verified?: boolean
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          alert_daily_summary?: boolean
+          alert_new_order?: boolean
+          alert_unattended?: boolean
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          last_alert_at?: string | null
+          outlet_id?: string
+          phone?: string | null
+          phone_verified?: boolean
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_whatsapp_alerts_outlet_id_fkey"
+            columns: ["outlet_id"]
+            isOneToOne: true
+            referencedRelation: "vendor_outlets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_whatsapp_alerts_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendor_working_hours: {
         Row: {
           close_time: string
@@ -9809,6 +9875,8 @@ export type Database = {
           user_id: string | null
           vendor_called_at: string | null
           vendor_id: string
+          vendor_wa_new_order_alerted_at: string | null
+          vendor_wa_unattended_alerted_at: string | null
         }
         SetofOptions: {
           from: "*"
