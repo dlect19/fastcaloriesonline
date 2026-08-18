@@ -5316,21 +5316,27 @@ export type Database = {
           bank_account_name: string | null
           bank_account_number: string | null
           bank_name: string | null
+          charge_bearer: string | null
           created_at: string | null
           environment: string | null
           failure_reason: string | null
           id: string
+          idempotency_key: string | null
+          net_amount: number | null
           outlet_id: string | null
+          payout_option: string | null
           paystack_reference: string | null
           paystack_transfer_code: string | null
           processed_at: string | null
           recipient_id: string | null
           retry_count: number | null
           status: string | null
+          transfer_charge: number | null
           updated_at: string | null
           user_id: string
           user_type: string
           wallet_id: string
+          withdrawal_reference: string | null
           withdrawal_source: string | null
         }
         Insert: {
@@ -5338,21 +5344,27 @@ export type Database = {
           bank_account_name?: string | null
           bank_account_number?: string | null
           bank_name?: string | null
+          charge_bearer?: string | null
           created_at?: string | null
           environment?: string | null
           failure_reason?: string | null
           id?: string
+          idempotency_key?: string | null
+          net_amount?: number | null
           outlet_id?: string | null
+          payout_option?: string | null
           paystack_reference?: string | null
           paystack_transfer_code?: string | null
           processed_at?: string | null
           recipient_id?: string | null
           retry_count?: number | null
           status?: string | null
+          transfer_charge?: number | null
           updated_at?: string | null
           user_id: string
           user_type: string
           wallet_id: string
+          withdrawal_reference?: string | null
           withdrawal_source?: string | null
         }
         Update: {
@@ -5360,21 +5372,27 @@ export type Database = {
           bank_account_name?: string | null
           bank_account_number?: string | null
           bank_name?: string | null
+          charge_bearer?: string | null
           created_at?: string | null
           environment?: string | null
           failure_reason?: string | null
           id?: string
+          idempotency_key?: string | null
+          net_amount?: number | null
           outlet_id?: string | null
+          payout_option?: string | null
           paystack_reference?: string | null
           paystack_transfer_code?: string | null
           processed_at?: string | null
           recipient_id?: string | null
           retry_count?: number | null
           status?: string | null
+          transfer_charge?: number | null
           updated_at?: string | null
           user_id?: string
           user_type?: string
           wallet_id?: string
+          withdrawal_reference?: string | null
           withdrawal_source?: string | null
         }
         Relationships: [
@@ -6992,6 +7010,84 @@ export type Database = {
           },
         ]
       }
+      rider_payout_preferences: {
+        Row: {
+          bank_account_name: string | null
+          bank_account_number: string | null
+          bank_name: string | null
+          created_at: string
+          effective_from: string
+          id: string
+          last_changed_at: string
+          last_payout_cycle: string | null
+          next_run_at: string | null
+          payout_option: string
+          pending_option: string | null
+          rider_user_id: string
+          updated_at: string
+          wallet_id: string | null
+        }
+        Insert: {
+          bank_account_name?: string | null
+          bank_account_number?: string | null
+          bank_name?: string | null
+          created_at?: string
+          effective_from?: string
+          id?: string
+          last_changed_at?: string
+          last_payout_cycle?: string | null
+          next_run_at?: string | null
+          payout_option?: string
+          pending_option?: string | null
+          rider_user_id: string
+          updated_at?: string
+          wallet_id?: string | null
+        }
+        Update: {
+          bank_account_name?: string | null
+          bank_account_number?: string | null
+          bank_name?: string | null
+          created_at?: string
+          effective_from?: string
+          id?: string
+          last_changed_at?: string
+          last_payout_cycle?: string | null
+          next_run_at?: string | null
+          payout_option?: string
+          pending_option?: string | null
+          rider_user_id?: string
+          updated_at?: string
+          wallet_id?: string | null
+        }
+        Relationships: []
+      }
+      rider_payout_settings: {
+        Row: {
+          description: string | null
+          is_placeholder: boolean
+          key: string
+          updated_at: string
+          updated_by: string | null
+          value: string
+        }
+        Insert: {
+          description?: string | null
+          is_placeholder?: boolean
+          key: string
+          updated_at?: string
+          updated_by?: string | null
+          value: string
+        }
+        Update: {
+          description?: string | null
+          is_placeholder?: boolean
+          key?: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: string
+        }
+        Relationships: []
+      }
       rider_profiles: {
         Row: {
           affiliated_vendor_id: string | null
@@ -7099,6 +7195,81 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      rider_withdrawal_ledger: {
+        Row: {
+          balance_after: number | null
+          balance_before: number | null
+          bank_account_masked: string | null
+          bank_account_name: string | null
+          bank_name: string | null
+          charge_bearer: string
+          created_at: string
+          environment: string
+          failure_reason: string | null
+          gross_amount: number
+          id: string
+          idempotency_key: string | null
+          net_amount: number
+          payout_option: string
+          payout_request_id: string | null
+          provider_reference: string | null
+          rider_user_id: string
+          status: string
+          transfer_charge: number
+          updated_at: string
+          wallet_id: string | null
+          withdrawal_reference: string
+        }
+        Insert: {
+          balance_after?: number | null
+          balance_before?: number | null
+          bank_account_masked?: string | null
+          bank_account_name?: string | null
+          bank_name?: string | null
+          charge_bearer?: string
+          created_at?: string
+          environment?: string
+          failure_reason?: string | null
+          gross_amount?: number
+          id?: string
+          idempotency_key?: string | null
+          net_amount?: number
+          payout_option?: string
+          payout_request_id?: string | null
+          provider_reference?: string | null
+          rider_user_id: string
+          status?: string
+          transfer_charge?: number
+          updated_at?: string
+          wallet_id?: string | null
+          withdrawal_reference: string
+        }
+        Update: {
+          balance_after?: number | null
+          balance_before?: number | null
+          bank_account_masked?: string | null
+          bank_account_name?: string | null
+          bank_name?: string | null
+          charge_bearer?: string
+          created_at?: string
+          environment?: string
+          failure_reason?: string | null
+          gross_amount?: number
+          id?: string
+          idempotency_key?: string | null
+          net_amount?: number
+          payout_option?: string
+          payout_request_id?: string | null
+          provider_reference?: string | null
+          rider_user_id?: string
+          status?: string
+          transfer_charge?: number
+          updated_at?: string
+          wallet_id?: string | null
+          withdrawal_reference?: string
+        }
+        Relationships: []
       }
       shadow_customer_credits: {
         Row: {
