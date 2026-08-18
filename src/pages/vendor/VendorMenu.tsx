@@ -1815,18 +1815,20 @@ export default function VendorMenu() {
                   key={product.id}
                   className={`bg-card rounded-xl border overflow-hidden ${(product as any).is_hidden ? 'opacity-50 border-warning/40' : !getEffectiveAvailability(product) ? 'opacity-60 border-destructive/40' : 'border-border'}`}
                 >
-                  <div className="p-4 flex items-center gap-4">
+                  <div className="p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+                    <div className="flex items-start gap-3 min-w-0 flex-1">
                     {product.image_url ? (
                       <img
                         src={product.image_url}
                         alt={product.name}
-                        className={`w-16 h-16 rounded-lg object-cover ${!getEffectiveAvailability(product) ? 'grayscale' : ''}`}
+                        className={`w-14 h-14 sm:w-16 sm:h-16 rounded-lg object-cover shrink-0 ${!getEffectiveAvailability(product) ? 'grayscale' : ''}`}
                       />
                     ) : (
-                      <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center text-2xl">
+                      <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg bg-muted flex items-center justify-center text-2xl shrink-0">
                         {labels.defaultEmoji}
                       </div>
                     )}
+
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
