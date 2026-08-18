@@ -584,6 +584,25 @@ export default function AdminPayouts() {
               <span className="text-muted-foreground">Amount</span>
               <span className="font-semibold text-foreground">₦{Number(payout.amount).toLocaleString()}</span>
             </div>
+            {payout.transfer_charge !== null && payout.transfer_charge !== undefined && (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Transfer charge</span>
+                  <span className="text-foreground">
+                    ₦{Number(payout.transfer_charge).toLocaleString()}
+                    <span className="text-xs text-muted-foreground ml-1">
+                      ({(payout.payout_option === 'weekly' || payout.payout_option === 'monthly') ? 'FastCalories' : 'rider'})
+                    </span>
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Net transferred</span>
+                  <span className="text-foreground">
+                    ₦{Math.max(0, Number(payout.amount) - Number(payout.transfer_charge || 0)).toLocaleString()}
+                  </span>
+                </div>
+              </>
+            )}
             <div className="flex justify-between">
               <span className="text-muted-foreground">Bank</span>
               <span className="text-foreground">{payout.bank_name || '-'}</span>
