@@ -14,9 +14,12 @@ type TemplateDef = {
   description: string;
   variables: Record<string, string>;
   types: Record<string, unknown>;
+  /** WhatsApp approval category. Defaults to UTILITY. */
+  category?: "UTILITY" | "MARKETING" | "AUTHENTICATION";
 };
 
 const TEMPLATES: TemplateDef[] = [
+
   {
     key: "wa_main_menu",
     friendly_name: "wa_main_menu",
