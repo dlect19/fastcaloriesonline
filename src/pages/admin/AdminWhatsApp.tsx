@@ -318,9 +318,36 @@ export default function AdminWhatsApp() {
                         if (e.target.value !== (t.content_sid || "")) saveTemplate(t.template_key, e.target.value);
                       }}
                     />
-                    <Badge variant={t.content_sid ? "default" : "outline"}>
-                      {t.content_sid ? "Active" : "Not set"}
-                    </Badge>
+                    <div className="flex flex-col items-start gap-1">
+                      <Badge variant={t.content_sid ? "default" : "outline"}>
+                        {t.content_sid ? "Active" : "Not set"}
+                      </Badge>
+                      {t.content_sid && (
+                        <Badge
+                          variant={
+                            t.approval_status === "approved"
+                              ? "default"
+                              : t.approval_status === "rejected" || t.approval_status === "submission_failed"
+                              ? "destructive"
+                              : "secondary"
+                          }
+                        >
+                          {t.approval_status === "approved"
+                            ? "Meta approved"
+                            : t.approval_status === "rejected"
+                            ? "Rejected"
+                            : t.approval_status === "submission_failed"
+                            ? "Submit failed"
+                            : t.approval_status
+                            ? t.approval_status
+                            : "Not submitted"}
+                        </Badge>
+                      )}
+                      {t.approval_rejection_reason && (
+                        <span className="text-[10px] text-destructive max-w-[180px]">{t.approval_rejection_reason}</span>
+                      )}
+                    </div>
+
                   </div>
                 ))}
                 {!templates.length && !loading && (
