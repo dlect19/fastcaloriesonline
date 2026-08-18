@@ -559,11 +559,18 @@ export default function AdminPayouts() {
                     {[payout.entity_phone, payout.entity_email].filter(Boolean).join(' • ')}
                   </p>
                 )}
-                {payout.withdrawal_source && (
-                  <Badge variant="outline" className="text-xs mt-0.5">
-                    {payout.withdrawal_source === 'rider_revenue' ? 'Rider Revenue' : 'Menu Earnings'}
-                  </Badge>
-                )}
+                <div className="flex flex-wrap gap-1 mt-0.5">
+                  {payout.withdrawal_source && (
+                    <Badge variant="outline" className="text-xs">
+                      {payout.withdrawal_source === 'rider_revenue' ? 'Rider Revenue' : 'Menu Earnings'}
+                    </Badge>
+                  )}
+                  {payout.payout_option && (
+                    <Badge variant="secondary" className="text-xs capitalize">
+                      {payout.payout_option}
+                    </Badge>
+                  )}
+                </div>
               </div>
             </div>
             <Badge className={`${status.color} border-0`}>
@@ -837,6 +844,18 @@ export default function AdminPayouts() {
                 className="pl-9"
               />
             </div>
+            <Select value={frequencyFilter} onValueChange={(v) => setFrequencyFilter(v as typeof frequencyFilter)}>
+              <SelectTrigger className="w-[190px]">
+                <SelectValue placeholder="Frequency" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All frequencies</SelectItem>
+                <SelectItem value="instant">Instant / anytime</SelectItem>
+                <SelectItem value="daily">Daily automatic</SelectItem>
+                <SelectItem value="weekly">Weekly automatic</SelectItem>
+                <SelectItem value="monthly">Monthly automatic</SelectItem>
+              </SelectContent>
+            </Select>
             <DateRangeFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
           </div>
 
