@@ -41,6 +41,11 @@ interface WithdrawalRequest {
   requested_at: string;
   processed_at: string | null;
   notes: string | null;
+  reference?: string | null;
+  transfer_charge?: number;
+  net_amount?: number;
+  charge_bearer?: string | null;
+  payout_option?: string | null;
 }
 
 interface RecipientData {
@@ -86,6 +91,9 @@ export default function RiderWithdraw() {
   const [affiliatedVendorName, setAffiliatedVendorName] = useState<string | null>(null);
   const [deliveryCompanyName, setDeliveryCompanyName] = useState<string | null>(null);
   const { isAffiliated, affiliatedVendorId, isDeliveryCompanyRider, deliveryCompanyId, canWithdraw } = useRiderRestrictions(riderProfile);
+
+  // Withdrawal options (admin-configured charges, minimum, schedules)
+  const payoutOptions = useRiderPayoutOptions();
 
   useEffect(() => {
     checkAuth();
