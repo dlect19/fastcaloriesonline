@@ -47,7 +47,11 @@ export function VendorWhatsAppAlerts({ vendorId, vendorPhone }: Props) {
   const load = async () => {
     setLoading(true);
     const [{ data: outletData }, { data: alertData }] = await Promise.all([
-      supabase.from('vendor_outlets').select('id, name').eq('vendor_id', vendorId).order('created_at'),
+      supabase
+        .from('vendor_outlets')
+        .select('id, outlet_name')
+        .eq('vendor_id', vendorId)
+        .order('created_at'),
       supabase
         .from('vendor_whatsapp_alerts')
         .select('outlet_id, phone, phone_verified, enabled, alert_new_order, alert_unattended, alert_daily_summary')
