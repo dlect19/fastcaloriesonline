@@ -172,10 +172,23 @@ serve(async (req) => {
     const testBody =
       `✅ Fast Calories test alert\n\n` +
       `This number will receive order alerts for *${outlet.outlet_name}*.`;
+
+    // Free-form WhatsApp only works inside the 24h window, so send the test through
+    // the approved vendor_new_order template with sample values instead.
+    const { data: tpl } = await admin
+      .from("whatsapp_templates")
+      .select("content_sid")
+      .eq("template_key", "vendor_new_order")
+      .maybeSingle();
+
     const send = await sendTwilioMessage(admin, {
       channel: "whatsapp",
       to: settings.phone,
       body: testBody,
+      contentSid: tpl?.content_sid || undefined,
+      contentVariables: tpl?.content_sid
+        ? { "1": "TEST-0000", "2": "1", "3": "₦0", "4": "Test alert" }
+        : undefined,
     });
     await logTwilioCall(admin, {
       user_id: user.id,
