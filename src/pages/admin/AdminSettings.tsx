@@ -19,6 +19,7 @@ import { EnvironmentSwitch } from '@/components/admin/EnvironmentSwitch';
 import { AdminTestModeToggle } from '@/components/admin/AdminTestModeToggle';
 import { PaystackBalanceCard } from '@/components/admin/PaystackBalanceCard';
 import { RiderPayoutSettings } from '@/components/admin/RiderPayoutSettings';
+import { RiderWithdrawalOptionSettings } from '@/components/admin/RiderWithdrawalOptionSettings';
 import { ServiceFeeSettings } from '@/components/admin/ServiceFeeSettings';
 import { VehicleTypeSettings } from '@/components/admin/VehicleTypeSettings';
 import { CommissionOverrideManager } from '@/components/admin/CommissionOverrideManager';
@@ -1067,6 +1068,11 @@ export default function AdminSettings() {
                 }
               }}
             />
+
+            {/* Rider Withdrawal Options (instant / daily / weekly / monthly) */}
+            <RiderWithdrawalOptionSettings />
+
+
 
             {/* Event Organizer Wallet & Settlement */}
             <EventOrganizerSettings
