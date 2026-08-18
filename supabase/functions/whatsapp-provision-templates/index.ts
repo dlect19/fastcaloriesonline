@@ -220,7 +220,71 @@ const TEMPLATES: TemplateDef[] = [
       },
     },
   },
+  {
+    key: "wa_otp_code",
+    friendly_name: "wa_otp_code",
+    language: "en",
+    description: "One-time verification / login code",
+    category: "AUTHENTICATION",
+    variables: { "1": "123456" },
+    types: {
+      "twilio/text": {
+        body: "{{1}} is your Fast Calories verification code. It expires in 10 minutes. For your security, do not share this code with anyone.",
+      },
+    },
+  },
 ];
+
+const APPROVAL_BASE = "https://content.twilio.com/v1/Content";
+
+async function submitForApproval(
+  basic: string,
+  contentSid: string,
+  name: string,
+  category: string,
+): Promise<{ status: string; rejection_reason?: string | null; error?: string }> {
+  try {
+    const res = await fetch(`${APPROVAL_BASE}/${contentSid}/ApprovalRequests/whatsapp`, {
+      method: "POST",
+      headers: { Authorization: `Basic ${basic}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ name, category }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      // Already submitted / already approved is not a failure.
+      const msg = JSON.stringify(body);
+      if (/already/i.test(msg)) return { status: "pending" };
+      return { status: "submission_failed", error: msg };
+    }
+    return {
+      status: String(body?.status ?? body?.whatsapp?.status ?? "pending"),
+      rejection_reason: body?.rejection_reason ?? body?.whatsapp?.rejection_reason ?? null,
+    };
+  } catch (e) {
+    return { status: "submission_failed", error: (e as Error).message };
+  }
+}
+
+async function fetchApprovalStatus(
+  basic: string,
+  contentSid: string,
+): Promise<{ status: string; rejection_reason?: string | null }> {
+  try {
+    const res = await fetch(`${APPROVAL_BASE}/${contentSid}/ApprovalRequests`, {
+      headers: { Authorization: `Basic ${basic}` },
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) return { status: "unknown" };
+    const wa = body?.whatsapp ?? body?.approval_requests?.whatsapp ?? null;
+    return {
+      status: String(wa?.status ?? "not_submitted"),
+      rejection_reason: wa?.rejection_reason ?? null,
+    };
+  } catch {
+    return { status: "unknown" };
+  }
+}
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
