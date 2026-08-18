@@ -549,6 +549,19 @@ export default function RiderWithdraw() {
           </CardContent>
         </Card>
 
+        {/* Withdrawal Preference (instant / daily / weekly / monthly) */}
+        <div className="mb-8">
+          <RiderWithdrawalPreference
+            config={payoutOptions.config}
+            charges={payoutOptions.charges}
+            currentOption={(payoutOptions.preference?.payout_option as PayoutOption) || 'instant'}
+            nextRunAt={payoutOptions.nextRunAt}
+            bank={payoutOptions.bank}
+            onChangeOption={payoutOptions.setPreference}
+            onEditBank={() => setBankDialogOpen(true)}
+          />
+        </div>
+
         {/* Balance Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <Card>
