@@ -16,6 +16,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 import { useRiderRestrictions } from '@/hooks/useRiderRestrictions';
+import { useRiderPayoutOptions, type PayoutOption, type RiderPayoutQuote } from '@/hooks/useRiderPayoutOptions';
+import { RiderWithdrawalPreference } from '@/components/rider/RiderWithdrawalPreference';
 
 interface WalletData {
   id: string;
@@ -61,7 +63,10 @@ export default function RiderWithdraw() {
   const [submitting, setSubmitting] = useState(false);
   
   // OTP verification state
-  const [otpStep, setOtpStep] = useState<'amount' | 'otp'>('amount');
+  const [otpStep, setOtpStep] = useState<'amount' | 'confirm' | 'otp'>('amount');
+  const [quote, setQuote] = useState<RiderPayoutQuote | null>(null);
+  const [quoting, setQuoting] = useState(false);
+  const [idempotencyKey, setIdempotencyKey] = useState<string>('');
   const [otp, setOtp] = useState('');
   const [sendingOtp, setSendingOtp] = useState(false);
   const [recipientEnvironment, setRecipientEnvironment] = useState<string | null>(null);
@@ -156,23 +161,45 @@ export default function RiderWithdraw() {
         setAutoWithdrawThreshold(String(walletData.auto_withdraw_threshold || 5000));
         setAutoWithdrawDay(String(walletData.auto_withdraw_day || 1));
 
-        // Fetch payout requests (withdrawal history)
-        const { data: payoutData } = await supabase
-          .from('payout_requests')
+        // Fetch immutable withdrawal ledger (falls back to payout requests for legacy rows)
+        const { data: ledgerData } = await supabase
+          .from('rider_withdrawal_ledger')
           .select('*')
-          .eq('wallet_id', walletData.id)
+          .eq('rider_user_id', userId)
           .order('created_at', { ascending: false })
           .limit(20);
 
-        // Map to expected format
-        setWithdrawals((payoutData || []).map(p => ({
-          id: p.id,
-          amount: p.amount,
-          status: p.status || 'pending',
-          requested_at: p.created_at,
-          processed_at: p.processed_at,
-          notes: p.failure_reason,
-        })));
+        if (ledgerData && ledgerData.length > 0) {
+          setWithdrawals(ledgerData.map((l) => ({
+            id: l.id,
+            amount: Number(l.gross_amount) || 0,
+            status: l.status || 'requested',
+            requested_at: l.created_at,
+            processed_at: l.updated_at,
+            notes: l.failure_reason,
+            reference: l.withdrawal_reference,
+            transfer_charge: Number(l.transfer_charge) || 0,
+            net_amount: Number(l.net_amount) || 0,
+            charge_bearer: l.charge_bearer,
+            payout_option: l.payout_option,
+          })));
+        } else {
+          const { data: payoutData } = await supabase
+            .from('payout_requests')
+            .select('*')
+            .eq('wallet_id', walletData.id)
+            .order('created_at', { ascending: false })
+            .limit(20);
+
+          setWithdrawals((payoutData || []).map(p => ({
+            id: p.id,
+            amount: p.amount,
+            status: p.status || 'pending',
+            requested_at: p.created_at,
+            processed_at: p.processed_at,
+            notes: p.failure_reason,
+          })));
+        }
 
         // Fetch recipient environment info
         const { data: recipientData } = await supabase
@@ -406,6 +433,7 @@ export default function RiderWithdraw() {
     if (!open) {
       setOtpStep('amount');
       setOtp('');
+      setQuote(null);
     }
   };
 
