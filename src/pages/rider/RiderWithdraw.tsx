@@ -474,59 +474,8 @@ export default function RiderWithdraw() {
           <p className="text-muted-foreground text-sm md:text-base">Manage your withdrawals and bank settings</p>
         </div>
           <div className="flex gap-2">
-            <Dialog open={settingsDialogOpen} onOpenChange={setSettingsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2">
-                  <Settings className="w-4 h-4" />
-                  Settings
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Withdrawal Settings</DialogTitle>
-                  <DialogDescription>Configure automatic withdrawals</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label>Auto-withdraw</Label>
-                      <p className="text-sm text-muted-foreground">Automatically withdraw when threshold is reached</p>
-                    </div>
-                    <Switch checked={autoWithdraw} onCheckedChange={setAutoWithdraw} />
-                  </div>
-                  {autoWithdraw && (
-                    <>
-                      <div className="space-y-2">
-                        <Label>Minimum threshold (₦)</Label>
-                        <Input
-                          type="number"
-                          value={autoWithdrawThreshold}
-                          onChange={(e) => setAutoWithdrawThreshold(e.target.value)}
-                          placeholder="5000"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Preferred withdrawal day</Label>
-                        <Select value={autoWithdrawDay} onValueChange={setAutoWithdrawDay}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map((day, i) => (
-                              <SelectItem key={i} value={String(i + 1)}>{day}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </>
-                  )}
-                  <Button onClick={handleUpdateAutoWithdraw} className="w-full" disabled={submitting}>
-                    {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                    Save Settings
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+            {/* Legacy auto-withdraw settings replaced by the Withdrawal Preference section below */}
+
 
             <Dialog open={bankDialogOpen} onOpenChange={setBankDialogOpen}>
               <DialogTrigger asChild>
