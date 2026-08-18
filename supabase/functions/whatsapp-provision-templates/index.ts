@@ -181,6 +181,42 @@ const TEMPLATES: TemplateDef[] = [
       },
     },
   },
+  {
+    key: "vendor_new_order",
+    friendly_name: "vendor_new_order",
+    language: "en",
+    description: "Vendor alert: new paid order received",
+    variables: { "1": "FC-000000", "2": "2", "3": "₦0", "4": "Delivery" },
+    types: {
+      "twilio/text": {
+        body: "New order {{1}} received. {{2}} item(s), {{3}}, {{4}}. Open the FastCalories vendor app to accept and start preparing.",
+      },
+    },
+  },
+  {
+    key: "vendor_unattended_order",
+    friendly_name: "vendor_unattended_order",
+    language: "en",
+    description: "Vendor alert: order not attended to in time",
+    variables: { "1": "FC-000000", "2": "5" },
+    types: {
+      "twilio/text": {
+        body: "Order {{1}} is still waiting after {{2}} minutes and preparation has not started. Please open the FastCalories vendor app now.",
+      },
+    },
+  },
+  {
+    key: "vendor_daily_summary",
+    friendly_name: "vendor_daily_summary",
+    language: "en",
+    description: "Vendor alert: daily sales summary",
+    variables: { "1": "2026-01-01", "2": "0", "3": "₦0" },
+    types: {
+      "twilio/text": {
+        body: "Daily summary for {{1}}: {{2}} order(s), {{3}} in sales. See full details in the FastCalories vendor app.",
+      },
+    },
+  },
 ];
 
 Deno.serve(async (req) => {

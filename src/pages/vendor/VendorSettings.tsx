@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { VendorLayout } from '@/components/vendor/VendorLayout';
+import { VendorWhatsAppAlerts } from '@/components/vendor/VendorWhatsAppAlerts';
 import { AccessDenied } from '@/components/vendor/AccessDenied';
 import { useAuth } from '@/hooks/useAuth';
 import { useVendorPermissions } from '@/hooks/useVendorPermissions';
@@ -419,6 +420,11 @@ export default function VendorSettings() {
           {/* Verification Documents */}
           {vendor && user && (
             <VendorDocumentUpload vendorId={vendor.id} userId={user.id} />
+          )}
+
+          {/* WhatsApp Order Alerts */}
+          {vendor && (
+            <VendorWhatsAppAlerts vendorId={vendor.id} vendorPhone={formData.phone} />
           )}
 
           {/* Staff Workspace Login */}
