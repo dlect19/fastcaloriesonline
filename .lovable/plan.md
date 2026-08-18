@@ -1,101 +1,45 @@
-# Voucher Hub — Auto-credit fix, Confirmation emails, Location grouping
+# Why the "Could not send code" error appears
 
-## Findings from investigation
+## What is happening
 
-**#1 Root cause of missing wallet credit for Jul 26 sale (order `eb84742e`):**
-- The credit function `credit_vendor_wallet_for_voucher` works correctly when called (I just ran it manually and it credited ₦2,250 into pending pool with proper ledger row).
-- All three call sites (`purchase-voucher`, `paystack-webhook → handleVoucherGuestPurchase`, `voucher-guest-lookup`) invoke the RPC, BUT they each swallow errors:
-  - `voucher-guest-lookup:84` — uses `.catch(() => {})` — silent
-  - `paystack-webhook:906` and `purchase-voucher:125` — only `console.error`, no retry, no marker on the order
-- Because `voucher-guest-lookup` fulfils inline when the buyer lands on the success page before the Paystack webhook arrives, and both the webhook and lookup race, a transient RPC failure (network blip, lock contention, service-role token hiccup) leaves the `voucher_orders` row inserted with **no** ledger credit and no visible trace.
-- No signal on the order itself distinguishes "credited" from "not credited", so there's nothing to detect the drift.
+Sending the vendor alert verification code goes out on WhatsApp from the business number `+234 810 312 8494`. WhatsApp only allows two kinds of messages:
 
-**#2 Confirmation email:** No email is being sent anywhere. There is no call to `send-transactional-email` in `purchase-voucher`, `voucher-guest-lookup`, or `paystack-webhook`'s voucher branch. It was never wired.
+1. Free-form text — allowed only within 24 hours of the vendor messaging your business number.
+2. A message built from a template that Meta has reviewed and **approved**.
 
-**#3 Location grouping:** Currently `voucher_categories.vendor_id` is a direct FK. A `voucher_locations` layer needs to sit between vendor and categories.
+The vendor has not messaged you, so path 1 is blocked. And path 2 is not usable yet:
 
----
+- The OTP message is sent with a template ID hard-coded in the code (`HXdeeb…`). That ID is not stored in this project's template records, so it is either missing from the connected WhatsApp account or not approved by Meta. When the template does not resolve, Twilio falls back to free-form text and Meta rejects it with the exact message you see.
+- The vendor alert templates (`vendor_new_order`, `vendor_unattended_order`, `vendor_daily_summary`) have never been created. The templates table currently only contains the nine customer-ordering ones (`wa_main_menu`, `wa_menu_list`, etc.). This is why the "Test alert" also fails.
+- The provisioning function creates templates in Twilio but never submits them to Meta for WhatsApp approval, so even after provisioning they would stay unapproved and keep failing.
 
-## Part 1 — Auto-credit voucher wallet at source (no more backfills)
+So this is a WhatsApp/Meta approval gap, not a bug in the vendor settings screen.
 
-Move the credit into a **database trigger** so it is impossible to insert a paid `voucher_orders` row without a wallet credit attempt.
+## Plan to fix
 
-1. **Migration:**
-   - Add columns to `voucher_orders`: `wallet_credited_at TIMESTAMPTZ`, `wallet_credit_error TEXT`.
-   - Refactor `credit_vendor_wallet_for_voucher(_order_id uuid)` to set `wallet_credited_at = NOW()` on success and store any exception message in `wallet_credit_error` (via a nested `BEGIN … EXCEPTION` block) so failures are visible on the row itself.
-   - Add trigger `trg_voucher_order_credit_wallet` AFTER INSERT OR UPDATE OF status ON `voucher_orders` — when NEW.status='paid' AND wallet_credited_at IS NULL, call the credit function. Trigger runs as SECURITY DEFINER via a wrapper.
-   - Add trigger `trg_voucher_order_email` AFTER INSERT OR UPDATE OF status calling `pg_notify('voucher_paid', order_id)` — used only as a marker; actual email is invoked from the edge functions (see Part 2) since Postgres cannot call HTTP.
+1. **Store the OTP template instead of hard-coding it**
+   Add a `wa_otp_code` entry to the template definitions so the OTP template is created, tracked, and read from the database like every other template. Remove the hard-coded fallback ID from `vendor-alert-phone` and `send-phone-otp`, and fail with a clear "template not provisioned" message instead of silently sending free-form text.
 
-2. **Edge functions:**
-   - `purchase-voucher`, `paystack-webhook → handleVoucherGuestPurchase`, and `voucher-guest-lookup`:
-     - Remove the `.catch(() => {})` swallow; log with tag `[voucher-credit]`.
-     - After insert of the `voucher_orders` row, re-read `wallet_credited_at`. If null after RPC, log `[voucher-credit] MISSED` with order id, vendor id, reference — this makes future misses grep-visible in edge logs.
-     - The trigger is now the primary path; the explicit RPC call becomes a belt-and-suspenders safety.
+2. **Submit templates to Meta for approval during provisioning**
+   Extend `whatsapp-provision-templates` to call Twilio's WhatsApp approval request endpoint after creating each template (authentication category for the OTP one, utility for the vendor alerts), and store the returned approval status.
 
-3. **Backfill the Jul 26 sale (`eb84742e`)** in the same migration — already re-credited during investigation, but the migration will `SELECT credit_vendor_wallet_for_voucher(id) FROM voucher_orders WHERE status='paid' AND wallet_credited_at IS NULL` to catch any others in one pass.
+3. **Show approval status in Admin → WhatsApp**
+   Add a status column per template (`not created`, `pending approval`, `approved`, `rejected`) with a refresh action, so it is visible when a template is still awaiting Meta review.
 
-## Part 2 — Wire voucher confirmation email
+4. **Clearer vendor-facing messages**
+   In the vendor WhatsApp alerts card, replace the raw Meta rejection text with plain guidance: alerts are being set up and awaiting WhatsApp approval, with SMS offered as the fallback for the verification code where SMS is configured.
 
-1. **New template** `supabase/functions/_shared/transactional-email-templates/voucher-purchase-confirmation.tsx` — matches the on-screen voucher preview (vendor name, category, code, value, expiry, purchase timestamp) with a note that the voucher image is also available in-app.
-2. Register in `TEMPLATES` registry.
-3. **Invoke from the three completion paths** (`purchase-voucher`, `paystack-webhook.handleVoucherGuestPurchase`, `voucher-guest-lookup.fulfilVoucherPurchase`) using `supabase.functions.invoke('send-transactional-email', …)` with:
-   - `templateName: 'voucher-purchase-confirmation'`
-   - `recipientEmail`: buyer email (auth user email for logged-in, guest_email for guest)
-   - `idempotencyKey: voucher-confirm-<order_id>`
-   - `templateData`: vendor name, category, code, value, expiry_date, purchased_at
-4. Log `[voucher-email]` success/failure explicitly. Email failure must NOT throw — the sale is already complete.
-5. Confirm project has an email domain via `email_domain--check_email_domain_status` before scaffolding; if missing, surface the setup dialog.
+5. **Verify**
+   Provision + submit templates, confirm approval status, then re-run "Send code" and "Test alert" and check the Twilio message logs show `delivered` rather than `failed`.
 
-## Part 3 — Location grouping for voucher vendors
+## Note on timing
 
-### Schema
-- **New table `voucher_locations`**: `id`, `vendor_id`, `name`, `is_active` (default true), `sort_order`, `created_at`, `updated_at`.
-- **Alter `voucher_categories`**: add `location_id UUID REFERENCES voucher_locations(id) ON DELETE CASCADE`. Keep `vendor_id` (denormalised for RLS convenience, kept in sync with the location's vendor).
-- **Migration data**: for each existing vendor with voucher_categories, create a default location "Main" and set `location_id` on all their categories. Then `ALTER COLUMN location_id SET NOT NULL`.
-- RLS: policies match `voucher_categories` (owner + admin + public read of active), GRANTs to `authenticated` + `anon` (public storefront needs read) + `service_role`.
+Meta approval for new templates usually takes minutes but can take longer. Until the OTP template is approved, the fastest working path for verifying a vendor number is SMS (if the SMS sender is configured) or having the vendor send any message to the business WhatsApp number first, which opens the 24-hour window.
 
-### Vendor dashboard (`VendorVoucherHub.tsx`)
-- Add a Location selector at the top of the Voucher Hub tab (create/edit/delete locations, activate/deactivate).
-- Categories, Stock tabs operate within the selected location — new categories are created with the current `location_id`.
-- Template tab remains vendor-scoped (shared across all locations).
-- Sales/Reconciliation tab shows a Location filter.
+## Technical details
 
-### In-app purchase flow (`src/pages/vouchers/VouchersList.tsx`, `VoucherCategory.tsx`)
-- After selecting the vendor, show a Location picker before listing categories. Route: `/vouchers/:vendorSlug/:locationId`.
-- `VoucherCategory` scoped to `(vendor, location, category)`.
-
-### Public storefront (`src/pages/public/VoucherStorefront.tsx` + `voucher-storefront` edge function)
-- The storefront edge function returns `{ vendor, template, locations: [{id, name, categories: […]}] }`.
-- Front-end: after landing on `/v/:slug`, show Location grid → clicking a location reveals that location's categories in the existing Card/List view.
-- If a vendor has exactly one active location, skip the selector automatically (backwards-compatible with single-site vendors).
-
-### Guest checkout (`voucher-guest-initiate`)
-- Accepts `categoryId` as before — `location_id` is inferred from the category row (no wire change needed for Paystack metadata).
-
----
-
-## Technical notes / open decisions
-
-- **Decision needed from you (non-blocking, sensible default chosen):** Vendors migrating in will get an auto-created "Main" location. If a vendor tells us they want a different default name (e.g. "Head Office"), they can rename it in the UI.
-- Trigger-based crediting is idempotent because the credit function already short-circuits when a `VH-CREDIT-<id>` ledger row exists — safe to run from both trigger and explicit RPC.
-- No breaking change to existing category IDs / URLs; only the storefront adds a location step.
-
-## Files that will change
-
-**DB migrations (one file):**
-- `credit_vendor_wallet_for_voucher` refactor + new columns on `voucher_orders` + trigger + new `voucher_locations` table + `location_id` on `voucher_categories` + data backfill.
-
-**Edge functions:**
-- `supabase/functions/purchase-voucher/index.ts` — logging + email invocation.
-- `supabase/functions/paystack-webhook/index.ts` — logging + email invocation in voucher branch.
-- `supabase/functions/voucher-guest-lookup/index.ts` — remove `.catch(()=>{})`, add logging + email.
-- `supabase/functions/voucher-storefront/index.ts` — return locations list.
-- `supabase/functions/_shared/transactional-email-templates/voucher-purchase-confirmation.tsx` + registry.
-
-**Front-end:**
-- `src/pages/vendor/VendorVoucherHub.tsx` — location selector + scoped category/stock management.
-- `src/pages/vouchers/VouchersList.tsx`, `VoucherCategory.tsx` — location step.
-- `src/pages/public/VoucherStorefront.tsx` — location step.
-- `src/hooks/useVoucherHub.ts` — new `useVoucherLocations` hook, `useVoucherCategories` accepts `locationId`.
-
-Once approved I'll implement DB + auto-credit fix first (highest priority), then email wiring, then the location feature.
+- `supabase/functions/vendor-alert-phone/index.ts` — drop hard-coded `TWILIO_OTP_CONTENT_SID` fallback, read `wa_otp_code` from `whatsapp_templates`, return `template_not_provisioned` when missing.
+- `supabase/functions/send-phone-otp/index.ts` — same template lookup; keep SMS fallback behaviour.
+- `supabase/functions/whatsapp-provision-templates/index.ts` — add `wa_otp_code` definition; after `Content` creation, POST the WhatsApp approval request and persist status.
+- `whatsapp_templates` — add `approval_status` and `approval_checked_at` columns.
+- Admin WhatsApp settings component — display status per template plus a refresh button.
