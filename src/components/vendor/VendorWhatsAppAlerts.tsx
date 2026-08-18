@@ -11,7 +11,7 @@ import { MessageCircle, CheckCircle2, Send, Loader2 } from 'lucide-react';
 
 interface Outlet {
   id: string;
-  name: string;
+  outlet_name: string;
 }
 
 interface AlertRow {
@@ -191,7 +191,7 @@ export function VendorWhatsAppAlerts({ vendorId, vendorPhone }: Props) {
           return (
             <div key={outlet.id} className="rounded-xl border p-4 space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="font-medium text-foreground break-words">{outlet.name}</p>
+                <p className="font-medium text-foreground break-words">{outlet.outlet_name}</p>
                 {verified ? (
                   <Badge variant="secondary" className="gap-1">
                     <CheckCircle2 className="w-3 h-3" /> Verified

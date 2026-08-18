@@ -56,7 +56,7 @@ serve(async (req) => {
     // Outlet must belong to the vendor
     const { data: outlet } = await admin
       .from("vendor_outlets")
-      .select("id, name, vendor_id")
+      .select("id, outlet_name, vendor_id")
       .eq("id", outletId)
       .maybeSingle();
     if (!outlet || outlet.vendor_id !== vendorId) return json({ error: "outlet_not_found" }, 404);
@@ -88,7 +88,7 @@ serve(async (req) => {
 
       const message =
         `Your Fast Calories vendor alert verification code is: ${code}\n\n` +
-        `Use it to confirm this number should receive order alerts for ${outlet.name}. ` +
+        `Use it to confirm this number should receive order alerts for ${outlet.outlet_name}. ` +
         `It expires in 10 minutes. Do not share it with anyone.`;
 
       const OTP_CONTENT_SID = Deno.env.get("TWILIO_OTP_CONTENT_SID") || "HXdeeb66b6a153acab9852859f86c7e5b4";
@@ -171,7 +171,7 @@ serve(async (req) => {
 
     const testBody =
       `✅ Fast Calories test alert\n\n` +
-      `This number will receive order alerts for *${outlet.name}*.`;
+      `This number will receive order alerts for *${outlet.outlet_name}*.`;
     const send = await sendTwilioMessage(admin, {
       channel: "whatsapp",
       to: settings.phone,
