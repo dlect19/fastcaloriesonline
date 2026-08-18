@@ -16,6 +16,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 import { useRiderRestrictions } from '@/hooks/useRiderRestrictions';
+import { useRiderPayoutOptions, type PayoutOption, type RiderPayoutQuote } from '@/hooks/useRiderPayoutOptions';
+import { RiderWithdrawalPreference } from '@/components/rider/RiderWithdrawalPreference';
 
 interface WalletData {
   id: string;
@@ -39,6 +41,11 @@ interface WithdrawalRequest {
   requested_at: string;
   processed_at: string | null;
   notes: string | null;
+  reference?: string | null;
+  transfer_charge?: number;
+  net_amount?: number;
+  charge_bearer?: string | null;
+  payout_option?: string | null;
 }
 
 interface RecipientData {
@@ -61,7 +68,10 @@ export default function RiderWithdraw() {
   const [submitting, setSubmitting] = useState(false);
   
   // OTP verification state
-  const [otpStep, setOtpStep] = useState<'amount' | 'otp'>('amount');
+  const [otpStep, setOtpStep] = useState<'amount' | 'confirm' | 'otp'>('amount');
+  const [quote, setQuote] = useState<RiderPayoutQuote | null>(null);
+  const [quoting, setQuoting] = useState(false);
+  const [idempotencyKey, setIdempotencyKey] = useState<string>('');
   const [otp, setOtp] = useState('');
   const [sendingOtp, setSendingOtp] = useState(false);
   const [recipientEnvironment, setRecipientEnvironment] = useState<string | null>(null);
@@ -81,6 +91,9 @@ export default function RiderWithdraw() {
   const [affiliatedVendorName, setAffiliatedVendorName] = useState<string | null>(null);
   const [deliveryCompanyName, setDeliveryCompanyName] = useState<string | null>(null);
   const { isAffiliated, affiliatedVendorId, isDeliveryCompanyRider, deliveryCompanyId, canWithdraw } = useRiderRestrictions(riderProfile);
+
+  // Withdrawal options (admin-configured charges, minimum, schedules)
+  const payoutOptions = useRiderPayoutOptions();
 
   useEffect(() => {
     checkAuth();
@@ -156,23 +169,45 @@ export default function RiderWithdraw() {
         setAutoWithdrawThreshold(String(walletData.auto_withdraw_threshold || 5000));
         setAutoWithdrawDay(String(walletData.auto_withdraw_day || 1));
 
-        // Fetch payout requests (withdrawal history)
-        const { data: payoutData } = await supabase
-          .from('payout_requests')
+        // Fetch immutable withdrawal ledger (falls back to payout requests for legacy rows)
+        const { data: ledgerData } = await supabase
+          .from('rider_withdrawal_ledger')
           .select('*')
-          .eq('wallet_id', walletData.id)
+          .eq('rider_user_id', userId)
           .order('created_at', { ascending: false })
           .limit(20);
 
-        // Map to expected format
-        setWithdrawals((payoutData || []).map(p => ({
-          id: p.id,
-          amount: p.amount,
-          status: p.status || 'pending',
-          requested_at: p.created_at,
-          processed_at: p.processed_at,
-          notes: p.failure_reason,
-        })));
+        if (ledgerData && ledgerData.length > 0) {
+          setWithdrawals(ledgerData.map((l) => ({
+            id: l.id,
+            amount: Number(l.gross_amount) || 0,
+            status: l.status || 'requested',
+            requested_at: l.created_at,
+            processed_at: l.updated_at,
+            notes: l.failure_reason,
+            reference: l.withdrawal_reference,
+            transfer_charge: Number(l.transfer_charge) || 0,
+            net_amount: Number(l.net_amount) || 0,
+            charge_bearer: l.charge_bearer,
+            payout_option: l.payout_option,
+          })));
+        } else {
+          const { data: payoutData } = await supabase
+            .from('payout_requests')
+            .select('*')
+            .eq('wallet_id', walletData.id)
+            .order('created_at', { ascending: false })
+            .limit(20);
+
+          setWithdrawals((payoutData || []).map(p => ({
+            id: p.id,
+            amount: p.amount,
+            status: p.status || 'pending',
+            requested_at: p.created_at,
+            processed_at: p.processed_at,
+            notes: p.failure_reason,
+          })));
+        }
 
         // Fetch recipient environment info
         const { data: recipientData } = await supabase
@@ -263,26 +298,38 @@ export default function RiderWithdraw() {
     }
   };
 
-  const handleRequestOTP = async () => {
+  // Step 1: server-side quote (balance, charge, net, bank, ETA) before any submission
+  const handleContinueToConfirm = async () => {
     const amount = Number(withdrawAmount);
-    const availableBalance = wallet?.balance || 0;
-
     if (!amount || amount <= 0) {
       toast({ title: 'Enter a valid amount', variant: 'destructive' });
       return;
     }
-
-    if (amount > availableBalance) {
-      toast({ title: 'Amount exceeds available balance', variant: 'destructive' });
-      return;
-    }
-
     if (!wallet?.bank_name || !wallet?.bank_account_number) {
       toast({ title: 'Please add bank details first', variant: 'destructive' });
       setBankDialogOpen(true);
       return;
     }
 
+    setQuoting(true);
+    try {
+      const q = await payoutOptions.getQuote(amount);
+      setQuote(q);
+      if (q.errors.length > 0) {
+        toast({ title: 'Cannot withdraw this amount', description: q.errors[0], variant: 'destructive' });
+        return;
+      }
+      setOtpStep('confirm');
+    } catch (error: any) {
+      toast({ title: 'Could not prepare withdrawal', description: error.message, variant: 'destructive' });
+    } finally {
+      setQuoting(false);
+    }
+  };
+
+  // Step 2: rider explicitly confirms, then we send the email OTP
+  const handleRequestOTP = async () => {
+    const amount = Number(withdrawAmount);
     setSendingOtp(true);
     try {
       const { error } = await supabase.functions.invoke('send-withdrawal-otp', {
@@ -296,6 +343,8 @@ export default function RiderWithdraw() {
 
       if (error) throw error;
 
+      // Stable idempotency key for this confirmed attempt — retrying can never duplicate the transfer
+      setIdempotencyKey((prev) => prev || `instant:${Date.now()}:${amount}`);
       toast({ title: 'OTP sent!', description: 'Check your email for the verification code.' });
       setOtpStep('otp');
     } catch (error: any) {
@@ -305,6 +354,7 @@ export default function RiderWithdraw() {
     }
   };
 
+  // Step 3: verify OTP, then create the withdrawal through the backend (charge + ledger handled server-side)
   const handleVerifyAndWithdraw = async () => {
     if (otp.length !== 6) {
       toast({ title: 'Please enter the 6-digit OTP', variant: 'destructive' });
@@ -312,88 +362,40 @@ export default function RiderWithdraw() {
     }
 
     const amount = Number(withdrawAmount);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
     setSubmitting(true);
     try {
-      // Verify OTP
       const { data: verifyData, error: verifyError } = await supabase.functions.invoke('verify-withdrawal-otp', {
-        body: {
-          email: userEmail,
-          otp,
-          expectedAmount: amount,
-        },
+        body: { email: userEmail, otp, expectedAmount: amount },
       });
 
       if (verifyError || !verifyData?.valid) {
         throw new Error('Invalid or expired OTP');
       }
 
-      // CRITICAL: Re-check balance server-side to prevent race conditions
-      const { data: freshWallet } = await supabase
-        .from('wallets')
-        .select('eligible_balance, test_eligible_balance')
-        .eq('id', wallet!.id)
-        .single();
+      const result = await payoutOptions.requestWithdrawal(amount, idempotencyKey || undefined);
 
-      if (!freshWallet) throw new Error('Wallet not found');
-
-      const freshBalance = isTestMode
-        ? Number(freshWallet.test_eligible_balance) || 0
-        : Number(freshWallet.eligible_balance) || 0;
-
-      if (amount > freshBalance) {
-        throw new Error('Insufficient balance. Your available balance may have changed.');
-      }
-
-      // Process withdrawal - insert into payout_requests table
-      const { data: insertedPayout, error } = await supabase
-        .from('payout_requests')
-        .insert({
-          wallet_id: wallet!.id,
-          user_id: user.id,
-          amount,
-          bank_name: wallet!.bank_name,
-          bank_account_number: wallet!.bank_account_number,
-          bank_account_name: wallet!.bank_account_name || '',
-          user_type: 'rider',
-          status: 'pending',
-        })
-        .select('id')
-        .single();
-
-      if (error) throw error;
-
-      // Check if auto-approval is enabled
-      const { data: approvalSetting } = await supabase
-        .from('platform_settings')
-        .select('value')
-        .eq('key', 'payout_approval_mode')
-        .single();
-
-      if (approvalSetting?.value === 'auto' && insertedPayout?.id) {
-        toast({ title: 'Processing withdrawal...', description: 'Auto-approval is enabled. Processing your payout now.' });
-        try {
-          const { data: payoutResult, error: payoutError } = await supabase.functions.invoke('process-payout', {
-            body: { payout_request_id: insertedPayout.id }
-          });
-          if (payoutError || !payoutResult?.success) {
-            toast({ title: 'Payout queued', description: payoutResult?.error || 'Payout will be retried by admin.', variant: 'destructive' });
-          } else {
-            toast({ title: '✅ Withdrawal processing', description: payoutResult?.data?.message || 'Your payout is being processed.' });
-          }
-        } catch {
-          toast({ title: 'Payout queued', description: 'Auto-processing encountered an issue. Admin will review.' });
-        }
+      if (result.duplicate) {
+        toast({ title: 'Withdrawal already submitted', description: 'This request was already received.' });
+      } else if (result.processing) {
+        toast({
+          title: '✅ Withdrawal processing',
+          description: `Net ₦${result.net_amount.toLocaleString()} on the way. Ref ${result.withdrawal_reference}.`,
+        });
       } else {
-        toast({ title: 'Withdrawal request submitted', description: 'Your request will be processed shortly.' });
+        toast({
+          title: 'Withdrawal request submitted',
+          description: `Ref ${result.withdrawal_reference}. Net ₦${result.net_amount.toLocaleString()} after ₦${result.transfer_charge.toLocaleString()} transfer charge.`,
+        });
       }
+
       setWithdrawDialogOpen(false);
       setWithdrawAmount('');
       setOtp('');
+      setQuote(null);
+      setIdempotencyKey('');
       setOtpStep('amount');
       checkAuth();
+      payoutOptions.refresh();
     } catch (error: any) {
       toast({ title: 'Withdrawal failed', description: error.message, variant: 'destructive' });
     } finally {
@@ -406,6 +408,7 @@ export default function RiderWithdraw() {
     if (!open) {
       setOtpStep('amount');
       setOtp('');
+      setQuote(null);
     }
   };
 
@@ -471,59 +474,8 @@ export default function RiderWithdraw() {
           <p className="text-muted-foreground text-sm md:text-base">Manage your withdrawals and bank settings</p>
         </div>
           <div className="flex gap-2">
-            <Dialog open={settingsDialogOpen} onOpenChange={setSettingsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2">
-                  <Settings className="w-4 h-4" />
-                  Settings
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Withdrawal Settings</DialogTitle>
-                  <DialogDescription>Configure automatic withdrawals</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label>Auto-withdraw</Label>
-                      <p className="text-sm text-muted-foreground">Automatically withdraw when threshold is reached</p>
-                    </div>
-                    <Switch checked={autoWithdraw} onCheckedChange={setAutoWithdraw} />
-                  </div>
-                  {autoWithdraw && (
-                    <>
-                      <div className="space-y-2">
-                        <Label>Minimum threshold (₦)</Label>
-                        <Input
-                          type="number"
-                          value={autoWithdrawThreshold}
-                          onChange={(e) => setAutoWithdrawThreshold(e.target.value)}
-                          placeholder="5000"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Preferred withdrawal day</Label>
-                        <Select value={autoWithdrawDay} onValueChange={setAutoWithdrawDay}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map((day, i) => (
-                              <SelectItem key={i} value={String(i + 1)}>{day}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </>
-                  )}
-                  <Button onClick={handleUpdateAutoWithdraw} className="w-full" disabled={submitting}>
-                    {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                    Save Settings
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+            {/* Legacy auto-withdraw settings replaced by the Withdrawal Preference section below */}
+
 
             <Dialog open={bankDialogOpen} onOpenChange={setBankDialogOpen}>
               <DialogTrigger asChild>
@@ -597,6 +549,19 @@ export default function RiderWithdraw() {
           </CardContent>
         </Card>
 
+        {/* Withdrawal Preference (instant / daily / weekly / monthly) */}
+        <div className="mb-8">
+          <RiderWithdrawalPreference
+            config={payoutOptions.config}
+            charges={payoutOptions.charges}
+            currentOption={(payoutOptions.preference?.payout_option as PayoutOption) || 'instant'}
+            nextRunAt={payoutOptions.nextRunAt}
+            bank={payoutOptions.bank}
+            onChangeOption={payoutOptions.setPreference}
+            onEditBank={() => setBankDialogOpen(true)}
+          />
+        </div>
+
         {/* Balance Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <Card>
@@ -659,11 +624,13 @@ export default function RiderWithdraw() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 {otpStep === 'otp' && <ShieldCheck className="w-5 h-5 text-primary" />}
-                {otpStep === 'amount' ? 'Request Withdrawal' : 'Verify OTP'}
+                {otpStep === 'amount' ? 'Request Withdrawal' : otpStep === 'confirm' ? 'Confirm Withdrawal' : 'Verify OTP'}
               </DialogTitle>
               <DialogDescription>
-                {otpStep === 'amount' 
-                  ? 'Withdraw funds to your bank account' 
+                {otpStep === 'amount'
+                  ? 'Withdraw funds to your bank account'
+                  : otpStep === 'confirm'
+                  ? 'Review the charge and net amount before you confirm'
                   : 'Enter the 6-digit code sent to your email'}
               </DialogDescription>
             </DialogHeader>
@@ -674,7 +641,7 @@ export default function RiderWithdraw() {
                   <div className="p-4 bg-muted rounded-lg">
                     <p className="text-sm text-muted-foreground">Withdrawing to:</p>
                     <p className="font-medium">{wallet.bank_name}</p>
-                    <p className="text-sm">{wallet.bank_account_number} - {wallet.bank_account_name}</p>
+                    <p className="text-sm">{payoutOptions.bank?.masked_account || wallet.bank_account_number} - {wallet.bank_account_name}</p>
                   </div>
                 ) : (
                   <div className="p-4 bg-yellow-50 rounded-lg text-center">
@@ -692,22 +659,79 @@ export default function RiderWithdraw() {
                     value={withdrawAmount}
                     onChange={(e) => setWithdrawAmount(e.target.value)}
                     placeholder="Enter amount"
-                    max={wallet?.balance || 0}
+                    max={payoutOptions.clearedBalance || wallet?.balance || 0}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Available balance: {formatCurrency(wallet?.balance || 0)}
+                    Cleared balance: {formatCurrency(payoutOptions.clearedBalance || wallet?.balance || 0)}
+                    {payoutOptions.config ? ` · Minimum: ${formatCurrency(payoutOptions.config.min_withdrawal)}` : ''}
                   </p>
+                  {payoutOptions.config && (
+                    <p className="text-xs text-muted-foreground">
+                      Transfer charge for instant withdrawal: {formatCurrency(payoutOptions.config.charge_instant)} (paid by you)
+                    </p>
+                  )}
                 </div>
 
-                <Button 
-                  onClick={handleRequestOTP} 
-                  className="w-full" 
-                  disabled={sendingOtp || !wallet?.bank_name}
+                <Button
+                  onClick={handleContinueToConfirm}
+                  className="w-full"
+                  disabled={quoting || !wallet?.bank_name}
                 >
-                  {sendingOtp ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                  Send Verification Code
+                  {quoting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                  Continue
                 </Button>
               </div>
+            ) : otpStep === 'confirm' && quote ? (
+              <div className="space-y-4">
+                <div className="rounded-lg border divide-y">
+                  <div className="flex justify-between p-3 text-sm">
+                    <span className="text-muted-foreground">Withdrawable balance</span>
+                    <span className="font-medium">{formatCurrency(quote.cleared_balance)}</span>
+                  </div>
+                  <div className="flex justify-between p-3 text-sm">
+                    <span className="text-muted-foreground">Requested amount</span>
+                    <span className="font-medium">{formatCurrency(quote.requested)}</span>
+                  </div>
+                  <div className="flex justify-between p-3 text-sm">
+                    <span className="text-muted-foreground">Transfer charge</span>
+                    <span className="font-medium text-red-600">
+                      {quote.charge_bearer === 'rider' ? `- ${formatCurrency(quote.transfer_charge)}` : 'Paid by FastCalories'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between p-3">
+                    <span className="text-sm font-medium">You receive</span>
+                    <span className="text-lg font-bold text-primary">{formatCurrency(quote.net_amount)}</span>
+                  </div>
+                  <div className="flex justify-between p-3 text-sm">
+                    <span className="text-muted-foreground">Destination</span>
+                    <span className="text-right">
+                      {quote.bank.bank_name || '—'}
+                      <br />
+                      <span className="text-xs text-muted-foreground">{quote.bank.masked_account || ''}</span>
+                    </span>
+                  </div>
+                  <div className="flex justify-between p-3 text-sm">
+                    <span className="text-muted-foreground">Processing time</span>
+                    <span>{quote.eta_text}</span>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button variant="outline" className="flex-1" onClick={() => setOtpStep('amount')}>
+                    Back
+                  </Button>
+                  <Button
+                    className="flex-1"
+                    onClick={handleRequestOTP}
+                    disabled={sendingOtp}
+                  >
+                    {sendingOtp ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                    Confirm &amp; Send Code
+                  </Button>
+                </div>
+              </div>
+            ) : otpStep === 'confirm' ? (
+              <div className="py-6 text-center text-sm text-muted-foreground">Preparing your withdrawal…</div>
             ) : (
               <div className="space-y-4">
                 <div className="p-4 bg-muted rounded-lg text-center">
@@ -779,14 +803,32 @@ export default function RiderWithdraw() {
             ) : (
               <div className="space-y-4">
                 {withdrawals.map((withdrawal) => (
-                  <div key={withdrawal.id} className="flex items-center justify-between py-3 border-b last:border-0">
-                    <div>
-                      <p className="font-medium">{formatCurrency(withdrawal.amount)}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(withdrawal.requested_at).toLocaleDateString()}
+                  <div key={withdrawal.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 py-3 border-b last:border-0">
+                    <div className="min-w-0">
+                      <p className="font-medium">
+                        {formatCurrency(withdrawal.amount)}
+                        {withdrawal.payout_option ? (
+                          <span className="ml-2 text-xs text-muted-foreground capitalize">{withdrawal.payout_option}</span>
+                        ) : null}
                       </p>
+                      <p className="text-sm text-muted-foreground">
+                        {new Date(withdrawal.requested_at).toLocaleString()}
+                      </p>
+                      {withdrawal.reference ? (
+                        <p className="text-xs font-mono text-muted-foreground break-all">{withdrawal.reference}</p>
+                      ) : null}
+                      {withdrawal.transfer_charge !== undefined ? (
+                        <p className="text-xs text-muted-foreground">
+                          Charge {formatCurrency(withdrawal.transfer_charge)}
+                          {withdrawal.charge_bearer === 'fastcalories' ? ' (paid by FastCalories)' : ''}
+                          {' · '}Net {formatCurrency(withdrawal.net_amount || 0)}
+                        </p>
+                      ) : null}
+                      {withdrawal.notes ? (
+                        <p className="text-xs text-red-600 break-words">{withdrawal.notes}</p>
+                      ) : null}
                     </div>
-                    <Badge className={getStatusColor(withdrawal.status)}>
+                    <Badge className={`${getStatusColor(withdrawal.status)} self-start sm:self-auto capitalize`}>
                       {withdrawal.status}
                     </Badge>
                   </div>

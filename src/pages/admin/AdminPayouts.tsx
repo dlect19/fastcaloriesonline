@@ -46,6 +46,8 @@ interface PayoutRequest {
   paystack_transfer_code: string | null;
   retry_count: number | null;
   withdrawal_source: string | null;
+  payout_option: string | null;
+  transfer_charge: number | null;
   wallet_id: string;
   entity_name?: string;
   entity_phone?: string;
@@ -89,6 +91,7 @@ export default function AdminPayouts() {
   const [selectedPayout, setSelectedPayout] = useState<PayoutRequest | null>(null);
   const [dialogAction, setDialogAction] = useState<'approve' | 'reject' | 'retry' | 'mark_completed' | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [frequencyFilter, setFrequencyFilter] = useState<'all' | 'instant' | 'daily' | 'weekly' | 'monthly'>('all');
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [verifying, setVerifying] = useState<string | null>(null);
   const [manualDialogOpen, setManualDialogOpen] = useState(false);
@@ -506,7 +509,13 @@ export default function AdminPayouts() {
       const matchesEntity = (p.entity_name || '').toLowerCase().includes(q);
       const matchesBank = (p.bank_name || '').toLowerCase().includes(q);
       const matchesRef = (p.paystack_reference || '').toLowerCase().includes(q);
-      if (!matchesName && !matchesEntity && !matchesBank && !matchesRef) return false;
+      const matchesTransferCode = (p.paystack_transfer_code || '').toLowerCase().includes(q);
+      if (!matchesName && !matchesEntity && !matchesBank && !matchesRef && !matchesTransferCode) return false;
+    }
+    // Payout frequency filter (instant / daily / weekly / monthly)
+    if (frequencyFilter !== 'all') {
+      const option = p.payout_option || 'instant';
+      if (option !== frequencyFilter) return false;
     }
     // Date range filter
     if (dateRange.from) {
@@ -550,11 +559,18 @@ export default function AdminPayouts() {
                     {[payout.entity_phone, payout.entity_email].filter(Boolean).join(' • ')}
                   </p>
                 )}
-                {payout.withdrawal_source && (
-                  <Badge variant="outline" className="text-xs mt-0.5">
-                    {payout.withdrawal_source === 'rider_revenue' ? 'Rider Revenue' : 'Menu Earnings'}
-                  </Badge>
-                )}
+                <div className="flex flex-wrap gap-1 mt-0.5">
+                  {payout.withdrawal_source && (
+                    <Badge variant="outline" className="text-xs">
+                      {payout.withdrawal_source === 'rider_revenue' ? 'Rider Revenue' : 'Menu Earnings'}
+                    </Badge>
+                  )}
+                  {payout.payout_option && (
+                    <Badge variant="secondary" className="text-xs capitalize">
+                      {payout.payout_option}
+                    </Badge>
+                  )}
+                </div>
               </div>
             </div>
             <Badge className={`${status.color} border-0`}>
@@ -568,6 +584,25 @@ export default function AdminPayouts() {
               <span className="text-muted-foreground">Amount</span>
               <span className="font-semibold text-foreground">₦{Number(payout.amount).toLocaleString()}</span>
             </div>
+            {payout.transfer_charge !== null && payout.transfer_charge !== undefined && (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Transfer charge</span>
+                  <span className="text-foreground">
+                    ₦{Number(payout.transfer_charge).toLocaleString()}
+                    <span className="text-xs text-muted-foreground ml-1">
+                      ({(payout.payout_option === 'weekly' || payout.payout_option === 'monthly') ? 'FastCalories' : 'rider'})
+                    </span>
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Net transferred</span>
+                  <span className="text-foreground">
+                    ₦{Math.max(0, Number(payout.amount) - Number(payout.transfer_charge || 0)).toLocaleString()}
+                  </span>
+                </div>
+              </>
+            )}
             <div className="flex justify-between">
               <span className="text-muted-foreground">Bank</span>
               <span className="text-foreground">{payout.bank_name || '-'}</span>
@@ -828,6 +863,18 @@ export default function AdminPayouts() {
                 className="pl-9"
               />
             </div>
+            <Select value={frequencyFilter} onValueChange={(v) => setFrequencyFilter(v as typeof frequencyFilter)}>
+              <SelectTrigger className="w-[190px]">
+                <SelectValue placeholder="Frequency" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All frequencies</SelectItem>
+                <SelectItem value="instant">Instant / anytime</SelectItem>
+                <SelectItem value="daily">Daily automatic</SelectItem>
+                <SelectItem value="weekly">Weekly automatic</SelectItem>
+                <SelectItem value="monthly">Monthly automatic</SelectItem>
+              </SelectContent>
+            </Select>
             <DateRangeFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
           </div>
 
