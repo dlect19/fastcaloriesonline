@@ -110,30 +110,33 @@ serve(async (req) => {
         `Use it to confirm this number should receive order alerts for ${outlet.outlet_name}. ` +
         `It expires in 10 minutes. Do not share it with anyone.`;
 
-      // Outside the 24h WhatsApp window only an approved template can be delivered,
-      // so require the provisioned wa_otp_code SID instead of guessing one.
+      // Prefer an approved template when one exists (works outside the 24h window).
+      // Otherwise send free-form, which works when the vendor just messaged us
+      // ("Activate chat" step in the vendor UI).
       const { data: otpTpl } = await admin
         .from("whatsapp_templates")
         .select("content_sid")
         .eq("template_key", "wa_otp_code")
         .maybeSingle();
       const OTP_CONTENT_SID = Deno.env.get("TWILIO_OTP_CONTENT_SID") || otpTpl?.content_sid || "";
-      if (!OTP_CONTENT_SID) {
-        await admin.from("phone_verification_otps").delete().eq("id", otpRecord.id);
-        return json({
-          error: "template_not_provisioned",
-          message:
-            "The 'wa_otp_code' WhatsApp template isn't provisioned yet. Go to Admin → WhatsApp → Templates, click 'Auto-create all in Twilio', wait for Meta approval, then retry.",
-        }, 400);
-      }
 
-      const send = await sendTwilioMessage(admin, {
+      let send = await sendTwilioMessage(admin, {
         channel: "whatsapp",
         to: phone,
         body: message,
-        contentSid: OTP_CONTENT_SID,
-        contentVariables: { "1": code },
+        ...(OTP_CONTENT_SID
+          ? { contentSid: OTP_CONTENT_SID, contentVariables: { "1": code } }
+          : {}),
       });
+
+      // If the template was rejected/invalid, retry as free-form (24h window).
+      if (!send.ok && OTP_CONTENT_SID) {
+        send = await sendTwilioMessage(admin, {
+          channel: "whatsapp",
+          to: phone,
+          body: message,
+        });
+      }
 
 
       await logTwilioCall(admin, {
