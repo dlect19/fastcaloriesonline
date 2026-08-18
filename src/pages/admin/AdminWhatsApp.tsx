@@ -277,13 +277,20 @@ export default function AdminWhatsApp() {
 
         <TabsContent value="templates">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <CardTitle>Twilio Content Template SIDs</CardTitle>
-              <Button size="sm" onClick={provisionTemplates} disabled={provisioning}>
-                <Wand2 className="h-4 w-4 mr-2" />
-                {provisioning ? "Creating in Twilio..." : "Auto-create all in Twilio"}
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="outline" onClick={refreshApprovalStatus} disabled={refreshingStatus}>
+                  <RefreshCw className={`h-4 w-4 mr-2 ${refreshingStatus ? "animate-spin" : ""}`} />
+                  {refreshingStatus ? "Checking Meta..." : "Refresh approval status"}
+                </Button>
+                <Button size="sm" onClick={provisionTemplates} disabled={provisioning}>
+                  <Wand2 className="h-4 w-4 mr-2" />
+                  {provisioning ? "Creating in Twilio..." : "Auto-create + submit for approval"}
+                </Button>
+              </div>
             </CardHeader>
+
             <CardContent className="space-y-4 text-sm">
               <div className="rounded-md bg-muted/50 p-3 text-xs space-y-2">
                 <p>Click <strong>Auto-create all in Twilio</strong> to provision the 9 templates and save their <code>HX...</code> SIDs automatically. (Sandbox auto-approves; production requires Meta approval ~24h.)</p>
