@@ -5,6 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getWhatsAppFromNumber } from "../_shared/whatsapp.ts";
 import { parseIntent, matchProduct, scoreMatch } from "./nlu.ts";
 import { detectVoiceNote, transcribeVoiceNote, VOICE_FAIL_TEXT } from "./voice.ts";
+import { chatCompletionWithFallback } from "../_shared/ai-call.ts";
 
 
 const corsHeaders = {
@@ -2103,21 +2104,22 @@ async function createWalletFundingLink(supabase: any, userId: string, amount: nu
 
 async function aiSuggest(query: string): Promise<string> {
   try {
-    const apiKey = Deno.env.get("LOVABLE_API_KEY");
-    if (!apiKey) return "AI suggestions unavailable right now.";
-    const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: "You are a Nigerian nutritionist. Suggest 3 concrete meal ideas (with approx calories in kcal) matching the user's request. Reply in plain text under 80 words." },
-          { role: "user", content: query },
-        ],
-      }),
+    if (!Deno.env.get("LOVABLE_API_KEY") && !Deno.env.get("GEMINI_API_KEY")) {
+      return "AI suggestions unavailable right now.";
+    }
+    const r = await chatCompletionWithFallback({
+      model: "google/gemini-2.5-flash",
+      messages: [
+        { role: "system", content: "You are a Nigerian nutritionist. Suggest 3 concrete meal ideas (with approx calories in kcal) matching the user's request. Reply in plain text under 80 words." },
+        { role: "user", content: query },
+      ],
     });
-    const j = await r.json();
-    return "🥗 *Healthy picks:*\n\n" + (j.choices?.[0]?.message?.content || "No suggestions.");
+    if (!r.ok) {
+      console.error("[wa-ai-suggest] AI error", r.status, (r.errorText || "").slice(0, 200));
+      return "Couldn't fetch suggestions right now.";
+    }
+    console.log("[wa-ai-suggest] provider=" + r.provider);
+    return "🥗 *Healthy picks:*\n\n" + (r.data?.choices?.[0]?.message?.content || "No suggestions.");
   } catch {
     return "Couldn't fetch suggestions right now.";
   }
