@@ -3,6 +3,8 @@
 // integration (Lovable AI Gateway), and returns plain text that is fed into the
 // SAME conversation pipeline used for typed messages.
 
+import { chatCompletionWithFallback } from "../_shared/ai-call.ts";
+
 const AUDIO_MIME_PREFIX = "audio/";
 
 /** True when the inbound Twilio webhook carries a voice note / audio clip. */
@@ -44,8 +46,8 @@ function toBase64(bytes: Uint8Array): string {
 export async function transcribeVoiceNote(url: string, contentType: string): Promise<string | null> {
   const sid = Deno.env.get("TWILIO_ACCOUNT_SID");
   const token = Deno.env.get("TWILIO_AUTH_TOKEN");
-  const apiKey = Deno.env.get("LOVABLE_API_KEY");
-  if (!sid || !token || !apiKey) {
+  const hasAi = !!(Deno.env.get("LOVABLE_API_KEY") || Deno.env.get("GEMINI_API_KEY"));
+  if (!sid || !token || !hasAi) {
     console.error("[wa-voice] missing credentials");
     return null;
   }
@@ -66,40 +68,36 @@ export async function transcribeVoiceNote(url: string, contentType: string): Pro
     }
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 20000);
-    const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      signal: controller.signal,
-      body: JSON.stringify({
-        model: "google/gemini-3.5-flash",
-        messages: [
-          {
-            role: "system",
-            content:
-              "You transcribe short WhatsApp voice notes from Nigerian customers ordering food, medicine or groceries. " +
-              "Return ONLY the transcription text, no quotes, no commentary, no translation of proper names. " +
-              "If there is no intelligible speech, return exactly: NO_SPEECH",
-          },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: "Transcribe this voice note." },
-              {
-                type: "input_audio",
-                input_audio: { data: toBase64(bytes), format: audioFormat(contentType) },
-              },
-            ],
-          },
-        ],
-      }),
-    }).finally(() => clearTimeout(timer));
+    const timer = setTimeout(() => controller.abort(), 45000);
+    const r = await chatCompletionWithFallback({
+      model: "google/gemini-3.5-flash",
+      messages: [
+        {
+          role: "system",
+          content:
+            "You transcribe short WhatsApp voice notes from Nigerian customers ordering food, medicine or groceries. " +
+            "Return ONLY the transcription text, no quotes, no commentary, no translation of proper names. " +
+            "If there is no intelligible speech, return exactly: NO_SPEECH",
+        },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Transcribe this voice note." },
+            {
+              type: "input_audio",
+              input_audio: { data: toBase64(bytes), format: audioFormat(contentType) },
+            },
+          ],
+        },
+      ],
+    }, { signal: controller.signal }).finally(() => clearTimeout(timer));
 
     if (!r.ok) {
-      console.error("[wa-voice] gateway error", r.status, (await r.text()).slice(0, 200));
+      console.error("[wa-voice] AI error", r.status, (r.errorText || "").slice(0, 200));
       return null;
     }
-    const j = await r.json();
+    console.log("[wa-voice] provider=" + r.provider);
+    const j = r.data;
     const text = String(j?.choices?.[0]?.message?.content || "").trim();
     if (!text || /^no_speech$/i.test(text) || text.length < 2) return null;
     console.log("[wa-voice] transcribed", text.slice(0, 120));

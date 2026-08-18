@@ -3,6 +3,8 @@
 // into a tiny structured intent. It never sees prices and never decides what is
 // available — all resolution happens deterministically against real menu data.
 
+import { chatCompletionWithFallback } from "../_shared/ai-call.ts";
+
 export type NlIntent =
   | "add_to_cart"
   | "update_quantity"
@@ -80,44 +82,39 @@ Rules:
 
 /** Ask Gemini for a structured intent. Returns null on any failure. */
 export async function parseIntent(message: string, ctx?: NlContext): Promise<NlResult | null> {
-  const apiKey = Deno.env.get("LOVABLE_API_KEY");
-  if (!apiKey || !message || message.trim().length < 2) return null;
+  if (!Deno.env.get("LOVABLE_API_KEY") && !Deno.env.get("GEMINI_API_KEY")) return null;
+  if (!message || message.trim().length < 2) return null;
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 9000);
-    const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      signal: controller.signal,
-      body: JSON.stringify({
-        model: "google/gemini-3.5-flash",
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          ...(ctx
-            ? [{
-              role: "system" as const,
-              content: "CONTEXT (for reference resolution only, never quote figures from it): " +
-                JSON.stringify({
-                  state: ctx.state || null,
-                  vendor: ctx.vendor_name || null,
-                  cart: (ctx.cart || []).slice(0, 10),
-                  recent_vendors: (ctx.last_vendor_list || []).slice(0, 8),
-                  recent_turns: (ctx.recent_messages || []).slice(-4),
-
-                }),
-            }]
-            : []),
-          { role: "user", content: message.slice(0, 400) },
-        ],
-      }),
-    }).finally(() => clearTimeout(timer));
+    const timer = setTimeout(() => controller.abort(), 20000);
+    const r = await chatCompletionWithFallback({
+      model: "google/gemini-3.5-flash",
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        ...(ctx
+          ? [{
+            role: "system" as const,
+            content: "CONTEXT (for reference resolution only, never quote figures from it): " +
+              JSON.stringify({
+                state: ctx.state || null,
+                vendor: ctx.vendor_name || null,
+                cart: (ctx.cart || []).slice(0, 10),
+                recent_vendors: (ctx.last_vendor_list || []).slice(0, 8),
+                recent_turns: (ctx.recent_messages || []).slice(-4),
+              }),
+          }]
+          : []),
+        { role: "user", content: message.slice(0, 400) },
+      ],
+    }, { signal: controller.signal }).finally(() => clearTimeout(timer));
 
     if (!r.ok) {
-      console.error("[wa-nlu] gateway error", r.status, (await r.text()).slice(0, 200));
+      console.error("[wa-nlu] AI error", r.status, (r.errorText || "").slice(0, 200));
       return null;
     }
-    const j = await r.json();
+    console.log("[wa-nlu] provider=" + r.provider);
+    const j = r.data;
     const raw = j?.choices?.[0]?.message?.content;
     if (!raw) return null;
     const parsed = JSON.parse(String(raw).replace(/^```json\s*|```$/g, "").trim());
