@@ -1926,12 +1926,14 @@ export default function VendorMenu() {
                         )}
                       </div>
                     </div>
+                    </div>
 
-                    <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+                    <div className="flex items-center flex-wrap gap-1 sm:gap-2 sm:flex-shrink-0 justify-end border-t sm:border-t-0 border-border pt-2 sm:pt-0">
                       <Switch
                         checked={getEffectiveAvailability(product)}
                         onCheckedChange={() => toggleAvailability(product)}
                       />
+
                       <Button
                         variant="ghost"
                         size="icon"
