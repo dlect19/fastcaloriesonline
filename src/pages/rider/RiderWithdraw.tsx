@@ -611,11 +611,13 @@ export default function RiderWithdraw() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 {otpStep === 'otp' && <ShieldCheck className="w-5 h-5 text-primary" />}
-                {otpStep === 'amount' ? 'Request Withdrawal' : 'Verify OTP'}
+                {otpStep === 'amount' ? 'Request Withdrawal' : otpStep === 'confirm' ? 'Confirm Withdrawal' : 'Verify OTP'}
               </DialogTitle>
               <DialogDescription>
-                {otpStep === 'amount' 
-                  ? 'Withdraw funds to your bank account' 
+                {otpStep === 'amount'
+                  ? 'Withdraw funds to your bank account'
+                  : otpStep === 'confirm'
+                  ? 'Review the charge and net amount before you confirm'
                   : 'Enter the 6-digit code sent to your email'}
               </DialogDescription>
             </DialogHeader>
@@ -626,7 +628,7 @@ export default function RiderWithdraw() {
                   <div className="p-4 bg-muted rounded-lg">
                     <p className="text-sm text-muted-foreground">Withdrawing to:</p>
                     <p className="font-medium">{wallet.bank_name}</p>
-                    <p className="text-sm">{wallet.bank_account_number} - {wallet.bank_account_name}</p>
+                    <p className="text-sm">{payoutOptions.bank?.masked_account || wallet.bank_account_number} - {wallet.bank_account_name}</p>
                   </div>
                 ) : (
                   <div className="p-4 bg-yellow-50 rounded-lg text-center">
@@ -644,22 +646,79 @@ export default function RiderWithdraw() {
                     value={withdrawAmount}
                     onChange={(e) => setWithdrawAmount(e.target.value)}
                     placeholder="Enter amount"
-                    max={wallet?.balance || 0}
+                    max={payoutOptions.clearedBalance || wallet?.balance || 0}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Available balance: {formatCurrency(wallet?.balance || 0)}
+                    Cleared balance: {formatCurrency(payoutOptions.clearedBalance || wallet?.balance || 0)}
+                    {payoutOptions.config ? ` · Minimum: ${formatCurrency(payoutOptions.config.min_withdrawal)}` : ''}
                   </p>
+                  {payoutOptions.config && (
+                    <p className="text-xs text-muted-foreground">
+                      Transfer charge for instant withdrawal: {formatCurrency(payoutOptions.config.charge_instant)} (paid by you)
+                    </p>
+                  )}
                 </div>
 
-                <Button 
-                  onClick={handleRequestOTP} 
-                  className="w-full" 
-                  disabled={sendingOtp || !wallet?.bank_name}
+                <Button
+                  onClick={handleContinueToConfirm}
+                  className="w-full"
+                  disabled={quoting || !wallet?.bank_name}
                 >
-                  {sendingOtp ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                  Send Verification Code
+                  {quoting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                  Continue
                 </Button>
               </div>
+            ) : otpStep === 'confirm' && quote ? (
+              <div className="space-y-4">
+                <div className="rounded-lg border divide-y">
+                  <div className="flex justify-between p-3 text-sm">
+                    <span className="text-muted-foreground">Withdrawable balance</span>
+                    <span className="font-medium">{formatCurrency(quote.cleared_balance)}</span>
+                  </div>
+                  <div className="flex justify-between p-3 text-sm">
+                    <span className="text-muted-foreground">Requested amount</span>
+                    <span className="font-medium">{formatCurrency(quote.requested)}</span>
+                  </div>
+                  <div className="flex justify-between p-3 text-sm">
+                    <span className="text-muted-foreground">Transfer charge</span>
+                    <span className="font-medium text-red-600">
+                      {quote.charge_bearer === 'rider' ? `- ${formatCurrency(quote.transfer_charge)}` : 'Paid by FastCalories'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between p-3">
+                    <span className="text-sm font-medium">You receive</span>
+                    <span className="text-lg font-bold text-primary">{formatCurrency(quote.net_amount)}</span>
+                  </div>
+                  <div className="flex justify-between p-3 text-sm">
+                    <span className="text-muted-foreground">Destination</span>
+                    <span className="text-right">
+                      {quote.bank.bank_name || '—'}
+                      <br />
+                      <span className="text-xs text-muted-foreground">{quote.bank.masked_account || ''}</span>
+                    </span>
+                  </div>
+                  <div className="flex justify-between p-3 text-sm">
+                    <span className="text-muted-foreground">Processing time</span>
+                    <span>{quote.eta_text}</span>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button variant="outline" className="flex-1" onClick={() => setOtpStep('amount')}>
+                    Back
+                  </Button>
+                  <Button
+                    className="flex-1"
+                    onClick={handleRequestOTP}
+                    disabled={sendingOtp}
+                  >
+                    {sendingOtp ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                    Confirm &amp; Send Code
+                  </Button>
+                </div>
+              </div>
+            ) : otpStep === 'confirm' ? (
+              <div className="py-6 text-center text-sm text-muted-foreground">Preparing your withdrawal…</div>
             ) : (
               <div className="space-y-4">
                 <div className="p-4 bg-muted rounded-lg text-center">
