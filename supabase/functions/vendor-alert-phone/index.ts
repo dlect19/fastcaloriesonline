@@ -65,26 +65,45 @@ serve(async (req) => {
       const phone = normalizeE164Phone(String(body.phone || ""));
       if (!phone || phone.length < 10) return json({ error: "invalid_phone" }, 400);
 
-      // Rate limit: 3 codes per 5 minutes per phone
+      // Limit only this user's vendor-alert codes. Login/profile OTPs for the
+      // same phone must not block vendor alert setup.
       const fiveMinAgo = new Date(Date.now() - 5 * 60_000).toISOString();
-      const { count } = await admin
+      const { data: recentCodes, count } = await admin
         .from("phone_verification_otps")
-        .select("id", { count: "exact", head: true })
+        .select("created_at", { count: "exact" })
         .eq("phone", phone)
+        .eq("user_id", user.id)
+        .eq("purpose", "vendor_alert")
         .gte("created_at", fiveMinAgo);
       if ((count ?? 0) >= 3) {
-        return json({ error: "rate_limited", message: "Too many attempts. Try again in a few minutes." }, 429);
+        const oldestCreatedAt = recentCodes
+          ?.map((record) => new Date(record.created_at).getTime())
+          .filter((createdAt) => Number.isFinite(createdAt))
+          .sort((a, b) => a - b)[0];
+        const retryAfterSeconds = oldestCreatedAt
+          ? Math.max(1, Math.ceil((oldestCreatedAt + 5 * 60_000 - Date.now()) / 1000))
+          : 300;
+        return json({
+          error: "rate_limited",
+          message: `Too many code requests. Try again in ${Math.ceil(retryAfterSeconds / 60)} minute(s).`,
+          retry_after_seconds: retryAfterSeconds,
+        }, 429);
       }
 
       const code = String(Math.floor(100000 + Math.random() * 900000));
       const codeHash = await sha256Hex(code + phone);
-      await admin.from("phone_verification_otps").insert({
+      const { data: otpRecord, error: otpInsertError } = await admin
+        .from("phone_verification_otps")
+        .insert({
         phone,
         code_hash: codeHash,
         user_id: user.id,
-        purpose: "verify",
+        purpose: "vendor_alert",
         expires_at: new Date(Date.now() + 10 * 60_000).toISOString(),
-      });
+        })
+        .select("id")
+        .single();
+      if (otpInsertError || !otpRecord) throw otpInsertError ?? new Error("Could not create verification code");
 
       const message =
         `Your Fast Calories vendor alert verification code is: ${code}\n\n` +
@@ -113,7 +132,12 @@ serve(async (req) => {
         error: send.ok ? undefined : String(send.error || "send_failed").slice(0, 500),
       });
 
-      if (!send.ok) return json({ error: "send_failed", message: send.error }, 502);
+      if (!send.ok) {
+        // A provider failure is not a successful request and must not consume
+        // one of the user's attempts.
+        await admin.from("phone_verification_otps").delete().eq("id", otpRecord.id);
+        return json({ error: "send_failed", message: send.error }, 502);
+      }
       return json({ ok: true, phone });
     }
 
@@ -126,6 +150,8 @@ serve(async (req) => {
         .from("phone_verification_otps")
         .select("*")
         .eq("phone", phone)
+        .eq("user_id", user.id)
+        .eq("purpose", "vendor_alert")
         .is("verified_at", null)
         .order("created_at", { ascending: false })
         .limit(1)
