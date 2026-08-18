@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.sync_rider_withdrawal_ledger() FROM PUBLIC, anon, authenticated;
