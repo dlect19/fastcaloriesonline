@@ -22,7 +22,7 @@ export default function AdminWhatsApp() {
   const [loading, setLoading] = useState(true);
   const [testTo, setTestTo] = useState("");
   const [testBody, setTestBody] = useState("Hello from FastCalories 👋");
-  const [templates, setTemplates] = useState<Array<{ template_key: string; content_sid: string; description: string | null }>>([]);
+  const [templates, setTemplates] = useState<Array<{ template_key: string; content_sid: string; description: string | null; approval_status: string | null; approval_rejection_reason: string | null }>>([]);
   const [savingTpl, setSavingTpl] = useState<string | null>(null);
   const [fromNumber, setFromNumber] = useState("");
   const [savingFrom, setSavingFrom] = useState(false);
@@ -35,7 +35,7 @@ export default function AdminWhatsApp() {
       supabase.from("platform_settings").select("value").eq("key", "whatsapp_from_number").maybeSingle(),
       supabase.from("whatsapp_sessions").select("*").order("last_message_at", { ascending: false }).limit(50),
       supabase.from("whatsapp_orders").select("*, orders(order_number, status, total_amount)").order("created_at", { ascending: false }).limit(50),
-      supabase.from("whatsapp_templates").select("template_key, content_sid, description").order("template_key"),
+      supabase.from("whatsapp_templates").select("template_key, content_sid, description, approval_status, approval_rejection_reason").order("template_key"),
     ]);
     setEnabled(setting.data?.value === "true");
     const currentFrom = fromSetting.data?.value || "whatsapp:+14155238886";
@@ -138,6 +138,20 @@ export default function AdminWhatsApp() {
     if (failed.length) console.error("Template provisioning failures:", failed);
     load();
   };
+
+  const [refreshingStatus, setRefreshingStatus] = useState(false);
+  const refreshApprovalStatus = async () => {
+    setRefreshingStatus(true);
+    const { data, error } = await supabase.functions.invoke("whatsapp-provision-templates", { body: { action: "refresh_status" } });
+    setRefreshingStatus(false);
+    if (error || (data as any)?.ok === false) {
+      toast({ title: "Status refresh failed", description: error?.message || (data as any)?.error || "Unknown error", variant: "destructive" });
+      return;
+    }
+    toast({ title: "Approval status refreshed" });
+    load();
+  };
+
 
   return (
     <AdminLayout>
