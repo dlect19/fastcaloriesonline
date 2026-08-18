@@ -803,14 +803,32 @@ export default function RiderWithdraw() {
             ) : (
               <div className="space-y-4">
                 {withdrawals.map((withdrawal) => (
-                  <div key={withdrawal.id} className="flex items-center justify-between py-3 border-b last:border-0">
-                    <div>
-                      <p className="font-medium">{formatCurrency(withdrawal.amount)}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(withdrawal.requested_at).toLocaleDateString()}
+                  <div key={withdrawal.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 py-3 border-b last:border-0">
+                    <div className="min-w-0">
+                      <p className="font-medium">
+                        {formatCurrency(withdrawal.amount)}
+                        {withdrawal.payout_option ? (
+                          <span className="ml-2 text-xs text-muted-foreground capitalize">{withdrawal.payout_option}</span>
+                        ) : null}
                       </p>
+                      <p className="text-sm text-muted-foreground">
+                        {new Date(withdrawal.requested_at).toLocaleString()}
+                      </p>
+                      {withdrawal.reference ? (
+                        <p className="text-xs font-mono text-muted-foreground break-all">{withdrawal.reference}</p>
+                      ) : null}
+                      {withdrawal.transfer_charge !== undefined ? (
+                        <p className="text-xs text-muted-foreground">
+                          Charge {formatCurrency(withdrawal.transfer_charge)}
+                          {withdrawal.charge_bearer === 'fastcalories' ? ' (paid by FastCalories)' : ''}
+                          {' · '}Net {formatCurrency(withdrawal.net_amount || 0)}
+                        </p>
+                      ) : null}
+                      {withdrawal.notes ? (
+                        <p className="text-xs text-red-600 break-words">{withdrawal.notes}</p>
+                      ) : null}
                     </div>
-                    <Badge className={getStatusColor(withdrawal.status)}>
+                    <Badge className={`${getStatusColor(withdrawal.status)} self-start sm:self-auto capitalize`}>
                       {withdrawal.status}
                     </Badge>
                   </div>
