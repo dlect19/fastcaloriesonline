@@ -421,6 +421,11 @@ export default function VendorSettings() {
             <VendorDocumentUpload vendorId={vendor.id} userId={user.id} />
           )}
 
+          {/* WhatsApp Order Alerts */}
+          {vendor && (
+            <VendorWhatsAppAlerts vendorId={vendor.id} vendorPhone={formData.phone} />
+          )}
+
           {/* Staff Workspace Login */}
           {vendor?.slug && (
             <Card className="border-0 shadow-soft">
