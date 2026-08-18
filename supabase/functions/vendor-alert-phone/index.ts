@@ -156,7 +156,15 @@ serve(async (req) => {
         // A provider failure is not a successful request and must not consume
         // one of the user's attempts.
         await admin.from("phone_verification_otps").delete().eq("id", otpRecord.id);
-        return json({ error: "send_failed", message: send.error }, 502);
+        const raw = String(send.error || "send_failed");
+        const needsWindow = /63016|free-form|window/i.test(raw);
+        return json({
+          error: "send_failed",
+          message: needsWindow
+            ? "WhatsApp needs the chat opened first. Tap \"Activate chat\" to send us a WhatsApp message, then press \"Send code\" again."
+            : raw,
+          needs_chat_activation: needsWindow,
+        }, 502);
       }
       return json({ ok: true, phone });
     }
