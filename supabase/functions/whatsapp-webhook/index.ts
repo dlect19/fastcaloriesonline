@@ -3,7 +3,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getWhatsAppFromNumber } from "../_shared/whatsapp.ts";
-import { parseIntent, matchProduct, scoreMatch } from "./nlu.ts";
+import { parseIntent, smallTalkReply, matchProduct, scoreMatch } from "./nlu.ts";
 import { detectVoiceNote, transcribeVoiceNote, VOICE_FAIL_TEXT } from "./voice.ts";
 import { chatCompletionWithFallback } from "../_shared/ai-call.ts";
 
@@ -632,7 +632,15 @@ serve(async (req) => {
     };
 
     // Apply resolved add/update/remove requests against the live cart.
-    const nlApplyItems = async (intent: string, reqs: { name: string; qty?: number | null }[], menuItems: any[]) => {
+    // `silent` mode mutates the cart but sends no reply — used while the customer
+    // is inside checkout so the caller can recompute and re-render the summary.
+    let nlMutationNote = "";
+    const nlApplyItems = async (
+      intent: string,
+      reqs: { name: string; qty?: number | null }[],
+      menuItems: any[],
+      opts?: { silent?: boolean },
+    ) => {
       const added: string[] = [];
       const problems: string[] = [];
 
@@ -692,12 +700,17 @@ serve(async (req) => {
       }
 
       if (!added.length && problems.length) {
+        if (opts?.silent) { nlMutationNote = problems.join("\n\n"); return null; }
         await persistSession(supabase, session.id, session.state, nextContext, nextCart);
         return await replyText(problems.join("\n\n") + "\n\nYou can also reply with the item number from the menu, or *menu* to start over.");
       }
       if (!added.length) return null;
 
-      nextContext = { ...nextContext, pending_total: undefined };
+      nextContext = { ...nextContext, pending_total: undefined, pending_shortfall: undefined };
+      if (opts?.silent) {
+        nlMutationNote = added.join("\n") + (problems.length ? "\n\n" + problems.join("\n\n") : "");
+        return null;
+      }
       await persistSession(supabase, session.id, nextContext.vendor_id ? "browsing_menu" : "cart", nextContext, nextCart);
       const head = added.join("\n") + (problems.length ? "\n\n" + problems.join("\n\n") : "");
       const txt = `${head}\n\n${renderCart(nextCart)}`;
@@ -741,75 +754,308 @@ serve(async (req) => {
         "\n\nReply with the item number to add it, or just tell me what you want.";
     };
 
-    // Returns a Response when it handled the message, otherwise null (→ fallback).
-    const tryNaturalLanguage = async (): Promise<Response | null> => {
+    // ============================================================
+    // 🧠 CONVERSATION CONTROLLER
+    // Single entry point for natural-language messages (typed OR transcribed
+    // voice). Inputs: the customer message, session state, live cart, selected
+    // vendor/category, saved location, bounded structured memory and the pending
+    // transaction context (all read from the closure above).
+    // Returns a Response when it handled the message, otherwise null so the
+    // existing deterministic state machine continues untouched.
+    // Gemini only interprets intent/entities — every value shown comes from the DB.
+    // ============================================================
+    const readMemory = () => {
+      const m = nextContext.ai_memory && typeof nextContext.ai_memory === "object" ? nextContext.ai_memory : {};
+      return {
+        last_intent: m.last_intent ?? null,
+        last_item_name: m.last_item_name ?? null,
+        last_product_results: Array.isArray(m.last_product_results) ? m.last_product_results : [],
+        last_vendor_results: Array.isArray(m.last_vendor_results) ? m.last_vendor_results : [],
+        last_selected_vendor_id: m.last_selected_vendor_id ?? null,
+        pending_clarification: m.pending_clarification ?? null,
+        current_goal: m.current_goal ?? null,
+        recent_turns: Array.isArray(m.recent_turns) ? m.recent_turns : [],
+      };
+    };
+    const writeMemory = (patch: Record<string, unknown>) => {
+      const mem = { ...readMemory(), ...patch };
+      mem.last_product_results = (mem.last_product_results || []).slice(0, 8);
+      mem.last_vendor_results = (mem.last_vendor_results || []).slice(0, 8);
+      mem.recent_turns = (mem.recent_turns || []).slice(-6);
+      nextContext.ai_memory = mem;
+    };
+
+    // Nearby-vendor eligibility, reused for product discovery so we never surface
+    // arbitrary distant vendors just because they stock an item.
+    const eligibleVendorIds = async (category: string | null) => {
+      const vendors = await fetchVendors(
+        supabase, session.customer_user_id,
+        nextContext.lat ?? null, nextContext.lon ?? null, category,
+      );
+      return { vendors, ids: new Set(vendors.map((v: any) => v.id)) };
+    };
+
+    // Location-aware product discovery: only vendors that are actually eligible for
+    // this customer's location. Returns a Response (always handled).
+    const discoverProduct = async (
+      term: string,
+      pendingItems: { name: string; qty?: number | null }[],
+      cat: string | null,
+    ): Promise<Response> => {
+      if (nextContext.lat == null || nextContext.lon == null) {
+        const saved = await fetchSavedAddressCoords(supabase, session.customer_user_id);
+        if (saved) {
+          nextContext.lat = saved.lat;
+          nextContext.lon = saved.lon;
+          nextContext.location_label = saved.label;
+        } else {
+          nextContext.nl_pending_items = pendingItems;
+          await persistSession(supabase, session.id, "awaiting_location", nextContext, nextCart);
+          return await sendToUser("wa_request_location", {},
+            `📍 To find *${term}* at vendors that can actually deliver to you, I need your location.\n\n` +
+            `Tap *📎* → *Location* → *Send your current location*, or type your area (e.g. _Lekki Phase 1_).\n\n` +
+            `Reply *skip* to browse top vendors without distances.`);
+        }
+      }
+
+      const { ids: eligible } = await eligibleVendorIds(cat);
+      const words = term.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/)
+        .filter((w) => w.length > 2 && !["the", "and", "with", "some", "please", "plate", "portion"].includes(w));
+      const terms = Array.from(new Set([term, ...words])).slice(0, 4);
+      const orFilter = terms.map((t) => `name.ilike.%${t.replace(/[,%()]/g, " ").trim()}%`).join(",");
+      const { data: hits, error: hitsErr } = await supabase
+        .from("products")
+        .select("id, name, price, vendor_id, vendors!inner(id, name, is_active)")
+        .or(orFilter)
+        .eq("vendors.is_active", true)
+        .limit(60);
+      if (hitsErr) console.error("[wa-nl] product search failed", hitsErr.message);
+      const scored = (hits || []).filter((h: any) => scoreMatch(term, h.name) > 0.3);
+      const pool = (scored.length ? scored : (hits || [])) as any[];
+      const near = eligible.size ? pool.filter((h: any) => eligible.has(h.vendor_id)) : pool;
+      const byVendor = new Map<string, { id: string; name: string; sample: string; product_id: string }>();
+      for (const h of (near.length ? near : pool)) {
+        const v = h.vendors;
+        if (!v?.name || byVendor.has(v.id)) continue;
+        byVendor.set(v.id, { id: v.id, name: v.name, sample: h.name, product_id: h.id });
+      }
+      const options = Array.from(byVendor.values()).slice(0, 5);
+      if (!options.length) {
+        nextContext.category = undefined;
+        nextContext.nl_pending_items = undefined;
+        await persistSession(supabase, session.id, "choosing_category", nextContext, nextCart);
+        return await replyText(
+          `😕 I couldn't find *${term}* at any vendor near you right now.\n\n` +
+          `Tell me another item, or pick a category:\n` +
+          `1️⃣ 🍔 Restaurants\n2️⃣ 💊 Pharmacy\n3️⃣ 🛒 Market / Grocery\n4️⃣ 🌐 All vendors`,
+        );
+      }
+      nextContext.nl_pending_items = pendingItems;
+      nextContext.nl_vendor_options = options;
+      writeMemory({
+        last_vendor_results: options.map((o) => ({ id: o.id, name: o.name })),
+        last_product_results: options.map((o) => ({ id: o.product_id, name: o.sample, vendor_id: o.id, vendor_name: o.name })),
+        current_goal: term,
+      });
+      await persistSession(supabase, session.id, "nl_choose_vendor", nextContext, nextCart);
+      return await replyText(
+        `🔎 I found *${term}* at these vendors near you:\n\n` +
+        options.map((o, i) => `${i + 1}. ${o.name} — _${o.sample}_`).join("\n") +
+        `\n\nReply with a number to order from that vendor, or *menu* to go back.`,
+      );
+    };
+
+
+
+    const runConversationController = async (): Promise<Response | null> => {
       if (tap || !body || body.trim().length < 3) return null;
       if (/^\d+([x*]\d+)?$/.test(lower.replace(/\s+/g, ""))) return null; // numeric flow owns this
+      const inCheckout = session.state === "confirming_order";
+      const mem = readMemory();
       let nl: Awaited<ReturnType<typeof parseIntent>> = null;
-      const recentTurns: string[] = Array.isArray(nextContext.recent_turns) ? nextContext.recent_turns : [];
       try {
         nl = await parseIntent(body, {
           state: session.state,
           vendor_name: nextContext.vendor_name || null,
+          category: nextContext.category || null,
+          has_location: nextContext.lat != null && nextContext.lon != null,
           cart: (nextCart as any[]).map((c: any) => ({ name: c.name, qty: Number(c.qty) || 1 })),
-          last_vendor_list: (nextContext.vendors || []).map((v: any) => v.name).filter(Boolean),
-          recent_messages: recentTurns,
+          last_vendor_list: (mem.last_vendor_results.length
+            ? mem.last_vendor_results
+            : (nextContext.vendors || [])).map((v: any) => v.name).filter(Boolean),
+          last_product_list: mem.last_product_results.map((p: any) => p.name).filter(Boolean),
+          recent_messages: mem.recent_turns,
         });
       } catch (e) {
         console.error("[wa-nl] parseIntent crash", e);
       }
-      // Short-term conversation memory so follow-ups like "how many calories is that?"
-      // or "the first one" keep working across messages.
-      nextContext.recent_turns = [
-        ...recentTurns,
-        `customer: ${body.slice(0, 120)}${nl ? ` (intent: ${nl.intent})` : ""}`,
-      ].slice(-4);
+      writeMemory({
+        recent_turns: [...mem.recent_turns, `customer: ${body.slice(0, 120)}${nl ? ` (intent: ${nl.intent})` : ""}`],
+        last_intent: nl?.intent || mem.last_intent,
+      });
       if (!nl || nl.intent === "unknown" || nl.confidence < 0.5) return null;
+      if (nl.items.length) writeMemory({ last_item_name: nl.items[0].name });
+
+      // Re-render the checkout summary after a cart change so pending_total /
+      // pending_shortfall are always recomputed by the deterministic checkout fn.
+      const recheckout = async (note: string) => {
+        if (note) {
+          try {
+            await sendViaTwilio({ From: fromNumber, To: fromRaw, Body: note });
+            await supabase.from("whatsapp_messages").insert({
+              session_id: session.id, phone, direction: "out", body: note,
+            });
+          } catch (e) { console.error("[wa-nl] note send failed", e); }
+        }
+        nextContext = { ...nextContext, pending_total: undefined, pending_shortfall: undefined };
+        return await doCheckout(supabase, { ...session, context: nextContext }, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
+      };
+
+      // Keep the customer inside their current transaction state after answering.
+      const answerInPlace = async (text: string) => {
+        await persistSession(supabase, session.id, session.state, nextContext, nextCart);
+        return await replyText(text);
+      };
+
+      const cat = nextContext.category || nl?.category || null;
+      const discover = (term: string, pendingItems: { name: string; qty?: number | null }[]) =>
+        discoverProduct(term, pendingItems, cat);
+
 
 
       try {
+        // ---- Ordinal reference: "the second one" from the last real result list ----
+        if (nl.ordinal && !nextContext.vendor_id) {
+          const list = (nextContext.nl_vendor_options?.length ? nextContext.nl_vendor_options : null)
+            || (mem.last_vendor_results.length ? mem.last_vendor_results : null)
+            || (nextContext.vendors?.length ? nextContext.vendors : null);
+          if (list && list.length) {
+            const pick = list[nl.ordinal - 1];
+            if (!pick) {
+              return await answerInPlace(`🤔 I only listed ${list.length} option${list.length > 1 ? "s" : ""}. Which number did you mean?`);
+            }
+            const menuItems = await loadVendorMenu(pick.id, pick.name);
+            writeMemory({ last_selected_vendor_id: pick.id });
+            const pending = nextContext.nl_pending_items || [];
+            nextContext.nl_pending_items = undefined;
+            nextContext.nl_vendor_options = undefined;
+            if (pending.length) {
+              const res = await nlApplyItems("add_to_cart", pending, menuItems);
+              if (res) return res;
+            }
+            await persistSession(supabase, session.id, "browsing_menu", nextContext, nextCart);
+            return await replyText(renderVendorMenuText(menuItems, pick.name || "Menu"));
+          }
+        }
+
         if (nl.intent === "show_cart") {
           const txt = renderCart(nextCart);
+          if (inCheckout) return await answerInPlace(txt + "\n\nReply *yes* to confirm & pay, *3* to top up, or *menu* to cancel.");
           await persistSession(supabase, session.id, nextCart.length ? "cart" : session.state, nextContext, nextCart);
           if (!nextCart.length) return await replyText(txt + HELP_HINT);
           return await sendToUser("wa_cart_actions", { "1": renderCart(nextCart, false) }, txt + "\n\nReply *checkout* to pay, or tell me what else to add.");
         }
+
+        if (nl.intent === "cart_total") {
+          if (!nextCart.length) return await answerInPlace("🛒 Your cart is empty, so there's nothing to total yet." + HELP_HINT);
+          const itemsTotal = cartTotal(nextCart);
+          const pending = Number(nextContext.pending_total || 0);
+          const extra = inCheckout && pending > itemsTotal
+            ? `\n\n_With delivery & fees, your order comes to *₦${pending.toLocaleString()}* — that's the amount at checkout._`
+            : "";
+          return await answerInPlace(`${renderCart(nextCart)}${extra}` + (inCheckout
+            ? "\n\nReply *yes* to confirm & pay, or *menu* to cancel."
+            : "\n\nReply *checkout* to pay, or tell me what else to add."));
+        }
+
         if (nl.intent === "reset") {
           nextCart = [];
           nextContext = {};
           await persistSession(supabase, session.id, "menu", nextContext, nextCart);
           return await sendToUser("wa_main_menu", {}, "🔄 Started over — your cart is empty.\n\n" + MENU_OPTIONS);
         }
+
+        // 💳 Payment intents always hand off to the EXISTING deterministic functions.
+        if (nl.intent === "confirm_order") {
+          if (inCheckout) return await confirmWhatsAppOrder(supabase, { ...session, context: nextContext }, nextCart, replyText, sendToUser);
+          if (!nextCart.length) return await answerInPlace("🛒 Your cart is empty — tell me what you'd like to order." + HELP_HINT);
+          await persistSession(supabase, session.id, session.state, nextContext, nextCart);
+          return await doCheckout(supabase, { ...session, context: nextContext }, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
+        }
         if (nl.intent === "checkout") {
-          if (!nextCart.length) return await replyText("🛒 Your cart is empty — tell me what you'd like to order." + HELP_HINT);
+          if (!nextCart.length) return await answerInPlace("🛒 Your cart is empty — tell me what you'd like to order." + HELP_HINT);
           await persistSession(supabase, session.id, session.state, nextContext, nextCart);
           return await doCheckout(supabase, { ...session, context: nextContext }, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
         }
 
         // 🔥 Calories of the current cart — computed here from stored calorie fields.
         if (nl.intent === "cart_calories") {
-          await persistSession(supabase, session.id, session.state, nextContext, nextCart);
-          return await replyText(renderCartCalories());
+          const txt = renderCartCalories();
+          return await answerInPlace(inCheckout
+            ? txt.replace("Reply *checkout* to pay, or tell me what else to add.", "Reply *yes* to confirm & pay, or *menu* to cancel.")
+            : txt);
+        }
+
+        // 🚚 Delivery questions — answered from the real pending checkout summary.
+        if (nl.intent === "delivery_question") {
+          if (inCheckout && Number(nextContext.pending_total)) {
+            const label = nextContext.delivery_address_text || nextContext.location_label || null;
+            return await answerInPlace(
+              `🚚 *Delivery details*\n\nOrder total (items, delivery & fees): *₦${Number(nextContext.pending_total).toLocaleString()}*` +
+              (label ? `\nDelivering to: ${label}` : "") +
+              `\n\nReply *yes* to confirm & pay, or *menu* to cancel.`);
+          }
+          if (nextCart.length) {
+            await persistSession(supabase, session.id, session.state, nextContext, nextCart);
+            return await doCheckout(supabase, { ...session, context: nextContext }, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
+          }
+          return await answerInPlace("🚚 Delivery is calculated from your address and the vendor's distance once you have items in your cart. Tell me what you'd like to order and I'll show the exact fee.");
         }
 
         // 📍 Nearby vendors — real vendors from the DB, never invented.
         if (nl.intent === "find_vendors") {
           if (nl.category) nextContext.category = nl.category;
-          if (nextContext.lat != null && nextContext.lon != null) return await showVendors();
-          const savedCoords = await fetchSavedAddressCoords(supabase, session.customer_user_id);
-          if (savedCoords) {
-            nextContext.lat = savedCoords.lat;
-            nextContext.lon = savedCoords.lon;
-            nextContext.location_label = savedCoords.label;
-            return await showVendors();
+          if (nextContext.lat == null || nextContext.lon == null) {
+            const savedCoords = await fetchSavedAddressCoords(supabase, session.customer_user_id);
+            if (savedCoords) {
+              nextContext.lat = savedCoords.lat;
+              nextContext.lon = savedCoords.lon;
+              nextContext.location_label = savedCoords.label;
+            }
+          }
+          if (nextContext.lat != null && nextContext.lon != null) {
+            const res = await showVendors();
+            writeMemory({ last_vendor_results: (nextContext.vendors || []).map((v: any) => ({ id: v.id, name: v.name, distance_km: v.distance_km ?? null })) });
+            await persistSession(supabase, session.id, "browsing_vendors", nextContext, nextCart);
+            return res;
           }
           await persistSession(supabase, session.id, "awaiting_location", nextContext, nextCart);
           return await sendToUser("wa_request_location", {},
             `📍 I need your location to show vendors near you.\n\nTap *📎* → *Location* → *Send your current location*.\n\nOr reply *skip* to see top vendors, or *menu* to go back.`);
         }
 
-        // 📋 Vendor menu
+        // 📋 Vendor menu — including "which one has jollof?" against listed vendors.
         if (nl.intent === "vendor_menu") {
+          const wanted = nl.items[0]?.name || null;
+          const listed = (nextContext.vendors?.length ? nextContext.vendors : mem.last_vendor_results) as any[];
+          if (wanted && !nextContext.vendor_id && listed?.length) {
+            const found: string[] = [];
+            for (const v of listed.slice(0, 6)) {
+              const items = await fetchMenuItems(supabase, v.id);
+              const hit = items.filter((m: any) => scoreMatch(wanted, m.name) > 0.4).slice(0, 2);
+              if (hit.length) {
+                found.push(`• *${v.name}* — ${hit.map((h: any) => `${h.name} (₦${Number(h.price).toLocaleString()})`).join(", ")}`);
+              }
+            }
+            if (found.length) {
+              writeMemory({ current_goal: wanted });
+              await persistSession(supabase, session.id, "browsing_vendors", nextContext, nextCart);
+              return await replyText(
+                `🔎 These vendors have *${wanted}*:\n\n${found.join("\n")}\n\n` +
+                `Reply with the vendor's number from the list above, or say _"order from <vendor name>"_.`);
+            }
+            return await answerInPlace(`😕 None of the vendors I listed have *${wanted}* on their menu right now. Want me to search other vendors near you?`);
+          }
           if (nextContext.vendor_id) {
             const items = Array.isArray(nextContext.items) && nextContext.items.length
               ? nextContext.items
@@ -828,14 +1074,12 @@ serve(async (req) => {
         // 📦 Order status
         if (nl.intent === "order_status") {
           const text = await renderRecentOrders(supabase, phone, session.customer_user_id) + HELP_HINT;
-          await persistSession(supabase, session.id, session.state, nextContext, nextCart);
-          return await replyText(text);
+          return await answerInPlace(text);
         }
 
         if (nl.intent === "help") {
-          await persistSession(supabase, session.id, session.state, nextContext, nextCart);
-          return await replyText(
-            `🤖 *How I can help*\n\nJust tell me things like:\n• _"I want 2 jollof rice and a Coke"_\n• _"Show my cart"_\n• _"Total calories of my order"_\n• _"Show nearby vendors"_\n• _"Where is my order?"_\n• _"Checkout"_\n\nOr reply *menu* for the classic numbered menu.`,
+          return await answerInPlace(
+            `🤖 *How I can help*\n\nJust tell me things like:\n• _"I want 2 jollof rice and a Coke"_\n• _"Show my cart"_\n• _"What is my total?"_\n• _"Total calories of my order"_\n• _"Show nearby vendors"_\n• _"Where is my order?"_\n• _"Go ahead and pay"_\n\nOr reply *menu* for the classic numbered menu.`,
           );
         }
 
@@ -849,91 +1093,114 @@ serve(async (req) => {
             if (hit.best) {
               const it: any = hit.best;
               const calTxt = Number(it.calories) > 0 ? `${Number(it.calories).toLocaleString()} kcal` : "no calorie data on file";
-              await persistSession(supabase, session.id, session.state, nextContext, nextCart);
-              return await replyText(
+              return await answerInPlace(
                 `ℹ️ *${it.name}*\n₦${Number(it.price).toLocaleString()} — ${calTxt}` +
                 (it.is_available === false ? "\n🔴 Currently unavailable" : "") +
                 `\n\nWant it? Just say _"add ${it.name}"_.`,
               );
             }
           }
-          return null;
+          if (inCheckout) return null;
+          return await discover(nl.items[0].name, nl.items);
+        }
+
+        // 🍽️ Recommendations / budget search — resolved against real vendor menus.
+        if (nl.intent === "recommendation" || nl.intent === "budget_search") {
+          if (nl.category) nextContext.category = nl.category;
+          const budget = nl.budget || null;
+          const menuPool: any[] = Array.isArray(nextContext.items) && nextContext.items.length
+            ? nextContext.items
+            : [];
+          if (menuPool.length) {
+            const picks = menuPool
+              .filter((m: any) => m.is_available !== false && (!budget || Number(m.price) <= budget))
+              .slice(0, 5);
+            if (picks.length) {
+              writeMemory({ last_product_results: picks.map((p: any) => ({ id: p.id, name: p.name })) });
+              await persistSession(supabase, session.id, "browsing_menu", nextContext, nextCart);
+              return await replyText(
+                (budget ? `💡 Here's what you can get for *₦${budget.toLocaleString()}* at ` : `💡 Popular picks at `) +
+                `*${nextContext.vendor_name || "this vendor"}*:\n\n` +
+                picks.map((m: any, i: number) => `${i + 1}. ${m.name} — ₦${Number(m.price).toLocaleString()}${m.calories ? ` (${m.calories} cal)` : ""}`).join("\n") +
+                `\n\nReply with a number to add it, or tell me what you want.`);
+            }
+            return await answerInPlace(budget
+              ? `😕 Nothing on *${nextContext.vendor_name || "this menu"}* is ₦${budget.toLocaleString()} or less right now. Want me to check another vendor?`
+              : `😕 I couldn't pull suggestions from this menu. Reply *menu* to browse other vendors.`);
+          }
+          if (nl.items.length) return await discover(nl.items[0].name, nl.items);
+          if (nextContext.lat != null && nextContext.lon != null) return await showVendors();
+          await persistSession(supabase, session.id, "choosing_category", nextContext, nextCart);
+          return await replyText(CATEGORY_PROMPT);
         }
 
         if (nl.intent === "general_question") {
-          await persistSession(supabase, session.id, session.state, nextContext, nextCart);
+          const ai = await smallTalkReply(body, {
+            cart: (nextCart as any[]).map((c: any) => ({ name: c.name, qty: Number(c.qty) || 1 })),
+          });
+          if (ai) return await answerInPlace(ai);
           const cartLine = nextCart.length
             ? `\n\nYour cart still has ${nextCart.length} item${nextCart.length > 1 ? "s" : ""} — reply *cart* to see it.`
             : "";
-          return await replyText(
+          return await answerInPlace(
             `🙂 I can help you order food, medicine or groceries, check your cart, count calories, find nearby vendors and track orders.${cartLine}\n\nWhat would you like to do? (Reply *menu* for the full menu.)`,
           );
         }
 
-        if (!nl.items.length) return null;
-
+        // ---- Cart mutations ----
         if (nl.intent === "remove_item" || nl.intent === "update_quantity") {
-          if (!nextCart.length) return await replyText("🛒 Your cart is empty right now." + HELP_HINT);
-          return await nlApplyItems(nl.intent, nl.items, []);
+          if (!nextCart.length) return await answerInPlace("🛒 Your cart is empty right now." + HELP_HINT);
+          // "make it 2" with no item named → last referenced item, else the only line.
+          let reqs = nl.items;
+          if (!reqs.length) {
+            const fallbackName = mem.last_item_name || (nextCart.length === 1 ? (nextCart[0] as any).name : null);
+            if (!fallbackName) {
+              writeMemory({ pending_clarification: nl.intent });
+              return await answerInPlace(`🤔 Which item did you mean?\n\n${renderCart(nextCart)}\n\nReply e.g. _"make the rice 2"_ or *remove 1*.`);
+            }
+            reqs = [{ name: fallbackName, qty: nl.items[0]?.qty ?? null }];
+          }
+          if (inCheckout) {
+            await nlApplyItems(nl.intent, reqs, [], { silent: true });
+            const note = nlMutationNote;
+            nlMutationNote = "";
+            if (!nextCart.length) {
+              await persistSession(supabase, session.id, "menu", nextContext, nextCart);
+              return await sendToUser("wa_main_menu", {}, `${note || "🛒 Cart is now empty."}\n\n${MENU_OPTIONS}`);
+            }
+            return await recheckout(note);
+          }
+          return await nlApplyItems(nl.intent, reqs, []);
         }
 
+        if (!nl.items.length) return null;
 
         // add_to_cart — needs a vendor context
         let menuItems: any[] = Array.isArray(nextContext.items) ? nextContext.items : [];
         if (nextContext.vendor_id && !menuItems.length) {
           menuItems = await loadVendorMenu(nextContext.vendor_id, nextContext.vendor_name || "");
         }
-        if (menuItems.length) return await nlApplyItems("add_to_cart", nl.items, menuItems);
+        if (menuItems.length) {
+          if (inCheckout) {
+            await nlApplyItems("add_to_cart", nl.items, menuItems, { silent: true });
+            const note = nlMutationNote;
+            nlMutationNote = "";
+            return await recheckout(note);
+          }
+          return await nlApplyItems("add_to_cart", nl.items, menuItems);
+        }
 
-        // No vendor selected yet — find real vendors that actually stock the item.
-        const term = nl.items[0].name;
-        // Search on the whole phrase AND on each meaningful word, so "2 jollof rice"
-        // still finds "Jollof Rice (Special)" etc.
-        const words = term.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/)
-          .filter((w) => w.length > 2 && !["the", "and", "with", "some", "please", "plate", "portion"].includes(w));
-        const terms = Array.from(new Set([term, ...words])).slice(0, 4);
-        const orFilter = terms.map((t) => `name.ilike.%${t.replace(/[,%()]/g, " ").trim()}%`).join(",");
-        const { data: hits, error: hitsErr } = await supabase
-          .from("products")
-          .select("id, name, price, vendor_id, vendors!inner(id, name, is_active)")
-          .or(orFilter)
-          .eq("vendors.is_active", true)
-          .limit(40);
-        if (hitsErr) console.error("[wa-nl] product search failed", hitsErr.message);
-        // Keep only rows that actually score against the request.
-        const scored = (hits || []).filter((h: any) => scoreMatch(term, h.name) > 0.3);
-        const byVendor = new Map<string, { id: string; name: string; sample: string }>();
-        for (const h of (scored.length ? scored : (hits || [])) as any[]) {
-          const v = h.vendors;
-          if (!v?.name || byVendor.has(v.id)) continue;
-          byVendor.set(v.id, { id: v.id, name: v.name, sample: h.name });
-        }
-        const options = Array.from(byVendor.values()).slice(0, 5);
-        if (!options.length) {
-          console.log("[wa-nl] no vendor stocks", term);
-          // Don't silently bounce to the numbered main menu — acknowledge what they asked for.
-          nextContext.category = undefined;
-          await persistSession(supabase, session.id, "choosing_category", nextContext, nextCart);
-          return await replyText(
-            `😕 I couldn't find *${term}* at any open vendor near you right now.\n\n` +
-            `Tell me another item, or pick a category:\n` +
-            `1️⃣ 🍔 Restaurants\n2️⃣ 💊 Pharmacy\n3️⃣ 🛒 Market / Grocery\n4️⃣ 🌐 All vendors`,
-          );
-        }
-        nextContext.nl_pending_items = nl.items;
-        nextContext.nl_vendor_options = options;
-        await persistSession(supabase, session.id, "nl_choose_vendor", nextContext, nextCart);
-        return await replyText(
-          `🔎 I found *${term}* at these vendors:\n\n` +
-          options.map((o, i) => `${i + 1}. ${o.name} — _${o.sample}_`).join("\n") +
-          `\n\nReply with a number to order from that vendor, or *menu* to go back.`,
-        );
+        // No vendor selected yet — location-aware product discovery.
+        return await discover(nl.items[0].name, nl.items);
 
       } catch (e) {
         console.error("[wa-nl] handler failed", e);
         return null;
       }
     };
+
+    // Backwards-compatible alias used by the existing state handlers.
+    const tryNaturalLanguage = runConversationController;
 
     // ============================================================
     // 🧠 Conversational router — runs BEFORE the state-specific fallbacks for
@@ -943,26 +1210,37 @@ serve(async (req) => {
     // numbers, keywords, and free-text-capturing states) are untouched.
     // ============================================================
     {
+      // States that capture raw free text or are safety-critical: the deterministic
+      // handler owns the first pass. `confirming_order` and `nl_choose_vendor` run
+      // the controller AFTER their deterministic checks (see below), so contextual
+      // questions still work without hijacking payment confirmations or numbers.
       const FREE_TEXT_STATES = new Set([
         "ai_suggest",
         "awaiting_location",
         "wallet_awaiting_amount",
         "confirming_order",
         "selecting_addons",
+        "pharmacy_rx_choice",
         "pharmacy_rx_awaiting_instructions",
         "pharmacy_rx_awaiting_image",
+        "awaiting_address_confirm",
+        "awaiting_delivery_address",
         "nl_choose_vendor",
       ]);
       // Explicit deterministic commands always keep their existing behaviour.
       const RESERVED = new Set([
         "menu", "hi", "hello", "start", "back", "0", "cart", "clear", "checkout",
-        "help", "skip", "pay", "orders", "wallet",
+        "help", "skip", "pay", "orders", "wallet", "top up", "topup", "fund",
+        "clear cart", "cancel order", "order food", "share location", "yes", "no",
       ]);
       const trimmed = (body || "").trim();
       const wordCount = trimmed.split(/\s+/).filter(Boolean).length;
       const looksConversational =
         !tap &&
         !RESERVED.has(lower) &&
+        !/^(?:verify\s+)?\d{4,8}$/.test(lower) &&
+        !/^(?:remove|delete|del|rm)\s*#?\s*\d{1,2}$/.test(lower) &&
+        !/^note[:\s]/i.test(trimmed) &&
         trimmed.length >= 5 &&
         (wordCount >= 2 || /\?$/.test(trimmed)) &&
         !/^\d+([x*]\d+)?$/.test(lower.replace(/\s+/g, "")) &&
@@ -1357,6 +1635,12 @@ serve(async (req) => {
       if (lower === "checkout") {
         return await doCheckout(supabase, session, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
       }
+      // Deterministic checkout actions above are untouched. Anything else that looks
+      // like a sentence goes through the Conversation Controller so contextual
+      // questions ("what is my total?", "remove the Coke", "go ahead and pay")
+      // work without leaving the checkout context.
+      const nlCheckout = await runConversationController();
+      if (nlCheckout) return nlCheckout;
       return await replyText("Reply *3* to top up, *checkout* to recheck your wallet, *yes* to confirm & pay, or *menu* to cancel this order.");
     }
 
@@ -1367,8 +1651,20 @@ serve(async (req) => {
     }
 
     if (session.state === "awaiting_location") {
+      // If we paused a natural-language product request to ask for location,
+      // resume that request as soon as coordinates land.
+      const resumePendingSearch = async () => {
+        const pending = nextContext.nl_pending_items;
+        if (Array.isArray(pending) && pending.length) {
+          nextContext.nl_pending_items = undefined;
+          await persistSession(supabase, session.id, "menu", nextContext, nextCart);
+          const term = String(pending[0]?.name || "").trim();
+          if (term) return await discoverProduct(term, pending, nextContext.category || null);
+        }
+        return await showVendors();
+      };
       // Shared a live/pinned WhatsApp location — coords were captured above; show vendors now.
-      if (hasSharedLocation) return await showVendors();
+      if (hasSharedLocation) return await resumePendingSearch();
       if (lower === "skip" || tap === "BTN_SKIP_LOC") return await showVendors();
       if (tap === "BTN_USE_SAVED_ADDR" || lower.includes("saved address")) {
         const savedCoords = await fetchSavedAddressCoords(supabase, session.customer_user_id);
