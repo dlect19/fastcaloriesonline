@@ -1101,7 +1101,7 @@ serve(async (req) => {
             }
           }
           if (inCheckout) return null;
-          return await discoverProduct(nl.items[0].name, nl.items);
+          return await discover(nl.items[0].name, nl.items);
         }
 
         // 🍽️ Recommendations / budget search — resolved against real vendor menus.
@@ -1128,7 +1128,7 @@ serve(async (req) => {
               ? `😕 Nothing on *${nextContext.vendor_name || "this menu"}* is ₦${budget.toLocaleString()} or less right now. Want me to check another vendor?`
               : `😕 I couldn't pull suggestions from this menu. Reply *menu* to browse other vendors.`);
           }
-          if (nl.items.length) return await discoverProduct(nl.items[0].name, nl.items);
+          if (nl.items.length) return await discover(nl.items[0].name, nl.items);
           if (nextContext.lat != null && nextContext.lon != null) return await showVendors();
           await persistSession(supabase, session.id, "choosing_category", nextContext, nextCart);
           return await replyText(CATEGORY_PROMPT);
@@ -1191,7 +1191,7 @@ serve(async (req) => {
         }
 
         // No vendor selected yet — location-aware product discovery.
-        return await discoverProduct(nl.items[0].name, nl.items);
+        return await discover(nl.items[0].name, nl.items);
 
       } catch (e) {
         console.error("[wa-nl] handler failed", e);
@@ -1658,8 +1658,8 @@ serve(async (req) => {
         if (Array.isArray(pending) && pending.length) {
           nextContext.nl_pending_items = undefined;
           await persistSession(supabase, session.id, "menu", nextContext, nextCart);
-          const resumed = await runConversationController_resume(pending);
-          if (resumed) return resumed;
+          const term = String(pending[0]?.name || "").trim();
+          if (term) return await discoverProduct(term, pending, nextContext.category || null);
         }
         return await showVendors();
       };
