@@ -795,6 +795,78 @@ serve(async (req) => {
       return { vendors, ids: new Set(vendors.map((v: any) => v.id)) };
     };
 
+    // Location-aware product discovery: only vendors that are actually eligible for
+    // this customer's location. Returns a Response (always handled).
+    const discoverProduct = async (
+      term: string,
+      pendingItems: { name: string; qty?: number | null }[],
+      cat: string | null,
+    ): Promise<Response> => {
+      if (nextContext.lat == null || nextContext.lon == null) {
+        const saved = await fetchSavedAddressCoords(supabase, session.customer_user_id);
+        if (saved) {
+          nextContext.lat = saved.lat;
+          nextContext.lon = saved.lon;
+          nextContext.location_label = saved.label;
+        } else {
+          nextContext.nl_pending_items = pendingItems;
+          await persistSession(supabase, session.id, "awaiting_location", nextContext, nextCart);
+          return await sendToUser("wa_request_location", {},
+            `📍 To find *${term}* at vendors that can actually deliver to you, I need your location.\n\n` +
+            `Tap *📎* → *Location* → *Send your current location*, or type your area (e.g. _Lekki Phase 1_).\n\n` +
+            `Reply *skip* to browse top vendors without distances.`);
+        }
+      }
+
+      const { ids: eligible } = await eligibleVendorIds(cat);
+      const words = term.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/)
+        .filter((w) => w.length > 2 && !["the", "and", "with", "some", "please", "plate", "portion"].includes(w));
+      const terms = Array.from(new Set([term, ...words])).slice(0, 4);
+      const orFilter = terms.map((t) => `name.ilike.%${t.replace(/[,%()]/g, " ").trim()}%`).join(",");
+      const { data: hits, error: hitsErr } = await supabase
+        .from("products")
+        .select("id, name, price, vendor_id, vendors!inner(id, name, is_active)")
+        .or(orFilter)
+        .eq("vendors.is_active", true)
+        .limit(60);
+      if (hitsErr) console.error("[wa-nl] product search failed", hitsErr.message);
+      const scored = (hits || []).filter((h: any) => scoreMatch(term, h.name) > 0.3);
+      const pool = (scored.length ? scored : (hits || [])) as any[];
+      const near = eligible.size ? pool.filter((h: any) => eligible.has(h.vendor_id)) : pool;
+      const byVendor = new Map<string, { id: string; name: string; sample: string; product_id: string }>();
+      for (const h of (near.length ? near : pool)) {
+        const v = h.vendors;
+        if (!v?.name || byVendor.has(v.id)) continue;
+        byVendor.set(v.id, { id: v.id, name: v.name, sample: h.name, product_id: h.id });
+      }
+      const options = Array.from(byVendor.values()).slice(0, 5);
+      if (!options.length) {
+        nextContext.category = undefined;
+        nextContext.nl_pending_items = undefined;
+        await persistSession(supabase, session.id, "choosing_category", nextContext, nextCart);
+        return await replyText(
+          `😕 I couldn't find *${term}* at any vendor near you right now.\n\n` +
+          `Tell me another item, or pick a category:\n` +
+          `1️⃣ 🍔 Restaurants\n2️⃣ 💊 Pharmacy\n3️⃣ 🛒 Market / Grocery\n4️⃣ 🌐 All vendors`,
+        );
+      }
+      nextContext.nl_pending_items = pendingItems;
+      nextContext.nl_vendor_options = options;
+      writeMemory({
+        last_vendor_results: options.map((o) => ({ id: o.id, name: o.name })),
+        last_product_results: options.map((o) => ({ id: o.product_id, name: o.sample, vendor_id: o.id, vendor_name: o.name })),
+        current_goal: term,
+      });
+      await persistSession(supabase, session.id, "nl_choose_vendor", nextContext, nextCart);
+      return await replyText(
+        `🔎 I found *${term}* at these vendors near you:\n\n` +
+        options.map((o, i) => `${i + 1}. ${o.name} — _${o.sample}_`).join("\n") +
+        `\n\nReply with a number to order from that vendor, or *menu* to go back.`,
+      );
+    };
+
+
+
     const runConversationController = async (): Promise<Response | null> => {
       if (tap || !body || body.trim().length < 3) return null;
       if (/^\d+([x*]\d+)?$/.test(lower.replace(/\s+/g, ""))) return null; // numeric flow owns this
