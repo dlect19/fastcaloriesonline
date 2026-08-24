@@ -344,6 +344,8 @@ function ReverseRefundTool() {
   };
 
   return (
+    <>
+    {stepUpDialog}
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
@@ -756,6 +758,8 @@ function BonusTopupTool() {
   };
 
   return (
+    <>
+    {stepUpDialog}
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
