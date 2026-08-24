@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Loader2, ShieldCheck, KeyRound, Lock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { storeAdmin2FASession } from '@/lib/adminSession';
 
 interface Props {
   method: 'email' | 'totp';
@@ -50,6 +51,12 @@ export function Admin2FAChallenge({ method: initialMethod, emailHint, onVerified
         setCode('');
         return;
       }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || !data.session_token) {
+        toast({ title: 'Verification failed', description: 'Could not establish a secure admin session.', variant: 'destructive' });
+        return;
+      }
+      storeAdmin2FASession(user.id, data.session_token);
       onVerified();
     } catch (e: any) {
       toast({ title: 'Verification failed', description: e.message, variant: 'destructive' });

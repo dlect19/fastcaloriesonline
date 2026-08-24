@@ -53,6 +53,7 @@ import RiderEarnings from "./pages/rider/RiderEarnings";
 import RiderWithdraw from "./pages/rider/RiderWithdraw";
 import RiderSettings from "./pages/rider/RiderSettings";
 import AdminAuth from "./pages/admin/AdminAuth";
+import AdminRouteGuard from "./components/admin/AdminRouteGuard";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AssistedOrdersList from "./pages/admin/AssistedOrdersList";
 import AssistedOrderCreate from "./pages/admin/AssistedOrderCreate";
