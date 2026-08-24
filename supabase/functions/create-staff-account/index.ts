@@ -343,10 +343,14 @@ const handler = async (req: Request): Promise<Response> => {
         if (staffError) throw new HttpError(`Failed to create staff record: ${staffError.message}`, 400);
       }
 
-      // Platform admin app-role for admin staff
-      await supabaseAdmin
+      // Platform admin app-role for admin staff (required to sign in to /admin/auth)
+      const { error: roleError } = await supabaseAdmin
         .from("user_roles")
         .upsert({ user_id: userId, role: "admin" }, { onConflict: "user_id,role" });
+      if (roleError) {
+        throw new HttpError(`Staff record saved but admin role could not be granted: ${roleError.message}`, 500);
+      }
+
 
       await auditTrail?.success({
         action: "admin_staff_create",
