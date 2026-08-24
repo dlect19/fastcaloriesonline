@@ -73,8 +73,8 @@ export default function AdminAuth() {
   };
 
   const onCancel2FA = async () => {
-    await supabase.auth.signOut();
     clearAdmin2FASession();
+    await supabase.auth.signOut();
     setStage('password');
     setPassword('');
   };
