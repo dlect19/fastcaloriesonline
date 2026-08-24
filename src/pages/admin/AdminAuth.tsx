@@ -53,12 +53,12 @@ export default function AdminAuth() {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
 
-      const { data: roles } = await supabase.from('user_roles').select('role').eq('user_id', data.user.id);
-      if (!roles?.some(r => r.role === 'admin')) {
+      if (!(await hasAdminAccess(data.user.id))) {
         await supabase.auth.signOut();
         toast({ title: 'Access denied', description: 'You do not have admin privileges.', variant: 'destructive' });
         return;
       }
+
 
       // Initiate 2FA
       const { data: init, error: initErr } = await supabase.functions.invoke('admin-2fa-initiate', { body: {} });
