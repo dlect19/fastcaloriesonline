@@ -13,12 +13,10 @@ async function sha256(s: string) {
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-async function isSuperAdmin(supabase: any, userId: string): Promise<boolean> {
+// 2FA is MANDATORY for every account holding the admin role (super admin or staff).
+async function isAdmin(supabase: any, userId: string): Promise<boolean> {
   const { data: ur } = await supabase.from('user_roles').select('role').eq('user_id', userId).eq('role', 'admin').maybeSingle();
-  if (!ur) return false;
-  const { data: staff } = await supabase.from('admin_staff').select('role,is_active').eq('user_id', userId).eq('is_active', true).maybeSingle();
-  if (!staff) return true; // legacy super
-  return staff.role === 'super_admin';
+  return !!ur;
 }
 
 Deno.serve(async (req) => {
@@ -40,8 +38,8 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    if (!(await isSuperAdmin(supabase, userId))) {
-      return new Response(JSON.stringify({ required: false, message: '2FA not required' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    if (!(await isAdmin(supabase, userId))) {
+      return new Response(JSON.stringify({ error: 'forbidden', message: 'Not an admin account' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     // Lockout check

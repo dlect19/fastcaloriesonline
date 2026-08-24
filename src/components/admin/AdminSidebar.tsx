@@ -2,6 +2,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { Home, Package, Store, Bike, Ticket, Users, Settings, LogOut, Image, Activity, Banknote, Wallet, ArrowDownLeft, Gift, Truck, UserCheck, Star, MessageSquare, DollarSign, UserPlus, Receipt, ClipboardList, Scale, HelpCircle, Percent, ShieldAlert, Megaphone, Gavel, UtensilsCrossed, Map, ExternalLink, Sparkles, Pill, PauseCircle, MessageCircle, CalendarDays, QrCode, BarChart3, Headphones, History } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { revokeAdmin2FASession } from '@/lib/adminSession';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -113,6 +114,7 @@ export function AdminSidebar() {
   }, []);
 
   const handleLogout = async () => {
+    await revokeAdmin2FASession();
     await supabase.auth.signOut();
     toast({ title: 'Logged out successfully' });
     navigate('/admin/auth');
