@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { readCatalog, mergeCatalog } from '@/lib/posOfflineStore';
 
 interface TakeawayPack {
   id: string;
@@ -41,6 +42,16 @@ export function useTakeawayPacks(vendorId: string | null) {
 
     const fetchData = async () => {
       setLoading(true);
+      // Offline / slow start: hydrate from the POS catalog snapshot first
+      const cached = readCatalog(vendorId);
+      if (cached?.packs) {
+        setPacks((cached.packs as TakeawayPack[]) || []);
+        setProductUnits(cached.productUnits || {});
+      }
+      if (!navigator.onLine) {
+        setLoading(false);
+        return;
+      }
       try {
         const [packsRes, productsRes] = await Promise.all([
           supabase
@@ -63,6 +74,7 @@ export function useTakeawayPacks(vendorId: string | null) {
           unitMap[p.id] = p.serving_unit ?? null;
         });
         setProductUnits(unitMap);
+        mergeCatalog(vendorId, { packs: (packsRes.data as any[]) || [], productUnits: unitMap });
       } catch (error) {
         console.error('Error fetching takeaway packs:', error);
       } finally {

@@ -228,3 +228,21 @@ export const newLocalSessionId = () =>
 
 export const newOfflineSaleId = () =>
   `offsale-${(crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`)}`;
+
+/** Merge a partial catalog snapshot (different hooks own different slices). */
+export function mergeCatalog(vendorId: string, partial: Partial<PosCatalogSnapshot>) {
+  const current = readCatalog(vendorId);
+  const next = {
+    cachedAt: new Date().toISOString(),
+    products: [],
+    combos: [],
+    packs: [],
+    productUnits: {},
+    posPricing: { pos_pricing_mode: 'same', pos_global_discount_pct: 0 },
+    outletId: null,
+    ...(current || {}),
+    ...partial,
+  } as PosCatalogSnapshot;
+  writeCatalog(vendorId, next);
+  return next;
+}
