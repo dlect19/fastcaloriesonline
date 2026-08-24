@@ -5115,6 +5115,7 @@ export type Database = {
           is_free_meal: boolean | null
           is_preorder: boolean
           menu_subtotal: number | null
+          offline_sale_id: string | null
           order_number: string
           outlet_id: string | null
           package_count: number
@@ -5172,6 +5173,7 @@ export type Database = {
           is_free_meal?: boolean | null
           is_preorder?: boolean
           menu_subtotal?: number | null
+          offline_sale_id?: string | null
           order_number: string
           outlet_id?: string | null
           package_count?: number
@@ -5229,6 +5231,7 @@ export type Database = {
           is_free_meal?: boolean | null
           is_preorder?: boolean
           menu_subtotal?: number | null
+          offline_sale_id?: string | null
           order_number?: string
           outlet_id?: string | null
           package_count?: number
@@ -6056,6 +6059,7 @@ export type Database = {
           created_at: string
           expected_cash: number | null
           id: string
+          local_session_id: string | null
           notes: string | null
           opened_at: string
           opening_cash: number
@@ -6079,6 +6083,7 @@ export type Database = {
           created_at?: string
           expected_cash?: number | null
           id?: string
+          local_session_id?: string | null
           notes?: string | null
           opened_at?: string
           opening_cash?: number
@@ -6102,6 +6107,7 @@ export type Database = {
           created_at?: string
           expected_cash?: number | null
           id?: string
+          local_session_id?: string | null
           notes?: string | null
           opened_at?: string
           opening_cash?: number
@@ -10206,6 +10212,7 @@ export type Database = {
           is_free_meal: boolean | null
           is_preorder: boolean
           menu_subtotal: number | null
+          offline_sale_id: string | null
           order_number: string
           outlet_id: string | null
           package_count: number
@@ -10561,6 +10568,10 @@ export type Database = {
         Args: { _user_id: string; _vendor_id: string }
         Returns: boolean
       }
+      pos_can_use: {
+        Args: { _user: string; _vendor: string }
+        Returns: boolean
+      }
       post_platform_entry: {
         Args: {
           p_amount: number
@@ -10701,6 +10712,29 @@ export type Database = {
       rider_belongs_to_company: {
         Args: { _rider_user_id: string }
         Returns: string
+      }
+      sync_pos_offline_sale: {
+        Args: {
+          _items: Json
+          _local_session_id?: string
+          _offline_sale_id: string
+          _order: Json
+        }
+        Returns: Json
+      }
+      sync_pos_offline_session: {
+        Args: {
+          _cashier_name: string
+          _closed_at?: string
+          _closing_cash?: number
+          _local_session_id: string
+          _notes?: string
+          _opened_at: string
+          _opening_cash: number
+          _outlet_id: string
+          _vendor_id: string
+        }
+        Returns: Json
       }
       text_to_bytea: { Args: { data: string }; Returns: string }
       urlencode:

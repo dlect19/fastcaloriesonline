@@ -14,6 +14,8 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   total: number;
+  /** POS is running without a connection — gateway/wallet verification is impossible */
+  offline?: boolean;
   onConfirm: (data: {
     paymentMethod: PaymentMethod;
     amountPaid: number;
@@ -25,7 +27,7 @@ interface Props {
   }) => Promise<void>;
 }
 
-export function PosPaymentDialog({ open, onOpenChange, total, onConfirm }: Props) {
+export function PosPaymentDialog({ open, onOpenChange, total, offline = false, onConfirm }: Props) {
   const [method, setMethod] = useState<PaymentMethod>('cash');
   const [amountPaid, setAmountPaid] = useState(total.toString());
   const [phoneSearch, setPhoneSearch] = useState('');
@@ -39,7 +41,11 @@ export function PosPaymentDialog({ open, onOpenChange, total, onConfirm }: Props
   const [walletFeePct, setWalletFeePct] = useState(1.5);
 
   useEffect(() => {
-    if (!open) return;
+    if (offline && method === 'wallet') setMethod('cash');
+  }, [offline, method]);
+
+  useEffect(() => {
+    if (!open || offline) return;
     supabase
       .from('platform_settings')
       .select('value')
@@ -97,6 +103,10 @@ export function PosPaymentDialog({ open, onOpenChange, total, onConfirm }: Props
       toast({ title: 'Insufficient amount', variant: 'destructive' });
       return;
     }
+    if (offline && method === 'wallet') {
+      toast({ title: 'Wallet needs internet', description: 'Reconnect to verify the customer authorization code.', variant: 'destructive' });
+      return;
+    }
     if (method === 'wallet' && !foundCustomer) {
       toast({ title: 'Search and select a customer first', variant: 'destructive' });
       return;
@@ -145,6 +155,12 @@ export function PosPaymentDialog({ open, onOpenChange, total, onConfirm }: Props
         </DialogHeader>
 
         <div className="space-y-4">
+          {offline && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-800 px-3 py-2 text-xs font-medium text-amber-900 dark:text-amber-200">
+              Offline mode — cash is fully available. Transfer/card are recorded as manually confirmed. Wallet needs internet.
+            </div>
+          )}
+
           {/* Total display */}
           <div className="rounded-xl bg-primary text-primary-foreground p-4 text-center">
             <p className="text-xs uppercase opacity-80">Total Due</p>
@@ -155,18 +171,23 @@ export function PosPaymentDialog({ open, onOpenChange, total, onConfirm }: Props
           <div className="grid grid-cols-4 gap-2">
             {methods.map(m => {
               const Icon = m.icon;
+              const disabled = offline && m.id === 'wallet';
               return (
                 <button
                   key={m.id}
                   type="button"
-                  onClick={() => setMethod(m.id)}
+                  disabled={disabled}
+                  title={disabled ? 'Internet required' : undefined}
+                  onClick={() => !disabled && setMethod(m.id)}
                   className={cn(
                     'flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-colors',
+                    disabled && 'opacity-40 cursor-not-allowed',
                     method === m.id ? 'border-primary bg-primary/5 text-primary' : 'border-border text-muted-foreground hover:border-primary/30'
                   )}
                 >
                   <Icon className="w-5 h-5" />
                   <span className="text-xs font-medium">{m.label}</span>
+                  {disabled && <span className="text-[9px] leading-none">Internet required</span>}
                 </button>
               );
             })}
@@ -270,6 +291,12 @@ export function PosPaymentDialog({ open, onOpenChange, total, onConfirm }: Props
               <div className="rounded-lg bg-muted p-3 text-sm">
                 Confirm payment of <span className="font-semibold">₦{total.toLocaleString()}</span> received via {method}.
               </div>
+              {offline && (
+                <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-800 p-3 text-xs text-amber-900 dark:text-amber-200">
+                  Offline mode — this {method} payment is recorded as <span className="font-semibold">manually confirmed (unverified)</span>.
+                  No bank or card gateway check happens until this device reconnects.
+                </div>
+              )}
               <div className="space-y-1.5">
                 <Label className="text-xs">Customer name (optional)</Label>
                 <Input value={walkInName} onChange={e => setWalkInName(e.target.value)} placeholder="Walk-in" />

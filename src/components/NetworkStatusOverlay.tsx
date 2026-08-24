@@ -3,9 +3,15 @@ import { WifiOff, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import noNetworkImg from '@/assets/no-network.png';
 
+// Routes that are designed to keep working without a connection and must NOT be
+// covered by the full-screen offline blocker (the POS shows its own banner).
+const OFFLINE_CAPABLE_ROUTES = ['/vendor/pos'];
+
 export function NetworkStatusOverlay() {
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [isRetrying, setIsRetrying] = useState(false);
+  const [path, setPath] = useState(() => (typeof window !== 'undefined' ? window.location.pathname : '/'));
+
 
   useEffect(() => {
     const goOffline = () => setIsOffline(true);
@@ -17,6 +23,29 @@ export function NetworkStatusOverlay() {
     return () => {
       window.removeEventListener('offline', goOffline);
       window.removeEventListener('online', goOnline);
+    };
+  }, []);
+
+  // Track route changes (this overlay lives outside the router)
+  useEffect(() => {
+    const sync = () => setPath(window.location.pathname);
+    const origPush = window.history.pushState;
+    const origReplace = window.history.replaceState;
+    window.history.pushState = function (...args) {
+      const r = origPush.apply(this, args as any);
+      sync();
+      return r;
+    };
+    window.history.replaceState = function (...args) {
+      const r = origReplace.apply(this, args as any);
+      sync();
+      return r;
+    };
+    window.addEventListener('popstate', sync);
+    return () => {
+      window.history.pushState = origPush;
+      window.history.replaceState = origReplace;
+      window.removeEventListener('popstate', sync);
     };
   }, []);
 
@@ -32,7 +61,10 @@ export function NetworkStatusOverlay() {
     }
   }, []);
 
-  if (!isOffline) return null;
+  const offlineCapableRoute = OFFLINE_CAPABLE_ROUTES.some(r => path.startsWith(r));
+
+  if (!isOffline || offlineCapableRoute) return null;
+
 
   return (
     <div className="fixed inset-0 z-[9999] bg-background flex flex-col items-center justify-center p-6 text-center">
