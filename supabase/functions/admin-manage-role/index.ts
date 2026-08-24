@@ -1,72 +1,70 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import {
+  authenticateAdmin,
+  AuditTrail,
+  consumeStepUpToken,
+  corsHeaders,
+  HttpError,
+  jsonResponse,
+  requestMeta,
+  serviceClient,
+} from "../_shared/adminGuard.ts";
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-const ALLOWED_ROLES = new Set(["vendor", "rider", "delivery_company"]);
+const ALLOWED_ROLES = new Set(["vendor", "rider", "delivery_company", "event_organizer"]);
 const ALLOWED_ACTIONS = new Set(["grant", "revoke"]);
 
-serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const svc = serviceClient();
+  const meta = requestMeta(req);
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return json({ error: "Unauthorized" }, 401);
-    const token = authHeader.replace("Bearer ", "");
+    const caller = await authenticateAdmin(req, svc);
+    const { targetUserId, role, action, stepUpToken, reason } = await req.json();
 
-    const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
-    const { data: { user }, error: userErr } = await admin.auth.getUser(token);
-    if (userErr || !user) return json({ error: "Invalid token" }, 401);
+    if (!targetUserId || typeof targetUserId !== "string") throw new HttpError("targetUserId required", 400);
+    if (!ALLOWED_ROLES.has(role)) throw new HttpError("Invalid role", 400);
+    if (!ALLOWED_ACTIONS.has(action)) throw new HttpError("Invalid action", 400);
 
-    // Require admin role
-    const { data: roles } = await admin.from("user_roles").select("role").eq("user_id", user.id);
-    if (!roles?.some((r: any) => r.role === "admin")) return json({ error: "Forbidden" }, 403);
+    const stepUpAction = action === "grant" ? "role_grant" : "role_revoke";
+    const audit = new AuditTrail(svc, caller, meta);
+    const entry = {
+      action: `role_${action}`,
+      category: "roles" as const,
+      targetType: "user",
+      targetId: targetUserId,
+      newValue: { role, action },
+      reason: reason ?? null,
+    };
 
-    const { targetUserId, role, action } = await req.json();
-    if (!targetUserId || typeof targetUserId !== "string") return json({ error: "targetUserId required" }, 400);
-    if (!ALLOWED_ROLES.has(role)) return json({ error: "Invalid role. Allowed: vendor, rider, delivery_company" }, 400);
-    if (!ALLOWED_ACTIONS.has(action)) return json({ error: "Invalid action. Allowed: grant, revoke" }, 400);
+    try {
+      await consumeStepUpToken(svc, caller.id, stepUpAction, targetUserId, stepUpToken);
+    } catch (e) {
+      await audit.failure(entry, e instanceof Error ? e.message : "step-up failed");
+      throw e;
+    }
+
+    await audit.begin(entry);
 
     if (action === "grant") {
-      const { error } = await admin
+      const { error } = await svc
         .from("user_roles")
         .upsert({ user_id: targetUserId, role }, { onConflict: "user_id,role" });
-      if (error) return json({ error: error.message }, 500);
+      if (error) throw new HttpError(error.message, 500);
     } else {
-      const { error } = await admin
+      const { error } = await svc
         .from("user_roles")
         .delete()
         .eq("user_id", targetUserId)
         .eq("role", role);
-      if (error) return json({ error: error.message }, 500);
+      if (error) throw new HttpError(error.message, 500);
     }
 
-    // Best-effort audit log
-    try {
-      await admin.from("activity_logs").insert({
-        user_id: user.id,
-        action: `admin_role_${action}`,
-        entity_type: "user_role",
-        entity_id: targetUserId,
-        metadata: { role, action, target_user_id: targetUserId } as any,
-      } as any);
-    } catch (_) { /* activity_logs may have different columns; skip if it fails */ }
-
-    return json({ success: true, action, role, targetUserId });
+    await audit.success(entry);
+    return jsonResponse({ success: true, action, role, targetUserId });
   } catch (err) {
+    const status = err instanceof HttpError ? err.status : 500;
     const msg = err instanceof Error ? err.message : "Unknown error";
     console.error("admin-manage-role error:", msg);
-    return json({ error: msg }, 500);
+    return jsonResponse({ error: msg }, status);
   }
 });
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", ...corsHeaders } });
-}

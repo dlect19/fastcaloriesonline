@@ -1,57 +1,69 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import {
+  authenticateAdmin,
+  AuditTrail,
+  consumeStepUpToken,
+  corsHeaders,
+  HttpError,
+  jsonResponse,
+  requestMeta,
+  serviceClient,
+} from "../_shared/adminGuard.ts";
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
-
+  const svc = serviceClient();
+  const meta = requestMeta(req);
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("Missing authorization header");
+    const caller = await authenticateAdmin(req, svc);
+    const { userId, newEmail, stepUpToken, reason } = await req.json();
+    if (!userId || !newEmail) throw new HttpError("Missing userId or newEmail", 400);
 
-    // Verify caller is admin
-    const callerClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const anonClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
-      global: { headers: { Authorization: authHeader } },
-    });
-
-    const { data: { user: caller } } = await anonClient.auth.getUser();
-    if (!caller) throw new Error("Unauthorized");
-
-    const { data: roles } = await callerClient
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", caller.id)
-      .eq("role", "admin");
-
-    if (!roles || roles.length === 0) throw new Error("Admin access required");
-
-    const { userId, newEmail } = await req.json();
-    if (!userId || !newEmail) throw new Error("Missing userId or newEmail");
-
-    // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(newEmail)) throw new Error("Invalid email format");
+    if (!emailRegex.test(String(newEmail))) throw new HttpError("Invalid email format", 400);
 
-    // Update the user's email using admin API
-    const { data, error } = await callerClient.auth.admin.updateUserById(userId, {
+    const { data: staff } = await svc
+      .from("admin_staff")
+      .select("is_protected, role")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (staff?.is_protected && !caller.isProtectedRoot) {
+      throw new HttpError("Only the root super admin can change its own login email", 403);
+    }
+    if (staff && !caller.isSuperAdmin) {
+      throw new HttpError("Only super admins can change an admin staff login email", 403);
+    }
+
+    const { data: existing } = await svc.auth.admin.getUserById(userId);
+
+    const audit = new AuditTrail(svc, caller, meta);
+    const entry = {
+      action: "user_email_change",
+      category: "credentials" as const,
+      targetType: "user",
+      targetId: userId,
+      oldValue: { email: existing?.user?.email ?? null },
+      newValue: { email: newEmail },
+      reason: reason ?? null,
+    };
+
+    try {
+      await consumeStepUpToken(svc, caller.id, "user_email_change", userId, stepUpToken);
+    } catch (e) {
+      await audit.failure(entry, e instanceof Error ? e.message : "step-up failed");
+      throw e;
+    }
+    await audit.begin(entry);
+
+    const { error } = await svc.auth.admin.updateUserById(userId, {
       email: newEmail,
-      email_confirm: true, // Auto-confirm the new email
+      email_confirm: true,
     });
+    if (error) throw new HttpError(error.message, 400);
 
-    if (error) throw error;
+    await audit.success(entry);
 
-    // Log the action
-    await callerClient.from("activity_logs").insert({
+    await svc.from("activity_logs").insert({
       user_id: caller.id,
       action: "admin_update_email",
       entity_type: "user",
@@ -59,13 +71,11 @@ serve(async (req) => {
       details: { new_email: newEmail },
     });
 
-    return new Response(JSON.stringify({ success: true }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  } catch (err: any) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse({ success: true });
+  } catch (err) {
+    const status = err instanceof HttpError ? err.status : 500;
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    console.error("admin-update-user-email error:", msg);
+    return jsonResponse({ error: msg }, status);
   }
 });
