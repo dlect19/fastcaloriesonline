@@ -3,9 +3,15 @@ import { WifiOff, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import noNetworkImg from '@/assets/no-network.png';
 
+// Routes that are designed to keep working without a connection and must NOT be
+// covered by the full-screen offline blocker (the POS shows its own banner).
+const OFFLINE_CAPABLE_ROUTES = ['/vendor/pos'];
+
 export function NetworkStatusOverlay() {
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [isRetrying, setIsRetrying] = useState(false);
+  const [path, setPath] = useState(() => (typeof window !== 'undefined' ? window.location.pathname : '/'));
+
 
   useEffect(() => {
     const goOffline = () => setIsOffline(true);
