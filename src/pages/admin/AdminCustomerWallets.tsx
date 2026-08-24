@@ -15,6 +15,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TransactionHistory } from '@/components/shared/TransactionHistory';
 import { DateRangeFilter } from '@/components/shared/DateRangeFilter';
 import { useToast } from '@/hooks/use-toast';
+import { useAdminStepUp } from '@/components/admin/AdminStepUpDialog';
+import { adminAdjustWallet } from '@/lib/adminSecurity';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 import { Search, Wallet, Users, AlertCircle, Plus, Minus, Eye, Ban, CheckCircle, Building2, Loader2, Copy, RotateCcw, Receipt } from 'lucide-react';
 import { format, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
@@ -70,6 +72,7 @@ export default function AdminCustomerWallets() {
   const isAdmin = !!role;
   const { isTestMode } = useEnvironmentConfig();
   const { toast } = useToast();
+  const { requireStepUp, stepUpDialog } = useAdminStepUp();
 
   const [wallets, setWallets] = useState<CustomerWallet[]>([]);
   const [loading, setLoading] = useState(true);
@@ -270,10 +273,10 @@ export default function AdminCustomerWallets() {
 
     setAdjusting(true);
     try {
-      const { data, error } = await supabase.rpc('admin_adjust_wallet_balance' as any, {
+      const { data, error } = await adminAdjustWallet(requireStepUp, {
         p_wallet_id: selectedWallet.id,
         p_amount: amount,
-        p_adjust_type: adjustType,
+        p_adjust_type: adjustType as 'credit' | 'debit',
         p_notes: adjustNotes,
         p_environment: isTestMode ? 'development' : 'production',
         p_reference: adjustReference || null,
@@ -474,6 +477,7 @@ export default function AdminCustomerWallets() {
 
   return (
     <AdminLayout>
+      {stepUpDialog}
       <div className="space-y-6">
           {/* Header */}
           <div className="flex items-center justify-between">

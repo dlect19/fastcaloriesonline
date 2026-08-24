@@ -627,6 +627,7 @@ export type Database = {
         Row: {
           backup_codes: Json
           created_at: string
+          last_totp_counter: number | null
           preferred_method: string
           totp_enabled: boolean
           totp_enrolled_at: string | null
@@ -637,6 +638,7 @@ export type Database = {
         Insert: {
           backup_codes?: Json
           created_at?: string
+          last_totp_counter?: number | null
           preferred_method?: string
           totp_enabled?: boolean
           totp_enrolled_at?: string | null
@@ -647,6 +649,7 @@ export type Database = {
         Update: {
           backup_codes?: Json
           created_at?: string
+          last_totp_counter?: number | null
           preferred_method?: string
           totp_enabled?: boolean
           totp_enrolled_at?: string | null
@@ -785,6 +788,87 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_sensitive_audit: {
+        Row: {
+          action: string
+          actor_email: string | null
+          actor_id: string | null
+          actor_name: string | null
+          actor_role: string | null
+          amount: number | null
+          auth_method: string | null
+          category: string
+          correlation_id: string
+          created_at: string
+          currency: string | null
+          environment: string | null
+          error_message: string | null
+          id: string
+          ip_address: string | null
+          new_value: Json | null
+          old_value: Json | null
+          outcome: string
+          reason: string | null
+          reference: string | null
+          target_id: string | null
+          target_label: string | null
+          target_type: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          action: string
+          actor_email?: string | null
+          actor_id?: string | null
+          actor_name?: string | null
+          actor_role?: string | null
+          amount?: number | null
+          auth_method?: string | null
+          category?: string
+          correlation_id?: string
+          created_at?: string
+          currency?: string | null
+          environment?: string | null
+          error_message?: string | null
+          id?: string
+          ip_address?: string | null
+          new_value?: Json | null
+          old_value?: Json | null
+          outcome?: string
+          reason?: string | null
+          reference?: string | null
+          target_id?: string | null
+          target_label?: string | null
+          target_type?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          action?: string
+          actor_email?: string | null
+          actor_id?: string | null
+          actor_name?: string | null
+          actor_role?: string | null
+          amount?: number | null
+          auth_method?: string | null
+          category?: string
+          correlation_id?: string
+          created_at?: string
+          currency?: string | null
+          environment?: string | null
+          error_message?: string | null
+          id?: string
+          ip_address?: string | null
+          new_value?: Json | null
+          old_value?: Json | null
+          outcome?: string
+          reason?: string | null
+          reference?: string | null
+          target_id?: string | null
+          target_label?: string | null
+          target_type?: string | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       admin_staff: {
         Row: {
           created_at: string | null
@@ -794,6 +878,7 @@ export type Database = {
           invite_email: string | null
           invited_by: string | null
           is_active: boolean | null
+          is_protected: boolean
           last_activity_at: string | null
           permissions: string[] | null
           role: Database["public"]["Enums"]["admin_staff_role"]
@@ -808,6 +893,7 @@ export type Database = {
           invite_email?: string | null
           invited_by?: string | null
           is_active?: boolean | null
+          is_protected?: boolean
           last_activity_at?: string | null
           permissions?: string[] | null
           role?: Database["public"]["Enums"]["admin_staff_role"]
@@ -822,11 +908,54 @@ export type Database = {
           invite_email?: string | null
           invited_by?: string | null
           is_active?: boolean | null
+          is_protected?: boolean
           last_activity_at?: string | null
           permissions?: string[] | null
           role?: Database["public"]["Enums"]["admin_staff_role"]
           updated_at?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      admin_step_up_tokens: {
+        Row: {
+          action: string
+          actor_id: string
+          consumed_at: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          ip_address: string | null
+          target_id: string | null
+          target_type: string | null
+          token_hash: string
+          user_agent: string | null
+        }
+        Insert: {
+          action: string
+          actor_id: string
+          consumed_at?: string | null
+          created_at?: string
+          expires_at: string
+          id?: string
+          ip_address?: string | null
+          target_id?: string | null
+          target_type?: string | null
+          token_hash: string
+          user_agent?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string
+          consumed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          ip_address?: string | null
+          target_id?: string | null
+          target_type?: string | null
+          token_hash?: string
+          user_agent?: string | null
         }
         Relationships: []
       }
@@ -9972,6 +10101,18 @@ export type Database = {
           p_environment?: string
           p_notes?: string
           p_reference?: string
+          p_step_up_token?: string
+          p_wallet_id: string
+        }
+        Returns: Json
+      }
+      admin_adjust_wallet_balance_internal: {
+        Args: {
+          p_adjust_type: string
+          p_amount: number
+          p_environment?: string
+          p_notes?: string
+          p_reference?: string
           p_wallet_id: string
         }
         Returns: Json
@@ -10122,6 +10263,15 @@ export type Database = {
       complete_voucher_delivery: {
         Args: { p_order_id: string; p_vendor_id: string; p_voucher_id: string }
         Returns: undefined
+      }
+      consume_admin_step_up: {
+        Args: {
+          p_action: string
+          p_target_id?: string
+          p_target_type?: string
+          p_token: string
+        }
+        Returns: string
       }
       credit_vendor_wallet_for_voucher: {
         Args: { _order_id: string }
@@ -10366,6 +10516,7 @@ export type Database = {
         Args: { _company_id: string }
         Returns: boolean
       }
+      is_protected_super_admin: { Args: { _user_id: string }; Returns: boolean }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
       is_user_verified: { Args: { _user_id: string }; Returns: boolean }
       is_vendor_owner: {

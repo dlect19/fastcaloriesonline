@@ -14,6 +14,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TransactionHistory } from '@/components/shared/TransactionHistory';
 import { useToast } from '@/hooks/use-toast';
+import { useAdminStepUp } from '@/components/admin/AdminStepUpDialog';
+import { adminAdjustWallet } from '@/lib/adminSecurity';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 import { Separator } from '@/components/ui/separator';
 import { Search, Wallet, AlertCircle, Minus, Eye, AlertTriangle, Store, Bike, Truck, Loader2, SearchCheck } from 'lucide-react';
@@ -42,6 +44,7 @@ export default function AdminChargebacks() {
   const isAdmin = !!role;
   const { isTestMode } = useEnvironmentConfig();
   const { toast } = useToast();
+  const { requireStepUp, stepUpDialog } = useAdminStepUp();
 
   const [activeTab, setActiveTab] = useState('vendor');
   const [wallets, setWallets] = useState<EntityWallet[]>([]);
@@ -373,7 +376,7 @@ export default function AdminChargebacks() {
         }
       }
 
-      const { data, error } = await supabase.rpc('admin_adjust_wallet_balance' as any, {
+      const { data, error } = await adminAdjustWallet(requireStepUp, {
         p_wallet_id: selectedWallet.id,
         p_amount: amount,
         p_adjust_type: 'debit',
@@ -439,6 +442,7 @@ export default function AdminChargebacks() {
 
   return (
     <AdminLayout>
+        {stepUpDialog}
         <div className="max-w-7xl mx-auto space-y-6">
           <div>
             <h1 className="text-2xl font-bold">Chargebacks & Wallet Debits</h1>

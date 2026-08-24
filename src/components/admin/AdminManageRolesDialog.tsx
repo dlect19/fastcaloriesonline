@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Shield, X, Plus, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAdminStepUp } from '@/components/admin/AdminStepUpDialog';
 
 interface Props {
   open: boolean;
@@ -22,6 +23,7 @@ const GRANTABLE = [
 
 export function AdminManageRolesDialog({ open, onOpenChange, userId, userName, onChanged }: Props) {
   const { toast } = useToast();
+  const { requireStepUp, stepUpDialog } = useAdminStepUp();
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [roles, setRoles] = useState<string[]>([]);
@@ -40,8 +42,14 @@ export function AdminManageRolesDialog({ open, onOpenChange, userId, userName, o
     if (!userId) return;
     setBusy(role + action);
     try {
+      const stepUpToken = await requireStepUp({
+        action: action === 'grant' ? 'role_grant' : 'role_revoke',
+        targetType: 'user',
+        targetId: userId,
+        label: `${action === 'grant' ? 'Grant' : 'Remove'} ${role} role for ${userName}`,
+      });
       const { data, error } = await supabase.functions.invoke('admin-manage-role', {
-        body: { targetUserId: userId, role, action },
+        body: { targetUserId: userId, role, action, stepUpToken },
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
@@ -49,6 +57,7 @@ export function AdminManageRolesDialog({ open, onOpenChange, userId, userName, o
       setRoles(prev => action === 'grant' ? Array.from(new Set([...prev, role])) : prev.filter(r => r !== role));
       onChanged?.();
     } catch (e: any) {
+      if (e?.message === 'step_up_cancelled') { setBusy(null); return; }
       toast({ title: 'Failed', description: e?.message || 'Could not update role', variant: 'destructive' });
     } finally {
       setBusy(null);
@@ -59,6 +68,7 @@ export function AdminManageRolesDialog({ open, onOpenChange, userId, userName, o
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
+      {stepUpDialog}
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><Shield className="w-5 h-5 text-primary" /> Manage Roles</DialogTitle>

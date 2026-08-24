@@ -1,14 +1,15 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import {
+  authenticateAdmin,
+  AuditTrail,
+  consumeStepUpToken,
+  corsHeaders,
+  HttpError,
+  jsonResponse,
+  requestMeta,
+  serviceClient,
+} from "../_shared/adminGuard.ts";
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
 
 interface CreateStaffRequest {
   email: string;
@@ -19,7 +20,8 @@ interface CreateStaffRequest {
   vendorId?: string;
   vendorName?: string;
   inviterName?: string;
-  inviterId: string;
+  /** Fresh authenticator (TOTP) verification token - required for admin staff creation. */
+  stepUpToken?: string;
 }
 
 const generateCredentialsEmailHtml = (
@@ -131,187 +133,215 @@ const generateCredentialsEmailHtml = (
 `;
 };
 
+const ALLOWED_ADMIN_ROLES = new Set(["super_admin", "admin", "support", "analyst"]);
+const ALLOWED_VENDOR_ROLES = new Set(["owner", "manager", "cashier", "viewer"]);
+
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const supabaseAdmin = serviceClient();
+  const meta = requestMeta(req);
+
   try {
-    const {
-      email,
-      password,
-      fullName,
-      role,
-      platform,
-      vendorId,
-      vendorName,
-      inviterName,
-      inviterId
-    }: CreateStaffRequest = await req.json();
+    const body: CreateStaffRequest = await req.json();
+    const { email, password, fullName, role, platform, vendorId, vendorName, stepUpToken } = body;
 
-    // Validate required fields
-    if (!email || !password || !fullName || !role || !platform || !inviterId) {
-      throw new Error("Missing required fields");
+    if (!email || !password || !fullName || !role || !platform) {
+      throw new HttpError("Missing required fields", 400);
     }
+    if (platform !== "vendor" && platform !== "admin") throw new HttpError("Invalid platform", 400);
+    if (platform === "vendor" && !vendorId) throw new HttpError("Vendor ID is required for vendor staff", 400);
+    if (password.length < 8) throw new HttpError("Password must be at least 8 characters", 400);
 
-    if (platform === "vendor" && !vendorId) {
-      throw new Error("Vendor ID is required for vendor staff");
-    }
+    // ---- Authorization: the actor is ALWAYS derived from the JWT, never from the request body ----
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) throw new HttpError("Unauthorized", 401);
+    const { data: authData, error: authErr } = await supabaseAdmin.auth.getUser(
+      authHeader.replace("Bearer ", ""),
+    );
+    if (authErr || !authData?.user) throw new HttpError("Invalid or expired session", 401);
+    const actorId = authData.user.id;
 
-    // Validate password strength
-    if (password.length < 6) {
-      throw new Error("Password must be at least 6 characters");
-    }
+    let auditTrail: AuditTrail | null = null;
+    let actorLabel = authData.user.email ?? actorId;
 
-    console.log(`Creating ${platform} staff account for ${email}`);
+    if (platform === "admin") {
+      if (!ALLOWED_ADMIN_ROLES.has(role)) throw new HttpError("Invalid admin staff role", 400);
 
-    // Create Supabase admin client
-    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
+      // Only an ACTIVE super admin may create or modify admin staff, and only with fresh TOTP.
+      const caller = await authenticateAdmin(req, supabaseAdmin);
+      if (!caller.isSuperAdmin) {
+        throw new HttpError("Active super admin access required to manage admin staff", 403);
       }
-    });
+      actorLabel = caller.email ?? actorId;
+
+      auditTrail = new AuditTrail(supabaseAdmin, caller, meta);
+      const entry = {
+        action: "admin_staff_create",
+        category: "credentials" as const,
+        targetType: "admin_staff",
+        targetId: null,
+        targetLabel: email,
+        newValue: { role, email, full_name: fullName },
+      };
+
+      try {
+        await consumeStepUpToken(supabaseAdmin, caller.id, "staff_create", null, stepUpToken);
+      } catch (e) {
+        await auditTrail.failure(entry, e instanceof Error ? e.message : "step-up failed");
+        throw e;
+      }
+      await auditTrail.begin(entry);
+    } else {
+      if (!ALLOWED_VENDOR_ROLES.has(role)) throw new HttpError("Invalid vendor staff role", 400);
+
+      // Vendor staff may only be created by the vendor owner, a vendor manager, or a platform admin.
+      const [{ data: vendor }, { data: callerStaff }, { data: callerRoles }] = await Promise.all([
+        supabaseAdmin.from("vendors").select("id, user_id, business_name").eq("id", vendorId).maybeSingle(),
+        supabaseAdmin
+          .from("vendor_staff")
+          .select("role, is_active")
+          .eq("vendor_id", vendorId)
+          .eq("user_id", actorId)
+          .eq("is_active", true)
+          .maybeSingle(),
+        supabaseAdmin.from("user_roles").select("role").eq("user_id", actorId),
+      ]);
+
+      if (!vendor) throw new HttpError("Vendor not found", 404);
+      // deno-lint-ignore no-explicit-any
+      const isPlatformAdmin = !!callerRoles?.some((r: any) => r.role === "admin");
+      const isOwner = vendor.user_id === actorId;
+      const isManager = callerStaff?.role === "owner" || callerStaff?.role === "manager";
+      if (!isOwner && !isManager && !isPlatformAdmin) {
+        throw new HttpError("You are not allowed to manage staff for this business", 403);
+      }
+      // Only the business owner (or a platform admin) may mint another owner-level account.
+      if (role === "owner" && !isOwner && !isPlatformAdmin) {
+        throw new HttpError("Only the business owner can create another owner account", 403);
+      }
+    }
+
+    console.log(`Creating ${platform} staff account (actor: ${actorLabel})`);
 
     // Check if user already exists
     const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
-    const existingUser = existingUsers?.users?.find(u => u.email === email);
+    // deno-lint-ignore no-explicit-any
+    const existingUser = existingUsers?.users?.find((u: any) => u.email === email);
 
     let userId: string;
 
     if (existingUser) {
-      // User exists - UPDATE their password so emailed credentials work
       userId = existingUser.id;
-      console.log(`User ${email} already exists, updating password and linking to staff record`);
-      
-      // Update the user's password to match what we'll send in the email
-      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
-        password: password,
-        email_confirm: true,
-        user_metadata: {
-          ...existingUser.user_metadata,
-          full_name: fullName
-        }
-      });
-      
-      if (updateError) {
-        console.error("Error updating user password:", updateError);
-        throw new Error(`Failed to update user credentials: ${updateError.message}`);
+
+      // Never let this endpoint reset the credentials of a platform admin / protected root account.
+      const { data: existingAdminStaff } = await supabaseAdmin
+        .from("admin_staff")
+        .select("is_protected, role")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (existingAdminStaff?.is_protected) {
+        throw new HttpError("The protected root super admin cannot be modified here", 403);
       }
-      
-      console.log(`Password updated for existing user ${email}`);
+      if (platform === "vendor" && existingAdminStaff) {
+        throw new HttpError("This email belongs to a platform admin account", 403);
+      }
+
+      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+        password,
+        email_confirm: true,
+        user_metadata: { ...existingUser.user_metadata, full_name: fullName },
+      });
+      if (updateError) throw new HttpError(`Failed to update user credentials: ${updateError.message}`, 400);
     } else {
-      // Create new user account
       const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
         email,
         password,
         email_confirm: true,
-        user_metadata: {
-          full_name: fullName
-        }
+        user_metadata: { full_name: fullName },
       });
-
-      if (createError) {
-        console.error("Error creating user:", createError);
-        throw new Error(`Failed to create user account: ${createError.message}`);
+      if (createError || !newUser?.user) {
+        throw new HttpError(`Failed to create user account: ${createError?.message ?? "unknown"}`, 400);
       }
-
       userId = newUser.user.id;
-      console.log(`Created new user account for ${email}`);
     }
 
-    // Create staff record based on platform
     if (platform === "vendor") {
-      // Check if staff record already exists
       const { data: existingStaff } = await supabaseAdmin
-        .from('vendor_staff')
-        .select('id')
-        .eq('vendor_id', vendorId)
-        .eq('user_id', userId)
+        .from("vendor_staff")
+        .select("id")
+        .eq("vendor_id", vendorId)
+        .eq("user_id", userId)
         .maybeSingle();
 
       if (existingStaff) {
-        // Update existing staff record
         const { error: staffError } = await supabaseAdmin
-          .from('vendor_staff')
-          .update({
-            role: role,
-            is_active: true,
-            invite_accepted_at: new Date().toISOString()
-          })
-          .eq('id', existingStaff.id);
-
-        if (staffError) {
-          console.error("Error updating vendor staff record:", staffError);
-          throw new Error(`Failed to update staff record: ${staffError.message}`);
-        }
+          .from("vendor_staff")
+          .update({ role, is_active: true, invite_accepted_at: new Date().toISOString() })
+          .eq("id", existingStaff.id);
+        if (staffError) throw new HttpError(`Failed to update staff record: ${staffError.message}`, 400);
       } else {
-        const { error: staffError } = await supabaseAdmin
-          .from('vendor_staff')
-          .insert({
-            vendor_id: vendorId,
-            user_id: userId,
-            role: role,
-            invite_email: email,
-            invited_by: inviterId,
-            is_active: true,
-            invite_accepted_at: new Date().toISOString()
-          });
-
-        if (staffError) {
-          console.error("Error creating vendor staff record:", staffError);
-          throw new Error(`Failed to create staff record: ${staffError.message}`);
-        }
+        const { error: staffError } = await supabaseAdmin.from("vendor_staff").insert({
+          vendor_id: vendorId,
+          user_id: userId,
+          role,
+          invite_email: email,
+          invited_by: actorId,
+          is_active: true,
+          invite_accepted_at: new Date().toISOString(),
+        });
+        if (staffError) throw new HttpError(`Failed to create staff record: ${staffError.message}`, 400);
       }
     } else {
-      // Check if admin staff record already exists
       const { data: existingStaff } = await supabaseAdmin
-        .from('admin_staff')
-        .select('id')
-        .eq('user_id', userId)
+        .from("admin_staff")
+        .select("id, is_protected")
+        .eq("user_id", userId)
         .maybeSingle();
 
       if (existingStaff) {
-        // Update existing staff record
-        const { error: staffError } = await supabaseAdmin
-          .from('admin_staff')
-          .update({
-            role: role,
-            is_active: true,
-            invite_accepted_at: new Date().toISOString()
-          })
-          .eq('id', existingStaff.id);
-
-        if (staffError) {
-          console.error("Error updating admin staff record:", staffError);
-          throw new Error(`Failed to update staff record: ${staffError.message}`);
+        if (existingStaff.is_protected) {
+          throw new HttpError("The protected root super admin cannot be modified here", 403);
         }
+        const { error: staffError } = await supabaseAdmin
+          .from("admin_staff")
+          .update({ role, is_active: true, invite_accepted_at: new Date().toISOString() })
+          .eq("id", existingStaff.id);
+        if (staffError) throw new HttpError(`Failed to update staff record: ${staffError.message}`, 400);
       } else {
-        const { error: staffError } = await supabaseAdmin
-          .from('admin_staff')
-          .insert({
-            user_id: userId,
-            role: role,
-            invite_email: email,
-            invited_by: inviterId,
-            is_active: true,
-            invite_accepted_at: new Date().toISOString()
-          });
-
-        if (staffError) {
-          console.error("Error creating admin staff record:", staffError);
-          throw new Error(`Failed to create staff record: ${staffError.message}`);
-        }
+        const { error: staffError } = await supabaseAdmin.from("admin_staff").insert({
+          user_id: userId,
+          role,
+          invite_email: email,
+          invited_by: actorId,
+          is_active: true,
+          invite_accepted_at: new Date().toISOString(),
+        });
+        if (staffError) throw new HttpError(`Failed to create staff record: ${staffError.message}`, 400);
       }
+
+      // Platform admin app-role for admin staff
+      await supabaseAdmin
+        .from("user_roles")
+        .upsert({ user_id: userId, role: "admin" }, { onConflict: "user_id,role" });
+
+      await auditTrail?.success({
+        action: "admin_staff_create",
+        category: "credentials",
+        targetType: "admin_staff",
+        targetId: userId,
+        targetLabel: email,
+        newValue: { role, email, full_name: fullName },
+      });
     }
 
-    // Determine workspace URL - use staff-specific login page for vendors
-    const baseUrl = req.headers.get('origin') || 'https://fastcalories.online';
-    const workspaceUrl = platform === "vendor" 
+    const baseUrl = req.headers.get("origin") || "https://fastcalories.online";
+    const workspaceUrl = platform === "vendor"
       ? `${baseUrl}/vendor/staff-login/${vendorId}`
       : `${baseUrl}/admin/auth`;
 
-    // Send credentials email
     if (RESEND_API_KEY) {
       const emailResponse = await fetch("https://api.resend.com/emails", {
         method: "POST",
@@ -323,50 +353,21 @@ const handler = async (req: Request): Promise<Response> => {
           from: "Fast Calories <noreply@fastcalories.online>",
           to: [email],
           subject: `Your ${platform === "vendor" && vendorName ? vendorName : "Fast Calories"} Account Credentials`,
-          html: generateCredentialsEmailHtml(
-            email,
-            password,
-            fullName,
-            role,
-            platform,
-            workspaceUrl,
-            vendorName
-          ),
+          html: generateCredentialsEmailHtml(email, password, fullName, role, platform, workspaceUrl, vendorName),
         }),
       });
-
-      const emailData = await emailResponse.json();
-
       if (!emailResponse.ok) {
-        console.error("Resend API error:", emailData);
-        // Don't throw, account is created, just log the email error
-      } else {
-        console.log("Credentials email sent successfully");
+        console.error("Resend API error status:", emailResponse.status);
       }
     }
 
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        userId,
-        message: "Staff account created and credentials sent"
-      }),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
-    );
+    return jsonResponse({ success: true, userId, message: "Staff account created and credentials sent" });
   } catch (error: unknown) {
+    const status = error instanceof HttpError ? error.status : 500;
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error("Error creating staff account:", errorMessage);
-    return new Response(
-      JSON.stringify({ success: false, error: errorMessage }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
-    );
+    return jsonResponse({ success: false, error: errorMessage }, status);
   }
 };
 
-serve(handler);
+Deno.serve(handler);

@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Trash2, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAdminStepUp } from '@/components/admin/AdminStepUpDialog';
 
 type Scope = 'customer' | 'vendor' | 'rider' | 'delivery_company' | 'all';
 
@@ -62,6 +63,7 @@ export function AdminDeleteUserButton({
   onDeleted,
 }: AdminDeleteUserButtonProps) {
   const { toast } = useToast();
+  const { requireStepUp, stepUpDialog } = useAdminStepUp();
   const [open, setOpen] = useState(false);
   const [confirm, setConfirm] = useState('');
   const [reason, setReason] = useState('');
@@ -81,8 +83,14 @@ export function AdminDeleteUserButton({
     }
     setLoading(true);
     try {
+      const stepUpToken = await requireStepUp({
+        action: 'user_delete',
+        targetType: 'user',
+        targetId: userId,
+        label: `${copy.title} — ${entityName}`,
+      });
       const { data, error } = await supabase.functions.invoke('admin-delete-user', {
-        body: { userId, scope, reason: reason || null },
+        body: { userId, scope, reason: reason || null, stepUpToken },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -92,6 +100,7 @@ export function AdminDeleteUserButton({
       setReason('');
       onDeleted?.();
     } catch (err: any) {
+      if (err?.message === 'step_up_cancelled') { setLoading(false); return; }
       toast({
         title: 'Delete failed',
         description: err.message || 'Unable to delete',
@@ -104,6 +113,7 @@ export function AdminDeleteUserButton({
 
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
+      {stepUpDialog}
       <AlertDialogTrigger asChild>
         <Button
           size={size}

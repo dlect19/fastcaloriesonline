@@ -23,6 +23,8 @@ import { useCall } from '@/components/call/CallProvider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAdminStepUp } from '@/components/admin/AdminStepUpDialog';
+import { adminAdjustWallet } from '@/lib/adminSecurity';
 import { format } from 'date-fns';
 import { OrderPhotoEvidence } from '@/components/admin/OrderPhotoEvidence';
 import { logActivity } from '@/hooks/useAdminActivityLogger';
@@ -149,6 +151,7 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
 
 export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated }: Props) {
   const { toast } = useToast();
+  const { requireStepUp, stepUpDialog } = useAdminStepUp();
   const { startCall } = useCall();
 
 
@@ -631,23 +634,13 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
 
           // Credit rider balance
           const isTest = activeOrder.environment === 'development';
-          if (isTest) {
-            await supabase.rpc('admin_adjust_wallet_balance', {
-              p_wallet_id: riderWallet.id,
-              p_amount: bonusVal,
-              p_adjust_type: 'credit',
-              p_notes: `Rescue bonus for order #${activeOrder.order_number}`,
-              p_environment: 'development',
-            });
-          } else {
-            await supabase.rpc('admin_adjust_wallet_balance', {
-              p_wallet_id: riderWallet.id,
-              p_amount: bonusVal,
-              p_adjust_type: 'credit',
-              p_notes: `Rescue bonus for order #${activeOrder.order_number}`,
-              p_environment: 'production',
-            });
-          }
+          await adminAdjustWallet(requireStepUp, {
+            p_wallet_id: riderWallet.id,
+            p_amount: bonusVal,
+            p_adjust_type: 'credit',
+            p_notes: `Rescue bonus for order #${activeOrder.order_number}`,
+            p_environment: isTest ? 'development' : 'production',
+          });
         }
       }
 
@@ -712,6 +705,8 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
   };
 
   return (
+    <>
+    {stepUpDialog}
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -1636,5 +1631,6 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
         </div>
       </DialogContent>
     </Dialog>
+    </>
   );
 }

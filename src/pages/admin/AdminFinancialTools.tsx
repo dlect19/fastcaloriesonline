@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2, Search, RotateCcw, Gift, AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAdminStepUp } from '@/components/admin/AdminStepUpDialog';
+import { adminAdjustWallet } from '@/lib/adminSecurity';
 import { useAuth } from '@/hooks/useAuth';
 
 interface OrderDetails {
@@ -70,6 +72,7 @@ export default function AdminFinancialTools() {
 
 function ReverseRefundTool() {
   const { toast } = useToast();
+  const { requireStepUpMany, stepUpDialog } = useAdminStepUp();
   const [orderNumber, setOrderNumber] = useState('');
   const [loading, setLoading] = useState(false);
   const [reversing, setReversing] = useState(false);
@@ -182,18 +185,6 @@ function ReverseRefundTool() {
 
       if (!customerWallet) throw new Error('Customer wallet not found');
 
-      // 2. Debit customer wallet (reverse the refund)
-      const { error: debitError } = await supabase.rpc('admin_adjust_wallet_balance', {
-        p_wallet_id: customerWallet.id,
-        p_amount: refundAmount,
-        p_adjust_type: 'debit',
-        p_notes: `[REFUND REVERSAL] Reversed mistaken refund for order #${order.order_number}`,
-        p_environment: env,
-        p_reference: `Order #${order.order_number}`,
-      });
-
-      if (debitError) throw debitError;
-
       // 3. Find vendor wallet
       const { data: vendorUser } = await supabase
         .from('vendors')
@@ -213,6 +204,27 @@ function ReverseRefundTool() {
 
       if (!vendorWallet) throw new Error('Vendor wallet not found');
 
+      // 2+4. One authenticator approval covers both legs of the reversal
+      const [debitToken, creditToken] = await requireStepUpMany(
+        [
+          { action: 'wallet_debit', targetType: 'wallet', targetId: customerWallet.id },
+          { action: 'wallet_credit', targetType: 'wallet', targetId: vendorWallet.id },
+        ],
+        `Reverse refund for order #${order.order_number}`,
+      );
+
+      const { error: debitError } = await supabase.rpc('admin_adjust_wallet_balance' as any, {
+        p_wallet_id: customerWallet.id,
+        p_amount: refundAmount,
+        p_adjust_type: 'debit',
+        p_notes: `[REFUND REVERSAL] Reversed mistaken refund for order #${order.order_number}`,
+        p_environment: env,
+        p_reference: `Order #${order.order_number}`,
+        p_step_up_token: debitToken,
+      });
+
+      if (debitError) throw debitError;
+
       // 4. Credit vendor wallet with their share (menu_price - commission + packaging)
       const commissionRate = vendorUser.commission_rate || 15;
       const menuPrice = order.subtotal + order.discount;
@@ -223,13 +235,14 @@ function ReverseRefundTool() {
       const vendorShare = menuPrice - platformCommission + packagingFee;
       const serviceFee = order.service_fee;
 
-      const { error: creditError } = await supabase.rpc('admin_adjust_wallet_balance', {
+      const { error: creditError } = await supabase.rpc('admin_adjust_wallet_balance' as any, {
         p_wallet_id: vendorWallet.id,
         p_amount: vendorShare,
         p_adjust_type: 'credit',
         p_notes: `[REFUND REVERSAL] Vendor earnings restored for order #${order.order_number} (mistaken cancellation)`,
         p_environment: env,
         p_reference: `Order #${order.order_number}`,
+        p_step_up_token: creditToken,
       });
 
       if (creditError) throw creditError;
@@ -331,6 +344,8 @@ function ReverseRefundTool() {
   };
 
   return (
+    <>
+    {stepUpDialog}
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
@@ -431,6 +446,7 @@ function ReverseRefundTool() {
         )}
       </CardContent>
     </Card>
+    </>
   );
 }
 
@@ -639,6 +655,7 @@ function UpdateOrderStatusTool() {
 
 function BonusTopupTool() {
   const { toast } = useToast();
+  const { requireStepUp, stepUpDialog } = useAdminStepUp();
   const [recipientType, setRecipientType] = useState<'vendor' | 'rider'>('vendor');
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
@@ -713,7 +730,7 @@ function BonusTopupTool() {
         walletId = newWallet.id;
       }
 
-      const { error: creditError } = await supabase.rpc('admin_adjust_wallet_balance', {
+      const { error: creditError } = await adminAdjustWallet(requireStepUp, {
         p_wallet_id: walletId,
         p_amount: bonusAmount,
         p_adjust_type: 'credit',
@@ -742,6 +759,8 @@ function BonusTopupTool() {
   };
 
   return (
+    <>
+    {stepUpDialog}
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
@@ -840,5 +859,6 @@ function BonusTopupTool() {
         )}
       </CardContent>
     </Card>
+    </>
   );
 }

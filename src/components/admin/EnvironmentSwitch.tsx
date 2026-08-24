@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
+import { useAdminStepUp } from '@/components/admin/AdminStepUpDialog';
 import { EnvironmentSwitchConfirmation } from './EnvironmentSwitchConfirmation';
 import { Shield, AlertTriangle, CheckCircle, History, Loader2 } from 'lucide-react';
 
@@ -18,6 +19,7 @@ interface SwitchLog {
 
 export function EnvironmentSwitch() {
   const { toast } = useToast();
+  const { requireStepUp, stepUpDialog } = useAdminStepUp();
   const [currentEnvironment, setCurrentEnvironment] = useState<'development' | 'production'>('development');
   const [loading, setLoading] = useState(true);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
@@ -82,29 +84,26 @@ export function EnvironmentSwitch() {
     }
 
     try {
-      // Update platform environment
-      const { error: updateError } = await supabase
-        .from('platform_settings')
-        .update({ value: targetEnvironment, updated_at: new Date().toISOString() })
-        .eq('key', 'platform_environment');
+      const stepUpToken = await requireStepUp({
+        action: 'environment_switch',
+        targetType: 'platform_setting',
+        targetId: 'platform_environment',
+        label: `Switch platform to ${targetEnvironment.toUpperCase()}`,
+      });
 
-      if (updateError) throw updateError;
-
-      // Log the switch
-      const { error: logError } = await supabase
-        .from('environment_switch_logs')
-        .insert({
-          switched_by: user.id,
-          from_environment: currentEnvironment,
-          to_environment: targetEnvironment,
-          confirmation_text: targetEnvironment === 'production' 
+      const { data, error: updateError } = await supabase.functions.invoke('admin-platform-setting', {
+        body: {
+          key: 'platform_environment',
+          value: targetEnvironment,
+          stepUpToken,
+          confirmationText: targetEnvironment === 'production'
             ? 'I confirm this will enable real payments'
             : 'I confirm switching to test mode',
-        });
+        },
+      });
 
-      if (logError) {
-        console.error('Error logging environment switch:', logError);
-      }
+      if (updateError) throw updateError;
+      if ((data as any)?.error) throw new Error((data as any).error);
 
       setCurrentEnvironment(targetEnvironment);
       fetchSwitchLogs();
@@ -113,11 +112,12 @@ export function EnvironmentSwitch() {
         title: 'Environment Switched',
         description: `Platform is now in ${targetEnvironment === 'production' ? 'PRODUCTION' : 'DEVELOPMENT'} mode.`,
       });
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.message === 'step_up_cancelled') return;
       console.error('Error switching environment:', error);
       toast({
         title: 'Switch Failed',
-        description: 'Failed to switch environment. Please try again.',
+        description: error?.message || 'Failed to switch environment. Please try again.',
         variant: 'destructive',
       });
     }
@@ -137,6 +137,7 @@ export function EnvironmentSwitch() {
 
   return (
     <>
+      {stepUpDialog}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
