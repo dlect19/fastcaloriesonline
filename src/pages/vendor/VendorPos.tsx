@@ -39,6 +39,14 @@ import {
   cacheVendor,
   readCachedVendor,
 } from '@/hooks/usePosOfflineQueue';
+import { usePosBootstrap } from '@/hooks/usePosBootstrap';
+import {
+  readCatalog,
+  mergeCatalog,
+  writeBootstrap,
+  readStockReservations,
+  reserveStock,
+} from '@/lib/posOfflineStore';
 import { PosOpenSessionDialog } from '@/components/pos/PosOpenSessionDialog';
 import { PosCloseSessionDialog } from '@/components/pos/PosCloseSessionDialog';
 import { PosPaymentDialog, type PaymentMethod } from '@/components/pos/PosPaymentDialog';
@@ -110,45 +118,24 @@ const HOLD_KEY_PREFIX = 'fc_pos_held_sales_';
 export default function VendorPos() {
   const navigate = useNavigate();
   const { selectedOutlet: ctxOutlet } = useOutletContext();
-  const [vendorId, setVendorId] = useState<string | null>(null);
-  const [fallbackOutlet, setFallbackOutlet] = useState<{ id: string; outlet_name?: string | null; outlet_surname?: string | null } | null>(null);
-  const selectedOutlet = ctxOutlet || fallbackOutlet;
+  const bootstrap = usePosBootstrap(ctxOutlet as any);
+  const vendorId = bootstrap.vendorId;
+  const selectedOutlet = bootstrap.outlet;
   const outletId = selectedOutlet?.id ?? null;
 
-  useEffect(() => {
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data: v } = await supabase.from('vendors').select('id').eq('user_id', user.id).maybeSingle();
-      if (v) { setVendorId(v.id); return; }
-      const { data: s } = await supabase.from('vendor_staff').select('vendor_id').eq('user_id', user.id).eq('is_active', true).maybeSingle();
-      if (s) setVendorId(s.vendor_id);
-    })();
-  }, []);
+  const { hasPermission, loading: permLoadingRaw, role, permissions } = useVendorPermissions(vendorId);
+  const cachedPerms = bootstrap.snapshot?.permissions ?? [];
+  // Offline: fall back to the permissions verified during the last online boot
+  const offlineAuth = bootstrap.usingCachedAuth && !bootstrap.bootstrapExpired;
+  const canUsePos = hasPermission('use_pos') || (offlineAuth && cachedPerms.includes('use_pos'));
+  const canViewReports = hasPermission('view_pos_reports') || (offlineAuth && cachedPerms.includes('view_pos_reports'));
+  const permLoading = permLoadingRaw && !offlineAuth;
 
+  // Persist the verified permission snapshot for future offline boots
   useEffect(() => {
-    if (ctxOutlet || !vendorId) return;
-    let cancelled = false;
-    (async () => {
-      const storedId = (() => {
-        try { return localStorage.getItem(`selected_outlet_${vendorId}`); } catch { return null; }
-      })();
-      const { data } = await supabase
-        .from('vendor_outlets')
-        .select('id, outlet_name, outlet_surname, is_default')
-        .eq('vendor_id', vendorId)
-        .order('is_default', { ascending: false })
-        .order('created_at', { ascending: true });
-      if (cancelled || !data || data.length === 0) return;
-      const match = (storedId && data.find((o) => o.id === storedId)) || data.find((o: any) => o.is_default) || data[0];
-      if (match) setFallbackOutlet(match as any);
-    })();
-    return () => { cancelled = true; };
-  }, [ctxOutlet, vendorId]);
-
-  const { hasPermission, loading: permLoading } = useVendorPermissions(vendorId);
-  const canUsePos = hasPermission('use_pos');
-  const canViewReports = hasPermission('view_pos_reports');
+    if (!vendorId || !role || !navigator.onLine) return;
+    writeBootstrap({ vendorId, role, permissions: permissions as string[], verifiedAt: new Date().toISOString() });
+  }, [vendorId, role, permissions]);
 
   const [vendor, setVendor] = useState<{ id: string; name: string; address: string | null; phone: string | null; category: string; logo_url: string | null } | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
@@ -173,8 +160,25 @@ export default function VendorPos() {
   const [unitPickerProduct, setUnitPickerProduct] = useState<Product | null>(null);
   const [posPricing, setPosPricing] = useState<PosOutletPricingConfig>({ pos_pricing_mode: 'same', pos_global_discount_pct: 0 });
 
-  const { session, openSession, closeSession, recordSale } = usePosSession(vendorId, outletId);
-  const { isOnline, queue: offlineQueue, syncing, enqueue: enqueueOfflineSale, syncQueue } = usePosOfflineQueue(vendorId);
+  const { session, openSession, closeSession, recordSale, ensureServerSession, flushSessionClose } =
+    usePosSession(vendorId, outletId, { id: bootstrap.cashierId, name: bootstrap.cashierName });
+  const {
+    isOnline,
+    queue: offlineQueue,
+    pendingCount,
+    reviewCount,
+    syncing,
+    lastSyncAt,
+    enqueue: enqueueOfflineSale,
+    syncQueue,
+  } = usePosOfflineQueue(vendorId, { ensureServerSession, flushSessionClose });
+
+  // Local stock consumed by sales that have not synced yet
+  const [reservations, setReservations] = useState<Record<string, number>>({});
+  useEffect(() => {
+    if (!vendorId) return;
+    setReservations(readStockReservations(vendorId));
+  }, [vendorId, offlineQueue.length]);
   const { packs: takeawayPacks, getApplicablePacks } = useTakeawayPacks(vendorId);
   const [carryoutMode, setCarryoutMode] = useState(false);
 
@@ -255,7 +259,14 @@ export default function VendorPos() {
     // Hydrate from cache instantly so the grid works offline / on slow networks
     const cachedV = readCachedVendor(vendorId);
     if (cachedV) setVendor(cachedV);
-    const cachedP = readCachedProducts(vendorId);
+    const cachedCatalog = readCatalog(vendorId);
+    if (cachedCatalog?.combos?.length) {
+      setCombos(cachedCatalog.combos.filter((x: any) => !outletId || x.outlet_id === outletId || !x.outlet_id));
+    }
+    if (cachedCatalog?.posPricing) setPosPricing(cachedCatalog.posPricing);
+    const cachedP = readCachedProducts(vendorId) || (cachedCatalog?.products?.length
+      ? { cachedAt: cachedCatalog.cachedAt, products: cachedCatalog.products }
+      : null);
     if (cachedP?.products) {
       const filteredCached = cachedP.products.filter((x: any) => !outletId || x.outlet_id === outletId || !x.outlet_id);
       setProducts(filteredCached);
@@ -310,6 +321,25 @@ export default function VendorPos() {
           setProducts(filtered as any);
         }
         setCombos(((comboRows as any[]) || []).filter((x: any) => !outletId || x.outlet_id === outletId || !x.outlet_id));
+        // Durable snapshot so a cold offline start has everything it needs
+        mergeCatalog(vendorId, {
+          products: (p as any[])?.map(x => ({ ...x, outlet_in_store_price: overrideMap[x.id] ?? null })) || [],
+          combos: (comboRows as any[]) || [],
+          posPricing: outletRes?.data
+            ? {
+                pos_pricing_mode: (outletRes.data as any).pos_pricing_mode ?? 'same',
+                pos_global_discount_pct: Number((outletRes.data as any).pos_global_discount_pct ?? 0),
+              }
+            : { pos_pricing_mode: 'same', pos_global_discount_pct: 0 },
+          outletId,
+        });
+        writeBootstrap({
+          vendorId,
+          vendor: (v as any) ?? undefined,
+          outlet: selectedOutlet ? { id: selectedOutlet.id, outlet_name: (selectedOutlet as any).outlet_name ?? null, outlet_surname: (selectedOutlet as any).outlet_surname ?? null } : null,
+          catalogSyncedAt: new Date().toISOString(),
+          verifiedAt: new Date().toISOString(),
+        });
       } catch {
         // Network failed mid-fetch — keep cached data
       } finally {
@@ -389,11 +419,17 @@ export default function VendorPos() {
     }));
   }, [posPricing, products]);
 
+  const effectiveProducts = useMemo(() => products.map(p => {
+    const reserved = reservations[p.id] || 0;
+    if (!reserved || !p.track_stock) return p;
+    return { ...p, stock_quantity: Math.max(0, (p.stock_quantity ?? 0) - reserved) };
+  }), [products, reservations]);
+
   const filtered = useMemo(() => {
-    if (!search.trim()) return products.filter(p => p.is_available !== false);
+    if (!search.trim()) return effectiveProducts.filter(p => p.is_available !== false);
     const q = search.toLowerCase();
-    return products.filter(p => p.name.toLowerCase().includes(q));
-  }, [products, search]);
+    return effectiveProducts.filter(p => p.name.toLowerCase().includes(q));
+  }, [effectiveProducts, search]);
 
   const filteredCombos = useMemo(() => {
     const available = combos.filter(c => c.is_available !== false);
@@ -666,13 +702,23 @@ export default function VendorPos() {
     };
 
     const queueOffline = (reason?: string) => {
+      // Track stock consumed locally so a second offline sale cannot oversell
+      const stockConsumed: Record<string, number> = {};
+      cart.forEach(c => {
+        if (c.isCombo) return;
+        const prod = products.find(x => x.id === c.productId);
+        if (!prod?.track_stock) return;
+        stockConsumed[c.productId] = (stockConsumed[c.productId] || 0) + c.qty * c.unitMultiplier;
+      });
+
       enqueueOfflineSale({
         payload: {
-          order: orderPayload,
+          order: { ...orderPayload, created_at: new Date().toISOString() },
           items: itemPayloads,
-          walletDebit: data.paymentMethod === 'wallet' && data.customerUserId
-            ? { customerUserId: data.customerUserId, amount: subtotal, vendorName: vendor.name }
-            : undefined,
+          localSessionId: String(session.id).startsWith('local-session-')
+            ? (session as any).local_session_id || session.id
+            : null,
+          stockConsumed,
           sessionUpdate: {
             sessionId: session.id,
             amount: subtotal,
@@ -680,8 +726,12 @@ export default function VendorPos() {
           },
         },
       });
-      // Optimistically reflect in the open shift totals so cashier sees them
-      recordSale(subtotal, data.paymentMethod).catch(() => {});
+      if (vendorId && Object.keys(stockConsumed).length > 0) {
+        setReservations(reserveStock(vendorId, stockConsumed));
+      }
+      // Mirror the shift totals locally only — the authoritative increment
+      // happens once, server-side, when this sale syncs.
+      recordSale(subtotal, data.paymentMethod, true).catch(() => {});
       finishLocal(true);
       if (reason) console.warn('[POS] queued offline:', reason);
     };
