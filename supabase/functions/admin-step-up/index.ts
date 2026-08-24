@@ -54,16 +54,36 @@ Deno.serve(async (req) => {
       });
     }
 
-    const action = String(body?.action ?? "");
-    if (!ALLOWED_ACTIONS.has(action)) throw new HttpError("Unknown sensitive action", 400);
+    // A single verified code may approve one action, or one bundle of related actions
+    // (e.g. a refund reversal that debits one wallet and credits another).
+    const requests: Array<{ action: string; targetType?: string; targetId?: string }> =
+      Array.isArray(body?.requests) && body.requests.length > 0
+        ? body.requests
+        : [{ action: body?.action, targetType: body?.targetType, targetId: body?.targetId }];
 
-    const targetType = body?.targetType ? String(body.targetType) : null;
-    const targetId = body?.targetId ? String(body.targetId) : null;
+    if (requests.length > 5) throw new HttpError("Too many actions in one approval", 400);
+    for (const r of requests) {
+      if (!ALLOWED_ACTIONS.has(String(r?.action ?? ""))) {
+        throw new HttpError("Unknown sensitive action", 400);
+      }
+    }
 
     await verifyTotpCode(svc, caller.id, body?.code);
 
     const meta = requestMeta(req);
-    const { token, expiresAt } = await issueStepUpToken(svc, caller.id, action, targetType, targetId, meta);
+    const issued: Array<{ token: string; expiresAt: string }> = [];
+    for (const r of requests) {
+      issued.push(
+        await issueStepUpToken(
+          svc,
+          caller.id,
+          String(r.action),
+          r.targetType ? String(r.targetType) : null,
+          r.targetId ? String(r.targetId) : null,
+          meta,
+        ),
+      );
+    }
 
     await svc.from("admin_sensitive_audit").insert({
       actor_id: caller.id,
@@ -72,16 +92,20 @@ Deno.serve(async (req) => {
       actor_name: caller.name,
       action: "step_up_verified",
       category: "security",
-      target_type: targetType,
-      target_id: targetId,
-      new_value: { for_action: action },
+      target_type: requests[0].targetType ?? null,
+      target_id: requests[0].targetId ?? null,
+      new_value: { for_actions: requests.map((r) => ({ action: r.action, target_id: r.targetId ?? null })) },
       ip_address: meta.ip,
       user_agent: meta.userAgent,
       outcome: "success",
       auth_method: "totp",
     });
 
-    return jsonResponse({ token, expiresAt });
+    return jsonResponse({
+      token: issued[0].token,
+      expiresAt: issued[0].expiresAt,
+      tokens: issued.map((i) => i.token),
+    });
   } catch (err) {
     const status = err instanceof HttpError ? err.status : 500;
     const message = err instanceof Error ? err.message : "Unknown error";
