@@ -280,7 +280,6 @@ const App = () => {
               <Route path="/vouchers" element={<VouchersList />} />
               <Route path="/vouchers/my" element={<MyVouchers />} />
               <Route path="/vouchers/:id" element={<VoucherCategory />} />
-              <Route path="/admin/voucher-hub" element={<AdminVoucherHub />} />
               {/* Public voucher storefront (no login) */}
               <Route path="/v/:slug" element={<VoucherStorefront />} />
               <Route path="/v/:slug/success" element={<VoucherStorefrontSuccess />} />
@@ -296,70 +295,74 @@ const App = () => {
               <Route path="/rider/support" element={<RiderSupport />} />
               {/* Admin Portal Routes */}
               <Route path="/admin/auth" element={<AdminAuth />} />
-              <Route path="/admin/dashboard" element={<AdminDashboard />} />
-              <Route path="/admin/orders" element={<AdminOrders />} />
-              <Route path="/admin/assisted-orders" element={<AssistedOrdersList />} />
-              <Route path="/admin/assisted-orders/new" element={<AssistedOrderCreate />} />
-              <Route path="/admin/assisted-orders/:orderId" element={<AssistedOrderDetail />} />
-              <Route path="/admin/shadow-credits" element={<AdminShadowCredits />} />
+              {/* All admin pages behind the shared 2FA guard */}
+              <Route element={<AdminRouteGuard />}>
+                <Route path="/admin/voucher-hub" element={<AdminVoucherHub />} />
+                <Route path="/admin/dashboard" element={<AdminDashboard />} />
+                <Route path="/admin/orders" element={<AdminOrders />} />
+                <Route path="/admin/assisted-orders" element={<AssistedOrdersList />} />
+                <Route path="/admin/assisted-orders/new" element={<AssistedOrderCreate />} />
+                <Route path="/admin/assisted-orders/:orderId" element={<AssistedOrderDetail />} />
+                <Route path="/admin/shadow-credits" element={<AdminShadowCredits />} />
+                <Route path="/admin/pos-reports" element={<AdminPosReports />} />
+                <Route path="/admin/vendors" element={<AdminVendors />} />
+                <Route path="/admin/vendor-menus" element={<AdminVendorMenus />} />
+                <Route path="/admin/cuisine-categories" element={<AdminCuisineCategories />} />
+                <Route path="/admin/pharmacy-analytics" element={<AdminPharmacyAnalytics />} />
+                <Route path="/admin/riders" element={<AdminRiders />} />
+                <Route path="/admin/promos" element={<AdminPromos />} />
+                <Route path="/admin/commission-promos" element={<AdminVendorCommissionPromos />} />
+                <Route path="/admin/rewards" element={<AdminRewards />} />
+                <Route path="/admin/free-meals" element={<AdminFreeMeals />} />
+                <Route path="/admin/users" element={<AdminUsers />} />
+                <Route path="/admin/twilio-costs" element={<AdminTwilioCosts />} />
+                <Route path="/admin/call-logs" element={<AdminCallLogs />} />
+                <Route path="/admin/staff" element={<AdminStaff />} />
+                <Route path="/admin/activity-logs" element={<AdminActivityLogs />} />
+                <Route path="/admin/security" element={<AdminSecurity />} />
+                <Route path="/admin/settings" element={<AdminSettings />} />
+                <Route path="/admin/weather" element={<AdminWeatherSettings />} />
+                <Route path="/admin/surge" element={<AdminSurgeSettings />} />
+                <Route path="/admin/advertisements" element={<AdminAdvertisements />} />
+                <Route path="/admin/campaigns" element={<AdminCampaigns />} />
+                <Route path="/admin/ad-placements" element={<AdminAdPlacements />} />
+                <Route path="/admin/nutrition" element={<AdminNutrition />} />
+                <Route path="/admin/payouts" element={<AdminPayouts />} />
+                <Route path="/admin/on-hold-payments" element={<AdminOnHoldPayments />} />
+                <Route path="/admin/whatsapp" element={<AdminWhatsApp />} />
+                <Route path="/admin/phone-verification" element={<AdminPhoneVerification />} />
+                <Route path="/admin/customer-wallets" element={<AdminCustomerWallets />} />
+                <Route path="/admin/wallet-funding" element={<AdminWalletFunding />} />
+                <Route path="/admin/chargebacks" element={<AdminChargebacks />} />
+                <Route path="/admin/refund-audit" element={<AdminRefundAudit />} />
+                <Route path="/admin/ledger-audit" element={<AdminLedgerAudit />} />
+                <Route path="/admin/wallet-integrity" element={<AdminWalletIntegrity />} />
+                <Route path="/admin/reconciliation" element={<AdminReconciliation />} />
+                <Route path="/admin/disputes" element={<AdminDisputes />} />
+                <Route path="/admin/delivery-companies" element={<AdminDeliveryCompanies />} />
+                <Route path="/admin/customers" element={<AdminCustomers />} />
+                <Route path="/admin/reviews" element={<AdminReviews />} />
+                <Route path="/admin/payroll" element={<AdminPayroll />} />
+                <Route path="/admin/referrals" element={<AdminReferrals />} />
+                <Route path="/admin/expenses" element={<AdminExpenses />} />
+                <Route path="/admin/requisitions" element={<AdminRequisitions />} />
+                <Route path="/admin/legal" element={<AdminLegal />} />
+                <Route path="/admin/faq" element={<AdminFAQ />} />
+                <Route path="/admin/support" element={<AdminSupport />} />
+                <Route path="/admin/notifications" element={<AdminNotifications />} />
+                <Route path="/admin/coverage-areas" element={<AdminCoverageAreas />} />
+                <Route path="/admin/financial-tools" element={<AdminFinancialTools />} />
+                <Route path="/admin/ambassadors" element={<AdminAmbassadors />} />
+                <Route path="/admin/drug-database" element={<AdminDrugDatabase />} />
+                <Route path="/admin/events" element={<AdminEvents />} />
+                <Route path="/admin/events-analytics" element={<AdminEventsAnalytics />} />
+                <Route path="/admin/events/:id" element={<AdminEventDetail />} />
+                <Route path="/admin/events/:id/dashboard" element={<AdminEventDashboard />} />
+                <Route path="/admin/event-verify" element={<AdminEventVerify />} />
+              </Route>
               <Route path="/track/:orderNumber" element={<Track />} />
-              <Route path="/admin/pos-reports" element={<AdminPosReports />} />
-              <Route path="/admin/vendors" element={<AdminVendors />} />
-              <Route path="/admin/vendor-menus" element={<AdminVendorMenus />} />
-              <Route path="/admin/cuisine-categories" element={<AdminCuisineCategories />} />
-              <Route path="/admin/pharmacy-analytics" element={<AdminPharmacyAnalytics />} />
-              <Route path="/admin/riders" element={<AdminRiders />} />
-              <Route path="/admin/promos" element={<AdminPromos />} />
-              <Route path="/admin/commission-promos" element={<AdminVendorCommissionPromos />} />
-              <Route path="/admin/rewards" element={<AdminRewards />} />
-              <Route path="/admin/free-meals" element={<AdminFreeMeals />} />
-              <Route path="/admin/users" element={<AdminUsers />} />
-              <Route path="/admin/twilio-costs" element={<AdminTwilioCosts />} />
-              <Route path="/admin/call-logs" element={<AdminCallLogs />} />
-              <Route path="/admin/staff" element={<AdminStaff />} />
-              <Route path="/admin/activity-logs" element={<AdminActivityLogs />} />
-              <Route path="/admin/security" element={<AdminSecurity />} />
               <Route path="/admin/staff/join/:code" element={<AdminStaffJoin />} />
-              <Route path="/admin/settings" element={<AdminSettings />} />
-              <Route path="/admin/weather" element={<AdminWeatherSettings />} />
-              <Route path="/admin/surge" element={<AdminSurgeSettings />} />
-              <Route path="/admin/advertisements" element={<AdminAdvertisements />} />
-              <Route path="/admin/campaigns" element={<AdminCampaigns />} />
-              <Route path="/admin/ad-placements" element={<AdminAdPlacements />} />
-              <Route path="/admin/nutrition" element={<AdminNutrition />} />
-              <Route path="/admin/payouts" element={<AdminPayouts />} />
-              <Route path="/admin/on-hold-payments" element={<AdminOnHoldPayments />} />
-              <Route path="/admin/whatsapp" element={<AdminWhatsApp />} />
-              <Route path="/admin/phone-verification" element={<AdminPhoneVerification />} />
-              <Route path="/admin/customer-wallets" element={<AdminCustomerWallets />} />
-              <Route path="/admin/wallet-funding" element={<AdminWalletFunding />} />
-              <Route path="/admin/chargebacks" element={<AdminChargebacks />} />
-              <Route path="/admin/refund-audit" element={<AdminRefundAudit />} />
-              <Route path="/admin/ledger-audit" element={<AdminLedgerAudit />} />
-              <Route path="/admin/wallet-integrity" element={<AdminWalletIntegrity />} />
-              <Route path="/admin/reconciliation" element={<AdminReconciliation />} />
-              <Route path="/admin/disputes" element={<AdminDisputes />} />
-              <Route path="/admin/delivery-companies" element={<AdminDeliveryCompanies />} />
-              <Route path="/admin/customers" element={<AdminCustomers />} />
-              <Route path="/admin/reviews" element={<AdminReviews />} />
-              <Route path="/admin/payroll" element={<AdminPayroll />} />
-              <Route path="/admin/referrals" element={<AdminReferrals />} />
-              <Route path="/admin/expenses" element={<AdminExpenses />} />
-              <Route path="/admin/requisitions" element={<AdminRequisitions />} />
-              <Route path="/admin/legal" element={<AdminLegal />} />
-              <Route path="/admin/faq" element={<AdminFAQ />} />
-              <Route path="/admin/support" element={<AdminSupport />} />
-              <Route path="/admin/notifications" element={<AdminNotifications />} />
-              <Route path="/admin/coverage-areas" element={<AdminCoverageAreas />} />
-              <Route path="/admin/financial-tools" element={<AdminFinancialTools />} />
-              <Route path="/admin/ambassadors" element={<AdminAmbassadors />} />
-              <Route path="/admin/drug-database" element={<AdminDrugDatabase />} />
               {/* Admin Events */}
-              <Route path="/admin/events" element={<AdminEvents />} />
-              <Route path="/admin/events-analytics" element={<AdminEventsAnalytics />} />
-              <Route path="/admin/events/:id" element={<AdminEventDetail />} />
-              <Route path="/admin/events/:id/dashboard" element={<AdminEventDashboard />} />
-              <Route path="/admin/event-verify" element={<AdminEventVerify />} />
               {/* Organizer Portal (public via secret token) */}
               <Route path="/organizer/:token" element={<OrganizerPortal />} />
               <Route path="/organizer/:token/verify" element={<OrganizerVerify />} />
