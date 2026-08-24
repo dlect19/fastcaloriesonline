@@ -276,8 +276,16 @@ const handler = async (req: Request): Promise<Response> => {
         user_metadata: { full_name: fullName },
       });
       if (createError || !newUser?.user) {
-        throw new HttpError(`Failed to create user account: ${createError?.message ?? "unknown"}`, 400);
+        const msg = createError?.message ?? "unknown";
+        if (/already been registered|already exists/i.test(msg)) {
+          throw new HttpError(
+            "An account already exists for this email. Use the same email in the staff list to update the role, or pick a different email.",
+            409,
+          );
+        }
+        throw new HttpError(`Failed to create user account: ${msg}`, 400);
       }
+
       userId = newUser.user.id;
     }
 
