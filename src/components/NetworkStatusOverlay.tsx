@@ -26,6 +26,29 @@ export function NetworkStatusOverlay() {
     };
   }, []);
 
+  // Track route changes (this overlay lives outside the router)
+  useEffect(() => {
+    const sync = () => setPath(window.location.pathname);
+    const origPush = window.history.pushState;
+    const origReplace = window.history.replaceState;
+    window.history.pushState = function (...args) {
+      const r = origPush.apply(this, args as any);
+      sync();
+      return r;
+    };
+    window.history.replaceState = function (...args) {
+      const r = origReplace.apply(this, args as any);
+      sync();
+      return r;
+    };
+    window.addEventListener('popstate', sync);
+    return () => {
+      window.history.pushState = origPush;
+      window.history.replaceState = origReplace;
+      window.removeEventListener('popstate', sync);
+    };
+  }, []);
+
   const handleRetry = useCallback(async () => {
     setIsRetrying(true);
     try {
@@ -38,7 +61,10 @@ export function NetworkStatusOverlay() {
     }
   }, []);
 
-  if (!isOffline) return null;
+  const offlineCapableRoute = OFFLINE_CAPABLE_ROUTES.some(r => path.startsWith(r));
+
+  if (!isOffline || offlineCapableRoute) return null;
+
 
   return (
     <div className="fixed inset-0 z-[9999] bg-background flex flex-col items-center justify-center p-6 text-center">
