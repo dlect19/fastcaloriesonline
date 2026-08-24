@@ -10,6 +10,7 @@ import { Eye, EyeOff, Loader2, Shield } from 'lucide-react';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
 import { ForgotPasswordModal } from '@/components/auth/ForgotPasswordModal';
 import { Admin2FAChallenge } from '@/components/admin/Admin2FAChallenge';
+import { clearAdmin2FASession, validateAdmin2FASession } from '@/lib/adminSession';
 
 type Stage = 'password' | '2fa';
 
@@ -31,10 +32,10 @@ export default function AdminAuth() {
     if (user) {
       const { data: roles } = await supabase.from('user_roles').select('role').eq('user_id', user.id);
       if (roles?.some(r => r.role === 'admin')) {
-        // Already signed in — but only navigate if there's a 2fa session marker
-        if (sessionStorage.getItem('admin_2fa_passed') === user.id) {
-          navigate('/admin/dashboard');
-        }
+        // Already signed in — only continue if this login already passed 2FA (server-validated).
+        const { valid } = await validateAdmin2FASession(user.id);
+        if (valid) navigate('/admin/dashboard');
+        else clearAdmin2FASession();
       }
     }
   };
@@ -57,19 +58,12 @@ export default function AdminAuth() {
       const { data: init, error: initErr } = await supabase.functions.invoke('admin-2fa-initiate', { body: {} });
       if (initErr) throw initErr;
 
-      if (!init?.required) {
-        // Non-super admin: skip 2FA
-        sessionStorage.setItem('admin_2fa_passed', data.user.id);
-        toast({ title: 'Welcome, Admin!' });
-        navigate('/admin/dashboard');
-        return;
-      }
       if (init.locked) {
         await supabase.auth.signOut();
         toast({ title: 'Account locked', description: `Try again after ${new Date(init.locked_until).toLocaleTimeString()}`, variant: 'destructive' });
         return;
       }
-      setTwoFAMethod(init.method);
+      setTwoFAMethod(init.method || 'email');
       setStage('2fa');
     } catch (error: any) {
       toast({ title: 'Login failed', description: error.message, variant: 'destructive' });
@@ -80,14 +74,12 @@ export default function AdminAuth() {
 
   const onCancel2FA = async () => {
     await supabase.auth.signOut();
-    sessionStorage.removeItem('admin_2fa_passed');
+    clearAdmin2FASession();
     setStage('password');
     setPassword('');
   };
 
   const onVerified = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) sessionStorage.setItem('admin_2fa_passed', user.id);
     toast({ title: 'Welcome, Admin!' });
     navigate('/admin/dashboard');
   };
