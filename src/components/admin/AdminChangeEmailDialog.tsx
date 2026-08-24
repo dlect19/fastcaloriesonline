@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Mail, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAdminStepUp } from '@/components/admin/AdminStepUpDialog';
 
 interface AdminChangeEmailDialogProps {
   open: boolean;
@@ -16,6 +17,7 @@ interface AdminChangeEmailDialogProps {
 
 export function AdminChangeEmailDialog({ open, onOpenChange, userId, userName }: AdminChangeEmailDialogProps) {
   const { toast } = useToast();
+  const { requireStepUp, stepUpDialog } = useAdminStepUp();
   const [newEmail, setNewEmail] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -27,8 +29,14 @@ export function AdminChangeEmailDialog({ open, onOpenChange, userId, userName }:
 
     setLoading(true);
     try {
+      const stepUpToken = await requireStepUp({
+        action: 'user_email_change',
+        targetType: 'user',
+        targetId: userId,
+        label: `Change login email for ${userName}`,
+      });
       const res = await supabase.functions.invoke('admin-update-user-email', {
-        body: { userId, newEmail: newEmail.trim() },
+        body: { userId, newEmail: newEmail.trim(), stepUpToken },
       });
 
       if (res.error) throw new Error(res.error.message);
@@ -42,6 +50,7 @@ export function AdminChangeEmailDialog({ open, onOpenChange, userId, userName }:
       onOpenChange(false);
       setNewEmail('');
     } catch (err: any) {
+      if (err?.message === 'step_up_cancelled') { setLoading(false); return; }
       toast({ title: 'Error', description: err.message || 'Failed to update email', variant: 'destructive' });
     } finally {
       setLoading(false);
@@ -50,6 +59,7 @@ export function AdminChangeEmailDialog({ open, onOpenChange, userId, userName }:
 
   return (
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) setNewEmail(''); }}>
+      {stepUpDialog}
       <DialogContent className="sm:max-w-[420px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
