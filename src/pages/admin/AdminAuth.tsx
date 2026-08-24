@@ -27,18 +27,24 @@ export default function AdminAuth() {
 
   useEffect(() => { checkUser(); }, []);
 
+  const hasAdminAccess = async (userId: string) => {
+    const [{ data: roles }, { data: staff }] = await Promise.all([
+      supabase.from('user_roles').select('role').eq('user_id', userId),
+      supabase.from('admin_staff').select('role').eq('user_id', userId).eq('is_active', true).maybeSingle(),
+    ]);
+    return !!roles?.some(r => r.role === 'admin') || !!staff;
+  };
+
   const checkUser = async () => {
     const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data: roles } = await supabase.from('user_roles').select('role').eq('user_id', user.id);
-      if (roles?.some(r => r.role === 'admin')) {
-        // Already signed in — only continue if this login already passed 2FA (server-validated).
-        const { valid } = await validateAdmin2FASession(user.id);
-        if (valid) navigate('/admin/dashboard');
-        else clearAdmin2FASession();
-      }
+    if (user && await hasAdminAccess(user.id)) {
+      // Already signed in — only continue if this login already passed 2FA (server-validated).
+      const { valid } = await validateAdmin2FASession(user.id);
+      if (valid) navigate('/admin/dashboard');
+      else clearAdmin2FASession();
     }
   };
+
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
