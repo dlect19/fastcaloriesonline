@@ -226,10 +226,23 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log(`Creating ${platform} staff account (actor: ${actorLabel})`);
 
-    // Check if user already exists
-    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
+    // Check if user already exists (paginate — a single listUsers page only covers the newest users)
+    const targetEmail = email.trim().toLowerCase();
     // deno-lint-ignore no-explicit-any
-    const existingUser = existingUsers?.users?.find((u: any) => u.email === email);
+    let existingUser: any = null;
+    for (let page = 1; page <= 40; page++) {
+      const { data: pageData, error: listErr } = await supabaseAdmin.auth.admin.listUsers({
+        page,
+        perPage: 200,
+      });
+      if (listErr) throw new HttpError(`Could not look up existing accounts: ${listErr.message}`, 500);
+      const users = pageData?.users ?? [];
+      // deno-lint-ignore no-explicit-any
+      const found = users.find((u: any) => (u.email ?? "").toLowerCase() === targetEmail);
+      if (found) { existingUser = found; break; }
+      if (users.length < 200) break;
+    }
+
 
     let userId: string;
 
@@ -263,8 +276,16 @@ const handler = async (req: Request): Promise<Response> => {
         user_metadata: { full_name: fullName },
       });
       if (createError || !newUser?.user) {
-        throw new HttpError(`Failed to create user account: ${createError?.message ?? "unknown"}`, 400);
+        const msg = createError?.message ?? "unknown";
+        if (/already been registered|already exists/i.test(msg)) {
+          throw new HttpError(
+            "An account already exists for this email. Use the same email in the staff list to update the role, or pick a different email.",
+            409,
+          );
+        }
+        throw new HttpError(`Failed to create user account: ${msg}`, 400);
       }
+
       userId = newUser.user.id;
     }
 
