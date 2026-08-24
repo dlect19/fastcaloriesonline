@@ -55,13 +55,16 @@ export async function getStepUpStatus(): Promise<{ enrolled: boolean; isSuperAdm
  * Exchange a 6-digit authenticator code for a short-lived, single-use step-up token.
  * The code is never stored client-side.
  */
-export async function requestStepUpToken(req: StepUpRequest, code: string): Promise<string> {
+export async function requestStepUpToken(req: StepUpRequest | StepUpRequest[], code: string): Promise<string[]> {
+  const reqs = Array.isArray(req) ? req : [req];
   const { data, error } = await supabase.functions.invoke('admin-step-up', {
     body: {
       mode: 'verify',
-      action: req.action,
-      targetType: req.targetType ?? null,
-      targetId: req.targetId ?? null,
+      requests: reqs.map((r) => ({
+        action: r.action,
+        targetType: r.targetType ?? null,
+        targetId: r.targetId ?? null,
+      })),
       code,
     },
   });
@@ -76,9 +79,9 @@ export async function requestStepUpToken(req: StepUpRequest, code: string): Prom
     throw new Error(message);
   }
   if ((data as any)?.error) throw new Error((data as any).error);
-  const token = (data as any)?.token;
-  if (!token) throw new Error('Verification failed');
-  return token as string;
+  const tokens = (data as any)?.tokens ?? ((data as any)?.token ? [(data as any).token] : []);
+  if (!tokens.length) throw new Error('Verification failed');
+  return tokens as string[];
 }
 
 export interface WalletAdjustArgs {

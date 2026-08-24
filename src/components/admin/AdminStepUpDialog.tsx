@@ -8,8 +8,10 @@ import { KeyRound, Loader2, ShieldAlert } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { requestStepUpToken, STEP_UP_LABELS, type StepUpRequest } from '@/lib/adminSecurity';
 
-interface PendingRequest extends StepUpRequest {
-  resolve: (token: string) => void;
+interface PendingRequest {
+  requests: StepUpRequest[];
+  label?: string;
+  resolve: (tokens: string[]) => void;
   reject: (err: Error) => void;
 }
 
@@ -26,9 +28,22 @@ export function useAdminStepUp() {
 
   useEffect(() => () => pendingRef.current?.reject(new Error('step_up_cancelled')), []);
 
+  /** Challenge for one sensitive action. Resolves with a single-use step-up token. */
   const requireStepUp = useCallback((req: StepUpRequest) => {
     return new Promise<string>((resolve, reject) => {
-      setPending({ ...req, resolve, reject });
+      setPending({
+        requests: [req],
+        label: req.label,
+        resolve: (tokens) => resolve(tokens[0]),
+        reject,
+      });
+    });
+  }, []);
+
+  /** Challenge once for a bundle of related actions (e.g. debit one wallet + credit another). */
+  const requireStepUpMany = useCallback((requests: StepUpRequest[], label?: string) => {
+    return new Promise<string[]>((resolve, reject) => {
+      setPending({ requests, label, resolve, reject });
     });
   }, []);
 
@@ -39,7 +54,7 @@ export function useAdminStepUp() {
     />
   );
 
-  return { requireStepUp, stepUpDialog };
+  return { requireStepUp, requireStepUpMany, stepUpDialog };
 }
 
 function AdminStepUpDialog({ request, onClose }: { request: PendingRequest | null; onClose: () => void }) {
@@ -64,8 +79,8 @@ function AdminStepUpDialog({ request, onClose }: { request: PendingRequest | nul
     setBusy(true);
     setError(null);
     try {
-      const token = await requestStepUpToken(request, code);
-      request.resolve(token);
+      const tokens = await requestStepUpToken(request.requests, code);
+      request.resolve(tokens);
       onClose();
     } catch (e: any) {
       setError(e?.message || 'Verification failed');
@@ -86,7 +101,7 @@ function AdminStepUpDialog({ request, onClose }: { request: PendingRequest | nul
           <DialogDescription>
             Enter the current 6-digit code from your authenticator app to approve:{' '}
             <span className="font-medium text-foreground">
-              {request?.label || (request ? STEP_UP_LABELS[request.action] : '')}
+              {request?.label || (request ? request.requests.map((r) => STEP_UP_LABELS[r.action]).join(' + ') : '')}
             </span>
           </DialogDescription>
         </DialogHeader>
