@@ -200,7 +200,7 @@ export default function AdminCustomers() {
           wallet = newWallet;
         }
 
-        const { error } = await supabase.rpc('admin_adjust_wallet_balance' as any, {
+        const { error } = await adminAdjustWallet(requireStepUp, {
           p_wallet_id: wallet!.id,
           p_amount: amount,
           p_adjust_type: 'credit',

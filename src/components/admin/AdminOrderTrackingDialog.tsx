@@ -631,23 +631,13 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
 
           // Credit rider balance
           const isTest = activeOrder.environment === 'development';
-          if (isTest) {
-            await supabase.rpc('admin_adjust_wallet_balance', {
-              p_wallet_id: riderWallet.id,
-              p_amount: bonusVal,
-              p_adjust_type: 'credit',
-              p_notes: `Rescue bonus for order #${activeOrder.order_number}`,
-              p_environment: 'development',
-            });
-          } else {
-            await supabase.rpc('admin_adjust_wallet_balance', {
-              p_wallet_id: riderWallet.id,
-              p_amount: bonusVal,
-              p_adjust_type: 'credit',
-              p_notes: `Rescue bonus for order #${activeOrder.order_number}`,
-              p_environment: 'production',
-            });
-          }
+          await adminAdjustWallet(requireStepUp, {
+            p_wallet_id: riderWallet.id,
+            p_amount: bonusVal,
+            p_adjust_type: 'credit',
+            p_notes: `Rescue bonus for order #${activeOrder.order_number}`,
+            p_environment: isTest ? 'development' : 'production',
+          });
         }
       }
 

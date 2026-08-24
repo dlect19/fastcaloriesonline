@@ -270,10 +270,10 @@ export default function AdminCustomerWallets() {
 
     setAdjusting(true);
     try {
-      const { data, error } = await supabase.rpc('admin_adjust_wallet_balance' as any, {
+      const { data, error } = await adminAdjustWallet(requireStepUp, {
         p_wallet_id: selectedWallet.id,
         p_amount: amount,
-        p_adjust_type: adjustType,
+        p_adjust_type: adjustType as 'credit' | 'debit',
         p_notes: adjustNotes,
         p_environment: isTestMode ? 'development' : 'production',
         p_reference: adjustReference || null,

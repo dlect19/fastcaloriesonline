@@ -80,3 +80,30 @@ export async function requestStepUpToken(req: StepUpRequest, code: string): Prom
   if (!token) throw new Error('Verification failed');
   return token as string;
 }
+
+export interface WalletAdjustArgs {
+  p_wallet_id: string;
+  p_amount: number;
+  p_adjust_type: 'credit' | 'debit';
+  p_notes?: string;
+  p_environment?: string;
+  p_reference?: string | null;
+}
+
+/**
+ * Manual wallet money movement. The database function refuses to run without a fresh
+ * authenticator step-up token, so this always challenges the admin first.
+ */
+export async function adminAdjustWallet(
+  requireStepUp: (req: StepUpRequest) => Promise<string>,
+  args: WalletAdjustArgs,
+) {
+  const action: StepUpAction = args.p_adjust_type === 'credit' ? 'wallet_credit' : 'wallet_debit';
+  const token = await requireStepUp({
+    action,
+    targetType: 'wallet',
+    targetId: args.p_wallet_id,
+    label: `${args.p_adjust_type === 'credit' ? 'Credit' : 'Debit'} ₦${Number(args.p_amount).toLocaleString()}`,
+  });
+  return await supabase.rpc('admin_adjust_wallet_balance' as any, { ...args, p_step_up_token: token });
+}
