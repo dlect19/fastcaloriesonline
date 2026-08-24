@@ -1631,5 +1631,6 @@ export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated 
         </div>
       </DialogContent>
     </Dialog>
+    </>
   );
 }
