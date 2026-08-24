@@ -38,8 +38,8 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    if (!(await isSuperAdmin(supabase, userId))) {
-      return new Response(JSON.stringify({ required: false, message: '2FA not required' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    if (!(await isAdmin(supabase, userId))) {
+      return new Response(JSON.stringify({ error: 'forbidden', message: 'Not an admin account' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     // Lockout check
