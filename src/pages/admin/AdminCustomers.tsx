@@ -11,6 +11,8 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Search, Loader2, Users, ShoppingBag, Wallet, Plus, BadgeCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAdminStepUp } from '@/components/admin/AdminStepUpDialog';
+import { adminAdjustWallet } from '@/lib/adminSecurity';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 import { format } from 'date-fns';
 import { PaginationControls } from '@/components/shared/PaginationControls';
@@ -35,6 +37,7 @@ import { Shield } from 'lucide-react';
 export default function AdminCustomers() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { requireStepUp, stepUpDialog } = useAdminStepUp();
   const { isTestMode, loading: envLoading } = useEnvironmentConfig();
   const [loading, setLoading] = useState(true);
   const [customers, setCustomers] = useState<Customer[]>([]);

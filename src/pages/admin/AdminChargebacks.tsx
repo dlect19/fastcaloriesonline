@@ -14,6 +14,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TransactionHistory } from '@/components/shared/TransactionHistory';
 import { useToast } from '@/hooks/use-toast';
+import { useAdminStepUp } from '@/components/admin/AdminStepUpDialog';
+import { adminAdjustWallet } from '@/lib/adminSecurity';
 import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 import { Separator } from '@/components/ui/separator';
 import { Search, Wallet, AlertCircle, Minus, Eye, AlertTriangle, Store, Bike, Truck, Loader2, SearchCheck } from 'lucide-react';
@@ -42,6 +44,7 @@ export default function AdminChargebacks() {
   const isAdmin = !!role;
   const { isTestMode } = useEnvironmentConfig();
   const { toast } = useToast();
+  const { requireStepUp, stepUpDialog } = useAdminStepUp();
 
   const [activeTab, setActiveTab] = useState('vendor');
   const [wallets, setWallets] = useState<EntityWallet[]>([]);

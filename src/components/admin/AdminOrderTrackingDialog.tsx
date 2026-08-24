@@ -23,6 +23,8 @@ import { useCall } from '@/components/call/CallProvider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAdminStepUp } from '@/components/admin/AdminStepUpDialog';
+import { adminAdjustWallet } from '@/lib/adminSecurity';
 import { format } from 'date-fns';
 import { OrderPhotoEvidence } from '@/components/admin/OrderPhotoEvidence';
 import { logActivity } from '@/hooks/useAdminActivityLogger';
@@ -149,6 +151,7 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
 
 export function AdminOrderTrackingDialog({ open, onOpenChange, order, onUpdated }: Props) {
   const { toast } = useToast();
+  const { requireStepUp, stepUpDialog } = useAdminStepUp();
   const { startCall } = useCall();
 
 
