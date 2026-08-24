@@ -446,6 +446,7 @@ function ReverseRefundTool() {
         )}
       </CardContent>
     </Card>
+    </>
   );
 }
 
@@ -858,5 +859,6 @@ function BonusTopupTool() {
         )}
       </CardContent>
     </Card>
+    </>
   );
 }
