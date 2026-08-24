@@ -258,6 +258,7 @@ export default function AdminCustomers() {
   
     return (
     <AdminLayout>
+          {stepUpDialog}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-foreground">Customers</h1>
             <p className="text-muted-foreground">View all platform customers</p>

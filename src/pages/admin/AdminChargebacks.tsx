@@ -376,7 +376,7 @@ export default function AdminChargebacks() {
         }
       }
 
-      const { data, error } = await supabase.rpc('admin_adjust_wallet_balance' as any, {
+      const { data, error } = await adminAdjustWallet(requireStepUp, {
         p_wallet_id: selectedWallet.id,
         p_amount: amount,
         p_adjust_type: 'debit',
@@ -442,6 +442,7 @@ export default function AdminChargebacks() {
 
   return (
     <AdminLayout>
+        {stepUpDialog}
         <div className="max-w-7xl mx-auto space-y-6">
           <div>
             <h1 className="text-2xl font-bold">Chargebacks & Wallet Debits</h1>
