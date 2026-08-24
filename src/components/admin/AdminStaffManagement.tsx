@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAdminStepUp } from '@/components/admin/AdminStepUpDialog';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -129,6 +130,7 @@ const ROLE_COLORS: Record<AdminStaffRole, string> = {
 
 export function AdminStaffManagement() {
   const { toast } = useToast();
+  const { requireStepUp, stepUpDialog } = useAdminStepUp();
   const [staff, setStaff] = useState<AdminStaffMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
@@ -183,14 +185,21 @@ export function AdminStaffManagement() {
   const saveRolePermissions = async () => {
     setSavingPerms(true);
     try {
-      const { error } = await supabase
-        .from('platform_settings')
-        .upsert({ 
-          key: 'admin_role_permissions', 
+      const stepUpToken = await requireStepUp({
+        action: 'platform_setting_write',
+        targetType: 'platform_setting',
+        targetId: 'admin_role_permissions',
+        label: 'Change admin role permissions',
+      });
+      const { data, error } = await supabase.functions.invoke('admin-platform-setting', {
+        body: {
+          key: 'admin_role_permissions',
           value: JSON.stringify(rolePermissions),
-          description: 'Custom permission overrides for admin staff roles'
-        }, { onConflict: 'key' });
+          stepUpToken,
+        },
+      });
       if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
       toast({ title: 'Role permissions saved!' });
     } catch (err: any) {
       toast({ title: 'Error saving permissions', description: err.message, variant: 'destructive' });
@@ -247,8 +256,8 @@ export function AdminStaffManagement() {
       toast({ title: 'Please enter the admin name', variant: 'destructive' });
       return;
     }
-    if (!invitePassword || invitePassword.length < 6) {
-      toast({ title: 'Password must be at least 6 characters', variant: 'destructive' });
+    if (!invitePassword || invitePassword.length < 8) {
+      toast({ title: 'Password must be at least 8 characters', variant: 'destructive' });
       return;
     }
 
@@ -263,6 +272,11 @@ export function AdminStaffManagement() {
         .eq('user_id', user?.id)
         .single();
 
+      const stepUpToken = await requireStepUp({
+        action: 'staff_create',
+        label: `Create admin account for ${inviteEmail}`,
+      });
+
       const { data, error } = await supabase.functions.invoke('create-staff-account', {
         body: {
           email: inviteEmail,
@@ -271,7 +285,7 @@ export function AdminStaffManagement() {
           role: newRole,
           platform: 'admin',
           inviterName: inviterProfile?.full_name,
-          inviterId: user?.id
+          stepUpToken,
         }
       });
 
@@ -305,43 +319,51 @@ export function AdminStaffManagement() {
     setNewRole('support');
   };
 
+  /** All admin_staff mutations go through the hardened edge function (fresh TOTP + audit). */
+  const runStaffAction = async (
+    staffId: string,
+    action: 'update_role' | 'set_active' | 'remove',
+    payload: { role?: AdminStaffRole; isActive?: boolean },
+    label: string,
+  ) => {
+    const stepUpToken = await requireStepUp({
+      action: action === 'remove' ? 'staff_delete' : 'staff_update',
+      targetType: 'admin_staff',
+      targetId: staffId,
+      label,
+    });
+    const { data, error } = await supabase.functions.invoke('admin-staff-manage', {
+      body: { staffId, action, ...payload, stepUpToken },
+    });
+    if (error) throw error;
+    if ((data as any)?.error) throw new Error((data as any).error);
+  };
+
   const handleToggleActive = async (staffId: string, isActive: boolean) => {
     try {
-      const { error } = await supabase
-        .from('admin_staff')
-        .update({ is_active: isActive })
-        .eq('id', staffId);
-
-      if (error) throw error;
-
+      await runStaffAction(staffId, 'set_active', { isActive }, isActive ? 'Activate admin' : 'Deactivate admin');
       setStaff(prev => prev.map(s => 
         s.id === staffId ? { ...s, is_active: isActive } : s
       ));
-      
       toast({ title: isActive ? 'Staff activated' : 'Staff deactivated' });
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.message === 'step_up_cancelled') return;
       console.error('Error updating staff:', error);
-      toast({ title: 'Error updating staff', variant: 'destructive' });
+      toast({ title: 'Error updating staff', description: error?.message, variant: 'destructive' });
     }
   };
 
   const handleUpdateRole = async (staffId: string, newRole: AdminStaffRole) => {
     try {
-      const { error } = await supabase
-        .from('admin_staff')
-        .update({ role: newRole })
-        .eq('id', staffId);
-
-      if (error) throw error;
-
+      await runStaffAction(staffId, 'update_role', { role: newRole }, `Change admin role to ${newRole}`);
       setStaff(prev => prev.map(s => 
         s.id === staffId ? { ...s, role: newRole } : s
       ));
-      
       toast({ title: 'Role updated successfully' });
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.message === 'step_up_cancelled') return;
       console.error('Error updating role:', error);
-      toast({ title: 'Error updating role', variant: 'destructive' });
+      toast({ title: 'Error updating role', description: error?.message, variant: 'destructive' });
     }
   };
 
@@ -349,18 +371,13 @@ export function AdminStaffManagement() {
     if (!confirm('Are you sure you want to remove this admin?')) return;
 
     try {
-      const { error } = await supabase
-        .from('admin_staff')
-        .delete()
-        .eq('id', staffId);
-
-      if (error) throw error;
-
+      await runStaffAction(staffId, 'remove', {}, 'Remove admin account');
       setStaff(prev => prev.filter(s => s.id !== staffId));
       toast({ title: 'Admin removed' });
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.message === 'step_up_cancelled') return;
       console.error('Error removing admin:', error);
-      toast({ title: 'Error removing admin', variant: 'destructive' });
+      toast({ title: 'Error removing admin', description: error?.message, variant: 'destructive' });
     }
   };
 
@@ -374,6 +391,7 @@ export function AdminStaffManagement() {
 
   return (
     <div className="space-y-6">
+      {stepUpDialog}
       {/* Admin Login Link */}
       <Card className="border-primary/20 bg-primary/5">
         <CardContent className="pt-5 pb-4">
