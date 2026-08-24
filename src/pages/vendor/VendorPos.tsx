@@ -806,6 +806,45 @@ export default function VendorPos() {
     }
   };
 
+  // Offline boot on a device that never initialized POS online
+  if (bootstrap.ready && !isOnline && !bootstrap.snapshot) {
+    return (
+      <VendorLayout>
+        <div className="p-6 flex items-center justify-center min-h-[60vh]">
+          <div className="text-center max-w-md space-y-2">
+            <WifiOff className="w-10 h-10 mx-auto text-muted-foreground" />
+            <h2 className="text-xl font-semibold">Internet required to set up POS</h2>
+            <p className="text-muted-foreground text-sm">
+              This device has not used the POS online yet. Connect once to verify your access and download your catalog — after that the POS works offline.
+            </p>
+          </div>
+        </div>
+      </VendorLayout>
+    );
+  }
+
+  // Cached authorization older than the allowed offline window
+  if (bootstrap.ready && !isOnline && bootstrap.bootstrapExpired) {
+    return (
+      <VendorLayout>
+        <div className="p-6 flex items-center justify-center min-h-[60vh]">
+          <div className="text-center max-w-md space-y-2">
+            <WifiOff className="w-10 h-10 mx-auto text-amber-500" />
+            <h2 className="text-xl font-semibold">Internet required to re-verify POS access</h2>
+            <p className="text-muted-foreground text-sm">
+              Offline POS access expires after {bootstrap.verifyWindowDays} days. Last verified{' '}
+              {bootstrap.lastVerifiedAt ? new Date(bootstrap.lastVerifiedAt).toLocaleString() : 'unknown'}. Reconnect once to
+              continue selling. Any sales already saved on this device are safe and will sync.
+            </p>
+            {pendingCount > 0 && (
+              <Badge variant="secondary">{pendingCount} sale{pendingCount === 1 ? '' : 's'} waiting to sync</Badge>
+            )}
+          </div>
+        </div>
+      </VendorLayout>
+    );
+  }
+
   // Access guard: staff without use_pos cannot use the POS
   if (vendorId && !permLoading && !canUsePos) {
     return (
@@ -889,20 +928,33 @@ export default function VendorPos() {
                 )}
               </div>
             </div>
-            {(!isOnline || offlineQueue.length > 0) && (
+            {(!isOnline || offlineQueue.length > 0 || offlineAuth) && (
               <div className={cn(
                 'flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg border text-xs',
                 !isOnline
                   ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200'
                   : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200'
               )}>
-                <span className="flex items-center gap-1.5 font-medium">
+                <span className="flex items-center gap-1.5 font-medium flex-wrap">
                   {!isOnline ? <WifiOff className="w-3.5 h-3.5" /> : <CloudOff className="w-3.5 h-3.5" />}
-                  {!isOnline ? 'Offline mode' : 'Pending sync'}
-                  {offlineQueue.length > 0 && (
+                  {!isOnline ? 'Offline mode' : offlineQueue.length > 0 ? 'Pending sync' : 'Cached authorization'}
+                  {(lastSyncAt || bootstrap.snapshot?.catalogSyncedAt) && (
+                    <span className="opacity-80 font-normal">
+                      • Last synced {new Date(lastSyncAt || bootstrap.snapshot!.catalogSyncedAt!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  )}
+                  {pendingCount > 0 && (
                     <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
-                      {offlineQueue.length} sale{offlineQueue.length === 1 ? '' : 's'}
+                      {pendingCount} sale{pendingCount === 1 ? '' : 's'} pending
                     </Badge>
+                  )}
+                  {reviewCount > 0 && (
+                    <Badge variant="destructive" className="h-5 px-1.5 text-[10px]">
+                      {reviewCount} need review
+                    </Badge>
+                  )}
+                  {offlineAuth && (
+                    <span className="opacity-80 font-normal">• Cached POS access (verified {new Date(bootstrap.lastVerifiedAt || Date.now()).toLocaleDateString()})</span>
                   )}
                 </span>
                 {isOnline && offlineQueue.length > 0 && (
@@ -1228,6 +1280,7 @@ export default function VendorPos() {
         open={paymentDialog}
         onOpenChange={setPaymentDialog}
         total={subtotal}
+        offline={!isOnline}
         onConfirm={handlePaymentConfirm}
       />
 
