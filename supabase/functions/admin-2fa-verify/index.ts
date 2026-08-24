@@ -13,12 +13,25 @@ async function sha256(s: string) {
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-async function isSuperAdmin(supabase: any, userId: string): Promise<boolean> {
+// 2FA is MANDATORY for every account holding the admin role (super admin or staff).
+async function isAdmin(supabase: any, userId: string): Promise<boolean> {
   const { data: ur } = await supabase.from('user_roles').select('role').eq('user_id', userId).eq('role', 'admin').maybeSingle();
-  if (!ur) return false;
-  const { data: staff } = await supabase.from('admin_staff').select('role,is_active').eq('user_id', userId).eq('is_active', true).maybeSingle();
-  if (!staff) return true;
-  return staff.role === 'super_admin';
+  return !!ur;
+}
+
+// Issues a server-validated 2FA session for the current login. The raw token is
+// returned once and only its hash is stored.
+async function issueAdmin2faSession(supabase: any, userId: string, ip: string | null, ua: string | null) {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  const token = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+  const token_hash = await sha256(token);
+  const expires_at = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
+  // Revoke any previous live sessions for this admin so only the newest login is valid.
+  await supabase.from('admin_2fa_sessions').update({ revoked_at: new Date().toISOString() })
+    .eq('user_id', userId).is('revoked_at', null);
+  await supabase.from('admin_2fa_sessions').insert({ user_id: userId, token_hash, ip, user_agent: ua, expires_at });
+  return { token, expires_at };
 }
 
 Deno.serve(async (req) => {
@@ -38,8 +51,8 @@ Deno.serve(async (req) => {
     if (!userId) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
     const supabase = createClient(supabaseUrl, serviceKey);
-    if (!(await isSuperAdmin(supabase, userId))) {
-      return new Response(JSON.stringify({ verified: true, skipped: true }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    if (!(await isAdmin(supabase, userId))) {
+      return new Response(JSON.stringify({ error: 'forbidden', message: 'Not an admin account' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     const { code, method } = await req.json();
@@ -145,7 +158,9 @@ Deno.serve(async (req) => {
       } catch (e) { console.error('new-device email failed', e); }
     }
 
-    return new Response(JSON.stringify({ verified: true, was_new_device }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    const session = await issueAdmin2faSession(supabase, userId, ip, ua);
+
+    return new Response(JSON.stringify({ verified: true, was_new_device, session_token: session.token, expires_at: session.expires_at }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   } catch (e) {
     console.error('admin-2fa-verify error', e);
     return new Response(JSON.stringify({ error: (e as Error).message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
