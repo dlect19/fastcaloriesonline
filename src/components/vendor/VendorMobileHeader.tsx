@@ -11,6 +11,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { OutletProvider } from '@/hooks/useOutletContext';
 import { OutletSwitcher } from '@/components/vendor/OutletSwitcher';
+import { usePosNavLock, POS_LOCK_HINT } from '@/hooks/usePosNavLock';
 
 interface VendorMobileHeaderProps {
   vendorName?: string;
