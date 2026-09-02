@@ -68,7 +68,7 @@ export function NetworkStatusOverlay() {
     }
   }, []);
 
-  const offlineCapableRoute = OFFLINE_CAPABLE_ROUTES.some(r => path.startsWith(r));
+  const offlineCapableRoute = isOfflineCapablePath(path);
 
   if (!isOffline || offlineCapableRoute) return null;
 
