@@ -5,7 +5,14 @@ import noNetworkImg from '@/assets/no-network.png';
 
 // Routes that are designed to keep working without a connection and must NOT be
 // covered by the full-screen offline blocker (the POS shows its own banner).
+// Exact matches only — nested routes such as /vendor/pos-pricing or
+// /vendor/pos/reports are NOT offline-capable.
 const OFFLINE_CAPABLE_ROUTES = ['/vendor/pos'];
+
+const isOfflineCapablePath = (pathname: string) => {
+  const clean = pathname.replace(/\/+$/, '') || '/';
+  return OFFLINE_CAPABLE_ROUTES.includes(clean);
+};
 
 export function NetworkStatusOverlay() {
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
