@@ -5126,6 +5126,7 @@ export type Database = {
           pharmacy_review_status: string
           pos_cashier_id: string | null
           pos_payment_method: string | null
+          pos_payment_verification: string | null
           pos_session_id: string | null
           prep_days: number | null
           prep_minutes: number | null
@@ -5184,6 +5185,7 @@ export type Database = {
           pharmacy_review_status?: string
           pos_cashier_id?: string | null
           pos_payment_method?: string | null
+          pos_payment_verification?: string | null
           pos_session_id?: string | null
           prep_days?: number | null
           prep_minutes?: number | null
@@ -5242,6 +5244,7 @@ export type Database = {
           pharmacy_review_status?: string
           pos_cashier_id?: string | null
           pos_payment_method?: string | null
+          pos_payment_verification?: string | null
           pos_session_id?: string | null
           prep_days?: number | null
           prep_minutes?: number | null
@@ -10223,6 +10226,7 @@ export type Database = {
           pharmacy_review_status: string
           pos_cashier_id: string | null
           pos_payment_method: string | null
+          pos_payment_verification: string | null
           pos_session_id: string | null
           prep_days: number | null
           prep_minutes: number | null
