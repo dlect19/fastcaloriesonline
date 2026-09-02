@@ -67,13 +67,18 @@ export function VendorBottomNav({ orderCount = 0 }: VendorBottomNavProps) {
           const Icon = item.icon;
           const isActive = currentTab === item.id;
 
+          const isLocked = navLocked && item.path !== '/vendor/pos';
+
           return (
             <button
               key={item.id}
-              onClick={() => navigate(item.path)}
+              disabled={isLocked}
+              title={isLocked ? POS_LOCK_HINT : undefined}
+              onClick={() => { if (!isLocked) navigate(item.path); }}
               className={cn(
                 'relative flex flex-col items-center gap-0.5 py-1.5 px-3 rounded-xl transition-colors',
-                isActive ? 'text-primary' : 'text-muted-foreground'
+                isActive ? 'text-primary' : 'text-muted-foreground',
+                isLocked && 'opacity-40 cursor-not-allowed pointer-events-none'
               )}
             >
               <Icon
