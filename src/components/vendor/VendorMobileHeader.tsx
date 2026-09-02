@@ -53,19 +53,22 @@ export function VendorMobileHeader({ vendorName = 'My Restaurant', vendorId, onO
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onClick={() => navigate('/vendor/promos')}>Promos</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate('/vendor/riders')}>My Riders</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate('/vendor/staff')}>Staff</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate('/vendor/reviews')}>Reviews</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate('/vendor/withdraw')}>Withdraw</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate('/vendor/advertising')}>Advertising</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate('/vendor/hours')}>Working Hours</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate('/vendor/store-settings')}>Store Settings</DropdownMenuItem>
+              {navLocked && (
+                <div className="px-2 py-1.5 text-[11px] text-muted-foreground">{POS_LOCK_HINT}</div>
+              )}
+              <DropdownMenuItem disabled={navLocked} onClick={() => go('/vendor/promos')}>Promos</DropdownMenuItem>
+              <DropdownMenuItem disabled={navLocked} onClick={() => go('/vendor/riders')}>My Riders</DropdownMenuItem>
+              <DropdownMenuItem disabled={navLocked} onClick={() => go('/vendor/staff')}>Staff</DropdownMenuItem>
+              <DropdownMenuItem disabled={navLocked} onClick={() => go('/vendor/reviews')}>Reviews</DropdownMenuItem>
+              <DropdownMenuItem disabled={navLocked} onClick={() => go('/vendor/withdraw')}>Withdraw</DropdownMenuItem>
+              <DropdownMenuItem disabled={navLocked} onClick={() => go('/vendor/advertising')}>Advertising</DropdownMenuItem>
+              <DropdownMenuItem disabled={navLocked} onClick={() => go('/vendor/hours')}>Working Hours</DropdownMenuItem>
+              <DropdownMenuItem disabled={navLocked} onClick={() => go('/vendor/store-settings')}>Store Settings</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => navigate('/vendor/settings')}>
+              <DropdownMenuItem disabled={navLocked} onClick={() => go('/vendor/settings')}>
                 <Settings className="w-4 h-4 mr-2" /> Settings
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
+              <DropdownMenuItem disabled={navLocked} onClick={handleSignOut} className="text-destructive">
                 Sign Out
               </DropdownMenuItem>
             </DropdownMenuContent>
