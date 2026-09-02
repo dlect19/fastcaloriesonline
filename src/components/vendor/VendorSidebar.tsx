@@ -287,11 +287,15 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
           {visibleItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
+            const isLocked = navLocked && item.path !== '/vendor/pos';
 
             return (
               <button
                 key={item.id}
+                disabled={isLocked}
+                title={isLocked ? POS_LOCK_HINT : undefined}
                 onClick={() => {
+                  if (isLocked) return;
                   navigate(item.path);
                   if (window.innerWidth < 1024) setCollapsed(true);
                 }}
@@ -299,7 +303,8 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
                   'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors text-left',
                   isActive
                     ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                  isLocked && 'opacity-40 cursor-not-allowed pointer-events-none'
                 )}
               >
                 <Icon className="w-5 h-5 flex-shrink-0" />
