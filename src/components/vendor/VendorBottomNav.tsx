@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
+import { usePosNavLock, POS_LOCK_HINT } from '@/hooks/usePosNavLock';
 
 const navItems = [
   { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', path: '/vendor/dashboard' },
