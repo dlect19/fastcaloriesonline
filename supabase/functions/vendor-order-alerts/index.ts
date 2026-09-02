@@ -266,7 +266,7 @@ serve(async (req) => {
           failed++;
         }
       }
-      return json({ mode, sent, failed });
+      return json({ mode, sent, failed, skipped_no_data: skippedNoData });
     }
 
     return json({ error: "invalid_mode" }, 400);
