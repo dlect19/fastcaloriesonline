@@ -21,8 +21,15 @@ interface VendorMobileHeaderProps {
 
 export function VendorMobileHeader({ vendorName = 'My Restaurant', vendorId, onOutletChange, onAddOutlet }: VendorMobileHeaderProps) {
   const navigate = useNavigate();
+  const navLocked = usePosNavLock();
+
+  const go = (path: string) => {
+    if (navLocked) return;
+    navigate(path);
+  };
 
   const handleSignOut = async () => {
+    if (navLocked) return;
     await supabase.auth.signOut();
     navigate('/vendor/auth');
   };
