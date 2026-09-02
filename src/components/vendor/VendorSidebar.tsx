@@ -76,6 +76,7 @@ interface VendorSidebarProps {
 export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], vendorId, selectedOutletId: selectedOutletIdProp, onOutletChange }: VendorSidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const navLocked = usePosNavLock();
   const [collapsed, setCollapsed] = useState(false);
   const [newOrderCount, setNewOrderCount] = useState(0);
   const [resolvedVendorId, setResolvedVendorId] = useState<string | null>(vendorId || null);
