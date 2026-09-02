@@ -34,6 +34,7 @@ import { OutletSwitcher } from '@/components/vendor/OutletSwitcher';
 import { AddOutletDialog } from '@/components/vendor/AddOutletDialog';
 import { usePersistedOutletId } from '@/hooks/usePersistedOutletId';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
+import { usePosNavLock, POS_LOCK_HINT } from '@/hooks/usePosNavLock';
 
 
 // Map nav items to required permissions
