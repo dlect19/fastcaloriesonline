@@ -325,13 +325,17 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
         {!Capacitor.isNativePlatform() && (
           <div className="flex-shrink-0 px-3 pb-1">
             <button
+              disabled={navLocked}
+              title={navLocked ? POS_LOCK_HINT : undefined}
               onClick={() => {
+                if (navLocked) return;
                 localStorage.removeItem('fc_last_portal');
                 navigate('/?portal=customer');
               }}
               className={cn(
                 "w-full flex items-center gap-3 px-3 py-2 rounded-xl text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors",
-                collapsed && "justify-center px-0"
+                collapsed && "justify-center px-0",
+                navLocked && "opacity-40 cursor-not-allowed pointer-events-none"
               )}
             >
               <ExternalLink className="w-4 h-4 flex-shrink-0" />
