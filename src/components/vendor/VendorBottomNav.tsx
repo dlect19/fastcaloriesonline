@@ -27,6 +27,7 @@ interface VendorBottomNavProps {
 export function VendorBottomNav({ orderCount = 0 }: VendorBottomNavProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const navLocked = usePosNavLock();
   const [vendorCategory, setVendorCategory] = useState<string | null>(null);
 
   useEffect(() => {
