@@ -220,6 +220,8 @@ serve(async (req) => {
       const startUtc = new Date(Date.parse(`${dayLabel}T00:00:00.000Z`) - LAGOS_OFFSET_MS).toISOString();
       const endUtc = new Date(Date.parse(`${dayLabel}T00:00:00.000Z`) - LAGOS_OFFSET_MS + 86_400_000).toISOString();
 
+      let skippedNoData = 0;
+
       for (const r of recipients.values()) {
         if (!r.alert_daily_summary) continue;
         const { data: orders } = await admin
@@ -231,6 +233,14 @@ serve(async (req) => {
           .lt("created_at", endUtc);
 
         const list = orders || [];
+
+        // Never send an empty report: no qualifying sales => no WhatsApp message.
+        if (list.length === 0) {
+          skippedNoData++;
+          console.log(`daily_summary: skipped outlet ${r.outlet_id} — no qualifying sales for ${dayLabel}`);
+          continue;
+        }
+
         const delivered = list.filter((o: any) => o.status === "delivered").length;
         const revenue = list.reduce((s: number, o: any) => s + Number(o.total || 0), 0);
         const count = String(list.length);
