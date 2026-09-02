@@ -100,26 +100,27 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       workbox: {
+        // App shell: precache the built JS/CSS/icons so the SPA can boot with
+        // no network (required for the offline-capable Vendor POS).
         globPatterns: ["**/*.{js,css,ico,png,svg,woff2}"],
-        navigateFallback: null,
+        navigateFallback: "index.html",
+        // Only app routes fall back to the cached shell. OAuth callbacks and any
+        // API-ish path must always hit the network.
+        navigateFallbackDenylist: [
+          /^\/~oauth/,
+          /^\/api\//,
+          /^\/functions\//,
+          /^\/auth\/v1\//,
+          /^\/rest\/v1\//,
+        ],
         maximumFileSizeToCacheInBytes: 20 * 1024 * 1024,
-        navigateFallbackDenylist: [/^\/~oauth/],
         skipWaiting: true,
         clientsClaim: true,
         cleanupOutdatedCaches: true,
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/.*supabase\.co\/.*/i,
-            handler: "NetworkFirst",
-            options: {
-              cacheName: "supabase-cache",
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60,
-              },
-            },
-          },
-        ],
+        // No runtime caching of backend responses on purpose: wallet balances,
+        // orders and other live server data must never be served from cache.
+        // Offline POS reads its own local snapshot instead.
+        runtimeCaching: [],
       },
     }),
   ].filter(Boolean),
