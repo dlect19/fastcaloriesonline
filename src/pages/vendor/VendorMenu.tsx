@@ -30,6 +30,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables, Database } from '@/integrations/supabase/types';
 import { DrugSearchDialog } from '@/components/pharmacy/DrugSearchDialog';
+import { isDivisibleUnit } from '@/lib/sellingUnits';
 import { ProductPortionsEditor, type PortionDraft } from '@/components/vendor/ProductPortionsEditor';
 
 
@@ -165,6 +166,7 @@ export default function VendorMenu() {
     low_stock_threshold: '5',
     // Portion sizes & fulfillment
     portion_unit: 'plate',
+    allows_fractional_qty: false,
     base_portion_size: '1',
     fulfillment_type: 'instant' as 'instant' | 'preorder',
     preorder_lead_days: '',
@@ -467,6 +469,7 @@ export default function VendorMenu() {
         image_url: imageUrl,
         cuisine_category_id: formData.cuisine_category_id || null,
         portion_unit: formData.portion_unit || 'plate',
+        allows_fractional_qty: formData.allows_fractional_qty,
         base_portion_size: formData.base_portion_size ? parseFloat(formData.base_portion_size) : 1,
         fulfillment_type: formData.fulfillment_type,
         preorder_lead_days:
@@ -576,6 +579,8 @@ export default function VendorMenu() {
       stock_quantity: (product as any).stock_quantity?.toString() ?? '',
       low_stock_threshold: (product as any).low_stock_threshold?.toString() ?? '5',
       portion_unit: (product as any).portion_unit || 'plate',
+      allows_fractional_qty:
+        (product as any).allows_fractional_qty ?? isDivisibleUnit((product as any).portion_unit),
       base_portion_size: (product as any).base_portion_size?.toString() || '1',
       fulfillment_type: ((product as any).fulfillment_type as 'instant' | 'preorder') || 'instant',
       preorder_lead_days: (product as any).preorder_lead_days?.toString() || '',
@@ -805,6 +810,7 @@ export default function VendorMenu() {
       stock_quantity: '',
       low_stock_threshold: '5',
       portion_unit: 'plate',
+      allows_fractional_qty: false,
       base_portion_size: '1',
       fulfillment_type: 'instant',
       preorder_lead_days: '',
