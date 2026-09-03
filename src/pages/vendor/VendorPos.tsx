@@ -40,6 +40,7 @@ import {
   readCachedVendor,
 } from '@/hooks/usePosOfflineQueue';
 import { usePosBootstrap } from '@/hooks/usePosBootstrap';
+import { setPosNavLock } from '@/hooks/usePosNavLock';
 import {
   readCatalog,
   mergeCatalog,
