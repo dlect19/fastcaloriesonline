@@ -215,6 +215,7 @@ export function usePosOfflineQueue(
     let succeeded = 0;
     let failed = 0;
     let rejected = 0;
+    const stockConflicts: Array<{ product_name?: string; needed?: number; available?: number }> = [];
     try {
       // 1. Make sure an offline-opened shift exists server-side first
       const serverSessionId = (await hooksRef.current?.ensureServerSession?.()) ?? null;
