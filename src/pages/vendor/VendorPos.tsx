@@ -736,7 +736,7 @@ export default function VendorPos() {
         if (c.isCombo) return;
         const prod = products.find(x => x.id === c.productId);
         if (!prod?.track_stock) return;
-        stockConsumed[c.productId] = (stockConsumed[c.productId] || 0) + c.qty * c.unitMultiplier;
+        stockConsumed[c.productId] = roundQty((stockConsumed[c.productId] || 0) + c.qty * c.unitMultiplier);
       });
 
       enqueueOfflineSale({
