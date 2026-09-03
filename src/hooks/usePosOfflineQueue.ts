@@ -198,7 +198,10 @@ export function usePosOfflineQueue(
       if (vendorId && sale.payload.stockConsumed) {
         releaseStock(vendorId, sale.payload.stockConsumed);
       }
-      return { ok: true };
+      return {
+        ok: true,
+        stockConflicts: Array.isArray(res?.stock_conflicts) ? res.stock_conflicts : [],
+      };
     } catch (err: any) {
       return { ok: false, error: err?.message || 'Unknown error' };
     }
