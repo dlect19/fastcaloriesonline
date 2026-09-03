@@ -464,17 +464,21 @@ export default function VendorPos() {
     const unitPrice = finalUnit === 'sachet' ? Number(p.sachet_price) : packPrice;
     const sachetLabel = p.sachet_unit_label || 'sachet';
     const unitLabel = finalUnit === 'sachet' ? sachetLabel : 'pack';
+    // Individually counted units (sachets / packaged sachet products) stay whole;
+    // portion-style items (rice, soup, drinks by litre) may be sold fractionally.
+    const allowFraction = finalUnit === 'pack' && !sachetEligible;
+    const qtyStep = allowFraction ? 0.5 : 1;
 
     setCart(prev => {
       const lineKey = `${p.id}__${finalUnit}`;
       const existing = prev.find(c => `${c.productId}__${c.purchaseUnit}` === lineKey);
       if (existing) {
-        const nextStockUsed = (existing.qty + 1) * existing.unitMultiplier;
+        const nextStockUsed = roundQty((existing.qty + existing.qtyStep) * existing.unitMultiplier);
         if (p.track_stock && nextStockUsed > stockUnitsAvailable) {
           toast({ title: `Only ${stockUnitsAvailable} ${unitLabel === 'pack' ? 'in stock' : sachetLabel + 's left'}`, variant: 'destructive' });
           return prev;
         }
-        return prev.map(c => (`${c.productId}__${c.purchaseUnit}` === lineKey ? { ...c, qty: c.qty + 1 } : c));
+        return prev.map(c => (`${c.productId}__${c.purchaseUnit}` === lineKey ? { ...c, qty: roundQty(c.qty + c.qtyStep) } : c));
       }
       return [
         ...prev,
@@ -483,11 +487,15 @@ export default function VendorPos() {
           name: p.name,
           unitPrice,
           qty: 1,
-          stockMax: p.track_stock ? Math.floor(stockUnitsAvailable / unitMultiplier) : null,
+          stockMax: p.track_stock
+            ? (allowFraction ? roundQty(stockUnitsAvailable / unitMultiplier) : Math.floor(stockUnitsAvailable / unitMultiplier))
+            : null,
           caloriesPerUnit: p.calories ?? null,
           purchaseUnit: finalUnit,
           unitMultiplier,
           unitLabel,
+          allowFraction,
+          qtyStep,
         },
       ];
     });
