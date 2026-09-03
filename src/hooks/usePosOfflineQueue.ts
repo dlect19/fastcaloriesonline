@@ -256,6 +256,16 @@ export function usePosOfflineQueue(
         description: failed > 0 ? `${failed} still pending — will retry.` : 'All caught up.',
       });
     }
+    if (stockConflicts.length > 0) {
+      toast({
+        title: 'Stock conflict on synced sales',
+        description: stockConflicts
+          .slice(0, 3)
+          .map(c => `${c.product_name || 'Item'}: sold ${c.needed}, stock showed ${c.available}`)
+          .join(' • ') + (stockConflicts.length > 3 ? ` • +${stockConflicts.length - 3} more` : '') + ' — review stock counts.',
+        variant: 'destructive',
+      });
+    }
     if (rejected > 0) {
       toast({
         title: 'Some sales need review',
