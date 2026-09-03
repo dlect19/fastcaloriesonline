@@ -656,9 +656,9 @@ export default function VendorPos() {
       ...cart.map(c => ({
         // order_id will be filled in once the order row exists
         product_id: c.isCombo ? null : c.productId,
-        quantity: c.qty,
+        quantity: roundQty(c.qty),
         unit_price: c.unitPrice,
-        total_price: c.unitPrice * c.qty,
+        total_price: roundQty(c.unitPrice * c.qty),
         product_name: c.name,
         purchase_unit: c.purchaseUnit,
         unit_multiplier: c.unitMultiplier,
