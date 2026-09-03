@@ -30,6 +30,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables, Database } from '@/integrations/supabase/types';
 import { DrugSearchDialog } from '@/components/pharmacy/DrugSearchDialog';
+import { isDivisibleUnit, SELLING_UNIT_OPTIONS } from '@/lib/sellingUnits';
 import { ProductPortionsEditor, type PortionDraft } from '@/components/vendor/ProductPortionsEditor';
 
 
@@ -165,6 +166,7 @@ export default function VendorMenu() {
     low_stock_threshold: '5',
     // Portion sizes & fulfillment
     portion_unit: 'plate',
+    allows_fractional_qty: false,
     base_portion_size: '1',
     fulfillment_type: 'instant' as 'instant' | 'preorder',
     preorder_lead_days: '',
@@ -467,6 +469,7 @@ export default function VendorMenu() {
         image_url: imageUrl,
         cuisine_category_id: formData.cuisine_category_id || null,
         portion_unit: formData.portion_unit || 'plate',
+        allows_fractional_qty: formData.allows_fractional_qty,
         base_portion_size: formData.base_portion_size ? parseFloat(formData.base_portion_size) : 1,
         fulfillment_type: formData.fulfillment_type,
         preorder_lead_days:
@@ -576,6 +579,8 @@ export default function VendorMenu() {
       stock_quantity: (product as any).stock_quantity?.toString() ?? '',
       low_stock_threshold: (product as any).low_stock_threshold?.toString() ?? '5',
       portion_unit: (product as any).portion_unit || 'plate',
+      allows_fractional_qty:
+        (product as any).allows_fractional_qty ?? isDivisibleUnit((product as any).portion_unit),
       base_portion_size: (product as any).base_portion_size?.toString() || '1',
       fulfillment_type: ((product as any).fulfillment_type as 'instant' | 'preorder') || 'instant',
       preorder_lead_days: (product as any).preorder_lead_days?.toString() || '',
@@ -805,6 +810,7 @@ export default function VendorMenu() {
       stock_quantity: '',
       low_stock_threshold: '5',
       portion_unit: 'plate',
+      allows_fractional_qty: false,
       base_portion_size: '1',
       fulfillment_type: 'instant',
       preorder_lead_days: '',
@@ -1392,6 +1398,45 @@ export default function VendorMenu() {
                       )}
                     </div>
                   )}
+
+                  {/* Selling unit — how this product is sold (used by POS, cart, receipts) */}
+                  <div className="space-y-2 rounded-lg border p-3">
+                    <Label>Selling unit</Label>
+                    <Select
+                      value={formData.portion_unit}
+                      onValueChange={(unit) =>
+                        setFormData({
+                          ...formData,
+                          portion_unit: unit,
+                          allows_fractional_qty: isDivisibleUnit(unit),
+                        })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select unit" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SELLING_UNIT_OPTIONS.map(o => (
+                          <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[11px] text-muted-foreground">
+                      Shown to customers and cashiers as “₦{Number(formData.price) || 0} / {formData.portion_unit}”.
+                    </p>
+                    <div className="flex items-center justify-between pt-1">
+                      <div>
+                        <p className="text-sm font-medium">Allow half / decimal quantities</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          e.g. 0.5, 1.5, 2.25 {formData.portion_unit}
+                        </p>
+                      </div>
+                      <Switch
+                        checked={formData.allows_fractional_qty}
+                        onCheckedChange={(v) => setFormData({ ...formData, allows_fractional_qty: v })}
+                      />
+                    </div>
+                  </div>
 
                   {/* Serving Unit - Only show for restaurants */}
                   {vendor?.category === 'restaurant' && (

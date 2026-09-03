@@ -6474,6 +6474,7 @@ export type Database = {
       }
       products: {
         Row: {
+          allows_fractional_qty: boolean
           allows_sachet: boolean
           base_portion_size: number | null
           calorie_classes: Database["public"]["Enums"]["calorie_class"][] | null
@@ -6523,6 +6524,7 @@ export type Database = {
           vendor_id: string
         }
         Insert: {
+          allows_fractional_qty?: boolean
           allows_sachet?: boolean
           base_portion_size?: number | null
           calorie_classes?:
@@ -6574,6 +6576,7 @@ export type Database = {
           vendor_id: string
         }
         Update: {
+          allows_fractional_qty?: boolean
           allows_sachet?: boolean
           base_portion_size?: number | null
           calorie_classes?:

@@ -62,7 +62,7 @@ export function useTakeawayPacks(vendorId: string | null) {
             .order('sort_order'),
           supabase
             .from('products')
-            .select('id, serving_unit')
+            .select('id, serving_unit, portion_unit')
             .eq('vendor_id', vendorId),
         ]);
 
@@ -71,7 +71,7 @@ export function useTakeawayPacks(vendorId: string | null) {
 
         const unitMap: Record<string, string | null> = {};
         (productsRes.data || []).forEach((p: any) => {
-          unitMap[p.id] = p.serving_unit ?? null;
+          unitMap[p.id] = p.serving_unit ?? p.portion_unit ?? null;
         });
         setProductUnits(unitMap);
         mergeCatalog(vendorId, { packs: (packsRes.data as any[]) || [], productUnits: unitMap });

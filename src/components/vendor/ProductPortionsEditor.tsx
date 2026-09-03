@@ -15,12 +15,15 @@ export interface PortionDraft {
 }
 
 export const PORTION_UNIT_OPTIONS = [
+  { value: 'portion', label: 'Portion' },
   { value: 'plate', label: 'Plate' },
-  { value: 'litre', label: 'Litre' },
   { value: 'bowl', label: 'Bowl' },
-  { value: 'pack', label: 'Pack' },
+  { value: 'cup', label: 'Cup' },
+  { value: 'litre', label: 'Litre' },
   { value: 'kg', label: 'Kilogram' },
   { value: 'piece', label: 'Piece' },
+  { value: 'bottle', label: 'Bottle' },
+  { value: 'pack', label: 'Pack' },
 ];
 
 interface Props {

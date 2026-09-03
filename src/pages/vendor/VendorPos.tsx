@@ -60,6 +60,7 @@ import { computePosPrice, type PosOutletPricingConfig } from '@/lib/posPricing';
 import { useTakeawayPacks } from '@/hooks/useTakeawayPacks';
 import { Switch } from '@/components/ui/switch';
 import { Package } from 'lucide-react';
+import { resolveSellingUnit, resolveAllowsFraction, pluralizeUnit } from '@/lib/sellingUnits';
 
 type Product = {
   id: string;
@@ -78,6 +79,10 @@ type Product = {
   sachet_price?: number | null;
   sachet_unit_label?: string | null;
   sachets_per_pack?: number | null;
+  portion_unit?: string | null;
+  pack_unit_label?: string | null;
+  serving_unit?: string | null;
+  allows_fractional_qty?: boolean | null;
 };
 
 type Combo = {
@@ -303,7 +308,7 @@ export default function VendorPos() {
           supabase.from('vendors').select('id, name, address, phone, category, logo_url').eq('id', vendorId).maybeSingle(),
           supabase
             .from('products')
-            .select('id, name, price, discount_price, in_store_price, image_url, stock_quantity, track_stock, is_available, calories, outlet_id, allows_sachet, sachet_price, sachet_unit_label, sachets_per_pack')
+            .select('id, name, price, discount_price, in_store_price, image_url, stock_quantity, track_stock, is_available, calories, outlet_id, allows_sachet, sachet_price, sachet_unit_label, sachets_per_pack, portion_unit, pack_unit_label, serving_unit, allows_fractional_qty')
             .eq('vendor_id', vendorId)
             .order('name'),
           supabase
@@ -472,10 +477,14 @@ export default function VendorPos() {
     const packPrice = computePosPrice(p, posPricing);
     const unitPrice = finalUnit === 'sachet' ? Number(p.sachet_price) : packPrice;
     const sachetLabel = p.sachet_unit_label || 'sachet';
-    const unitLabel = finalUnit === 'sachet' ? sachetLabel : 'pack';
-    // Individually counted units (sachets / packaged sachet products) stay whole;
-    // portion-style items (rice, soup, drinks by litre) may be sold fractionally.
-    const allowFraction = finalUnit === 'pack' && !sachetEligible;
+    // Pack-side label comes from the product's configured selling unit
+    // (pharmacy pack products keep pack_unit_label via resolveSellingUnit).
+    const packLabel = sachetEligible
+      ? (p.pack_unit_label || 'pack')
+      : resolveSellingUnit(p);
+    const unitLabel = finalUnit === 'sachet' ? sachetLabel : packLabel;
+    // Fractional selling is decided by the product configuration, not the unit name.
+    const allowFraction = finalUnit === 'pack' && !sachetEligible && resolveAllowsFraction(p);
     const qtyStep = allowFraction ? 0.5 : 1;
 
     setCart(prev => {
@@ -484,7 +493,7 @@ export default function VendorPos() {
       if (existing) {
         const nextStockUsed = roundQty((existing.qty + existing.qtyStep) * existing.unitMultiplier);
         if (p.track_stock && nextStockUsed > stockUnitsAvailable) {
-          toast({ title: `Only ${stockUnitsAvailable} ${unitLabel === 'pack' ? 'in stock' : sachetLabel + 's left'}`, variant: 'destructive' });
+          toast({ title: `Only ${stockUnitsAvailable} ${finalUnit === 'sachet' ? pluralizeUnit(sachetLabel, stockUnitsAvailable) + ' left' : 'in stock'}`, variant: 'destructive' });
           return prev;
         }
         return prev.map(c => (`${c.productId}__${c.purchaseUnit}` === lineKey ? { ...c, qty: roundQty(c.qty + c.qtyStep) } : c));
@@ -558,11 +567,11 @@ export default function VendorPos() {
           const next = roundQty(resolve(c));
           if (next <= 0) return null;
           if (!c.allowFraction && !Number.isInteger(next)) {
-            toast({ title: `${c.name} can only be sold in whole ${c.unitLabel}s`, variant: 'destructive' });
+            toast({ title: `${c.name} can only be sold in whole ${pluralizeUnit(c.unitLabel, 2)}`, variant: 'destructive' });
             return c;
           }
           if (c.stockMax !== null && next > c.stockMax) {
-            toast({ title: `Only ${formatQty(c.stockMax)} ${c.unitLabel}${c.stockMax === 1 ? '' : 's'} available`, variant: 'destructive' });
+            toast({ title: `Only ${formatQty(c.stockMax)} ${pluralizeUnit(c.unitLabel, c.stockMax)} available`, variant: 'destructive' });
             return c;
           }
           return { ...c, qty: next };
@@ -670,6 +679,7 @@ export default function VendorPos() {
         total_price: roundQty(c.unitPrice * c.qty),
         product_name: c.name,
         purchase_unit: c.purchaseUnit,
+        portion_unit: c.unitLabel,
         unit_multiplier: c.unitMultiplier,
         special_instructions: c.isCombo && c.comboItems?.length ? c.comboItems.join(' + ') : null,
       })),
@@ -680,6 +690,7 @@ export default function VendorPos() {
         total_price: Number(p.price || 0),
         product_name: `Takeaway Pack: ${p.name}`,
         purchase_unit: 'pack',
+        portion_unit: 'pack',
         unit_multiplier: 1,
       })),
     ];
@@ -698,7 +709,7 @@ export default function VendorPos() {
       date: new Date(),
       items: [
         ...cart.map(c => ({
-          name: c.purchaseUnit === 'sachet' ? `${c.name} (${c.unitLabel})` : c.name,
+          name: c.isCombo || !c.unitLabel ? c.name : `${c.name} (${c.unitLabel})`,
           qty: c.qty,
           price: c.unitPrice * c.qty,
           calories: c.caloriesPerUnit,
@@ -1132,7 +1143,12 @@ export default function VendorPos() {
                     <div className="p-2 space-y-0.5">
                       <p className="text-xs font-medium line-clamp-1">{p.name}</p>
                       <div className="flex items-baseline gap-1.5">
-                        <p className="text-sm font-bold text-primary">₦{price.toLocaleString()}</p>
+                        <p className="text-sm font-bold text-primary">
+                          ₦{price.toLocaleString()}
+                          <span className="text-[10px] font-normal text-muted-foreground">
+                            {' '}/ {sachetEligible ? (p.pack_unit_label || 'pack') : resolveSellingUnit(p)}
+                          </span>
+                        </p>
                         {showsPosBadge && (
                           <span className="text-[10px] text-muted-foreground line-through">
                             ₦{onlinePrice.toLocaleString()}
