@@ -193,6 +193,13 @@ export default function VendorPos() {
   const { packs: takeawayPacks, getApplicablePacks } = useTakeawayPacks(vendorId);
   const [carryoutMode, setCarryoutMode] = useState(false);
 
+  // While POS is offline, lock the rest of the vendor portal: every other route
+  // would land on the browser's offline page and Back does not reliably return.
+  useEffect(() => {
+    setPosNavLock(!isOnline);
+    return () => setPosNavLock(false);
+  }, [isOnline]);
+
   // Auto-computed packs for the current cart
   const applicablePacks = useMemo(() => {
     if (!carryoutMode || cart.length === 0) return [];
