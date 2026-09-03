@@ -1143,7 +1143,12 @@ export default function VendorPos() {
                     <div className="p-2 space-y-0.5">
                       <p className="text-xs font-medium line-clamp-1">{p.name}</p>
                       <div className="flex items-baseline gap-1.5">
-                        <p className="text-sm font-bold text-primary">₦{price.toLocaleString()}</p>
+                        <p className="text-sm font-bold text-primary">
+                          ₦{price.toLocaleString()}
+                          <span className="text-[10px] font-normal text-muted-foreground">
+                            {' '}/ {sachetEligible ? (p.pack_unit_label || 'pack') : resolveSellingUnit(p)}
+                          </span>
+                        </p>
                         {showsPosBadge && (
                           <span className="text-[10px] text-muted-foreground line-through">
                             ₦{onlinePrice.toLocaleString()}
