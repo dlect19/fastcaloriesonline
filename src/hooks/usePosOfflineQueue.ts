@@ -225,6 +225,9 @@ export function usePosOfflineQueue(
         if (result.ok) {
           removeFromQueue(sale.localId);
           succeeded++;
+          if (result.stockConflicts?.length) {
+            stockConflicts.push(...result.stockConflicts);
+          }
         } else {
           failed++;
           if (result.rejected) rejected++;
