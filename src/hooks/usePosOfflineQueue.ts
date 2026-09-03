@@ -143,7 +143,7 @@ export function usePosOfflineQueue(
   const syncOne = async (
     sale: OfflineSale,
     serverSessionId: string | null,
-  ): Promise<{ ok: boolean; error?: string; rejected?: boolean }> => {
+  ): Promise<{ ok: boolean; error?: string; rejected?: boolean; stockConflicts?: any[] }> => {
     try {
       const order = { ...sale.payload.order } as Record<string, any>;
       // If the shift was opened offline, the RPC resolves the real session id
