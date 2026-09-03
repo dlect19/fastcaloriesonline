@@ -741,7 +741,14 @@ export default function VendorPos() {
 
       enqueueOfflineSale({
         payload: {
-          order: { ...orderPayload, created_at: new Date().toISOString() },
+          order: {
+            ...orderPayload,
+            created_at: new Date().toISOString(),
+            // Transfer/card taken offline were confirmed by the cashier by eye —
+            // reconnecting syncs the sale but does NOT verify the payment.
+            pos_payment_verification:
+              data.paymentMethod === 'cash' ? 'cash_offline' : 'manual_unverified',
+          },
           items: itemPayloads,
           localSessionId: String(session.id).startsWith('local-session-')
             ? (session as any).local_session_id || session.id
