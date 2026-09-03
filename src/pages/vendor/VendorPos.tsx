@@ -100,6 +100,10 @@ type CartLine = {
   purchaseUnit: 'pack' | 'sachet';
   unitMultiplier: number; // stock units consumed per qty
   unitLabel: string; // shown on receipt / cart row
+  /** portion-style items (e.g. rice) may be sold as 0.5 / 1.5 / 2.25 */
+  allowFraction: boolean;
+  /** +/- step for this line (0.5 for fractional items, 1 otherwise) */
+  qtyStep: number;
   isCombo?: boolean;
   comboItems?: string[];
 };
