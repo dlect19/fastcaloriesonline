@@ -143,7 +143,7 @@ export function usePosOfflineQueue(
   const syncOne = async (
     sale: OfflineSale,
     serverSessionId: string | null,
-  ): Promise<{ ok: boolean; error?: string; rejected?: boolean }> => {
+  ): Promise<{ ok: boolean; error?: string; rejected?: boolean; stockConflicts?: any[] }> => {
     try {
       const order = { ...sale.payload.order } as Record<string, any>;
       // If the shift was opened offline, the RPC resolves the real session id
@@ -198,7 +198,10 @@ export function usePosOfflineQueue(
       if (vendorId && sale.payload.stockConsumed) {
         releaseStock(vendorId, sale.payload.stockConsumed);
       }
-      return { ok: true };
+      return {
+        ok: true,
+        stockConflicts: Array.isArray(res?.stock_conflicts) ? res.stock_conflicts : [],
+      };
     } catch (err: any) {
       return { ok: false, error: err?.message || 'Unknown error' };
     }
@@ -212,6 +215,7 @@ export function usePosOfflineQueue(
     let succeeded = 0;
     let failed = 0;
     let rejected = 0;
+    const stockConflicts: Array<{ product_name?: string; needed?: number; available?: number }> = [];
     try {
       // 1. Make sure an offline-opened shift exists server-side first
       const serverSessionId = (await hooksRef.current?.ensureServerSession?.()) ?? null;
@@ -222,6 +226,9 @@ export function usePosOfflineQueue(
         if (result.ok) {
           removeFromQueue(sale.localId);
           succeeded++;
+          if (result.stockConflicts?.length) {
+            stockConflicts.push(...result.stockConflicts);
+          }
         } else {
           failed++;
           if (result.rejected) rejected++;
@@ -247,6 +254,16 @@ export function usePosOfflineQueue(
       toast({
         title: `Synced ${succeeded} offline sale${succeeded === 1 ? '' : 's'}`,
         description: failed > 0 ? `${failed} still pending — will retry.` : 'All caught up.',
+      });
+    }
+    if (stockConflicts.length > 0) {
+      toast({
+        title: 'Stock conflict on synced sales',
+        description: stockConflicts
+          .slice(0, 3)
+          .map(c => `${c.product_name || 'Item'}: sold ${c.needed}, stock showed ${c.available}`)
+          .join(' • ') + (stockConflicts.length > 3 ? ` • +${stockConflicts.length - 3} more` : '') + ' — review stock counts.',
+        variant: 'destructive',
       });
     }
     if (rejected > 0) {

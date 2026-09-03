@@ -34,6 +34,7 @@ import { OutletSwitcher } from '@/components/vendor/OutletSwitcher';
 import { AddOutletDialog } from '@/components/vendor/AddOutletDialog';
 import { usePersistedOutletId } from '@/hooks/usePersistedOutletId';
 import fastCaloriesLogo from '@/assets/fast-calories-logo.png';
+import { usePosNavLock, POS_LOCK_HINT } from '@/hooks/usePosNavLock';
 
 
 // Map nav items to required permissions
@@ -75,6 +76,7 @@ interface VendorSidebarProps {
 export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], vendorId, selectedOutletId: selectedOutletIdProp, onOutletChange }: VendorSidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const navLocked = usePosNavLock();
   const [collapsed, setCollapsed] = useState(false);
   const [newOrderCount, setNewOrderCount] = useState(0);
   const [resolvedVendorId, setResolvedVendorId] = useState<string | null>(vendorId || null);
@@ -287,11 +289,15 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
           {visibleItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
+            const isLocked = navLocked && item.path !== '/vendor/pos';
 
             return (
               <button
                 key={item.id}
+                disabled={isLocked}
+                title={isLocked ? POS_LOCK_HINT : undefined}
                 onClick={() => {
+                  if (isLocked) return;
                   navigate(item.path);
                   if (window.innerWidth < 1024) setCollapsed(true);
                 }}
@@ -299,7 +305,8 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
                   'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors text-left',
                   isActive
                     ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                  isLocked && 'opacity-40 cursor-not-allowed pointer-events-none'
                 )}
               >
                 <Icon className="w-5 h-5 flex-shrink-0" />
@@ -318,13 +325,17 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
         {!Capacitor.isNativePlatform() && (
           <div className="flex-shrink-0 px-3 pb-1">
             <button
+              disabled={navLocked}
+              title={navLocked ? POS_LOCK_HINT : undefined}
               onClick={() => {
+                if (navLocked) return;
                 localStorage.removeItem('fc_last_portal');
                 navigate('/?portal=customer');
               }}
               className={cn(
                 "w-full flex items-center gap-3 px-3 py-2 rounded-xl text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors",
-                collapsed && "justify-center px-0"
+                collapsed && "justify-center px-0",
+                navLocked && "opacity-40 cursor-not-allowed pointer-events-none"
               )}
             >
               <ExternalLink className="w-4 h-4 flex-shrink-0" />
@@ -338,7 +349,12 @@ export function VendorSidebar({ vendorName = 'My Restaurant', permissions = [], 
         <div className="flex-shrink-0 p-3 border-t border-border space-y-2">
           <button
             onClick={handleSignOut}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+            disabled={navLocked}
+            title={navLocked ? POS_LOCK_HINT : undefined}
+            className={cn(
+              "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors",
+              navLocked && "opacity-40 cursor-not-allowed pointer-events-none"
+            )}
           >
             <LogOut className="w-5 h-5 flex-shrink-0" />
             {!collapsed && <span className="text-sm font-medium">Sign Out</span>}

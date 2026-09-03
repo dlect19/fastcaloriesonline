@@ -294,7 +294,8 @@ export function PosPaymentDialog({ open, onOpenChange, total, offline = false, o
               {offline && (
                 <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-800 p-3 text-xs text-amber-900 dark:text-amber-200">
                   Offline mode — this {method} payment is recorded as <span className="font-semibold">manually confirmed (unverified)</span>.
-                  No bank or card gateway check happens until this device reconnects.
+                  Reconnecting syncs the sale but does <span className="font-semibold">not</span> verify the payment with any bank
+                  or card gateway — confirm it yourself before handing over goods.
                 </div>
               )}
               <div className="space-y-1.5">

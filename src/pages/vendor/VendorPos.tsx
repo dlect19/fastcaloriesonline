@@ -40,6 +40,7 @@ import {
   readCachedVendor,
 } from '@/hooks/usePosOfflineQueue';
 import { usePosBootstrap } from '@/hooks/usePosBootstrap';
+import { setPosNavLock } from '@/hooks/usePosNavLock';
 import {
   readCatalog,
   mergeCatalog,
@@ -100,6 +101,10 @@ type CartLine = {
   purchaseUnit: 'pack' | 'sachet';
   unitMultiplier: number; // stock units consumed per qty
   unitLabel: string; // shown on receipt / cart row
+  /** portion-style items (e.g. rice) may be sold as 0.5 / 1.5 / 2.25 */
+  allowFraction: boolean;
+  /** +/- step for this line (0.5 for fractional items, 1 otherwise) */
+  qtyStep: number;
   isCombo?: boolean;
   comboItems?: string[];
 };
@@ -114,6 +119,13 @@ type HeldSale = {
 
 const PRINTER_KEY = 'fc_pos_printer_name';
 const HOLD_KEY_PREFIX = 'fc_pos_held_sales_';
+
+/** Quantities are stored with 3 decimals (matches numeric(10,3) in the DB). */
+const roundQty = (n: number) => Math.round((Number(n) || 0) * 1000) / 1000;
+const formatQty = (n: number) => {
+  const q = roundQty(n);
+  return Number.isInteger(q) ? String(q) : String(q);
+};
 
 export default function VendorPos() {
   const navigate = useNavigate();
@@ -181,6 +193,13 @@ export default function VendorPos() {
   }, [vendorId, offlineQueue.length]);
   const { packs: takeawayPacks, getApplicablePacks } = useTakeawayPacks(vendorId);
   const [carryoutMode, setCarryoutMode] = useState(false);
+
+  // While POS is offline, lock the rest of the vendor portal: every other route
+  // would land on the browser's offline page and Back does not reliably return.
+  useEffect(() => {
+    setPosNavLock(!isOnline);
+    return () => setPosNavLock(false);
+  }, [isOnline]);
 
   // Auto-computed packs for the current cart
   const applicablePacks = useMemo(() => {
@@ -256,9 +275,10 @@ export default function VendorPos() {
     if (!vendorId) return;
     let cancelled = false;
 
-    // Hydrate from cache instantly so the grid works offline / on slow networks
-    const cachedV = readCachedVendor(vendorId);
-    if (cachedV) setVendor(cachedV);
+    // Hydrate from cache instantly so the grid works offline / on slow networks.
+    // Falls back to the bootstrap snapshot when the legacy vendor cache is gone.
+    const cachedV = readCachedVendor(vendorId) || bootstrap.snapshot?.vendor || null;
+    if (cachedV) setVendor(cachedV as any);
     const cachedCatalog = readCatalog(vendorId);
     if (cachedCatalog?.combos?.length) {
       setCombos(cachedCatalog.combos.filter((x: any) => !outletId || x.outlet_id === outletId || !x.outlet_id));
@@ -301,7 +321,7 @@ export default function VendorPos() {
         ]);
 
         if (cancelled) return;
-        if (v) { setVendor(v as any); cacheVendor(vendorId, v); }
+        if (v) { setVendor(v as any); cacheVendor(vendorId, v); writeBootstrap({ vendor: v as any }); }
         if (outletRes?.data) {
           setPosPricing({
             pos_pricing_mode: (outletRes.data as any).pos_pricing_mode ?? 'same',
@@ -453,17 +473,21 @@ export default function VendorPos() {
     const unitPrice = finalUnit === 'sachet' ? Number(p.sachet_price) : packPrice;
     const sachetLabel = p.sachet_unit_label || 'sachet';
     const unitLabel = finalUnit === 'sachet' ? sachetLabel : 'pack';
+    // Individually counted units (sachets / packaged sachet products) stay whole;
+    // portion-style items (rice, soup, drinks by litre) may be sold fractionally.
+    const allowFraction = finalUnit === 'pack' && !sachetEligible;
+    const qtyStep = allowFraction ? 0.5 : 1;
 
     setCart(prev => {
       const lineKey = `${p.id}__${finalUnit}`;
       const existing = prev.find(c => `${c.productId}__${c.purchaseUnit}` === lineKey);
       if (existing) {
-        const nextStockUsed = (existing.qty + 1) * existing.unitMultiplier;
+        const nextStockUsed = roundQty((existing.qty + existing.qtyStep) * existing.unitMultiplier);
         if (p.track_stock && nextStockUsed > stockUnitsAvailable) {
           toast({ title: `Only ${stockUnitsAvailable} ${unitLabel === 'pack' ? 'in stock' : sachetLabel + 's left'}`, variant: 'destructive' });
           return prev;
         }
-        return prev.map(c => (`${c.productId}__${c.purchaseUnit}` === lineKey ? { ...c, qty: c.qty + 1 } : c));
+        return prev.map(c => (`${c.productId}__${c.purchaseUnit}` === lineKey ? { ...c, qty: roundQty(c.qty + c.qtyStep) } : c));
       }
       return [
         ...prev,
@@ -472,11 +496,15 @@ export default function VendorPos() {
           name: p.name,
           unitPrice,
           qty: 1,
-          stockMax: p.track_stock ? Math.floor(stockUnitsAvailable / unitMultiplier) : null,
+          stockMax: p.track_stock
+            ? (allowFraction ? roundQty(stockUnitsAvailable / unitMultiplier) : Math.floor(stockUnitsAvailable / unitMultiplier))
+            : null,
           caloriesPerUnit: p.calories ?? null,
           purchaseUnit: finalUnit,
           unitMultiplier,
           unitLabel,
+          allowFraction,
+          qtyStep,
         },
       ];
     });
@@ -513,6 +541,8 @@ export default function VendorPos() {
         purchaseUnit: 'pack',
         unitMultiplier: 1,
         unitLabel: 'combo',
+        allowFraction: false,
+        qtyStep: 1,
         isCombo: true,
         comboItems,
       }];
@@ -520,15 +550,19 @@ export default function VendorPos() {
     setMobileCartOpen(true);
   }, []);
 
-  const updateQty = (lineKey: string, delta: number) => {
+  const applyQty = (lineKey: string, resolve: (line: CartLine) => number) => {
     setCart(prev =>
       prev
         .map(c => {
           if (`${c.productId}__${c.purchaseUnit}` !== lineKey) return c;
-          const next = c.qty + delta;
+          const next = roundQty(resolve(c));
           if (next <= 0) return null;
+          if (!c.allowFraction && !Number.isInteger(next)) {
+            toast({ title: `${c.name} can only be sold in whole ${c.unitLabel}s`, variant: 'destructive' });
+            return c;
+          }
           if (c.stockMax !== null && next > c.stockMax) {
-            toast({ title: `Only ${c.stockMax} ${c.unitLabel}${c.stockMax === 1 ? '' : 's'} available`, variant: 'destructive' });
+            toast({ title: `Only ${formatQty(c.stockMax)} ${c.unitLabel}${c.stockMax === 1 ? '' : 's'} available`, variant: 'destructive' });
             return c;
           }
           return { ...c, qty: next };
@@ -536,6 +570,9 @@ export default function VendorPos() {
         .filter(Boolean) as CartLine[]
     );
   };
+
+  const updateQty = (lineKey: string, delta: number) => applyQty(lineKey, c => c.qty + delta);
+  const setQtyExact = (lineKey: string, value: number) => applyQty(lineKey, () => value);
 
   const removeLine = (lineKey: string) =>
     setCart(c => c.filter(x => `${x.productId}__${x.purchaseUnit}` !== lineKey));
@@ -628,9 +665,9 @@ export default function VendorPos() {
       ...cart.map(c => ({
         // order_id will be filled in once the order row exists
         product_id: c.isCombo ? null : c.productId,
-        quantity: c.qty,
+        quantity: roundQty(c.qty),
         unit_price: c.unitPrice,
-        total_price: c.unitPrice * c.qty,
+        total_price: roundQty(c.unitPrice * c.qty),
         product_name: c.name,
         purchase_unit: c.purchaseUnit,
         unit_multiplier: c.unitMultiplier,
@@ -708,12 +745,19 @@ export default function VendorPos() {
         if (c.isCombo) return;
         const prod = products.find(x => x.id === c.productId);
         if (!prod?.track_stock) return;
-        stockConsumed[c.productId] = (stockConsumed[c.productId] || 0) + c.qty * c.unitMultiplier;
+        stockConsumed[c.productId] = roundQty((stockConsumed[c.productId] || 0) + c.qty * c.unitMultiplier);
       });
 
       enqueueOfflineSale({
         payload: {
-          order: { ...orderPayload, created_at: new Date().toISOString() },
+          order: {
+            ...orderPayload,
+            created_at: new Date().toISOString(),
+            // Transfer/card taken offline were confirmed by the cashier by eye —
+            // reconnecting syncs the sale but does NOT verify the payment.
+            pos_payment_verification:
+              data.paymentMethod === 'cash' ? 'cash_offline' : 'manual_unverified',
+          },
           items: itemPayloads,
           localSessionId: String(session.id).startsWith('local-session-')
             ? (session as any).local_session_id || session.id
@@ -1164,15 +1208,32 @@ export default function VendorPos() {
                       </div>
                       <div className="mt-2 flex items-center justify-between">
                         <div className="flex items-center gap-1">
-                          <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQty(lineKey, -1)}>
+                          <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQty(lineKey, -c.qtyStep)}>
                             <Minus className="w-3 h-3" />
                           </Button>
-                          <span className="w-8 text-center text-sm font-semibold">{c.qty}</span>
-                          <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQty(lineKey, 1)}>
+                          {c.allowFraction ? (
+                            <Input
+                              type="number"
+                              inputMode="decimal"
+                              step={0.5}
+                              min={0.001}
+                              value={c.qty}
+                              onChange={e => {
+                                const v = Number(e.target.value);
+                                if (!Number.isFinite(v) || v <= 0) return;
+                                setQtyExact(lineKey, v);
+                              }}
+                              className="h-7 w-16 text-center text-sm font-semibold px-1"
+                              aria-label={`Quantity for ${c.name}`}
+                            />
+                          ) : (
+                            <span className="w-8 text-center text-sm font-semibold">{formatQty(c.qty)}</span>
+                          )}
+                          <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQty(lineKey, c.qtyStep)}>
                             <Plus className="w-3 h-3" />
                           </Button>
                         </div>
-                        <p className="font-bold text-sm">₦{(c.unitPrice * c.qty).toLocaleString()}</p>
+                        <p className="font-bold text-sm">₦{roundQty(c.unitPrice * c.qty).toLocaleString()}</p>
                       </div>
                     </Card>
                   );
