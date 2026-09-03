@@ -313,7 +313,7 @@ export default function VendorPos() {
         ]);
 
         if (cancelled) return;
-        if (v) { setVendor(v as any); cacheVendor(vendorId, v); }
+        if (v) { setVendor(v as any); cacheVendor(vendorId, v); writeBootstrap({ vendor: v as any }); }
         if (outletRes?.data) {
           setPosPricing({
             pos_pricing_mode: (outletRes.data as any).pos_pricing_mode ?? 'same',
