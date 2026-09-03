@@ -532,6 +532,8 @@ export default function VendorPos() {
         purchaseUnit: 'pack',
         unitMultiplier: 1,
         unitLabel: 'combo',
+        allowFraction: false,
+        qtyStep: 1,
         isCombo: true,
         comboItems,
       }];
@@ -539,15 +541,19 @@ export default function VendorPos() {
     setMobileCartOpen(true);
   }, []);
 
-  const updateQty = (lineKey: string, delta: number) => {
+  const applyQty = (lineKey: string, resolve: (line: CartLine) => number) => {
     setCart(prev =>
       prev
         .map(c => {
           if (`${c.productId}__${c.purchaseUnit}` !== lineKey) return c;
-          const next = c.qty + delta;
+          const next = roundQty(resolve(c));
           if (next <= 0) return null;
+          if (!c.allowFraction && !Number.isInteger(next)) {
+            toast({ title: `${c.name} can only be sold in whole ${c.unitLabel}s`, variant: 'destructive' });
+            return c;
+          }
           if (c.stockMax !== null && next > c.stockMax) {
-            toast({ title: `Only ${c.stockMax} ${c.unitLabel}${c.stockMax === 1 ? '' : 's'} available`, variant: 'destructive' });
+            toast({ title: `Only ${formatQty(c.stockMax)} ${c.unitLabel}${c.stockMax === 1 ? '' : 's'} available`, variant: 'destructive' });
             return c;
           }
           return { ...c, qty: next };
@@ -555,6 +561,9 @@ export default function VendorPos() {
         .filter(Boolean) as CartLine[]
     );
   };
+
+  const updateQty = (lineKey: string, delta: number) => applyQty(lineKey, c => c.qty + delta);
+  const setQtyExact = (lineKey: string, value: number) => applyQty(lineKey, () => value);
 
   const removeLine = (lineKey: string) =>
     setCart(c => c.filter(x => `${x.productId}__${x.purchaseUnit}` !== lineKey));
