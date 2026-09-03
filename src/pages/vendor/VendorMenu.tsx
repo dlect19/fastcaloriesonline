@@ -1399,6 +1399,45 @@ export default function VendorMenu() {
                     </div>
                   )}
 
+                  {/* Selling unit — how this product is sold (used by POS, cart, receipts) */}
+                  <div className="space-y-2 rounded-lg border p-3">
+                    <Label>Selling unit</Label>
+                    <Select
+                      value={formData.portion_unit}
+                      onValueChange={(unit) =>
+                        setFormData({
+                          ...formData,
+                          portion_unit: unit,
+                          allows_fractional_qty: isDivisibleUnit(unit),
+                        })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select unit" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SELLING_UNIT_OPTIONS.map(o => (
+                          <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[11px] text-muted-foreground">
+                      Shown to customers and cashiers as “₦{Number(formData.price) || 0} / {formData.portion_unit}”.
+                    </p>
+                    <div className="flex items-center justify-between pt-1">
+                      <div>
+                        <p className="text-sm font-medium">Allow half / decimal quantities</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          e.g. 0.5, 1.5, 2.25 {formData.portion_unit}
+                        </p>
+                      </div>
+                      <Switch
+                        checked={formData.allows_fractional_qty}
+                        onCheckedChange={(v) => setFormData({ ...formData, allows_fractional_qty: v })}
+                      />
+                    </div>
+                  </div>
+
                   {/* Serving Unit - Only show for restaurants */}
                   {vendor?.category === 'restaurant' && (
                     <div className="space-y-2">
