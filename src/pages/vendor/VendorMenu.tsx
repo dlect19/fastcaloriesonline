@@ -30,7 +30,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables, Database } from '@/integrations/supabase/types';
 import { DrugSearchDialog } from '@/components/pharmacy/DrugSearchDialog';
-import { isDivisibleUnit } from '@/lib/sellingUnits';
+import { isDivisibleUnit, SELLING_UNIT_OPTIONS } from '@/lib/sellingUnits';
 import { ProductPortionsEditor, type PortionDraft } from '@/components/vendor/ProductPortionsEditor';
 
 
