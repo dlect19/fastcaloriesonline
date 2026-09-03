@@ -1192,15 +1192,32 @@ export default function VendorPos() {
                       </div>
                       <div className="mt-2 flex items-center justify-between">
                         <div className="flex items-center gap-1">
-                          <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQty(lineKey, -1)}>
+                          <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQty(lineKey, -c.qtyStep)}>
                             <Minus className="w-3 h-3" />
                           </Button>
-                          <span className="w-8 text-center text-sm font-semibold">{c.qty}</span>
-                          <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQty(lineKey, 1)}>
+                          {c.allowFraction ? (
+                            <Input
+                              type="number"
+                              inputMode="decimal"
+                              step={0.5}
+                              min={0.001}
+                              value={c.qty}
+                              onChange={e => {
+                                const v = Number(e.target.value);
+                                if (!Number.isFinite(v) || v <= 0) return;
+                                setQtyExact(lineKey, v);
+                              }}
+                              className="h-7 w-16 text-center text-sm font-semibold px-1"
+                              aria-label={`Quantity for ${c.name}`}
+                            />
+                          ) : (
+                            <span className="w-8 text-center text-sm font-semibold">{formatQty(c.qty)}</span>
+                          )}
+                          <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => updateQty(lineKey, c.qtyStep)}>
                             <Plus className="w-3 h-3" />
                           </Button>
                         </div>
-                        <p className="font-bold text-sm">₦{(c.unitPrice * c.qty).toLocaleString()}</p>
+                        <p className="font-bold text-sm">₦{roundQty(c.unitPrice * c.qty).toLocaleString()}</p>
                       </div>
                     </Card>
                   );
