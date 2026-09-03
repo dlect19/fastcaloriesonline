@@ -267,9 +267,10 @@ export default function VendorPos() {
     if (!vendorId) return;
     let cancelled = false;
 
-    // Hydrate from cache instantly so the grid works offline / on slow networks
-    const cachedV = readCachedVendor(vendorId);
-    if (cachedV) setVendor(cachedV);
+    // Hydrate from cache instantly so the grid works offline / on slow networks.
+    // Falls back to the bootstrap snapshot when the legacy vendor cache is gone.
+    const cachedV = readCachedVendor(vendorId) || bootstrap.snapshot?.vendor || null;
+    if (cachedV) setVendor(cachedV as any);
     const cachedCatalog = readCatalog(vendorId);
     if (cachedCatalog?.combos?.length) {
       setCombos(cachedCatalog.combos.filter((x: any) => !outletId || x.outlet_id === outletId || !x.outlet_id));
