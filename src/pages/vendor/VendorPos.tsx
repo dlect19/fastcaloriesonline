@@ -119,6 +119,13 @@ type HeldSale = {
 const PRINTER_KEY = 'fc_pos_printer_name';
 const HOLD_KEY_PREFIX = 'fc_pos_held_sales_';
 
+/** Quantities are stored with 3 decimals (matches numeric(10,3) in the DB). */
+const roundQty = (n: number) => Math.round((Number(n) || 0) * 1000) / 1000;
+const formatQty = (n: number) => {
+  const q = roundQty(n);
+  return Number.isInteger(q) ? String(q) : String(q);
+};
+
 export default function VendorPos() {
   const navigate = useNavigate();
   const { selectedOutlet: ctxOutlet } = useOutletContext();
