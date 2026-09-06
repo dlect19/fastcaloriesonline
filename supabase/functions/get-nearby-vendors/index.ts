@@ -239,7 +239,7 @@ serve(async (req) => {
     // --- Discovery: fetch all active outlets joined with vendors ---
     const { data: outlets, error: outletsError } = await supabase
       .from("vendor_outlets")
-      .select("*, vendors!inner(id, name, description, logo_url, banner_url, category, rating, total_ratings, is_active, is_open, phone, email, slug)")
+      .select("*, vendors!inner(id, name, description, logo_url, banner_url, category, rating, total_ratings, is_active, is_open, admin_force_closed, phone, email, slug)")
       .eq("is_approved", true)
       .eq("is_active", true)
       .eq("vendors.is_active", true);
