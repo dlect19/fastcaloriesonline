@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.schedule_open_now(uuid, uuid) FROM anon;
