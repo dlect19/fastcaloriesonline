@@ -135,8 +135,8 @@ export default function AssistedOrderCreate() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    supabase.from('vendors').select('id, name, latitude, longitude, is_open').eq('is_active', true).order('name')
-      .then(({ data }) => setVendors((data as Vendor[]) || []));
+    supabase.from('vendors').select('id, name, latitude, longitude, is_open, admin_force_closed').eq('is_active', true).order('name')
+      .then(({ data }) => setVendors(((data as any[]) || []).map((v) => ({ ...v, is_open: v.admin_force_closed ? false : v.is_open })) as Vendor[]));
   }, []);
 
   // Load outlets whenever vendor changes

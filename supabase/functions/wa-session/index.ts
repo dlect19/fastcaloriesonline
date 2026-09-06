@@ -111,9 +111,12 @@ serve(async (req) => {
       if (view === "menu") {
         const vendorId = url.searchParams.get("vendor_id") || "";
         if (!UUID_RE.test(vendorId)) return json({ error: "invalid_vendor" }, 400);
-        const { data: vendor } = await supabase
-          .from("vendors").select("id, name, logo_url, banner_url, description, rating, category, is_open")
+        const { data: vendorRow } = await supabase
+          .from("vendors").select("id, name, logo_url, banner_url, description, rating, category, is_open, admin_force_closed")
           .eq("id", vendorId).maybeSingle();
+        const vendor = vendorRow
+          ? { ...vendorRow, is_open: vendorRow.admin_force_closed ? false : vendorRow.is_open }
+          : vendorRow;
         const { data: items } = await supabase
           .from("products").select("id, name, description, price, image_url, calories, is_available")
           .eq("vendor_id", vendorId).eq("is_available", true).eq("is_hidden", false).limit(60);

@@ -33,7 +33,7 @@ export function useAutoStoreStatus(vendorId: string | null) {
           .maybeSingle(),
         supabase
           .from('vendors')
-          .select('is_open')
+          .select('is_open, admin_force_closed')
           .eq('id', vid)
           .single(),
       ]);
@@ -41,6 +41,8 @@ export function useAutoStoreStatus(vendorId: string | null) {
       const hours = hoursResult.data;
       const vendor = vendorResult.data;
       if (!hours || !vendor) return;
+      // Admin platform-wide closure overrides the schedule
+      if ((vendor as any).admin_force_closed) return;
 
       const openTime = hours.open_time.length === 5 ? hours.open_time + ':00' : hours.open_time;
       const closeTime = hours.close_time.length === 5 ? hours.close_time + ':00' : hours.close_time;
