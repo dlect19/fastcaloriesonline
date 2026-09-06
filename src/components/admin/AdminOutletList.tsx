@@ -60,44 +60,55 @@ export function AdminOutletList({ vendors, onRefresh }: AdminOutletListProps) {
     toggleExpand(vendorId);
   };
 
-  const toggleOutletOpen = async (outletId: string, vendorId: string, isOpen: boolean) => {
-    const { error } = await supabase.from('vendor_outlets').update({ is_open: !isOpen }).eq('id', outletId);
+  const toggleOutletOpen = async (outletId: string, vendorId: string, forceClosed: boolean) => {
+    const { error } = await supabase.rpc('admin_set_outlet_availability', {
+      _force_closed: !forceClosed,
+      _outlet_id: outletId,
+    });
     if (error) {
-      toast({ title: 'Failed to update store status', variant: 'destructive' });
+      toast({ title: 'Failed to update store status', description: error.message, variant: 'destructive' });
       return;
     }
-    toast({ title: `Outlet ${isOpen ? 'closed' : 'opened'}` });
+    toast({
+      title: forceClosed ? 'Outlet resumed' : 'Outlet force-closed',
+      description: forceClosed ? 'Availability now follows its working hours.' : undefined,
+    });
     toggleExpand(vendorId);
   };
 
+  const refreshExpanded = async () => {
+    for (const vendorId of Object.keys(expanded)) {
+      if (expanded[vendorId]) {
+        const { data } = await supabase
+          .from('vendor_outlets')
+          .select('*')
+          .eq('vendor_id', vendorId)
+          .order('is_default', { ascending: false })
+          .order('created_at', { ascending: true });
+        setOutlets(prev => ({ ...prev, [vendorId]: data || [] }));
+      }
+    }
+  };
+
+  // Platform-level availability override. Force-closed hides outlets everywhere;
+  // resuming clears the override and recomputes openness from each outlet's own working hours.
   const bulkToggleAllOutlets = async (open: boolean) => {
     setBulkLoading(true);
-    const { error } = await supabase
-      .from('vendor_outlets')
-      .update({ is_open: open })
-      .eq('is_active', true) as { error: any };
+    const { error } = await supabase.rpc('admin_set_outlet_availability', {
+      _force_closed: !open,
+      _outlet_id: null,
+    });
 
     if (error) {
-      toast({ title: 'Failed to update outlets', variant: 'destructive' });
+      toast({ title: 'Failed to update outlets', description: error.message, variant: 'destructive' });
     } else {
-      toast({ title: `All active outlets ${open ? 'opened' : 'closed'}` });
-      // Also update vendor-level is_open
-      await supabase
-        .from('vendors')
-        .update({ is_open: open })
-        .eq('is_active', true);
-      // Refresh expanded outlets
-      for (const vendorId of Object.keys(expanded)) {
-        if (expanded[vendorId]) {
-          const { data } = await supabase
-            .from('vendor_outlets')
-            .select('*')
-            .eq('vendor_id', vendorId)
-            .order('is_default', { ascending: false })
-            .order('created_at', { ascending: true });
-          setOutlets(prev => ({ ...prev, [vendorId]: data || [] }));
-        }
-      }
+      toast({
+        title: open ? 'Normal hours resumed' : 'All outlets force-closed',
+        description: open
+          ? 'Each outlet is now open or closed according to its own working hours.'
+          : 'Outlets are unavailable for ordering until you resume normal hours.',
+      });
+      await refreshExpanded();
       onRefresh();
     }
     setBulkLoading(false);
@@ -191,7 +202,7 @@ export function AdminOutletList({ vendors, onRefresh }: AdminOutletListProps) {
                 className="gap-1 text-green-600 border-green-200 hover:bg-green-50"
               >
                 {bulkLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Power className="w-3 h-3" />}
-                Open All
+                Resume Normal Hours
               </Button>
               <Button
                 variant="outline"
@@ -254,13 +265,17 @@ export function AdminOutletList({ vendors, onRefresh }: AdminOutletListProps) {
                                   Pending Approval
                                 </Badge>
                               )}
-                              {outlet.is_open ? (
+                              {outlet.admin_force_closed ? (
+                                <Badge variant="destructive" className="text-xs gap-1">
+                                  <PowerOff className="w-2.5 h-2.5" /> Admin Closed
+                                </Badge>
+                              ) : outlet.is_open ? (
                                 <Badge variant="secondary" className="bg-green-500/10 text-green-600 border-green-500/30 text-xs gap-1">
                                   <Power className="w-2.5 h-2.5" /> Open
                                 </Badge>
                               ) : (
                                 <Badge variant="secondary" className="bg-red-500/10 text-red-600 border-red-500/30 text-xs gap-1">
-                                  <PowerOff className="w-2.5 h-2.5" /> Closed
+                                  <PowerOff className="w-2.5 h-2.5" /> Closed by schedule
                                 </Badge>
                               )}
                               {outlet.geo_verification_status === 'locked_pending_reverify' && (
@@ -299,11 +314,11 @@ export function AdminOutletList({ vendors, onRefresh }: AdminOutletListProps) {
                             {outlet.is_approved && outlet.is_active && (
                               <div className="flex items-center gap-1.5">
                                 <span className="text-xs text-muted-foreground">
-                                  {outlet.is_open ? 'Open' : 'Closed'}
+                                  {outlet.admin_force_closed ? 'Admin closed' : 'Normal hours'}
                                 </span>
                                 <Switch
-                                  checked={outlet.is_open ?? false}
-                                  onCheckedChange={() => toggleOutletOpen(outlet.id, vendor.id, outlet.is_open)}
+                                  checked={!outlet.admin_force_closed}
+                                  onCheckedChange={() => toggleOutletOpen(outlet.id, vendor.id, !!outlet.admin_force_closed)}
                                 />
                               </div>
                             )}
