@@ -61,6 +61,7 @@ Deno.serve(async (req) => {
         .from("vendors")
         .update({ is_open: shouldBeOpen })
         .eq("id", vendorId)
+        .eq("admin_force_closed", false)
         .neq("is_open", shouldBeOpen);
       if (!error) updatedCount++;
     }
@@ -71,6 +72,7 @@ Deno.serve(async (req) => {
         .from("vendor_outlets")
         .update({ is_open: shouldBeOpen })
         .eq("id", outletId)
+        .eq("admin_force_closed", false)
         .neq("is_open", shouldBeOpen);
       if (!error) updatedCount++;
     }
