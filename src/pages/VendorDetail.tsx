@@ -547,7 +547,9 @@ export default function VendorDetail() {
       {!vendor.is_open && (
         <div className="container py-3">
           <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-4 text-center">
-            <p className="text-sm font-semibold text-destructive">This store is currently closed</p>
+            <p className="text-sm font-semibold text-destructive">
+              {(vendor as any).admin_force_closed ? 'This store is temporarily unavailable' : 'This store is currently closed'}
+            </p>
             <p className="text-xs text-muted-foreground mt-1">You can browse the menu but ordering is not available right now.</p>
           </div>
         </div>

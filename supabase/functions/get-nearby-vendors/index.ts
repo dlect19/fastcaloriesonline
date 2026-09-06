@@ -208,8 +208,8 @@ serve(async (req) => {
             name: outletDisplayName,
             rating: closestOutlet.rating ?? vendor.rating,
             total_ratings: closestOutlet.total_ratings ?? vendor.total_ratings,
-            is_open: closestOutlet.admin_force_closed ? false : closestOutlet.is_open,
-            admin_force_closed: !!closestOutlet.admin_force_closed,
+            is_open: (closestOutlet.admin_force_closed || (vendor as any).admin_force_closed) ? false : closestOutlet.is_open,
+            admin_force_closed: !!(closestOutlet.admin_force_closed || (vendor as any).admin_force_closed),
             address: closestOutlet.address ?? vendor.address,
             city: closestOutlet.city ?? vendor.city,
             state: closestOutlet.state ?? vendor.state,
@@ -239,7 +239,7 @@ serve(async (req) => {
     // --- Discovery: fetch all active outlets joined with vendors ---
     const { data: outlets, error: outletsError } = await supabase
       .from("vendor_outlets")
-      .select("*, vendors!inner(id, name, description, logo_url, banner_url, category, rating, total_ratings, is_active, is_open, phone, email, slug)")
+      .select("*, vendors!inner(id, name, description, logo_url, banner_url, category, rating, total_ratings, is_active, is_open, admin_force_closed, phone, email, slug)")
       .eq("is_approved", true)
       .eq("is_active", true)
       .eq("vendors.is_active", true);
@@ -383,8 +383,8 @@ serve(async (req) => {
         rating: outlet.rating ?? vendor.rating,
         total_ratings: outlet.total_ratings ?? vendor.total_ratings,
         is_active: true,
-        is_open: outlet.admin_force_closed ? false : outlet.is_open,
-        admin_force_closed: !!outlet.admin_force_closed,
+        is_open: (outlet.admin_force_closed || vendor.admin_force_closed) ? false : outlet.is_open,
+        admin_force_closed: !!(outlet.admin_force_closed || vendor.admin_force_closed),
         phone: vendor.phone,
         email: vendor.email,
         slug: vendor.slug,
@@ -445,8 +445,8 @@ serve(async (req) => {
         rating: outlet.rating ?? vendor.rating,
         total_ratings: outlet.total_ratings ?? vendor.total_ratings,
         is_active: true,
-        is_open: outlet.admin_force_closed ? false : outlet.is_open,
-        admin_force_closed: !!outlet.admin_force_closed,
+        is_open: (outlet.admin_force_closed || vendor.admin_force_closed) ? false : outlet.is_open,
+        admin_force_closed: !!(outlet.admin_force_closed || vendor.admin_force_closed),
         phone: vendor.phone,
         email: vendor.email,
         slug: vendor.slug,
