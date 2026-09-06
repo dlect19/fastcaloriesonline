@@ -253,6 +253,26 @@ export function VendorCheckoutSection({
       return;
     }
 
+    // Effective availability: admin override on the outlet OR its parent vendor
+    // makes the store unorderable regardless of the legacy is_open flag.
+    {
+      const [vendorRes, outletRes] = await Promise.all([
+        supabase.from("vendors").select("admin_force_closed").eq("id", group.vendorId).maybeSingle(),
+        group.outletId
+          ? supabase.from("vendor_outlets").select("admin_force_closed").eq("id", group.outletId).maybeSingle()
+          : Promise.resolve({ data: null } as any),
+      ]);
+      if ((vendorRes.data as any)?.admin_force_closed || (outletRes.data as any)?.admin_force_closed) {
+        toast({
+          title: "Temporarily unavailable",
+          description: "This store is temporarily unavailable for orders. Please try again later.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+
     // Gate: phone must be verified before placing any order — only enforced
     // when admin's force_phone_verification setting includes customers.
     if (phoneVerificationEnforced && phoneVerified === false) {
