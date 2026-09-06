@@ -8270,6 +8270,9 @@ export type Database = {
       vendor_outlets: {
         Row: {
           address: string | null
+          admin_force_closed: boolean
+          admin_override_updated_at: string | null
+          admin_override_updated_by: string | null
           banner_url: string | null
           city: string | null
           created_at: string
@@ -8307,6 +8310,9 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          admin_force_closed?: boolean
+          admin_override_updated_at?: string | null
+          admin_override_updated_by?: string | null
           banner_url?: string | null
           city?: string | null
           created_at?: string
@@ -8344,6 +8350,9 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          admin_force_closed?: boolean
+          admin_override_updated_at?: string | null
+          admin_override_updated_by?: string | null
           banner_url?: string | null
           city?: string | null
           created_at?: string
@@ -8867,6 +8876,9 @@ export type Database = {
       vendors: {
         Row: {
           address: string
+          admin_force_closed: boolean
+          admin_override_updated_at: string | null
+          admin_override_updated_by: string | null
           allow_rider_external_jobs: boolean
           approved_for_live: boolean | null
           banner_url: string | null
@@ -8916,6 +8928,9 @@ export type Database = {
         }
         Insert: {
           address: string
+          admin_force_closed?: boolean
+          admin_override_updated_at?: string | null
+          admin_override_updated_by?: string | null
           allow_rider_external_jobs?: boolean
           approved_for_live?: boolean | null
           banner_url?: string | null
@@ -8965,6 +8980,9 @@ export type Database = {
         }
         Update: {
           address?: string
+          admin_force_closed?: boolean
+          admin_override_updated_at?: string | null
+          admin_override_updated_by?: string | null
           allow_rider_external_jobs?: boolean
           approved_for_live?: boolean | null
           banner_url?: string | null
@@ -10171,6 +10189,10 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_set_outlet_availability: {
+        Args: { _force_closed: boolean; _outlet_id?: string }
+        Returns: number
+      }
       admin_set_user_role: {
         Args: {
           _action: string
@@ -10719,6 +10741,10 @@ export type Database = {
       rider_belongs_to_company: {
         Args: { _rider_user_id: string }
         Returns: string
+      }
+      schedule_open_now: {
+        Args: { _outlet_id?: string; _vendor_id: string }
+        Returns: boolean
       }
       sync_pos_offline_sale: {
         Args: {
