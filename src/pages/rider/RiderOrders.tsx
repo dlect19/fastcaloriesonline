@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -41,6 +41,8 @@ export default function RiderOrders() {
   const [riderProfile, setRiderProfile] = useState<any>(null);
   const [activeOrders, setActiveOrders] = useState<any[]>([]);
   const [completedOrders, setCompletedOrders] = useState<any[]>([]);
+  const activeOrdersRef = useRef<any[]>([]);
+  activeOrdersRef.current = activeOrders;
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [pendingDeliveryOrder, setPendingDeliveryOrder] = useState<any>(null);
   const [confirmingDelivery, setConfirmingDelivery] = useState(false);
@@ -169,6 +171,34 @@ export default function RiderOrders() {
     setRiderProfile(profile);
     setIsOnline(profile?.is_online || false);
     await fetchOrders();
+  };
+
+  // Targeted single-order fetch + enrichment for realtime patches
+  const fetchOneOrder = async (orderId: string) => {
+    const { data: order } = await supabase
+      .from('orders')
+      .select('*, vendors(user_id, name, address, phone, latitude, longitude), vendor_outlets(outlet_name, outlet_surname, address, city, state, latitude, longitude), addresses!delivery_address_id(latitude, longitude)')
+      .eq('id', orderId)
+      .maybeSingle();
+    if (!order) return null;
+
+    const [{ data: items }, { data: profile }] = await Promise.all([
+      supabase
+        .from('order_items')
+        .select('id, order_id, product_name, quantity, special_instructions, package_id')
+        .eq('order_id', orderId),
+      order.user_id
+        ? supabase.from('profiles').select('full_name, phone').eq('user_id', order.user_id).maybeSingle()
+        : Promise.resolve({ data: null } as any),
+    ]);
+
+    return {
+      ...order,
+      customer_profile: profile
+        ? { full_name: profile.full_name, phone: profile.phone }
+        : { full_name: (order as any).receiver_name, phone: (order as any).receiver_phone },
+      order_items: items || [],
+    };
   };
 
   const fetchOrders = async () => {
