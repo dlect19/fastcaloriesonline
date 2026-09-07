@@ -53,9 +53,11 @@ export default function Orders() {
     if (user) {
       fetchOrders();
       fetchCancelSettings();
-      subscribeToOrders();
+      const cleanup = subscribeToOrders();
+      return cleanup;
     }
   }, [user, authLoading, navigate]);
+
 
   const fetchCancelSettings = async () => {
     try {
