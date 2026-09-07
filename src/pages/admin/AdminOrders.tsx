@@ -761,7 +761,7 @@ export default function AdminOrders() {
             orderNumber={cancelOrder.order_number}
             orderTotal={Number(cancelOrder.total)}
             paymentStatus={cancelOrder.payment_status}
-            onCancelled={() => { setCancelOrder(null); fetchOrders(); }}
+            onCancelled={() => { setCancelOrder(null); fetchOrders({ silent: true }); }}
           />
         )}
 
@@ -769,7 +769,7 @@ export default function AdminOrders() {
           open={!!trackOrder}
           onOpenChange={(open) => !open && setTrackOrder(null)}
           order={trackOrder}
-          onUpdated={fetchOrders}
+          onUpdated={() => fetchOrders({ silent: true })}
         />
     </AdminLayout>
   );
