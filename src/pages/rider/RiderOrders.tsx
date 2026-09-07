@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -41,6 +41,8 @@ export default function RiderOrders() {
   const [riderProfile, setRiderProfile] = useState<any>(null);
   const [activeOrders, setActiveOrders] = useState<any[]>([]);
   const [completedOrders, setCompletedOrders] = useState<any[]>([]);
+  const activeOrdersRef = useRef<any[]>([]);
+  activeOrdersRef.current = activeOrders;
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [pendingDeliveryOrder, setPendingDeliveryOrder] = useState<any>(null);
   const [confirmingDelivery, setConfirmingDelivery] = useState(false);
@@ -63,7 +65,7 @@ export default function RiderOrders() {
   useEffect(() => {
     if (!userId) return;
 
-    // Subscribe to real-time order updates
+    // Subscribe to real-time order updates — incremental state patches, no full refetch
     const channel = supabase
       .channel('rider-orders')
       .on(
@@ -74,24 +76,61 @@ export default function RiderOrders() {
           table: 'orders',
           filter: `rider_id=eq.${userId}`,
         },
-        (payload) => {
-          // Check if this is a new order assignment
-          if (payload.eventType === 'UPDATE' && payload.new.rider_id === userId) {
-            const wasJustAssigned = payload.old.rider_id !== userId;
+        async (payload) => {
+          const newRow: any = payload.new;
+          const oldRow: any = payload.old;
+
+          if (payload.eventType === 'DELETE') {
+            const id = oldRow?.id;
+            if (id) {
+              setActiveOrders(prev => prev.filter(o => o.id !== id));
+              setCompletedOrders(prev => prev.filter(o => o.id !== id));
+            }
+            return;
+          }
+
+          if (payload.eventType === 'UPDATE' && newRow?.rider_id === userId) {
+            const wasJustAssigned = oldRow?.rider_id !== userId;
             if (wasJustAssigned) {
               playOnce();
               toast({
                 title: '🚚 New Delivery!',
-                description: `Order #${payload.new.order_number} has been assigned to you.`,
+                description: `Order #${newRow.order_number} has been assigned to you.`,
               });
             }
-            
             // If any status changed, stop sound — effect will restart if needed
-            if (payload.new.status !== payload.old.status) {
+            if (newRow.status !== oldRow?.status) {
               stopRepeating();
             }
           }
-          fetchOrders();
+
+          if (!newRow?.id) return;
+          const isTerminal = ['delivered', 'cancelled'].includes(newRow.status);
+
+          if (isTerminal) {
+            setActiveOrders(prev => prev.filter(o => o.id !== newRow.id));
+            const enriched = await fetchOneOrder(newRow.id);
+            if (enriched) {
+              setCompletedOrders(prev => [enriched, ...prev.filter(o => o.id !== enriched.id)].slice(0, 20));
+            }
+            return;
+          }
+
+          setActiveOrders(prev => {
+            const exists = prev.some(o => o.id === newRow.id);
+            if (!exists) return prev;
+            return prev.map(o => (o.id === newRow.id ? { ...o, ...newRow, vendors: o.vendors, vendor_outlets: o.vendor_outlets, addresses: o.addresses, order_items: o.order_items, customer_profile: o.customer_profile } : o));
+          });
+
+          // Not in the active list yet (new assignment) — targeted single-order fetch
+          if (!activeOrdersRef.current.some(o => o.id === newRow.id)) {
+            const enriched = await fetchOneOrder(newRow.id);
+            if (enriched) {
+              setActiveOrders(prev => (prev.some(o => o.id === enriched.id)
+                ? prev.map(o => (o.id === enriched.id ? { ...o, ...enriched } : o))
+                : [enriched, ...prev]));
+            }
+          }
         }
       )
       .subscribe();
@@ -100,6 +139,7 @@ export default function RiderOrders() {
       supabase.removeChannel(channel);
     };
   }, [userId, playOnce, stopRepeating, toast]);
+
 
   // Re-evaluate sound whenever active orders change
   useEffect(() => {
@@ -131,6 +171,34 @@ export default function RiderOrders() {
     setRiderProfile(profile);
     setIsOnline(profile?.is_online || false);
     await fetchOrders();
+  };
+
+  // Targeted single-order fetch + enrichment for realtime patches
+  const fetchOneOrder = async (orderId: string) => {
+    const { data: order } = await supabase
+      .from('orders')
+      .select('*, vendors(user_id, name, address, phone, latitude, longitude), vendor_outlets(outlet_name, outlet_surname, address, city, state, latitude, longitude), addresses!delivery_address_id(latitude, longitude)')
+      .eq('id', orderId)
+      .maybeSingle();
+    if (!order) return null;
+
+    const [{ data: items }, { data: profile }] = await Promise.all([
+      supabase
+        .from('order_items')
+        .select('id, order_id, product_name, quantity, special_instructions, package_id')
+        .eq('order_id', orderId),
+      order.user_id
+        ? supabase.from('profiles').select('full_name, phone').eq('user_id', order.user_id).maybeSingle()
+        : Promise.resolve({ data: null } as any),
+    ]);
+
+    return {
+      ...order,
+      customer_profile: profile
+        ? { full_name: profile.full_name, phone: profile.phone }
+        : { full_name: (order as any).receiver_name, phone: (order as any).receiver_phone },
+      order_items: items || [],
+    };
   };
 
   const fetchOrders = async () => {

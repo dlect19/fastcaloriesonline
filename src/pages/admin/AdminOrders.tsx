@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { AdminLayout } from '@/components/admin/AdminLayout';
@@ -59,25 +59,112 @@ export default function AdminOrders() {
   const [freeMealOnly, setFreeMealOnly] = useState(false);
   const [freeMealStats, setFreeMealStats] = useState({ total: 0, claimed: 0, pending: 0, expired: 0, cancelled: 0, totalValue: 0 });
 
+  const statusFilterRef = useRef(statusFilter);
+  statusFilterRef.current = statusFilter;
+  const ordersRef = useRef<any[]>([]);
+  ordersRef.current = orders;
+  const statsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     checkAuth();
   }, []);
 
+  // Server-side statusFilter changes require a real fetch
   useEffect(() => {
     fetchOrders();
+  }, [statusFilter]);
 
+  // Single realtime channel for the lifetime of the page — incremental patches only
+  useEffect(() => {
     const channel = supabase
       .channel('admin-orders-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-        fetchOrders();
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
+        handleRealtimeInsert(payload.new as any);
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, (payload) => {
+        handleRealtimeUpdate(payload.new as any, payload.old as any);
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'orders' }, (payload) => {
+        const id = (payload.old as any)?.id;
+        if (!id) return;
+        setOrders(prev => prev.filter(o => o.id !== id));
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
-  }, [statusFilter]);
+    return () => {
+      supabase.removeChannel(channel);
+      if (statsTimerRef.current) clearTimeout(statsTimerRef.current);
+      if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+    };
+  }, []);
+
+  // Coalesced free-meal stats refresh (aggregates can't be derived from a single payload)
+  const scheduleStatsRefresh = () => {
+    if (statsTimerRef.current) clearTimeout(statsTimerRef.current);
+    statsTimerRef.current = setTimeout(() => {
+      refreshFreeMealStats(ordersRef.current);
+    }, 1500);
+  };
+
+  // Last-resort coalesced full refresh (never one per event)
+  const scheduleFallbackRefresh = () => {
+    if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+    fallbackTimerRef.current = setTimeout(() => {
+      fetchOrders({ silent: true });
+    }, 2000);
+  };
+
+  const handleRealtimeInsert = async (row: any) => {
+    if (!row?.id) return;
+    const filter = statusFilterRef.current;
+    if (filter !== 'all' && row.status !== filter) return;
+    const enriched = await enrichOne(row.id);
+    if (!enriched) return;
+    setOrders(prev => {
+      const exists = prev.some(o => o.id === enriched.id);
+      if (exists) return prev.map(o => (o.id === enriched.id ? { ...o, ...enriched } : o));
+      return [enriched, ...prev];
+    });
+    if (enriched.is_free_meal) scheduleStatsRefresh();
+  };
+
+  const handleRealtimeUpdate = async (row: any, oldRow: any) => {
+    if (!row?.id) return;
+    const filter = statusFilterRef.current;
+
+    if (filter !== 'all' && row.status !== filter) {
+      setOrders(prev => prev.filter(o => o.id !== row.id));
+      return;
+    }
+
+    const known = ordersRef.current.some(o => o.id === row.id);
+    if (!known) {
+      // Wasn't loaded (server-side status filter) but now matches — targeted fetch only
+      await handleRealtimeInsert(row);
+      return;
+    }
+
+    // Merge changed columns, preserving enriched display fields
+    setOrders(prev => prev.map(o => (o.id === row.id ? { ...o, ...row, vendors: o.vendors } : o)));
+
+    const fkChanged =
+      row.user_id !== oldRow?.user_id ||
+      row.rider_id !== oldRow?.rider_id ||
+      row.vendor_id !== oldRow?.vendor_id ||
+      row.attended_by_staff_id !== oldRow?.attended_by_staff_id;
+
+    if (fkChanged) {
+      const enriched = await enrichOne(row.id);
+      if (enriched) setOrders(prev => prev.map(o => (o.id === enriched.id ? { ...o, ...enriched } : o)));
+    }
+
+    if (row.is_free_meal || oldRow?.is_free_meal) scheduleStatsRefresh();
+  };
 
   // Reset page when filters change
   useEffect(() => { setCurrentPage(1); }, [orderTab, channelTab, dateRange, searchQuery, statusFilter, itemsPerPage, freeMealOnly]);
+
 
   const filteredOrders = useMemo(() => {
     let result = orders;
@@ -126,8 +213,138 @@ export default function AdminOrders() {
     return filteredOrders.slice(start, start + itemsPerPage);
   }, [filteredOrders, currentPage, itemsPerPage]);
 
-  const fetchOrders = async () => {
-    setLoading(true);
+  // Enrich a batch of raw order rows with customer/rider/staff display fields
+  const enrichOrders = async (rows: any[]) => {
+    if (!rows.length) return [];
+    const userIds = [...new Set(rows.map(o => o.user_id).filter(Boolean))];
+    const riderIds = [...new Set(rows.map(o => o.rider_id).filter(Boolean))];
+    const staffIds = [...new Set(rows.map((o: any) => o.attended_by_staff_id).filter(Boolean))];
+
+    const [profilesRes, riderProfilesRes, riderNamesRes, staffRes] = await Promise.all([
+      userIds.length > 0
+        ? supabase.from('profiles').select('user_id, full_name, phone').in('user_id', userIds)
+        : { data: [] as any[] },
+      riderIds.length > 0
+        ? supabase.from('rider_profiles').select('user_id, vehicle_type').in('user_id', riderIds)
+        : { data: [] as any[] },
+      riderIds.length > 0
+        ? supabase.from('profiles').select('user_id, full_name, phone').in('user_id', riderIds)
+        : { data: [] as any[] },
+      staffIds.length > 0
+        ? supabase.from('admin_staff').select('id, user_id, role, invite_email').in('id', staffIds)
+        : { data: [] as any[] },
+    ]);
+
+    const profileMap = new Map((profilesRes.data || []).map((p: any) => [p.user_id, p]));
+    const riderProfileMap = new Map((riderProfilesRes.data || []).map((r: any) => [r.user_id, r]));
+    const riderNameMap = new Map((riderNamesRes.data || []).map((r: any) => [r.user_id, r]));
+
+    const staffUserIds = (staffRes.data || []).map((s: any) => s.user_id).filter(Boolean);
+    const { data: staffProfiles } = staffUserIds.length > 0
+      ? await supabase.from('profiles').select('user_id, full_name').in('user_id', staffUserIds)
+      : { data: [] as any[] };
+    const staffProfileMap = new Map((staffProfiles || []).map((p: any) => [p.user_id, p.full_name]));
+    const staffMap = new Map((staffRes.data || []).map((s: any) => [s.id, {
+      name: staffProfileMap.get(s.user_id) || s.invite_email || `Staff (${String(s.role).replace('_', ' ')})`,
+      role: s.role,
+    }]));
+
+    return rows.map((order: any) => ({
+      ...order,
+      customer_name: profileMap.get(order.user_id)?.full_name || order.receiver_name || 'N/A',
+      customer_phone: profileMap.get(order.user_id)?.phone || order.receiver_phone || 'N/A',
+      rider_name: order.rider_id ? (riderNameMap.get(order.rider_id)?.full_name || 'Assigned') : null,
+      rider_vehicle: order.rider_id ? (riderProfileMap.get(order.rider_id)?.vehicle_type || null) : null,
+      attended_by_name: order.attended_by_staff_id ? staffMap.get(order.attended_by_staff_id)?.name || 'Staff' : null,
+      attended_by_role: order.attended_by_staff_id ? staffMap.get(order.attended_by_staff_id)?.role || null : null,
+    }));
+  };
+
+  // Targeted single-order fetch + enrichment (used by realtime insert / FK change)
+  const enrichOne = async (orderId: string) => {
+    const { data } = await supabase
+      .from('orders')
+      .select('*, vendors(name, user_id)')
+      .eq('id', orderId)
+      .maybeSingle();
+    if (!data) return null;
+    const [enriched] = await enrichOrders([data]);
+    return enriched;
+  };
+
+  const refreshFreeMealStats = async (rows: any[]) => {
+    try {
+      const freeMealOrders = (rows || []).filter((o: any) => o.is_free_meal);
+      const totalValue = freeMealOrders.reduce((s: number, o: any) => s + (Number(o.free_meal_value) || 0), 0);
+
+      const { data: auditData } = await supabase
+        .from('free_meal_audit')
+        .select('status, platform_cost');
+
+      let claimed = 0, pending = 0, expired = 0, cancelled = 0;
+      auditData?.forEach((a: any) => {
+        if (a.status === 'claimed' || a.status === 'vendor_paid') claimed += a.platform_cost || 0;
+        else if (a.status === 'expired') expired += a.platform_cost || 0;
+        else if (a.status === 'cancelled') cancelled += a.platform_cost || 0;
+      });
+
+      // Pending = one active partial-progress reservation per customer+started-vendor pair
+      const { data: progressData } = await supabase
+        .from('free_meal_progress')
+        .select('user_id, highest_order_amount, promo_id, period_start, qualifying_order_id, free_meal_promos!inner(vendor_id, meal_value, order_threshold, promo_period_days, is_active)')
+        .gt('highest_order_amount', 0);
+
+      const qualifyingOrderIds = [...new Set((progressData || []).map((p: any) => p.qualifying_order_id).filter(Boolean))] as string[];
+      let vendorByOrderId = new Map<string, string>();
+
+      if (qualifyingOrderIds.length > 0) {
+        const { data: qualifyingOrders } = await supabase
+          .from('orders')
+          .select('id, vendor_id')
+          .in('id', qualifyingOrderIds);
+        vendorByOrderId = new Map((qualifyingOrders || []).map((o: any) => [o.id, o.vendor_id]));
+      }
+
+      const now = new Date();
+      const countedPendingKeys = new Set<string>();
+
+      progressData?.forEach((p: any) => {
+        const promo = p.free_meal_promos;
+        if (!promo?.is_active) return;
+
+        const startedVendorId = p.qualifying_order_id ? vendorByOrderId.get(p.qualifying_order_id) : null;
+        if (!startedVendorId || promo.vendor_id !== startedVendorId) return;
+
+        const periodStart = new Date(p.period_start);
+        const periodEnd = new Date(periodStart);
+        periodEnd.setDate(periodEnd.getDate() + promo.promo_period_days);
+        if (now > periodEnd) return;
+
+        const progressPct = (p.highest_order_amount / promo.order_threshold) * 100;
+        if (progressPct <= 0 || progressPct >= 100) return;
+
+        const pendingKey = `${p.user_id}:${startedVendorId}`;
+        if (countedPendingKeys.has(pendingKey)) return;
+
+        countedPendingKeys.add(pendingKey);
+        pending += promo.meal_value || 0;
+      });
+
+      setFreeMealStats({
+        total: freeMealOrders.length,
+        claimed,
+        pending,
+        expired,
+        cancelled,
+        totalValue,
+      });
+    } catch (error) {
+      console.error('Error refreshing free meal stats:', error);
+    }
+  };
+
+  const fetchOrders = async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     try {
       let query = supabase
         .from('orders')
@@ -140,125 +357,21 @@ export default function AdminOrders() {
       }
 
       const { data } = await query;
-      
+
       if (data && data.length > 0) {
-        const userIds = [...new Set(data.map(o => o.user_id).filter(Boolean))];
-        const riderIds = [...new Set(data.map(o => o.rider_id).filter(Boolean))];
-        const staffIds = [...new Set(data.map((o: any) => o.attended_by_staff_id).filter(Boolean))];
-
-        const [profilesRes, riderProfilesRes, riderNamesRes, staffRes] = await Promise.all([
-          supabase.from('profiles').select('user_id, full_name, phone').in('user_id', userIds),
-          riderIds.length > 0
-            ? supabase.from('rider_profiles').select('user_id, vehicle_type').in('user_id', riderIds)
-            : { data: [] },
-          riderIds.length > 0
-            ? supabase.from('profiles').select('user_id, full_name, phone').in('user_id', riderIds)
-            : { data: [] },
-          staffIds.length > 0
-            ? supabase.from('admin_staff').select('id, user_id, role, invite_email').in('id', staffIds)
-            : { data: [] },
-        ]);
-
-        const profileMap = new Map(profilesRes.data?.map(p => [p.user_id, p]) || []);
-        const riderProfileMap = new Map((riderProfilesRes.data || []).map((r: any) => [r.user_id, r]));
-        const riderNameMap = new Map((riderNamesRes.data || []).map((r: any) => [r.user_id, r]));
-
-        const staffUserIds = (staffRes.data || []).map((s: any) => s.user_id);
-        const { data: staffProfiles } = staffUserIds.length > 0
-          ? await supabase.from('profiles').select('user_id, full_name').in('user_id', staffUserIds)
-          : { data: [] as any[] };
-        const staffProfileMap = new Map((staffProfiles || []).map((p: any) => [p.user_id, p.full_name]));
-        const staffMap = new Map((staffRes.data || []).map((s: any) => [s.id, {
-          name: staffProfileMap.get(s.user_id) || s.invite_email || `Staff (${String(s.role).replace('_',' ')})`,
-          role: s.role,
-        }]));
-
-        const enriched = data.map(order => ({
-          ...order,
-          customer_name: profileMap.get(order.user_id)?.full_name || order.receiver_name || 'N/A',
-          customer_phone: profileMap.get(order.user_id)?.phone || order.receiver_phone || 'N/A',
-          rider_name: order.rider_id ? (riderNameMap.get(order.rider_id)?.full_name || 'Assigned') : null,
-          rider_vehicle: order.rider_id ? (riderProfileMap.get(order.rider_id)?.vehicle_type || null) : null,
-          attended_by_name: (order as any).attended_by_staff_id ? staffMap.get((order as any).attended_by_staff_id)?.name || 'Staff' : null,
-          attended_by_role: (order as any).attended_by_staff_id ? staffMap.get((order as any).attended_by_staff_id)?.role || null : null,
-        }));
+        const enriched = await enrichOrders(data);
         setOrders(enriched);
-
-        // Compute free meal stats from audit table
-        const freeMealOrders = data.filter((o: any) => o.is_free_meal);
-        const totalValue = freeMealOrders.reduce((s: number, o: any) => s + (Number(o.free_meal_value) || 0), 0);
-        
-        // Get audit stats for claimed/expired/cancelled
-        const { data: auditData } = await supabase
-          .from('free_meal_audit')
-          .select('status, platform_cost');
-        
-        let claimed = 0, pending = 0, expired = 0, cancelled = 0;
-        auditData?.forEach((a: any) => {
-          if (a.status === 'claimed' || a.status === 'vendor_paid') claimed += a.platform_cost || 0;
-          else if (a.status === 'expired') expired += a.platform_cost || 0;
-          else if (a.status === 'cancelled') cancelled += a.platform_cost || 0;
-        });
-
-        // Pending = one active partial-progress reservation per customer+started-vendor pair
-        const { data: progressData } = await supabase
-          .from('free_meal_progress')
-          .select('user_id, highest_order_amount, promo_id, period_start, qualifying_order_id, free_meal_promos!inner(vendor_id, meal_value, order_threshold, promo_period_days, is_active)')
-          .gt('highest_order_amount', 0);
-
-        const qualifyingOrderIds = [...new Set((progressData || []).map((p: any) => p.qualifying_order_id).filter(Boolean))] as string[];
-        let vendorByOrderId = new Map<string, string>();
-
-        if (qualifyingOrderIds.length > 0) {
-          const { data: qualifyingOrders } = await supabase
-            .from('orders')
-            .select('id, vendor_id')
-            .in('id', qualifyingOrderIds);
-          vendorByOrderId = new Map((qualifyingOrders || []).map((o: any) => [o.id, o.vendor_id]));
-        }
-
-        const now = new Date();
-        const countedPendingKeys = new Set<string>();
-
-        progressData?.forEach((p: any) => {
-          const promo = p.free_meal_promos;
-          if (!promo?.is_active) return;
-
-          const startedVendorId = p.qualifying_order_id ? vendorByOrderId.get(p.qualifying_order_id) : null;
-          if (!startedVendorId || promo.vendor_id !== startedVendorId) return;
-
-          const periodStart = new Date(p.period_start);
-          const periodEnd = new Date(periodStart);
-          periodEnd.setDate(periodEnd.getDate() + promo.promo_period_days);
-          if (now > periodEnd) return;
-
-          const progressPct = (p.highest_order_amount / promo.order_threshold) * 100;
-          if (progressPct <= 0 || progressPct >= 100) return;
-
-          const pendingKey = `${p.user_id}:${startedVendorId}`;
-          if (countedPendingKeys.has(pendingKey)) return;
-
-          countedPendingKeys.add(pendingKey);
-          pending += promo.meal_value || 0;
-        });
-
-        setFreeMealStats({
-          total: freeMealOrders.length,
-          claimed,
-          pending,
-          expired,
-          cancelled,
-          totalValue,
-        });
+        await refreshFreeMealStats(data);
       } else {
         setOrders([]);
       }
     } catch (error) {
       console.error('Error fetching orders:', error);
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   };
+
 
   const checkAuth = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -648,7 +761,7 @@ export default function AdminOrders() {
             orderNumber={cancelOrder.order_number}
             orderTotal={Number(cancelOrder.total)}
             paymentStatus={cancelOrder.payment_status}
-            onCancelled={() => { setCancelOrder(null); fetchOrders(); }}
+            onCancelled={() => { setCancelOrder(null); fetchOrders({ silent: true }); }}
           />
         )}
 
@@ -656,7 +769,7 @@ export default function AdminOrders() {
           open={!!trackOrder}
           onOpenChange={(open) => !open && setTrackOrder(null)}
           order={trackOrder}
-          onUpdated={fetchOrders}
+          onUpdated={() => fetchOrders({ silent: true })}
         />
     </AdminLayout>
   );

@@ -53,9 +53,11 @@ export default function Orders() {
     if (user) {
       fetchOrders();
       fetchCancelSettings();
-      subscribeToOrders();
+      const cleanup = subscribeToOrders();
+      return cleanup;
     }
   }, [user, authLoading, navigate]);
+
 
   const fetchCancelSettings = async () => {
     try {
@@ -77,7 +79,7 @@ export default function Orders() {
 
   const subscribeToOrders = () => {
     if (!user) return;
-    
+
     const channel = supabase
       .channel('user-orders')
       .on(
@@ -88,8 +90,22 @@ export default function Orders() {
           table: 'orders',
           filter: `user_id=eq.${user.id}`,
         },
-        () => {
-          fetchOrders();
+        (payload) => {
+          // Incremental in-place patching — no full refetch, no spinner
+          if (payload.eventType === 'INSERT') {
+            const row = payload.new as Order;
+            setOrders((prev) => (prev.some((o) => o.id === row.id) ? prev : [row, ...prev]));
+          } else if (payload.eventType === 'UPDATE') {
+            const row = payload.new as Order;
+            setOrders((prev) =>
+              prev.some((o) => o.id === row.id)
+                ? prev.map((o) => (o.id === row.id ? { ...o, ...row } : o))
+                : [row, ...prev]
+            );
+          } else if (payload.eventType === 'DELETE') {
+            const id = (payload.old as Partial<Order>)?.id;
+            if (id) setOrders((prev) => prev.filter((o) => o.id !== id));
+          }
         }
       )
       .subscribe();
@@ -98,6 +114,7 @@ export default function Orders() {
       supabase.removeChannel(channel);
     };
   };
+
 
   const fetchOrders = async () => {
     if (!user?.id) {

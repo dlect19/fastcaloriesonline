@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGeoLockCheck } from '@/hooks/useGeoLockCheck';
 import { useProfileCompletion } from '@/hooks/useProfileCompletion';
@@ -132,6 +132,7 @@ export default function VendorDashboard() {
   }, [vendor?.id, vendor?.is_open]);
 
   // Subscribe to real-time order updates for notifications
+  const statsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!vendor) return;
 
@@ -151,13 +152,16 @@ export default function VendorDashboard() {
             title: '🔔 New Order!',
             description: 'You have a new order to process',
           });
-          fetchVendorData();
+          // Dashboard shows aggregates only — coalesce refreshes instead of one per order
+          if (statsTimerRef.current) clearTimeout(statsTimerRef.current);
+          statsTimerRef.current = setTimeout(() => { fetchVendorData(); }, 1500);
         }
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
+      if (statsTimerRef.current) clearTimeout(statsTimerRef.current);
     };
   }, [vendor, playNotification, toast]);
 

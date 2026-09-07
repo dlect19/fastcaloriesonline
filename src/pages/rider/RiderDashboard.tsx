@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useProfileCompletion } from '@/hooks/useProfileCompletion';
@@ -93,6 +93,7 @@ export default function RiderDashboard() {
   }, [dateRange]);
 
   // Subscribe to realtime order updates
+  const countTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!riderProfile) return;
 
@@ -102,13 +103,18 @@ export default function RiderDashboard() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders' },
         () => {
-          fetchAvailableOrdersCount(riderProfile);
+          // Only an aggregate count is shown here — coalesce bursts into one refresh
+          if (countTimerRef.current) clearTimeout(countTimerRef.current);
+          countTimerRef.current = setTimeout(() => {
+            fetchAvailableOrdersCount(riderProfile);
+          }, 1500);
         }
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
+      if (countTimerRef.current) clearTimeout(countTimerRef.current);
     };
   }, [riderProfile]);
 
