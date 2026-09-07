@@ -59,25 +59,112 @@ export default function AdminOrders() {
   const [freeMealOnly, setFreeMealOnly] = useState(false);
   const [freeMealStats, setFreeMealStats] = useState({ total: 0, claimed: 0, pending: 0, expired: 0, cancelled: 0, totalValue: 0 });
 
+  const statusFilterRef = useRef(statusFilter);
+  statusFilterRef.current = statusFilter;
+  const ordersRef = useRef<any[]>([]);
+  ordersRef.current = orders;
+  const statsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     checkAuth();
   }, []);
 
+  // Server-side statusFilter changes require a real fetch
   useEffect(() => {
     fetchOrders();
+  }, [statusFilter]);
 
+  // Single realtime channel for the lifetime of the page — incremental patches only
+  useEffect(() => {
     const channel = supabase
       .channel('admin-orders-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-        fetchOrders();
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
+        handleRealtimeInsert(payload.new as any);
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, (payload) => {
+        handleRealtimeUpdate(payload.new as any, payload.old as any);
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'orders' }, (payload) => {
+        const id = (payload.old as any)?.id;
+        if (!id) return;
+        setOrders(prev => prev.filter(o => o.id !== id));
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
-  }, [statusFilter]);
+    return () => {
+      supabase.removeChannel(channel);
+      if (statsTimerRef.current) clearTimeout(statsTimerRef.current);
+      if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+    };
+  }, []);
+
+  // Coalesced free-meal stats refresh (aggregates can't be derived from a single payload)
+  const scheduleStatsRefresh = () => {
+    if (statsTimerRef.current) clearTimeout(statsTimerRef.current);
+    statsTimerRef.current = setTimeout(() => {
+      refreshFreeMealStats(ordersRef.current);
+    }, 1500);
+  };
+
+  // Last-resort coalesced full refresh (never one per event)
+  const scheduleFallbackRefresh = () => {
+    if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+    fallbackTimerRef.current = setTimeout(() => {
+      fetchOrders({ silent: true });
+    }, 2000);
+  };
+
+  const handleRealtimeInsert = async (row: any) => {
+    if (!row?.id) return;
+    const filter = statusFilterRef.current;
+    if (filter !== 'all' && row.status !== filter) return;
+    const enriched = await enrichOne(row.id);
+    if (!enriched) return;
+    setOrders(prev => {
+      const exists = prev.some(o => o.id === enriched.id);
+      if (exists) return prev.map(o => (o.id === enriched.id ? { ...o, ...enriched } : o));
+      return [enriched, ...prev];
+    });
+    if (enriched.is_free_meal) scheduleStatsRefresh();
+  };
+
+  const handleRealtimeUpdate = async (row: any, oldRow: any) => {
+    if (!row?.id) return;
+    const filter = statusFilterRef.current;
+
+    if (filter !== 'all' && row.status !== filter) {
+      setOrders(prev => prev.filter(o => o.id !== row.id));
+      return;
+    }
+
+    const known = ordersRef.current.some(o => o.id === row.id);
+    if (!known) {
+      // Wasn't loaded (server-side status filter) but now matches — targeted fetch only
+      await handleRealtimeInsert(row);
+      return;
+    }
+
+    // Merge changed columns, preserving enriched display fields
+    setOrders(prev => prev.map(o => (o.id === row.id ? { ...o, ...row, vendors: o.vendors } : o)));
+
+    const fkChanged =
+      row.user_id !== oldRow?.user_id ||
+      row.rider_id !== oldRow?.rider_id ||
+      row.vendor_id !== oldRow?.vendor_id ||
+      row.attended_by_staff_id !== oldRow?.attended_by_staff_id;
+
+    if (fkChanged) {
+      const enriched = await enrichOne(row.id);
+      if (enriched) setOrders(prev => prev.map(o => (o.id === enriched.id ? { ...o, ...enriched } : o)));
+    }
+
+    if (row.is_free_meal || oldRow?.is_free_meal) scheduleStatsRefresh();
+  };
 
   // Reset page when filters change
   useEffect(() => { setCurrentPage(1); }, [orderTab, channelTab, dateRange, searchQuery, statusFilter, itemsPerPage, freeMealOnly]);
+
 
   const filteredOrders = useMemo(() => {
     let result = orders;
