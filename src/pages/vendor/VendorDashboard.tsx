@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGeoLockCheck } from '@/hooks/useGeoLockCheck';
 import { useProfileCompletion } from '@/hooks/useProfileCompletion';
