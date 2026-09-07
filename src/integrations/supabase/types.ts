@@ -10742,6 +10742,10 @@ export type Database = {
         Args: { _rider_user_id: string }
         Returns: string
       }
+      schedule_open_at: {
+        Args: { _at: string; _outlet_id: string; _vendor_id: string }
+        Returns: boolean
+      }
       schedule_open_now: {
         Args: { _outlet_id?: string; _vendor_id: string }
         Returns: boolean
