@@ -36,6 +36,13 @@ export function useOutletPendingCounts(vendorId: string | null | undefined) {
 
     fetchCounts();
 
+    // Counts are aggregates: coalesce bursts of order events into one refresh
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleRefresh = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => fetchCounts(), 1500);
+    };
+
     const channel = supabase
       .channel(`outlet-pending-counts-${vendorId}`)
       .on(
@@ -46,15 +53,17 @@ export function useOutletPendingCounts(vendorId: string | null | undefined) {
           table: 'orders',
           filter: `vendor_id=eq.${vendorId}`,
         },
-        () => fetchCounts()
+        () => scheduleRefresh()
       )
       .subscribe();
 
     return () => {
       mounted = false;
+      if (timer) clearTimeout(timer);
       supabase.removeChannel(channel);
     };
   }, [vendorId]);
+
 
   return counts;
 }
