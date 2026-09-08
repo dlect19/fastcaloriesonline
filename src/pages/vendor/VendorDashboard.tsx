@@ -530,7 +530,7 @@ export default function VendorDashboard() {
           <PushNotificationBanner />
 
           {/* WhatsApp order alert opt-in (only until the selected outlet is verified) */}
-          {permissions?.isOwner !== false && (
+          {hasPermission('edit_settings') && (
             <VendorWhatsAppAlertPrompt vendorId={vendor.id} outletId={selectedOutletId} />
           )}
 
