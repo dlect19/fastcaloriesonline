@@ -134,7 +134,7 @@ serve(async (req) => {
       const [{ data: vendor }, { data: outlet }, { data: customer }, { data: extra }] = await Promise.all([
         admin.from("vendors").select("name, phone").eq("id", o.vendor_id).maybeSingle(),
         o.outlet_id
-          ? admin.from("vendor_outlets").select("outlet_name, phone").eq("id", o.outlet_id).maybeSingle()
+          ? admin.from("vendor_outlets").select("outlet_name").eq("id", o.outlet_id).maybeSingle()
           : Promise.resolve({ data: null } as any),
         o.user_id
           ? admin.from("profiles").select("full_name, phone").eq("user_id", o.user_id).maybeSingle()
@@ -149,7 +149,7 @@ serve(async (req) => {
       const storeLabel = outlet?.outlet_name && outlet.outlet_name !== vendorName
         ? `${vendorName} (${outlet.outlet_name})`
         : vendorName;
-      const vendorPhone = outlet?.phone || vendor?.phone || "N/A";
+      const vendorPhone = vendor?.phone || "N/A";
       const dType = o.delivery_type === "self_pickup" ? "Carryout" : "Delivery";
       const statusLabel = o.status === "pending" ? "not yet accepted" : "accepted but not yet preparing";
 
