@@ -58,6 +58,15 @@ export default function VendorSettings() {
     }
   }, [user, authLoading, navigate]);
 
+  // Deep link from the dashboard prompt: /vendor/settings#whatsapp-alerts
+  useEffect(() => {
+    if (!vendor || window.location.hash !== '#whatsapp-alerts') return;
+    const t = setTimeout(() => {
+      document.getElementById('whatsapp-alerts')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 300);
+    return () => clearTimeout(t);
+  }, [vendor]);
+
   const fetchData = async () => {
     try {
       const { data: vendorResults } = await supabase
@@ -424,7 +433,9 @@ export default function VendorSettings() {
 
           {/* WhatsApp Order Alerts */}
           {vendor && (
-            <VendorWhatsAppAlerts vendorId={vendor.id} vendorPhone={formData.phone} />
+            <div id="whatsapp-alerts" className="scroll-mt-20">
+              <VendorWhatsAppAlerts vendorId={vendor.id} vendorPhone={formData.phone} />
+            </div>
           )}
 
           {/* Staff Workspace Login */}

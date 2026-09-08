@@ -221,6 +221,18 @@ const TEMPLATES: TemplateDef[] = [
     },
   },
   {
+    key: "admin_unattended_order",
+    friendly_name: "admin_unattended_order",
+    language: "en",
+    description: "Admin alert: paid order unattended by vendor past threshold",
+    variables: { "1": "FC-000000", "2": "Vendor", "3": "5", "4": "not yet accepted", "5": "08000000000" },
+    types: {
+      "twilio/text": {
+        body: "Unattended order {{1}} at {{2}}: paid {{3}} min ago and {{4}}. Vendor phone: {{5}}. Please call the vendor to check on this order.",
+      },
+    },
+  },
+  {
     key: "wa_otp_code",
     friendly_name: "wa_otp_code",
     language: "en",
