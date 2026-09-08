@@ -30,6 +30,7 @@ import { useEnvironmentConfig } from '@/hooks/useEnvironmentConfig';
 import { useToast } from '@/hooks/use-toast';
 import { useVendorNotificationSound } from '@/hooks/useVendorNotificationSound';
 import { PushNotificationBanner } from '@/components/shared/PushNotificationBanner';
+import { VendorWhatsAppAlertPrompt } from '@/components/vendor/VendorWhatsAppAlertPrompt';
 
 import { supabase } from '@/integrations/supabase/client';
 import type { Tables } from '@/integrations/supabase/types';
@@ -527,6 +528,11 @@ export default function VendorDashboard() {
 
           {/* Push Notification Banner */}
           <PushNotificationBanner />
+
+          {/* WhatsApp order alert opt-in (only until the selected outlet is verified) */}
+          {permissions?.isOwner !== false && (
+            <VendorWhatsAppAlertPrompt vendorId={vendor.id} outletId={selectedOutletId} />
+          )}
 
           {/* Date Range Filter (not relevant for voucher vendors) */}
           {vendor?.category !== 'voucher' && (
