@@ -4,6 +4,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { AlertTriangle, Save, Loader2 } from 'lucide-react';
+import { UnattendedAlertHealth } from './UnattendedAlertHealth';
 
 interface Props {
   settings: Record<string, string>;
@@ -89,6 +90,8 @@ export function UnattendedOrderAlertSettings({ settings, onSettingChange, onSave
             <span className="text-destructive font-medium">Alerts are disabled.</span>
           )}
         </div>
+
+        <UnattendedAlertHealth />
 
         <div className="flex justify-end">
           <Button onClick={onSave} disabled={saving}>
