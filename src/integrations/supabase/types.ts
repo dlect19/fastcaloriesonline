@@ -10162,6 +10162,15 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_apply_platform_reconciliation: {
+        Args: {
+          p_environment?: string
+          p_expected_drift: number
+          p_reason: string
+          p_step_up_token: string
+        }
+        Returns: Json
+      }
       admin_financial_reconciliation: {
         Args: { p_from?: string; p_to?: string }
         Returns: Json
@@ -10185,6 +10194,19 @@ export type Database = {
           email: string
           user_id: string
         }[]
+      }
+      admin_post_platform_adjustment: {
+        Args: {
+          p_amount: number
+          p_category: string
+          p_environment?: string
+          p_metadata?: Json
+          p_notes?: string
+          p_order_id?: string
+          p_reference: string
+          p_transaction_type: string
+        }
+        Returns: Json
       }
       admin_recent_failed_attempts: {
         Args: { _user_id: string; _window_minutes?: number }
@@ -10352,6 +10374,17 @@ export type Database = {
       ensure_event_organizer_wallet: {
         Args: { _organizer_id: string }
         Returns: string
+      }
+      finalize_expense_payment: {
+        Args: {
+          p_paid_by?: string
+          p_payment_method: string
+          p_payment_note?: string
+          p_paystack_reference?: string
+          p_requisition_id: string
+          p_transfer_code?: string
+        }
+        Returns: Json
       }
       full_reconcile_wallets: {
         Args: { p_dry_run?: boolean; p_environment?: string }
@@ -10620,6 +10653,14 @@ export type Database = {
       owns_vendor: {
         Args: { _user_id: string; _vendor_id: string }
         Returns: boolean
+      }
+      platform_accounting_summary: {
+        Args: { p_environment?: string }
+        Returns: Json
+      }
+      platform_reconciliation_report: {
+        Args: { p_environment?: string }
+        Returns: Json
       }
       pos_can_use: {
         Args: { _user: string; _vendor: string }

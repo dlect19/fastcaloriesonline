@@ -141,33 +141,24 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    // Update requisition
-    await supabase.from("expense_requisitions").update({
-      status: "paid",
-      payment_method: "paystack",
-      paystack_reference: reference,
-      paystack_transfer_code: transferData.data.transfer_code,
-      paid_at: new Date().toISOString(),
-      paid_by: userData.user.id,
-    }).eq("id", requisition_id);
-
-    // Deduct from platform ledger
-    const { error: platErr } = await supabase.rpc("post_platform_entry", {
-      p_amount: requisition.amount,
-      p_category: "expense",
-      p_transaction_type: "debit",
-      p_reference: `EXP-${requisition_id}`,
-      p_environment: environment,
-      p_status: "completed",
-      p_notes: `Expense: ${requisition.title} (Paystack transfer)`,
-      p_metadata: {
-        requisition_id,
-        paystack_reference: reference,
-        transfer_code: transferData.data.transfer_code,
-        source: "process-expense",
-      },
+    // Mark paid + post the full company expense debit atomically (idempotent by EXP-<id>)
+    const { error: finalizeErr } = await supabase.rpc("finalize_expense_payment", {
+      p_requisition_id: requisition_id,
+      p_payment_method: "paystack",
+      p_payment_note: null,
+      p_paystack_reference: reference,
+      p_transfer_code: transferData.data.transfer_code,
+      p_paid_by: userData.user.id,
     });
-    if (platErr) console.error("[process-expense] post_platform_entry failed:", platErr.message);
+
+    if (finalizeErr) {
+      console.error("[process-expense] finalize_expense_payment failed:", finalizeErr.message);
+      return new Response(JSON.stringify({
+        success: false,
+        error: "Transfer sent but accounting entry failed — retry to complete recording.",
+      }), { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } });
+    }
+
 
 
     return new Response(JSON.stringify({
