@@ -9,11 +9,12 @@
 - [ ] BLOCKED (external): admin must click Provision Templates in Admin → WhatsApp, then Meta must approve `admin_unattended_order`
 
 ## Company accounting fix (deficit-capable platform ledger)
-- [ ] Remove zero clamps (manual expense client path, reverse_financials_on_cancellation platform branch)
-- [ ] post_platform_entry = only company money path; unique platform reference index
-- [ ] Convert direct writers (commission, delivery commission, reversal, refund adjustment, expenses)
-- [ ] Immutable ledger: refund adjustments post correcting entries, no in-place amount edits
-- [ ] reconcile_platform_wallet reports drift only (no opening_balance manufacturing)
-- [ ] Atomic expense payment RPC used by manual + Paystack paths
-- [ ] Admin UI: accounting position vs wallet cash, deficit, income/expense breakdown, ledger history, reconciliation review
-- [ ] Verify with production reads; leave historical ₦34,828.20 drift correction for explicit admin action
+- [x] Remove zero clamps (manual expense client path, reverse_financials_on_cancellation platform branch)
+- [x] post_platform_entry = only company money path; unique platform reference index; service-role only
+- [x] Convert direct writers (commission, delivery commission, reversal, promo reversal, refund adjustment, expenses, admin refund reversal)
+- [x] Immutable ledger: refund adjustments post correcting entries, no in-place amount edits
+- [x] reconcile_platform_wallet reports drift only (no opening_balance manufacturing)
+- [x] Atomic idempotent finalize_expense_payment used by manual + Paystack paths
+- [x] Admin UI: accounting position vs wallet cash, deficit, categorized costs, ledger history, reconciliation review
+- [x] Verified with production reads; historical ₦34,828.20 drift left visible, correction needs admin step-up
+- [ ] Optional: backfill-ledger edge function still writes platform balance directly (historical one-off tool, unused in normal flow)
