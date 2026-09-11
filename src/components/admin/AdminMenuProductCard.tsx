@@ -15,6 +15,8 @@ interface CuisineCategory {
 
 interface AdminMenuProductCardProps {
   product: any;
+  /** Short label clarifying whether the toggle affects the branch or the whole store. */
+  scopeNote?: string;
   parentCategories: CuisineCategory[];
   getSubCategories: (parentId: string) => CuisineCategory[];
   onToggleAvailability: (productId: string, currentAvail: boolean) => void;
@@ -23,6 +25,7 @@ interface AdminMenuProductCardProps {
 
 export function AdminMenuProductCard({
   product,
+  scopeNote,
   parentCategories,
   getSubCategories,
   onToggleAvailability,
@@ -84,6 +87,9 @@ export function AdminMenuProductCard({
           <div className="flex gap-1 mt-2 flex-wrap">
             {!product.is_available && (
               <Badge variant="secondary" className="text-xs">Unavailable</Badge>
+            )}
+            {scopeNote && (
+              <Badge variant="outline" className="text-xs">{scopeNote}</Badge>
             )}
             {product.calories && (
               <Badge variant="outline" className="text-xs">{product.calories} cal</Badge>

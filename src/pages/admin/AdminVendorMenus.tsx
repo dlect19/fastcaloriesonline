@@ -137,36 +137,108 @@ export default function AdminVendorMenus() {
     setLoadingProducts(false);
   };
 
-  // Get effective availability: outlet override > global
+  // Effective availability — global is authoritative, a branch override can
+  // only DISABLE an item (a legacy override=true never lifts global=false).
   const getEffectiveAvailability = (product: any) => {
-    if (selectedOutletId && outletOverrides.hasOwnProperty(product.id)) {
-      return outletOverrides[product.id];
-    }
-    return product.is_available;
+    if (product.is_hidden) return false;
+    if (!product.is_available) return false;
+    if (selectedOutletId && outletOverrides[product.id] === false) return false;
+    return true;
   };
 
   const toggleAvailability = async (productId: string, currentAvail: boolean) => {
-    if (selectedOutletId) {
-      // Toggle outlet-level override
-      await supabase
-        .from('outlet_product_overrides')
-        .upsert({
-          outlet_id: selectedOutletId,
-          product_id: productId,
-          is_available: !currentAvail,
-        }, { onConflict: 'outlet_id,product_id' });
-      setOutletOverrides(prev => ({ ...prev, [productId]: !currentAvail }));
-    } else {
-      // Toggle global availability
-      await supabase.from('products').update({ is_available: !currentAvail }).eq('id', productId);
-      setProducts(prev => prev.map(p => p.id === productId ? { ...p, is_available: !currentAvail } : p));
+    const product = products.find(p => p.id === productId);
+    if (!product) return;
+    const turningOn = !currentAvail;
+
+    try {
+      if (!selectedOutletId) {
+        // No branch selected — change global availability directly.
+        const { data, error } = await supabase
+          .from('products')
+          .update({ is_available: turningOn })
+          .eq('id', productId)
+          .select('id, is_available')
+          .maybeSingle();
+        if (error) throw error;
+        if (!data) throw new Error('Update was rejected (no rows changed).');
+        setProducts(prev => prev.map(p => p.id === productId ? { ...p, is_available: turningOn } : p));
+      } else if (turningOn) {
+        // Make it available at this branch: global must be on first, then the
+        // blocking branch override is removed (no redundant true rows kept).
+        if (!product.is_available || product.is_hidden) {
+          const { data, error } = await supabase
+            .from('products')
+            .update({ is_available: true, is_hidden: false })
+            .eq('id', productId)
+            .select('id, is_available, is_hidden')
+            .maybeSingle();
+          if (error) throw error;
+          if (!data) throw new Error('Update was rejected (no rows changed).');
+          setProducts(prev => prev.map(p => p.id === productId ? { ...p, is_available: true, is_hidden: false } : p));
+        }
+        if (outletOverrides.hasOwnProperty(productId)) {
+          const { error } = await supabase
+            .from('outlet_product_overrides')
+            .delete()
+            .eq('outlet_id', selectedOutletId)
+            .eq('product_id', productId);
+          if (error) throw error;
+          setOutletOverrides(prev => {
+            const next = { ...prev };
+            delete next[productId];
+            return next;
+          });
+        }
+      } else {
+        // Disable at this branch only — never touch global availability.
+        const { data, error } = await supabase
+          .from('outlet_product_overrides')
+          .upsert({
+            outlet_id: selectedOutletId,
+            product_id: productId,
+            is_available: false,
+          }, { onConflict: 'outlet_id,product_id' })
+          .select('product_id, is_available')
+          .maybeSingle();
+        if (error) throw error;
+        if (!data) throw new Error('Update was rejected (no rows changed).');
+        setOutletOverrides(prev => ({ ...prev, [productId]: false }));
+      }
+
+      toast({
+        title: turningOn ? 'Item available' : 'Item unavailable',
+        description: selectedOutletId
+          ? (turningOn
+            ? 'Enabled globally and at this branch.'
+            : 'Disabled at this branch only.')
+          : 'Global availability updated.',
+      });
+    } catch (e: any) {
+      toast({
+        title: 'Could not change availability',
+        description: e?.message || 'The change was not saved. Please try again.',
+        variant: 'destructive',
+      });
     }
-    toast({ title: `Item ${!currentAvail ? 'enabled' : 'disabled'}` });
   };
 
   const assignCuisineCategory = async (productId: string, cuisineCategoryId: string | null) => {
     const updateValue = cuisineCategoryId === 'none' ? null : cuisineCategoryId;
-    await supabase.from('products').update({ cuisine_category_id: updateValue }).eq('id', productId);
+    const { data, error } = await supabase
+      .from('products')
+      .update({ cuisine_category_id: updateValue })
+      .eq('id', productId)
+      .select('id, cuisine_category_id')
+      .maybeSingle();
+    if (error || !data) {
+      toast({
+        title: 'Could not update cuisine category',
+        description: error?.message || 'The change was not saved. Please try again.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setProducts(prev => prev.map(p => p.id === productId ? { ...p, cuisine_category_id: updateValue } : p));
     toast({ title: 'Cuisine category updated' });
   };
@@ -306,6 +378,11 @@ export default function AdminVendorMenus() {
                 <span>Menu Items ({filtered.length})</span>
                 <Badge variant="secondary">{products.length} total</Badge>
               </CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                {selectedOutletId
+                  ? 'Branch availability: switching an item ON also turns it on for the whole store; switching it OFF only closes it at this branch.'
+                  : 'Global availability: changes here apply to the store and every branch.'}
+              </p>
             </CardHeader>
             <CardContent>
               {filtered.length === 0 ? (
@@ -316,6 +393,13 @@ export default function AdminVendorMenus() {
                     <AdminMenuProductCard
                       key={product.id}
                       product={{ ...product, is_available: product._effective_available }}
+                      scopeNote={
+                        selectedOutletId
+                          ? (outletOverrides[product.id] === false
+                            ? 'Closed at this branch'
+                            : (!product.is_available || product.is_hidden ? 'Off for the whole store' : 'On at this branch'))
+                          : (product.is_hidden ? 'Hidden from customers' : undefined)
+                      }
                       parentCategories={parentCategories}
                       getSubCategories={getSubCategories}
                       onToggleAvailability={(id, _current) => toggleAvailability(id, product._effective_available)}
