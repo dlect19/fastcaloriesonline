@@ -324,9 +324,9 @@ export default function VendorDetail() {
         (payload) => {
           if (payload.eventType === 'UPDATE') {
             const updated = payload.new as any;
-            // Apply outlet override if exists
-            const effectiveAvailability = outletId && updated.id in outletOverrides
-              ? outletOverrides[updated.id]
+            // Branch override can only disable; global stays authoritative.
+            const effectiveAvailability = outletId && outletOverrides[updated.id] === false
+              ? false
               : updated.is_available;
             setProducts(prev =>
               prev.map(p => p.id === updated.id ? { ...p, ...updated, is_available: effectiveAvailability } : p)
@@ -334,8 +334,8 @@ export default function VendorDetail() {
           } else if (payload.eventType === 'INSERT') {
             const newProduct = payload.new as any;
             if (newProduct.meal_type !== 'addon') {
-              if (outletId && newProduct.id in outletOverrides) {
-                newProduct.is_available = outletOverrides[newProduct.id];
+              if (outletId && outletOverrides[newProduct.id] === false) {
+                newProduct.is_available = false;
               }
               setProducts(prev => [...prev, newProduct]);
             }
@@ -361,9 +361,13 @@ export default function VendorDetail() {
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
             const row = payload.new as any;
             setOutletOverrides(prev => ({ ...prev, [row.product_id]: row.is_available }));
-            setProducts(prev =>
-              prev.map(p => p.id === row.product_id ? { ...p, is_available: row.is_available } : p)
-            );
+            // An override of `true` only lifts the branch block; it cannot
+            // make a globally unavailable product sellable.
+            if (row.is_available === false) {
+              setProducts(prev =>
+                prev.map(p => p.id === row.product_id ? { ...p, is_available: false } : p)
+              );
+            }
           }
         }
       )
