@@ -1,88 +1,89 @@
-# Audit report: four suspected production bugs
+# Company Finance Audit — Expenses vs Company Balance (read-only)
 
-No code, data, settings or deployments were changed. All database reads were read-only.
+No code, data, settings or balances were changed. All figures below come from live production reads.
 
----
+## Headline finding
 
-## Severity summary
+Your ₦10,000 / ₦20,000 example is real, and the cause is not the expense screen alone. Two separate places subtract money from the company balance with a "never go below zero" rule. When the company balance is smaller than the amount being subtracted, the extra amount is silently thrown away instead of leaving a deficit.
 
-| # | Issue | Severity | Status |
-|---|---|---|---|
-| C | Delivery fee is never verified by the server; customer's device decides the price | **Critical** | Confirmed |
-| A | Availability lives in two different places; WhatsApp and Assisted Order ignore one of them | **High** | Confirmed |
-| B | New items/photos silently missing from the home carousel + failed photo upload still saves the item | **High** | Confirmed |
-| C2 | Second map key name is not configured, so WhatsApp distance quietly uses straight-line estimates | **Medium** | Confirmed |
-| D | Carryout → Delivery switch keeping a low fee | **Low** | Not reproduced in code; one narrow race remains |
+The exact event that destroyed money in production:
 
----
+- 2026-09-10 16:53 — company balance recorded as **-₦33,978.20** (a real negative, correctly reached after the ₦50,000 Google Map API expense).
+- 2026-09-10 17:08 — a cancelled order reversed an ₦850 commission. The reversal clamps at zero, so the balance jumped from **-₦33,978.20 straight to ₦0**.
+- 2026-09-10 17:46 onward — normal commissions added on top of that ₦0, giving today's **₦1,360**.
+- **₦34,828.20 of real losses vanished**, which is exactly the drift the system itself flagged on 2026-09-11 (drift log: balance ₦1,360 vs ledger -₦33,468.20, drift ₦34,828.20).
 
-## A) Menu availability desync — Confirmed (High)
+## Evidence from production
 
-There are two separate "available" records, and they disagree:
+- `platform_wallet`: balance ₦1,360, total_earned ₦60,616, total_paid_out ₦76,300, test_balance ₦256.90.
+- Company ledger (production, completed): credits ₦261,651.80, debits ₦295,120.00 → **net -₦33,468.20**. Includes a ₦67,706 "opening_balance" cutover row created 2026-08-08 by the reconcile routine to paper over an earlier drift, so the true historical net is worse still.
+- Paid expense requisitions: 27 (26 Paystack ₦240,800 + 1 manual ₦4,000) = **₦244,800**. Company ledger expense debits: 27 rows = **₦244,800**. No missing or duplicate expense rows.
+- Only the last 3 expense rows carry a reference and a running balance (`balance_after` -₦1,443, ₦377.80, -₦36,928.20). The older 24 have no reference and no running balance — they were inserted directly, with no duplicate protection.
+- Balance-change guard log confirms the clamp: old value -₦33,978.20 … then old value ₦0 on the next entry.
+- Drift log history: ₦67,706 drift (2026-08-08, papered over), ₦34,828.20 drift (2026-09-11, current).
 
-1. `products.is_available` (whole business) plus `products.is_hidden`.
-2. `outlet_product_overrides(outlet_id, product_id, is_available)` (per branch).
+## 1) Expense requisition lifecycle
 
-Vendor toggle (`src/pages/vendor/VendorMenu.tsx`):
-- With a branch selected → writes only `outlet_product_overrides` (lines 668-680).
-- With no branch selected → writes only `products.is_available` (line 689-691).
-- Effective value is merged in the client only: `getEffectiveAvailability` (lines 634-639).
-- Combo availability cascade runs only in the no-branch mode (lines 698-758), so branch-level toggles never update combos.
+- Submit: `ExpenseRequisitionForm` → row in `expense_requisitions` (status `pending`).
+- Approve/reject: `ExpenseRequisitionList` updates status/approver fields only. No money moves.
+- Pay via Paystack: `ExpenseRequisitionList.handlePayViaPaystack` → edge function `process-expense` → creates Paystack recipient + transfer → sets requisition to `paid` → calls the ledger routine `post_platform_entry` (category `expense`, debit, reference `EXP-<id>`). This path **does** allow a negative balance and records a running balance.
+- Pay manually: `ExpenseRequisitionList.handleMarkAsPaid` → sets `paid` → inserts a ledger row by hand (no reference) → then reads the balance and writes back `Math.max(balance − amount, 0)`. **This is clamp #1.**
 
-Read paths, and what each one actually honours:
-- Customer web/mobile `src/pages/VendorDetail.tsx:210-260` — the only correct path: `is_hidden=false` + merges branch overrides, with realtime channels (lines 314, 350).
-- `supabase/functions/whatsapp-webhook/index.ts:2046-2054` — no availability filter at all and no branch-override join; label only reflects the global flag. NL search at 826-831 filters nothing.
-- `supabase/functions/wa-session/index.ts:121-122` — filters global flags but never joins branch overrides.
-- `src/pages/admin/AssistedOrderCreate.tsx:161-171` — no `is_hidden` filter, and filters on the legacy `products.outlet_id` column instead of the override table, so branch-level toggles have zero effect there.
+## 2) Where the balance is clamped
 
-Live evidence:
-- 314 products, 306 available, 8 unavailable; 66 override rows exist, so both systems are in active use.
-- 258 of 314 products have `outlet_id = NULL`; nothing in the vendor UI ever writes that column, confirming the Assisted Order filter is checking a column the toggles never touch.
-- Write permission: the `products` "manage" policy allows only owner/manager (`get_vendor_staff_role ... owner|manager`). A **cashier** toggling availability gets a silent zero-row update — the UI then shows the new state locally while nothing changed in the database. Admin's toggle (`src/pages/admin/AdminVendorMenus.tsx:155-162`) writes both the override and the global flag, a third write shape.
-- No `products` trigger flips `is_available` (only `updated_at`, prescription sync, pharmacy stock default).
+- `ExpenseRequisitionList.tsx` line 232: `Math.max(currentBalance - amount, 0)` (manual expense payment).
+- Database routine `reverse_financials_on_cancellation`: `GREATEST(balance − amount, 0)` and `GREATEST(total_earned − amount, 0)` for commission / service fee / delivery commission reversals on cancelled orders. **This is clamp #2 and it caused the ₦34,828.20 loss.**
+- The same clamp style is used across vendor/rider/customer wallet reversals in that routine (appropriate there, wrong for the company).
 
-## B) New items and images not appearing — Confirmed (High)
+## 3) Who writes the company balance
 
-- Photo upload failure is swallowed: `VendorMenu.tsx:392-422` returns `null` on storage error, and `handleSubmit` (438-440, 469) still saves with `image_url: null` and shows "Product added successfully". Vendor believes it worked.
-- Home carousel blackout: `src/components/home/MenuCarousel.tsx:124-153` only shows products whose vendor has a branch with `is_active AND is_approved`. Live data: branches are 23 active+approved, 5 inactive+approved, 2 inactive+not-approved, and `is_approved` defaults to `false`. **4 vendors currently have their entire menu excluded from the home carousel** while still visible on their own store page.
-- Every product created in the last 60 days has `outlet_id` NULL and `category_id` NULL (296 of 314 overall have no category), so any category-filtered browse surface (`src/pages/Explore.tsx:95-99`) cannot find them.
-- Storage itself is fine: `vendor-assets` bucket is public, public URLs correctly formed, paths match the owner policy.
-- Reverse failure also unhandled: upload succeeds, insert throws → orphaned file, no item.
+Correct path (no clamp, keeps a running balance, refuses duplicates by reference): `post_platform_entry`.
+Direct writes that bypass it:
+- `credit_vendor_on_payment` (commission + service fee on every paid order) — direct add, ledger row inserted separately.
+- `credit_rider_on_assignment` (delivery commission) — same pattern.
+- `reverse_financials_on_cancellation` — clamped subtraction.
+- `adjust_vendor_payout_after_refund` — direct add/subtract, and it **edits an existing ledger row's amount in place** rather than posting a correcting entry.
+- `ExpenseRequisitionList` (manual pay), `AdminFinancialTools` (refund reversal), edge function `backfill-ledger`.
+- `reconcile_platform_wallet` does not correct the balance; when it sees drift it writes an `opening_balance` row to make the ledger match the balance — i.e. it hides the loss instead of surfacing it. That is where the ₦67,706 row came from.
 
-## C) Distance, weather and delivery undercharging — Critical
+## 4–5) Is the ledger the source of truth?
 
-The APIs are *working*; the pricing trust model is the real bug.
+Intent: yes, `wallet_transactions` is designed as the ledger, and the drift detector compares balance against it. Reality: `platform_wallet.balance` is an independently mutated number that currently **does not** reconcile — ₦1,360 stored vs -₦33,468.20 in the ledger. Drift arises from the two clamps, from in-place ledger amount edits, and from the cutover rows that mask rather than resolve differences.
 
-- Google Distance Matrix is live: `api_usage_log` shows 16 successful `google_maps/distance_matrix` calls (latest 2026-09-10 17:44) vs 1 haversine fallback. Weather is live too: `weather_cache` refreshed 2026-09-10 17:44 via open-meteo, `weather_service_enabled = true`.
-- **No server-side price validation anywhere.** The browser inserts the order row directly (`src/components/cart/VendorCheckoutSection.tsx:470-500`) with its own `delivery_fee` and `total`. The insert policy only checks `auth.uid() = user_id` — no bound on amounts. `process-wallet-payment/index.ts:113-134` charges `Number(order.total)` as stored; `paystack-webhook/index.ts:185` reconciles against the stored fee; rider payout triggers split `NEW.delivery_fee`. There is no `create-order` function at all. So any client-side value — tampered, buggy, or from a stale calculation — becomes the charged and settled amount.
-- Fallback path silently underprices long trips: if the distance call fails or coordinates are missing, `useDeliveryFee.ts` falls back to plain `base_delivery_fee` (₦500) regardless of real distance. Live orders show repeated flat ₦500 fees (FC-260910-1520, FC-260910-8418, FC-260909-0319, FC-260831-5551) alongside distance-derived ones (₦815, ₦1,360, ₦2,250) — consistent with fallback-priced trips. With `per_km_fee = 350`, a 10 km trip priced at base only undercharges roughly ₦3,150.
-- Key-name split: functions read two different secrets. `GOOGLE_MAPS_KEY` is configured; `GOOGLE_MAPS_API_KEY` — used by `supabase/functions/_shared/map-provider.ts:22-23` and `whatsapp-webhook/index.ts:1913,1938` — is not, so those paths degrade to straight-line distance silently.
+## 6) Expense entries
 
-## D) Carryout → Delivery low fee — Not reproduced (Low)
+Counts and sums match exactly (27 / ₦244,800). Weaknesses: 24 of 27 rows have no reference (a repeated click could double-post), 24 have no running balance, and the manual-payment path posts the ledger row and the balance change as two separate steps, so a failure between them leaves them inconsistent.
 
-The switch does force a fresh calculation: `src/components/cart/VendorGroupCard.tsx:36-45` nulls the coordinates while carryout, and `useDeliveryFee.ts`'s effect dependencies re-fire a fresh distance lookup when they become numbers again. Charged fee is gated on `deliveryType` (`VendorGroupCard.tsx:47`, `VendorCheckoutSection.tsx:122-124`), and checkout is blocked while calculating. `deliveryType` is not persisted anywhere.
+## 7) What the numbers actually mean
 
-Two residual risks that could explain a real-world low charge:
-1. The distance `useEffect` has no cancellation guard, so rapid delivery → carryout → delivery toggling can let an older in-flight result land last.
-2. Because of (C), whatever the client holds at submit time is charged with no server check — this is the plausible mechanism behind the report, not a dedicated carryout bug.
+- `balance`: a mutable bucket, not verified cash and not retained earnings. It floors at zero on some paths, so it understates losses.
+- `total_earned` / `total_paid_out`: only maintained by `post_platform_entry`, and `total_earned` is also reduced by cancellations — so it is neither lifetime income nor a reliable cumulative figure. ₦60,616 earned vs ₦76,300 paid out cannot be squared with a ₦1,360 balance.
+- "Withdrawable balance" in the admin card = `balance − pending payouts`. It mixes company profit with money owed to vendors/riders and is not a cash position; actual bank cash lives in Paystack.
 
-## Cross-cutting
+## 8) Admin UI review
 
-- No react-query caching on these screens; all are manual fetch + realtime. Mobile and web share the same backend and query paths, so no native cache divergence.
-- Only `VendorDetail` subscribes to realtime for availability. WhatsApp and Assisted Order are one-shot fetches with no invalidation.
-- The offline POS IndexedDB cache is a separate, intentional store and is not a customer-facing menu source.
+`CompanyProfitCard` (Expenses page, admin dashboard) computes income and expenses purely from the ledger and **does** show a negative net profit correctly, including a "Loss" badge. But: withdrawable balance is read from the clamped stored balance, so it shows ₦1,360 while the true position is about -₦33,468. It omits dispute deductions (₦31,460.20) and commission reversals from the expense side, has no transaction history list, and formats negatives inconsistently.
 
----
+## 9) Other inflows/outflows
 
-## Prioritized correction plan (not implemented)
+Inflows: order commission, service fee, delivery commission, POS wallet fee, food commission. Outflows: expenses, promo cost, referral cost, dispute deductions/corrections, commission and service-fee reversals on cancellation. Clamped or divergent points: cancellation reversals (clamped), manual expense payment (clamped), refund adjustment (edits ledger history), reconcile cutover rows (masks drift), and every direct balance write listed in section 3.
 
-1. **Server-authoritative pricing (Critical).** Move order creation behind an edge function that recomputes distance, base/per-km tiers, surge and weather from `platform_settings`, and rejects or corrects client-supplied `delivery_fee`/`total`; tighten the insert policy accordingly.
-2. **No silent fallback pricing.** When the distance lookup fails, either retry/queue or refuse checkout instead of charging the flat base fee; log every fallback for review.
-3. **Unify the map secret name** so WhatsApp and map-provider paths use the configured key.
-4. **One effective-availability rule** in a single server-side function (global flag + hidden + branch override), used by customer app, WhatsApp, wa-session and Assisted Order alike; keep WhatsApp's deliberate "show all" only as a labelled state.
-5. **Fix the write surface.** Let cashiers' toggles either work or fail loudly (no silent zero-row updates); cascade combos for branch-level toggles too; retire or backfill the legacy `products.outlet_id` filter.
-6. **Product creation robustness.** Block save when photo upload fails (or save then re-attach), clean up orphaned uploads, and require category/branch links.
-7. **Carousel visibility.** Approve or auto-approve the 4 vendors' branches, and surface an admin warning when a live vendor has no approved branch.
-8. **Add the toggle race guard** in the distance effect.
+## 10) Recommended design (not implemented)
 
-Suggested order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8.
+1. Make `post_platform_entry` the only way the company balance ever changes; convert all direct writes to it, including reversals, and let the balance go negative.
+2. Remove both zero-clamps for the company account; keep clamps only where a user wallet genuinely must not go negative.
+3. Never edit a posted ledger amount — post a correcting entry with its own reference instead.
+4. Separate two figures in the model and in the UI: accounting position (retained profit/deficit from the ledger, may be negative) and cash liquidity (Paystack balance minus money owed). Requisitions above available cash should be flagged as overdrawn, not silently absorbed.
+5. Change the reconcile routine to report drift and require an explicit, audited correction entry instead of writing `opening_balance` rows.
+6. Require a reference on every company ledger entry so retries cannot double-post.
+7. Extend the profit card: all expense categories, transaction history, explicit deficit display, cash vs profit split.
+
+## 11) Migration/backfill approach (not executed)
+
+1. Freeze the interpretation: treat the ledger as truth and today's balance as unverified.
+2. Quantify each historical distortion separately — the ₦67,706 cutover row, the ₦34,828.20 clamp loss, and any in-place amount edits — and record them in an audit table.
+3. Decide with you whether the pre-August history gets a single dated, documented opening-equity entry (an accounting decision, not a technical one), then post it once with a fixed reference.
+4. Re-point the balance to the ledger total in one audited correction entry, after the clamps are removed, so it cannot re-drift.
+5. Verify by re-running drift detection and confirming zero drift, then keep drift detection as an alert rather than a self-healing job.
+
+No changes will be made until you approve a direction.
