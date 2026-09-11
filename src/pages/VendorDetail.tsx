@@ -330,15 +330,21 @@ export default function VendorDetail() {
               ? false
               : updated.is_available;
             setProducts(prev =>
-              prev.map(p => p.id === updated.id ? { ...p, ...updated, is_available: effectiveAvailability } : p)
+              prev.map(p => p.id === updated.id
+                ? { ...p, ...updated, _global_available: updated.is_available, is_available: effectiveAvailability }
+                : p)
             );
           } else if (payload.eventType === 'INSERT') {
             const newProduct = payload.new as any;
             if (newProduct.meal_type !== 'addon') {
-              if (outletId && outletOverrides[newProduct.id] === false) {
-                newProduct.is_available = false;
-              }
-              setProducts(prev => [...prev, newProduct]);
+              const inserted: Product = {
+                ...newProduct,
+                _global_available: newProduct.is_available,
+                is_available: outletId && outletOverrides[newProduct.id] === false
+                  ? false
+                  : newProduct.is_available,
+              };
+              setProducts(prev => [...prev, inserted]);
             }
           } else if (payload.eventType === 'DELETE') {
             setProducts(prev => prev.filter(p => p.id !== (payload.old as any).id));
