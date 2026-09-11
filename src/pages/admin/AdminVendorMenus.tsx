@@ -163,47 +163,31 @@ export default function AdminVendorMenus() {
         if (error) throw error;
         if (!data) throw new Error('Update was rejected (no rows changed).');
         setProducts(prev => prev.map(p => p.id === productId ? { ...p, is_available: turningOn } : p));
-      } else if (turningOn) {
-        // Make it available at this branch: global must be on first, then the
-        // blocking branch override is removed (no redundant true rows kept).
-        if (!product.is_available || product.is_hidden) {
-          const { data, error } = await supabase
-            .from('products')
-            .update({ is_available: true, is_hidden: false })
-            .eq('id', productId)
-            .select('id, is_available, is_hidden')
-            .maybeSingle();
-          if (error) throw error;
-          if (!data) throw new Error('Update was rejected (no rows changed).');
-          setProducts(prev => prev.map(p => p.id === productId ? { ...p, is_available: true, is_hidden: false } : p));
-        }
-        if (outletOverrides.hasOwnProperty(productId)) {
-          const { error } = await supabase
-            .from('outlet_product_overrides')
-            .delete()
-            .eq('outlet_id', selectedOutletId)
-            .eq('product_id', productId);
-          if (error) throw error;
-          setOutletOverrides(prev => {
-            const next = { ...prev };
-            delete next[productId];
-            return next;
-          });
-        }
       } else {
-        // Disable at this branch only — never touch global availability.
-        const { data, error } = await supabase
-          .from('outlet_product_overrides')
-          .upsert({
-            outlet_id: selectedOutletId,
-            product_id: productId,
-            is_available: false,
-          }, { onConflict: 'outlet_id,product_id' })
-          .select('product_id, is_available')
-          .maybeSingle();
+        // Branch change happens in ONE database transaction so the store-wide
+        // switch and the branch block can never end up half-changed.
+        const { data, error } = await supabase.rpc('admin_set_branch_product_availability', {
+          _product_id: productId,
+          _outlet_id: selectedOutletId,
+          _available: turningOn,
+        });
         if (error) throw error;
-        if (!data) throw new Error('Update was rejected (no rows changed).');
-        setOutletOverrides(prev => ({ ...prev, [productId]: false }));
+        const result = data as any;
+        if (!result) throw new Error('The change was not confirmed.');
+
+        // Only trust the confirmed state that came back.
+        setProducts(prev => prev.map(p => p.id === productId
+          ? { ...p, is_available: !!result.global_available, is_hidden: !!result.is_hidden }
+          : p));
+        setOutletOverrides(prev => {
+          const next = { ...prev };
+          if (result.branch_override === null || result.branch_override === undefined) {
+            delete next[productId];
+          } else {
+            next[productId] = !!result.branch_override;
+          }
+          return next;
+        });
       }
 
       toast({

@@ -15,6 +15,13 @@
       "when": 1789120572422,
       "tag": "0001_effective_availability_global_authoritative",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789120934913,
+      "tag": "0002_admin_set_branch_product_availability",
+      "breakpoints": true
     }
   ]
 }
