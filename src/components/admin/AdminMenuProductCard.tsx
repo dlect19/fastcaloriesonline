@@ -88,6 +88,9 @@ export function AdminMenuProductCard({
             {!product.is_available && (
               <Badge variant="secondary" className="text-xs">Unavailable</Badge>
             )}
+            {scopeNote && (
+              <Badge variant="outline" className="text-xs">{scopeNote}</Badge>
+            )}
             {product.calories && (
               <Badge variant="outline" className="text-xs">{product.calories} cal</Badge>
             )}
