@@ -8,6 +8,13 @@
       "when": 1789118188185,
       "tag": "0000_server_authoritative_delivery_pricing",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789120572422,
+      "tag": "0001_effective_availability_global_authoritative",
+      "breakpoints": true
     }
   ]
 }
