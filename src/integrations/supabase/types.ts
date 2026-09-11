@@ -10204,6 +10204,10 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_set_branch_product_availability: {
+        Args: { _available: boolean; _outlet_id: string; _product_id: string }
+        Returns: Json
+      }
       admin_set_outlet_availability: {
         Args: { _force_closed: boolean; _outlet_id?: string }
         Returns: number

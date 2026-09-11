@@ -23,7 +23,9 @@ import { checkVendorAccess, VendorWithDistance } from '@/hooks/useLocationBasedV
 import type { Tables } from '@/integrations/supabase/types';
 
 type Vendor = Tables<'vendors'>;
-type Product = Tables<'products'>;
+// `_global_available` keeps the store-wide availability alongside the
+// effective (branch-adjusted) `is_available`, so branch changes can be undone.
+type Product = Tables<'products'> & { _global_available?: boolean | null };
 type ProductCategory = Tables<'product_categories'>;
 
 interface ComboItem {
