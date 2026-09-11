@@ -1,289 +1,149 @@
-import { useState, useEffect, useMemo } from 'react';
-import { calculateDistance, calculateDeliveryFee } from '@/lib/location';
-import { useDeliverySettings } from './useDeliverySettings';
-import { useRiderAvailability } from './useRiderAvailability';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
+/**
+ * Delivery fee for the cart/checkout.
+ *
+ * The fee is NOT calculated here. Everything (store coordinates, road
+ * distance, per-km tiers, weather/time/supply surge, out-of-range and the
+ * admin-configured fallback) is resolved by the `quote-delivery-fee` edge
+ * function so the browser can never influence what a customer is charged.
+ *
+ * A monotonically increasing request id guards against races: when the address
+ * or delivery mode changes, an older in-flight quote can no longer overwrite
+ * the newest one.
+ */
 interface UseDeliveryFeeOptions {
   vendorLat: number | null;
   vendorLon: number | null;
   customerLat: number | null;
   customerLon: number | null;
   vendorId?: string | null;
+  outletId?: string | null;
   customerAddressId?: string | null;
+  /** Pass 'self_pickup' for carryout — no quote is requested and the fee is 0. */
+  deliveryType?: 'delivery' | 'self_pickup';
 }
 
-interface SurgeSettings {
-  surgeEnabled: boolean;
-  timeSurgeEnabled: boolean;
-  weatherSurgeEnabled: boolean;
-  maxSurgeCap: number;
-  morningStartHour: number;
-  morningEndHour: number;
-  afternoonStartHour: number;
-  afternoonEndHour: number;
-  nightStartHour: number;
-  nightEndHour: number;
-  timeSurgeMorning: number;
-  timeSurgeAfternoon: number;
-  timeSurgeNight: number;
-  weatherSurgeClear: number;
-  weatherSurgeRain: number;
-  weatherSurgeStorm: number;
+export interface DeliveryQuote {
+  fee: number;
+  baseFee: number;
+  surgeFee: number;
+  distanceKm: number | null;
+  source: string | null;
+  isEstimate: boolean;
+  outOfRange: boolean;
+  maxDistanceKm: number | null;
 }
 
-const defaultSurgeSettings: SurgeSettings = {
-  surgeEnabled: true,
-  timeSurgeEnabled: true,
-  weatherSurgeEnabled: true,
-  maxSurgeCap: 500,
-  morningStartHour: 6,
-  morningEndHour: 12,
-  afternoonStartHour: 12,
-  afternoonEndHour: 18,
-  nightStartHour: 18,
-  nightEndHour: 24,
-  timeSurgeMorning: 0,
-  timeSurgeAfternoon: 100,
-  timeSurgeNight: 200,
-  weatherSurgeClear: 0,
-  weatherSurgeRain: 100,
-  weatherSurgeStorm: 300,
+const emptyQuote: DeliveryQuote = {
+  fee: 0, baseFee: 0, surgeFee: 0, distanceKm: null,
+  source: null, isEstimate: false, outOfRange: false, maxDistanceKm: null,
 };
 
-function getTimePeriod(ss: SurgeSettings): string {
-  const hour = new Date().getHours();
-  if (hour >= ss.morningStartHour && hour < ss.morningEndHour) return 'morning';
-  if (hour >= ss.afternoonStartHour && hour < ss.afternoonEndHour) return 'afternoon';
-  if (hour >= ss.nightStartHour || hour < ss.morningStartHour) return 'night';
-  return 'morning';
-}
+export function useDeliveryFee({
+  vendorLat, vendorLon, customerLat, customerLon,
+  vendorId, outletId, customerAddressId, deliveryType = 'delivery',
+}: UseDeliveryFeeOptions) {
+  const [quote, setQuote] = useState<DeliveryQuote>(emptyQuote);
+  const [loading, setLoading] = useState(false);
+  const [unavailableMessage, setUnavailableMessage] = useState<string | null>(null);
+  const [quoteReady, setQuoteReady] = useState(false);
+  const requestId = useRef(0);
 
-/**
- * Get the current weather condition for the customer's location.
- *
- * Calls the `get-current-weather` edge function, which serves a fresh
- * `weather_cache` row when one exists and otherwise hits the provider live
- * and warms the cache. This is intentionally NOT a plain table read —
- * `dispatch-order` calls the provider live at rider dispatch time, so if the
- * cache is cold and we default to 'clear' here the customer's delivery_fee
- * under-prices the ride and the rider payout breakdown ends up with a tiny
- * base fee (fee − today's surge).
- */
-async function fetchWeatherCondition(lat: number, lon: number): Promise<string> {
-  try {
-    const { data, error } = await supabase.functions.invoke('get-current-weather', {
-      body: { lat, lon },
-    });
-    if (!error && data?.condition) return data.condition;
-  } catch (e) {
-    console.warn('[useDeliveryFee] weather lookup failed', e);
-  }
-  // Last-resort fallback — read whatever is in cache so we don't stall
-  try {
-    const gridKey = `${lat.toFixed(1)},${lon.toFixed(1)}`;
-    const { data } = await supabase
-      .from('weather_cache').select('condition').eq('area_key', gridKey).maybeSingle();
-    return data?.condition || 'clear';
-  } catch {
-    return 'clear';
-  }
-}
-
-function calculateSurge(ss: SurgeSettings, weatherCondition: string): { surgeFee: number; timePeriod: string; weatherCondition: string } {
-  if (!ss.surgeEnabled) return { surgeFee: 0, timePeriod: 'morning', weatherCondition: 'clear' };
-
-  const timePeriod = getTimePeriod(ss);
-  let timeSurge = 0;
-  if (ss.timeSurgeEnabled) {
-    if (timePeriod === 'morning') timeSurge = ss.timeSurgeMorning;
-    else if (timePeriod === 'afternoon') timeSurge = ss.timeSurgeAfternoon;
-    else if (timePeriod === 'night') timeSurge = ss.timeSurgeNight;
-  }
-
-  let weatherSurge = 0;
-  if (ss.weatherSurgeEnabled) {
-    if (weatherCondition === 'rain') weatherSurge = ss.weatherSurgeRain;
-    else if (weatherCondition === 'storm') weatherSurge = ss.weatherSurgeStorm;
-    else weatherSurge = ss.weatherSurgeClear;
-  }
-
-  const surgeFee = Math.min(timeSurge + weatherSurge, ss.maxSurgeCap);
-  return { surgeFee, timePeriod, weatherCondition };
-}
-
-export function useDeliveryFee({ vendorLat, vendorLon, customerLat, customerLon, vendorId, customerAddressId }: UseDeliveryFeeOptions) {
-  const { settings, loading: settingsLoading } = useDeliverySettings();
-  const riderAvailability = useRiderAvailability();
-  const [distanceKm, setDistanceKm] = useState<number | null>(null);
-  const [surgeSettings, setSurgeSettings] = useState<SurgeSettings>(defaultSurgeSettings);
-  const [surgeLoading, setSurgeLoading] = useState(true);
-  const [weatherCondition, setWeatherCondition] = useState<string>('clear');
-
-  // Fetch surge settings from DB
-  useEffect(() => {
-    const fetchSurge = async () => {
-      try {
-        const { data } = await supabase
-          .from('platform_settings')
-          .select('key, value')
-          .in('key', [
-            'rider_surge_enabled', 'rider_time_surge_enabled', 'rider_weather_surge_enabled',
-            'rider_max_surge_cap',
-            'rider_morning_start_hour', 'rider_morning_end_hour',
-            'rider_afternoon_start_hour', 'rider_afternoon_end_hour',
-            'rider_night_start_hour', 'rider_night_end_hour',
-            'rider_time_surge_morning', 'rider_time_surge_afternoon', 'rider_time_surge_night',
-            'rider_weather_surge_clear', 'rider_weather_surge_rain', 'rider_weather_surge_storm',
-          ]);
-
-        if (data) {
-          const m: Record<string, string> = {};
-          data.forEach(s => { m[s.key] = s.value; });
-          setSurgeSettings({
-            surgeEnabled: m.rider_surge_enabled !== 'false',
-            timeSurgeEnabled: m.rider_time_surge_enabled !== 'false',
-            weatherSurgeEnabled: m.rider_weather_surge_enabled !== 'false',
-            maxSurgeCap: parseFloat(m.rider_max_surge_cap || '500'),
-            morningStartHour: parseInt(m.rider_morning_start_hour || '6'),
-            morningEndHour: parseInt(m.rider_morning_end_hour || '12'),
-            afternoonStartHour: parseInt(m.rider_afternoon_start_hour || '12'),
-            afternoonEndHour: parseInt(m.rider_afternoon_end_hour || '18'),
-            nightStartHour: parseInt(m.rider_night_start_hour || '18'),
-            nightEndHour: parseInt(m.rider_night_end_hour || '24'),
-            timeSurgeMorning: parseFloat(m.rider_time_surge_morning || '0'),
-            timeSurgeAfternoon: parseFloat(m.rider_time_surge_afternoon || '100'),
-            timeSurgeNight: parseFloat(m.rider_time_surge_night || '200'),
-            weatherSurgeClear: parseFloat(m.rider_weather_surge_clear || '0'),
-            weatherSurgeRain: parseFloat(m.rider_weather_surge_rain || '100'),
-            weatherSurgeStorm: parseFloat(m.rider_weather_surge_storm || '300'),
-          });
-        }
-      } catch (err) {
-        console.error('Error fetching surge settings:', err);
-      } finally {
-        setSurgeLoading(false);
-      }
-    };
-    fetchSurge();
-  }, []);
-
-  // Fetch real weather based on customer location
-  useEffect(() => {
-    if (customerLat && customerLon) {
-      fetchWeatherCondition(customerLat, customerLon).then(setWeatherCondition);
-    }
-  }, [customerLat, customerLon]);
-
-  // Calculate distance using Google Maps API (primary) with Haversine fallback
-  const [distanceLoading, setDistanceLoading] = useState(false);
-
-  // Close-proximity threshold: distances under 0.5km are treated as 0 (GPS drift compensation)
-  const PROXIMITY_THRESHOLD_KM = 0.5;
+  const isCarryout = deliveryType === 'self_pickup';
+  const hasCoordinates =
+    !isCarryout && customerLat !== null && customerLon !== null && (!!vendorId || !!outletId);
 
   useEffect(() => {
-    if (vendorLat && vendorLon && customerLat && customerLon) {
-      setDistanceLoading(true);
+    // Newest request wins — stale responses are discarded below.
+    const myRequest = ++requestId.current;
 
-      // Quick Haversine pre-check: if straight-line < threshold, skip API call
-      const quickDist = calculateDistance(customerLat, customerLon, vendorLat, vendorLon);
-      if (quickDist < PROXIMITY_THRESHOLD_KM) {
-        console.log(`Close proximity (${(quickDist * 1000).toFixed(0)}m) — treating as 0km`);
-        setDistanceKm(0);
-        setDistanceLoading(false);
-        return;
-      }
-
-      // Session-scoped client cache: prevents re-invoking the edge function
-      // when the cart is re-mounted (nav away and back) within the same tab.
-      // Key uses ~110m precision so tiny GPS drift still hits the cache.
-      const r3 = (n: number) => n.toFixed(3);
-      const sessionKey = `fc_dist_${vendorId || 'nov'}_${customerAddressId || `${r3(customerLat)},${r3(customerLon)}`}_${r3(vendorLat)},${r3(vendorLon)}`;
-      try {
-        const cached = sessionStorage.getItem(sessionKey);
-        if (cached) {
-          const km = Number(cached);
-          if (!isNaN(km)) {
-            console.log(`[DeliveryFee] session cache hit: ${km}km`);
-            setDistanceKm(km);
-            setDistanceLoading(false);
-            return;
-          }
-        }
-      } catch {}
-
-      const haversineDist = calculateDistance(customerLat!, customerLon!, vendorLat!, vendorLon!);
-
-      // Try Google Maps via edge function (uses shared helper with automatic Haversine fallback)
-      supabase.functions.invoke('calculate-distance', {
-        body: { originLat: vendorLat, originLng: vendorLon, destLat: customerLat, destLng: customerLon, vendorId, customerAddressId },
-      }).then(({ data, error }) => {
-        if (data?.distanceInKm !== undefined && !error) {
-          const dist = data.distanceInKm < PROXIMITY_THRESHOLD_KM ? 0 : data.distanceInKm;
-          setDistanceKm(dist);
-          try { sessionStorage.setItem(sessionKey, String(dist)); } catch {}
-        } else {
-          console.warn('[DeliveryFee] Edge function failed, using Haversine fallback:', error);
-          const adjustedDist = haversineDist < PROXIMITY_THRESHOLD_KM ? 0 : Math.round(haversineDist * 1.3 * 10) / 10;
-          setDistanceKm(adjustedDist);
-          try { sessionStorage.setItem(sessionKey, String(adjustedDist)); } catch {}
-        }
-      }).catch((err) => {
-        console.warn('[DeliveryFee] calculate-distance invocation failed:', err);
-        const adjustedDist = haversineDist < PROXIMITY_THRESHOLD_KM ? 0 : Math.round(haversineDist * 1.3 * 10) / 10;
-        setDistanceKm(adjustedDist);
-      }).finally(() => setDistanceLoading(false));
-    } else {
-      setDistanceKm(null);
+    if (isCarryout) {
+      setQuote(emptyQuote);
+      setUnavailableMessage(null);
+      setLoading(false);
+      setQuoteReady(true);
+      return;
     }
-  }, [vendorLat, vendorLon, customerLat, customerLon, vendorId, customerAddressId]);
 
-  const surge = useMemo(() => calculateSurge(surgeSettings, weatherCondition), [surgeSettings, weatherCondition]);
-
-  const baseFee = useMemo(() => {
-    if (distanceKm === null || settingsLoading) {
-      return settings.baseDeliveryFee;
+    if (!hasCoordinates) {
+      setQuote(emptyQuote);
+      setUnavailableMessage(null);
+      setLoading(false);
+      setQuoteReady(false);
+      return;
     }
-    // Defensive: cached distance from Google can inch slightly above the
-    // base-distance band due to routing detours. Anything within +10% of the
-    // base band is still treated as within-base — never charge per-km on top
-    // of the base fee for what is essentially a base-distance ride.
-    const effectiveDistance =
-      distanceKm <= settings.baseDeliveryDistanceKm * 1.1
-        ? Math.min(distanceKm, settings.baseDeliveryDistanceKm)
-        : distanceKm;
-    return calculateDeliveryFee(
-      effectiveDistance,
-      settings.baseDeliveryFee,
-      settings.baseDeliveryDistanceKm,
-      settings.perKmFee
-    );
-  }, [distanceKm, settings, settingsLoading]);
 
-  // Add supply-based surge on top
-  const supplySurgeFee = useMemo(() => {
-    if (!riderAvailability.supplyBasedSurge.isActive) return 0;
-    return Math.round(baseFee * (riderAvailability.supplyBasedSurge.currentSurgePct / 100));
-  }, [baseFee, riderAvailability.supplyBasedSurge]);
+    setLoading(true);
+    setQuoteReady(false);
 
-  const fee = baseFee + surge.surgeFee + supplySurgeFee;
-
-  const isOutOfRange = useMemo(() => {
-    if (distanceKm === null) return false;
-    return distanceKm > settings.maxDeliveryDistanceKm;
-  }, [distanceKm, settings.maxDeliveryDistanceKm]);
+    supabase.functions
+      .invoke('quote-delivery-fee', {
+        body: {
+          vendorId: vendorId ?? null,
+          outletId: outletId ?? null,
+          destLat: customerLat,
+          destLng: customerLon,
+          customerAddressId: customerAddressId ?? null,
+          deliveryType: 'delivery',
+        },
+      })
+      .then(({ data, error }) => {
+        if (myRequest !== requestId.current) return; // stale response
+        if (error || !data || data.ok !== true) {
+          setQuote(emptyQuote);
+          setUnavailableMessage(
+            data?.message ||
+            "We couldn't work out the delivery price for this address right now. Please try again in a moment.",
+          );
+          setQuoteReady(false);
+          return;
+        }
+        setQuote({
+          fee: Number(data.deliveryFee) || 0,
+          baseFee: Number(data.baseFee) || 0,
+          surgeFee: Number(data.surgeFee) || 0,
+          distanceKm: data.distanceKm === null ? null : Number(data.distanceKm),
+          source: data.source ?? null,
+          isEstimate: !!data.isEstimate,
+          outOfRange: !!data.outOfRange,
+          maxDistanceKm: data.maxDistanceKm ?? null,
+        });
+        setUnavailableMessage(null);
+        setQuoteReady(true);
+      })
+      .catch(() => {
+        if (myRequest !== requestId.current) return;
+        setQuote(emptyQuote);
+        setUnavailableMessage(
+          "We couldn't work out the delivery price for this address right now. Please try again in a moment.",
+        );
+        setQuoteReady(false);
+      })
+      .finally(() => {
+        if (myRequest === requestId.current) setLoading(false);
+      });
+  }, [isCarryout, hasCoordinates, vendorId, outletId, customerLat, customerLon, customerAddressId]);
 
   return {
-    fee,
-    baseFee,
-    surgeFee: surge.surgeFee + supplySurgeFee,
-    timePeriod: surge.timePeriod,
-    weatherCondition: surge.weatherCondition,
-    supplySurgeActive: riderAvailability.supplyBasedSurge.isActive,
-    supplySurgePct: riderAvailability.supplyBasedSurge.currentSurgePct,
-    distanceKm,
-    isOutOfRange,
-    loading: settingsLoading || surgeLoading || distanceLoading,
-    hasCoordinates: vendorLat !== null && vendorLon !== null && customerLat !== null && customerLon !== null,
+    fee: quote.fee,
+    baseFee: quote.baseFee,
+    surgeFee: quote.surgeFee,
+    distanceKm: quote.distanceKm,
+    pricingSource: quote.source,
+    isEstimate: quote.isEstimate,
+    isOutOfRange: quote.outOfRange,
+    maxDistanceKm: quote.maxDistanceKm,
+    pricingUnavailable: !isCarryout && hasCoordinates && !loading && !quoteReady,
+    unavailableMessage,
+    quoteReady,
+    loading,
+    hasCoordinates,
+    // Kept for existing consumers of the old shape
+    timePeriod: undefined as string | undefined,
+    weatherCondition: undefined as string | undefined,
+    supplySurgeActive: false,
+    supplySurgePct: 0,
   };
 }

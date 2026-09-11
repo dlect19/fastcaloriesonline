@@ -43,6 +43,9 @@ interface VendorFees {
   packagingFee: number;
   distanceKm: number | null;
   surgeFee: number;
+  /** Pricing source returned by the server quote (never set by the browser maths). */
+  pricingSource: string | null;
+  isEstimate: boolean;
 }
 
 type DeliveryType = "delivery" | "self_pickup";
@@ -100,6 +103,8 @@ export function VendorCheckoutSection({
     packagingFee: 0,
     distanceKm: null,
     surgeFee: 0,
+    pricingSource: null,
+    isEstimate: false,
   });
   const [feeCalculating, setFeeCalculating] = useState(false);
   const [showFundDialog, setShowFundDialog] = useState(false);
@@ -130,17 +135,36 @@ export function VendorCheckoutSection({
 
   const hasDeliveryLocation = deliveryLocation && deliveryLocation.lat !== null && deliveryLocation.lon !== null;
 
+  // Blocked until the server returns a fresh quote (the child reports
+  // loading=true while a quote is pending OR unavailable).
   const isDeliveryFeeCalculating =
-    deliveryType === "delivery" && !!hasDeliveryLocation && (feeCalculating || vendorFees.distanceKm === null);
+    deliveryType === "delivery" && !!hasDeliveryLocation &&
+    (feeCalculating || vendorFees.pricingSource === null);
   const isPricingCalculating = serviceFeeLoading || isDeliveryFeeCalculating;
 
   const handleFeesCalculated = useCallback(
-    (_vendorId: string, df: number, pf: number, dk: number | null, sf: number, loading: boolean) => {
+    (
+      _vendorId: string,
+      df: number,
+      pf: number,
+      dk: number | null,
+      sf: number,
+      loading: boolean,
+      pricing?: { source: string | null; isEstimate: boolean },
+    ) => {
       setFeeCalculating(loading);
       setVendorFees((prev) => {
-        if (prev.deliveryFee === df && prev.packagingFee === pf && prev.distanceKm === dk && prev.surgeFee === sf)
+        const source = pricing?.source ?? null;
+        const estimate = !!pricing?.isEstimate;
+        if (
+          prev.deliveryFee === df && prev.packagingFee === pf && prev.distanceKm === dk &&
+          prev.surgeFee === sf && prev.pricingSource === source && prev.isEstimate === estimate
+        )
           return prev;
-        return { deliveryFee: df, packagingFee: pf, distanceKm: dk, surgeFee: sf };
+        return {
+          deliveryFee: df, packagingFee: pf, distanceKm: dk, surgeFee: sf,
+          pricingSource: source, isEstimate: estimate,
+        };
       });
     },
     [],
@@ -491,6 +515,12 @@ export function VendorCheckoutSection({
             deliveryType === "delivery" ? deliveryLocation?.label || "GPS Location" : `Carryout at ${group.vendorName}`,
           delivery_instructions: deliveryInstructions,
           delivery_type: deliveryType,
+          // Trusted pricing inputs/result — the payment function re-runs the
+          // server pricing engine against these before any money moves.
+          delivery_latitude: deliveryType === "delivery" ? deliveryLocation?.lat ?? null : null,
+          delivery_longitude: deliveryType === "delivery" ? deliveryLocation?.lon ?? null : null,
+          delivery_distance_km: deliveryType === "delivery" ? vendorFees.distanceKm : null,
+          delivery_pricing_source: deliveryType === "delivery" ? vendorFees.pricingSource : "carryout",
           status: "pending",
           payment_status: "pending",
           payment_method: "wallet",

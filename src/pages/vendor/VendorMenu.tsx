@@ -38,6 +38,11 @@ type Product = Tables<'products'>;
 type Vendor = Tables<'vendors'>;
 type CalorieClass = Database['public']['Enums']['calorie_class'];
 
+/** Outcome of a product photo upload — distinguishes "no photo chosen" from "upload failed". */
+type UploadResult =
+  | { ok: true; url: string | null; path: string | null }
+  | { ok: false; error: string };
+
 const getCategoryLabels = (category: string | undefined) => {
   switch (category) {
     case 'pharmacy':
@@ -389,8 +394,10 @@ export default function VendorMenu() {
     }
   };
 
-  const uploadImage = async (): Promise<string | null> => {
-    if (!imageFile || !vendor) return formData.image_url || null;
+  // Result tells the caller whether an upload was ATTEMPTED and FAILED, so a
+  // failed photo is never silently saved as "no image" with a success toast.
+  const uploadImage = async (): Promise<UploadResult> => {
+    if (!imageFile || !vendor) return { ok: true, url: formData.image_url || null, path: null };
 
     setUploadingImage(true);
     try {
@@ -408,14 +415,9 @@ export default function VendorMenu() {
         .from('vendor-assets')
         .getPublicUrl(filePath);
 
-      return publicUrl;
+      return { ok: true, url: publicUrl, path: filePath };
     } catch (error: any) {
-      toast({
-        title: 'Image upload failed',
-        description: error.message,
-        variant: 'destructive',
-      });
-      return null;
+      return { ok: false, error: error?.message || 'Upload failed' };
     } finally {
       setUploadingImage(false);
     }
@@ -435,9 +437,28 @@ export default function VendorMenu() {
       return;
     }
 
+    // Upload the photo first. If it fails, stop and let the vendor decide —
+    // never save the item silently without the photo they chose.
+    const upload: UploadResult = await uploadImage();
+    if (upload.ok === false) {
+      const proceed = window.confirm(
+        `We couldn't upload the photo (${upload.error}).\n\n` +
+        `Press OK to save this item WITHOUT a photo, or Cancel to go back and try the photo again.`,
+      );
+      if (!proceed) {
+        toast({
+          title: 'Photo not uploaded',
+          description: 'Nothing was saved. Please try the photo again.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+    const imageUrl = upload.ok ? upload.url : (formData.image_url || null);
+    const uploadedPath = upload.ok ? upload.path : null;
+
     try {
-      // Upload image first if there's a new one
-      const imageUrl = await uploadImage();
+
 
 
       // Use auto-calculated calories if no manual override, or if manual is empty
@@ -533,6 +554,10 @@ export default function VendorMenu() {
       resetForm();
       fetchData();
     } catch (error: any) {
+      // The photo went up but the item didn't save — remove the orphan file.
+      if (uploadedPath) {
+        try { await supabase.storage.from('vendor-assets').remove([uploadedPath]); } catch { /* best effort */ }
+      }
       toast({
         title: 'Error',
         description: error.message,
@@ -641,12 +666,19 @@ export default function VendorMenu() {
   const toggleHidden = async (product: Product) => {
     try {
       const currentlyHidden = (product as any).is_hidden ?? false;
-      const { error } = await supabase
+      // .select() so a permission-blocked update (0 rows, no error) fails loudly
+      // instead of showing a false success.
+      const { data: updated, error } = await supabase
         .from('products')
         .update({ is_hidden: !currentlyHidden } as any)
-        .eq('id', product.id);
+        .eq('id', product.id)
+        .select('id');
 
       if (error) throw error;
+      if (!updated || updated.length === 0) {
+        throw new Error("You don't have permission to change this item. Ask the store owner for access.");
+      }
+
 
       setProducts(prev => prev.map(p => p.id === product.id ? { ...p, is_hidden: !currentlyHidden } as any : p));
       toast({
@@ -666,8 +698,8 @@ export default function VendorMenu() {
       const newAvailability = !currentAvailability;
 
       if (selectedOutletId) {
-        // Per-outlet override: upsert into outlet_product_overrides
-        const { error } = await supabase
+        // A branch is selected -> the branch override is the source of truth.
+        const { data: saved, error } = await supabase
           .from('outlet_product_overrides')
           .upsert(
             {
@@ -677,20 +709,29 @@ export default function VendorMenu() {
               updated_at: new Date().toISOString(),
             },
             { onConflict: 'outlet_id,product_id' }
-          );
+          )
+          .select('product_id');
 
         if (error) throw error;
+        // RLS denials return zero rows without an error — never show success.
+        if (!saved || saved.length === 0) {
+          throw new Error("You don't have permission to change availability for this branch. Ask the store owner for access.");
+        }
 
         // Update local state immediately
         setOutletOverrides(prev => ({ ...prev, [product.id]: newAvailability }));
       } else {
-        // No outlet selected — fall back to global toggle
-        const { error } = await supabase
+        // No branch selected -> global availability.
+        const { data: saved, error } = await supabase
           .from('products')
           .update({ is_available: newAvailability })
-          .eq('id', product.id);
+          .eq('id', product.id)
+          .select('id');
 
         if (error) throw error;
+        if (!saved || saved.length === 0) {
+          throw new Error("You don't have permission to change this item's availability. Ask the store owner for access.");
+        }
         fetchData();
       }
 

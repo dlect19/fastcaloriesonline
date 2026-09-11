@@ -14,6 +14,7 @@ import { MapPin, Bike, DollarSign, Settings2, Save, Loader2, CreditCard, Navigat
 import { OrderControlSettings } from '@/components/admin/OrderControlSettings';
 import { UnattendedOrderAlertSettings } from '@/components/admin/UnattendedOrderAlertSettings';
 import { WhatsAppAuthSettings } from '@/components/admin/WhatsAppAuthSettings';
+import { DeliveryPricingFallback } from '@/components/admin/DeliveryPricingFallback';
 
 import { EnvironmentSwitch } from '@/components/admin/EnvironmentSwitch';
 import { AdminTestModeToggle } from '@/components/admin/AdminTestModeToggle';
@@ -494,6 +495,9 @@ export default function AdminSettings() {
                     );
                   })()}
                 </div>
+
+                {/* Fallback pricing + which source recent orders were priced from */}
+                <DeliveryPricingFallback />
 
                 <div className="flex justify-end">
                   <Button onClick={handleSave} disabled={saving}>

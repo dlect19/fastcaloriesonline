@@ -5101,8 +5101,13 @@ export type Database = {
           delivered_at: string | null
           delivery_address_id: string | null
           delivery_address_text: string | null
+          delivery_distance_km: number | null
           delivery_fee: number | null
           delivery_instructions: string | null
+          delivery_latitude: number | null
+          delivery_longitude: number | null
+          delivery_pricing_meta: Json | null
+          delivery_pricing_source: string | null
           delivery_type: string | null
           discount: number | null
           environment: string | null
@@ -5160,8 +5165,13 @@ export type Database = {
           delivered_at?: string | null
           delivery_address_id?: string | null
           delivery_address_text?: string | null
+          delivery_distance_km?: number | null
           delivery_fee?: number | null
           delivery_instructions?: string | null
+          delivery_latitude?: number | null
+          delivery_longitude?: number | null
+          delivery_pricing_meta?: Json | null
+          delivery_pricing_source?: string | null
           delivery_type?: string | null
           discount?: number | null
           environment?: string | null
@@ -5219,8 +5229,13 @@ export type Database = {
           delivered_at?: string | null
           delivery_address_id?: string | null
           delivery_address_text?: string | null
+          delivery_distance_km?: number | null
           delivery_fee?: number | null
           delivery_instructions?: string | null
+          delivery_latitude?: number | null
+          delivery_longitude?: number | null
+          delivery_pricing_meta?: Json | null
+          delivery_pricing_source?: string | null
           delivery_type?: string | null
           discount?: number | null
           environment?: string | null
@@ -10226,8 +10241,13 @@ export type Database = {
           delivered_at: string | null
           delivery_address_id: string | null
           delivery_address_text: string | null
+          delivery_distance_km: number | null
           delivery_fee: number | null
           delivery_instructions: string | null
+          delivery_latitude: number | null
+          delivery_longitude: number | null
+          delivery_pricing_meta: Json | null
+          delivery_pricing_source: string | null
           delivery_type: string | null
           discount: number | null
           environment: string | null
@@ -10632,6 +10652,10 @@ export type Database = {
           p_wallet_type: string
         }
         Returns: string
+      }
+      product_effective_available: {
+        Args: { _outlet_id?: string; _product_id: string }
+        Returns: boolean
       }
       purchase_event_tickets: {
         Args: {

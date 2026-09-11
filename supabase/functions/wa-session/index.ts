@@ -3,6 +3,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getWhatsAppFromNumber } from "../_shared/whatsapp.ts";
+import {
+  fetchOutletOverrides,
+  isEffectivelyAvailable,
+  resolveDefaultOutletId,
+} from "../_shared/availability.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -117,10 +122,18 @@ serve(async (req) => {
         const vendor = vendorRow
           ? { ...vendorRow, is_open: vendorRow.admin_force_closed ? false : vendorRow.is_open }
           : vendorRow;
-        const { data: items } = await supabase
-          .from("products").select("id, name, description, price, image_url, calories, is_available")
-          .eq("vendor_id", vendorId).eq("is_available", true).eq("is_hidden", false).limit(60);
-        return json({ vendor, items: items || [] });
+        // One effective-availability rule: branch override beats the global flag.
+        const { data: rawItems } = await supabase
+          .from("products")
+          .select("id, name, description, price, image_url, calories, is_available, is_hidden, track_stock, stock_quantity")
+          .eq("vendor_id", vendorId).eq("is_hidden", false).limit(120);
+        const raw = rawItems || [];
+        const outletId = await resolveDefaultOutletId(supabase, vendorId);
+        const overrides = await fetchOutletOverrides(supabase, outletId, raw.map((p: any) => p.id));
+        const items = raw
+          .filter((p: any) => isEffectivelyAvailable(p, overrides))
+          .slice(0, 60);
+        return json({ vendor, items });
       }
       if (view === "wallet") {
         const r = requireUser(); if (r) return r;

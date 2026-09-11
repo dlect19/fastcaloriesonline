@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { validateOrderPricing } from "../_shared/validate-order-pricing.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -94,6 +95,19 @@ serve(async (req) => {
     if (order.payment_status === 'paid') {
       return new Response(
         JSON.stringify({ error: 'Order already paid' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // SERVER-AUTHORITATIVE PRICING GATE — never open a payment for an order
+    // whose delivery fee doesn't match a freshly computed server quote.
+    const pricingCheck = await validateOrderPricing(supabaseClient, order);
+    if (!pricingCheck.ok) {
+      console.error(
+        `[paystack-init] pricing validation failed for ${order.order_number}: stored=${pricingCheck.storedFee} server=${pricingCheck.serverFee}`,
+      );
+      return new Response(
+        JSON.stringify({ error: pricingCheck.message }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
