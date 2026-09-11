@@ -4,11 +4,12 @@ import { supabase } from '@/integrations/supabase/client';
  * ONE effective-availability rule, shared by every ordering surface
  * (customer app, Assisted Order, POS lookups, checkout validation).
  *
- * Order of precedence:
- *   1. hidden product            -> never orderable
- *   2. tracked stock exhausted   -> not orderable
- *   3. branch override present   -> branch value wins
- *   4. otherwise                 -> global products.is_available
+ * Rule (all conditions must hold):
+ *   1. product not hidden
+ *   2. tracked stock not exhausted
+ *   3. global products.is_available = true   (authoritative — a branch
+ *      override of `true` can NEVER expose a globally disabled product)
+ *   4. branch override is not explicitly false
  *
  * Mirrors the SQL function `public.product_effective_available(product, outlet)`.
  */
@@ -28,9 +29,10 @@ export function isEffectivelyAvailable(
 ): boolean {
   if (product.is_hidden) return false;
   if (product.track_stock && (product.stock_quantity ?? 0) <= 0) return false;
+  if (!product.is_available) return false;
   const override = overrides?.[product.id];
-  if (override !== undefined) return override;
-  return !!product.is_available;
+  if (override === false) return false;
+  return true;
 }
 
 /** Branch-level availability overrides for the given products. */

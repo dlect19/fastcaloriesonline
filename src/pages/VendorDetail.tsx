@@ -242,10 +242,11 @@ export default function VendorDetail() {
         setOutletOverrides(overrides);
       }
 
-      // Apply outlet overrides to products
+      // Apply outlet overrides to products. Global availability is
+      // authoritative — a branch override can only DISABLE an item.
       const effectiveProducts = (productData || []).map(p => {
-        if (outletId && p.id in overrides) {
-          return { ...p, is_available: overrides[p.id] };
+        if (outletId && overrides[p.id] === false) {
+          return { ...p, is_available: false };
         }
         return p;
       });

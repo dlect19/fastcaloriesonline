@@ -19,9 +19,12 @@ export function isEffectivelyAvailable(
 ): boolean {
   if (product.is_hidden) return false;
   if (product.track_stock && (product.stock_quantity ?? 0) <= 0) return false;
+  // Global availability is authoritative: a branch override of `true` can
+  // never expose a globally disabled product.
+  if (!product.is_available) return false;
   const override = overrides?.[product.id];
-  if (override !== undefined) return override;
-  return !!product.is_available;
+  if (override === false) return false;
+  return true;
 }
 
 export async function fetchOutletOverrides(
