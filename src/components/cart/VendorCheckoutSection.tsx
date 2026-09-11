@@ -351,12 +351,18 @@ export function VendorCheckoutSection({
       const itemIds = group.items.filter((i) => i.productId).map((i) => i.productId);
       const existingIds = new Set<string>();
       if (itemIds.length > 0) {
-        const [productsResult, combosResult] = await Promise.all([
-          supabase.from("products").select("id, is_available").in("id", itemIds),
+        const [productsResult, combosResult, overrides] = await Promise.all([
+          supabase
+            .from("products")
+            .select("id, is_available, is_hidden, track_stock, stock_quantity")
+            .in("id", itemIds),
           supabase.from("combos").select("id, is_available").in("id", itemIds),
+          fetchOutletOverrides(group.outletId, itemIds),
         ]);
         productsResult.data?.forEach((p) => {
-          if (p.is_available) existingIds.add(p.id);
+          // Same effective rule as the menu: global available AND not hidden
+          // AND the branch has not explicitly disabled it (plus stock).
+          if (isEffectivelyAvailable(p, overrides)) existingIds.add(p.id);
         });
         combosResult.data?.forEach((c) => {
           if (c.is_available) existingIds.add(c.id);
