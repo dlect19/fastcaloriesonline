@@ -365,16 +365,34 @@ export default function VendorDetail() {
           filter: `outlet_id=eq.${outletId}`,
         },
         (payload) => {
+          // Recompute the effective value from the store-wide availability, so
+          // lifting or removing a branch block restores the item right away.
+          const applyOverride = (productId: string, override: boolean | undefined) => {
+            setProducts(prev =>
+              prev.map(p => p.id === productId
+                ? {
+                    ...p,
+                    is_available: override === false
+                      ? false
+                      : (p._global_available ?? p.is_available),
+                  }
+                : p)
+            );
+          };
+
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
             const row = payload.new as any;
             setOutletOverrides(prev => ({ ...prev, [row.product_id]: row.is_available }));
-            // An override of `true` only lifts the branch block; it cannot
-            // make a globally unavailable product sellable.
-            if (row.is_available === false) {
-              setProducts(prev =>
-                prev.map(p => p.id === row.product_id ? { ...p, is_available: false } : p)
-              );
-            }
+            applyOverride(row.product_id, row.is_available === false ? false : true);
+          } else if (payload.eventType === 'DELETE') {
+            const row = payload.old as any;
+            if (!row?.product_id) return;
+            setOutletOverrides(prev => {
+              const next = { ...prev };
+              delete next[row.product_id];
+              return next;
+            });
+            applyOverride(row.product_id, undefined);
           }
         }
       )
