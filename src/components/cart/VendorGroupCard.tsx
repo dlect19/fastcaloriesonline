@@ -18,7 +18,15 @@ interface VendorGroupCardProps {
   customerLon: number | null;
   deliveryType: 'delivery' | 'self_pickup';
   onClearGroup: (vendorId: string, outletId?: string) => void;
-  onFeesCalculated: (vendorId: string, deliveryFee: number, packagingFee: number, distanceKm: number | null, surgeFee: number, feeLoading: boolean) => void;
+  onFeesCalculated: (
+    vendorId: string,
+    deliveryFee: number,
+    packagingFee: number,
+    distanceKm: number | null,
+    surgeFee: number,
+    feeLoading: boolean,
+    pricing?: { source: string | null; isEstimate: boolean },
+  ) => void;
 }
 
 export function VendorGroupCard({
@@ -36,12 +44,17 @@ export function VendorGroupCard({
   // Skip distance calculation entirely for Carryout — saves a Google Maps call
   // per vendor per cart open. Also skip if we have no coords yet.
   const isCarryout = deliveryType === 'self_pickup';
-  const { fee: calculatedDeliveryFee, distanceKm, surgeFee, loading: feeLoading } = useDeliveryFee({
+  const {
+    fee: calculatedDeliveryFee, distanceKm, surgeFee, loading: feeLoading,
+    pricingSource, isEstimate, quoteReady, unavailableMessage,
+  } = useDeliveryFee({
     vendorLat: isCarryout ? null : vendorLocation.latitude,
     vendorLon: isCarryout ? null : vendorLocation.longitude,
     customerLat: isCarryout ? null : customerLat,
     customerLon: isCarryout ? null : customerLon,
     vendorId: group.vendorId,
+    outletId: group.outletId ?? null,
+    deliveryType,
   });
 
   const deliveryFee = deliveryType === 'self_pickup' ? 0 : calculatedDeliveryFee;
@@ -65,12 +78,22 @@ export function VendorGroupCard({
 
   const hasCoordinates = vendorLocation.latitude !== null && vendorLocation.longitude !== null && customerLat !== null && customerLon !== null;
 
-  const isFeeLoading = deliveryType === 'delivery' && hasCoordinates && (feeLoading || distanceKm === null);
+  // Checkout stays blocked until the server has returned a fresh quote —
+  // an unavailable quote must never fall through to a cheap default.
+  const isFeeLoading = deliveryType === 'delivery' && hasCoordinates && (feeLoading || !quoteReady);
 
   // Report fees back to parent (include extra package fee in delivery fee)
   useEffect(() => {
-    onFeesCalculated(group.vendorId, deliveryFee + extraPackageFee, packagingFee, distanceKm, deliveryType === 'self_pickup' ? 0 : (surgeFee || 0), isFeeLoading);
-  }, [group.vendorId, deliveryFee, extraPackageFee, packagingFee, distanceKm, surgeFee, deliveryType, isFeeLoading, onFeesCalculated]);
+    onFeesCalculated(
+      group.vendorId,
+      deliveryFee + extraPackageFee,
+      packagingFee,
+      distanceKm,
+      deliveryType === 'self_pickup' ? 0 : (surgeFee || 0),
+      isFeeLoading,
+      { source: isCarryout ? null : pricingSource, isEstimate: !!isEstimate },
+    );
+  }, [group.vendorId, deliveryFee, extraPackageFee, packagingFee, distanceKm, surgeFee, deliveryType, isFeeLoading, isCarryout, pricingSource, isEstimate, onFeesCalculated]);
 
   const hasMultiplePackages = group.packageCount > 1;
 
@@ -187,7 +210,7 @@ export function VendorGroupCard({
             <>
               <div className="flex justify-between text-muted-foreground">
                 <div className="flex items-center gap-1">
-                  <span>Delivery</span>
+                  <span>{isEstimate ? 'Estimated delivery' : 'Delivery'}</span>
                   {distanceKm !== null && distanceKm > 0 && (
                     <span className="text-xs text-primary flex items-center gap-0.5">
                       <Navigation className="w-3 h-3" />
@@ -195,8 +218,15 @@ export function VendorGroupCard({
                     </span>
                   )}
                 </div>
-                <span>₦{deliveryFee.toLocaleString()}</span>
+                <span>
+                  {feeLoading
+                    ? 'Calculating…'
+                    : quoteReady ? `₦${deliveryFee.toLocaleString()}` : '—'}
+                </span>
               </div>
+              {!feeLoading && !quoteReady && unavailableMessage && (
+                <p className="text-xs text-destructive">{unavailableMessage}</p>
+              )}
               {extraPackageFee > 0 && (
                 <div className="flex justify-between text-xs text-primary pl-4">
                   <span>↳ Extra package fee ({group.packageCount - 1} × ₦{extraPackageFeePerPack.toLocaleString()})</span>

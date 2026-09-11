@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { validateOrderPricing } from "../_shared/validate-order-pricing.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -72,6 +73,22 @@ serve(async (req: Request) => {
         JSON.stringify({ error: `Order(s) already paid: ${alreadyPaid.map(o => o.order_number).join(", ")}` }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
+    }
+
+    // SERVER-AUTHORITATIVE PRICING GATE — recompute the delivery fee for every
+    // order from trusted data before a single naira moves. A crafted client
+    // that submitted its own delivery_fee/total is rejected here.
+    for (const order of orders) {
+      const check = await validateOrderPricing(supabaseAdmin, order);
+      if (!check.ok) {
+        console.error(
+          `[wallet-payment] pricing validation failed for ${order.order_number}: stored=${check.storedFee} server=${check.serverFee}`,
+        );
+        return new Response(
+          JSON.stringify({ error: check.message }),
+          { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
     }
 
     // Get customer wallet

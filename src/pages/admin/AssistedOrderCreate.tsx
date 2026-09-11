@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { MapLocationPicker } from '@/components/shared/MapLocationPicker';
 import { sanitizePhoneInput, isValidNgPhone, PHONE_ERROR_MESSAGE } from '@/lib/phoneValidation';
 import { useDeliveryFee } from '@/hooks/useDeliveryFee';
+import { fetchOutletOverrides, isEffectivelyAvailable } from '@/lib/effectiveAvailability';
 import { useServiceFee } from '@/hooks/useServiceFee';
 import { useTakeawayPacks } from '@/hooks/useTakeawayPacks';
 
@@ -122,11 +123,16 @@ export default function AssistedOrderCreate() {
   const fromLon = selectedOutlet?.longitude ?? selectedVendor?.longitude ?? null;
 
   const { getApplicablePacks } = useTakeawayPacks(vendorId || null);
+  // Server-authoritative quote — Assisted Order gets exactly the same price
+  // as web/mobile/WhatsApp.
   const autoDelivery = useDeliveryFee({
     vendorLat: fromLat,
     vendorLon: fromLon,
     customerLat: deliveryType === 'delivery' ? lat ?? null : null,
     customerLon: deliveryType === 'delivery' ? lng ?? null : null,
+    vendorId: vendorId || null,
+    outletId: outletId || null,
+    deliveryType: deliveryType === 'delivery' ? 'delivery' : 'self_pickup',
   });
   const { calculateServiceFee } = useServiceFee();
 
@@ -161,17 +167,21 @@ export default function AssistedOrderCreate() {
   // Load products (all, then split available/unavailable) for selected outlet/vendor
   useEffect(() => {
     if (!vendorId) { setProducts([]); setAddonsByProduct({}); return; }
-    let q = supabase
+    // Availability is decided by the shared effective rule (branch override
+    // beats the global flag), NOT by the legacy products.outlet_id column.
+    const q = supabase
       .from('products')
-      .select('id, name, price, vendor_id, outlet_id, is_available, calories, image_url')
+      .select('id, name, price, vendor_id, outlet_id, is_available, is_hidden, track_stock, stock_quantity, calories, image_url')
       .eq('vendor_id', vendorId)
       .order('name')
       .limit(400);
-    if (outletId) {
-      q = q.or(`outlet_id.eq.${outletId},outlet_id.is.null`);
-    }
     q.then(async ({ data }) => {
-      const prods = (data || []) as Product[];
+      const raw = (data || []) as any[];
+      const overrides = await fetchOutletOverrides(outletId, raw.map((p) => p.id));
+      const prods = raw.map((p) => ({
+        ...p,
+        is_available: isEffectivelyAvailable(p, overrides),
+      })) as Product[];
       setProducts(prods);
       const ids = prods.map(p => p.id);
       if (ids.length === 0) { setAddonsByProduct({}); return; }
@@ -291,9 +301,9 @@ export default function AssistedOrderCreate() {
   useEffect(() => {
     if (deliveryFeeOverridden) return;
     if (deliveryType !== 'delivery') { setDeliveryFee(0); return; }
-    if (autoDelivery.loading || !autoDelivery.hasCoordinates) return;
+    if (autoDelivery.loading || !autoDelivery.hasCoordinates || !autoDelivery.quoteReady) return;
     setDeliveryFee(Math.round(autoDelivery.fee));
-  }, [autoDelivery.fee, autoDelivery.loading, autoDelivery.hasCoordinates, deliveryType, deliveryFeeOverridden]);
+  }, [autoDelivery.fee, autoDelivery.loading, autoDelivery.hasCoordinates, autoDelivery.quoteReady, deliveryType, deliveryFeeOverridden]);
 
   useEffect(() => {
     if (serviceFeeOverridden) return;
@@ -850,7 +860,8 @@ export default function AssistedOrderCreate() {
                   <p className="text-xs text-muted-foreground mt-1">
                     {autoDelivery.loading ? 'Calculating distance…'
                       : !autoDelivery.hasCoordinates ? 'Pin customer location to auto-calculate'
-                      : `Auto: ₦${Math.round(autoDelivery.fee).toLocaleString()} (${autoDelivery.distanceKm ?? 0}km)${autoDelivery.isOutOfRange ? ' — out of range' : ''}`}
+                      : !autoDelivery.quoteReady ? (autoDelivery.unavailableMessage || 'Delivery price unavailable right now')
+                      : `Auto: ₦${Math.round(autoDelivery.fee).toLocaleString()} (${autoDelivery.distanceKm ?? 0}km)${autoDelivery.isEstimate ? ' — estimated' : ''}${autoDelivery.isOutOfRange ? ' — out of range' : ''}`}
                   </p>
                 )}
               </div>

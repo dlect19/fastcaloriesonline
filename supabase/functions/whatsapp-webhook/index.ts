@@ -6,6 +6,11 @@ import { getWhatsAppFromNumber } from "../_shared/whatsapp.ts";
 import { parseIntent, smallTalkReply, matchProduct, scoreMatch } from "./nlu.ts";
 import { detectVoiceNote, transcribeVoiceNote, VOICE_FAIL_TEXT } from "./voice.ts";
 import { chatCompletionWithFallback } from "../_shared/ai-call.ts";
+import {
+  fetchOutletOverrides,
+  isEffectivelyAvailable,
+  resolveDefaultOutletId,
+} from "../_shared/availability.ts";
 
 
 const corsHeaders = {
@@ -676,6 +681,12 @@ serve(async (req) => {
           continue;
         }
         const it: any = m.best;
+        // Same effective availability rule as the app — unavailable items are
+        // visible but never orderable.
+        if (it.is_available === false) {
+          problems.push(`🔴 *${it.name}* is currently unavailable at this store.`);
+          continue;
+        }
         const qty = Math.max(1, Number(req.qty) || 1);
         if ((it.addon_groups || []).length) {
           // Hand back to the existing add-on picker flow for this item.
@@ -1470,6 +1481,11 @@ serve(async (req) => {
       }
       const it = (nextContext.items || []).find((x: any) => x.id === itemId);
       if (!it) return await replyText("That item is no longer available.");
+      // Effective availability (branch override / global flag / stock) — shown
+      // on the menu but not orderable.
+      if (it.is_available === false) {
+        return await replyText(`🔴 *${it.name}* is currently unavailable at this store. Please pick another item, or reply *menu*.`);
+      }
 
       // If this item has add-on groups, walk the customer through selecting them
       // one group at a time before we drop the line into the cart.
@@ -2044,16 +2060,25 @@ async function fetchVendors(supabase: any, userId: string | null, overrideLat: n
 }
 
 async function fetchMenuItems(supabase: any, vendorId: string) {
-  // WhatsApp shows the FULL menu — including items hidden from the customer app
-  // and items currently marked unavailable — so vendors can still take orders here.
+  // WhatsApp shows the FULL menu — including items currently unavailable — but
+  // `is_available` here is the SHARED effective rule (branch override, global
+  // flag, hidden, tracked stock), so unavailable items are labelled and
+  // unorderable exactly as in the app.
   const { data } = await supabase
     .from("products")
-    .select("id, name, price, calories, requires_prescription, serving_unit, is_available, is_hidden")
+    .select("id, name, price, calories, requires_prescription, serving_unit, is_available, is_hidden, track_stock, stock_quantity")
     .eq("vendor_id", vendorId)
     .order("name", { ascending: true })
     .limit(50);
-  const products = data || [];
-  if (!products.length) return [];
+  const raw = data || [];
+  if (!raw.length) return [];
+
+  const outletId = await resolveDefaultOutletId(supabase, vendorId);
+  const overrides = await fetchOutletOverrides(supabase, outletId, raw.map((p: any) => p.id));
+  const products = raw.map((p: any) => ({
+    ...p,
+    is_available: isEffectivelyAvailable(p, overrides),
+  }));
 
   // Attach full addon groups+items per product so we can walk the customer
   // through selecting add-ons interactively (rather than dumping them inline).
@@ -2422,22 +2447,50 @@ async function aiSuggest(query: string): Promise<string> {
   }
 }
 
-async function buildOrderSummary(supabase: any, cart: any[]) {
+async function buildOrderSummary(supabase: any, cart: any[], session?: any) {
   const subtotal = cartTotal(cart);
   const total_calories = cart.reduce((s, c) => s + (Number(c.calories) || 0) * Number(c.qty), 0);
   const { data: settings } = await supabase
     .from("platform_settings").select("key, value")
-    .in("key", ["base_delivery_fee", "service_fee_percentage"]);
+    .in("key", ["service_fee_percentage"]);
   const map = new Map((settings || []).map((s: any) => [s.key, s.value]));
-  const delivery_fee = Number(map.get("base_delivery_fee")) || 500;
   const servicePct = Number(map.get("service_fee_percentage")) || 8;
   const service_fee = Math.round((subtotal * servicePct) / 100);
+
+  // Delivery fee comes from the SAME server-authoritative pricing engine the
+  // web/mobile checkout uses — never a flat base fee.
+  let delivery_fee = 0;
+  let delivery_pricing: any = null;
+  const lat = Number(session?.context?.lat);
+  const lon = Number(session?.context?.lon);
+  if (Number.isFinite(lat) && Number.isFinite(lon)) {
+    try {
+      const { data: q } = await supabase.functions.invoke("quote-delivery-fee", {
+        body: {
+          vendorId: cart[0]?.vendor_id ?? null,
+          outletId: cart[0]?.outlet_id ?? null,
+          destLat: lat, destLng: lon, deliveryType: "delivery",
+        },
+      });
+      if (q?.ok) {
+        delivery_fee = Number(q.deliveryFee) || 0;
+        delivery_pricing = q;
+      } else {
+        console.warn("[wa] delivery pricing unavailable", q?.reason);
+      }
+    } catch (e) {
+      console.error("[wa] quote-delivery-fee failed", e);
+    }
+  }
+
   // Auto-apply the vendor's takeaway pack (matches customer-app behaviour)
   const pack = await computeApplicablePack(supabase, cart);
   const pack_fee = pack ? Number(pack.price) || 0 : 0;
   return {
     subtotal,
     delivery_fee,
+    delivery_pricing,
+    pricing_unavailable: !delivery_pricing,
     service_fee,
     pack,
     pack_fee,
@@ -2460,7 +2513,10 @@ async function confirmWhatsAppOrder(
   const { data: envSetting } = await supabase.from("platform_settings").select("value").eq("key", "platform_environment").maybeSingle();
   const environment = envSetting?.value || "development";
   const isTestMode = environment === "development";
-  const summary = await buildOrderSummary(supabase, cart);
+  const summary = await buildOrderSummary(supabase, cart, session);
+  if (summary.pricing_unavailable) {
+    return await replyText("⚠️ We couldn't work out the delivery price for your address right now. Please try *checkout* again in a moment.");
+  }
   const { data: wallet } = await supabase.from("wallets").select("*").eq("user_id", session.customer_user_id).eq("wallet_type", "customer").maybeSingle();
   if (!wallet || wallet.is_disabled) return await replyText("⚠️ Wallet unavailable. Please contact support.");
   const balance = Number(isTestMode ? wallet.test_balance : wallet.balance) || 0;
@@ -2501,6 +2557,11 @@ async function confirmWhatsAppOrder(
     subtotal: summary.subtotal,
     menu_subtotal: summary.subtotal,
     delivery_fee: summary.delivery_fee,
+    delivery_latitude: Number.isFinite(Number(session.context?.lat)) ? Number(session.context?.lat) : null,
+    delivery_longitude: Number.isFinite(Number(session.context?.lon)) ? Number(session.context?.lon) : null,
+    delivery_distance_km: summary.delivery_pricing?.distanceKm ?? null,
+    delivery_pricing_source: summary.delivery_pricing?.source ?? null,
+    delivery_pricing_meta: summary.delivery_pricing?.meta ?? null,
     service_fee: summary.service_fee,
     total: summary.total,
     total_calories: summary.total_calories,
@@ -2694,7 +2755,10 @@ async function doCheckout(
   const { data: wallet } = await supabase
     .from("wallets").select("balance, test_balance").eq("user_id", session.customer_user_id).eq("wallet_type", "customer").maybeSingle();
   const bal = Number((isTestMode ? wallet?.test_balance : wallet?.balance) || 0);
-  const summary = await buildOrderSummary(supabase, cart);
+  const summary = await buildOrderSummary(supabase, cart, session);
+  if (summary.pricing_unavailable) {
+    return await replyText("⚠️ We couldn't work out the delivery price for your address right now. Please try *checkout* again in a moment.");
+  }
   const subtotal = summary.subtotal;
   const serviceFee = summary.service_fee;
   const deliveryFee = summary.delivery_fee;

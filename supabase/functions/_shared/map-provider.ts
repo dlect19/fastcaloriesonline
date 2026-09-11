@@ -19,8 +19,9 @@ export interface DistanceProvider {
 const google: DistanceProvider = {
   name: 'google_maps',
   async distance(origin, dest) {
-    const key = Deno.env.get('GOOGLE_MAPS_API_KEY');
-    if (!key) throw new Error('GOOGLE_MAPS_API_KEY missing');
+    // Standard secret name is GOOGLE_MAPS_KEY; the legacy name is accepted too.
+    const key = Deno.env.get('GOOGLE_MAPS_KEY') || Deno.env.get('GOOGLE_MAPS_API_KEY');
+    if (!key) throw new Error('GOOGLE_MAPS_KEY missing');
     const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${origin.lat},${origin.lng}&destinations=${dest.lat},${dest.lng}&key=${key}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error(`google_maps http ${res.status}`);
