@@ -10,6 +10,7 @@ import { PrescriptionCheckoutDialog, PrescriptionData } from "@/components/pharm
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
+import { isEffectivelyAvailable, fetchOutletOverrides } from "@/lib/effectiveAvailability";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
