@@ -185,56 +185,25 @@ export function ExpenseRequisitionList({ filter, onUpdate }: Props) {
     if (!selectedReq) return;
     setProcessing(true);
     try {
-      const { error } = await supabase
-        .from('expense_requisitions')
-        .update({
-          status: 'paid',
-          payment_method: 'manual',
-          paid_at: new Date().toISOString(),
-          paid_by: user!.id,
-          payment_note: paymentNote || 'Paid manually',
-        })
-        .eq('id', selectedReq.id);
+      // Server-authoritative: marks paid AND posts the full company expense debit
+      // atomically (idempotent by reference, company balance may go negative).
+      const { data, error } = await supabase.rpc('finalize_expense_payment', {
+        p_requisition_id: selectedReq.id,
+        p_payment_method: 'manual',
+        p_payment_note: paymentNote || 'Paid manually',
+        p_paid_by: user!.id,
+      });
 
       if (error) throw error;
 
-      // Deduct from platform wallet
-      const { data: platformWallet } = await supabase
-        .from('platform_wallet')
-        .select('id')
-        .limit(1)
-        .maybeSingle();
-
-      if (platformWallet) {
-        await supabase.from('wallet_transactions').insert({
-          wallet_type: 'platform',
-          category: 'expense',
-          transaction_type: 'debit',
-          amount: selectedReq.amount,
-          platform_wallet_id: platformWallet.id,
-          environment: effectiveEnvironment,
-          status: 'completed',
-          notes: `Expense: ${selectedReq.title} (manual payment)`,
-        });
-
-        // Deduct from platform wallet balance
-        const balanceCol = effectiveEnvironment === 'development' ? 'test_balance' : 'balance';
-        const { data: currentWallet } = await supabase
-          .from('platform_wallet')
-          .select(balanceCol)
-          .eq('id', platformWallet.id)
-          .single();
-
-        if (currentWallet) {
-          const currentBalance = Number((currentWallet as Record<string, unknown>)[balanceCol]) || 0;
-          await supabase
-            .from('platform_wallet')
-            .update({ [balanceCol]: Math.max(currentBalance - selectedReq.amount, 0), updated_at: new Date().toISOString() })
-            .eq('id', platformWallet.id);
-        }
-      }
-
-      toast({ title: 'Marked as paid' });
+      const result = (data ?? {}) as { already_paid?: boolean; company_balance_after?: number };
+      toast({
+        title: result.already_paid ? 'Already recorded as paid' : 'Marked as paid',
+        description:
+          typeof result.company_balance_after === 'number'
+            ? `Company balance is now ₦${result.company_balance_after.toLocaleString()}`
+            : undefined,
+      });
       setPayDialogOpen(false);
       setPaymentNote('');
       onUpdate();
