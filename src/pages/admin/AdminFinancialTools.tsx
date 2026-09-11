@@ -250,41 +250,18 @@ function ReverseRefundTool() {
       // 5. Restore platform share (commission + service fee)
       const platformShare = platformCommission + serviceFee;
       if (platformShare > 0) {
-        const { data: platformWallet } = await supabase
-          .from('platform_wallet')
-          .select('id')
-          .limit(1)
-          .single();
+        // Server-authoritative company ledger posting (idempotent, audited, never clamped)
+        const { error: platformError } = await supabase.rpc('admin_post_platform_adjustment', {
+          p_amount: platformShare,
+          p_category: 'platform_commission',
+          p_transaction_type: 'credit',
+          p_reference: `PLATFORM-REFUND-REVERSAL-${order.id}`,
+          p_notes: `[REFUND REVERSAL] Platform share restored for order #${order.order_number} (commission ₦${platformCommission.toLocaleString()} + service fee ₦${serviceFee.toLocaleString()})`,
+          p_environment: order.environment,
+          p_order_id: order.id,
+        });
 
-        if (platformWallet) {
-          const balanceCol = isTest ? 'test_balance' : 'balance';
-          const { data: currentPw } = await supabase
-            .from('platform_wallet')
-            .select('balance, test_balance')
-            .eq('id', platformWallet.id)
-            .single();
-
-          const currentBal = Number(isTest ? currentPw?.test_balance : currentPw?.balance) || 0;
-          const newBal = currentBal + platformShare;
-
-          await supabase
-            .from('platform_wallet')
-            .update({ [balanceCol]: newBal, updated_at: new Date().toISOString() })
-            .eq('id', platformWallet.id);
-
-          // Record platform transaction
-          await supabase.from('wallet_transactions').insert({
-            wallet_type: 'platform',
-            category: 'platform_commission',
-            transaction_type: 'credit',
-            amount: platformShare,
-            order_id: order.id,
-            platform_wallet_id: platformWallet.id,
-            environment: order.environment,
-            status: 'completed',
-            notes: `[REFUND REVERSAL] Platform share restored for order #${order.order_number} (commission ₦${platformCommission.toLocaleString()} + service fee ₦${serviceFee.toLocaleString()})`,
-          });
-        }
+        if (platformError) throw platformError;
       }
 
       // 6. Restore order_financials
