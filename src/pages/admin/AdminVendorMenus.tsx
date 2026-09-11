@@ -378,6 +378,11 @@ export default function AdminVendorMenus() {
                 <span>Menu Items ({filtered.length})</span>
                 <Badge variant="secondary">{products.length} total</Badge>
               </CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                {selectedOutletId
+                  ? 'Branch availability: switching an item ON also turns it on for the whole store; switching it OFF only closes it at this branch.'
+                  : 'Global availability: changes here apply to the store and every branch.'}
+              </p>
             </CardHeader>
             <CardContent>
               {filtered.length === 0 ? (
@@ -388,6 +393,13 @@ export default function AdminVendorMenus() {
                     <AdminMenuProductCard
                       key={product.id}
                       product={{ ...product, is_available: product._effective_available }}
+                      scopeNote={
+                        selectedOutletId
+                          ? (outletOverrides[product.id] === false
+                            ? 'Closed at this branch'
+                            : (!product.is_available || product.is_hidden ? 'Off for the whole store' : 'On at this branch'))
+                          : (product.is_hidden ? 'Hidden from customers' : undefined)
+                      }
                       parentCategories={parentCategories}
                       getSubCategories={getSubCategories}
                       onToggleAvailability={(id, _current) => toggleAvailability(id, product._effective_available)}
