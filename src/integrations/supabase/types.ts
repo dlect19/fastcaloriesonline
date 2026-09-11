@@ -10195,6 +10195,19 @@ export type Database = {
           user_id: string
         }[]
       }
+      admin_post_platform_adjustment: {
+        Args: {
+          p_amount: number
+          p_category: string
+          p_environment?: string
+          p_metadata?: Json
+          p_notes?: string
+          p_order_id?: string
+          p_reference: string
+          p_transaction_type: string
+        }
+        Returns: Json
+      }
       admin_recent_failed_attempts: {
         Args: { _user_id: string; _window_minutes?: number }
         Returns: number
