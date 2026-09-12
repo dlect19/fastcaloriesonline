@@ -210,6 +210,7 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
         otherCredits,
         otherDebits,
         financingInflows,
+        recoveries,
         grossRevenue,
         netProfit,
       });
