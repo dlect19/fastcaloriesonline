@@ -15,9 +15,10 @@ export const COMPANY_CREDIT_CATEGORIES = [
   { value: 'founder_capital', label: 'Founder / Owner Capital Introduced', financing: true },
   { value: 'shareholder_loan', label: 'Shareholder / Director Loan', financing: true },
   { value: 'investor_funding', label: 'Investor Funding', financing: true },
-  { value: 'operating_income_adjustment', label: 'Other Operating Income', financing: false },
+  { value: 'other_operating_income', label: 'Other Operating Income (revenue)', financing: false },
   { value: 'refund_recovery', label: 'Refund / Recovery Received', financing: false },
-  { value: 'company_credit_adjustment', label: 'Other Company Credit / Adjustment', financing: false },
+  { value: 'manual_adjustment', label: 'Manual Accounting Adjustment', financing: false },
+  { value: 'other', label: 'Other (explain fully)', financing: false },
 ] as const;
 
 export const FINANCING_CATEGORIES = COMPANY_CREDIT_CATEGORIES.filter((c) => c.financing).map((c) => c.value) as string[];
