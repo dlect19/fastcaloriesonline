@@ -82,7 +82,24 @@ interface CompanyProfitCardProps {
 const REVENUE_CATEGORIES = ['platform_commission', 'delivery_commission', 'service_fee'];
 // Capital brought in by owners/investors is never operating profit.
 const FINANCING_CATEGORIES = ['founder_capital', 'shareholder_loan', 'investor_funding'];
+const RECOVERY_CATEGORIES = ['refund_recovery', 'manual_adjustment', 'company_credit_adjustment', 'other'];
 const NON_OPERATING_CREDIT_CATEGORIES = [...FINANCING_CATEGORIES, 'opening_balance'];
+
+const CATEGORY_KINDS: Record<string, string> = {
+  founder_capital: 'Capital / financing',
+  shareholder_loan: 'Financing (loan)',
+  investor_funding: 'Capital / financing',
+  refund_recovery: 'Recovery',
+  manual_adjustment: 'Adjustment',
+  company_credit_adjustment: 'Adjustment',
+  other: 'Other (not revenue)',
+  other_operating_income: 'Operating income',
+  operating_income_adjustment: 'Operating income',
+  platform_commission: 'Revenue',
+  delivery_commission: 'Revenue',
+  service_fee: 'Revenue',
+  opening_balance: 'Bookkeeping only',
+};
 
 export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
   const [data, setData] = useState<CompanyProfitData | null>(null);
