@@ -29,6 +29,7 @@ import { format } from 'date-fns';
 interface CompanyProfitData {
   vendorCommissions: number;
   deliveryCommissions: number;
+  foodCommissions: number;
   serviceFees: number;
   promoBonuses: number;
   referralCosts: number;
@@ -154,6 +155,7 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
 
       let vendorCommissions = 0;
       let deliveryCommissions = 0;
+      let foodCommissions = 0;
       let serviceFees = 0;
       let promoBonuses = 0;
       let referralCosts = 0;
@@ -178,6 +180,7 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
         else if (isCredit && NON_OPERATING_CREDIT_CATEGORIES.includes(tx.category)) { /* bookkeeping only */ }
         else if (tx.category === 'platform_commission' && isCredit) vendorCommissions += amount;
         else if (tx.category === 'delivery_commission' && isCredit) deliveryCommissions += amount;
+        else if (tx.category === 'food_commission' && isCredit) foodCommissions += amount;
         else if (tx.category === 'service_fee' && isCredit) serviceFees += amount;
         else if (tx.category === 'promo_cost' && !isCredit) promoBonuses += amount;
         else if (tx.category === 'referral_cost' && !isCredit) referralCosts += amount;
