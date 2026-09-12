@@ -15,9 +15,10 @@ export const COMPANY_CREDIT_CATEGORIES = [
   { value: 'founder_capital', label: 'Founder / Owner Capital Introduced', financing: true },
   { value: 'shareholder_loan', label: 'Shareholder / Director Loan', financing: true },
   { value: 'investor_funding', label: 'Investor Funding', financing: true },
-  { value: 'operating_income_adjustment', label: 'Other Operating Income', financing: false },
+  { value: 'other_operating_income', label: 'Other Operating Income (revenue)', financing: false },
   { value: 'refund_recovery', label: 'Refund / Recovery Received', financing: false },
-  { value: 'company_credit_adjustment', label: 'Other Company Credit / Adjustment', financing: false },
+  { value: 'manual_adjustment', label: 'Manual Accounting Adjustment', financing: false },
+  { value: 'other', label: 'Other (explain fully)', financing: false },
 ] as const;
 
 export const FINANCING_CATEGORIES = COMPANY_CREDIT_CATEGORIES.filter((c) => c.financing).map((c) => c.value) as string[];
@@ -63,6 +64,10 @@ export function CreditCompanyAccountDialog({ environment, onPosted }: Props) {
       toast({ title: 'Add a short reason (at least 5 characters)', variant: 'destructive' });
       return;
     }
+    if (category === 'other' && reason.trim().length < 15) {
+      toast({ title: 'Explain "Other" credits more fully (at least 15 characters)', variant: 'destructive' });
+      return;
+    }
 
     setBusy(true);
     try {
@@ -85,12 +90,15 @@ export function CreditCompanyAccountDialog({ environment, onPosted }: Props) {
 
       if (error) throw error;
 
-      const result = data as unknown as { already_posted?: boolean; balance_after?: number };
+      const result = data as unknown as { already_posted?: boolean; balance_after?: number; reference?: string };
+      const label = COMPANY_CREDIT_CATEGORIES.find((c) => c.value === category)?.label ?? category;
       toast({
         title: result?.already_posted ? 'Already recorded' : 'Company account credited',
         description: result?.already_posted
           ? 'This entry was already posted — nothing was credited twice.'
-          : `₦${numericAmount.toLocaleString()} recorded in the company ledger.`,
+          : `${label}: ₦${numericAmount.toLocaleString()} recorded. New recorded company balance ₦${Number(
+              result?.balance_after ?? 0,
+            ).toLocaleString()}. Reference ${result?.reference ?? reference}.`,
       });
       setOpen(false);
       onPosted();
@@ -116,7 +124,8 @@ export function CreditCompanyAccountDialog({ environment, onPosted }: Props) {
           <DialogHeader>
             <DialogTitle>Credit Company Account</DialogTitle>
             <DialogDescription>
-              Records a permanent entry in the company ledger. Nothing is edited or overwritten.
+              This creates a permanent company ledger credit. It is not the same as editing the company wallet
+              balance — nothing existing is changed or overwritten.
             </DialogDescription>
           </DialogHeader>
 

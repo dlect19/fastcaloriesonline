@@ -38,6 +38,7 @@ interface CompanyProfitData {
   otherCredits: number;
   otherDebits: number;
   financingInflows: number;
+  recoveries: number;
   grossRevenue: number;
   netProfit: number;
 }
@@ -46,6 +47,7 @@ interface AccountingSummary {
   accounting_position: number;
   operating_income: number;
   financing_inflows: number;
+  recoveries_and_adjustments: number;
   bookkeeping_entries: number;
   total_expenses: number;
   deficit: number;
@@ -81,7 +83,24 @@ interface CompanyProfitCardProps {
 const REVENUE_CATEGORIES = ['platform_commission', 'delivery_commission', 'service_fee'];
 // Capital brought in by owners/investors is never operating profit.
 const FINANCING_CATEGORIES = ['founder_capital', 'shareholder_loan', 'investor_funding'];
+const RECOVERY_CATEGORIES = ['refund_recovery', 'manual_adjustment', 'company_credit_adjustment', 'other'];
 const NON_OPERATING_CREDIT_CATEGORIES = [...FINANCING_CATEGORIES, 'opening_balance'];
+
+const CATEGORY_KINDS: Record<string, string> = {
+  founder_capital: 'Capital / financing',
+  shareholder_loan: 'Financing (loan)',
+  investor_funding: 'Capital / financing',
+  refund_recovery: 'Recovery',
+  manual_adjustment: 'Adjustment',
+  company_credit_adjustment: 'Adjustment',
+  other: 'Other (not revenue)',
+  other_operating_income: 'Operating income',
+  operating_income_adjustment: 'Operating income',
+  platform_commission: 'Revenue',
+  delivery_commission: 'Revenue',
+  service_fee: 'Revenue',
+  opening_balance: 'Bookkeeping only',
+};
 
 export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
   const [data, setData] = useState<CompanyProfitData | null>(null);
@@ -143,6 +162,7 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
       let otherCredits = 0;
       let otherDebits = 0;
       let financingInflows = 0;
+      let recoveries = 0;
 
       transactions?.forEach((tx) => {
         const amount = Number(tx.amount) || 0;
@@ -150,6 +170,9 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
 
         if (FINANCING_CATEGORIES.includes(tx.category)) {
           financingInflows += isCredit ? amount : -amount;
+        }
+        else if (RECOVERY_CATEGORIES.includes(tx.category)) {
+          recoveries += isCredit ? amount : -amount;
         }
         else if (isCredit && NON_OPERATING_CREDIT_CATEGORIES.includes(tx.category)) { /* bookkeeping only */ }
         else if (tx.category === 'platform_commission' && isCredit) vendorCommissions += amount;
@@ -187,6 +210,7 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
         otherCredits,
         otherDebits,
         financingInflows,
+        recoveries,
         grossRevenue,
         netProfit,
       });
@@ -196,7 +220,8 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
         setSummary({
           accounting_position: Number(s.accounting_position) || 0,
           operating_income: Number(s.operating_income) || 0,
-          financing_inflows: Number(s.financing_inflows) || 0,
+          financing_inflows: Number(s.capital_and_financing_inflows ?? s.financing_inflows) || 0,
+          recoveries_and_adjustments: Number(s.recoveries_and_adjustments) || 0,
           bookkeeping_entries: Number(s.bookkeeping_entries) || 0,
           total_expenses: Number(s.total_expenses) || 0,
           deficit: Number(s.deficit) || 0,
@@ -350,6 +375,13 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
                   <p className="text-xs text-muted-foreground">Owner, director or investor money — not profit</p>
                 </div>
               )}
+              {Math.abs(summary.recoveries_and_adjustments) > 0.01 && (
+                <div>
+                  <p className="text-muted-foreground">Recoveries &amp; adjustments</p>
+                  <p className="font-medium">{formatCurrency(summary.recoveries_and_adjustments)}</p>
+                  <p className="text-xs text-muted-foreground">Money recovered or corrected — shown apart from sales</p>
+                </div>
+              )}
               {Math.abs(summary.bookkeeping_entries) > 0.01 && (
                 <div>
                   <p className="text-muted-foreground">Bookkeeping-only entries</p>
@@ -425,6 +457,21 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
                 </div>
               </div>
               <span className="font-semibold text-primary">+{formatCurrency(data.financingInflows)}</span>
+            </div>
+          )}
+
+          {Math.abs(data.recoveries) > 0.01 && (
+            <div className="flex items-center justify-between p-3 bg-muted/40 rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
+                  <Scale className="w-4 h-4 text-muted-foreground" />
+                </div>
+                <div>
+                  <span className="text-sm">Recoveries &amp; adjustments</span>
+                  <p className="text-xs text-muted-foreground">Kept apart from sales and from the period profit</p>
+                </div>
+              </div>
+              <span className="font-semibold">{formatCurrency(data.recoveries)}</span>
             </div>
           )}
         </div>
@@ -631,6 +678,11 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
                   >
                     <div className="min-w-0">
                       <p className="font-medium capitalize">{row.category.replace(/_/g, ' ')}</p>
+                      {CATEGORY_KINDS[row.category] && (
+                        <Badge variant="outline" className="mt-1 text-[10px]">
+                          {CATEGORY_KINDS[row.category]}
+                        </Badge>
+                      )}
                       <p className="text-xs text-muted-foreground">
                         {format(new Date(row.created_at), 'MMM d, yyyy h:mm a')}
                         {row.reference ? ` · ${row.reference}` : ''}

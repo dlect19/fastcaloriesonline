@@ -57,6 +57,13 @@
       "when": 1789216904672,
       "tag": "0007_harden_company_credit_idempotency",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789218073820,
+      "tag": "0008_company_credit_classifications_and_summary",
+      "breakpoints": true
     }
   ]
 }
