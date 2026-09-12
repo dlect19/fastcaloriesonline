@@ -64,6 +64,10 @@ export function CreditCompanyAccountDialog({ environment, onPosted }: Props) {
       toast({ title: 'Add a short reason (at least 5 characters)', variant: 'destructive' });
       return;
     }
+    if (category === 'other' && reason.trim().length < 15) {
+      toast({ title: 'Explain "Other" credits more fully (at least 15 characters)', variant: 'destructive' });
+      return;
+    }
 
     setBusy(true);
     try {
