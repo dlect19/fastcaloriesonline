@@ -90,12 +90,15 @@ export function CreditCompanyAccountDialog({ environment, onPosted }: Props) {
 
       if (error) throw error;
 
-      const result = data as unknown as { already_posted?: boolean; balance_after?: number };
+      const result = data as unknown as { already_posted?: boolean; balance_after?: number; reference?: string };
+      const label = COMPANY_CREDIT_CATEGORIES.find((c) => c.value === category)?.label ?? category;
       toast({
         title: result?.already_posted ? 'Already recorded' : 'Company account credited',
         description: result?.already_posted
           ? 'This entry was already posted — nothing was credited twice.'
-          : `₦${numericAmount.toLocaleString()} recorded in the company ledger.`,
+          : `${label}: ₦${numericAmount.toLocaleString()} recorded. New recorded company balance ₦${Number(
+              result?.balance_after ?? 0,
+            ).toLocaleString()}. Reference ${result?.reference ?? reference}.`,
       });
       setOpen(false);
       onPosted();
