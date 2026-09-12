@@ -10171,6 +10171,19 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_credit_company_account: {
+        Args: {
+          p_amount: number
+          p_category: string
+          p_environment?: string
+          p_external_reference?: string
+          p_metadata?: Json
+          p_reason: string
+          p_reference: string
+          p_step_up_token: string
+        }
+        Returns: Json
+      }
       admin_financial_reconciliation: {
         Args: { p_from?: string; p_to?: string }
         Returns: Json
