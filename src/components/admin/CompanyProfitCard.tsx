@@ -459,6 +459,21 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
               <span className="font-semibold text-primary">+{formatCurrency(data.financingInflows)}</span>
             </div>
           )}
+
+          {Math.abs(data.recoveries) > 0.01 && (
+            <div className="flex items-center justify-between p-3 bg-muted/40 rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
+                  <Scale className="w-4 h-4 text-muted-foreground" />
+                </div>
+                <div>
+                  <span className="text-sm">Recoveries &amp; adjustments</span>
+                  <p className="text-xs text-muted-foreground">Kept apart from sales and from the period profit</p>
+                </div>
+              </div>
+              <span className="font-semibold">{formatCurrency(data.recoveries)}</span>
+            </div>
+          )}
         </div>
 
         {/* Costs */}
