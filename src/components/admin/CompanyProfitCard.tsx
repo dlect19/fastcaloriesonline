@@ -17,7 +17,9 @@ import {
   AlertTriangle,
   History,
   Scale,
+  Landmark,
 } from 'lucide-react';
+import { CreditCompanyAccountDialog } from '@/components/admin/CreditCompanyAccountDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
