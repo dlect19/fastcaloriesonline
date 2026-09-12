@@ -46,6 +46,7 @@ interface AccountingSummary {
   accounting_position: number;
   operating_income: number;
   financing_inflows: number;
+  recoveries_and_adjustments: number;
   bookkeeping_entries: number;
   total_expenses: number;
   deficit: number;
