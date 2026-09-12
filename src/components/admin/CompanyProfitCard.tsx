@@ -678,6 +678,11 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
                   >
                     <div className="min-w-0">
                       <p className="font-medium capitalize">{row.category.replace(/_/g, ' ')}</p>
+                      {CATEGORY_KINDS[row.category] && (
+                        <Badge variant="outline" className="mt-1 text-[10px]">
+                          {CATEGORY_KINDS[row.category]}
+                        </Badge>
+                      )}
                       <p className="text-xs text-muted-foreground">
                         {format(new Date(row.created_at), 'MMM d, yyyy h:mm a')}
                         {row.reference ? ` · ${row.reference}` : ''}
