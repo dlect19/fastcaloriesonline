@@ -50,6 +50,13 @@
       "when": 1789216665328,
       "tag": "0006_admin_credit_company_account",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789216904672,
+      "tag": "0007_harden_company_credit_idempotency",
+      "breakpoints": true
     }
   ]
 }
