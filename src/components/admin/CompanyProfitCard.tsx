@@ -17,7 +17,9 @@ import {
   AlertTriangle,
   History,
   Scale,
+  Landmark,
 } from 'lucide-react';
+import { CreditCompanyAccountDialog } from '@/components/admin/CreditCompanyAccountDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -35,6 +37,7 @@ interface CompanyProfitData {
   reversalCosts: number;
   otherCredits: number;
   otherDebits: number;
+  financingInflows: number;
   grossRevenue: number;
   netProfit: number;
 }
@@ -42,6 +45,7 @@ interface CompanyProfitData {
 interface AccountingSummary {
   accounting_position: number;
   operating_income: number;
+  financing_inflows: number;
   bookkeeping_entries: number;
   total_expenses: number;
   deficit: number;
@@ -75,6 +79,9 @@ interface CompanyProfitCardProps {
 }
 
 const REVENUE_CATEGORIES = ['platform_commission', 'delivery_commission', 'service_fee'];
+// Capital brought in by owners/investors is never operating profit.
+const FINANCING_CATEGORIES = ['founder_capital', 'shareholder_loan', 'investor_funding'];
+const NON_OPERATING_CREDIT_CATEGORIES = [...FINANCING_CATEGORIES, 'opening_balance'];
 
 export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
   const [data, setData] = useState<CompanyProfitData | null>(null);
@@ -135,12 +142,17 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
       let reversalCosts = 0;
       let otherCredits = 0;
       let otherDebits = 0;
+      let financingInflows = 0;
 
       transactions?.forEach((tx) => {
         const amount = Number(tx.amount) || 0;
         const isCredit = tx.transaction_type === 'credit';
 
-        if (tx.category === 'platform_commission' && isCredit) vendorCommissions += amount;
+        if (FINANCING_CATEGORIES.includes(tx.category)) {
+          financingInflows += isCredit ? amount : -amount;
+        }
+        else if (isCredit && NON_OPERATING_CREDIT_CATEGORIES.includes(tx.category)) { /* bookkeeping only */ }
+        else if (tx.category === 'platform_commission' && isCredit) vendorCommissions += amount;
         else if (tx.category === 'delivery_commission' && isCredit) deliveryCommissions += amount;
         else if (tx.category === 'service_fee' && isCredit) serviceFees += amount;
         else if (tx.category === 'promo_cost' && !isCredit) promoBonuses += amount;
@@ -174,6 +186,7 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
         reversalCosts,
         otherCredits,
         otherDebits,
+        financingInflows,
         grossRevenue,
         netProfit,
       });
@@ -183,6 +196,7 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
         setSummary({
           accounting_position: Number(s.accounting_position) || 0,
           operating_income: Number(s.operating_income) || 0,
+          financing_inflows: Number(s.financing_inflows) || 0,
           bookkeeping_entries: Number(s.bookkeeping_entries) || 0,
           total_expenses: Number(s.total_expenses) || 0,
           deficit: Number(s.deficit) || 0,
@@ -264,7 +278,10 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
               )}
             </Badge>
           </div>
-          <DateRangeFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <DateRangeFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
+            <CreditCompanyAccountDialog environment={environment} onPosted={fetchProfitData} />
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -324,6 +341,13 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
                 <div>
                   <p className="text-muted-foreground">Current deficit to recover</p>
                   <p className="font-medium text-destructive">{formatCurrency(summary.deficit)}</p>
+                </div>
+              )}
+              {Math.abs(summary.financing_inflows) > 0.01 && (
+                <div>
+                  <p className="text-muted-foreground">Capital &amp; financing inflows</p>
+                  <p className="font-medium">{formatCurrency(summary.financing_inflows)}</p>
+                  <p className="text-xs text-muted-foreground">Owner, director or investor money — not profit</p>
                 </div>
               )}
               {Math.abs(summary.bookkeeping_entries) > 0.01 && (
@@ -386,6 +410,21 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
                 <span className="text-sm">Other company credits</span>
               </div>
               <span className="font-semibold text-success">+{formatCurrency(data.otherCredits)}</span>
+            </div>
+          )}
+
+          {Math.abs(data.financingInflows) > 0.01 && (
+            <div className="flex items-center justify-between p-3 bg-primary/5 rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Landmark className="w-4 h-4 text-primary" />
+                </div>
+                <div>
+                  <span className="text-sm">Capital &amp; financing inflows</span>
+                  <p className="text-xs text-muted-foreground">Not counted in the period profit below</p>
+                </div>
+              </div>
+              <span className="font-semibold text-primary">+{formatCurrency(data.financingInflows)}</span>
             </div>
           )}
         </div>
