@@ -140,12 +140,17 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
       let reversalCosts = 0;
       let otherCredits = 0;
       let otherDebits = 0;
+      let financingInflows = 0;
 
       transactions?.forEach((tx) => {
         const amount = Number(tx.amount) || 0;
         const isCredit = tx.transaction_type === 'credit';
 
-        if (tx.category === 'platform_commission' && isCredit) vendorCommissions += amount;
+        if (FINANCING_CATEGORIES.includes(tx.category)) {
+          financingInflows += isCredit ? amount : -amount;
+        }
+        else if (isCredit && NON_OPERATING_CREDIT_CATEGORIES.includes(tx.category)) { /* bookkeeping only */ }
+        else if (tx.category === 'platform_commission' && isCredit) vendorCommissions += amount;
         else if (tx.category === 'delivery_commission' && isCredit) deliveryCommissions += amount;
         else if (tx.category === 'service_fee' && isCredit) serviceFees += amount;
         else if (tx.category === 'promo_cost' && !isCredit) promoBonuses += amount;
@@ -179,6 +184,7 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
         reversalCosts,
         otherCredits,
         otherDebits,
+        financingInflows,
         grossRevenue,
         netProfit,
       });
@@ -188,6 +194,7 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
         setSummary({
           accounting_position: Number(s.accounting_position) || 0,
           operating_income: Number(s.operating_income) || 0,
+          financing_inflows: Number(s.financing_inflows) || 0,
           bookkeeping_entries: Number(s.bookkeeping_entries) || 0,
           total_expenses: Number(s.total_expenses) || 0,
           deficit: Number(s.deficit) || 0,
