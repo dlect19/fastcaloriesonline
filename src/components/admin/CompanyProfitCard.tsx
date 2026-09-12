@@ -191,7 +191,7 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
         else otherDebits += amount;
       });
 
-      const grossRevenue = vendorCommissions + deliveryCommissions + serviceFees;
+      const grossRevenue = vendorCommissions + deliveryCommissions + foodCommissions + serviceFees;
       const netProfit =
         grossRevenue +
         otherCredits -
@@ -205,6 +205,7 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
       setData({
         vendorCommissions,
         deliveryCommissions,
+        foodCommissions,
         serviceFees,
         promoBonuses,
         referralCosts,
@@ -425,6 +426,16 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
               <span className="text-sm">Delivery Commissions</span>
             </div>
             <span className="font-semibold text-success">+{formatCurrency(data.deliveryCommissions)}</span>
+          </div>
+
+          <div className="flex items-center justify-between p-3 bg-success/5 rounded-lg">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-success/10 flex items-center justify-center">
+                <Store className="w-4 h-4 text-success" />
+              </div>
+              <span className="text-sm">Food/Marketplace Commissions</span>
+            </div>
+            <span className="font-semibold text-success">+{formatCurrency(data.foodCommissions)}</span>
           </div>
 
           <div className="flex items-center justify-between p-3 bg-success/5 rounded-lg">
