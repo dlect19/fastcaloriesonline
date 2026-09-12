@@ -35,6 +35,7 @@ interface CompanyProfitData {
   reversalCosts: number;
   otherCredits: number;
   otherDebits: number;
+  financingInflows: number;
   grossRevenue: number;
   netProfit: number;
 }
@@ -42,6 +43,7 @@ interface CompanyProfitData {
 interface AccountingSummary {
   accounting_position: number;
   operating_income: number;
+  financing_inflows: number;
   bookkeeping_entries: number;
   total_expenses: number;
   deficit: number;
@@ -75,6 +77,9 @@ interface CompanyProfitCardProps {
 }
 
 const REVENUE_CATEGORIES = ['platform_commission', 'delivery_commission', 'service_fee'];
+// Capital brought in by owners/investors is never operating profit.
+const FINANCING_CATEGORIES = ['founder_capital', 'shareholder_loan', 'investor_funding'];
+const NON_OPERATING_CREDIT_CATEGORIES = [...FINANCING_CATEGORIES, 'opening_balance'];
 
 export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
   const [data, setData] = useState<CompanyProfitData | null>(null);
