@@ -276,7 +276,10 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
               )}
             </Badge>
           </div>
-          <DateRangeFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <DateRangeFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
+            <CreditCompanyAccountDialog environment={environment} onPosted={fetchProfitData} />
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -336,6 +339,13 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
                 <div>
                   <p className="text-muted-foreground">Current deficit to recover</p>
                   <p className="font-medium text-destructive">{formatCurrency(summary.deficit)}</p>
+                </div>
+              )}
+              {Math.abs(summary.financing_inflows) > 0.01 && (
+                <div>
+                  <p className="text-muted-foreground">Capital &amp; financing inflows</p>
+                  <p className="font-medium">{formatCurrency(summary.financing_inflows)}</p>
+                  <p className="text-xs text-muted-foreground">Owner, director or investor money — not profit</p>
                 </div>
               )}
               {Math.abs(summary.bookkeeping_entries) > 0.01 && (
@@ -398,6 +408,21 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
                 <span className="text-sm">Other company credits</span>
               </div>
               <span className="font-semibold text-success">+{formatCurrency(data.otherCredits)}</span>
+            </div>
+          )}
+
+          {Math.abs(data.financingInflows) > 0.01 && (
+            <div className="flex items-center justify-between p-3 bg-primary/5 rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Landmark className="w-4 h-4 text-primary" />
+                </div>
+                <div>
+                  <span className="text-sm">Capital &amp; financing inflows</span>
+                  <p className="text-xs text-muted-foreground">Not counted in the period profit below</p>
+                </div>
+              </div>
+              <span className="font-semibold text-primary">+{formatCurrency(data.financingInflows)}</span>
             </div>
           )}
         </div>
