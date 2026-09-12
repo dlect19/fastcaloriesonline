@@ -38,6 +38,7 @@ interface CompanyProfitData {
   otherCredits: number;
   otherDebits: number;
   financingInflows: number;
+  recoveries: number;
   grossRevenue: number;
   netProfit: number;
 }
