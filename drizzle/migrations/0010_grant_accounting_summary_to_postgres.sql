@@ -1,0 +1,1 @@
+GRANT EXECUTE ON FUNCTION public.platform_accounting_summary(text) TO postgres;
