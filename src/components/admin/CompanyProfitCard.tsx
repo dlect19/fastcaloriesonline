@@ -29,6 +29,7 @@ import { format } from 'date-fns';
 interface CompanyProfitData {
   vendorCommissions: number;
   deliveryCommissions: number;
+  foodCommissions: number;
   serviceFees: number;
   promoBonuses: number;
   referralCosts: number;
@@ -80,7 +81,7 @@ interface CompanyProfitCardProps {
   environment: 'development' | 'production';
 }
 
-const REVENUE_CATEGORIES = ['platform_commission', 'delivery_commission', 'service_fee'];
+const REVENUE_CATEGORIES = ['platform_commission', 'delivery_commission', 'service_fee', 'food_commission'];
 // Capital brought in by owners/investors is never operating profit.
 const FINANCING_CATEGORIES = ['founder_capital', 'shareholder_loan', 'investor_funding'];
 const RECOVERY_CATEGORIES = ['refund_recovery', 'manual_adjustment', 'company_credit_adjustment', 'other'];
@@ -99,6 +100,7 @@ const CATEGORY_KINDS: Record<string, string> = {
   platform_commission: 'Revenue',
   delivery_commission: 'Revenue',
   service_fee: 'Revenue',
+  food_commission: 'Revenue',
   opening_balance: 'Bookkeeping only',
 };
 
@@ -153,6 +155,7 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
 
       let vendorCommissions = 0;
       let deliveryCommissions = 0;
+      let foodCommissions = 0;
       let serviceFees = 0;
       let promoBonuses = 0;
       let referralCosts = 0;
@@ -177,6 +180,7 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
         else if (isCredit && NON_OPERATING_CREDIT_CATEGORIES.includes(tx.category)) { /* bookkeeping only */ }
         else if (tx.category === 'platform_commission' && isCredit) vendorCommissions += amount;
         else if (tx.category === 'delivery_commission' && isCredit) deliveryCommissions += amount;
+        else if (tx.category === 'food_commission' && isCredit) foodCommissions += amount;
         else if (tx.category === 'service_fee' && isCredit) serviceFees += amount;
         else if (tx.category === 'promo_cost' && !isCredit) promoBonuses += amount;
         else if (tx.category === 'referral_cost' && !isCredit) referralCosts += amount;
@@ -187,7 +191,7 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
         else otherDebits += amount;
       });
 
-      const grossRevenue = vendorCommissions + deliveryCommissions + serviceFees;
+      const grossRevenue = vendorCommissions + deliveryCommissions + foodCommissions + serviceFees;
       const netProfit =
         grossRevenue +
         otherCredits -
@@ -201,6 +205,7 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
       setData({
         vendorCommissions,
         deliveryCommissions,
+        foodCommissions,
         serviceFees,
         promoBonuses,
         referralCosts,
@@ -421,6 +426,16 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
               <span className="text-sm">Delivery Commissions</span>
             </div>
             <span className="font-semibold text-success">+{formatCurrency(data.deliveryCommissions)}</span>
+          </div>
+
+          <div className="flex items-center justify-between p-3 bg-success/5 rounded-lg">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-success/10 flex items-center justify-center">
+                <Store className="w-4 h-4 text-success" />
+              </div>
+              <span className="text-sm">Food/Marketplace Commissions</span>
+            </div>
+            <span className="font-semibold text-success">+{formatCurrency(data.foodCommissions)}</span>
           </div>
 
           <div className="flex items-center justify-between p-3 bg-success/5 rounded-lg">
