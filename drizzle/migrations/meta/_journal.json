@@ -64,6 +64,13 @@
       "when": 1789218073820,
       "tag": "0008_company_credit_classifications_and_summary",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1789218396897,
+      "tag": "0009_food_commission_operating_revenue_classification",
+      "breakpoints": true
     }
   ]
 }

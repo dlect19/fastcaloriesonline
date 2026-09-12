@@ -80,7 +80,7 @@ interface CompanyProfitCardProps {
   environment: 'development' | 'production';
 }
 
-const REVENUE_CATEGORIES = ['platform_commission', 'delivery_commission', 'service_fee'];
+const REVENUE_CATEGORIES = ['platform_commission', 'delivery_commission', 'service_fee', 'food_commission'];
 // Capital brought in by owners/investors is never operating profit.
 const FINANCING_CATEGORIES = ['founder_capital', 'shareholder_loan', 'investor_funding'];
 const RECOVERY_CATEGORIES = ['refund_recovery', 'manual_adjustment', 'company_credit_adjustment', 'other'];
@@ -99,6 +99,7 @@ const CATEGORY_KINDS: Record<string, string> = {
   platform_commission: 'Revenue',
   delivery_commission: 'Revenue',
   service_fee: 'Revenue',
+  food_commission: 'Revenue',
   opening_balance: 'Bookkeeping only',
 };
 
