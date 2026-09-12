@@ -124,7 +124,8 @@ export function CreditCompanyAccountDialog({ environment, onPosted }: Props) {
           <DialogHeader>
             <DialogTitle>Credit Company Account</DialogTitle>
             <DialogDescription>
-              Records a permanent entry in the company ledger. Nothing is edited or overwritten.
+              This creates a permanent company ledger credit. It is not the same as editing the company wallet
+              balance — nothing existing is changed or overwritten.
             </DialogDescription>
           </DialogHeader>
 
