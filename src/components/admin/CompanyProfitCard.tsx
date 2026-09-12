@@ -162,6 +162,7 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
       let otherCredits = 0;
       let otherDebits = 0;
       let financingInflows = 0;
+      let recoveries = 0;
 
       transactions?.forEach((tx) => {
         const amount = Number(tx.amount) || 0;
@@ -169,6 +170,9 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
 
         if (FINANCING_CATEGORIES.includes(tx.category)) {
           financingInflows += isCredit ? amount : -amount;
+        }
+        else if (RECOVERY_CATEGORIES.includes(tx.category)) {
+          recoveries += isCredit ? amount : -amount;
         }
         else if (isCredit && NON_OPERATING_CREDIT_CATEGORIES.includes(tx.category)) { /* bookkeeping only */ }
         else if (tx.category === 'platform_commission' && isCredit) vendorCommissions += amount;
