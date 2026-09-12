@@ -197,7 +197,8 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
         setSummary({
           accounting_position: Number(s.accounting_position) || 0,
           operating_income: Number(s.operating_income) || 0,
-          financing_inflows: Number(s.financing_inflows) || 0,
+          financing_inflows: Number(s.capital_and_financing_inflows ?? s.financing_inflows) || 0,
+          recoveries_and_adjustments: Number(s.recoveries_and_adjustments) || 0,
           bookkeeping_entries: Number(s.bookkeeping_entries) || 0,
           total_expenses: Number(s.total_expenses) || 0,
           deficit: Number(s.deficit) || 0,
@@ -349,6 +350,13 @@ export function CompanyProfitCard({ environment }: CompanyProfitCardProps) {
                   <p className="text-muted-foreground">Capital &amp; financing inflows</p>
                   <p className="font-medium">{formatCurrency(summary.financing_inflows)}</p>
                   <p className="text-xs text-muted-foreground">Owner, director or investor money — not profit</p>
+                </div>
+              )}
+              {Math.abs(summary.recoveries_and_adjustments) > 0.01 && (
+                <div>
+                  <p className="text-muted-foreground">Recoveries &amp; adjustments</p>
+                  <p className="font-medium">{formatCurrency(summary.recoveries_and_adjustments)}</p>
+                  <p className="text-xs text-muted-foreground">Money recovered or corrected — shown apart from sales</p>
                 </div>
               )}
               {Math.abs(summary.bookkeeping_entries) > 0.01 && (
