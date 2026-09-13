@@ -426,6 +426,117 @@ serve(async (req) => {
     }
 
     // ============================================================
+    // 🤖 AI commerce agent — plain-language path (no templates needed)
+    // Free-text messages go to the tool-calling agent. Taps, numeric menu
+    // selections, media/location shares and the few states that need a
+    // deterministic answer (add-ons, Rx capture, top-up amount) stay on the
+    // legacy state machine below.
+    // ============================================================
+    const LEGACY_STATES = new Set([
+      "awaiting_name", "selecting_addons", "pharmacy_rx_choice",
+      "pharmacy_rx_awaiting_image", "pharmacy_rx_awaiting_instructions",
+      "wallet_awaiting_amount", "awaiting_address_confirm",
+      "awaiting_delivery_address", "confirming_order", "awaiting_location",
+    ]);
+    const RESERVED = new Set(["menu", "hi", "hello", "start", "help", "0", "back", "wallet", "reset"]);
+    const isNumericSelection = /^\d{1,2}$/.test(body.trim());
+    const agentEligible =
+      !tap && !hasMediaParams && !hasLocationParams &&
+      body.trim().length >= 2 &&
+      !isNumericSelection &&
+      !RESERVED.has(lower) &&
+      !LEGACY_STATES.has(session.state) &&
+      !!session.customer_user_id;
+
+    if (agentEligible) {
+      const agentCtx: ToolCtx = {
+        supabase,
+        phone,
+        userId: session.customer_user_id,
+        sessionId: session.id,
+        environment: platformEnvironment,
+      };
+      try {
+        // Bring a cart built by the legacy flow into the durable store first,
+        // so the agent and the state machine always see the same items.
+        const durable = await loadCart(agentCtx);
+        const legacyCart: any[] = Array.isArray(session.cart) ? session.cart : [];
+        if (!durable.items.length && legacyCart.length) {
+          const imported: CartLine[] = legacyCart
+            .filter((c: any) => c?.id && c?.vendor_id)
+            .map((c: any) => ({
+              product_id: c.id,
+              name: c.name,
+              price: Number(c.price) || 0,
+              qty: Number(c.qty) || 1,
+              calories: Number(c.calories) || 0,
+              vendor_id: c.vendor_id,
+              outlet_id: c.outlet_id ?? null,
+              is_pharmacy: !!c.is_pharmacy,
+              serving_unit: c.serving_unit ?? null,
+            }));
+          if (imported.length) {
+            await saveCart(agentCtx, {
+              items: imported,
+              vendor_id: imported[0].vendor_id,
+              outlet_id: imported[0].outlet_id,
+            });
+          }
+        }
+
+        const ctxState: any = session.context || {};
+        const history: { role: "user" | "assistant"; content: string }[] =
+          Array.isArray(ctxState.agent_history) ? ctxState.agent_history.slice(-8) : [];
+
+        const result = await runAgentTurn({
+          ctx: agentCtx,
+          message: body,
+          history,
+          stateHint: {
+            has_saved_location: durable.delivery_latitude != null,
+            fulfilment_type: durable.fulfilment_type,
+            cart_line_count: durable.items.length,
+            selected_outlet_id: durable.outlet_id,
+          },
+        });
+
+        if (result?.reply) {
+          const after = await loadCart(agentCtx);
+          // Mirror the durable cart back into the session so legacy screens agree.
+          const mirrored = after.items.map((i) => ({
+            id: i.product_id,
+            name: i.name,
+            price: i.price,
+            qty: i.qty,
+            calories: i.calories,
+            vendor_id: i.vendor_id,
+            outlet_id: i.outlet_id,
+            is_pharmacy: !!i.is_pharmacy,
+            serving_unit: i.serving_unit ?? null,
+          }));
+          const newHistory = [
+            ...history,
+            { role: "user" as const, content: body.slice(0, 300) },
+            { role: "assistant" as const, content: result.reply.slice(0, 300) },
+          ].slice(-8);
+          await persistSession(
+            supabase,
+            session.id,
+            after.items.length ? "cart" : (session.state === "awaiting_name" ? "menu" : session.state),
+            { ...ctxState, agent_history: newHistory, agent_last_tools: result.toolsUsed },
+            mirrored,
+          );
+          console.log(`[wa-agent] replied phone=***${phone.slice(-4)} tools=${result.toolsUsed.join(",") || "none"}`);
+          return await replyText(result.reply);
+        }
+        console.warn("[wa-agent] no reply — falling back to state machine");
+      } catch (e) {
+        console.error("[wa-agent] turn crashed, falling back", e instanceof Error ? e.message : String(e));
+      }
+    }
+
+
+    // ============================================================
     // Normal state machine — accepts BOTH tap payloads and typed numbers
     // ============================================================
     let nextState = session.state;
