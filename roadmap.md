@@ -23,8 +23,12 @@
 - [x] Repair follow-up: Phase 1 rebuilt on the AI SDK agent loop (validated tool schemas, 50-step limit, structured run-id logs), free text now reaches the agent in address/confirm/location states, AI failures surface the real error instead of silently dropping to the old menu; verified with a live non-mutating model+tool call
 - [x] Repair follow-up: WhatsApp checkout re-enabled — order + items + wallet debit now commit in one transaction (`whatsapp_create_order_atomic`), and idempotency is bound to a per-attempt `checkout_intent_key` on `whatsapp_carts` so repeat orders are allowed while retries de-duplicate
 - [x] Repair follow-up: Phase 9 outbound delivery reliability (per-attempt logging with session/order correlation, provider status code, retry with backoff on 429/5xx/network only)
+- [x] Repair follow-up: agent now runs on the configured Gemini model (`google/gemini-3.8-flash`) through the gateway chat path — no OpenAI/Astra path; live tool-calling verified
+- [x] Repair follow-up: openness is schedule-authoritative (`schedule_open_now`, Lagos time) on branch discovery and the orderability gate, not the cached `is_open` flag
+- [x] Repair follow-up: no outlet guessing — `get_product_details` requires an explicit branch (or the cart's own branch) and returns real branch options instead of defaulting; branch switches only clear a cart after the customer confirms (`replace_cart`)
 
-- [x] Phase 1: tool-calling agent (agent.ts) + bounded server-authoritative tools (tools.ts), gemini-2.5-flash w/ Gemini fallback, structured logs
+- [x] Phase 1: tool-calling agent (agent.ts) + bounded server-authoritative tools (tools.ts), `google/gemini-3.8-flash`, structured logs
+
 - [x] Phase 2: vendor_id + outlet_id preserved on every search result, cart line, quote, checkout and order; branches never collapsed
 - [x] Phase 3: 24h session window, durable whatsapp_carts (survives context expiry), 15-min delivery quote TTL
 - [x] Phase 4: shared effective-availability helper + outlet/parent-vendor closure gate on search, menu, add, checkout, reorder
