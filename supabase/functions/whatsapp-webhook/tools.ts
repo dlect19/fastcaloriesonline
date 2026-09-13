@@ -790,8 +790,14 @@ export const TOOL_SPECS = [
   { name: "get_order_status", description: "Status of the customer's latest order or a specific order number.", parameters: { type: "object", properties: { order_number: { type: "string" } } } },
   { name: "get_order_history", description: "Recent orders for this customer.", parameters: { type: "object", properties: { limit: { type: "number" } } } },
   { name: "reorder", description: "Rebuild the cart from a past order, revalidating availability and current prices.", parameters: { type: "object", properties: { order_number: { type: "string" } } } },
-  { name: "get_nutrition", description: "Verified nutrition for the cart or one product.", parameters: { type: "object", properties: { product_id: { type: "string" } } } },
+  { name: "get_nutrition", description: "Verified calories for the cart (incl. chosen portions and add-ons) or one product. Never estimate calories yourself.", parameters: { type: "object", properties: { product_id: { type: "string" } } } },
   { name: "recommend_meal", description: "Suggest items chosen ONLY from live nearby menus.", parameters: { type: "object", properties: { goal: { type: "string" }, max_price: { type: "number" }, location_text: { type: "string" } } } },
+  {
+    name: "cancel_order",
+    description:
+      "Cancel the customer's pending (unpaid) order and kill its payment link. Server decides: paid orders and orders already in preparation are refused with the real reason. Safe to retry — repeat calls report the same result.",
+    parameters: { type: "object", properties: { order_number: { type: "string" } } },
+  },
 ] as const;
 
 // ------------------------------------------------------------ tool execution
