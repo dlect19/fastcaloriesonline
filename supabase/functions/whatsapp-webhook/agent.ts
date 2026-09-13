@@ -1,31 +1,15 @@
-// ============================================================================
-// FastCalories WhatsApp AI commerce agent.
-//
-// Gemini (via the Lovable AI Gateway, with the project's own Gemini key as
-// fallback) drives the conversation and may CALL TOOLS, but every business fact
-// in the reply must come from a tool result — the model has no prices, menus,
-// availability, fees, balances or order data of its own.
-// ============================================================================
-
-import { chatCompletionWithFallback } from "../_shared/ai-call.ts";
+// WhatsApp commerce controller. All business facts come from validated tools.
+import { streamText, tool, jsonSchema, stepCountIs } from "npm:ai@6.0.282";
+import { createOpenAI } from "npm:@ai-sdk/openai@3.0.112";
 import { runTool, TOOL_SPECS, ToolCtx } from "./tools.ts";
-
-const MODEL = "google/gemini-2.5-flash";
-const MAX_TOOL_ROUNDS = 5;
 
 export interface AgentTurnInput {
   ctx: ToolCtx;
   message: string;
-  /** Recent turns kept in the session for pronoun/ordinal resolution. */
   history: { role: "user" | "assistant"; content: string }[];
-  /** Compact non-authoritative state hints (never quoted as fact). */
   stateHint: Record<string, unknown>;
 }
-
-export interface AgentTurnResult {
-  reply: string;
-  toolsUsed: string[];
-}
+export interface AgentTurnResult { reply: string; toolsUsed: string[]; }
 
 const SYSTEM_PROMPT = `You are the Fast Calories ordering assistant on WhatsApp (Nigeria, prices in Naira ₦).
 You help customers find real food, pharmacy and grocery items nearby, build a cart, choose delivery or carryout (pickup), and pay.
@@ -46,86 +30,60 @@ STYLE
 - When you show a cart or total, use the tool's computed figures exactly.
 - If the customer has no location/address yet and needs delivery, ask for their area or address (they can also share a location pin).`;
 
-interface ChatMsg {
-  role: "system" | "user" | "assistant" | "tool";
-  content: any;
-  tool_calls?: any[];
-  tool_call_id?: string;
-  name?: string;
-}
-
-const openAiTools = TOOL_SPECS.map((t) => ({
-  type: "function",
-  function: { name: t.name, description: t.description, parameters: t.parameters },
-}));
-
-/** Run one customer turn through the agent loop. */
-export async function runAgentTurn(input: AgentTurnInput): Promise<AgentTurnResult | null> {
-  const { ctx, message, history, stateHint } = input;
-  if (!Deno.env.get("LOVABLE_API_KEY") && !Deno.env.get("GEMINI_API_KEY")) return null;
-
-  const messages: ChatMsg[] = [
-    { role: "system", content: SYSTEM_PROMPT },
-    {
-      role: "system",
-      content:
-        "SESSION HINTS (not facts — re-check with tools before quoting anything): " +
-        JSON.stringify(stateHint).slice(0, 1200),
-    },
-    ...history.slice(-8).map((h) => ({ role: h.role, content: h.content } as ChatMsg)),
-    { role: "user", content: message.slice(0, 800) },
-  ];
-
+export async function runAgentTurn(input: AgentTurnInput): Promise<AgentTurnResult> {
+  const key = Deno.env.get("LOVABLE_API_KEY");
   const toolsUsed: string[] = [];
-
-  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 25_000);
-    const res = await chatCompletionWithFallback(
-      { model: MODEL, messages: messages as any, tools: openAiTools, tool_choice: "auto" },
-      { signal: controller.signal },
-    ).finally(() => clearTimeout(timer));
-
-    if (!res.ok) {
-      console.error("[wa-agent] model error", res.status, (res.errorText || "").slice(0, 200));
-      return null;
-    }
-    const choice = res.data?.choices?.[0];
-    const msg = choice?.message;
-    if (!msg) return null;
-
-    const calls = Array.isArray(msg.tool_calls) ? msg.tool_calls : [];
-    if (!calls.length) {
-      const text = typeof msg.content === "string" ? msg.content.trim() : "";
-      if (!text) return null;
-      console.log(`[wa-agent] done provider=${res.provider} rounds=${round} tools=${toolsUsed.join(",") || "none"}`);
-      return { reply: text.slice(0, 1400), toolsUsed };
-    }
-
-    messages.push({ role: "assistant", content: msg.content ?? "", tool_calls: calls });
-
-    for (const call of calls.slice(0, 4)) {
-      const name = call?.function?.name || "";
-      let args: any = {};
-      try {
-        args = call?.function?.arguments ? JSON.parse(call.function.arguments) : {};
-      } catch (_) {
-        args = {};
-      }
-      toolsUsed.push(name);
-      const result = await runTool(name, args, ctx);
-      messages.push({
-        role: "tool",
-        tool_call_id: call.id,
-        name,
-        content: JSON.stringify(result).slice(0, 6000),
-      });
-    }
+  if (!key) return { reply: "WhatsApp AI is unavailable: the service key is missing. Please contact support.", toolsUsed };
+  let runId: string | null = null;
+  const provider = createOpenAI({
+    baseURL: "https://ai.gateway.lovable.dev/v1", apiKey: key,
+    headers: { "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "vercel-ai-sdk" },
+    fetch: async (url: any, initRaw: any) => {
+      const init = (initRaw ?? {}) as RequestInit;
+      const headers = new Headers(init.headers);
+      if (runId) headers.set("X-Lovable-AIG-Run-ID", runId);
+      const response = await fetch(url, { ...init, headers });
+      runId = response.headers.get("X-Lovable-AIG-Run-ID") ?? runId;
+      return response;
+    },
+  });
+  const tools = Object.fromEntries(TOOL_SPECS.map(spec => [spec.name, tool({
+    description: spec.description,
+    inputSchema: jsonSchema<Record<string, unknown>>({ ...spec.parameters, additionalProperties: false } as any),
+    // Existing checkout has non-atomic debit/accounting hazards. Never expose it
+    // to the new controller until the payment phase has transaction-safe guards.
+    execute: async args => {
+      toolsUsed.push(spec.name);
+      const started = Date.now();
+      const result = spec.name === "create_order"
+        ? { ok: false, reason: "checkout_safety_review", message: "Please complete checkout in the FastCalories app while WhatsApp payments are being repaired. Your cart is preserved." }
+        : await runTool(spec.name, args, input.ctx);
+      console.log(JSON.stringify({ event: "wa_agent_tool", session_id: input.ctx.sessionId,
+        tool: spec.name, duration_ms: Date.now() - started, run_id: runId,
+        ok: result?.ok !== false && !result?.error }));
+      return result;
+    },
+  })]));
+  try {
+    const result = streamText({
+      model: provider.responses("openai/gpt-6-astra"),
+      system: SYSTEM_PROMPT,
+      messages: [...input.history.slice(-16), { role: "user" as const, content: input.message.slice(0, 2000) }],
+      tools, stopWhen: stepCountIs(50), maxRetries: 0,
+      providerOptions: { openai: { forceReasoning: true, reasoningEffort: "low", reasoningSummary: "auto",
+        store: false, include: ["reasoning.encrypted_content"] } },
+    });
+    const text = await result.text;
+    console.log(JSON.stringify({ event: "wa_agent_complete", session_id: input.ctx.sessionId, run_id: runId, tools: toolsUsed }));
+    return { reply: text.trim().slice(0, 4000) || "I couldn't complete that request. Your cart is unchanged; please try again.", toolsUsed };
+  } catch (error) {
+    const failure = error as { statusCode?: number; message?: string; responseBody?: string };
+    let message = failure.message || "The AI service could not complete this request.";
+    try {
+      const body = JSON.parse(failure.responseBody || "{}");
+      message = body.message || body.error?.message || message;
+    } catch { /* Keep the provider's explicit message. */ }
+    console.error(JSON.stringify({ event: "wa_agent_error", session_id: input.ctx.sessionId, run_id: runId, status: failure.statusCode }));
+    return { reply: `WhatsApp AI error${failure.statusCode ? ` (${failure.statusCode})` : ""}: ${message.slice(0, 700)}`, toolsUsed };
   }
-
-  console.warn("[wa-agent] tool round limit reached");
-  return {
-    reply: "I'm still checking that for you — could you say it again in a few words?",
-    toolsUsed,
-  };
 }
