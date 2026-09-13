@@ -745,8 +745,34 @@ async function toolProductDetails(ctx: ToolCtx, args: any) {
   const { data: p } = await ctx.supabase
     .from("products").select(PRODUCT_FIELDS).eq("id", String(args.product_id || "")).maybeSingle();
   if (!p) return { ok: false, reason: "not_found" };
-  const outletId = args.outlet_id ? String(args.outlet_id) : await resolveDefaultOutletId(ctx.supabase, p.vendor_id);
+  // Never guess a branch: an explicit outlet_id wins, otherwise only the cart's
+  // own branch may be reused, and only when it belongs to this product's vendor.
+  let outletId = args.outlet_id ? String(args.outlet_id) : "";
+  if (!outletId) {
+    const cart = await loadCart(ctx);
+    if (cart.outlet_id && cart.vendor_id === p.vendor_id) outletId = cart.outlet_id;
+  }
+  if (!outletId) {
+    const { data: branches } = await ctx.supabase
+      .from("vendor_outlets")
+      .select("id, outlet_name")
+      .eq("vendor_id", p.vendor_id)
+      .eq("is_active", true)
+      .eq("is_approved", true)
+      .eq("admin_force_closed", false)
+      .order("outlet_name")
+      .limit(8);
+    return {
+      ok: false,
+      reason: "outlet_required",
+      product_id: p.id,
+      name: p.name,
+      vendor_id: p.vendor_id,
+      branches: (branches || []).map((b) => ({ outlet_id: b.id, branch: b.outlet_name })),
+    };
+  }
   const checked = await availableProducts(ctx, outletId, [p]);
+
   const { data: vendor } = await ctx.supabase.from("vendors").select("name, category").eq("id", p.vendor_id).maybeSingle();
   return {
     ok: true,
