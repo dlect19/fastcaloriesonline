@@ -191,10 +191,26 @@ async function handleChargeSuccess(supabase: SupabaseClient, data: any, environm
     return;
   }
 
-  // Skip orders that admin cancelled — payment link is dead.
+  // Skip orders that admin or the customer cancelled — payment link is dead.
   if (orderData.status === 'cancelled') {
     console.log(`Order ${orderId} is cancelled; ignoring late Paystack callback.`);
+    await supabase.from("whatsapp_checkouts")
+      .update({ status: "cancelled", updated_at: new Date().toISOString() })
+      .eq("order_id", orderId).neq("status", "paid");
     return;
+  }
+
+  // A WhatsApp checkout intent that was cancelled must never complete either,
+  // even if the order row itself was not reachable by id.
+  const reference = (data?.reference as string) || "";
+  if (reference) {
+    const { data: waCheckout } = await supabase
+      .from("whatsapp_checkouts").select("status")
+      .eq("payment_reference", reference).maybeSingle();
+    if (waCheckout?.status === "cancelled") {
+      console.log(`WhatsApp checkout ${reference} was cancelled; ignoring Paystack callback.`);
+      return;
+    }
   }
 
   // Verify order environment matches current platform environment
