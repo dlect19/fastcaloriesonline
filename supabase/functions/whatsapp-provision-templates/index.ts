@@ -233,15 +233,20 @@ const TEMPLATES: TemplateDef[] = [
     },
   },
   {
+    // Meta only approves AUTHENTICATION templates built on the dedicated
+    // whatsapp/authentication content type (preset body + copy-code button).
+    // A twilio/text template can never be approved for OTP delivery.
     key: "wa_otp_code",
-    friendly_name: "wa_otp_code",
+    friendly_name: "fastcalories_otp_auth_v1",
     language: "en",
-    description: "One-time verification / login code",
+    description: "One-time verification / login code (whatsapp/authentication)",
     category: "AUTHENTICATION",
-    variables: { "1": "123456" },
+    variables: {},
     types: {
-      "twilio/text": {
-        body: "{{1}} is your Fast Calories verification code. It expires in 10 minutes. For your security, do not share this code with anyone.",
+      "whatsapp/authentication": {
+        add_security_recommendation: true,
+        code_expiration_minutes: 10,
+        actions: [{ type: "COPY_CODE", copy_code_text: "Copy code" }],
       },
     },
   },
