@@ -388,6 +388,13 @@ serve(async (req) => {
     // A WhatsApp location share / media upload arrives with empty Body — don't treat as greeting.
     const hasLocationParams = !!(params["Latitude"] && params["Longitude"]);
     const hasMediaParams = parseInt(params["NumMedia"] || "0", 10) > 0;
+    // Shared location pin — parsed once here so the AI agent path can consume it
+    // too (previously only the legacy state machine saw it).
+    const latStr = params["Latitude"];
+    const lonStr = params["Longitude"];
+    const sharedLat = latStr ? parseFloat(latStr) : NaN;
+    const sharedLon = lonStr ? parseFloat(lonStr) : NaN;
+    const hasSharedLocation = Number.isFinite(sharedLat) && Number.isFinite(sharedLon);
     const isGreeting = !tap && !hasLocationParams && !hasMediaParams &&
       (lower === "menu" || lower === "hi" || lower === "hello" || lower === "start" || lower === "");
 
