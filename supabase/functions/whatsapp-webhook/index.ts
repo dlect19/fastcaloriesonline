@@ -435,8 +435,7 @@ serve(async (req) => {
     const LEGACY_STATES = new Set([
       "awaiting_name", "selecting_addons", "pharmacy_rx_choice",
       "pharmacy_rx_awaiting_image", "pharmacy_rx_awaiting_instructions",
-      "wallet_awaiting_amount", "awaiting_address_confirm",
-      "awaiting_delivery_address", "confirming_order", "awaiting_location",
+      "wallet_awaiting_amount",
     ]);
     const RESERVED = new Set(["menu", "hi", "hello", "start", "help", "0", "back", "wallet", "reset"]);
     const isNumericSelection = /^\d{1,2}$/.test(body.trim());
@@ -516,9 +515,9 @@ serve(async (req) => {
           }));
           const newHistory = [
             ...history,
-            { role: "user" as const, content: body.slice(0, 300) },
-            { role: "assistant" as const, content: result.reply.slice(0, 300) },
-          ].slice(-8);
+            { role: "user" as const, content: body.slice(0, 2000) },
+            { role: "assistant" as const, content: result.reply.slice(0, 4000) },
+          ].slice(-16);
           await persistSession(
             supabase,
             session.id,
@@ -529,9 +528,10 @@ serve(async (req) => {
           console.log(`[wa-agent] replied phone=***${phone.slice(-4)} tools=${result.toolsUsed.join(",") || "none"}`);
           return await replyText(result.reply);
         }
-        console.warn("[wa-agent] no reply — falling back to state machine");
+        return await replyText("WhatsApp AI could not complete that request. Your cart is preserved. Please try again.");
       } catch (e) {
-        console.error("[wa-agent] turn crashed, falling back", e instanceof Error ? e.message : String(e));
+        console.error("[wa-agent] turn failed", e instanceof Error ? e.message : String(e));
+        return await replyText("WhatsApp AI could not complete that request. Your cart is preserved. Please try again.");
       }
     }
 
