@@ -9756,6 +9756,7 @@ export type Database = {
       }
       whatsapp_carts: {
         Row: {
+          checkout_intent_key: string | null
           created_at: string
           customer_user_id: string | null
           delivery_address_text: string | null
@@ -9775,6 +9776,7 @@ export type Database = {
           vendor_id: string | null
         }
         Insert: {
+          checkout_intent_key?: string | null
           created_at?: string
           customer_user_id?: string | null
           delivery_address_text?: string | null
@@ -9794,6 +9796,7 @@ export type Database = {
           vendor_id?: string | null
         }
         Update: {
+          checkout_intent_key?: string | null
           created_at?: string
           customer_user_id?: string | null
           delivery_address_text?: string | null
@@ -11005,6 +11008,16 @@ export type Database = {
             Args: { p_earned_at?: string; p_wallet_id?: string }
             Returns: string
           }
+      whatsapp_create_order_atomic: {
+        Args: {
+          p_checkout_id: string
+          p_environment?: string
+          p_items: Json
+          p_order: Json
+          p_wallet_debit?: boolean
+        }
+        Returns: Json
+      }
     }
     Enums: {
       admin_staff_role: "super_admin" | "admin" | "support" | "analyst"
