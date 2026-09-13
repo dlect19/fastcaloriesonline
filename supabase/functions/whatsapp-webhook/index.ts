@@ -41,33 +41,91 @@ function emptyTwiml() {
 // ============================================================
 // Twilio outbound — interactive (Content Templates) + plain text
 // ============================================================
+// Correlation context for outbound sends (set once per request).
+let outboundCtx: { supabase?: any; sessionId?: string | null; userId?: string | null; orderId?: string | null } = {};
+export function setOutboundContext(c: typeof outboundCtx) { outboundCtx = c; }
+
+async function logOutbound(p: {
+  to?: string; from?: string; body?: string; sid?: string | null; status?: string | null;
+  error?: string | null; attempt: number; httpStatus?: number | null;
+}) {
+  if (!outboundCtx.supabase) return;
+  try {
+    await outboundCtx.supabase.from("twilio_api_logs").insert({
+      user_id: outboundCtx.userId ?? null,
+      direction: "out",
+      channel: "whatsapp",
+      to_phone: p.to ?? null,
+      from_phone: p.from ?? null,
+      body_preview: (p.body || "").slice(0, 200),
+      twilio_sid: p.sid ?? null,
+      twilio_status: p.status ?? null,
+      segments: 1,
+      price_ngn: p.error ? 0 : 25,
+      function_name: "whatsapp-webhook",
+      error: p.error ?? null,
+      session_id: outboundCtx.sessionId ?? null,
+      order_id: outboundCtx.orderId ?? null,
+      attempt: p.attempt,
+      provider_status_code: p.httpStatus ?? null,
+    });
+  } catch (e) {
+    console.error("outbound log failed", e);
+  }
+}
+
 async function sendViaTwilio(params: Record<string, string>): Promise<boolean> {
   const lovableKey = Deno.env.get("LOVABLE_API_KEY");
   const twilioKey = Deno.env.get("TWILIO_API_KEY");
   if (!lovableKey || !twilioKey) {
     console.warn("Twilio gateway secrets missing — cannot send outbound");
+    await logOutbound({ to: params.To, from: params.From, body: params.Body, error: "twilio_secrets_missing", attempt: 1 });
     return false;
   }
-  try {
-    const r = await fetch(`${TWILIO_GATEWAY}/Messages.json`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${lovableKey}`,
-        "X-Connection-Api-Key": twilioKey,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams(params),
-    });
-    if (!r.ok) {
-      const t = await r.text();
-      console.error("Twilio send failed", r.status, t);
-      return false;
+  // Retry only transient failures (network error / 429 / 5xx). A 4xx means Twilio
+  // rejected the message outright, so retrying can never duplicate a delivery.
+  const MAX_ATTEMPTS = 3;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const r = await fetch(`${TWILIO_GATEWAY}/Messages.json`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${lovableKey}`,
+          "X-Connection-Api-Key": twilioKey,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams(params),
+      });
+      const text = await r.text();
+      if (!r.ok) {
+        console.error("Twilio send failed", r.status, text);
+        await logOutbound({
+          to: params.To, from: params.From, body: params.Body,
+          error: text.slice(0, 500), attempt, httpStatus: r.status,
+        });
+        const transient = r.status === 429 || r.status >= 500;
+        if (!transient || attempt === MAX_ATTEMPTS) return false;
+        await new Promise((res) => setTimeout(res, 300 * attempt));
+        continue;
+      }
+      let sid: string | null = null, status: string | null = null;
+      try { const j = JSON.parse(text); sid = j.sid ?? null; status = j.status ?? null; } catch { /* non-JSON ok */ }
+      await logOutbound({
+        to: params.To, from: params.From, body: params.Body,
+        sid, status, attempt, httpStatus: r.status,
+      });
+      return true;
+    } catch (e) {
+      console.error("Twilio send error", e);
+      await logOutbound({
+        to: params.To, from: params.From, body: params.Body,
+        error: String((e as Error)?.message || e).slice(0, 500), attempt,
+      });
+      if (attempt === MAX_ATTEMPTS) return false;
+      await new Promise((res) => setTimeout(res, 300 * attempt));
     }
-    return true;
-  } catch (e) {
-    console.error("Twilio send error", e);
-    return false;
   }
+  return false;
 }
 
 async function sendInteractive(from: string, to: string, contentSid: string, variables: Record<string, string>) {
@@ -82,6 +140,7 @@ async function sendInteractive(from: string, to: string, contentSid: string, var
 async function sendText(from: string, to: string, body: string) {
   return await sendViaTwilio({ From: from, To: to, Body: body });
 }
+
 
 // ============================================================
 // Twilio signature verification
