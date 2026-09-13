@@ -208,8 +208,22 @@ export async function outletOrderable(
   if (!outlet.is_open || !vendor.is_open) {
     return { ok: false, reason: "closed_now", outlet, vendor };
   }
+  // `is_open` is a cached flag and can be stale (missed cron tick, manual edit).
+  // The Lagos working-hours schedule is the authority for "open right now".
+  const { data: scheduleOpen, error: scheduleErr } = await ctx.supabase.rpc("schedule_open_now", {
+    _vendor_id: outlet.vendor_id,
+    _outlet_id: outlet.id,
+  });
+  if (scheduleErr) {
+    console.error("[wa-agent] schedule_open_now failed", scheduleErr.message);
+    return { ok: false, reason: "schedule_unavailable", outlet, vendor };
+  }
+  if (scheduleOpen === false) {
+    return { ok: false, reason: "closed_by_schedule", outlet, vendor };
+  }
   return { ok: true, outlet, vendor };
 }
+
 
 /** Effective availability of products for one branch. */
 async function availableProducts(
