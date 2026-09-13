@@ -623,7 +623,9 @@ serve(async (req) => {
             location_just_shared: hasSharedLocation,
             pending_location_goal: priorGoal?.tool ?? null,
             is_guest: !session.customer_user_id,
-            pending_account_goal: (ctxState.agent_pending_account?.tool as string) ?? null,
+            pending_account_goal: ctxState.agent_pending_account
+              ? `${ctxState.agent_pending_account.tool} ${JSON.stringify(ctxState.agent_pending_account.args || {}).slice(0, 400)}`
+              : null,
             fulfilment_type: cartForHint.fulfilment_type,
             cart_line_count: cartForHint.items.length,
             selected_outlet_id: cartForHint.outlet_id,
