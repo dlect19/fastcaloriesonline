@@ -440,7 +440,8 @@ export const TOOL_SPECS = [
   },
   {
     name: "get_product_details",
-    description: "Price, calories, availability and add-on info for one product.",
+    description:
+      "Price, calories, availability and add-on info for one product at one branch. outlet_id is required unless the cart already has a branch that sells this product.",
     parameters: {
       type: "object",
       properties: { product_id: { type: "string" }, outlet_id: { type: "string" } },
@@ -450,17 +451,20 @@ export const TOOL_SPECS = [
   { name: "get_cart", description: "Read the customer's current cart with server-computed totals.", parameters: { type: "object", properties: {} } },
   {
     name: "add_cart_item",
-    description: "Add a real product (by product_id from a search/menu tool) to the cart.",
+    description:
+      "Add a real product (by product_id from a search/menu tool) to the cart. Pass replace_cart true only after the customer confirms switching branch, which empties the current cart.",
     parameters: {
       type: "object",
       properties: {
         product_id: { type: "string" },
         outlet_id: { type: "string" },
         quantity: { type: "number" },
+        replace_cart: { type: "boolean" },
       },
       required: ["product_id"],
     },
   },
+
   {
     name: "update_cart_quantity",
     description: "Set the NEW total quantity of a cart line.",
