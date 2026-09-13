@@ -129,6 +129,30 @@ export async function saveCart(ctx: ToolCtx, patch: Partial<WaCart>): Promise<Wa
   return data as WaCart;
 }
 
+/**
+ * Persist coordinates that arrived from a real WhatsApp location pin.
+ * Coordinates NEVER come from the model — only Twilio params, the geocoder or
+ * a saved address. Items, vendor and outlet selection are left untouched; only
+ * the bound delivery quote is invalidated so pricing is re-quoted.
+ */
+export async function applySharedLocation(
+  ctx: ToolCtx,
+  lat: number,
+  lon: number,
+  label: string | null,
+): Promise<WaCart> {
+  await loadCart(ctx); // guarantees a durable cart row exists
+  return await saveCart(ctx, {
+    delivery_latitude: lat,
+    delivery_longitude: lon,
+    delivery_address_text: label,
+    saved_address_id: null,
+    delivery_quote: null,
+    quote_expires_at: null,
+  });
+}
+
+
 /** Any change that can move the price invalidates the bound delivery quote. */
 async function invalidateQuote(ctx: ToolCtx) {
   await ctx.supabase.from("whatsapp_carts")
