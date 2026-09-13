@@ -99,6 +99,13 @@
       "when": 1789264201148,
       "tag": "0013_whatsapp_checkout_intent_and_send_logs",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1789267349934,
+      "tag": "0014_whatsapp_modifiers_and_cancellation",
+      "breakpoints": true
     }
   ]
 }
