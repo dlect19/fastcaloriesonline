@@ -52,10 +52,26 @@ CANCELLING AN ORDER
 - Report exactly what the tool says: cancelled, already cancelled, already paid (offer support/refund path), or already being prepared so it can't be cancelled.
 - After a successful cancellation, tell the customer the payment link for that order no longer works.
 
+GUESTS AND ACCOUNTS
+- A customer with no account yet is welcome: help them search vendors and products, show real menus, prices, availability and calories, take their area or location pin, pick a branch, build and edit a cart, compare options and get recommendations — all before any signup.
+- Never open with a numbered menu, never demand their name up front, and never ask them to register just to browse.
+- Only ask for identity when a tool says an account is required (reason login_required) or the customer asks to sign up or sign in. Then ask for their full name in one short sentence, call create_account with it, and immediately retry the request that was waiting — keep their items, quantities, branch, location, delivery choice and preferences exactly as they were.
+- If a tool returns login_required, explain in one line what needs the account (for example paying, order history, wallet or saved addresses) and ask for the name; do not abandon the pending task.
+
 LOCATION
 - Never invent, guess or echo coordinates. Coordinates only ever come from a shared WhatsApp pin, the geocoder (set_delivery_address with location_text) or a saved address.
 - A message starting with [location_shared] means real coordinates were already saved to the cart. Immediately retry the request that was waiting on location and answer the customer's original goal — never ask them to repeat it, and never show a numbered main menu.
 - After a location or address change, always re-run quote_delivery before quoting any delivery fee; older fees are stale.`;
+
+/** Only non-personal flags/ids ever reach the model. */
+const HINT_KEYS = new Set([
+  "has_saved_location", "location_just_shared", "pending_location_goal",
+  "fulfilment_type", "cart_line_count", "selected_outlet_id",
+  "is_guest", "pending_account_goal",
+]);
+function safeHint(hint: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(hint || {}).filter(([k]) => HINT_KEYS.has(k)));
+}
 
 export async function runAgentTurn(input: AgentTurnInput): Promise<AgentTurnResult> {
   const key = Deno.env.get("LOVABLE_API_KEY");
@@ -96,7 +112,8 @@ export async function runAgentTurn(input: AgentTurnInput): Promise<AgentTurnResu
     const result = streamText({
       model: provider(GEMINI_MODEL),
       system: SYSTEM_PROMPT,
-      messages: [...input.history.slice(-16), { role: "user" as const, content: input.message.slice(0, 2000) }],
+      messages: [...input.history.slice(-16),
+        { role: "system" as const, content: `Session facts (non-personal): ${JSON.stringify(safeHint(input.stateHint))}` }, { role: "user" as const, content: input.message.slice(0, 2000) }],
       tools, stopWhen: stepCountIs(50), maxRetries: 0,
     });
     const text = await result.text;
