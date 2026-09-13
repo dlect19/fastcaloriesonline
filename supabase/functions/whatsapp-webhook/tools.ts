@@ -386,7 +386,7 @@ function resolveSelection(
 
   let portion: SelectedPortion | null = null;
   if (args.portion_id) {
-    const p = mods.portions.find((x) => x.portion_id === String(args.portion_id));
+    const p = mods.portions.find((x: ProductModifiers["portions"][number]) => x.portion_id === String(args.portion_id));
     if (!p) return { error: { ok: false, reason: "invalid_portion", portions: mods.portions } };
     portion = {
       id: p.portion_id, label: p.label, price: p.price,
