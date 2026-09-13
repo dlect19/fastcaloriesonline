@@ -606,19 +606,36 @@ serve(async (req) => {
             is_pharmacy: !!i.is_pharmacy,
             serving_unit: i.serving_unit ?? null,
           }));
+          const userTurnText = hasSharedLocation
+            ? `[shared location${sharedLabel ? `: ${sharedLabel}` : ""}]${body.trim() ? ` ${body.trim()}` : ""}`
+            : body;
           const newHistory = [
             ...history,
-            { role: "user" as const, content: body.slice(0, 2000) },
+            { role: "user" as const, content: userTurnText.slice(0, 2000) },
             { role: "assistant" as const, content: result.reply.slice(0, 4000) },
           ].slice(-16);
+          // Keep the goal that still needs coordinates; drop it once resolved.
+          const goalToKeep = pendingLocationGoal ?? (hasSharedLocation ? null : priorGoal);
           await persistSession(
             supabase,
             session.id,
             after.items.length ? "cart" : (session.state === "awaiting_name" ? "menu" : session.state),
-            { ...ctxState, agent_history: newHistory, agent_last_tools: result.toolsUsed },
+            {
+              ...ctxState,
+              agent_history: newHistory,
+              agent_last_tools: result.toolsUsed,
+              agent_pending_location: goalToKeep ?? undefined,
+              lat: after.delivery_latitude != null ? Number(after.delivery_latitude) : ctxState.lat,
+              lon: after.delivery_longitude != null ? Number(after.delivery_longitude) : ctxState.lon,
+              location_label: after.delivery_address_text ?? ctxState.location_label,
+            },
             mirrored,
           );
-          console.log(`[wa-agent] replied phone=***${phone.slice(-4)} tools=${result.toolsUsed.join(",") || "none"}`);
+          console.log(JSON.stringify({
+            event: "wa_agent_reply", session_id: session.id,
+            location_shared: hasSharedLocation, resumed_goal: hasSharedLocation ? (priorGoal?.tool ?? null) : null,
+            pending_goal: goalToKeep?.tool ?? null, tools: result.toolsUsed,
+          }));
           return await replyText(result.reply);
         }
         return await replyText("WhatsApp AI could not complete that request. Your cart is preserved. Please try again.");
