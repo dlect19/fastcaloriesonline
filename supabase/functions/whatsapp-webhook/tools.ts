@@ -1499,7 +1499,7 @@ async function toolCreateOrder(ctx: ToolCtx, args: any) {
   }
 
 
-  const wallet = await toolWallet(ctx);
+  const wallet: any = await toolWallet(ctx);
   if (method === "wallet") {
     if (!wallet.ok || wallet.disabled) return { ok: false, reason: "wallet_unavailable" };
     if (Number(wallet.balance) < pricing.total) {
