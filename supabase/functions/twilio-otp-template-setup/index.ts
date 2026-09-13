@@ -35,12 +35,11 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         friendly_name: friendlyName,
         language: "en",
-        variables: { "1": "123456" },
         types: {
-          "twilio/authentication": {
+          "whatsapp/authentication": {
             add_security_recommendation: true,
             code_expiration_minutes: 10,
-            actions: [{ type: "COPY_CODE", copy_code_text: "{{1}}" }],
+            actions: [{ type: "COPY_CODE", copy_code_text: "Copy code" }],
           },
         },
       }),
