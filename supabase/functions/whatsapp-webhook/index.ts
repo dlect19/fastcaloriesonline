@@ -13,6 +13,7 @@ import {
 } from "../_shared/availability.ts";
 import { runAgentTurn } from "./agent.ts";
 import { applySharedLocation, CartLine, loadCart, saveCart, ToolCtx } from "./tools.ts";
+import { isAgentEligible, isExplicitMenuRequest } from "./routing.ts";
 
 
 const corsHeaders = {
@@ -225,6 +226,11 @@ const WELCOME_INTRO =
   `Place orders for food, groceries & medicine — all here in WhatsApp. We track calories so you can eat smarter.\n\n` +
   MENU_OPTIONS;
 
+const GUEST_WELCOME =
+  `🍔 *Welcome to FastCalories!* 🇳🇬\n\n` +
+  `Just tell me what you'd like — for example _"jollof rice and chicken around Ayobo"_ or _"paracetamol near me"_.\n\n` +
+  `You can browse real menus, prices and calories first. I'll only ask for your details when it's time to pay.`;
+
 const ACCOUNT_PROMPT_TEXT =
   `👋 Welcome to *FastCalories*! Looks like this is your first time.\n\n` +
   `To set up your account, please reply with your *full name* (first and last).\n\n` +
@@ -398,8 +404,21 @@ serve(async (req) => {
     const isGreeting = !tap && !hasLocationParams && !hasMediaParams &&
       (lower === "menu" || lower === "hi" || lower === "hello" || lower === "start" || lower === "");
 
-    if (!session.customer_user_id && session.state !== "awaiting_name") {
-      // First-time user: ask for name
+    // Routing decision comes first: a plain-language message (or a location pin)
+    // belongs to the Gemini agent, whether or not the number has an account yet.
+    const agentEligible = isAgentEligible({
+      body, tap, state: session.state,
+      hasMedia: hasMediaParams, hasSharedLocation,
+    });
+    const isGuest = !session.customer_user_id;
+
+    // Guests are never force-marched into the name prompt. They only see it if
+    // they picked a numbered legacy option that genuinely needs an account.
+    if (isGuest && !agentEligible && session.state !== "awaiting_name") {
+      if (isGreeting || isExplicitMenuRequest(body, tap)) {
+        await persistSession(supabase, session.id, "menu", session.context || {}, session.cart || []);
+        return await sendToUser("wa_main_menu", {}, GUEST_WELCOME);
+      }
       await supabase.from("whatsapp_sessions").update({
         state: "awaiting_name",
         last_message_at: new Date().toISOString(),
@@ -498,26 +517,12 @@ serve(async (req) => {
     // deterministic answer (add-ons, Rx capture, top-up amount) stay on the
     // legacy state machine below.
     // ============================================================
-    const LEGACY_STATES = new Set([
-      "awaiting_name", "selecting_addons", "pharmacy_rx_choice",
-      "pharmacy_rx_awaiting_image", "pharmacy_rx_awaiting_instructions",
-      "wallet_awaiting_amount",
-    ]);
-    const RESERVED = new Set(["menu", "hi", "hello", "start", "help", "0", "back", "wallet", "reset"]);
-    const isNumericSelection = /^\d{1,2}$/.test(body.trim());
     // Correlate every outbound send in this request with the session/user.
     setOutboundContext({ supabase, sessionId: session.id, userId: session.customer_user_id });
 
-    // A location pin is a first-class conversational event: it goes to the AI
-    // agent (never to the numbered legacy menu) so the pending request resumes.
-    const agentEligible =
-      !tap && !hasMediaParams &&
-      (hasSharedLocation || (body.trim().length >= 2 && !isNumericSelection && !RESERVED.has(lower))) &&
-      !LEGACY_STATES.has(session.state) &&
-      !!session.customer_user_id;
-
     if (agentEligible) {
       let pendingLocationGoal: any = null;
+      let pendingAccountGoal: any = null;
       const agentCtx: ToolCtx = {
         supabase,
         phone,
@@ -525,6 +530,8 @@ serve(async (req) => {
         sessionId: session.id,
         environment: platformEnvironment,
         onLocationRequired: (goal) => { pendingLocationGoal = goal; },
+        onAccountRequired: (goal) => { pendingAccountGoal = goal; },
+        onAccountCreated: (uid) => { session.customer_user_id = uid; pendingAccountGoal = null; },
       };
       // Agent turns (tool calls + Gemini) regularly take longer than Twilio's
       // ~15s webhook timeout, and a late TwiML body is silently discarded — that
@@ -615,6 +622,8 @@ serve(async (req) => {
             has_saved_location: cartForHint.delivery_latitude != null,
             location_just_shared: hasSharedLocation,
             pending_location_goal: priorGoal?.tool ?? null,
+            is_guest: !session.customer_user_id,
+            pending_account_goal: (ctxState.agent_pending_account?.tool as string) ?? null,
             fulfilment_type: cartForHint.fulfilment_type,
             cart_line_count: cartForHint.items.length,
             selected_outlet_id: cartForHint.outlet_id,
@@ -654,6 +663,10 @@ serve(async (req) => {
               agent_history: newHistory,
               agent_last_tools: result.toolsUsed,
               agent_pending_location: goalToKeep ?? undefined,
+              // Survives the round trip while we collect the customer's name.
+              agent_pending_account: session.customer_user_id
+                ? undefined
+                : (pendingAccountGoal ?? ctxState.agent_pending_account ?? undefined),
               lat: after.delivery_latitude != null ? Number(after.delivery_latitude) : ctxState.lat,
               lon: after.delivery_longitude != null ? Number(after.delivery_longitude) : ctxState.lon,
               location_label: after.delivery_address_text ?? ctxState.location_label,
