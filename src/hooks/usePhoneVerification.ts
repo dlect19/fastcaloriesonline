@@ -41,6 +41,8 @@ export function usePhoneVerification() {
           twilio_not_configured: "SMS/WhatsApp isn't set up yet — please contact support.",
           whatsapp_sender_not_configured: "WhatsApp sender isn't set up yet — please contact support.",
           sms_sender_not_configured: "SMS fallback isn't set up yet — please contact support.",
+          otp_channel_unavailable:
+            "Verification codes aren't available yet: the WhatsApp code template isn't approved and no SMS sender is set up. Please contact support.",
         };
         const key = msg.split(":")[0].trim();
         const friendly = msg.includes("could not deliver to this recipient")
@@ -50,8 +52,13 @@ export function usePhoneVerification() {
         throw new Error(friendly || map[key] || msg);
       }
       if (data?.error) throw new Error(data.error);
-      setChannel(data?.channel ?? "whatsapp");
-      return { channel: data?.channel as "whatsapp" | "sms", fellBack: !!data?.fell_back };
+      // Always trust the channel the backend actually used.
+      setChannel(data?.channel ?? "sms");
+      return {
+        channel: data?.channel as "whatsapp" | "sms",
+        fellBack: !!data?.fell_back,
+        reason: (data?.reason as string) ?? null,
+      };
     } catch (e: any) {
       setError(e?.message || "Failed to send code");
       throw e;

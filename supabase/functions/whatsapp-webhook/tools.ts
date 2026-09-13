@@ -42,6 +42,13 @@ export interface ToolCtx {
    * automatically once a WhatsApp location pin (or landmark) arrives.
    */
   onLocationRequired?: (goal: PendingLocationGoal) => void;
+  /**
+   * Called when a tool needs a real FastCalories account. The webhook persists
+   * the goal so the exact request resumes after conversational signup.
+   */
+  onAccountRequired?: (goal: PendingLocationGoal) => void;
+  /** Called once an account has been created/linked mid-conversation. */
+  onAccountCreated?: (userId: string) => void;
 }
 
 /** A vendor-configured add-on the customer actually selected. */
@@ -659,6 +666,21 @@ async function validatePromo(ctx: ToolCtx, codeRaw: string, cart: WaCart, subtot
   return { valid: true, discount, code: String(promo.code).toUpperCase(), description: promo.description };
 }
 
+/**
+ * Guests may browse, search, price and build a cart freely. Account-private
+ * operations return this so the agent asks for identity conversationally
+ * instead of dead-ending, and the webhook can resume the pending goal.
+ */
+function authRequired() {
+  return {
+    ok: false,
+    reason: "login_required",
+    requires_account: true,
+    message:
+      "This needs a FastCalories account. Ask the customer for their full name to create one on this WhatsApp number (call create_account), then retry.",
+  };
+}
+
 // ---------------------------------------------------------------- tool specs
 
 export const TOOL_SPECS = [
@@ -793,6 +815,16 @@ export const TOOL_SPECS = [
   { name: "get_nutrition", description: "Verified calories for the cart (incl. chosen portions and add-ons) or one product. Never estimate calories yourself.", parameters: { type: "object", properties: { product_id: { type: "string" } } } },
   { name: "recommend_meal", description: "Suggest items chosen ONLY from live nearby menus.", parameters: { type: "object", properties: { goal: { type: "string" }, max_price: { type: "number" }, location_text: { type: "string" } } } },
   {
+    name: "create_account",
+    description:
+      "Create a FastCalories account for this WhatsApp number using the customer's real full name. Call this ONLY when an account is genuinely needed (checkout, wallet, order history, saved addresses) or the customer asked to sign up. The WhatsApp number becomes their login; no password needed. After it returns ok, immediately retry the request that needed the account.",
+    parameters: {
+      type: "object",
+      properties: { full_name: { type: "string", description: "The customer's full name exactly as they gave it." } },
+      required: ["full_name"],
+    },
+  },
+  {
     name: "cancel_order",
     description:
       "Cancel the customer's pending (unpaid) order and kill its payment link. Server decides: paid orders and orders already in preparation are refused with the real reason. Safe to retry — repeat calls report the same result.",
@@ -813,6 +845,9 @@ export async function runTool(name: string, argsRaw: any, ctx: ToolCtx): Promise
     if (out && typeof out === "object" &&
         (out.needs_location === true || out.reason === "no_location" || out.reason === "location_required")) {
       ctx.onLocationRequired?.({ tool: name, args, at: nowIso() });
+    }
+    if (out && typeof out === "object" && out.requires_account === true && name !== "create_account") {
+      ctx.onAccountRequired?.({ tool: name, args, at: nowIso() });
     }
     return out;
   } catch (e) {
@@ -862,6 +897,8 @@ async function execTool(name: string, args: any, ctx: ToolCtx): Promise<any> {
     }
     case "get_product_options":
       return await toolProductOptions(ctx, args);
+    case "create_account":
+      return await toolCreateAccount(ctx, args);
     case "cancel_order":
       return await toolCancelOrder(ctx, args);
     case "create_order":
@@ -1298,10 +1335,71 @@ async function toolApplyPromo(ctx: ToolCtx, args: any) {
   return { ...(await cartView(ctx)), ok: true, code: res.code, promo_discount: res.discount };
 }
 
+// ---- conversational account creation --------------------------------------
+
+/**
+ * Create (or link) the account for this WhatsApp number. The number itself is
+ * the credential — arriving over a verified WhatsApp thread proves ownership,
+ * exactly as the legacy onboarding flow assumed. Cart, location and pending
+ * goal are untouched, so the interrupted request can resume immediately.
+ */
+async function toolCreateAccount(ctx: ToolCtx, args: any) {
+  if (ctx.userId) return { ok: true, already: true, user_id: ctx.userId };
+
+  const name = String(args?.full_name || "").trim().replace(/\s+/g, " ");
+  if (!name || name.length < 2 || name.length > 60 || !/^[A-Za-z][A-Za-z\s'\-]{1,59}$/.test(name)) {
+    return { ok: false, reason: "invalid_name", message: "Ask the customer for their full name in letters, e.g. Ada Lovelace." };
+  }
+
+  const digits = ctx.phone.replace(/\D/g, "");
+  const e164 = ctx.phone.startsWith("+")
+    ? ctx.phone
+    : digits.startsWith("234") ? "+" + digits
+    : digits.startsWith("0") ? "+234" + digits.slice(1)
+    : "+" + digits;
+  const localForm = e164.startsWith("+234") ? "0" + e164.slice(4) : e164;
+
+  // Never create a duplicate: an existing profile on this number wins.
+  const { data: existingProfiles } = await ctx.supabase
+    .from("profiles").select("user_id").in("phone", [localForm, e164, digits]).limit(1);
+  let userId: string | null = existingProfiles?.[0]?.user_id ?? null;
+
+  if (!userId) {
+    const { data: created, error: createErr } = await ctx.supabase.auth.admin.createUser({
+      email: `wa${digits}@wa.fastcalories.online`,
+      phone: e164,
+      password: crypto.randomUUID() + crypto.randomUUID(),
+      email_confirm: true,
+      phone_confirm: true,
+      user_metadata: { full_name: name, source: "whatsapp" },
+    });
+    if (createErr || !created?.user) {
+      console.error("[wa-agent] create_account failed", createErr?.message || createErr);
+      return { ok: false, reason: "signup_failed", message: "Account creation failed; ask the customer to try again shortly." };
+    }
+    userId = created.user.id;
+    await ctx.supabase.from("profiles").upsert({
+      user_id: userId,
+      full_name: name,
+      phone: localForm,
+      phone_verified: true,
+      phone_verified_at: nowIso(),
+      phone_verification_method: "whatsapp",
+    }, { onConflict: "user_id" });
+  }
+
+  await ctx.supabase.from("whatsapp_sessions").update({ customer_user_id: userId }).eq("id", ctx.sessionId);
+  await ctx.supabase.from("whatsapp_carts").update({ customer_user_id: userId }).eq("phone", ctx.phone);
+  ctx.userId = userId;
+  ctx.onAccountCreated?.(userId!);
+  console.log(JSON.stringify({ event: "wa_agent_account_created", session_id: ctx.sessionId }));
+  return { ok: true, user_id: userId, full_name: name, message: "Account ready. Retry the pending request now." };
+}
+
 // ---- wallet / payment / orders --------------------------------------------
 
 async function toolWallet(ctx: ToolCtx) {
-  if (!ctx.userId) return { ok: false, reason: "no_account" };
+  if (!ctx.userId) return authRequired();
   const { data: w } = await ctx.supabase
     .from("wallets").select("id, balance, test_balance, is_disabled")
     .eq("user_id", ctx.userId).eq("wallet_type", "customer").maybeSingle();
@@ -1321,7 +1419,7 @@ async function paystackKey(ctx: ToolCtx) {
 }
 
 async function toolCreateOrder(ctx: ToolCtx, args: any) {
-  if (!ctx.userId) return { ok: false, reason: "no_account" };
+  if (!ctx.userId) return authRequired();
   const cart = await loadCart(ctx);
   if (!cart.items.length) return { ok: false, reason: "empty_cart" };
   if (!cart.vendor_id || !cart.outlet_id) return { ok: false, reason: "no_branch" };
@@ -1401,7 +1499,7 @@ async function toolCreateOrder(ctx: ToolCtx, args: any) {
   }
 
 
-  const wallet = await toolWallet(ctx);
+  const wallet: any = await toolWallet(ctx);
   if (method === "wallet") {
     if (!wallet.ok || wallet.disabled) return { ok: false, reason: "wallet_unavailable" };
     if (Number(wallet.balance) < pricing.total) {
@@ -1630,7 +1728,7 @@ async function toolPaymentStatus(ctx: ToolCtx, args: any) {
 }
 
 async function toolOrderStatus(ctx: ToolCtx, args: any) {
-  if (!ctx.userId) return { ok: false, reason: "no_account" };
+  if (!ctx.userId) return authRequired();
   let q = ctx.supabase
     .from("orders")
     .select("order_number, status, payment_status, total, created_at, delivery_type, confirmation_code, vendor_id")
@@ -1646,7 +1744,7 @@ async function toolOrderStatus(ctx: ToolCtx, args: any) {
 }
 
 async function toolOrderHistory(ctx: ToolCtx, args: any) {
-  if (!ctx.userId) return { ok: false, reason: "no_account" };
+  if (!ctx.userId) return authRequired();
   const { data } = await ctx.supabase
     .from("orders")
     .select("order_number, status, total, created_at, vendor_id")
@@ -1671,7 +1769,7 @@ async function toolOrderHistory(ctx: ToolCtx, args: any) {
 }
 
 async function toolReorder(ctx: ToolCtx, args: any) {
-  if (!ctx.userId) return { ok: false, reason: "no_account" };
+  if (!ctx.userId) return authRequired();
   let q = ctx.supabase
     .from("orders").select("id, order_number, vendor_id, outlet_id")
     .eq("user_id", ctx.userId).order("created_at", { ascending: false }).limit(1);
@@ -1776,7 +1874,7 @@ async function toolNutrition(ctx: ToolCtx, args: any) {
  * Paystack link can never resurrect the order.
  */
 async function toolCancelOrder(ctx: ToolCtx, args: any) {
-  if (!ctx.userId) return { ok: false, reason: "no_account" };
+  if (!ctx.userId) return authRequired();
   const { data, error } = await ctx.supabase.rpc("whatsapp_cancel_pending_order", {
     p_user_id: ctx.userId,
     p_order_number: args.order_number ? String(args.order_number).trim() : null,
