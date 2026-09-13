@@ -815,6 +815,16 @@ export const TOOL_SPECS = [
   { name: "get_nutrition", description: "Verified calories for the cart (incl. chosen portions and add-ons) or one product. Never estimate calories yourself.", parameters: { type: "object", properties: { product_id: { type: "string" } } } },
   { name: "recommend_meal", description: "Suggest items chosen ONLY from live nearby menus.", parameters: { type: "object", properties: { goal: { type: "string" }, max_price: { type: "number" }, location_text: { type: "string" } } } },
   {
+    name: "create_account",
+    description:
+      "Create a FastCalories account for this WhatsApp number using the customer's real full name. Call this ONLY when an account is genuinely needed (checkout, wallet, order history, saved addresses) or the customer asked to sign up. The WhatsApp number becomes their login; no password needed. After it returns ok, immediately retry the request that needed the account.",
+    parameters: {
+      type: "object",
+      properties: { full_name: { type: "string", description: "The customer's full name exactly as they gave it." } },
+      required: ["full_name"],
+    },
+  },
+  {
     name: "cancel_order",
     description:
       "Cancel the customer's pending (unpaid) order and kill its payment link. Server decides: paid orders and orders already in preparation are refused with the real reason. Safe to retry — repeat calls report the same result.",
@@ -835,6 +845,9 @@ export async function runTool(name: string, argsRaw: any, ctx: ToolCtx): Promise
     if (out && typeof out === "object" &&
         (out.needs_location === true || out.reason === "no_location" || out.reason === "location_required")) {
       ctx.onLocationRequired?.({ tool: name, args, at: nowIso() });
+    }
+    if (out && typeof out === "object" && out.requires_account === true && name !== "create_account") {
+      ctx.onAccountRequired?.({ tool: name, args, at: nowIso() });
     }
     return out;
   } catch (e) {
@@ -884,6 +897,8 @@ async function execTool(name: string, args: any, ctx: ToolCtx): Promise<any> {
     }
     case "get_product_options":
       return await toolProductOptions(ctx, args);
+    case "create_account":
+      return await toolCreateAccount(ctx, args);
     case "cancel_order":
       return await toolCancelOrder(ctx, args);
     case "create_order":
@@ -1318,6 +1333,67 @@ async function toolApplyPromo(ctx: ToolCtx, args: any) {
   if (!res.valid) return { ok: false, reason: res.reason, min_order: (res as any).min_order ?? null };
   await saveCart(ctx, { promo_code: res.code });
   return { ...(await cartView(ctx)), ok: true, code: res.code, promo_discount: res.discount };
+}
+
+// ---- conversational account creation --------------------------------------
+
+/**
+ * Create (or link) the account for this WhatsApp number. The number itself is
+ * the credential — arriving over a verified WhatsApp thread proves ownership,
+ * exactly as the legacy onboarding flow assumed. Cart, location and pending
+ * goal are untouched, so the interrupted request can resume immediately.
+ */
+async function toolCreateAccount(ctx: ToolCtx, args: any) {
+  if (ctx.userId) return { ok: true, already: true, user_id: ctx.userId };
+
+  const name = String(args?.full_name || "").trim().replace(/\s+/g, " ");
+  if (!name || name.length < 2 || name.length > 60 || !/^[A-Za-z][A-Za-z\s'\-]{1,59}$/.test(name)) {
+    return { ok: false, reason: "invalid_name", message: "Ask the customer for their full name in letters, e.g. Ada Lovelace." };
+  }
+
+  const digits = ctx.phone.replace(/\D/g, "");
+  const e164 = ctx.phone.startsWith("+")
+    ? ctx.phone
+    : digits.startsWith("234") ? "+" + digits
+    : digits.startsWith("0") ? "+234" + digits.slice(1)
+    : "+" + digits;
+  const localForm = e164.startsWith("+234") ? "0" + e164.slice(4) : e164;
+
+  // Never create a duplicate: an existing profile on this number wins.
+  const { data: existingProfiles } = await ctx.supabase
+    .from("profiles").select("user_id").in("phone", [localForm, e164, digits]).limit(1);
+  let userId: string | null = existingProfiles?.[0]?.user_id ?? null;
+
+  if (!userId) {
+    const { data: created, error: createErr } = await ctx.supabase.auth.admin.createUser({
+      email: `wa${digits}@wa.fastcalories.online`,
+      phone: e164,
+      password: crypto.randomUUID() + crypto.randomUUID(),
+      email_confirm: true,
+      phone_confirm: true,
+      user_metadata: { full_name: name, source: "whatsapp" },
+    });
+    if (createErr || !created?.user) {
+      console.error("[wa-agent] create_account failed", createErr?.message || createErr);
+      return { ok: false, reason: "signup_failed", message: "Account creation failed; ask the customer to try again shortly." };
+    }
+    userId = created.user.id;
+    await ctx.supabase.from("profiles").upsert({
+      user_id: userId,
+      full_name: name,
+      phone: localForm,
+      phone_verified: true,
+      phone_verified_at: nowIso(),
+      phone_verification_method: "whatsapp",
+    }, { onConflict: "user_id" });
+  }
+
+  await ctx.supabase.from("whatsapp_sessions").update({ customer_user_id: userId }).eq("id", ctx.sessionId);
+  await ctx.supabase.from("whatsapp_carts").update({ customer_user_id: userId }).eq("phone", ctx.phone);
+  ctx.userId = userId;
+  ctx.onAccountCreated?.(userId!);
+  console.log(JSON.stringify({ event: "wa_agent_account_created", session_id: ctx.sessionId }));
+  return { ok: true, user_id: userId, full_name: name, message: "Account ready. Retry the pending request now." };
 }
 
 // ---- wallet / payment / orders --------------------------------------------
