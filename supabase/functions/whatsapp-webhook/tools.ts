@@ -1342,9 +1342,14 @@ async function toolCreateOrder(ctx: ToolCtx, args: any) {
       blocked.push(line.name);
       return line;
     }
-    if (money(p.price) !== money(line.price)) {
-      repriced.push(`${line.name}: ₦${money(line.price)} → ₦${money(p.price)}`);
-      return { ...line, price: money(p.price), name: p.name };
+    // Compare the BASE menu price only — add-ons and a chosen portion are
+    // priced separately and must not look like a vendor price change.
+    const storedBase = line.portion ? money(line.portion.price) : money(line.base_price ?? line.price);
+    const liveBase = line.portion ? storedBase : money(p.price);
+    if (liveBase !== storedBase) {
+      const extras = money(line.price) - storedBase;
+      repriced.push(`${line.name}: ₦${money(line.price)} → ₦${liveBase + extras}`);
+      return { ...line, base_price: liveBase, price: money(liveBase + extras), name: p.name };
     }
     return line;
   });
