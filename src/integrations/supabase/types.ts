@@ -9754,6 +9754,135 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_carts: {
+        Row: {
+          created_at: string
+          customer_user_id: string | null
+          delivery_address_text: string | null
+          delivery_latitude: number | null
+          delivery_longitude: number | null
+          delivery_quote: Json | null
+          fulfilment_type: string
+          id: string
+          items: Json
+          outlet_id: string | null
+          payment_method: string | null
+          phone: string
+          promo_code: string | null
+          quote_expires_at: string | null
+          saved_address_id: string | null
+          updated_at: string
+          vendor_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          customer_user_id?: string | null
+          delivery_address_text?: string | null
+          delivery_latitude?: number | null
+          delivery_longitude?: number | null
+          delivery_quote?: Json | null
+          fulfilment_type?: string
+          id?: string
+          items?: Json
+          outlet_id?: string | null
+          payment_method?: string | null
+          phone: string
+          promo_code?: string | null
+          quote_expires_at?: string | null
+          saved_address_id?: string | null
+          updated_at?: string
+          vendor_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          customer_user_id?: string | null
+          delivery_address_text?: string | null
+          delivery_latitude?: number | null
+          delivery_longitude?: number | null
+          delivery_quote?: Json | null
+          fulfilment_type?: string
+          id?: string
+          items?: Json
+          outlet_id?: string | null
+          payment_method?: string | null
+          phone?: string
+          promo_code?: string | null
+          quote_expires_at?: string | null
+          saved_address_id?: string | null
+          updated_at?: string
+          vendor_id?: string | null
+        }
+        Relationships: []
+      }
+      whatsapp_checkouts: {
+        Row: {
+          amount: number
+          cart_snapshot: Json
+          created_at: string
+          customer_user_id: string | null
+          environment: string
+          fulfilment_type: string
+          id: string
+          idempotency_key: string
+          notified_at: string | null
+          order_id: string | null
+          outlet_id: string | null
+          payment_link: string | null
+          payment_method: string
+          payment_reference: string | null
+          phone: string
+          pricing_snapshot: Json | null
+          session_id: string | null
+          status: string
+          updated_at: string
+          vendor_id: string | null
+        }
+        Insert: {
+          amount?: number
+          cart_snapshot?: Json
+          created_at?: string
+          customer_user_id?: string | null
+          environment?: string
+          fulfilment_type?: string
+          id?: string
+          idempotency_key: string
+          notified_at?: string | null
+          order_id?: string | null
+          outlet_id?: string | null
+          payment_link?: string | null
+          payment_method?: string
+          payment_reference?: string | null
+          phone: string
+          pricing_snapshot?: Json | null
+          session_id?: string | null
+          status?: string
+          updated_at?: string
+          vendor_id?: string | null
+        }
+        Update: {
+          amount?: number
+          cart_snapshot?: Json
+          created_at?: string
+          customer_user_id?: string | null
+          environment?: string
+          fulfilment_type?: string
+          id?: string
+          idempotency_key?: string
+          notified_at?: string | null
+          order_id?: string | null
+          outlet_id?: string | null
+          payment_link?: string | null
+          payment_method?: string
+          payment_reference?: string | null
+          phone?: string
+          pricing_snapshot?: Json | null
+          session_id?: string | null
+          status?: string
+          updated_at?: string
+          vendor_id?: string | null
+        }
+        Relationships: []
+      }
       whatsapp_messages: {
         Row: {
           body: string | null
