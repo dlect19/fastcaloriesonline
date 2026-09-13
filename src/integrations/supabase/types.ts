@@ -7937,6 +7937,7 @@ export type Database = {
       }
       twilio_api_logs: {
         Row: {
+          attempt: number | null
           body_preview: string | null
           channel: string
           created_at: string
@@ -7948,13 +7949,16 @@ export type Database = {
           initiated_by: string | null
           order_id: string | null
           price_ngn: number
+          provider_status_code: number | null
           segments: number
+          session_id: string | null
           to_phone: string | null
           twilio_sid: string | null
           twilio_status: string | null
           user_id: string | null
         }
         Insert: {
+          attempt?: number | null
           body_preview?: string | null
           channel: string
           created_at?: string
@@ -7966,13 +7970,16 @@ export type Database = {
           initiated_by?: string | null
           order_id?: string | null
           price_ngn?: number
+          provider_status_code?: number | null
           segments?: number
+          session_id?: string | null
           to_phone?: string | null
           twilio_sid?: string | null
           twilio_status?: string | null
           user_id?: string | null
         }
         Update: {
+          attempt?: number | null
           body_preview?: string | null
           channel?: string
           created_at?: string
@@ -7984,7 +7991,9 @@ export type Database = {
           initiated_by?: string | null
           order_id?: string | null
           price_ngn?: number
+          provider_status_code?: number | null
           segments?: number
+          session_id?: string | null
           to_phone?: string | null
           twilio_sid?: string | null
           twilio_status?: string | null
