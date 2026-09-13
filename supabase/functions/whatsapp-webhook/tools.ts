@@ -24,12 +24,24 @@ import {
 export const QUOTE_TTL_MINUTES = 15;
 export const CART_TTL_HOURS = 24;
 
+export interface PendingLocationGoal {
+  tool: string;
+  args: Record<string, unknown>;
+  at: string;
+}
+
 export interface ToolCtx {
   supabase: any;
   phone: string;
   userId: string | null;
   sessionId: string;
   environment: string;
+  /**
+   * Called whenever a tool could not run because coordinates are missing.
+   * The webhook persists the goal so the very same intent can be resumed
+   * automatically once a WhatsApp location pin (or landmark) arrives.
+   */
+  onLocationRequired?: (goal: PendingLocationGoal) => void;
 }
 
 export interface CartLine {
