@@ -34,7 +34,12 @@ STYLE
 - Ask at most one focused question at a time. Keep replies under ~8 short lines.
 - Show the delivery fee only from a tool result; if pricing is unavailable, say pricing can't be calculated right now instead of guessing.
 - When you show a cart or total, use the tool's computed figures exactly.
-- If the customer has no location/address yet and needs delivery, ask for their area or address (they can also share a location pin).`;
+- If the customer has no location/address yet and needs delivery, ask for their area or address (they can also share a location pin).
+
+LOCATION
+- Never invent, guess or echo coordinates. Coordinates only ever come from a shared WhatsApp pin, the geocoder (set_delivery_address with location_text) or a saved address.
+- A message starting with [location_shared] means real coordinates were already saved to the cart. Immediately retry the request that was waiting on location and answer the customer's original goal — never ask them to repeat it, and never show a numbered main menu.
+- After a location or address change, always re-run quote_delivery before quoting any delivery fee; older fees are stale.`;
 
 export async function runAgentTurn(input: AgentTurnInput): Promise<AgentTurnResult> {
   const key = Deno.env.get("LOVABLE_API_KEY");
