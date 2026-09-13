@@ -21,8 +21,9 @@
 
 ## WhatsApp AI commerce agent rebuild
 - [x] Repair follow-up: Phase 1 rebuilt on the AI SDK agent loop (validated tool schemas, 50-step limit, structured run-id logs), free text now reaches the agent in address/confirm/location states, AI failures surface the real error instead of silently dropping to the old menu; verified with a live non-mutating model+tool call
-- [ ] Repair follow-up: WhatsApp checkout (create_order) is temporarily fenced off — wallet debit is non-atomic (order stays paid if post_wallet_entry fails) and the idempotency fingerprint blocks legitimate repeat orders. Fix both, then re-enable in agent.ts.
-- [ ] Repair follow-up: Phase 9 outbound delivery reliability and A–N acceptance tests without live payment side effects
+- [x] Repair follow-up: WhatsApp checkout re-enabled — order + items + wallet debit now commit in one transaction (`whatsapp_create_order_atomic`), and idempotency is bound to a per-attempt `checkout_intent_key` on `whatsapp_carts` so repeat orders are allowed while retries de-duplicate
+- [x] Repair follow-up: Phase 9 outbound delivery reliability (per-attempt logging with session/order correlation, provider status code, retry with backoff on 429/5xx/network only)
+
 - [x] Phase 1: tool-calling agent (agent.ts) + bounded server-authoritative tools (tools.ts), gemini-2.5-flash w/ Gemini fallback, structured logs
 - [x] Phase 2: vendor_id + outlet_id preserved on every search result, cart line, quote, checkout and order; branches never collapsed
 - [x] Phase 3: 24h session window, durable whatsapp_carts (survives context expiry), 15-min delivery quote TTL
@@ -31,5 +32,5 @@
 - [x] Phase 6: quote-delivery-fee is the only fee source; no flat/Haversine fallback in the agent path
 - [x] Phase 7: wallet or hosted Paystack card/bank link, whatsapp_checkouts idempotency, webhook resumes + notifies
 - [x] Phase 8: order status/history/reorder/nutrition/promo/recommend tools (all revalidated server-side)
-- [ ] Phase 9: template repair/resubmission + twilio_api_logs correlation & retry/backoff for outbound sends (free-text flow already works without templates)
+- [x] Phase 9: plain-text-first flow, per-send `twilio_api_logs` rows (session_id, order_id, attempt, provider_status_code, sid/status/error) and transient-only retry with backoff; template resubmission remains a Meta-side admin action and never blocks free text
 - [ ] Live conversational acceptance tests A–N: need a real inbound WhatsApp message (Twilio signature verification blocks simulated inbound in production)

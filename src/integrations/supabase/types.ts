@@ -7937,6 +7937,7 @@ export type Database = {
       }
       twilio_api_logs: {
         Row: {
+          attempt: number | null
           body_preview: string | null
           channel: string
           created_at: string
@@ -7948,13 +7949,16 @@ export type Database = {
           initiated_by: string | null
           order_id: string | null
           price_ngn: number
+          provider_status_code: number | null
           segments: number
+          session_id: string | null
           to_phone: string | null
           twilio_sid: string | null
           twilio_status: string | null
           user_id: string | null
         }
         Insert: {
+          attempt?: number | null
           body_preview?: string | null
           channel: string
           created_at?: string
@@ -7966,13 +7970,16 @@ export type Database = {
           initiated_by?: string | null
           order_id?: string | null
           price_ngn?: number
+          provider_status_code?: number | null
           segments?: number
+          session_id?: string | null
           to_phone?: string | null
           twilio_sid?: string | null
           twilio_status?: string | null
           user_id?: string | null
         }
         Update: {
+          attempt?: number | null
           body_preview?: string | null
           channel?: string
           created_at?: string
@@ -7984,7 +7991,9 @@ export type Database = {
           initiated_by?: string | null
           order_id?: string | null
           price_ngn?: number
+          provider_status_code?: number | null
           segments?: number
+          session_id?: string | null
           to_phone?: string | null
           twilio_sid?: string | null
           twilio_status?: string | null
@@ -9756,6 +9765,7 @@ export type Database = {
       }
       whatsapp_carts: {
         Row: {
+          checkout_intent_key: string | null
           created_at: string
           customer_user_id: string | null
           delivery_address_text: string | null
@@ -9775,6 +9785,7 @@ export type Database = {
           vendor_id: string | null
         }
         Insert: {
+          checkout_intent_key?: string | null
           created_at?: string
           customer_user_id?: string | null
           delivery_address_text?: string | null
@@ -9794,6 +9805,7 @@ export type Database = {
           vendor_id?: string | null
         }
         Update: {
+          checkout_intent_key?: string | null
           created_at?: string
           customer_user_id?: string | null
           delivery_address_text?: string | null
@@ -11005,6 +11017,16 @@ export type Database = {
             Args: { p_earned_at?: string; p_wallet_id?: string }
             Returns: string
           }
+      whatsapp_create_order_atomic: {
+        Args: {
+          p_checkout_id: string
+          p_environment?: string
+          p_items: Json
+          p_order: Json
+          p_wallet_debit?: boolean
+        }
+        Returns: Json
+      }
     }
     Enums: {
       admin_staff_role: "super_admin" | "admin" | "support" | "analyst"

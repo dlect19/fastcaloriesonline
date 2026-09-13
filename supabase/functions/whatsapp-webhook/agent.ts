@@ -50,14 +50,14 @@ export async function runAgentTurn(input: AgentTurnInput): Promise<AgentTurnResu
   const tools = Object.fromEntries(TOOL_SPECS.map(spec => [spec.name, tool({
     description: spec.description,
     inputSchema: jsonSchema<Record<string, unknown>>({ ...spec.parameters, additionalProperties: false } as any),
-    // Existing checkout has non-atomic debit/accounting hazards. Never expose it
-    // to the new controller until the payment phase has transaction-safe guards.
+    // Checkout is now transaction-safe: order + items + wallet debit commit in a
+    // single RPC (whatsapp_create_order_atomic), and idempotency is bound to a
+    // per-attempt checkout intent, so create_order is enabled again.
     execute: async args => {
       toolsUsed.push(spec.name);
       const started = Date.now();
-      const result = spec.name === "create_order"
-        ? { ok: false, reason: "checkout_safety_review", message: "Please complete checkout in the FastCalories app while WhatsApp payments are being repaired. Your cart is preserved." }
-        : await runTool(spec.name, args, input.ctx);
+      const result = await runTool(spec.name, args, input.ctx);
+
       console.log(JSON.stringify({ event: "wa_agent_tool", session_id: input.ctx.sessionId,
         tool: spec.name, duration_ms: Date.now() - started, run_id: runId,
         ok: result?.ok !== false && !result?.error }));

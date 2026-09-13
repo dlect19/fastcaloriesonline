@@ -963,16 +963,15 @@ async function toolCreateOrder(ctx: ToolCtx, args: any) {
     ? args.payment_method
     : (cart.payment_method || "wallet");
 
-  // Idempotency: same cart + total + method + branch => same checkout row.
-  const fingerprint = JSON.stringify({
-    phone: ctx.phone,
-    outlet: cart.outlet_id,
-    lines: cart.items.map((i) => [i.product_id, i.qty]),
-    total: pricing.total,
-    method,
-    fulfilment: cart.fulfilment_type,
-  });
-  const idempotencyKey = await sha256(fingerprint);
+  // Idempotency is tied to a CHECKOUT INTENT, not to the cart contents: a retry
+  // of the same attempt reuses the key, while a legitimate later repeat order
+  // gets a brand new intent (the key is cleared once an order is created).
+  let intentKey: string = (cart as any).checkout_intent_key || "";
+  if (!intentKey) {
+    intentKey = `wa-${ctx.phone.replace(/\D/g, "")}-${crypto.randomUUID()}`;
+    await saveCart(ctx, { checkout_intent_key: intentKey } as any);
+  }
+  const idempotencyKey = await sha256(`${intentKey}|${method}`);
 
   const { data: existingCheckout } = await ctx.supabase
     .from("whatsapp_checkouts").select("*").eq("idempotency_key", idempotencyKey).maybeSingle();
@@ -980,6 +979,7 @@ async function toolCreateOrder(ctx: ToolCtx, args: any) {
     const { data: o } = await ctx.supabase
       .from("orders").select("order_number, payment_status, status, confirmation_code")
       .eq("id", existingCheckout.order_id).maybeSingle();
+    await saveCart(ctx, { checkout_intent_key: null } as any);
     return {
       ok: true,
       already_created: true,
@@ -990,6 +990,7 @@ async function toolCreateOrder(ctx: ToolCtx, args: any) {
       confirmation_code: o?.confirmation_code,
     };
   }
+
 
   const wallet = await toolWallet(ctx);
   if (method === "wallet") {
@@ -1010,7 +1011,7 @@ async function toolCreateOrder(ctx: ToolCtx, args: any) {
   const confirmationCode = String(Math.floor(100000 + Math.random() * 900000));
   const paymentRef = method === "wallet" ? `WA-${Date.now()}` : `FC-WA-${Date.now()}`;
 
-  const { data: checkout } = await ctx.supabase.from("whatsapp_checkouts").insert({
+  const { data: checkout, error: checkoutErr } = await ctx.supabase.from("whatsapp_checkouts").upsert({
     idempotency_key: idempotencyKey,
     phone: ctx.phone,
     customer_user_id: ctx.userId,
@@ -1025,9 +1026,13 @@ async function toolCreateOrder(ctx: ToolCtx, args: any) {
     amount: pricing.total,
     payment_reference: paymentRef,
     environment: ctx.environment,
-  }).select().single();
+  }, { onConflict: "idempotency_key" }).select().single();
+  if (checkoutErr || !checkout) {
+    console.error("[wa-agent] checkout intent failed", checkoutErr?.message);
+    return { ok: false, reason: "checkout_failed" };
+  }
 
-  const { data: order, error: orderErr } = await ctx.supabase.from("orders").insert({
+  const orderPayload: Record<string, unknown> = {
     user_id: ctx.userId,
     vendor_id: cart.vendor_id,
     outlet_id: cart.outlet_id,
@@ -1056,44 +1061,44 @@ async function toolCreateOrder(ctx: ToolCtx, args: any) {
     channel: "whatsapp",
     confirmation_code: confirmationCode,
     delivery_instructions: args.note ? `Customer Note: ${String(args.note).slice(0, 300)}` : null,
-  }).select("id, order_number, total").single();
-
-  if (orderErr || !order) {
-    console.error("[wa-agent] order insert failed", orderErr);
-    await ctx.supabase.from("whatsapp_checkouts").update({ status: "failed" }).eq("id", checkout?.id);
-    return { ok: false, reason: "order_create_failed" };
-  }
-
-  await ctx.supabase.from("order_items").insert(cart.items.map((c) => ({
-    order_id: order.id,
+  };
+  const itemsPayload = cart.items.map((c) => ({
     product_id: c.product_id,
     product_name: c.name,
     quantity: c.qty,
     unit_price: money(c.price),
     total_price: money(c.price * c.qty),
     calories: c.calories ?? 0,
-  })));
+  }));
 
-  await ctx.supabase.from("whatsapp_checkouts")
-    .update({ order_id: order.id, status: method === "wallet" ? "paid" : "awaiting_payment" })
-    .eq("id", checkout?.id);
+  // ONE transaction: order + items + (for wallet) the ledger debit. If the
+  // debit or accounting fails, nothing at all is committed — no paid order can
+  // be left behind.
+  const { data: created, error: atomicErr } = await ctx.supabase.rpc("whatsapp_create_order_atomic", {
+    p_checkout_id: checkout.id,
+    p_order: orderPayload,
+    p_items: itemsPayload,
+    p_wallet_debit: method === "wallet",
+    p_environment: ctx.environment,
+  });
+  if (atomicErr || !created?.order_number) {
+    console.error("[wa-agent] atomic checkout failed", atomicErr?.message);
+    await ctx.supabase.from("whatsapp_checkouts")
+      .update({ status: "failed" }).eq("id", checkout.id);
+    const msg = String(atomicErr?.message || "");
+    if (msg.includes("insufficient wallet balance")) {
+      return {
+        ok: false,
+        reason: "insufficient_wallet",
+        total: pricing.total,
+        alternatives: ["card", "bank_transfer"],
+      };
+    }
+    return { ok: false, reason: "order_create_failed" };
+  }
+  const order = { id: created.order_id, order_number: created.order_number, total: created.total };
 
   if (method === "wallet") {
-    const { data: w } = await ctx.supabase
-      .from("wallets").select("id").eq("user_id", ctx.userId).eq("wallet_type", "customer").maybeSingle();
-    const { error: debitErr } = await ctx.supabase.rpc("post_wallet_entry", {
-      p_wallet_id: w?.id,
-      p_wallet_type: "customer",
-      p_transaction_type: "debit",
-      p_category: "wallet_payment",
-      p_amount: pricing.total,
-      p_reference: `WA-${order.order_number}`,
-      p_environment: ctx.environment,
-      p_order_id: order.id,
-      p_notes: `WhatsApp order #${order.order_number}`,
-      p_metadata: { source: "whatsapp-agent", order_number: order.order_number },
-    });
-    if (debitErr) console.error("[wa-agent] wallet debit failed", debitErr.message);
     await clearCartAfterOrder(ctx);
     return {
       ok: true,
@@ -1106,6 +1111,7 @@ async function toolCreateOrder(ctx: ToolCtx, args: any) {
       pharmacy_review: isPharmacy,
     };
   }
+
 
   // Card / bank transfer — hosted Paystack checkout. No card data in WhatsApp.
   const key = await paystackKey(ctx);
@@ -1164,8 +1170,12 @@ async function clearCartAfterOrder(ctx: ToolCtx) {
     promo_code: null,
     delivery_quote: null,
     quote_expires_at: null,
-  });
+    // Retire the checkout intent so the customer's NEXT order is a new intent
+    // (repeat orders allowed) while in-flight retries above still de-duplicate.
+    checkout_intent_key: null,
+  } as any);
 }
+
 
 async function sha256(text: string): Promise<string> {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));

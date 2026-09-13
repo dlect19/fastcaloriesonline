@@ -85,6 +85,20 @@
       "when": 1789259808208,
       "tag": "0011_whatsapp_agent_durable_cart_and_checkout",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1789264088102,
+      "tag": "0012_whatsapp_atomic_checkout",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1789264201148,
+      "tag": "0013_whatsapp_checkout_intent_and_send_logs",
+      "breakpoints": true
     }
   ]
 }
