@@ -55,6 +55,16 @@ describe('OTP channel selection', () => {
     expect(isTemplateApproved('pending')).toBe(false);
     expect(isTemplateApproved('rejected')).toBe(false);
     expect(isTemplateApproved(null)).toBe(false);
+    // Meta's "received"/"in review" states are NOT sendable.
+    expect(isTemplateApproved('received')).toBe(false);
+    expect(isTemplateApproved('paused')).toBe(false);
+  });
+
+  it('treats a submitted-but-unapproved template as unusable on WhatsApp', () => {
+    const plan = planOtpDelivery({ templateSid: sid, templateStatus: 'received', smsFrom: '+15551234567' });
+    expect(plan.channel).toBe('sms');
+    expect(plan.contentSid).toBeNull();
+    expect(plan.reason).toBe('whatsapp_template_not_approved');
   });
 
   it('uses the WhatsApp template when it is approved', () => {
