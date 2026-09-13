@@ -768,7 +768,7 @@ async function toolProductDetails(ctx: ToolCtx, args: any) {
       product_id: p.id,
       name: p.name,
       vendor_id: p.vendor_id,
-      branches: (branches || []).map((b) => ({ outlet_id: b.id, branch: b.outlet_name })),
+      branches: (branches || []).map((b: any) => ({ outlet_id: b.id, branch: b.outlet_name })),
     };
   }
   const checked = await availableProducts(ctx, outletId, [p]);
