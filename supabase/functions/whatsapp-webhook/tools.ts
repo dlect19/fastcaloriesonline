@@ -223,7 +223,7 @@ async function availableProducts(
 }
 
 const PRODUCT_FIELDS =
-  "id, vendor_id, name, description, price, calories, protein, carbs, fat, fiber, serving_unit, requires_prescription, is_available, is_hidden, track_stock, stock_quantity, category_id";
+  "id, vendor_id, name, description, price, calories, serving_unit, requires_prescription, is_available, is_hidden, track_stock, stock_quantity, category_id";
 
 // ------------------------------------------------------------------- pricing
 
@@ -367,7 +367,7 @@ async function validatePromo(ctx: ToolCtx, codeRaw: string, cart: WaCart, subtot
     const { count } = await ctx.supabase
       .from("promo_usage")
       .select("id", { count: "exact", head: true })
-      .eq("promo_code_id", promo.id)
+      .eq("promo_id", promo.id)
       .eq("user_id", ctx.userId);
     if (Number(count || 0) >= Number(promo.per_user_limit)) {
       return { valid: false, reason: "user_limit_reached", discount: 0, code: null };
@@ -726,9 +726,6 @@ async function toolProductDetails(ctx: ToolCtx, args: any) {
     description: p.description || null,
     price: money(p.price),
     calories: p.calories ?? null,
-    protein: p.protein ?? null,
-    carbs: p.carbs ?? null,
-    fat: p.fat ?? null,
     serving_unit: p.serving_unit || null,
     available: !!checked[0]?.available,
     requires_prescription: !!p.requires_prescription,
@@ -1038,7 +1035,7 @@ async function toolCreateOrder(ctx: ToolCtx, args: any) {
     subtotal: pricing.subtotal,
     menu_subtotal: pricing.subtotal,
     delivery_fee: pricing.delivery_fee,
-    discount_amount: pricing.discount || 0,
+    discount: pricing.discount || 0,
     promo_code: pricing.promo_code,
     delivery_latitude: cart.fulfilment_type === "delivery" ? cart.delivery_latitude : null,
     delivery_longitude: cart.fulfilment_type === "delivery" ? cart.delivery_longitude : null,
@@ -1308,16 +1305,14 @@ async function toolNutrition(ctx: ToolCtx, args: any) {
       ok: true,
       name: d.name,
       calories: d.calories,
-      protein: d.protein,
-      carbs: d.carbs,
-      fat: d.fat,
+      serving_unit: d.serving_unit,
       has_data: d.calories != null,
     };
   }
   const cart = await loadCart(ctx);
   if (!cart.items.length) return { ok: false, reason: "empty_cart" };
   const { data: rows } = await ctx.supabase
-    .from("products").select("id, name, calories, protein, carbs, fat")
+    .from("products").select("id, name, calories")
     .in("id", cart.items.map((i) => i.product_id));
   const byId = new Map((rows || []).map((p: any) => [p.id, p]));
   const lines = cart.items.map((i) => {
@@ -1327,9 +1322,6 @@ async function toolNutrition(ctx: ToolCtx, args: any) {
       quantity: i.qty,
       calories_each: p.calories ?? null,
       calories_total: p.calories != null ? Number(p.calories) * i.qty : null,
-      protein: p.protein ?? null,
-      carbs: p.carbs ?? null,
-      fat: p.fat ?? null,
     };
   });
   const known = lines.filter((l) => l.calories_total != null);
