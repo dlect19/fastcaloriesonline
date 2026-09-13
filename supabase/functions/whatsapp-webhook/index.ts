@@ -12,7 +12,7 @@ import {
   resolveDefaultOutletId,
 } from "../_shared/availability.ts";
 import { runAgentTurn } from "./agent.ts";
-import { CartLine, loadCart, saveCart, ToolCtx } from "./tools.ts";
+import { applySharedLocation, CartLine, loadCart, saveCart, ToolCtx } from "./tools.ts";
 
 
 const corsHeaders = {
@@ -388,6 +388,13 @@ serve(async (req) => {
     // A WhatsApp location share / media upload arrives with empty Body — don't treat as greeting.
     const hasLocationParams = !!(params["Latitude"] && params["Longitude"]);
     const hasMediaParams = parseInt(params["NumMedia"] || "0", 10) > 0;
+    // Shared location pin — parsed once here so the AI agent path can consume it
+    // too (previously only the legacy state machine saw it).
+    const latStr = params["Latitude"];
+    const lonStr = params["Longitude"];
+    const sharedLat = latStr ? parseFloat(latStr) : NaN;
+    const sharedLon = lonStr ? parseFloat(lonStr) : NaN;
+    const hasSharedLocation = Number.isFinite(sharedLat) && Number.isFinite(sharedLon);
     const isGreeting = !tap && !hasLocationParams && !hasMediaParams &&
       (lower === "menu" || lower === "hi" || lower === "hello" || lower === "start" || lower === "");
 
@@ -501,21 +508,23 @@ serve(async (req) => {
     // Correlate every outbound send in this request with the session/user.
     setOutboundContext({ supabase, sessionId: session.id, userId: session.customer_user_id });
 
+    // A location pin is a first-class conversational event: it goes to the AI
+    // agent (never to the numbered legacy menu) so the pending request resumes.
     const agentEligible =
-      !tap && !hasMediaParams && !hasLocationParams &&
-      body.trim().length >= 2 &&
-      !isNumericSelection &&
-      !RESERVED.has(lower) &&
+      !tap && !hasMediaParams &&
+      (hasSharedLocation || (body.trim().length >= 2 && !isNumericSelection && !RESERVED.has(lower))) &&
       !LEGACY_STATES.has(session.state) &&
       !!session.customer_user_id;
 
     if (agentEligible) {
+      let pendingLocationGoal: any = null;
       const agentCtx: ToolCtx = {
         supabase,
         phone,
         userId: session.customer_user_id,
         sessionId: session.id,
         environment: platformEnvironment,
+        onLocationRequired: (goal) => { pendingLocationGoal = goal; },
       };
       try {
         // Bring a cart built by the legacy flow into the durable store first,
@@ -549,17 +558,39 @@ serve(async (req) => {
         const history: { role: "user" | "assistant"; content: string }[] =
           Array.isArray(ctxState.agent_history) ? ctxState.agent_history.slice(-8) : [];
 
+        // ---- inbound location pin -> durable cart location, then resume ----
+        const priorGoal = ctxState.agent_pending_location || null;
+        let cartForHint = durable;
+        let agentMessage = body;
+        let sharedLabel: string | null = null;
+        if (hasSharedLocation) {
+          sharedLabel = params["Address"] || params["Label"] ||
+            await reverseGeocode(sharedLat, sharedLon);
+          cartForHint = await applySharedLocation(agentCtx, sharedLat, sharedLon, sharedLabel);
+          await saveDefaultAddress(supabase, session.customer_user_id, sharedLat, sharedLon, sharedLabel);
+          const resumeHint = priorGoal?.tool
+            ? ` The customer's pending request was the tool "${priorGoal.tool}" with arguments ${JSON.stringify(priorGoal.args || {}).slice(0, 500)} — retry it now with these coordinates and answer the original request.`
+            : " There is no pending search: confirm the saved location and ask what they would like, without showing any menu list.";
+          agentMessage =
+            `[location_shared] The customer shared a WhatsApp location pin. Confirmed coordinates are already saved to their cart` +
+            `${sharedLabel ? ` (${sharedLabel})` : ""}. Do not restate raw coordinates.${resumeHint}` +
+            (body.trim() ? `\nThey also wrote: ${body.trim().slice(0, 500)}` : "");
+        }
+
         const result = await runAgentTurn({
           ctx: agentCtx,
-          message: body,
+          message: agentMessage,
           history,
           stateHint: {
-            has_saved_location: durable.delivery_latitude != null,
-            fulfilment_type: durable.fulfilment_type,
-            cart_line_count: durable.items.length,
-            selected_outlet_id: durable.outlet_id,
+            has_saved_location: cartForHint.delivery_latitude != null,
+            location_just_shared: hasSharedLocation,
+            pending_location_goal: priorGoal?.tool ?? null,
+            fulfilment_type: cartForHint.fulfilment_type,
+            cart_line_count: cartForHint.items.length,
+            selected_outlet_id: cartForHint.outlet_id,
           },
         });
+
 
         if (result?.reply) {
           const after = await loadCart(agentCtx);
@@ -575,19 +606,36 @@ serve(async (req) => {
             is_pharmacy: !!i.is_pharmacy,
             serving_unit: i.serving_unit ?? null,
           }));
+          const userTurnText = hasSharedLocation
+            ? `[shared location${sharedLabel ? `: ${sharedLabel}` : ""}]${body.trim() ? ` ${body.trim()}` : ""}`
+            : body;
           const newHistory = [
             ...history,
-            { role: "user" as const, content: body.slice(0, 2000) },
+            { role: "user" as const, content: userTurnText.slice(0, 2000) },
             { role: "assistant" as const, content: result.reply.slice(0, 4000) },
           ].slice(-16);
+          // Keep the goal that still needs coordinates; drop it once resolved.
+          const goalToKeep = pendingLocationGoal ?? (hasSharedLocation ? null : priorGoal);
           await persistSession(
             supabase,
             session.id,
             after.items.length ? "cart" : (session.state === "awaiting_name" ? "menu" : session.state),
-            { ...ctxState, agent_history: newHistory, agent_last_tools: result.toolsUsed },
+            {
+              ...ctxState,
+              agent_history: newHistory,
+              agent_last_tools: result.toolsUsed,
+              agent_pending_location: goalToKeep ?? undefined,
+              lat: after.delivery_latitude != null ? Number(after.delivery_latitude) : ctxState.lat,
+              lon: after.delivery_longitude != null ? Number(after.delivery_longitude) : ctxState.lon,
+              location_label: after.delivery_address_text ?? ctxState.location_label,
+            },
             mirrored,
           );
-          console.log(`[wa-agent] replied phone=***${phone.slice(-4)} tools=${result.toolsUsed.join(",") || "none"}`);
+          console.log(JSON.stringify({
+            event: "wa_agent_reply", session_id: session.id,
+            location_shared: hasSharedLocation, resumed_goal: hasSharedLocation ? (priorGoal?.tool ?? null) : null,
+            pending_goal: goalToKeep?.tool ?? null, tools: result.toolsUsed,
+          }));
           return await replyText(result.reply);
         }
         return await replyText("WhatsApp AI could not complete that request. Your cart is preserved. Please try again.");
@@ -744,12 +792,7 @@ serve(async (req) => {
       );
     }
 
-    // Capture shared location pin
-    const latStr = params["Latitude"];
-    const lonStr = params["Longitude"];
-    const sharedLat = latStr ? parseFloat(latStr) : NaN;
-    const sharedLon = lonStr ? parseFloat(lonStr) : NaN;
-    const hasSharedLocation = Number.isFinite(sharedLat) && Number.isFinite(sharedLon);
+    // Capture shared location pin (coordinates parsed earlier, shared with the agent path)
     if (hasSharedLocation) {
       nextContext.lat = sharedLat;
       nextContext.lon = sharedLon;
@@ -2064,6 +2107,15 @@ serve(async (req) => {
     // 🤖 Last chance: try to understand a plain-English request before bouncing.
     const nlFallback = await tryNaturalLanguage();
     if (nlFallback) return nlFallback;
+
+    // A valid location share must NEVER be answered with the numbered menu.
+    if (hasSharedLocation) {
+      await persistSession(supabase, session.id, session.state, nextContext, nextCart);
+      const lbl = nextContext.location_label ? ` — *${nextContext.location_label}*` : "";
+      return await replyText(
+        `📍 Got your location${lbl}. It's saved for delivery.\n\nTell me what you'd like — for example _"jollof rice and chicken"_.`,
+      );
+    }
 
     // Default: bounce to main menu
     await persistSession(supabase, session.id, "menu", nextContext, nextCart);

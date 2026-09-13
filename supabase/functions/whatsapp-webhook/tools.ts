@@ -24,12 +24,24 @@ import {
 export const QUOTE_TTL_MINUTES = 15;
 export const CART_TTL_HOURS = 24;
 
+export interface PendingLocationGoal {
+  tool: string;
+  args: Record<string, unknown>;
+  at: string;
+}
+
 export interface ToolCtx {
   supabase: any;
   phone: string;
   userId: string | null;
   sessionId: string;
   environment: string;
+  /**
+   * Called whenever a tool could not run because coordinates are missing.
+   * The webhook persists the goal so the very same intent can be resumed
+   * automatically once a WhatsApp location pin (or landmark) arrives.
+   */
+  onLocationRequired?: (goal: PendingLocationGoal) => void;
 }
 
 export interface CartLine {
@@ -116,6 +128,30 @@ export async function saveCart(ctx: ToolCtx, patch: Partial<WaCart>): Promise<Wa
     .single();
   return data as WaCart;
 }
+
+/**
+ * Persist coordinates that arrived from a real WhatsApp location pin.
+ * Coordinates NEVER come from the model — only Twilio params, the geocoder or
+ * a saved address. Items, vendor and outlet selection are left untouched; only
+ * the bound delivery quote is invalidated so pricing is re-quoted.
+ */
+export async function applySharedLocation(
+  ctx: ToolCtx,
+  lat: number,
+  lon: number,
+  label: string | null,
+): Promise<WaCart> {
+  await loadCart(ctx); // guarantees a durable cart row exists
+  return await saveCart(ctx, {
+    delivery_latitude: lat,
+    delivery_longitude: lon,
+    delivery_address_text: label,
+    saved_address_id: null,
+    delivery_quote: null,
+    quote_expires_at: null,
+  });
+}
+
 
 /** Any change that can move the price invalidates the bound delivery quote. */
 async function invalidateQuote(ctx: ToolCtx) {
@@ -526,6 +562,12 @@ export async function runTool(name: string, argsRaw: any, ctx: ToolCtx): Promise
   try {
     const out = await execTool(name, args, ctx);
     console.log(`[wa-agent] tool=${name} ok in ${Date.now() - started}ms`);
+    // A missing-location outcome becomes durable pending state so the request
+    // survives the round trip while the customer shares their pin.
+    if (out && typeof out === "object" &&
+        (out.needs_location === true || out.reason === "no_location" || out.reason === "location_required")) {
+      ctx.onLocationRequired?.({ tool: name, args, at: nowIso() });
+    }
     return out;
   } catch (e) {
     console.error(`[wa-agent] tool=${name} failed`, e instanceof Error ? e.message : String(e));
