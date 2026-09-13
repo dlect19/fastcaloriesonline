@@ -742,6 +742,7 @@ async function cartView(ctx: ToolCtx, cart?: WaCart) {
   const c = cart || (await loadCart(ctx));
   const pricing = await priceCart(ctx, c);
   return {
+    ...pricing,
     ok: true,
     vendor_id: c.vendor_id,
     outlet_id: c.outlet_id,
@@ -755,7 +756,6 @@ async function cartView(ctx: ToolCtx, cart?: WaCart) {
       unit_price: money(i.price),
       line_total: money(i.price * i.qty),
     })),
-    ...pricing,
   };
 }
 
