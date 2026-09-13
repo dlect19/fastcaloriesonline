@@ -251,6 +251,51 @@ async function handleChargeSuccess(supabase: SupabaseClient, data: any, environm
     console.error("Failed to update assisted_orders meta:", e);
   }
 
+  // WhatsApp-originated order: close the checkout record and tell the customer
+  // on WhatsApp with the real order number. Idempotent via notified_at.
+  if (metadata?.source === "whatsapp" && metadata?.phone) {
+    try {
+      const { data: checkout } = await supabase
+        .from("whatsapp_checkouts")
+        .select("id, notified_at")
+        .eq("payment_reference", reference)
+        .maybeSingle();
+      if (checkout && !checkout.notified_at) {
+        const { data: paidOrder } = await supabase
+          .from("orders")
+          .select("order_number, total, confirmation_code, delivery_type")
+          .eq("id", orderId)
+          .maybeSingle();
+        const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+        const twilioKey = Deno.env.get("TWILIO_API_KEY");
+        if (lovableKey && twilioKey && paidOrder) {
+          const fromNumber = await getWhatsAppFromNumber(supabase);
+          const to = `whatsapp:+${String(metadata.phone).replace(/\D/g, "")}`;
+          const pickup = paidOrder.delivery_type === "self_pickup";
+          const body = `✅ *Payment received!*\n\nOrder *${paidOrder.order_number}*\nTotal: ₦${Number(paidOrder.total).toLocaleString()}\n\n` +
+            (pickup
+              ? `🥡 Carryout — the vendor is preparing it. Pickup code: *${paidOrder.confirmation_code}*`
+              : `🔐 Delivery code: *${paidOrder.confirmation_code}* — give this to the rider.`) +
+            `\n\nAsk me "where is my order?" any time.`;
+          await fetch("https://connector-gateway.lovable.dev/twilio/Messages.json", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${lovableKey}`,
+              "X-Connection-Api-Key": twilioKey,
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: new URLSearchParams({ From: fromNumber, To: to, Body: body }),
+          });
+        }
+        await supabase.from("whatsapp_checkouts")
+          .update({ status: "paid", notified_at: new Date().toISOString() })
+          .eq("id", checkout.id);
+      }
+    } catch (e) {
+      console.error("WhatsApp order payment notification failed", e);
+    }
+  }
+
   console.log(`Charge processed for order ${orderId} - wallet splits handled by DB trigger`);
 }
 

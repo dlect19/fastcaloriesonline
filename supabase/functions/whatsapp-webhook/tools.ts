@@ -1,0 +1,1366 @@
+// ============================================================================
+// FastCalories WhatsApp agent tools.
+//
+// These are the ONLY source of business facts for the WhatsApp AI agent.
+// Gemini may choose which tool to call; every price, availability flag, stock
+// check, delivery fee, wallet balance, promo, payment and order fact comes from
+// here — computed server-side against the live database with the same shared
+// helpers the web/mobile checkout uses.
+//
+// Hard rules enforced here (never in the model):
+//  * effective product availability (shared availability.ts helper)
+//  * outlet + parent vendor closure / admin_force_closed
+//  * server-authoritative delivery pricing (quote-delivery-fee function)
+//  * wallet debits only via post_wallet_entry
+//  * order creation idempotency via whatsapp_checkouts.idempotency_key
+// ============================================================================
+
+import {
+  fetchOutletOverrides,
+  isEffectivelyAvailable,
+  resolveDefaultOutletId,
+} from "../_shared/availability.ts";
+
+export const QUOTE_TTL_MINUTES = 15;
+export const CART_TTL_HOURS = 24;
+
+export interface ToolCtx {
+  supabase: any;
+  phone: string;
+  userId: string | null;
+  sessionId: string;
+  environment: string;
+}
+
+export interface CartLine {
+  product_id: string;
+  name: string;
+  price: number;
+  qty: number;
+  calories: number;
+  vendor_id: string;
+  outlet_id: string | null;
+  vendor_name?: string | null;
+  is_pharmacy?: boolean;
+  serving_unit?: string | null;
+}
+
+export interface WaCart {
+  id?: string;
+  phone: string;
+  customer_user_id: string | null;
+  vendor_id: string | null;
+  outlet_id: string | null;
+  fulfilment_type: "delivery" | "carryout";
+  items: CartLine[];
+  promo_code: string | null;
+  payment_method: string | null;
+  delivery_quote: any | null;
+  quote_expires_at: string | null;
+  delivery_latitude: number | null;
+  delivery_longitude: number | null;
+  delivery_address_text: string | null;
+  saved_address_id: string | null;
+  updated_at?: string;
+}
+
+const GMAPS_GATEWAY = "https://connector-gateway.lovable.dev/google_maps";
+
+function money(n: number): number {
+  return Math.round(Number(n) || 0);
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+// ---------------------------------------------------------------- cart store
+
+export async function loadCart(ctx: ToolCtx): Promise<WaCart> {
+  const { data } = await ctx.supabase
+    .from("whatsapp_carts").select("*").eq("phone", ctx.phone).maybeSingle();
+  if (data) {
+    return {
+      ...data,
+      items: Array.isArray(data.items) ? data.items : [],
+      fulfilment_type: data.fulfilment_type === "carryout" ? "carryout" : "delivery",
+    } as WaCart;
+  }
+  const fresh: WaCart = {
+    phone: ctx.phone,
+    customer_user_id: ctx.userId,
+    vendor_id: null,
+    outlet_id: null,
+    fulfilment_type: "delivery",
+    items: [],
+    promo_code: null,
+    payment_method: null,
+    delivery_quote: null,
+    quote_expires_at: null,
+    delivery_latitude: null,
+    delivery_longitude: null,
+    delivery_address_text: null,
+    saved_address_id: null,
+  };
+  const { data: created } = await ctx.supabase
+    .from("whatsapp_carts").insert(fresh).select().single();
+  return (created as WaCart) || fresh;
+}
+
+export async function saveCart(ctx: ToolCtx, patch: Partial<WaCart>): Promise<WaCart> {
+  const { data } = await ctx.supabase
+    .from("whatsapp_carts")
+    .update({ ...patch, customer_user_id: ctx.userId })
+    .eq("phone", ctx.phone)
+    .select()
+    .single();
+  return data as WaCart;
+}
+
+/** Any change that can move the price invalidates the bound delivery quote. */
+async function invalidateQuote(ctx: ToolCtx) {
+  await ctx.supabase.from("whatsapp_carts")
+    .update({ delivery_quote: null, quote_expires_at: null })
+    .eq("phone", ctx.phone);
+}
+
+function quoteIsFresh(cart: WaCart): boolean {
+  if (!cart.delivery_quote || !cart.quote_expires_at) return false;
+  return new Date(cart.quote_expires_at).getTime() > Date.now();
+}
+
+// ------------------------------------------------------- location resolution
+
+async function geocodeText(query: string) {
+  const lk = Deno.env.get("LOVABLE_API_KEY");
+  const gk = Deno.env.get("GOOGLE_MAPS_API_KEY") || Deno.env.get("GOOGLE_MAPS_KEY");
+  if (!lk || !gk || !query) return null;
+  try {
+    const r = await fetch(
+      `${GMAPS_GATEWAY}/maps/api/geocode/json?address=${encodeURIComponent(query)}&region=ng&components=country:NG`,
+      { headers: { Authorization: `Bearer ${lk}`, "X-Connection-Api-Key": gk } },
+    );
+    const j = await r.json();
+    const hit = j?.results?.[0];
+    if (!hit?.geometry?.location) return null;
+    return {
+      lat: Number(hit.geometry.location.lat),
+      lon: Number(hit.geometry.location.lng),
+      address: String(hit.formatted_address || query),
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
+async function savedAddresses(ctx: ToolCtx) {
+  if (!ctx.userId) return [];
+  const { data } = await ctx.supabase
+    .from("addresses")
+    .select("id, label, address_line, city, state, latitude, longitude, is_default")
+    .eq("user_id", ctx.userId)
+    .order("is_default", { ascending: false })
+    .limit(6);
+  return (data || []).filter((a: any) => a.latitude != null && a.longitude != null);
+}
+
+/** Coordinates the agent should price against: cart → saved default. */
+async function resolveCoords(ctx: ToolCtx, cart: WaCart) {
+  if (cart.delivery_latitude != null && cart.delivery_longitude != null) {
+    return {
+      lat: Number(cart.delivery_latitude),
+      lon: Number(cart.delivery_longitude),
+      label: cart.delivery_address_text,
+    };
+  }
+  const addrs = await savedAddresses(ctx);
+  const a = addrs[0];
+  if (!a) return null;
+  return { lat: Number(a.latitude), lon: Number(a.longitude), label: a.address_line || a.label };
+}
+
+// ------------------------------------------------------------ outlet gating
+
+/** Authoritative orderability of one outlet (+ its parent vendor). */
+export async function outletOrderable(
+  ctx: ToolCtx,
+  outletId: string,
+): Promise<{ ok: boolean; reason?: string; outlet?: any; vendor?: any }> {
+  const { data: outlet } = await ctx.supabase
+    .from("vendor_outlets")
+    .select("id, vendor_id, outlet_name, is_active, is_approved, is_open, admin_force_closed, latitude, longitude")
+    .eq("id", outletId)
+    .maybeSingle();
+  if (!outlet) return { ok: false, reason: "branch_not_found" };
+  const { data: vendor } = await ctx.supabase
+    .from("vendors")
+    .select("id, name, category, is_active, is_open, admin_force_closed")
+    .eq("id", outlet.vendor_id)
+    .maybeSingle();
+  if (!vendor) return { ok: false, reason: "vendor_not_found" };
+  if (!vendor.is_active) return { ok: false, reason: "vendor_inactive", outlet, vendor };
+  if (!outlet.is_active || !outlet.is_approved) {
+    return { ok: false, reason: "branch_inactive", outlet, vendor };
+  }
+  if (outlet.admin_force_closed || vendor.admin_force_closed) {
+    return { ok: false, reason: "closed_by_admin", outlet, vendor };
+  }
+  if (!outlet.is_open || !vendor.is_open) {
+    return { ok: false, reason: "closed_now", outlet, vendor };
+  }
+  return { ok: true, outlet, vendor };
+}
+
+/** Effective availability of products for one branch. */
+async function availableProducts(
+  ctx: ToolCtx,
+  outletId: string | null,
+  rows: any[],
+): Promise<any[]> {
+  if (!rows.length) return [];
+  const overrides = await fetchOutletOverrides(ctx.supabase, outletId, rows.map((r) => r.id));
+  return rows.map((p) => ({ ...p, available: isEffectivelyAvailable(p, overrides) }));
+}
+
+const PRODUCT_FIELDS =
+  "id, vendor_id, name, description, price, calories, serving_unit, requires_prescription, is_available, is_hidden, track_stock, stock_quantity, category_id";
+
+// ------------------------------------------------------------------- pricing
+
+async function servicePct(ctx: ToolCtx): Promise<number> {
+  const { data } = await ctx.supabase
+    .from("platform_settings").select("value").eq("key", "service_fee_percentage").maybeSingle();
+  return Number(data?.value) || 8;
+}
+
+export function cartSubtotal(items: CartLine[]): number {
+  return items.reduce((s, c) => s + Number(c.price) * Number(c.qty), 0);
+}
+
+async function quoteDelivery(ctx: ToolCtx, cart: WaCart) {
+  if (cart.fulfilment_type === "carryout") {
+    return { ok: true, fee: 0, source: "carryout", quote: { deliveryFee: 0, source: "carryout" } };
+  }
+  if (!cart.outlet_id) return { ok: false, reason: "no_branch_selected" };
+  const coords = await resolveCoords(ctx, cart);
+  if (!coords) return { ok: false, reason: "no_address" };
+  try {
+    const { data: q } = await ctx.supabase.functions.invoke("quote-delivery-fee", {
+      body: {
+        vendorId: cart.vendor_id,
+        outletId: cart.outlet_id,
+        destLat: coords.lat,
+        destLng: coords.lon,
+        deliveryType: "delivery",
+      },
+    });
+    if (!q?.ok) return { ok: false, reason: q?.reason || "pricing_unavailable" };
+    const quote = {
+      ...q,
+      outlet_id: cart.outlet_id,
+      vendor_id: cart.vendor_id,
+      fulfilment_type: "delivery",
+      dest_lat: coords.lat,
+      dest_lng: coords.lon,
+      created_at: nowIso(),
+    };
+    await saveCart(ctx, {
+      delivery_quote: quote,
+      quote_expires_at: new Date(Date.now() + QUOTE_TTL_MINUTES * 60_000).toISOString(),
+    });
+    return { ok: true, fee: money(q.deliveryFee), source: q.source, quote };
+  } catch (e) {
+    console.error("[wa-tools] quote-delivery-fee failed", e);
+    return { ok: false, reason: "pricing_unavailable" };
+  }
+}
+
+/** Full server-authoritative money picture for the current cart. */
+export async function priceCart(ctx: ToolCtx, cartIn?: WaCart) {
+  const cart = cartIn || (await loadCart(ctx));
+  const subtotal = cartSubtotal(cart.items);
+  const pct = await servicePct(ctx);
+  const service_fee = Math.round((subtotal * pct) / 100);
+  let delivery_fee = 0;
+  let pricing_ok = true;
+  let pricing_reason: string | null = null;
+  let quote: any = null;
+
+  if (cart.fulfilment_type === "delivery") {
+    if (quoteIsFresh(cart) && cart.delivery_quote?.outlet_id === cart.outlet_id) {
+      quote = cart.delivery_quote;
+      delivery_fee = money(quote.deliveryFee);
+    } else {
+      const q = await quoteDelivery(ctx, cart);
+      if (q.ok) {
+        quote = q.quote;
+        delivery_fee = money(q.fee ?? 0);
+      } else {
+        pricing_ok = false;
+        pricing_reason = q.reason || "pricing_unavailable";
+      }
+    }
+  }
+
+  // Promo (validated server-side, never by the model)
+  let discount = 0;
+  let promo_code: string | null = null;
+  if (cart.promo_code) {
+    const p = await validatePromo(ctx, cart.promo_code, cart, subtotal);
+    if (p.valid) {
+      discount = p.discount;
+      promo_code = p.code;
+    }
+  }
+
+  const total = Math.max(0, subtotal + delivery_fee + service_fee - discount);
+  const total_calories = cart.items.reduce((s, c) => s + (Number(c.calories) || 0) * Number(c.qty), 0);
+  return {
+    subtotal,
+    service_fee,
+    service_fee_pct: pct,
+    delivery_fee,
+    discount,
+    promo_code,
+    total,
+    total_calories,
+    fulfilment_type: cart.fulfilment_type,
+    pricing_ok,
+    pricing_reason,
+    quote,
+    quote_expires_at: cart.quote_expires_at,
+  };
+}
+
+// --------------------------------------------------------------------- promo
+
+async function validatePromo(ctx: ToolCtx, codeRaw: string, cart: WaCart, subtotal: number) {
+  const code = String(codeRaw || "").trim().toUpperCase();
+  if (!code) return { valid: false, reason: "empty", discount: 0, code: null as string | null };
+  const { data: promo } = await ctx.supabase
+    .from("promo_codes").select("*").ilike("code", code).maybeSingle();
+  if (!promo || !promo.is_active) return { valid: false, reason: "not_found", discount: 0, code: null };
+  const now = Date.now();
+  if (promo.valid_from && new Date(promo.valid_from).getTime() > now) {
+    return { valid: false, reason: "not_started", discount: 0, code: null };
+  }
+  if (promo.valid_until && new Date(promo.valid_until).getTime() < now) {
+    return { valid: false, reason: "expired", discount: 0, code: null };
+  }
+  if (promo.usage_limit != null && Number(promo.used_count || 0) >= Number(promo.usage_limit)) {
+    return { valid: false, reason: "limit_reached", discount: 0, code: null };
+  }
+  if (promo.scope === "vendor" && promo.vendor_id && promo.vendor_id !== cart.vendor_id) {
+    return { valid: false, reason: "wrong_vendor", discount: 0, code: null };
+  }
+  if (promo.outlet_id && promo.outlet_id !== cart.outlet_id) {
+    return { valid: false, reason: "wrong_branch", discount: 0, code: null };
+  }
+  if (Number(promo.min_order_amount || 0) > subtotal) {
+    return { valid: false, reason: "min_order", min_order: Number(promo.min_order_amount), discount: 0, code: null };
+  }
+  // Pharmacy carts are isolated from platform promos.
+  if (cart.items.some((i) => i.is_pharmacy)) {
+    return { valid: false, reason: "pharmacy_excluded", discount: 0, code: null };
+  }
+  if (ctx.userId && promo.per_user_limit != null) {
+    const { count } = await ctx.supabase
+      .from("promo_usage")
+      .select("id", { count: "exact", head: true })
+      .eq("promo_id", promo.id)
+      .eq("user_id", ctx.userId);
+    if (Number(count || 0) >= Number(promo.per_user_limit)) {
+      return { valid: false, reason: "user_limit_reached", discount: 0, code: null };
+    }
+  }
+  let discount = promo.discount_type === "percentage"
+    ? Math.round((subtotal * Number(promo.discount_value)) / 100)
+    : money(promo.discount_value);
+  if (promo.max_discount != null) discount = Math.min(discount, money(promo.max_discount));
+  discount = Math.min(discount, subtotal);
+  return { valid: true, discount, code: String(promo.code).toUpperCase(), description: promo.description };
+}
+
+// ---------------------------------------------------------------- tool specs
+
+export const TOOL_SPECS = [
+  {
+    name: "search_outlets",
+    description:
+      "Find real nearby vendor branches. Use for 'restaurants near X', 'pharmacy around Ayobo'. Returns only orderable branches unless include_closed is true.",
+    parameters: {
+      type: "object",
+      properties: {
+        location_text: { type: "string", description: "Area/landmark the customer mentioned, e.g. 'Ayobo'." },
+        name_query: { type: "string", description: "Part of a vendor name if the customer named one." },
+        category: { type: "string", enum: ["restaurant", "pharmacy", "market"] },
+        sort: { type: "string", enum: ["nearest", "cheapest"] },
+        include_closed: { type: "boolean" },
+      },
+    },
+  },
+  {
+    name: "search_products",
+    description:
+      "Search real menu items by name across nearby branches or within one branch. Use for 'jollof rice and chicken', 'paracetamol'.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: { type: "string" },
+        outlet_id: { type: "string" },
+        location_text: { type: "string" },
+        max_price: { type: "number" },
+        cheapest: { type: "boolean" },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "get_vendor_menu",
+    description: "List the menu of one branch with real prices and availability.",
+    parameters: {
+      type: "object",
+      properties: { outlet_id: { type: "string" }, limit: { type: "number" } },
+      required: ["outlet_id"],
+    },
+  },
+  {
+    name: "get_product_details",
+    description: "Price, calories, availability and add-on info for one product.",
+    parameters: {
+      type: "object",
+      properties: { product_id: { type: "string" }, outlet_id: { type: "string" } },
+      required: ["product_id"],
+    },
+  },
+  { name: "get_cart", description: "Read the customer's current cart with server-computed totals.", parameters: { type: "object", properties: {} } },
+  {
+    name: "add_cart_item",
+    description: "Add a real product (by product_id from a search/menu tool) to the cart.",
+    parameters: {
+      type: "object",
+      properties: {
+        product_id: { type: "string" },
+        outlet_id: { type: "string" },
+        quantity: { type: "number" },
+      },
+      required: ["product_id"],
+    },
+  },
+  {
+    name: "update_cart_quantity",
+    description: "Set the NEW total quantity of a cart line.",
+    parameters: {
+      type: "object",
+      properties: { product_id: { type: "string" }, line_number: { type: "number" }, quantity: { type: "number" } },
+      required: ["quantity"],
+    },
+  },
+  {
+    name: "remove_cart_item",
+    description: "Remove a cart line by product_id or line_number.",
+    parameters: { type: "object", properties: { product_id: { type: "string" }, line_number: { type: "number" } } },
+  },
+  {
+    name: "set_fulfilment_type",
+    description: "Switch between delivery and carryout (pickup). Always re-quotes delivery when switching back to delivery.",
+    parameters: { type: "object", properties: { type: { type: "string", enum: ["delivery", "carryout"] } }, required: ["type"] },
+  },
+  { name: "list_saved_addresses", description: "List the customer's saved delivery addresses.", parameters: { type: "object", properties: {} } },
+  {
+    name: "set_delivery_address",
+    description: "Set the delivery address from free text ('around Ayobo, 12 Ade street') or a saved_address_id.",
+    parameters: {
+      type: "object",
+      properties: { location_text: { type: "string" }, saved_address_id: { type: "string" }, use_usual: { type: "boolean" } },
+    },
+  },
+  { name: "quote_delivery", description: "Get the authoritative delivery fee for the current cart/branch/address.", parameters: { type: "object", properties: {} } },
+  { name: "apply_promo", description: "Validate and apply a promo code.", parameters: { type: "object", properties: { code: { type: "string" } }, required: ["code"] } },
+  { name: "get_wallet_balance", description: "Read the customer's wallet balance.", parameters: { type: "object", properties: {} } },
+  {
+    name: "set_payment_method",
+    description: "Record the customer's payment choice.",
+    parameters: { type: "object", properties: { method: { type: "string", enum: ["wallet", "card", "bank_transfer"] } }, required: ["method"] },
+  },
+  {
+    name: "create_order",
+    description:
+      "Place the order. Only call after the customer clearly confirms. Pays from wallet, or returns a secure payment link for card/bank.",
+    parameters: {
+      type: "object",
+      properties: { payment_method: { type: "string", enum: ["wallet", "card", "bank_transfer"] }, note: { type: "string" } },
+    },
+  },
+  { name: "get_payment_status", description: "Check whether a pending WhatsApp payment has cleared.", parameters: { type: "object", properties: { reference: { type: "string" } } } },
+  { name: "get_order_status", description: "Status of the customer's latest order or a specific order number.", parameters: { type: "object", properties: { order_number: { type: "string" } } } },
+  { name: "get_order_history", description: "Recent orders for this customer.", parameters: { type: "object", properties: { limit: { type: "number" } } } },
+  { name: "reorder", description: "Rebuild the cart from a past order, revalidating availability and current prices.", parameters: { type: "object", properties: { order_number: { type: "string" } } } },
+  { name: "get_nutrition", description: "Verified nutrition for the cart or one product.", parameters: { type: "object", properties: { product_id: { type: "string" } } } },
+  { name: "recommend_meal", description: "Suggest items chosen ONLY from live nearby menus.", parameters: { type: "object", properties: { goal: { type: "string" }, max_price: { type: "number" }, location_text: { type: "string" } } } },
+] as const;
+
+// ------------------------------------------------------------ tool execution
+
+export async function runTool(name: string, argsRaw: any, ctx: ToolCtx): Promise<any> {
+  const args = argsRaw && typeof argsRaw === "object" ? argsRaw : {};
+  const started = Date.now();
+  try {
+    const out = await execTool(name, args, ctx);
+    console.log(`[wa-agent] tool=${name} ok in ${Date.now() - started}ms`);
+    return out;
+  } catch (e) {
+    console.error(`[wa-agent] tool=${name} failed`, e instanceof Error ? e.message : String(e));
+    return { error: "tool_failed", tool: name };
+  }
+}
+
+async function execTool(name: string, args: any, ctx: ToolCtx): Promise<any> {
+  switch (name) {
+    case "search_outlets":
+      return await toolSearchOutlets(ctx, args);
+    case "search_products":
+      return await toolSearchProducts(ctx, args);
+    case "get_vendor_menu":
+      return await toolVendorMenu(ctx, args);
+    case "get_product_details":
+      return await toolProductDetails(ctx, args);
+    case "get_cart":
+      return await toolGetCart(ctx);
+    case "add_cart_item":
+      return await toolAddItem(ctx, args);
+    case "update_cart_quantity":
+      return await toolUpdateQty(ctx, args);
+    case "remove_cart_item":
+      return await toolRemoveItem(ctx, args);
+    case "set_fulfilment_type":
+      return await toolSetFulfilment(ctx, args);
+    case "list_saved_addresses":
+      return { addresses: (await savedAddresses(ctx)).map((a: any) => ({ id: a.id, label: a.label, address: a.address_line, is_default: a.is_default })) };
+    case "set_delivery_address":
+      return await toolSetAddress(ctx, args);
+    case "quote_delivery": {
+      const cart = await loadCart(ctx);
+      const q = await quoteDelivery(ctx, cart);
+      if (!q.ok) return { ok: false, reason: q.reason };
+      return { ok: true, delivery_fee: q.fee, source: q.source, expires_in_minutes: QUOTE_TTL_MINUTES };
+    }
+    case "apply_promo":
+      return await toolApplyPromo(ctx, args);
+    case "get_wallet_balance":
+      return await toolWallet(ctx);
+    case "set_payment_method": {
+      const method = ["wallet", "card", "bank_transfer"].includes(args.method) ? args.method : "wallet";
+      await saveCart(ctx, { payment_method: method });
+      return { ok: true, payment_method: method };
+    }
+    case "create_order":
+      return await toolCreateOrder(ctx, args);
+    case "get_payment_status":
+      return await toolPaymentStatus(ctx, args);
+    case "get_order_status":
+      return await toolOrderStatus(ctx, args);
+    case "get_order_history":
+      return await toolOrderHistory(ctx, args);
+    case "reorder":
+      return await toolReorder(ctx, args);
+    case "get_nutrition":
+      return await toolNutrition(ctx, args);
+    case "recommend_meal":
+      return await toolRecommend(ctx, args);
+    default:
+      return { error: "unknown_tool", tool: name };
+  }
+}
+
+// ---- discovery -------------------------------------------------------------
+
+async function nearbyOutlets(ctx: ToolCtx, args: any) {
+  const cart = await loadCart(ctx);
+  let coords: { lat: number; lon: number; label?: string | null } | null = null;
+  if (args.location_text) {
+    const g = await geocodeText(String(args.location_text));
+    if (g) coords = { lat: g.lat, lon: g.lon, label: g.address };
+  }
+  if (!coords) coords = await resolveCoords(ctx, cart);
+  if (!coords) return { needs_location: true, rows: [], coords: null };
+
+  const body: any = { customer_lat: coords.lat, customer_lon: coords.lon };
+  if (args.category) body.category = args.category;
+  const { data } = await ctx.supabase.functions.invoke("get-nearby-vendors", { body });
+  const rows: any[] = Array.isArray(data?.vendors) ? data.vendors : [];
+  // Every row keeps BOTH ids; branches are never collapsed to the parent vendor.
+  const mapped = rows
+    .filter((v) => v?.outlet_id && v?.id && typeof v.name === "string" && v.name.trim())
+    .map((v) => ({
+      vendor_id: v.id,
+      outlet_id: v.outlet_id,
+      name: String(v.name).trim(),
+      branch: v.outlet_name || v.outlet_code || null,
+      category: v.category || null,
+      distance_km: v.distance != null ? Number(Number(v.distance).toFixed(1)) : null,
+      delivery_fee_estimate: v.delivery_fee != null ? money(v.delivery_fee) : null,
+      is_open: !!v.is_open,
+    }));
+  return { rows: mapped, coords };
+}
+
+async function toolSearchOutlets(ctx: ToolCtx, args: any) {
+  const { rows, coords, needs_location } = await nearbyOutlets(ctx, args);
+  if (needs_location) {
+    return { ok: false, reason: "no_location", message: "Ask the customer for their area or address." };
+  }
+  let out = rows;
+  if (args.name_query) {
+    const q = String(args.name_query).toLowerCase();
+    const hit = out.filter((r) => r.name.toLowerCase().includes(q));
+    if (hit.length) out = hit;
+  }
+  if (!args.include_closed) out = out.filter((r) => r.is_open);
+  if (args.sort === "cheapest") {
+    out = [...out].sort((a, b) => (a.delivery_fee_estimate ?? 1e9) - (b.delivery_fee_estimate ?? 1e9));
+  } else {
+    out = [...out].sort((a, b) => (a.distance_km ?? 1e9) - (b.distance_km ?? 1e9));
+  }
+  return { ok: true, location: coords?.label ?? null, outlets: out.slice(0, 8) };
+}
+
+async function toolSearchProducts(ctx: ToolCtx, args: any) {
+  const query = String(args.query || "").trim();
+  if (!query) return { ok: false, reason: "empty_query" };
+
+  // Which branches may we sell from?
+  let scope: { vendor_id: string; outlet_id: string; name: string; distance_km: number | null; delivery_fee_estimate: number | null }[] = [];
+  if (args.outlet_id) {
+    const gate = await outletOrderable(ctx, String(args.outlet_id));
+    if (!gate.ok) return { ok: false, reason: gate.reason };
+    scope = [{
+      vendor_id: gate.outlet.vendor_id,
+      outlet_id: gate.outlet.id,
+      name: gate.vendor.name,
+      distance_km: null,
+      delivery_fee_estimate: null,
+    }];
+  } else {
+    const near = await nearbyOutlets(ctx, args);
+    if (near.needs_location) return { ok: false, reason: "no_location" };
+    scope = near.rows.filter((r: any) => r.is_open).slice(0, 8);
+  }
+  if (!scope.length) return { ok: true, products: [], note: "no_open_branches_nearby" };
+
+  const vendorIds = Array.from(new Set(scope.map((s) => s.vendor_id)));
+  let q = ctx.supabase
+    .from("products")
+    .select(PRODUCT_FIELDS)
+    .in("vendor_id", vendorIds)
+    .ilike("name", `%${query}%`)
+    .limit(60);
+  if (args.max_price) q = q.lte("price", Number(args.max_price));
+  const { data: rows } = await q;
+
+  const results: any[] = [];
+  for (const s of scope) {
+    const mine = (rows || []).filter((p: any) => p.vendor_id === s.vendor_id);
+    const checked = await availableProducts(ctx, s.outlet_id, mine);
+    checked.filter((p) => p.available).forEach((p) => {
+      results.push({
+        product_id: p.id,
+        name: p.name,
+        price: money(p.price),
+        calories: p.calories ?? null,
+        serving_unit: p.serving_unit || null,
+        requires_prescription: !!p.requires_prescription,
+        vendor_id: s.vendor_id,
+        outlet_id: s.outlet_id,
+        vendor_name: s.name,
+        distance_km: s.distance_km,
+        delivery_fee_estimate: s.delivery_fee_estimate,
+      });
+    });
+  }
+  const sorted = args.cheapest || args.max_price
+    ? results.sort((a, b) => a.price - b.price)
+    : results.sort((a, b) => (a.distance_km ?? 1e9) - (b.distance_km ?? 1e9) || a.price - b.price);
+  return { ok: true, products: sorted.slice(0, 12) };
+}
+
+async function toolVendorMenu(ctx: ToolCtx, args: any) {
+  const outletId = String(args.outlet_id || "");
+  const gate = await outletOrderable(ctx, outletId);
+  if (!gate.ok) return { ok: false, reason: gate.reason, vendor_name: gate.vendor?.name ?? null };
+  const { data: rows } = await ctx.supabase
+    .from("products")
+    .select(PRODUCT_FIELDS)
+    .eq("vendor_id", gate.outlet.vendor_id)
+    .order("name")
+    .limit(Math.min(Number(args.limit) || 30, 40));
+  const checked = await availableProducts(ctx, outletId, rows || []);
+  return {
+    ok: true,
+    vendor_id: gate.outlet.vendor_id,
+    outlet_id: outletId,
+    vendor_name: gate.vendor.name,
+    branch: gate.outlet.outlet_name,
+    items: checked.map((p) => ({
+      product_id: p.id,
+      name: p.name,
+      price: money(p.price),
+      calories: p.calories ?? null,
+      available: p.available,
+      requires_prescription: !!p.requires_prescription,
+    })),
+  };
+}
+
+async function toolProductDetails(ctx: ToolCtx, args: any) {
+  const { data: p } = await ctx.supabase
+    .from("products").select(PRODUCT_FIELDS).eq("id", String(args.product_id || "")).maybeSingle();
+  if (!p) return { ok: false, reason: "not_found" };
+  const outletId = args.outlet_id ? String(args.outlet_id) : await resolveDefaultOutletId(ctx.supabase, p.vendor_id);
+  const checked = await availableProducts(ctx, outletId, [p]);
+  const { data: vendor } = await ctx.supabase.from("vendors").select("name, category").eq("id", p.vendor_id).maybeSingle();
+  return {
+    ok: true,
+    product_id: p.id,
+    name: p.name,
+    description: p.description || null,
+    price: money(p.price),
+    calories: p.calories ?? null,
+    serving_unit: p.serving_unit || null,
+    available: !!checked[0]?.available,
+    requires_prescription: !!p.requires_prescription,
+    vendor_id: p.vendor_id,
+    outlet_id: outletId,
+    vendor_name: vendor?.name ?? null,
+    category: vendor?.category ?? null,
+  };
+}
+
+// ---- cart ------------------------------------------------------------------
+
+async function cartView(ctx: ToolCtx, cart?: WaCart) {
+  const c = cart || (await loadCart(ctx));
+  const pricing = await priceCart(ctx, c);
+  return {
+    ...pricing,
+    ok: true,
+    vendor_id: c.vendor_id,
+    outlet_id: c.outlet_id,
+    fulfilment_type: c.fulfilment_type,
+    delivery_address: c.delivery_address_text,
+    lines: c.items.map((i, idx) => ({
+      line_number: idx + 1,
+      product_id: i.product_id,
+      name: i.name,
+      quantity: i.qty,
+      unit_price: money(i.price),
+      line_total: money(i.price * i.qty),
+    })),
+  };
+}
+
+async function toolGetCart(ctx: ToolCtx) {
+  return await cartView(ctx);
+}
+
+async function toolAddItem(ctx: ToolCtx, args: any) {
+  const qty = Math.min(Math.max(Number(args.quantity) || 1, 1), 50);
+  const details = await toolProductDetails(ctx, args);
+  if (!details.ok) return { ok: false, reason: details.reason };
+  if (!details.available) return { ok: false, reason: "unavailable", name: details.name };
+  const outletId = details.outlet_id;
+  if (!outletId) return { ok: false, reason: "no_branch" };
+  const gate = await outletOrderable(ctx, outletId);
+  if (!gate.ok) return { ok: false, reason: gate.reason, vendor_name: details.vendor_name };
+
+  const cart = await loadCart(ctx);
+  // Single-branch carts (same rule as the app): a different branch starts fresh.
+  let items = cart.items;
+  let replaced = false;
+  if (cart.outlet_id && cart.outlet_id !== outletId && items.length) {
+    items = [];
+    replaced = true;
+  }
+  const existing = items.find((i) => i.product_id === details.product_id);
+  if (existing) existing.qty = Math.min(existing.qty + qty, 50);
+  else {
+    items = [...items, {
+      product_id: details.product_id,
+      name: details.name,
+      price: money(details.price),
+      qty,
+      calories: Number(details.calories) || 0,
+      vendor_id: details.vendor_id,
+      outlet_id: outletId,
+      vendor_name: details.vendor_name,
+      is_pharmacy: details.category === "pharmacy" || !!details.requires_prescription,
+      serving_unit: details.serving_unit,
+    }];
+  }
+  const saved = await saveCart(ctx, {
+    items,
+    vendor_id: details.vendor_id,
+    outlet_id: outletId,
+    delivery_quote: null,
+    quote_expires_at: null,
+  });
+  return { ...(await cartView(ctx, saved)), ok: true, replaced_other_branch: replaced };
+}
+
+function findLine(items: CartLine[], args: any): number {
+  if (args.product_id) {
+    const i = items.findIndex((x) => x.product_id === String(args.product_id));
+    if (i >= 0) return i;
+  }
+  const n = Number(args.line_number);
+  if (Number.isFinite(n) && n >= 1 && n <= items.length) return n - 1;
+  return -1;
+}
+
+async function toolUpdateQty(ctx: ToolCtx, args: any) {
+  const cart = await loadCart(ctx);
+  const idx = findLine(cart.items, args);
+  if (idx < 0) return { ok: false, reason: "line_not_found", lines: cart.items.map((i) => i.name) };
+  const qty = Math.floor(Number(args.quantity));
+  if (!Number.isFinite(qty) || qty < 0) return { ok: false, reason: "bad_quantity" };
+  const items = [...cart.items];
+  if (qty === 0) items.splice(idx, 1);
+  else items[idx] = { ...items[idx], qty: Math.min(qty, 50) };
+  const saved = await saveCart(ctx, { items, delivery_quote: null, quote_expires_at: null });
+  return await cartView(ctx, saved);
+}
+
+async function toolRemoveItem(ctx: ToolCtx, args: any) {
+  const cart = await loadCart(ctx);
+  const idx = findLine(cart.items, args);
+  if (idx < 0) return { ok: false, reason: "line_not_found", lines: cart.items.map((i) => i.name) };
+  const removed = cart.items[idx].name;
+  const items = cart.items.filter((_, i) => i !== idx);
+  const saved = await saveCart(ctx, { items, delivery_quote: null, quote_expires_at: null });
+  return { ...(await cartView(ctx, saved)), ok: true, removed };
+}
+
+async function toolSetFulfilment(ctx: ToolCtx, args: any) {
+  const type = args.type === "carryout" ? "carryout" : "delivery";
+  await saveCart(ctx, { fulfilment_type: type, delivery_quote: null, quote_expires_at: null });
+  const cart = await loadCart(ctx);
+  if (type === "delivery") {
+    // Force a fresh quote so no stale/zero fee survives the switch.
+    await quoteDelivery(ctx, cart);
+  }
+  return await cartView(ctx);
+}
+
+async function toolSetAddress(ctx: ToolCtx, args: any) {
+  if (args.saved_address_id || args.use_usual) {
+    const addrs = await savedAddresses(ctx);
+    const a = args.saved_address_id ? addrs.find((x: any) => x.id === String(args.saved_address_id)) : addrs[0];
+    if (!a) return { ok: false, reason: "no_saved_address" };
+    await saveCart(ctx, {
+      delivery_latitude: Number(a.latitude),
+      delivery_longitude: Number(a.longitude),
+      delivery_address_text: a.address_line || a.label,
+      saved_address_id: a.id,
+      fulfilment_type: "delivery",
+      delivery_quote: null,
+      quote_expires_at: null,
+    });
+    const q = await quoteDelivery(ctx, await loadCart(ctx));
+    return { ok: true, address: a.address_line || a.label, delivery_fee: q.ok ? q.fee : null, pricing_ok: q.ok, reason: q.ok ? null : q.reason };
+  }
+  const text = String(args.location_text || "").trim();
+  if (!text) return { ok: false, reason: "no_address_text" };
+  const g = await geocodeText(text);
+  if (!g) return { ok: false, reason: "could_not_locate" };
+  await saveCart(ctx, {
+    delivery_latitude: g.lat,
+    delivery_longitude: g.lon,
+    delivery_address_text: g.address,
+    saved_address_id: null,
+    fulfilment_type: "delivery",
+    delivery_quote: null,
+    quote_expires_at: null,
+  });
+  const q = await quoteDelivery(ctx, await loadCart(ctx));
+  return { ok: true, address: g.address, delivery_fee: q.ok ? q.fee : null, pricing_ok: q.ok, reason: q.ok ? null : q.reason };
+}
+
+async function toolApplyPromo(ctx: ToolCtx, args: any) {
+  const cart = await loadCart(ctx);
+  const subtotal = cartSubtotal(cart.items);
+  const res = await validatePromo(ctx, String(args.code || ""), cart, subtotal);
+  if (!res.valid) return { ok: false, reason: res.reason, min_order: (res as any).min_order ?? null };
+  await saveCart(ctx, { promo_code: res.code });
+  return { ...(await cartView(ctx)), ok: true, code: res.code, promo_discount: res.discount };
+}
+
+// ---- wallet / payment / orders --------------------------------------------
+
+async function toolWallet(ctx: ToolCtx) {
+  if (!ctx.userId) return { ok: false, reason: "no_account" };
+  const { data: w } = await ctx.supabase
+    .from("wallets").select("id, balance, test_balance, is_disabled")
+    .eq("user_id", ctx.userId).eq("wallet_type", "customer").maybeSingle();
+  if (!w) return { ok: false, reason: "no_wallet" };
+  const isTest = ctx.environment !== "production";
+  return {
+    ok: true,
+    balance: money(isTest ? w.test_balance : w.balance),
+    disabled: !!w.is_disabled,
+  };
+}
+
+async function paystackKey(ctx: ToolCtx) {
+  return ctx.environment === "production"
+    ? Deno.env.get("PAYSTACK_LIVE_SECRET_KEY") || Deno.env.get("PAYSTACK_SECRET_KEY")
+    : Deno.env.get("PAYSTACK_TEST_SECRET_KEY") || Deno.env.get("PAYSTACK_SECRET_KEY");
+}
+
+async function toolCreateOrder(ctx: ToolCtx, args: any) {
+  if (!ctx.userId) return { ok: false, reason: "no_account" };
+  const cart = await loadCart(ctx);
+  if (!cart.items.length) return { ok: false, reason: "empty_cart" };
+  if (!cart.vendor_id || !cart.outlet_id) return { ok: false, reason: "no_branch" };
+
+  const gate = await outletOrderable(ctx, cart.outlet_id);
+  if (!gate.ok) return { ok: false, reason: gate.reason, vendor_name: gate.vendor?.name ?? null };
+
+  // Re-validate every line against live availability + price before charging.
+  const { data: rows } = await ctx.supabase
+    .from("products").select(PRODUCT_FIELDS).in("id", cart.items.map((i) => i.product_id));
+  const checked = await availableProducts(ctx, cart.outlet_id, rows || []);
+  const byId = new Map(checked.map((p: any) => [p.id, p]));
+  const blocked: string[] = [];
+  const repriced: string[] = [];
+  const items = cart.items.map((line) => {
+    const p: any = byId.get(line.product_id);
+    if (!p || !p.available) {
+      blocked.push(line.name);
+      return line;
+    }
+    if (money(p.price) !== money(line.price)) {
+      repriced.push(`${line.name}: ₦${money(line.price)} → ₦${money(p.price)}`);
+      return { ...line, price: money(p.price), name: p.name };
+    }
+    return line;
+  });
+  if (blocked.length) {
+    return { ok: false, reason: "items_unavailable", unavailable: blocked };
+  }
+  if (repriced.length) {
+    const saved = await saveCart(ctx, { items, delivery_quote: null, quote_expires_at: null });
+    return { ok: false, reason: "prices_changed", changes: repriced, cart: await cartView(ctx, saved) };
+  }
+
+  if (cart.fulfilment_type === "delivery" && (cart.delivery_latitude == null || cart.delivery_longitude == null)) {
+    return { ok: false, reason: "no_address" };
+  }
+
+  const pricing = await priceCart(ctx, cart);
+  if (!pricing.pricing_ok) return { ok: false, reason: pricing.pricing_reason || "pricing_unavailable" };
+
+  const method = ["wallet", "card", "bank_transfer"].includes(args.payment_method)
+    ? args.payment_method
+    : (cart.payment_method || "wallet");
+
+  // Idempotency: same cart + total + method + branch => same checkout row.
+  const fingerprint = JSON.stringify({
+    phone: ctx.phone,
+    outlet: cart.outlet_id,
+    lines: cart.items.map((i) => [i.product_id, i.qty]),
+    total: pricing.total,
+    method,
+    fulfilment: cart.fulfilment_type,
+  });
+  const idempotencyKey = await sha256(fingerprint);
+
+  const { data: existingCheckout } = await ctx.supabase
+    .from("whatsapp_checkouts").select("*").eq("idempotency_key", idempotencyKey).maybeSingle();
+  if (existingCheckout?.order_id) {
+    const { data: o } = await ctx.supabase
+      .from("orders").select("order_number, payment_status, status, confirmation_code")
+      .eq("id", existingCheckout.order_id).maybeSingle();
+    return {
+      ok: true,
+      already_created: true,
+      order_number: o?.order_number,
+      payment_status: o?.payment_status,
+      status: o?.status,
+      payment_link: existingCheckout.payment_link,
+      confirmation_code: o?.confirmation_code,
+    };
+  }
+
+  const wallet = await toolWallet(ctx);
+  if (method === "wallet") {
+    if (!wallet.ok || wallet.disabled) return { ok: false, reason: "wallet_unavailable" };
+    if (Number(wallet.balance) < pricing.total) {
+      return {
+        ok: false,
+        reason: "insufficient_wallet",
+        balance: wallet.balance,
+        total: pricing.total,
+        shortfall: pricing.total - Number(wallet.balance),
+        alternatives: ["card", "bank_transfer"],
+      };
+    }
+  }
+
+  const isPharmacy = cart.items.some((i) => i.is_pharmacy);
+  const confirmationCode = String(Math.floor(100000 + Math.random() * 900000));
+  const paymentRef = method === "wallet" ? `WA-${Date.now()}` : `FC-WA-${Date.now()}`;
+
+  const { data: checkout } = await ctx.supabase.from("whatsapp_checkouts").insert({
+    idempotency_key: idempotencyKey,
+    phone: ctx.phone,
+    customer_user_id: ctx.userId,
+    session_id: ctx.sessionId,
+    vendor_id: cart.vendor_id,
+    outlet_id: cart.outlet_id,
+    fulfilment_type: cart.fulfilment_type,
+    payment_method: method,
+    status: "pending",
+    cart_snapshot: cart.items,
+    pricing_snapshot: pricing,
+    amount: pricing.total,
+    payment_reference: paymentRef,
+    environment: ctx.environment,
+  }).select().single();
+
+  const { data: order, error: orderErr } = await ctx.supabase.from("orders").insert({
+    user_id: ctx.userId,
+    vendor_id: cart.vendor_id,
+    outlet_id: cart.outlet_id,
+    status: isPharmacy || method !== "wallet" ? "pending" : "confirmed",
+    subtotal: pricing.subtotal,
+    menu_subtotal: pricing.subtotal,
+    delivery_fee: pricing.delivery_fee,
+    discount: pricing.discount || 0,
+    promo_code: pricing.promo_code,
+    delivery_latitude: cart.fulfilment_type === "delivery" ? cart.delivery_latitude : null,
+    delivery_longitude: cart.fulfilment_type === "delivery" ? cart.delivery_longitude : null,
+    delivery_distance_km: pricing.quote?.distanceKm ?? null,
+    delivery_pricing_source: pricing.quote?.source ?? (cart.fulfilment_type === "carryout" ? "carryout" : null),
+    delivery_pricing_meta: pricing.quote?.meta ?? null,
+    service_fee: pricing.service_fee,
+    total: pricing.total,
+    total_calories: pricing.total_calories,
+    delivery_type: cart.fulfilment_type === "carryout" ? "self_pickup" : "delivery",
+    delivery_address_text: cart.fulfilment_type === "carryout"
+      ? "Carryout — customer pickup"
+      : (cart.delivery_address_text || "WhatsApp order"),
+    payment_method: method === "wallet" ? "wallet" : "paystack",
+    payment_status: method === "wallet" ? "paid" : "pending",
+    payment_reference: paymentRef,
+    environment: ctx.environment,
+    channel: "whatsapp",
+    confirmation_code: confirmationCode,
+    delivery_instructions: args.note ? `Customer Note: ${String(args.note).slice(0, 300)}` : null,
+  }).select("id, order_number, total").single();
+
+  if (orderErr || !order) {
+    console.error("[wa-agent] order insert failed", orderErr);
+    await ctx.supabase.from("whatsapp_checkouts").update({ status: "failed" }).eq("id", checkout?.id);
+    return { ok: false, reason: "order_create_failed" };
+  }
+
+  await ctx.supabase.from("order_items").insert(cart.items.map((c) => ({
+    order_id: order.id,
+    product_id: c.product_id,
+    product_name: c.name,
+    quantity: c.qty,
+    unit_price: money(c.price),
+    total_price: money(c.price * c.qty),
+    calories: c.calories ?? 0,
+  })));
+
+  await ctx.supabase.from("whatsapp_checkouts")
+    .update({ order_id: order.id, status: method === "wallet" ? "paid" : "awaiting_payment" })
+    .eq("id", checkout?.id);
+
+  if (method === "wallet") {
+    const { data: w } = await ctx.supabase
+      .from("wallets").select("id").eq("user_id", ctx.userId).eq("wallet_type", "customer").maybeSingle();
+    const { error: debitErr } = await ctx.supabase.rpc("post_wallet_entry", {
+      p_wallet_id: w?.id,
+      p_wallet_type: "customer",
+      p_transaction_type: "debit",
+      p_category: "wallet_payment",
+      p_amount: pricing.total,
+      p_reference: `WA-${order.order_number}`,
+      p_environment: ctx.environment,
+      p_order_id: order.id,
+      p_notes: `WhatsApp order #${order.order_number}`,
+      p_metadata: { source: "whatsapp-agent", order_number: order.order_number },
+    });
+    if (debitErr) console.error("[wa-agent] wallet debit failed", debitErr.message);
+    await clearCartAfterOrder(ctx);
+    return {
+      ok: true,
+      order_number: order.order_number,
+      total: pricing.total,
+      paid: true,
+      payment_method: "wallet",
+      confirmation_code: confirmationCode,
+      fulfilment_type: cart.fulfilment_type,
+      pharmacy_review: isPharmacy,
+    };
+  }
+
+  // Card / bank transfer — hosted Paystack checkout. No card data in WhatsApp.
+  const key = await paystackKey(ctx);
+  if (!key) return { ok: false, reason: "payment_provider_unavailable", order_number: order.order_number };
+  const { data: prof } = await ctx.supabase
+    .from("profiles").select("full_name").eq("user_id", ctx.userId).maybeSingle();
+  const digits = ctx.phone.replace(/\D/g, "");
+  try {
+    const resp = await fetch("https://api.paystack.co/transaction/initialize", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: `wa${digits}@wa.fastcalories.online`,
+        amount: Math.round(pricing.total * 100),
+        reference: paymentRef,
+        channels: method === "bank_transfer" ? ["bank_transfer", "bank", "card"] : ["card", "bank", "bank_transfer"],
+        metadata: {
+          order_id: order.id,
+          order_number: order.order_number,
+          user_id: ctx.userId,
+          environment: ctx.environment,
+          source: "whatsapp",
+          phone: ctx.phone,
+          customer_name: prof?.full_name || null,
+        },
+      }),
+    });
+    const j = await resp.json();
+    if (!j?.status || !j?.data?.authorization_url) {
+      console.error("[wa-agent] paystack init failed", JSON.stringify(j).slice(0, 300));
+      return { ok: false, reason: "payment_link_failed", order_number: order.order_number };
+    }
+    await ctx.supabase.from("whatsapp_checkouts")
+      .update({ payment_link: j.data.authorization_url }).eq("id", checkout?.id);
+    await clearCartAfterOrder(ctx);
+    return {
+      ok: true,
+      order_number: order.order_number,
+      total: pricing.total,
+      paid: false,
+      payment_method: method,
+      payment_link: j.data.authorization_url,
+      reference: paymentRef,
+      fulfilment_type: cart.fulfilment_type,
+      confirmation_code: confirmationCode,
+    };
+  } catch (e) {
+    console.error("[wa-agent] paystack init crash", e);
+    return { ok: false, reason: "payment_link_failed", order_number: order.order_number };
+  }
+}
+
+async function clearCartAfterOrder(ctx: ToolCtx) {
+  await saveCart(ctx, {
+    items: [],
+    promo_code: null,
+    delivery_quote: null,
+    quote_expires_at: null,
+  });
+}
+
+async function sha256(text: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function toolPaymentStatus(ctx: ToolCtx, args: any) {
+  let q = ctx.supabase.from("whatsapp_checkouts")
+    .select("payment_reference, status, order_id, amount, payment_link")
+    .eq("phone", ctx.phone).order("created_at", { ascending: false }).limit(1);
+  if (args.reference) q = ctx.supabase.from("whatsapp_checkouts")
+    .select("payment_reference, status, order_id, amount, payment_link")
+    .eq("payment_reference", String(args.reference)).limit(1);
+  const { data } = await q;
+  const row = data?.[0];
+  if (!row) return { ok: false, reason: "no_pending_payment" };
+  let order: any = null;
+  if (row.order_id) {
+    const { data: o } = await ctx.supabase
+      .from("orders").select("order_number, payment_status, status").eq("id", row.order_id).maybeSingle();
+    order = o;
+  }
+  return {
+    ok: true,
+    reference: row.payment_reference,
+    checkout_status: row.status,
+    amount: money(row.amount),
+    payment_link: row.payment_link,
+    order_number: order?.order_number ?? null,
+    payment_status: order?.payment_status ?? null,
+    order_status: order?.status ?? null,
+  };
+}
+
+async function toolOrderStatus(ctx: ToolCtx, args: any) {
+  if (!ctx.userId) return { ok: false, reason: "no_account" };
+  let q = ctx.supabase
+    .from("orders")
+    .select("order_number, status, payment_status, total, created_at, delivery_type, confirmation_code, vendor_id")
+    .eq("user_id", ctx.userId)
+    .order("created_at", { ascending: false })
+    .limit(1);
+  if (args.order_number) q = q.eq("order_number", String(args.order_number).replace(/^#/, ""));
+  const { data } = await q;
+  const o = data?.[0];
+  if (!o) return { ok: false, reason: "no_orders" };
+  const { data: v } = await ctx.supabase.from("vendors").select("name").eq("id", o.vendor_id).maybeSingle();
+  return { ok: true, ...o, total: money(o.total), vendor_name: v?.name ?? null };
+}
+
+async function toolOrderHistory(ctx: ToolCtx, args: any) {
+  if (!ctx.userId) return { ok: false, reason: "no_account" };
+  const { data } = await ctx.supabase
+    .from("orders")
+    .select("order_number, status, total, created_at, vendor_id")
+    .eq("user_id", ctx.userId)
+    .order("created_at", { ascending: false })
+    .limit(Math.min(Number(args.limit) || 5, 10));
+  const vendorIds = Array.from(new Set((data || []).map((o: any) => o.vendor_id).filter(Boolean)));
+  const { data: vendors } = vendorIds.length
+    ? await ctx.supabase.from("vendors").select("id, name").in("id", vendorIds)
+    : { data: [] as any[] };
+  const nameById = new Map((vendors || []).map((v: any) => [v.id, v.name]));
+  return {
+    ok: true,
+    orders: (data || []).map((o: any) => ({
+      order_number: o.order_number,
+      status: o.status,
+      total: money(o.total),
+      date: o.created_at,
+      vendor_name: nameById.get(o.vendor_id) ?? null,
+    })),
+  };
+}
+
+async function toolReorder(ctx: ToolCtx, args: any) {
+  if (!ctx.userId) return { ok: false, reason: "no_account" };
+  let q = ctx.supabase
+    .from("orders").select("id, order_number, vendor_id, outlet_id")
+    .eq("user_id", ctx.userId).order("created_at", { ascending: false }).limit(1);
+  if (args.order_number) q = q.eq("order_number", String(args.order_number).replace(/^#/, ""));
+  const { data: orders } = await q;
+  const order = orders?.[0];
+  if (!order) return { ok: false, reason: "no_orders" };
+
+  const outletId = order.outlet_id || (await resolveDefaultOutletId(ctx.supabase, order.vendor_id));
+  if (!outletId) return { ok: false, reason: "no_branch" };
+  const gate = await outletOrderable(ctx, outletId);
+  if (!gate.ok) return { ok: false, reason: gate.reason, vendor_name: gate.vendor?.name ?? null };
+
+  const { data: lines } = await ctx.supabase
+    .from("order_items").select("product_id, product_name, quantity").eq("order_id", order.id);
+  const ids = (lines || []).map((l: any) => l.product_id).filter(Boolean);
+  if (!ids.length) return { ok: false, reason: "nothing_to_reorder" };
+  const { data: rows } = await ctx.supabase.from("products").select(PRODUCT_FIELDS).in("id", ids);
+  const checked = await availableProducts(ctx, outletId, rows || []);
+  const byId = new Map(checked.map((p: any) => [p.id, p]));
+
+  const items: CartLine[] = [];
+  const skipped: string[] = [];
+  for (const l of lines || []) {
+    const p: any = byId.get(l.product_id);
+    if (!p || !p.available) {
+      skipped.push(l.product_name);
+      continue;
+    }
+    items.push({
+      product_id: p.id,
+      name: p.name,
+      price: money(p.price),
+      qty: Math.min(Number(l.quantity) || 1, 50),
+      calories: Number(p.calories) || 0,
+      vendor_id: p.vendor_id,
+      outlet_id: outletId,
+      vendor_name: gate.vendor.name,
+      is_pharmacy: gate.vendor.category === "pharmacy" || !!p.requires_prescription,
+      serving_unit: p.serving_unit || null,
+    });
+  }
+  if (!items.length) return { ok: false, reason: "all_unavailable", skipped };
+  const saved = await saveCart(ctx, {
+    items,
+    vendor_id: order.vendor_id,
+    outlet_id: outletId,
+    promo_code: null,
+    delivery_quote: null,
+    quote_expires_at: null,
+  });
+  return { ...(await cartView(ctx, saved)), ok: true, skipped };
+}
+
+async function toolNutrition(ctx: ToolCtx, args: any) {
+  if (args.product_id) {
+    const d = await toolProductDetails(ctx, args);
+    if (!d.ok) return { ok: false, reason: "not_found" };
+    return {
+      ok: true,
+      name: d.name,
+      calories: d.calories,
+      serving_unit: d.serving_unit,
+      has_data: d.calories != null,
+    };
+  }
+  const cart = await loadCart(ctx);
+  if (!cart.items.length) return { ok: false, reason: "empty_cart" };
+  const { data: rows } = await ctx.supabase
+    .from("products").select("id, name, calories")
+    .in("id", cart.items.map((i) => i.product_id));
+  const byId = new Map((rows || []).map((p: any) => [p.id, p]));
+  const lines = cart.items.map((i) => {
+    const p: any = byId.get(i.product_id) || {};
+    return {
+      name: i.name,
+      quantity: i.qty,
+      calories_each: p.calories ?? null,
+      calories_total: p.calories != null ? Number(p.calories) * i.qty : null,
+    };
+  });
+  const known = lines.filter((l) => l.calories_total != null);
+  return {
+    ok: true,
+    lines,
+    total_calories: known.reduce((s, l) => s + Number(l.calories_total), 0),
+    missing_data_for: lines.filter((l) => l.calories_total == null).map((l) => l.name),
+  };
+}
+
+async function toolRecommend(ctx: ToolCtx, args: any) {
+  const near = await nearbyOutlets(ctx, args);
+  if (near.needs_location) return { ok: false, reason: "no_location" };
+  const scope = near.rows.filter((r: any) => r.is_open).slice(0, 5);
+  if (!scope.length) return { ok: true, options: [], note: "no_open_branches_nearby" };
+  let q = ctx.supabase
+    .from("products")
+    .select(PRODUCT_FIELDS)
+    .in("vendor_id", scope.map((s: any) => s.vendor_id))
+    .order("calories", { ascending: true })
+    .limit(60);
+  if (args.max_price) q = q.lte("price", Number(args.max_price));
+  const { data: rows } = await q;
+  const options: any[] = [];
+  for (const s of scope) {
+    const mine = (rows || []).filter((p: any) => p.vendor_id === s.vendor_id);
+    const checked = await availableProducts(ctx, s.outlet_id, mine);
+    checked.filter((p: any) => p.available).slice(0, 3).forEach((p: any) => {
+      options.push({
+        product_id: p.id,
+        name: p.name,
+        price: money(p.price),
+        calories: p.calories ?? null,
+        vendor_name: s.name,
+        vendor_id: s.vendor_id,
+        outlet_id: s.outlet_id,
+      });
+    });
+  }
+  return { ok: true, options: options.slice(0, 8) };
+}
