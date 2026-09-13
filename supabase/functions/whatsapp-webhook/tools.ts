@@ -303,6 +303,195 @@ async function availableProducts(
 const PRODUCT_FIELDS =
   "id, vendor_id, name, description, price, calories, serving_unit, requires_prescription, is_available, is_hidden, track_stock, stock_quantity, category_id";
 
+// ------------------------------------------- vendor-configured ordering options
+
+/**
+ * Real add-on groups + portions a vendor configured for one product at one
+ * branch. Nothing here is invented: groups linked through product_addon_groups
+ * or attached directly, scoped to the branch when the group names one.
+ */
+async function fetchProductModifiers(ctx: ToolCtx, productId: string, outletId: string | null) {
+  const GROUP_FIELDS =
+    "id, name, is_required, selection_type, min_selections, max_selections, sort_order, outlet_id";
+  const [linkRes, directRes, portionRes] = await Promise.all([
+    ctx.supabase.from("product_addon_groups").select("addon_group_id").eq("product_id", productId),
+    ctx.supabase.from("addon_groups").select(GROUP_FIELDS).eq("product_id", productId),
+    ctx.supabase.from("product_portions")
+      .select("id, label, portion_size, unit, price, calorie_multiplier, is_available, sort_order")
+      .eq("product_id", productId).eq("is_available", true)
+      .order("sort_order", { ascending: true }),
+  ]);
+  const linkedIds = (linkRes.data || []).map((r: any) => r.addon_group_id).filter(Boolean);
+  let linked: any[] = [];
+  if (linkedIds.length) {
+    const { data } = await ctx.supabase.from("addon_groups").select(GROUP_FIELDS).in("id", linkedIds);
+    linked = data || [];
+  }
+  const groupsRaw = [...(directRes.data || []), ...linked]
+    .filter((g: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.id === g.id) === i)
+    .filter((g: any) => !g.outlet_id || !outletId || g.outlet_id === outletId);
+
+  let addonItems: any[] = [];
+  if (groupsRaw.length) {
+    const { data } = await ctx.supabase.from("addon_items")
+      .select("id, addon_group_id, name, additional_price, calories, is_available, sort_order")
+      .in("addon_group_id", groupsRaw.map((g: any) => g.id));
+    addonItems = (data || []).filter((i: any) => i.is_available !== false);
+  }
+
+  const groups = groupsRaw.map((g: any) => ({
+    group_id: g.id as string,
+    name: g.name as string,
+    is_required: !!g.is_required,
+    selection_type: g.selection_type === "multiple" ? "multiple" : "single",
+    min_selections: Number(g.min_selections) || 0,
+    max_selections: g.max_selections == null ? null : Number(g.max_selections),
+    sort_order: Number(g.sort_order) || 0,
+    items: addonItems
+      .filter((i: any) => i.addon_group_id === g.id)
+      .sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0))
+      .map((i: any) => ({
+        addon_item_id: i.id as string,
+        name: i.name as string,
+        price: money(i.additional_price),
+        calories: i.calories == null ? null : Number(i.calories),
+      })),
+  }))
+    .filter((g) => g.items.length)
+    .sort((a, b) => a.sort_order - b.sort_order);
+
+  const portions = (portionRes.data || []).map((p: any) => ({
+    portion_id: p.id as string,
+    label: p.label as string,
+    price: money(p.price),
+    portion_size: p.portion_size == null ? null : Number(p.portion_size),
+    unit: p.unit || null,
+    calorie_multiplier: Number(p.calorie_multiplier) || 1,
+  }));
+
+  return { groups, portions };
+}
+
+type ProductModifiers = Awaited<ReturnType<typeof fetchProductModifiers>>;
+
+/** Validate the customer's option picks and price them server-side. */
+function resolveSelection(
+  product: { price: number; calories: number | null },
+  mods: ProductModifiers,
+  args: any,
+) {
+  const addonIds: string[] = Array.isArray(args.addon_item_ids)
+    ? args.addon_item_ids.map((x: any) => String(x))
+    : [];
+
+  let portion: SelectedPortion | null = null;
+  if (args.portion_id) {
+    const p = mods.portions.find((x) => x.portion_id === String(args.portion_id));
+    if (!p) return { error: { ok: false, reason: "invalid_portion", portions: mods.portions } };
+    portion = {
+      id: p.portion_id, label: p.label, price: p.price,
+      calorie_multiplier: p.calorie_multiplier, portion_size: p.portion_size, unit: p.unit,
+    };
+  }
+
+  const unknown = addonIds.filter((id) =>
+    !mods.groups.some((g) => g.items.some((i) => i.addon_item_id === id)));
+  if (unknown.length) {
+    return { error: { ok: false, reason: "invalid_addon", unknown, option_groups: mods.groups } };
+  }
+
+  const picked: SelectedAddon[] = [];
+  const missing: any[] = [];
+  for (const g of mods.groups) {
+    const chosen = g.items.filter((i) => addonIds.includes(i.addon_item_id));
+    const min = g.is_required ? Math.max(1, g.min_selections) : g.min_selections;
+    const max = g.max_selections ?? (g.selection_type === "multiple" ? g.items.length : 1);
+    if (chosen.length < min) { missing.push(g); continue; }
+    if (chosen.length > max) {
+      return { error: { ok: false, reason: "too_many_options", group: g.name, max_selections: max } };
+    }
+    chosen.forEach((i) => picked.push({
+      group_id: g.group_id, group_name: g.name,
+      item_id: i.addon_item_id, item_name: i.name,
+      price: i.price, calories: Number(i.calories) || 0,
+    }));
+  }
+  if (missing.length) {
+    return {
+      error: {
+        ok: false,
+        reason: "missing_required_option",
+        required_groups: missing,
+        optional_groups: mods.groups.filter((g) => !missing.includes(g)),
+        portions: mods.portions,
+      },
+    };
+  }
+
+  const basePrice = portion ? portion.price : money(product.price);
+  const baseCalories = product.calories == null
+    ? null
+    : Math.round(Number(product.calories) * (portion?.calorie_multiplier ?? 1));
+  const unit_calories = baseCalories == null
+    ? null
+    : baseCalories + picked.reduce((s, a) => s + a.calories, 0);
+
+  return {
+    portion,
+    addons: picked,
+    base_price: money(basePrice),
+    base_calories: baseCalories,
+    unit_price: money(basePrice + picked.reduce((s, a) => s + a.price, 0)),
+    unit_calories,
+  };
+}
+
+/** Stable identity of a cart line's chosen options. */
+function optionSignature(portionId: string | null | undefined, addons?: SelectedAddon[] | null) {
+  const ids = (addons || []).map((a) => a.item_id).sort().join(",");
+  return `${portionId || ""}|${ids}`;
+}
+
+function addonsDescription(line: CartLine): string | null {
+  const parts: string[] = [];
+  if (line.portion?.label) parts.push(`Portion: ${line.portion.label}`);
+  (line.addons || []).forEach((a) => parts.push(`${a.group_name}: ${a.item_name}`));
+  return parts.length ? parts.join(" • ").slice(0, 300) : null;
+}
+
+// Only serving units that need a container count toward pack sizing —
+// identical rule to src/hooks/useTakeawayPacks.ts.
+const PACK_ELIGIBLE_UNIT_REGEX = /(portion|plate|bowl|wrap|pack)/i;
+
+/** Vendor-configured takeaway packaging fee for the current cart. */
+async function computePackaging(ctx: ToolCtx, cart: WaCart) {
+  if (!cart.items.length || !cart.vendor_id) return { fee: 0, pack: null as any };
+  const { data: packs } = await ctx.supabase
+    .from("takeaway_packs")
+    .select("id, name, price, threshold_type, threshold_value, outlet_id")
+    .eq("vendor_id", cart.vendor_id)
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true });
+  const scoped = (packs || []).filter((p: any) =>
+    !p.outlet_id || !cart.outlet_id || p.outlet_id === cart.outlet_id);
+  if (!scoped.length) return { fee: 0, pack: null };
+
+  const eligible = cart.items.filter((c) => PACK_ELIGIBLE_UNIT_REGEX.test(String(c.serving_unit || "")));
+  if (!eligible.length) return { fee: 0, pack: null };
+  const totalItems = eligible.reduce((s, c) => s + Number(c.qty || 0), 0);
+  const maxItemQty = Math.max(...eligible.map((c) => Number(c.qty || 0)));
+
+  const applicable = scoped.filter((p: any) =>
+    p.threshold_type === "per_item"
+      ? maxItemQty >= Number(p.threshold_value)
+      : p.threshold_type === "total_items" && totalItems >= Number(p.threshold_value));
+  if (!applicable.length) return { fee: 0, pack: null };
+  applicable.sort((a: any, b: any) => Number(b.threshold_value) - Number(a.threshold_value));
+  const pack = applicable[0];
+  return { fee: money(pack.price), pack: { id: pack.id, name: pack.name, price: money(pack.price) } };
+}
+
+
 // ------------------------------------------------------------------- pricing
 
 async function servicePct(ctx: ToolCtx): Promise<number> {
