@@ -580,10 +580,20 @@ export async function priceCart(ctx: ToolCtx, cartIn?: WaCart) {
     }
   }
 
-  const total = Math.max(0, subtotal + delivery_fee + service_fee - discount);
-  const total_calories = cart.items.reduce((s, c) => s + (Number(c.calories) || 0) * Number(c.qty), 0);
+  // Vendor-configured takeaway packaging (same rule and accounting as the app).
+  const packaging = await computePackaging(ctx, cart);
+  const packaging_fee = packaging.fee;
+
+  const total = Math.max(0, subtotal + packaging_fee + delivery_fee + service_fee - discount);
+  const knownCalorieLines = cart.items.filter((c) => c.calories_known !== false && Number(c.calories) > 0);
+  const total_calories = knownCalorieLines.reduce((s, c) => s + Number(c.calories) * Number(c.qty), 0);
+  const calories_missing_for = cart.items
+    .filter((c) => c.calories_known === false || !Number(c.calories))
+    .map((c) => c.name);
   return {
     subtotal,
+    packaging_fee,
+    packaging_name: packaging.pack?.name ?? null,
     service_fee,
     service_fee_pct: pct,
     delivery_fee,
@@ -591,6 +601,7 @@ export async function priceCart(ctx: ToolCtx, cartIn?: WaCart) {
     promo_code,
     total,
     total_calories,
+    calories_missing_for,
     fulfilment_type: cart.fulfilment_type,
     pricing_ok,
     pricing_reason,
