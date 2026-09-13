@@ -860,6 +860,10 @@ async function execTool(name: string, args: any, ctx: ToolCtx): Promise<any> {
       await saveCart(ctx, { payment_method: method });
       return { ok: true, payment_method: method };
     }
+    case "get_product_options":
+      return await toolProductOptions(ctx, args);
+    case "cancel_order":
+      return await toolCancelOrder(ctx, args);
     case "create_order":
       return await toolCreateOrder(ctx, args);
     case "get_payment_status":
