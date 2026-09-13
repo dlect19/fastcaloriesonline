@@ -498,6 +498,9 @@ serve(async (req) => {
     ]);
     const RESERVED = new Set(["menu", "hi", "hello", "start", "help", "0", "back", "wallet", "reset"]);
     const isNumericSelection = /^\d{1,2}$/.test(body.trim());
+    // Correlate every outbound send in this request with the session/user.
+    setOutboundContext({ supabase, sessionId: session.id, userId: session.customer_user_id });
+
     const agentEligible =
       !tap && !hasMediaParams && !hasLocationParams &&
       body.trim().length >= 2 &&
