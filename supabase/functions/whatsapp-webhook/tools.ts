@@ -44,17 +44,45 @@ export interface ToolCtx {
   onLocationRequired?: (goal: PendingLocationGoal) => void;
 }
 
+/** A vendor-configured add-on the customer actually selected. */
+export interface SelectedAddon {
+  group_id: string;
+  group_name: string;
+  item_id: string;
+  item_name: string;
+  price: number;
+  calories: number;
+}
+
+/** A vendor-configured portion/size the customer actually selected. */
+export interface SelectedPortion {
+  id: string;
+  label: string;
+  price: number;
+  calorie_multiplier: number;
+  portion_size: number | null;
+  unit: string | null;
+}
+
 export interface CartLine {
   product_id: string;
   name: string;
+  /** Effective unit price = portion (or base) price + selected add-ons. */
   price: number;
   qty: number;
+  /** Effective unit calories incl. portion multiplier + add-ons (0 when unknown). */
   calories: number;
   vendor_id: string;
   outlet_id: string | null;
   vendor_name?: string | null;
   is_pharmacy?: boolean;
   serving_unit?: string | null;
+  base_price?: number;
+  base_calories?: number | null;
+  /** False when the vendor has not published calories for this product. */
+  calories_known?: boolean;
+  addons?: SelectedAddon[];
+  portion?: SelectedPortion | null;
 }
 
 export interface WaCart {
