@@ -508,21 +508,23 @@ serve(async (req) => {
     // Correlate every outbound send in this request with the session/user.
     setOutboundContext({ supabase, sessionId: session.id, userId: session.customer_user_id });
 
+    // A location pin is a first-class conversational event: it goes to the AI
+    // agent (never to the numbered legacy menu) so the pending request resumes.
     const agentEligible =
-      !tap && !hasMediaParams && !hasLocationParams &&
-      body.trim().length >= 2 &&
-      !isNumericSelection &&
-      !RESERVED.has(lower) &&
+      !tap && !hasMediaParams &&
+      (hasSharedLocation || (body.trim().length >= 2 && !isNumericSelection && !RESERVED.has(lower))) &&
       !LEGACY_STATES.has(session.state) &&
       !!session.customer_user_id;
 
     if (agentEligible) {
+      let pendingLocationGoal: any = null;
       const agentCtx: ToolCtx = {
         supabase,
         phone,
         userId: session.customer_user_id,
         sessionId: session.id,
         environment: platformEnvironment,
+        onLocationRequired: (goal) => { pendingLocationGoal = goal; },
       };
       try {
         // Bring a cart built by the legacy flow into the durable store first,
