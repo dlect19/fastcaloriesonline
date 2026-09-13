@@ -1148,6 +1148,14 @@ async function toolAddItem(ctx: ToolCtx, args: any) {
   const gate = await outletOrderable(ctx, outletId);
   if (!gate.ok) return { ok: false, reason: gate.reason, vendor_name: details.vendor_name };
 
+  // Vendor-configured options: validated and priced server-side. Required
+  // groups must be satisfied before the item can enter the cart.
+  const mods = await fetchProductModifiers(ctx, details.product_id, outletId);
+  const sel = resolveSelection({ price: details.price, calories: details.calories }, mods, args);
+  if ("error" in sel) {
+    return { ...sel.error, product_id: details.product_id, name: details.name, outlet_id: outletId };
+  }
+
   const cart = await loadCart(ctx);
   // Single-branch carts (same rule as the app). Switching branch empties the cart,
   // so it only happens once the customer has confirmed it.
@@ -1169,15 +1177,23 @@ async function toolAddItem(ctx: ToolCtx, args: any) {
     replaced = true;
   }
 
-  const existing = items.find((i) => i.product_id === details.product_id);
+  const sig = optionSignature(sel.portion?.id ?? null, sel.addons);
+  const existing = items.find((i) =>
+    i.product_id === details.product_id &&
+    optionSignature(i.portion?.id ?? null, i.addons) === sig);
   if (existing) existing.qty = Math.min(existing.qty + qty, 50);
   else {
     items = [...items, {
       product_id: details.product_id,
       name: details.name,
-      price: money(details.price),
+      price: sel.unit_price,
       qty,
-      calories: Number(details.calories) || 0,
+      calories: sel.unit_calories ?? 0,
+      calories_known: sel.unit_calories != null,
+      base_price: sel.base_price,
+      base_calories: sel.base_calories,
+      portion: sel.portion,
+      addons: sel.addons,
       vendor_id: details.vendor_id,
       outlet_id: outletId,
       vendor_name: details.vendor_name,
