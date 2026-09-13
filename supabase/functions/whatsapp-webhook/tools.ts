@@ -1441,8 +1441,11 @@ async function toolCreateOrder(ctx: ToolCtx, args: any) {
     vendor_id: cart.vendor_id,
     outlet_id: cart.outlet_id,
     status: isPharmacy || method !== "wallet" ? "pending" : "confirmed",
-    subtotal: pricing.subtotal,
+    // Same shape the web/app checkout writes: menu_subtotal is the pure menu
+    // value, subtotal carries packaging and the promo discount.
+    subtotal: pricing.subtotal + (pricing.packaging_fee || 0) - (pricing.discount || 0),
     menu_subtotal: pricing.subtotal,
+    packaging_fee: pricing.packaging_fee || 0,
     delivery_fee: pricing.delivery_fee,
     discount: pricing.discount || 0,
     promo_code: pricing.promo_code,
@@ -1472,7 +1475,14 @@ async function toolCreateOrder(ctx: ToolCtx, args: any) {
     quantity: c.qty,
     unit_price: money(c.price),
     total_price: money(c.price * c.qty),
-    calories: c.calories ?? 0,
+    calories: (c.calories ?? 0) * c.qty,
+    special_instructions: addonsDescription(c),
+    portion_label: c.portion?.label ?? null,
+    portion_size: c.portion?.portion_size ?? null,
+    portion_unit: c.portion?.unit ?? null,
+    addons: (c.addons || []).map((a) => ({
+      group_name: a.group_name, item_name: a.item_name, price: a.price, calories: a.calories,
+    })),
   }));
 
   // ONE transaction: order + items + (for wallet) the ledger debit. If the
