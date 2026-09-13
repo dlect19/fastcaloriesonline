@@ -751,12 +751,7 @@ serve(async (req) => {
       );
     }
 
-    // Capture shared location pin
-    const latStr = params["Latitude"];
-    const lonStr = params["Longitude"];
-    const sharedLat = latStr ? parseFloat(latStr) : NaN;
-    const sharedLon = lonStr ? parseFloat(lonStr) : NaN;
-    const hasSharedLocation = Number.isFinite(sharedLat) && Number.isFinite(sharedLon);
+    // Capture shared location pin (coordinates parsed earlier, shared with the agent path)
     if (hasSharedLocation) {
       nextContext.lat = sharedLat;
       nextContext.lon = sharedLon;
