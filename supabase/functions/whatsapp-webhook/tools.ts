@@ -1769,6 +1769,34 @@ async function toolNutrition(ctx: ToolCtx, args: any) {
   };
 }
 
+/**
+ * Cancel a pending (unpaid) order. All rules live in the database function:
+ * paid orders and orders past the cancellation window are refused, the call is
+ * idempotent, and the matching checkout intent is killed so a still-open
+ * Paystack link can never resurrect the order.
+ */
+async function toolCancelOrder(ctx: ToolCtx, args: any) {
+  if (!ctx.userId) return { ok: false, reason: "no_account" };
+  const { data, error } = await ctx.supabase.rpc("whatsapp_cancel_pending_order", {
+    p_user_id: ctx.userId,
+    p_order_number: args.order_number ? String(args.order_number).trim() : null,
+  });
+  if (error) {
+    console.error("[wa-agent] cancel_order failed", error.message);
+    if (String(error.message || "").includes("preparation has started")) {
+      return { ok: false, reason: "not_cancellable" };
+    }
+    return { ok: false, reason: "cancel_failed" };
+  }
+  if (data?.ok) {
+    // Retire any in-flight checkout intent for this phone.
+    try { await saveCart(ctx, { checkout_intent_key: null } as any); } catch { /* non-fatal */ }
+  }
+  return data;
+}
+
+
+
 async function toolRecommend(ctx: ToolCtx, args: any) {
   const near = await nearbyOutlets(ctx, args);
   if (near.needs_location) return { ok: false, reason: "no_location" };
