@@ -12,7 +12,7 @@ import {
   resolveDefaultOutletId,
 } from "../_shared/availability.ts";
 import { runAgentTurn } from "./agent.ts";
-import { CartLine, loadCart, saveCart, ToolCtx } from "./tools.ts";
+import { applySharedLocation, CartLine, loadCart, saveCart, ToolCtx } from "./tools.ts";
 
 
 const corsHeaders = {
