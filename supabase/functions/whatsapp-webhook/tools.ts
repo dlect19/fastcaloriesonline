@@ -1170,8 +1170,12 @@ async function clearCartAfterOrder(ctx: ToolCtx) {
     promo_code: null,
     delivery_quote: null,
     quote_expires_at: null,
-  });
+    // Retire the checkout intent so the customer's NEXT order is a new intent
+    // (repeat orders allowed) while in-flight retries above still de-duplicate.
+    checkout_intent_key: null,
+  } as any);
 }
+
 
 async function sha256(text: string): Promise<string> {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
