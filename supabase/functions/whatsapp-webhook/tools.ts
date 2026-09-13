@@ -1066,6 +1066,7 @@ async function toolProductDetails(ctx: ToolCtx, args: any) {
   const checked = await availableProducts(ctx, outletId, [p]);
 
   const { data: vendor } = await ctx.supabase.from("vendors").select("name, category").eq("id", p.vendor_id).maybeSingle();
+  const mods = await fetchProductModifiers(ctx, p.id, outletId);
   return {
     ok: true,
     product_id: p.id,
@@ -1073,6 +1074,7 @@ async function toolProductDetails(ctx: ToolCtx, args: any) {
     description: p.description || null,
     price: money(p.price),
     calories: p.calories ?? null,
+    calories_known: p.calories != null,
     serving_unit: p.serving_unit || null,
     available: !!checked[0]?.available,
     requires_prescription: !!p.requires_prescription,
@@ -1080,6 +1082,26 @@ async function toolProductDetails(ctx: ToolCtx, args: any) {
     outlet_id: outletId,
     vendor_name: vendor?.name ?? null,
     category: vendor?.category ?? null,
+    option_groups: mods.groups,
+    portions: mods.portions,
+    has_required_options: mods.groups.some((g) => g.is_required || g.min_selections > 0),
+  };
+}
+
+/** Vendor-configured ordering options only — no prices invented. */
+async function toolProductOptions(ctx: ToolCtx, args: any) {
+  const details = await toolProductDetails(ctx, args);
+  if (!details.ok) return details;
+  return {
+    ok: true,
+    product_id: details.product_id,
+    name: details.name,
+    outlet_id: details.outlet_id,
+    base_price: details.price,
+    base_calories: details.calories,
+    option_groups: details.option_groups,
+    portions: details.portions,
+    has_required_options: details.has_required_options,
   };
 }
 
