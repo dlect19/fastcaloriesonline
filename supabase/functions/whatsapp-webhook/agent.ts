@@ -38,8 +38,9 @@ export async function runAgentTurn(input: AgentTurnInput): Promise<AgentTurnResu
   const provider = createOpenAI({
     baseURL: "https://ai.gateway.lovable.dev/v1", apiKey: key,
     headers: { "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "vercel-ai-sdk" },
-    fetch: async (url, init) => {
-      const headers = new Headers(init?.headers);
+    fetch: async (url: any, initRaw: any) => {
+      const init = (initRaw ?? {}) as RequestInit;
+      const headers = new Headers(init.headers);
       if (runId) headers.set("X-Lovable-AIG-Run-ID", runId);
       const response = await fetch(url, { ...init, headers });
       runId = response.headers.get("X-Lovable-AIG-Run-ID") ?? runId;
