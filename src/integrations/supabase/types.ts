@@ -11017,6 +11017,10 @@ export type Database = {
             Args: { p_earned_at?: string; p_wallet_id?: string }
             Returns: string
           }
+      whatsapp_cancel_pending_order: {
+        Args: { p_order_number?: string; p_user_id: string }
+        Returns: Json
+      }
       whatsapp_create_order_atomic: {
         Args: {
           p_checkout_id: string

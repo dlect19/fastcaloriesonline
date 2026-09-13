@@ -44,17 +44,45 @@ export interface ToolCtx {
   onLocationRequired?: (goal: PendingLocationGoal) => void;
 }
 
+/** A vendor-configured add-on the customer actually selected. */
+export interface SelectedAddon {
+  group_id: string;
+  group_name: string;
+  item_id: string;
+  item_name: string;
+  price: number;
+  calories: number;
+}
+
+/** A vendor-configured portion/size the customer actually selected. */
+export interface SelectedPortion {
+  id: string;
+  label: string;
+  price: number;
+  calorie_multiplier: number;
+  portion_size: number | null;
+  unit: string | null;
+}
+
 export interface CartLine {
   product_id: string;
   name: string;
+  /** Effective unit price = portion (or base) price + selected add-ons. */
   price: number;
   qty: number;
+  /** Effective unit calories incl. portion multiplier + add-ons (0 when unknown). */
   calories: number;
   vendor_id: string;
   outlet_id: string | null;
   vendor_name?: string | null;
   is_pharmacy?: boolean;
   serving_unit?: string | null;
+  base_price?: number;
+  base_calories?: number | null;
+  /** False when the vendor has not published calories for this product. */
+  calories_known?: boolean;
+  addons?: SelectedAddon[];
+  portion?: SelectedPortion | null;
 }
 
 export interface WaCart {
@@ -275,6 +303,195 @@ async function availableProducts(
 const PRODUCT_FIELDS =
   "id, vendor_id, name, description, price, calories, serving_unit, requires_prescription, is_available, is_hidden, track_stock, stock_quantity, category_id";
 
+// ------------------------------------------- vendor-configured ordering options
+
+/**
+ * Real add-on groups + portions a vendor configured for one product at one
+ * branch. Nothing here is invented: groups linked through product_addon_groups
+ * or attached directly, scoped to the branch when the group names one.
+ */
+async function fetchProductModifiers(ctx: ToolCtx, productId: string, outletId: string | null) {
+  const GROUP_FIELDS =
+    "id, name, is_required, selection_type, min_selections, max_selections, sort_order, outlet_id";
+  const [linkRes, directRes, portionRes] = await Promise.all([
+    ctx.supabase.from("product_addon_groups").select("addon_group_id").eq("product_id", productId),
+    ctx.supabase.from("addon_groups").select(GROUP_FIELDS).eq("product_id", productId),
+    ctx.supabase.from("product_portions")
+      .select("id, label, portion_size, unit, price, calorie_multiplier, is_available, sort_order")
+      .eq("product_id", productId).eq("is_available", true)
+      .order("sort_order", { ascending: true }),
+  ]);
+  const linkedIds = (linkRes.data || []).map((r: any) => r.addon_group_id).filter(Boolean);
+  let linked: any[] = [];
+  if (linkedIds.length) {
+    const { data } = await ctx.supabase.from("addon_groups").select(GROUP_FIELDS).in("id", linkedIds);
+    linked = data || [];
+  }
+  const groupsRaw = [...(directRes.data || []), ...linked]
+    .filter((g: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.id === g.id) === i)
+    .filter((g: any) => !g.outlet_id || !outletId || g.outlet_id === outletId);
+
+  let addonItems: any[] = [];
+  if (groupsRaw.length) {
+    const { data } = await ctx.supabase.from("addon_items")
+      .select("id, addon_group_id, name, additional_price, calories, is_available, sort_order")
+      .in("addon_group_id", groupsRaw.map((g: any) => g.id));
+    addonItems = (data || []).filter((i: any) => i.is_available !== false);
+  }
+
+  const groups = groupsRaw.map((g: any) => ({
+    group_id: g.id as string,
+    name: g.name as string,
+    is_required: !!g.is_required,
+    selection_type: g.selection_type === "multiple" ? "multiple" : "single",
+    min_selections: Number(g.min_selections) || 0,
+    max_selections: g.max_selections == null ? null : Number(g.max_selections),
+    sort_order: Number(g.sort_order) || 0,
+    items: addonItems
+      .filter((i: any) => i.addon_group_id === g.id)
+      .sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0))
+      .map((i: any) => ({
+        addon_item_id: i.id as string,
+        name: i.name as string,
+        price: money(i.additional_price),
+        calories: i.calories == null ? null : Number(i.calories),
+      })),
+  }))
+    .filter((g) => g.items.length)
+    .sort((a, b) => a.sort_order - b.sort_order);
+
+  const portions = (portionRes.data || []).map((p: any) => ({
+    portion_id: p.id as string,
+    label: p.label as string,
+    price: money(p.price),
+    portion_size: p.portion_size == null ? null : Number(p.portion_size),
+    unit: p.unit || null,
+    calorie_multiplier: Number(p.calorie_multiplier) || 1,
+  }));
+
+  return { groups, portions };
+}
+
+type ProductModifiers = Awaited<ReturnType<typeof fetchProductModifiers>>;
+
+/** Validate the customer's option picks and price them server-side. */
+function resolveSelection(
+  product: { price: number; calories: number | null },
+  mods: ProductModifiers,
+  args: any,
+) {
+  const addonIds: string[] = Array.isArray(args.addon_item_ids)
+    ? args.addon_item_ids.map((x: any) => String(x))
+    : [];
+
+  let portion: SelectedPortion | null = null;
+  if (args.portion_id) {
+    const p = mods.portions.find((x: ProductModifiers["portions"][number]) => x.portion_id === String(args.portion_id));
+    if (!p) return { error: { ok: false, reason: "invalid_portion", portions: mods.portions } };
+    portion = {
+      id: p.portion_id, label: p.label, price: p.price,
+      calorie_multiplier: p.calorie_multiplier, portion_size: p.portion_size, unit: p.unit,
+    };
+  }
+
+  const unknown = addonIds.filter((id) =>
+    !mods.groups.some((g) => g.items.some((i) => i.addon_item_id === id)));
+  if (unknown.length) {
+    return { error: { ok: false, reason: "invalid_addon", unknown, option_groups: mods.groups } };
+  }
+
+  const picked: SelectedAddon[] = [];
+  const missing: any[] = [];
+  for (const g of mods.groups) {
+    const chosen = g.items.filter((i) => addonIds.includes(i.addon_item_id));
+    const min = g.is_required ? Math.max(1, g.min_selections) : g.min_selections;
+    const max = g.max_selections ?? (g.selection_type === "multiple" ? g.items.length : 1);
+    if (chosen.length < min) { missing.push(g); continue; }
+    if (chosen.length > max) {
+      return { error: { ok: false, reason: "too_many_options", group: g.name, max_selections: max } };
+    }
+    chosen.forEach((i) => picked.push({
+      group_id: g.group_id, group_name: g.name,
+      item_id: i.addon_item_id, item_name: i.name,
+      price: i.price, calories: Number(i.calories) || 0,
+    }));
+  }
+  if (missing.length) {
+    return {
+      error: {
+        ok: false,
+        reason: "missing_required_option",
+        required_groups: missing,
+        optional_groups: mods.groups.filter((g) => !missing.includes(g)),
+        portions: mods.portions,
+      },
+    };
+  }
+
+  const basePrice = portion ? portion.price : money(product.price);
+  const baseCalories = product.calories == null
+    ? null
+    : Math.round(Number(product.calories) * (portion?.calorie_multiplier ?? 1));
+  const unit_calories = baseCalories == null
+    ? null
+    : baseCalories + picked.reduce((s, a) => s + a.calories, 0);
+
+  return {
+    portion,
+    addons: picked,
+    base_price: money(basePrice),
+    base_calories: baseCalories,
+    unit_price: money(basePrice + picked.reduce((s, a) => s + a.price, 0)),
+    unit_calories,
+  };
+}
+
+/** Stable identity of a cart line's chosen options. */
+function optionSignature(portionId: string | null | undefined, addons?: SelectedAddon[] | null) {
+  const ids = (addons || []).map((a) => a.item_id).sort().join(",");
+  return `${portionId || ""}|${ids}`;
+}
+
+function addonsDescription(line: CartLine): string | null {
+  const parts: string[] = [];
+  if (line.portion?.label) parts.push(`Portion: ${line.portion.label}`);
+  (line.addons || []).forEach((a) => parts.push(`${a.group_name}: ${a.item_name}`));
+  return parts.length ? parts.join(" • ").slice(0, 300) : null;
+}
+
+// Only serving units that need a container count toward pack sizing —
+// identical rule to src/hooks/useTakeawayPacks.ts.
+const PACK_ELIGIBLE_UNIT_REGEX = /(portion|plate|bowl|wrap|pack)/i;
+
+/** Vendor-configured takeaway packaging fee for the current cart. */
+async function computePackaging(ctx: ToolCtx, cart: WaCart) {
+  if (!cart.items.length || !cart.vendor_id) return { fee: 0, pack: null as any };
+  const { data: packs } = await ctx.supabase
+    .from("takeaway_packs")
+    .select("id, name, price, threshold_type, threshold_value, outlet_id")
+    .eq("vendor_id", cart.vendor_id)
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true });
+  const scoped = (packs || []).filter((p: any) =>
+    !p.outlet_id || !cart.outlet_id || p.outlet_id === cart.outlet_id);
+  if (!scoped.length) return { fee: 0, pack: null };
+
+  const eligible = cart.items.filter((c) => PACK_ELIGIBLE_UNIT_REGEX.test(String(c.serving_unit || "")));
+  if (!eligible.length) return { fee: 0, pack: null };
+  const totalItems = eligible.reduce((s, c) => s + Number(c.qty || 0), 0);
+  const maxItemQty = Math.max(...eligible.map((c) => Number(c.qty || 0)));
+
+  const applicable = scoped.filter((p: any) =>
+    p.threshold_type === "per_item"
+      ? maxItemQty >= Number(p.threshold_value)
+      : p.threshold_type === "total_items" && totalItems >= Number(p.threshold_value));
+  if (!applicable.length) return { fee: 0, pack: null };
+  applicable.sort((a: any, b: any) => Number(b.threshold_value) - Number(a.threshold_value));
+  const pack = applicable[0];
+  return { fee: money(pack.price), pack: { id: pack.id, name: pack.name, price: money(pack.price) } };
+}
+
+
 // ------------------------------------------------------------------- pricing
 
 async function servicePct(ctx: ToolCtx): Promise<number> {
@@ -363,10 +580,20 @@ export async function priceCart(ctx: ToolCtx, cartIn?: WaCart) {
     }
   }
 
-  const total = Math.max(0, subtotal + delivery_fee + service_fee - discount);
-  const total_calories = cart.items.reduce((s, c) => s + (Number(c.calories) || 0) * Number(c.qty), 0);
+  // Vendor-configured takeaway packaging (same rule and accounting as the app).
+  const packaging = await computePackaging(ctx, cart);
+  const packaging_fee = packaging.fee;
+
+  const total = Math.max(0, subtotal + packaging_fee + delivery_fee + service_fee - discount);
+  const knownCalorieLines = cart.items.filter((c) => c.calories_known !== false && Number(c.calories) > 0);
+  const total_calories = knownCalorieLines.reduce((s, c) => s + Number(c.calories) * Number(c.qty), 0);
+  const calories_missing_for = cart.items
+    .filter((c) => c.calories_known === false || !Number(c.calories))
+    .map((c) => c.name);
   return {
     subtotal,
+    packaging_fee,
+    packaging_name: packaging.pack?.name ?? null,
     service_fee,
     service_fee_pct: pct,
     delivery_fee,
@@ -374,6 +601,7 @@ export async function priceCart(ctx: ToolCtx, cartIn?: WaCart) {
     promo_code,
     total,
     total_calories,
+    calories_missing_for,
     fulfilment_type: cart.fulfilment_type,
     pricing_ok,
     pricing_reason,
@@ -477,24 +705,36 @@ export const TOOL_SPECS = [
   {
     name: "get_product_details",
     description:
-      "Price, calories, availability and add-on info for one product at one branch. outlet_id is required unless the cart already has a branch that sells this product.",
+      "Price, calories, availability and the vendor's configured ordering options (add-on groups, portions/sizes) for one product at one branch. outlet_id is required unless the cart already has a branch that sells this product.",
     parameters: {
       type: "object",
       properties: { product_id: { type: "string" }, outlet_id: { type: "string" } },
       required: ["product_id"],
     },
   },
-  { name: "get_cart", description: "Read the customer's current cart with server-computed totals.", parameters: { type: "object", properties: {} } },
+  {
+    name: "get_product_options",
+    description:
+      "List ONLY the add-on groups and portion/size choices this vendor actually configured for a product at a branch, with real prices and calories. Use before adding an item that has required options.",
+    parameters: {
+      type: "object",
+      properties: { product_id: { type: "string" }, outlet_id: { type: "string" } },
+      required: ["product_id"],
+    },
+  },
+  { name: "get_cart", description: "Read the customer's current cart with server-computed totals, per-line calories and chosen options.", parameters: { type: "object", properties: {} } },
   {
     name: "add_cart_item",
     description:
-      "Add a real product (by product_id from a search/menu tool) to the cart. Pass replace_cart true only after the customer confirms switching branch, which empties the current cart.",
+      "Add a real product (by product_id from a search/menu tool) to the cart. Pass portion_id and addon_item_ids only with ids returned by get_product_options/get_product_details; required option groups must be satisfied. Pass replace_cart true only after the customer confirms switching branch, which empties the current cart.",
     parameters: {
       type: "object",
       properties: {
         product_id: { type: "string" },
         outlet_id: { type: "string" },
         quantity: { type: "number" },
+        portion_id: { type: "string" },
+        addon_item_ids: { type: "array", items: { type: "string" } },
         replace_cart: { type: "boolean" },
       },
       required: ["product_id"],
@@ -550,8 +790,14 @@ export const TOOL_SPECS = [
   { name: "get_order_status", description: "Status of the customer's latest order or a specific order number.", parameters: { type: "object", properties: { order_number: { type: "string" } } } },
   { name: "get_order_history", description: "Recent orders for this customer.", parameters: { type: "object", properties: { limit: { type: "number" } } } },
   { name: "reorder", description: "Rebuild the cart from a past order, revalidating availability and current prices.", parameters: { type: "object", properties: { order_number: { type: "string" } } } },
-  { name: "get_nutrition", description: "Verified nutrition for the cart or one product.", parameters: { type: "object", properties: { product_id: { type: "string" } } } },
+  { name: "get_nutrition", description: "Verified calories for the cart (incl. chosen portions and add-ons) or one product. Never estimate calories yourself.", parameters: { type: "object", properties: { product_id: { type: "string" } } } },
   { name: "recommend_meal", description: "Suggest items chosen ONLY from live nearby menus.", parameters: { type: "object", properties: { goal: { type: "string" }, max_price: { type: "number" }, location_text: { type: "string" } } } },
+  {
+    name: "cancel_order",
+    description:
+      "Cancel the customer's pending (unpaid) order and kill its payment link. Server decides: paid orders and orders already in preparation are refused with the real reason. Safe to retry — repeat calls report the same result.",
+    parameters: { type: "object", properties: { order_number: { type: "string" } } },
+  },
 ] as const;
 
 // ------------------------------------------------------------ tool execution
@@ -614,6 +860,10 @@ async function execTool(name: string, args: any, ctx: ToolCtx): Promise<any> {
       await saveCart(ctx, { payment_method: method });
       return { ok: true, payment_method: method };
     }
+    case "get_product_options":
+      return await toolProductOptions(ctx, args);
+    case "cancel_order":
+      return await toolCancelOrder(ctx, args);
     case "create_order":
       return await toolCreateOrder(ctx, args);
     case "get_payment_status":
@@ -816,6 +1066,7 @@ async function toolProductDetails(ctx: ToolCtx, args: any) {
   const checked = await availableProducts(ctx, outletId, [p]);
 
   const { data: vendor } = await ctx.supabase.from("vendors").select("name, category").eq("id", p.vendor_id).maybeSingle();
+  const mods = await fetchProductModifiers(ctx, p.id, outletId);
   return {
     ok: true,
     product_id: p.id,
@@ -823,6 +1074,7 @@ async function toolProductDetails(ctx: ToolCtx, args: any) {
     description: p.description || null,
     price: money(p.price),
     calories: p.calories ?? null,
+    calories_known: p.calories != null,
     serving_unit: p.serving_unit || null,
     available: !!checked[0]?.available,
     requires_prescription: !!p.requires_prescription,
@@ -830,6 +1082,26 @@ async function toolProductDetails(ctx: ToolCtx, args: any) {
     outlet_id: outletId,
     vendor_name: vendor?.name ?? null,
     category: vendor?.category ?? null,
+    option_groups: mods.groups,
+    portions: mods.portions,
+    has_required_options: mods.groups.some((g) => g.is_required || g.min_selections > 0),
+  };
+}
+
+/** Vendor-configured ordering options only — no prices invented. */
+async function toolProductOptions(ctx: ToolCtx, args: any) {
+  const details = await toolProductDetails(ctx, args);
+  if (!details.ok) return details;
+  return {
+    ok: true,
+    product_id: details.product_id,
+    name: details.name,
+    outlet_id: details.outlet_id,
+    base_price: details.price,
+    base_calories: details.calories,
+    option_groups: details.option_groups,
+    portions: details.portions,
+    has_required_options: details.has_required_options,
   };
 }
 
@@ -852,6 +1124,12 @@ async function cartView(ctx: ToolCtx, cart?: WaCart) {
       quantity: i.qty,
       unit_price: money(i.price),
       line_total: money(i.price * i.qty),
+      portion: i.portion ? { label: i.portion.label, price: i.portion.price } : null,
+      addons: (i.addons || []).map((a) => ({ group: a.group_name, name: a.item_name, price: a.price, calories: a.calories })),
+      calories_each: i.calories_known === false ? null : (Number(i.calories) || null),
+      calories_total: i.calories_known === false || !Number(i.calories)
+        ? null
+        : Number(i.calories) * Number(i.qty),
     })),
   };
 }
@@ -869,6 +1147,14 @@ async function toolAddItem(ctx: ToolCtx, args: any) {
   if (!outletId) return { ok: false, reason: "no_branch" };
   const gate = await outletOrderable(ctx, outletId);
   if (!gate.ok) return { ok: false, reason: gate.reason, vendor_name: details.vendor_name };
+
+  // Vendor-configured options: validated and priced server-side. Required
+  // groups must be satisfied before the item can enter the cart.
+  const mods = await fetchProductModifiers(ctx, details.product_id, outletId);
+  const sel = resolveSelection({ price: details.price, calories: details.calories }, mods, args);
+  if ("error" in sel) {
+    return { ...sel.error, product_id: details.product_id, name: details.name, outlet_id: outletId };
+  }
 
   const cart = await loadCart(ctx);
   // Single-branch carts (same rule as the app). Switching branch empties the cart,
@@ -891,15 +1177,23 @@ async function toolAddItem(ctx: ToolCtx, args: any) {
     replaced = true;
   }
 
-  const existing = items.find((i) => i.product_id === details.product_id);
+  const sig = optionSignature(sel.portion?.id ?? null, sel.addons);
+  const existing = items.find((i) =>
+    i.product_id === details.product_id &&
+    optionSignature(i.portion?.id ?? null, i.addons) === sig);
   if (existing) existing.qty = Math.min(existing.qty + qty, 50);
   else {
     items = [...items, {
       product_id: details.product_id,
       name: details.name,
-      price: money(details.price),
+      price: sel.unit_price,
       qty,
-      calories: Number(details.calories) || 0,
+      calories: sel.unit_calories ?? 0,
+      calories_known: sel.unit_calories != null,
+      base_price: sel.base_price,
+      base_calories: sel.base_calories,
+      portion: sel.portion,
+      addons: sel.addons,
       vendor_id: details.vendor_id,
       outlet_id: outletId,
       vendor_name: details.vendor_name,
@@ -1048,9 +1342,14 @@ async function toolCreateOrder(ctx: ToolCtx, args: any) {
       blocked.push(line.name);
       return line;
     }
-    if (money(p.price) !== money(line.price)) {
-      repriced.push(`${line.name}: ₦${money(line.price)} → ₦${money(p.price)}`);
-      return { ...line, price: money(p.price), name: p.name };
+    // Compare the BASE menu price only — add-ons and a chosen portion are
+    // priced separately and must not look like a vendor price change.
+    const storedBase = line.portion ? money(line.portion.price) : money(line.base_price ?? line.price);
+    const liveBase = line.portion ? storedBase : money(p.price);
+    if (liveBase !== storedBase) {
+      const extras = money(line.price) - storedBase;
+      repriced.push(`${line.name}: ₦${money(line.price)} → ₦${liveBase + extras}`);
+      return { ...line, base_price: liveBase, price: money(liveBase + extras), name: p.name };
     }
     return line;
   });
@@ -1147,8 +1446,11 @@ async function toolCreateOrder(ctx: ToolCtx, args: any) {
     vendor_id: cart.vendor_id,
     outlet_id: cart.outlet_id,
     status: isPharmacy || method !== "wallet" ? "pending" : "confirmed",
-    subtotal: pricing.subtotal,
+    // Same shape the web/app checkout writes: menu_subtotal is the pure menu
+    // value, subtotal carries packaging and the promo discount.
+    subtotal: pricing.subtotal + (pricing.packaging_fee || 0) - (pricing.discount || 0),
     menu_subtotal: pricing.subtotal,
+    packaging_fee: pricing.packaging_fee || 0,
     delivery_fee: pricing.delivery_fee,
     discount: pricing.discount || 0,
     promo_code: pricing.promo_code,
@@ -1178,7 +1480,14 @@ async function toolCreateOrder(ctx: ToolCtx, args: any) {
     quantity: c.qty,
     unit_price: money(c.price),
     total_price: money(c.price * c.qty),
-    calories: c.calories ?? 0,
+    calories: (c.calories ?? 0) * c.qty,
+    special_instructions: addonsDescription(c),
+    portion_label: c.portion?.label ?? null,
+    portion_size: c.portion?.portion_size ?? null,
+    portion_unit: c.portion?.unit ?? null,
+    addons: (c.addons || []).map((a) => ({
+      group_name: a.group_name, item_name: a.item_name, price: a.price, calories: a.calories,
+    })),
   }));
 
   // ONE transaction: order + items + (for wallet) the ledger debit. If the
@@ -1437,11 +1746,18 @@ async function toolNutrition(ctx: ToolCtx, args: any) {
   const byId = new Map((rows || []).map((p: any) => [p.id, p]));
   const lines = cart.items.map((i) => {
     const p: any = byId.get(i.product_id) || {};
+    // The cart line already carries portion + add-on calories, computed from
+    // the vendor's own figures. Fall back to the product only for old lines.
+    const each = i.calories_known === false
+      ? null
+      : (Number(i.calories) || (p.calories == null ? null : Number(p.calories)));
     return {
       name: i.name,
       quantity: i.qty,
-      calories_each: p.calories ?? null,
-      calories_total: p.calories != null ? Number(p.calories) * i.qty : null,
+      portion: i.portion?.label ?? null,
+      addons: (i.addons || []).map((a) => ({ name: a.item_name, calories: a.calories })),
+      calories_each: each,
+      calories_total: each == null ? null : each * i.qty,
     };
   });
   const known = lines.filter((l) => l.calories_total != null);
@@ -1452,6 +1768,34 @@ async function toolNutrition(ctx: ToolCtx, args: any) {
     missing_data_for: lines.filter((l) => l.calories_total == null).map((l) => l.name),
   };
 }
+
+/**
+ * Cancel a pending (unpaid) order. All rules live in the database function:
+ * paid orders and orders past the cancellation window are refused, the call is
+ * idempotent, and the matching checkout intent is killed so a still-open
+ * Paystack link can never resurrect the order.
+ */
+async function toolCancelOrder(ctx: ToolCtx, args: any) {
+  if (!ctx.userId) return { ok: false, reason: "no_account" };
+  const { data, error } = await ctx.supabase.rpc("whatsapp_cancel_pending_order", {
+    p_user_id: ctx.userId,
+    p_order_number: args.order_number ? String(args.order_number).trim() : null,
+  });
+  if (error) {
+    console.error("[wa-agent] cancel_order failed", error.message);
+    if (String(error.message || "").includes("preparation has started")) {
+      return { ok: false, reason: "not_cancellable" };
+    }
+    return { ok: false, reason: "cancel_failed" };
+  }
+  if (data?.ok) {
+    // Retire any in-flight checkout intent for this phone.
+    try { await saveCart(ctx, { checkout_intent_key: null } as any); } catch { /* non-fatal */ }
+  }
+  return data;
+}
+
+
 
 async function toolRecommend(ctx: ToolCtx, args: any) {
   const near = await nearbyOutlets(ctx, args);
