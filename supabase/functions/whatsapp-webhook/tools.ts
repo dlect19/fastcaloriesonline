@@ -705,24 +705,36 @@ export const TOOL_SPECS = [
   {
     name: "get_product_details",
     description:
-      "Price, calories, availability and add-on info for one product at one branch. outlet_id is required unless the cart already has a branch that sells this product.",
+      "Price, calories, availability and the vendor's configured ordering options (add-on groups, portions/sizes) for one product at one branch. outlet_id is required unless the cart already has a branch that sells this product.",
     parameters: {
       type: "object",
       properties: { product_id: { type: "string" }, outlet_id: { type: "string" } },
       required: ["product_id"],
     },
   },
-  { name: "get_cart", description: "Read the customer's current cart with server-computed totals.", parameters: { type: "object", properties: {} } },
+  {
+    name: "get_product_options",
+    description:
+      "List ONLY the add-on groups and portion/size choices this vendor actually configured for a product at a branch, with real prices and calories. Use before adding an item that has required options.",
+    parameters: {
+      type: "object",
+      properties: { product_id: { type: "string" }, outlet_id: { type: "string" } },
+      required: ["product_id"],
+    },
+  },
+  { name: "get_cart", description: "Read the customer's current cart with server-computed totals, per-line calories and chosen options.", parameters: { type: "object", properties: {} } },
   {
     name: "add_cart_item",
     description:
-      "Add a real product (by product_id from a search/menu tool) to the cart. Pass replace_cart true only after the customer confirms switching branch, which empties the current cart.",
+      "Add a real product (by product_id from a search/menu tool) to the cart. Pass portion_id and addon_item_ids only with ids returned by get_product_options/get_product_details; required option groups must be satisfied. Pass replace_cart true only after the customer confirms switching branch, which empties the current cart.",
     parameters: {
       type: "object",
       properties: {
         product_id: { type: "string" },
         outlet_id: { type: "string" },
         quantity: { type: "number" },
+        portion_id: { type: "string" },
+        addon_item_ids: { type: "array", items: { type: "string" } },
         replace_cart: { type: "boolean" },
       },
       required: ["product_id"],
