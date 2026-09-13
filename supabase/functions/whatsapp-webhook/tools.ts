@@ -1746,11 +1746,18 @@ async function toolNutrition(ctx: ToolCtx, args: any) {
   const byId = new Map((rows || []).map((p: any) => [p.id, p]));
   const lines = cart.items.map((i) => {
     const p: any = byId.get(i.product_id) || {};
+    // The cart line already carries portion + add-on calories, computed from
+    // the vendor's own figures. Fall back to the product only for old lines.
+    const each = i.calories_known === false
+      ? null
+      : (Number(i.calories) || (p.calories == null ? null : Number(p.calories)));
     return {
       name: i.name,
       quantity: i.qty,
-      calories_each: p.calories ?? null,
-      calories_total: p.calories != null ? Number(p.calories) * i.qty : null,
+      portion: i.portion?.label ?? null,
+      addons: (i.addons || []).map((a) => ({ name: a.item_name, calories: a.calories })),
+      calories_each: each,
+      calories_total: each == null ? null : each * i.qty,
     };
   });
   const known = lines.filter((l) => l.calories_total != null);
