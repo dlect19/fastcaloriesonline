@@ -526,6 +526,23 @@ serve(async (req) => {
         environment: platformEnvironment,
         onLocationRequired: (goal) => { pendingLocationGoal = goal; },
       };
+      // Agent turns (tool calls + Gemini) regularly take longer than Twilio's
+      // ~15s webhook timeout, and a late TwiML body is silently discarded — that
+      // is why a shared location pin got no reply. Deliver agent replies over the
+      // Twilio REST API from a background task and ack the webhook immediately.
+      const deliver = async (text: string) => {
+        try {
+          await supabase.from("whatsapp_messages").insert({
+            session_id: session.id, phone, direction: "out", body: text,
+          });
+        } catch (e) {
+          console.error("[wa-agent] message log failed", e instanceof Error ? e.message : String(e));
+        }
+        const sent = await sendText(fromNumber, fromRaw, text);
+        if (!sent) console.error("[wa-agent] outbound send failed", { session_id: session.id });
+      };
+
+      const work = (async () => {
       try {
         // Bring a cart built by the legacy flow into the durable store first,
         // so the agent and the state machine always see the same items.
@@ -564,10 +581,23 @@ serve(async (req) => {
         let agentMessage = body;
         let sharedLabel: string | null = null;
         if (hasSharedLocation) {
-          sharedLabel = params["Address"] || params["Label"] ||
-            await reverseGeocode(sharedLat, sharedLon);
-          cartForHint = await applySharedLocation(agentCtx, sharedLat, sharedLon, sharedLabel);
-          await saveDefaultAddress(supabase, session.customer_user_id, sharedLat, sharedLon, sharedLabel);
+          // A storage/geocoding failure must never silence the reply.
+          try {
+            sharedLabel = params["Address"] || params["Label"] ||
+              await reverseGeocode(sharedLat, sharedLon);
+          } catch (e) {
+            console.error("[wa-agent] reverse geocode failed", e instanceof Error ? e.message : String(e));
+          }
+          try {
+            cartForHint = await applySharedLocation(agentCtx, sharedLat, sharedLon, sharedLabel);
+          } catch (e) {
+            console.error("[wa-agent] applySharedLocation failed", e instanceof Error ? e.message : String(e));
+          }
+          try {
+            await saveDefaultAddress(supabase, session.customer_user_id, sharedLat, sharedLon, sharedLabel);
+          } catch (e) {
+            console.error("[wa-agent] saveDefaultAddress failed", e instanceof Error ? e.message : String(e));
+          }
           const resumeHint = priorGoal?.tool
             ? ` The customer's pending request was the tool "${priorGoal.tool}" with arguments ${JSON.stringify(priorGoal.args || {}).slice(0, 500)} — retry it now with these coordinates and answer the original request.`
             : " There is no pending search: confirm the saved location and ask what they would like, without showing any menu list.";
@@ -590,7 +620,6 @@ serve(async (req) => {
             selected_outlet_id: cartForHint.outlet_id,
           },
         });
-
 
         if (result?.reply) {
           const after = await loadCart(agentCtx);
@@ -636,13 +665,31 @@ serve(async (req) => {
             location_shared: hasSharedLocation, resumed_goal: hasSharedLocation ? (priorGoal?.tool ?? null) : null,
             pending_goal: goalToKeep?.tool ?? null, tools: result.toolsUsed,
           }));
-          return await replyText(result.reply);
+          await deliver(result.reply);
+          return;
         }
-        return await replyText("WhatsApp AI could not complete that request. Your cart is preserved. Please try again.");
+        await deliver(hasSharedLocation
+          ? "📍 Got your location. I'm still checking nearby options — please try again in a moment."
+          : "WhatsApp AI could not complete that request. Your cart is preserved. Please try again.");
       } catch (e) {
         console.error("[wa-agent] turn failed", e instanceof Error ? e.message : String(e));
-        return await replyText("WhatsApp AI could not complete that request. Your cart is preserved. Please try again.");
+        // Never go silent and never bounce to the numbered menu.
+        await deliver(hasSharedLocation
+          ? "📍 Got your location. I'm still checking nearby options — please try again in a moment."
+          : "WhatsApp AI could not complete that request. Your cart is preserved. Please try again.");
       }
+      })();
+
+      // Keep the isolate alive for the background turn, then ack Twilio at once.
+      try {
+        const runtime = (globalThis as any).EdgeRuntime;
+        if (runtime?.waitUntil) runtime.waitUntil(work);
+        else await work;
+      } catch (e) {
+        console.error("[wa-agent] background scheduling failed", e instanceof Error ? e.message : String(e));
+        await work;
+      }
+      return emptyTwiml();
     }
 
 
