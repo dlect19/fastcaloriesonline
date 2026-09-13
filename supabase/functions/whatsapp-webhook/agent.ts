@@ -1,7 +1,13 @@
 // WhatsApp commerce controller. All business facts come from validated tools.
+// Model: Google Gemini via the Lovable AI Gateway chat path (openai-compatible
+// provider). FastCalories standardises on Gemini for this agent — no OpenAI path.
 import { streamText, tool, jsonSchema, stepCountIs } from "npm:ai@6.0.282";
-import { createOpenAI } from "npm:@ai-sdk/openai@3.0.112";
+import { createOpenAICompatible } from "npm:@ai-sdk/openai-compatible@2.0.75";
 import { runTool, TOOL_SPECS, ToolCtx } from "./tools.ts";
+
+// Exact id from the gateway model listing. gemini-2.5-flash is still served but
+// flagged deprecated, so the agent runs on the current Flash generation.
+const GEMINI_MODEL = "google/gemini-3.8-flash";
 
 export interface AgentTurnInput {
   ctx: ToolCtx;
@@ -35,12 +41,14 @@ export async function runAgentTurn(input: AgentTurnInput): Promise<AgentTurnResu
   const toolsUsed: string[] = [];
   if (!key) return { reply: "WhatsApp AI is unavailable: the service key is missing. Please contact support.", toolsUsed };
   let runId: string | null = null;
-  const provider = createOpenAI({
-    baseURL: "https://ai.gateway.lovable.dev/v1", apiKey: key,
+  const provider = createOpenAICompatible({
+    name: "lovable",
+    baseURL: "https://ai.gateway.lovable.dev/v1",
     headers: { "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "vercel-ai-sdk" },
     fetch: async (url: any, initRaw: any) => {
       const init = (initRaw ?? {}) as RequestInit;
       const headers = new Headers(init.headers);
+      // Only ever resend the run id the gateway minted; never invent one.
       if (runId) headers.set("X-Lovable-AIG-Run-ID", runId);
       const response = await fetch(url, { ...init, headers });
       runId = response.headers.get("X-Lovable-AIG-Run-ID") ?? runId;
@@ -50,14 +58,13 @@ export async function runAgentTurn(input: AgentTurnInput): Promise<AgentTurnResu
   const tools = Object.fromEntries(TOOL_SPECS.map(spec => [spec.name, tool({
     description: spec.description,
     inputSchema: jsonSchema<Record<string, unknown>>({ ...spec.parameters, additionalProperties: false } as any),
-    // Checkout is now transaction-safe: order + items + wallet debit commit in a
-    // single RPC (whatsapp_create_order_atomic), and idempotency is bound to a
-    // per-attempt checkout intent, so create_order is enabled again.
+    // Checkout is transaction-safe: order + items + wallet debit commit in one RPC
+    // (whatsapp_create_order_atomic), with idempotency bound to a per-attempt
+    // checkout intent, so create_order runs like any other tool.
     execute: async args => {
       toolsUsed.push(spec.name);
       const started = Date.now();
       const result = await runTool(spec.name, args, input.ctx);
-
       console.log(JSON.stringify({ event: "wa_agent_tool", session_id: input.ctx.sessionId,
         tool: spec.name, duration_ms: Date.now() - started, run_id: runId,
         ok: result?.ok !== false && !result?.error }));
@@ -66,15 +73,14 @@ export async function runAgentTurn(input: AgentTurnInput): Promise<AgentTurnResu
   })]));
   try {
     const result = streamText({
-      model: provider.responses("openai/gpt-6-astra"),
+      model: provider(GEMINI_MODEL),
       system: SYSTEM_PROMPT,
       messages: [...input.history.slice(-16), { role: "user" as const, content: input.message.slice(0, 2000) }],
       tools, stopWhen: stepCountIs(50), maxRetries: 0,
-      providerOptions: { openai: { forceReasoning: true, reasoningEffort: "low", reasoningSummary: "auto",
-        store: false, include: ["reasoning.encrypted_content"] } },
     });
     const text = await result.text;
-    console.log(JSON.stringify({ event: "wa_agent_complete", session_id: input.ctx.sessionId, run_id: runId, tools: toolsUsed }));
+    console.log(JSON.stringify({ event: "wa_agent_complete", session_id: input.ctx.sessionId,
+      model: GEMINI_MODEL, run_id: runId, tools: toolsUsed }));
     return { reply: text.trim().slice(0, 4000) || "I couldn't complete that request. Your cart is unchanged; please try again.", toolsUsed };
   } catch (error) {
     const failure = error as { statusCode?: number; message?: string; responseBody?: string };
@@ -83,7 +89,8 @@ export async function runAgentTurn(input: AgentTurnInput): Promise<AgentTurnResu
       const body = JSON.parse(failure.responseBody || "{}");
       message = body.message || body.error?.message || message;
     } catch { /* Keep the provider's explicit message. */ }
-    console.error(JSON.stringify({ event: "wa_agent_error", session_id: input.ctx.sessionId, run_id: runId, status: failure.statusCode }));
+    console.error(JSON.stringify({ event: "wa_agent_error", session_id: input.ctx.sessionId,
+      model: GEMINI_MODEL, run_id: runId, status: failure.statusCode }));
     return { reply: `WhatsApp AI error${failure.statusCode ? ` (${failure.statusCode})` : ""}: ${message.slice(0, 700)}`, toolsUsed };
   }
 }

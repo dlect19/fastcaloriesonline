@@ -208,8 +208,22 @@ export async function outletOrderable(
   if (!outlet.is_open || !vendor.is_open) {
     return { ok: false, reason: "closed_now", outlet, vendor };
   }
+  // `is_open` is a cached flag and can be stale (missed cron tick, manual edit).
+  // The Lagos working-hours schedule is the authority for "open right now".
+  const { data: scheduleOpen, error: scheduleErr } = await ctx.supabase.rpc("schedule_open_now", {
+    _vendor_id: outlet.vendor_id,
+    _outlet_id: outlet.id,
+  });
+  if (scheduleErr) {
+    console.error("[wa-agent] schedule_open_now failed", scheduleErr.message);
+    return { ok: false, reason: "schedule_unavailable", outlet, vendor };
+  }
+  if (scheduleOpen === false) {
+    return { ok: false, reason: "closed_by_schedule", outlet, vendor };
+  }
   return { ok: true, outlet, vendor };
 }
+
 
 /** Effective availability of products for one branch. */
 async function availableProducts(
@@ -426,7 +440,8 @@ export const TOOL_SPECS = [
   },
   {
     name: "get_product_details",
-    description: "Price, calories, availability and add-on info for one product.",
+    description:
+      "Price, calories, availability and add-on info for one product at one branch. outlet_id is required unless the cart already has a branch that sells this product.",
     parameters: {
       type: "object",
       properties: { product_id: { type: "string" }, outlet_id: { type: "string" } },
@@ -436,17 +451,20 @@ export const TOOL_SPECS = [
   { name: "get_cart", description: "Read the customer's current cart with server-computed totals.", parameters: { type: "object", properties: {} } },
   {
     name: "add_cart_item",
-    description: "Add a real product (by product_id from a search/menu tool) to the cart.",
+    description:
+      "Add a real product (by product_id from a search/menu tool) to the cart. Pass replace_cart true only after the customer confirms switching branch, which empties the current cart.",
     parameters: {
       type: "object",
       properties: {
         product_id: { type: "string" },
         outlet_id: { type: "string" },
         quantity: { type: "number" },
+        replace_cart: { type: "boolean" },
       },
       required: ["product_id"],
     },
   },
+
   {
     name: "update_cart_quantity",
     description: "Set the NEW total quantity of a cart line.",
@@ -602,8 +620,19 @@ async function nearbyOutlets(ctx: ToolCtx, args: any) {
       delivery_fee_estimate: v.delivery_fee != null ? money(v.delivery_fee) : null,
       is_open: !!v.is_open,
     }));
+  // The cached is_open flag can be stale, so confirm "open now" against the
+  // Lagos working-hours schedule for the branches we are about to show.
+  const candidates = mapped.filter((r) => r.is_open).slice(0, 12);
+  await Promise.all(candidates.map(async (r) => {
+    const { data, error } = await ctx.supabase.rpc("schedule_open_now", {
+      _vendor_id: r.vendor_id,
+      _outlet_id: r.outlet_id,
+    });
+    if (!error && data === false) r.is_open = false;
+  }));
   return { rows: mapped, coords };
 }
+
 
 async function toolSearchOutlets(ctx: ToolCtx, args: any) {
   const { rows, coords, needs_location } = await nearbyOutlets(ctx, args);
@@ -716,8 +745,34 @@ async function toolProductDetails(ctx: ToolCtx, args: any) {
   const { data: p } = await ctx.supabase
     .from("products").select(PRODUCT_FIELDS).eq("id", String(args.product_id || "")).maybeSingle();
   if (!p) return { ok: false, reason: "not_found" };
-  const outletId = args.outlet_id ? String(args.outlet_id) : await resolveDefaultOutletId(ctx.supabase, p.vendor_id);
+  // Never guess a branch: an explicit outlet_id wins, otherwise only the cart's
+  // own branch may be reused, and only when it belongs to this product's vendor.
+  let outletId = args.outlet_id ? String(args.outlet_id) : "";
+  if (!outletId) {
+    const cart = await loadCart(ctx);
+    if (cart.outlet_id && cart.vendor_id === p.vendor_id) outletId = cart.outlet_id;
+  }
+  if (!outletId) {
+    const { data: branches } = await ctx.supabase
+      .from("vendor_outlets")
+      .select("id, outlet_name")
+      .eq("vendor_id", p.vendor_id)
+      .eq("is_active", true)
+      .eq("is_approved", true)
+      .eq("admin_force_closed", false)
+      .order("outlet_name")
+      .limit(8);
+    return {
+      ok: false,
+      reason: "outlet_required",
+      product_id: p.id,
+      name: p.name,
+      vendor_id: p.vendor_id,
+      branches: (branches || []).map((b: any) => ({ outlet_id: b.id, branch: b.outlet_name })),
+    };
+  }
   const checked = await availableProducts(ctx, outletId, [p]);
+
   const { data: vendor } = await ctx.supabase.from("vendors").select("name, category").eq("id", p.vendor_id).maybeSingle();
   return {
     ok: true,
@@ -766,7 +821,7 @@ async function toolGetCart(ctx: ToolCtx) {
 async function toolAddItem(ctx: ToolCtx, args: any) {
   const qty = Math.min(Math.max(Number(args.quantity) || 1, 1), 50);
   const details = await toolProductDetails(ctx, args);
-  if (!details.ok) return { ok: false, reason: details.reason };
+  if (!details.ok) return details;
   if (!details.available) return { ok: false, reason: "unavailable", name: details.name };
   const outletId = details.outlet_id;
   if (!outletId) return { ok: false, reason: "no_branch" };
@@ -774,13 +829,26 @@ async function toolAddItem(ctx: ToolCtx, args: any) {
   if (!gate.ok) return { ok: false, reason: gate.reason, vendor_name: details.vendor_name };
 
   const cart = await loadCart(ctx);
-  // Single-branch carts (same rule as the app): a different branch starts fresh.
+  // Single-branch carts (same rule as the app). Switching branch empties the cart,
+  // so it only happens once the customer has confirmed it.
   let items = cart.items;
   let replaced = false;
   if (cart.outlet_id && cart.outlet_id !== outletId && items.length) {
+    if (!args.replace_cart) {
+      return {
+        ok: false,
+        reason: "different_branch",
+        message: "Cart holds items from another branch. Confirm with the customer, then retry with replace_cart true.",
+        current_outlet_id: cart.outlet_id,
+        current_items: items.map((i) => ({ name: i.name, quantity: i.qty })),
+        new_outlet_id: outletId,
+        new_vendor_name: details.vendor_name,
+      };
+    }
     items = [];
     replaced = true;
   }
+
   const existing = items.find((i) => i.product_id === details.product_id);
   if (existing) existing.qty = Math.min(existing.qty + qty, 50);
   else {
