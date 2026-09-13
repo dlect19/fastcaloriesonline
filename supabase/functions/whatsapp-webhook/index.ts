@@ -2108,6 +2108,15 @@ serve(async (req) => {
     const nlFallback = await tryNaturalLanguage();
     if (nlFallback) return nlFallback;
 
+    // A valid location share must NEVER be answered with the numbered menu.
+    if (hasSharedLocation) {
+      await persistSession(supabase, session.id, session.state, nextContext, nextCart);
+      const lbl = nextContext.location_label ? ` — *${nextContext.location_label}*` : "";
+      return await replyText(
+        `📍 Got your location${lbl}. It's saved for delivery.\n\nTell me what you'd like — for example _"jollof rice and chicken"_.`,
+      );
+    }
+
     // Default: bounce to main menu
     await persistSession(supabase, session.id, "menu", nextContext, nextCart);
     return await sendToUser("wa_main_menu", {}, MAIN_MENU);
