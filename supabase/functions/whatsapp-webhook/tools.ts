@@ -963,16 +963,15 @@ async function toolCreateOrder(ctx: ToolCtx, args: any) {
     ? args.payment_method
     : (cart.payment_method || "wallet");
 
-  // Idempotency: same cart + total + method + branch => same checkout row.
-  const fingerprint = JSON.stringify({
-    phone: ctx.phone,
-    outlet: cart.outlet_id,
-    lines: cart.items.map((i) => [i.product_id, i.qty]),
-    total: pricing.total,
-    method,
-    fulfilment: cart.fulfilment_type,
-  });
-  const idempotencyKey = await sha256(fingerprint);
+  // Idempotency is tied to a CHECKOUT INTENT, not to the cart contents: a retry
+  // of the same attempt reuses the key, while a legitimate later repeat order
+  // gets a brand new intent (the key is cleared once an order is created).
+  let intentKey: string = (cart as any).checkout_intent_key || "";
+  if (!intentKey) {
+    intentKey = `wa-${ctx.phone.replace(/\D/g, "")}-${crypto.randomUUID()}`;
+    await saveCart(ctx, { checkout_intent_key: intentKey } as any);
+  }
+  const idempotencyKey = await sha256(`${intentKey}|${method}`);
 
   const { data: existingCheckout } = await ctx.supabase
     .from("whatsapp_checkouts").select("*").eq("idempotency_key", idempotencyKey).maybeSingle();
@@ -980,6 +979,7 @@ async function toolCreateOrder(ctx: ToolCtx, args: any) {
     const { data: o } = await ctx.supabase
       .from("orders").select("order_number, payment_status, status, confirmation_code")
       .eq("id", existingCheckout.order_id).maybeSingle();
+    await saveCart(ctx, { checkout_intent_key: null } as any);
     return {
       ok: true,
       already_created: true,
@@ -990,6 +990,7 @@ async function toolCreateOrder(ctx: ToolCtx, args: any) {
       confirmation_code: o?.confirmation_code,
     };
   }
+
 
   const wallet = await toolWallet(ctx);
   if (method === "wallet") {
