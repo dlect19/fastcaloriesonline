@@ -202,7 +202,6 @@ async function handleChargeSuccess(supabase: SupabaseClient, data: any, environm
 
   // A WhatsApp checkout intent that was cancelled must never complete either,
   // even if the order row itself was not reachable by id.
-  const reference = (data?.reference as string) || "";
   if (reference) {
     const { data: waCheckout } = await supabase
       .from("whatsapp_checkouts").select("status")
