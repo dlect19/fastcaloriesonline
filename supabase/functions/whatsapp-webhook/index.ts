@@ -254,12 +254,19 @@ serve(async (req) => {
       }).select().single();
       session = created;
     } else if (new Date(session.expires_at) < new Date()) {
+      // Conversation context ages out, but the durable cart does not: restore it
+      // from whatsapp_carts (items are revalidated before any order is created).
+      const { data: durable } = await supabase
+        .from("whatsapp_carts").select("items, updated_at").eq("phone", phone).maybeSingle();
+      const fresh = durable?.updated_at &&
+        Date.now() - new Date(durable.updated_at).getTime() < 24 * 60 * 60 * 1000;
+      const keptCart = fresh && Array.isArray(durable?.items) ? durable.items : [];
       await supabase.from("whatsapp_sessions").update({
-        state: "menu", context: {}, cart: [],
+        state: "menu", context: {}, cart: keptCart,
         last_message_at: new Date().toISOString(),
-        expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       }).eq("id", session.id);
-      session = { ...session, state: "menu", context: {}, cart: [] };
+      session = { ...session, state: "menu", context: {}, cart: keptCart };
     }
 
     // ---- Link to existing profile by phone ----
@@ -328,7 +335,7 @@ serve(async (req) => {
       await supabase.from("whatsapp_sessions").update({
         state: "awaiting_name",
         last_message_at: new Date().toISOString(),
-        expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       }).eq("id", session.id);
       return await sendToUser("wa_account_setup", {}, ACCOUNT_PROMPT_TEXT);
     }
@@ -377,7 +384,7 @@ serve(async (req) => {
           customer_user_id: userId,
           state: "menu",
           last_message_at: new Date().toISOString(),
-          expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
         }).eq("id", session.id);
         session.customer_user_id = userId;
         session.state = "menu";
@@ -1917,7 +1924,7 @@ async function persistSession(supabase: any, id: string, state: string, context:
   await supabase.from("whatsapp_sessions").update({
     state, context, cart,
     last_message_at: new Date().toISOString(),
-    expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+    expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
   }).eq("id", id);
 }
 
