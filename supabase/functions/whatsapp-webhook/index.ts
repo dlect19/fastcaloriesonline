@@ -558,17 +558,39 @@ serve(async (req) => {
         const history: { role: "user" | "assistant"; content: string }[] =
           Array.isArray(ctxState.agent_history) ? ctxState.agent_history.slice(-8) : [];
 
+        // ---- inbound location pin -> durable cart location, then resume ----
+        const priorGoal = ctxState.agent_pending_location || null;
+        let cartForHint = durable;
+        let agentMessage = body;
+        let sharedLabel: string | null = null;
+        if (hasSharedLocation) {
+          sharedLabel = params["Address"] || params["Label"] ||
+            await reverseGeocode(sharedLat, sharedLon);
+          cartForHint = await applySharedLocation(agentCtx, sharedLat, sharedLon, sharedLabel);
+          await saveDefaultAddress(supabase, session.customer_user_id, sharedLat, sharedLon, sharedLabel);
+          const resumeHint = priorGoal?.tool
+            ? ` The customer's pending request was the tool "${priorGoal.tool}" with arguments ${JSON.stringify(priorGoal.args || {}).slice(0, 500)} — retry it now with these coordinates and answer the original request.`
+            : " There is no pending search: confirm the saved location and ask what they would like, without showing any menu list.";
+          agentMessage =
+            `[location_shared] The customer shared a WhatsApp location pin. Confirmed coordinates are already saved to their cart` +
+            `${sharedLabel ? ` (${sharedLabel})` : ""}. Do not restate raw coordinates.${resumeHint}` +
+            (body.trim() ? `\nThey also wrote: ${body.trim().slice(0, 500)}` : "");
+        }
+
         const result = await runAgentTurn({
           ctx: agentCtx,
-          message: body,
+          message: agentMessage,
           history,
           stateHint: {
-            has_saved_location: durable.delivery_latitude != null,
-            fulfilment_type: durable.fulfilment_type,
-            cart_line_count: durable.items.length,
-            selected_outlet_id: durable.outlet_id,
+            has_saved_location: cartForHint.delivery_latitude != null,
+            location_just_shared: hasSharedLocation,
+            pending_location_goal: priorGoal?.tool ?? null,
+            fulfilment_type: cartForHint.fulfilment_type,
+            cart_line_count: cartForHint.items.length,
+            selected_outlet_id: cartForHint.outlet_id,
           },
         });
+
 
         if (result?.reply) {
           const after = await loadCart(agentCtx);
