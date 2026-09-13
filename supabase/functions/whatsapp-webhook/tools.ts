@@ -821,7 +821,7 @@ async function toolGetCart(ctx: ToolCtx) {
 async function toolAddItem(ctx: ToolCtx, args: any) {
   const qty = Math.min(Math.max(Number(args.quantity) || 1, 1), 50);
   const details = await toolProductDetails(ctx, args);
-  if (!details.ok) return { ok: false, reason: details.reason };
+  if (!details.ok) return details;
   if (!details.available) return { ok: false, reason: "unavailable", name: details.name };
   const outletId = details.outlet_id;
   if (!outletId) return { ok: false, reason: "no_branch" };
@@ -829,13 +829,26 @@ async function toolAddItem(ctx: ToolCtx, args: any) {
   if (!gate.ok) return { ok: false, reason: gate.reason, vendor_name: details.vendor_name };
 
   const cart = await loadCart(ctx);
-  // Single-branch carts (same rule as the app): a different branch starts fresh.
+  // Single-branch carts (same rule as the app). Switching branch empties the cart,
+  // so it only happens once the customer has confirmed it.
   let items = cart.items;
   let replaced = false;
   if (cart.outlet_id && cart.outlet_id !== outletId && items.length) {
+    if (!args.replace_cart) {
+      return {
+        ok: false,
+        reason: "different_branch",
+        message: "Cart holds items from another branch. Confirm with the customer, then retry with replace_cart true.",
+        current_outlet_id: cart.outlet_id,
+        current_items: items.map((i) => ({ name: i.name, quantity: i.qty })),
+        new_outlet_id: outletId,
+        new_vendor_name: details.vendor_name,
+      };
+    }
     items = [];
     replaced = true;
   }
+
   const existing = items.find((i) => i.product_id === details.product_id);
   if (existing) existing.qty = Math.min(existing.qty + qty, 50);
   else {
