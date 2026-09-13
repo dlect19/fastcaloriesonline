@@ -42,6 +42,13 @@ export interface ToolCtx {
    * automatically once a WhatsApp location pin (or landmark) arrives.
    */
   onLocationRequired?: (goal: PendingLocationGoal) => void;
+  /**
+   * Called when a tool needs a real FastCalories account. The webhook persists
+   * the goal so the exact request resumes after conversational signup.
+   */
+  onAccountRequired?: (goal: PendingLocationGoal) => void;
+  /** Called once an account has been created/linked mid-conversation. */
+  onAccountCreated?: (userId: string) => void;
 }
 
 /** A vendor-configured add-on the customer actually selected. */
@@ -657,6 +664,21 @@ async function validatePromo(ctx: ToolCtx, codeRaw: string, cart: WaCart, subtot
   if (promo.max_discount != null) discount = Math.min(discount, money(promo.max_discount));
   discount = Math.min(discount, subtotal);
   return { valid: true, discount, code: String(promo.code).toUpperCase(), description: promo.description };
+}
+
+/**
+ * Guests may browse, search, price and build a cart freely. Account-private
+ * operations return this so the agent asks for identity conversationally
+ * instead of dead-ending, and the webhook can resume the pending goal.
+ */
+function authRequired() {
+  return {
+    ok: false,
+    reason: "login_required",
+    requires_account: true,
+    message:
+      "This needs a FastCalories account. Ask the customer for their full name to create one on this WhatsApp number (call create_account), then retry.",
+  };
 }
 
 // ---------------------------------------------------------------- tool specs
@@ -1301,7 +1323,7 @@ async function toolApplyPromo(ctx: ToolCtx, args: any) {
 // ---- wallet / payment / orders --------------------------------------------
 
 async function toolWallet(ctx: ToolCtx) {
-  if (!ctx.userId) return { ok: false, reason: "no_account" };
+  if (!ctx.userId) return authRequired();
   const { data: w } = await ctx.supabase
     .from("wallets").select("id, balance, test_balance, is_disabled")
     .eq("user_id", ctx.userId).eq("wallet_type", "customer").maybeSingle();
@@ -1321,7 +1343,7 @@ async function paystackKey(ctx: ToolCtx) {
 }
 
 async function toolCreateOrder(ctx: ToolCtx, args: any) {
-  if (!ctx.userId) return { ok: false, reason: "no_account" };
+  if (!ctx.userId) return authRequired();
   const cart = await loadCart(ctx);
   if (!cart.items.length) return { ok: false, reason: "empty_cart" };
   if (!cart.vendor_id || !cart.outlet_id) return { ok: false, reason: "no_branch" };
@@ -1630,7 +1652,7 @@ async function toolPaymentStatus(ctx: ToolCtx, args: any) {
 }
 
 async function toolOrderStatus(ctx: ToolCtx, args: any) {
-  if (!ctx.userId) return { ok: false, reason: "no_account" };
+  if (!ctx.userId) return authRequired();
   let q = ctx.supabase
     .from("orders")
     .select("order_number, status, payment_status, total, created_at, delivery_type, confirmation_code, vendor_id")
@@ -1646,7 +1668,7 @@ async function toolOrderStatus(ctx: ToolCtx, args: any) {
 }
 
 async function toolOrderHistory(ctx: ToolCtx, args: any) {
-  if (!ctx.userId) return { ok: false, reason: "no_account" };
+  if (!ctx.userId) return authRequired();
   const { data } = await ctx.supabase
     .from("orders")
     .select("order_number, status, total, created_at, vendor_id")
@@ -1671,7 +1693,7 @@ async function toolOrderHistory(ctx: ToolCtx, args: any) {
 }
 
 async function toolReorder(ctx: ToolCtx, args: any) {
-  if (!ctx.userId) return { ok: false, reason: "no_account" };
+  if (!ctx.userId) return authRequired();
   let q = ctx.supabase
     .from("orders").select("id, order_number, vendor_id, outlet_id")
     .eq("user_id", ctx.userId).order("created_at", { ascending: false }).limit(1);
@@ -1776,7 +1798,7 @@ async function toolNutrition(ctx: ToolCtx, args: any) {
  * Paystack link can never resurrect the order.
  */
 async function toolCancelOrder(ctx: ToolCtx, args: any) {
-  if (!ctx.userId) return { ok: false, reason: "no_account" };
+  if (!ctx.userId) return authRequired();
   const { data, error } = await ctx.supabase.rpc("whatsapp_cancel_pending_order", {
     p_user_id: ctx.userId,
     p_order_number: args.order_number ? String(args.order_number).trim() : null,
