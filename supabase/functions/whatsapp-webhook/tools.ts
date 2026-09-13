@@ -616,8 +616,19 @@ async function nearbyOutlets(ctx: ToolCtx, args: any) {
       delivery_fee_estimate: v.delivery_fee != null ? money(v.delivery_fee) : null,
       is_open: !!v.is_open,
     }));
+  // The cached is_open flag can be stale, so confirm "open now" against the
+  // Lagos working-hours schedule for the branches we are about to show.
+  const candidates = mapped.filter((r) => r.is_open).slice(0, 12);
+  await Promise.all(candidates.map(async (r) => {
+    const { data, error } = await ctx.supabase.rpc("schedule_open_now", {
+      _vendor_id: r.vendor_id,
+      _outlet_id: r.outlet_id,
+    });
+    if (!error && data === false) r.is_open = false;
+  }));
   return { rows: mapped, coords };
 }
+
 
 async function toolSearchOutlets(ctx: ToolCtx, args: any) {
   const { rows, coords, needs_location } = await nearbyOutlets(ctx, args);
