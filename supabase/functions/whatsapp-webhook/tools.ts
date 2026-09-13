@@ -1124,6 +1124,12 @@ async function cartView(ctx: ToolCtx, cart?: WaCart) {
       quantity: i.qty,
       unit_price: money(i.price),
       line_total: money(i.price * i.qty),
+      portion: i.portion ? { label: i.portion.label, price: i.portion.price } : null,
+      addons: (i.addons || []).map((a) => ({ group: a.group_name, name: a.item_name, price: a.price, calories: a.calories })),
+      calories_each: i.calories_known === false ? null : (Number(i.calories) || null),
+      calories_total: i.calories_known === false || !Number(i.calories)
+        ? null
+        : Number(i.calories) * Number(i.qty),
     })),
   };
 }
