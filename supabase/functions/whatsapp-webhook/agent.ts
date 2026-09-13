@@ -2,7 +2,7 @@
 // Model: Google Gemini via the Lovable AI Gateway chat path (openai-compatible
 // provider). FastCalories standardises on Gemini for this agent — no OpenAI path.
 import { streamText, tool, jsonSchema, stepCountIs } from "npm:ai@6.0.282";
-import { createOpenAICompatible } from "npm:@ai-sdk/openai-compatible@3.0.48";
+import { createOpenAICompatible } from "npm:@ai-sdk/openai-compatible@2.0.75";
 import { runTool, TOOL_SPECS, ToolCtx } from "./tools.ts";
 
 // Exact id from the gateway model listing. gemini-2.5-flash is still served but

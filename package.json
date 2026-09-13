@@ -27,7 +27,7 @@
     "assets:rider": "node scripts/prepare-assets.mjs rider && npx capacitor-assets generate"
   },
   "dependencies": {
-    "@ai-sdk/openai-compatible": "3.0.48",
+    "@ai-sdk/openai-compatible": "2.0.75",
     "@capacitor-firebase/messaging": "^8.1.0",
     "@capacitor/android": "^8.0.2",
     "@capacitor/app": "^8.0.1",
