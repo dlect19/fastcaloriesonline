@@ -20,8 +20,8 @@
 - [ ] Optional: backfill-ledger edge function still writes platform balance directly (historical one-off tool, unused in normal flow)
 
 ## WhatsApp AI commerce agent rebuild
-- [ ] Repair follow-up: Phase 1 validated SDK agent, free-text routing, structured logs, live non-mutating AI verification
-- [ ] Repair follow-up: re-audit Phases 2–8 and correct production safety gaps before claiming completion
+- [x] Repair follow-up: Phase 1 rebuilt on the AI SDK agent loop (validated tool schemas, 50-step limit, structured run-id logs), free text now reaches the agent in address/confirm/location states, AI failures surface the real error instead of silently dropping to the old menu; verified with a live non-mutating model+tool call
+- [ ] Repair follow-up: WhatsApp checkout (create_order) is temporarily fenced off — wallet debit is non-atomic (order stays paid if post_wallet_entry fails) and the idempotency fingerprint blocks legitimate repeat orders. Fix both, then re-enable in agent.ts.
 - [ ] Repair follow-up: Phase 9 outbound delivery reliability and A–N acceptance tests without live payment side effects
 - [x] Phase 1: tool-calling agent (agent.ts) + bounded server-authoritative tools (tools.ts), gemini-2.5-flash w/ Gemini fallback, structured logs
 - [x] Phase 2: vendor_id + outlet_id preserved on every search result, cart line, quote, checkout and order; branches never collapsed
