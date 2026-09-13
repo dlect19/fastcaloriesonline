@@ -294,7 +294,7 @@ export async function priceCart(ctx: ToolCtx, cartIn?: WaCart) {
       const q = await quoteDelivery(ctx, cart);
       if (q.ok) {
         quote = q.quote;
-        delivery_fee = money(q.fee);
+        delivery_fee = money(q.fee ?? 0);
       } else {
         pricing_ok = false;
         pricing_reason = q.reason || "pricing_unavailable";
@@ -804,7 +804,7 @@ async function toolAddItem(ctx: ToolCtx, args: any) {
     delivery_quote: null,
     quote_expires_at: null,
   });
-  return { ok: true, replaced_other_branch: replaced, ...(await cartView(ctx, saved)) };
+  return { ...(await cartView(ctx, saved)), ok: true, replaced_other_branch: replaced };
 }
 
 function findLine(items: CartLine[], args: any): number {
@@ -837,7 +837,7 @@ async function toolRemoveItem(ctx: ToolCtx, args: any) {
   const removed = cart.items[idx].name;
   const items = cart.items.filter((_, i) => i !== idx);
   const saved = await saveCart(ctx, { items, delivery_quote: null, quote_expires_at: null });
-  return { ok: true, removed, ...(await cartView(ctx, saved)) };
+  return { ...(await cartView(ctx, saved)), ok: true, removed };
 }
 
 async function toolSetFulfilment(ctx: ToolCtx, args: any) {
@@ -891,7 +891,7 @@ async function toolApplyPromo(ctx: ToolCtx, args: any) {
   const res = await validatePromo(ctx, String(args.code || ""), cart, subtotal);
   if (!res.valid) return { ok: false, reason: res.reason, min_order: (res as any).min_order ?? null };
   await saveCart(ctx, { promo_code: res.code });
-  return { ok: true, code: res.code, discount: res.discount, ...(await cartView(ctx)) };
+  return { ...(await cartView(ctx)), ok: true, code: res.code, promo_discount: res.discount };
 }
 
 // ---- wallet / payment / orders --------------------------------------------
@@ -1294,7 +1294,7 @@ async function toolReorder(ctx: ToolCtx, args: any) {
     delivery_quote: null,
     quote_expires_at: null,
   });
-  return { ok: true, skipped, ...(await cartView(ctx, saved)) };
+  return { ...(await cartView(ctx, saved)), ok: true, skipped };
 }
 
 async function toolNutrition(ctx: ToolCtx, args: any) {
