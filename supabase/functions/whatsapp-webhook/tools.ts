@@ -538,6 +538,12 @@ export async function runTool(name: string, argsRaw: any, ctx: ToolCtx): Promise
   try {
     const out = await execTool(name, args, ctx);
     console.log(`[wa-agent] tool=${name} ok in ${Date.now() - started}ms`);
+    // A missing-location outcome becomes durable pending state so the request
+    // survives the round trip while the customer shares their pin.
+    if (out && typeof out === "object" &&
+        (out.needs_location === true || out.reason === "no_location" || out.reason === "location_required")) {
+      ctx.onLocationRequired?.({ tool: name, args, at: nowIso() });
+    }
     return out;
   } catch (e) {
     console.error(`[wa-agent] tool=${name} failed`, e instanceof Error ? e.message : String(e));
