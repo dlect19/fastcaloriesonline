@@ -1218,6 +1218,164 @@ async function toolProductOptions(ctx: ToolCtx, args: any) {
   };
 }
 
+// ---- shared ordering rules engine (authoritative) --------------------------
+// Everything below delegates to supabase/functions/_shared/orderingRules.ts,
+// which reads public.get_product_ordering_rules. The model never decides pack
+// sizes, prescription rules, quantity limits or pre-order windows.
+
+/** Resolve the branch for a product the same way get_product_details does. */
+async function rulesForArgs(ctx: ToolCtx, args: any) {
+  const details = await toolProductDetails(ctx, args);
+  if (!details.ok) return { error: details as any };
+  const rules = await loadOrderingRules(ctx.supabase, details.product_id!, details.outlet_id!);
+  if (!rules.ok) return { error: { ok: false, reason: rules.reason || "rules_unavailable" } };
+  return { rules, outletId: details.outlet_id as string };
+}
+
+function selectionFromArgs(args: any, outletId: string | null): ItemSelection {
+  return {
+    product_id: String(args.product_id || ""),
+    outlet_id: outletId,
+    quantity: Number(args.quantity) || 1,
+    portion_id: args.portion_id ? String(args.portion_id) : null,
+    addon_item_ids: Array.isArray(args.addon_item_ids) ? args.addon_item_ids.map((x: any) => String(x)) : [],
+    purchase_unit: args.purchase_unit === "sachet" ? "sachet" : args.purchase_unit === "pack" ? "pack" : null,
+    fulfilment_time: args.fulfilment_time ? String(args.fulfilment_time) : null,
+  };
+}
+
+function selectionFromLine(line: CartLine): ItemSelection {
+  return {
+    product_id: line.product_id,
+    outlet_id: line.outlet_id,
+    quantity: line.qty,
+    portion_id: line.portion?.id ?? null,
+    addon_item_ids: (line.addons || []).map((a) => a.item_id),
+    purchase_unit: (line as any).purchase_unit ?? null,
+    fulfilment_time: (line as any).fulfilment_time ?? null,
+  };
+}
+
+/** Machine-readable unresolved requirements, shaped for the agent to ask about. */
+function requirementPayload(v: { ok: boolean; unresolved: any[]; errors: any[] }) {
+  return {
+    ok: false,
+    reason: "requirements_unresolved",
+    unresolved: v.unresolved,
+    requirements: v.errors.map((e: any) => ({
+      code: e.code,
+      message: e.message,
+      product_id: e.product_id ?? null,
+      group_name: e.group_name ?? null,
+      choices: e.choices ?? null,
+      min_selections: e.min_selections ?? null,
+      max_selections: e.max_selections ?? null,
+      min_order_qty: e.min_order_qty ?? null,
+      max_order_qty: e.max_order_qty ?? null,
+      qty_step: e.qty_step ?? null,
+      units_per_pack: e.units_per_pack ?? null,
+      earliest_fulfilment_at: e.earliest_fulfilment_at ?? null,
+    })),
+  };
+}
+
+async function validateSelection(ctx: ToolCtx, selection: ItemSelection, rules: any): Promise<ItemValidation> {
+  const prescriptions = await loadPrescriptionStatus(ctx.supabase, ctx.userId, [selection.product_id]);
+  return validateItemRules(rules, selection, { channel: "whatsapp", prescriptions });
+}
+
+/** Whole-cart backend gate. Used by validate_cart_for_checkout AND create_order. */
+export async function validateCartRules(ctx: ToolCtx, cart: WaCart): Promise<CartValidation> {
+  const ids = cart.items.map((i) => i.product_id);
+  const [rulesMap, prescriptions] = await Promise.all([
+    loadOrderingRulesMany(ctx.supabase, ids, cart.outlet_id),
+    loadPrescriptionStatus(ctx.supabase, ctx.userId, ids),
+  ]);
+  return validateCartForCheckout(
+    cart.items.map((line) => ({ rules: rulesMap[line.product_id], selection: selectionFromLine(line) })),
+    { channel: "whatsapp", prescriptions, cart_outlet_id: cart.outlet_id },
+  );
+}
+
+async function toolOrderingRules(ctx: ToolCtx, args: any) {
+  const r = await rulesForArgs(ctx, args);
+  if ("error" in r) return r.error;
+  return { ...r.rules, preorder: preorderPlan(r.rules) };
+}
+
+async function toolValidateItem(ctx: ToolCtx, args: any) {
+  const r = await rulesForArgs(ctx, args);
+  if ("error" in r) return r.error;
+  const result = await validateSelection(ctx, selectionFromArgs(args, r.outletId), r.rules);
+  if (!result.ok) return { ...requirementPayload(result), line: result.line, recommended_addons: result.recommended_addons };
+  return { ok: true, line: result.line, recommended_addons: result.recommended_addons, notes: result.errors.map((e) => e.code) };
+}
+
+async function toolValidateCart(ctx: ToolCtx) {
+  const cart = await loadCart(ctx);
+  if (!cart.items.length) return { ok: false, reason: "empty_cart" };
+  const v = await validateCartRules(ctx, cart);
+  if (!v.ok) return { ...requirementPayload(v), lines: v.lines };
+  return {
+    ok: true,
+    lines: v.lines,
+    subtotal: v.subtotal,
+    calories_total: v.calories_total,
+    earliest_fulfilment_at: v.earliest_fulfilment_at,
+  };
+}
+
+async function toolPreorderSlots(ctx: ToolCtx, args: any) {
+  const r = await rulesForArgs(ctx, args);
+  if ("error" in r) return r.error;
+  const { plan, slots } = getPreorderSlots(r.rules);
+  return { ok: true, product_id: r.rules.product_id, name: r.rules.name, ...plan, slots };
+}
+
+async function toolRecommendedAddons(ctx: ToolCtx, args: any) {
+  const r = await rulesForArgs(ctx, args);
+  if ("error" in r) return r.error;
+  return {
+    ok: true,
+    product_id: r.rules.product_id,
+    name: r.rules.name,
+    blocking: false,
+    recommended_addons: r.rules.recommended_addons || [],
+  };
+}
+
+async function toolPharmacyRequirements(ctx: ToolCtx, args: any) {
+  const r = await rulesForArgs(ctx, args);
+  if ("error" in r) return r.error;
+  const rx = await loadPrescriptionStatus(ctx.supabase, ctx.userId, [r.rules.product_id]);
+  return {
+    ok: true,
+    product_id: r.rules.product_id,
+    name: r.rules.name,
+    outlet_id: r.outletId,
+    ...pharmacyRequirements(r.rules),
+    prescription_on_record: !!rx[r.rules.product_id]?.satisfied,
+    prescription_status: rx[r.rules.product_id]?.status ?? null,
+  };
+}
+
+async function toolPrescriptionStatus(ctx: ToolCtx, args: any) {
+  if (!ctx.userId) return authRequired();
+  const productId = String(args.product_id || "");
+  const rx = await loadPrescriptionStatus(ctx.supabase, ctx.userId, [productId]);
+  const state = rx[productId];
+  return {
+    ok: true,
+    product_id: productId,
+    satisfied: !!state?.satisfied,
+    status: state?.status ?? "none",
+    pending_review: !!state?.pending_review,
+    how_to_submit: state?.satisfied
+      ? null
+      : "The customer uploads the prescription in the FastCalories app (Pharmacy → prescription upload); the pharmacy then reviews it.",
+  };
+}
+
 // ---- cart ------------------------------------------------------------------
 
 async function cartView(ctx: ToolCtx, cart?: WaCart) {
