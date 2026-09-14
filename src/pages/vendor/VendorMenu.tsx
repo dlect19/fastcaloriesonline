@@ -32,6 +32,14 @@ import type { Tables, Database } from '@/integrations/supabase/types';
 import { DrugSearchDialog } from '@/components/pharmacy/DrugSearchDialog';
 import { isDivisibleUnit, SELLING_UNIT_OPTIONS } from '@/lib/sellingUnits';
 import { ProductPortionsEditor, type PortionDraft } from '@/components/vendor/ProductPortionsEditor';
+import {
+  ProductOrderingRulesEditor,
+  emptyOrderingRulesDraft,
+  orderingRulesFromProduct,
+  orderingRulesToProductData,
+  type OrderingRulesDraft,
+} from '@/components/vendor/ProductOrderingRulesEditor';
+import { RecommendedAddonsManager } from '@/components/vendor/RecommendedAddonsManager';
 
 
 type Product = Tables<'products'>;
@@ -179,6 +187,8 @@ export default function VendorMenu() {
 
   const [portions, setPortions] = useState<PortionDraft[]>([]);
   const [removedPortionIds, setRemovedPortionIds] = useState<string[]>([]);
+  // Shared ordering rules engine configuration (all channels read these).
+  const [orderingRules, setOrderingRules] = useState<OrderingRulesDraft>(emptyOrderingRulesDraft());
 
   const handlePortionsChange = (next: PortionDraft[]) => {
     const removed = portions.filter(p => p.id && !next.some(n => n.id === p.id)).map(p => p.id!);
