@@ -621,6 +621,7 @@ export default function VendorMenu() {
       fulfillment_type: ((product as any).fulfillment_type as 'instant' | 'preorder') || 'instant',
       preorder_lead_days: (product as any).preorder_lead_days?.toString() || '',
     });
+    setOrderingRules(orderingRulesFromProduct(product as any));
     // Load existing portion/size options
     const { data: portionRows } = await supabase
       .from('product_portions')
@@ -869,6 +870,7 @@ export default function VendorMenu() {
     });
     setPortions([]);
     setRemovedPortionIds([]);
+    setOrderingRules(emptyOrderingRulesDraft());
   };
 
 
@@ -1531,7 +1533,10 @@ export default function VendorMenu() {
                       </Label>
                       <Select
                         value={formData.fulfillment_type}
-                        onValueChange={(v) => setFormData({ ...formData, fulfillment_type: v as 'instant' | 'preorder' })}
+                        onValueChange={(v) => {
+                          setFormData({ ...formData, fulfillment_type: v as 'instant' | 'preorder' });
+                          setOrderingRules((r) => ({ ...r, order_mode: v as 'instant' | 'preorder' }));
+                        }}
                       >
                         <SelectTrigger className="h-9">
                           <SelectValue />
