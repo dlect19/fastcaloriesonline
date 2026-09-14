@@ -517,7 +517,8 @@ export default function VendorMenu() {
       // Add pharmacy-specific fields
       if (vendor.category === 'pharmacy') {
         productData.drug_database_id = formData.drug_database_id || null;
-        productData.requires_prescription = formData.medicine_classification !== 'otc';
+        productData.requires_prescription =
+          formData.medicine_classification === 'prescription' || formData.medicine_classification === 'controlled';
         productData.medicine_classification = formData.medicine_classification;
         productData.pharmacist_dosage_instructions = formData.pharmacist_dosage_instructions || null;
         productData.default_dosage_frequency = formData.default_dosage_frequency || null;
