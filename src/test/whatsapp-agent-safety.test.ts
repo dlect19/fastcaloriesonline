@@ -11,3 +11,16 @@ describe("WhatsApp non-mutating safety checks", () => {
     expect(isEffectivelyAvailable({ id: "p", is_available: true }, { p: false })).toBe(false);
   });
 });
+describe("model provider guardrail", () => {
+  it("never reintroduces OpenAI or Astra model references in the WhatsApp agent", async () => {
+    const { readFile } = await import("node:fs/promises");
+    for (const f of [
+      "supabase/functions/whatsapp-webhook/agent.ts",
+      "supabase/functions/whatsapp-webhook/tools.ts",
+      "supabase/functions/_shared/orderingRules.ts",
+    ]) {
+      const src = await readFile(f, "utf8");
+      expect(/openai\/|gpt-|astra/i.test(src)).toBe(false);
+      }
+  });
+});
