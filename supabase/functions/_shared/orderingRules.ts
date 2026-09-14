@@ -237,7 +237,7 @@ export function resolveSaleClass(rules: Pick<OrderingRules, "medicine_classifica
 export interface PharmacyRequirements {
   sale_class: SaleClass;
   prescription_required: boolean;
-  pharmacist_review_required: boolean
+  pharmacist_review_required: boolean;
   orderable_on_whatsapp: boolean;
   min_purchase_age: number | null;
   sale_unit: string | null;
