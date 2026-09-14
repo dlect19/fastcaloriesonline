@@ -1497,6 +1497,10 @@ async function toolAddItem(ctx: ToolCtx, args: any) {
       vendor_name: details.vendor_name,
       is_pharmacy: details.category === "pharmacy" || !!details.requires_prescription,
       serving_unit: details.serving_unit,
+      purchase_unit: engineLine?.purchase_unit ?? null,
+      sale_unit_label: engineLine?.sale_unit_label ?? null,
+      fulfilment_time: engineLine?.fulfilment_time ?? null,
+      sale_class: engineLine?.sale_class ?? null,
     }];
   }
   const saved = await saveCart(ctx, {
