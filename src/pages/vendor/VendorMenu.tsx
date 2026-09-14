@@ -46,6 +46,9 @@ type Product = Tables<'products'>;
 type Vendor = Tables<'vendors'>;
 type CalorieClass = Database['public']['Enums']['calorie_class'];
 
+/** Regulated-sale classes the backend rules engine understands. */
+type MedicineClassification = 'otc' | 'pharmacist_review' | 'prescription' | 'controlled' | 'restricted';
+
 /** Outcome of a product photo upload — distinguishes "no photo chosen" from "upload failed". */
 type UploadResult =
   | { ok: true; url: string | null; path: string | null }
