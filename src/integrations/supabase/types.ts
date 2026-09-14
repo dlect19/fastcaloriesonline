@@ -5144,6 +5144,7 @@ export type Database = {
           subtotal: number
           total: number
           total_calories: number | null
+          tracking_token: string
           updated_at: string
           user_id: string | null
           vendor_called_at: string | null
@@ -5208,6 +5209,7 @@ export type Database = {
           subtotal: number
           total: number
           total_calories?: number | null
+          tracking_token?: string
           updated_at?: string
           user_id?: string | null
           vendor_called_at?: string | null
@@ -5272,6 +5274,7 @@ export type Database = {
           subtotal?: number
           total?: number
           total_calories?: number | null
+          tracking_token?: string
           updated_at?: string
           user_id?: string | null
           vendor_called_at?: string | null
@@ -9995,6 +9998,56 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_delivery_events: {
+        Row: {
+          created_at: string
+          dispatch_token: string
+          event_key: string
+          failure_reason: string | null
+          id: string
+          order_id: string
+          provider_sid: string | null
+          rider_id: string | null
+          sent_at: string | null
+          state: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          dispatch_token?: string
+          event_key: string
+          failure_reason?: string | null
+          id?: string
+          order_id: string
+          provider_sid?: string | null
+          rider_id?: string | null
+          sent_at?: string | null
+          state?: string
+          status: string
+        }
+        Update: {
+          created_at?: string
+          dispatch_token?: string
+          event_key?: string
+          failure_reason?: string | null
+          id?: string
+          order_id?: string
+          provider_sid?: string | null
+          rider_id?: string | null
+          sent_at?: string | null
+          state?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_delivery_events_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_messages: {
         Row: {
           body: string | null
@@ -10564,6 +10617,7 @@ export type Database = {
           subtotal: number
           total: number
           total_calories: number | null
+          tracking_token: string
           updated_at: string
           user_id: string | null
           vendor_called_at: string | null
@@ -10685,6 +10739,7 @@ export type Database = {
       }
       get_rider_delivery_count: { Args: { _rider_id: string }; Returns: number }
       get_rider_profile_id: { Args: { _user_id: string }; Returns: string }
+      get_secure_order_tracking: { Args: { p_token: string }; Returns: Json }
       get_vendor_pending_settlement: {
         Args: { p_environment?: string; p_wallet_id: string }
         Returns: {
