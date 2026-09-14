@@ -60,7 +60,7 @@ export default function AssistedOrdersList() {
       .select(`
         id, order_id, customer_channel, payment_status, payment_method, payment_link, bank_transfer_instructions, created_at, created_by, last_modified_by,
         orders:order_id (
-          id, order_number, status, total, subtotal, delivery_fee, service_fee, packaging_fee, confirmation_code,
+          id, order_number, tracking_token, status, total, subtotal, delivery_fee, service_fee, packaging_fee, confirmation_code,
           receiver_name, receiver_phone, delivery_address_text, vendor_id, user_id,
           vendors:vendor_id ( name )
         )
@@ -147,7 +147,7 @@ export default function AssistedOrdersList() {
 
   const buildPaymentMessage = (r: Row): string => {
     const name = r.customer_profile?.full_name || r.orders?.receiver_name || 'there';
-    const trackingUrl = `${window.location.origin}/track/${r.orders?.order_number}`;
+    const trackingUrl = `${window.location.origin}/track/${r.orders?.tracking_token}`;
     const total = `₦${Number(r.orders?.total || 0).toLocaleString()}`;
     const items = r.orders?.order_items || [];
     const itemsLines = items.map(it => {

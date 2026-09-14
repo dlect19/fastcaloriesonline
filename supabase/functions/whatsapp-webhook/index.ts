@@ -149,7 +149,7 @@ async function sendText(from: string, to: string, body: string) {
 async function verifyTwilioSignature(req: Request, params: Record<string, string>, platformEnvironment: string): Promise<boolean> {
   if (platformEnvironment !== "production") return true;
   const authToken = Deno.env.get("TWILIO_AUTH_TOKEN");
-  if (!authToken) return true;
+  if (!authToken) return false;
   const signature = req.headers.get("x-twilio-signature");
   if (!signature) {
     console.warn("Twilio signature missing on production WhatsApp webhook");

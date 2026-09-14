@@ -14,7 +14,7 @@ function money(v: unknown) { return `₦${Number(v || 0).toLocaleString()}`; }
 
 function buildMessage(action: string, ao: any, order: any): string {
   const name = order?.receiver_name || 'there';
-  const trackingUrl = `https://app.fastcalories.online/track/${order.order_number}`;
+  const trackingUrl = `https://app.fastcalories.online/track/${order.tracking_token}`;
   if (action === 'resend_payment_link') {
     return `Hi ${name}, here is your FastCalories payment link for order ${order.order_number}.\n\nAmount: ${money(order.total)}\nPay securely here:\n${ao.payment_link}\n\nTrack your order:\n${trackingUrl}\n\nReply if you need help. – FastCalories`;
   }

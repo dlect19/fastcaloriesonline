@@ -89,7 +89,7 @@ export default function AssistedOrderDetail() {
   if (!data) return <AdminLayout><div className="p-12 text-center">Order not found.</div></AdminLayout>;
 
   const o = data.orders;
-  const trackingUrl = `${window.location.origin}/track/${o?.order_number}`;
+  const trackingUrl = `${window.location.origin}/track/${o?.tracking_token}`;
   const paidBadge = (s: string) => {
     const map: Record<string, string> = {
       awaiting: 'bg-yellow-500/10 text-yellow-700 border-yellow-500/30',

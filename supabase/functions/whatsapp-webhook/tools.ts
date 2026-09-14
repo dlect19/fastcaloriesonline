@@ -1,3 +1,4 @@
+import { customerOrderTracking } from "../_shared/orderTracking.ts";
 // ============================================================================
 // FastCalories WhatsApp agent tools.
 //
@@ -705,6 +706,7 @@ function authRequired() {
 // ---------------------------------------------------------------- tool specs
 
 export const TOOL_SPECS = [
+  ...["get_order_tracking_link", "get_delivery_status", "get_assigned_rider", "get_delivery_eta"].map(name => ({ name, description: "Fetch live, customer-owned order tracking. Omit unknown rider/location/ETA. Defaults to latest order.", parameters: { type: "object", properties: { order_id: { type: "string" }, order_number: { type: "string" } } } })),
   {
     name: "search_outlets",
     description:
@@ -879,9 +881,9 @@ export const TOOL_SPECS = [
     },
   },
   { name: "get_payment_status", description: "Check whether a pending WhatsApp payment has cleared.", parameters: { type: "object", properties: { reference: { type: "string" } } } },
-  { name: "get_order_status", description: "Status of the customer's latest order or a specific order number.", parameters: { type: "object", properties: { order_number: { type: "string" } } } },
+  { name: "get_order_status", description: "Status of the customer's latest order or a specific order number.", parameters: { type: "object", properties: { order_id: { type: "string" }, order_number: { type: "string" } } } },
   { name: "get_order_history", description: "Recent orders for this customer.", parameters: { type: "object", properties: { limit: { type: "number" } } } },
-  { name: "reorder", description: "Rebuild the cart from a past order, revalidating availability and current prices.", parameters: { type: "object", properties: { order_number: { type: "string" } } } },
+  { name: "reorder", description: "Rebuild the cart from a past order, revalidating availability and current prices.", parameters: { type: "object", properties: { order_id: { type: "string" }, order_number: { type: "string" } } } },
   { name: "get_nutrition", description: "Verified calories for the cart (incl. chosen portions and add-ons) or one product. Never estimate calories yourself.", parameters: { type: "object", properties: { product_id: { type: "string" } } } },
   { name: "recommend_meal", description: "Suggest items chosen ONLY from live nearby menus.", parameters: { type: "object", properties: { goal: { type: "string" }, max_price: { type: "number" }, location_text: { type: "string" } } } },
   {
@@ -975,6 +977,10 @@ async function execTool(name: string, args: any, ctx: ToolCtx): Promise<any> {
       return await toolCreateOrder(ctx, args);
     case "get_payment_status":
       return await toolPaymentStatus(ctx, args);
+    case "get_order_tracking_link":
+    case "get_delivery_status":
+    case "get_assigned_rider":
+    case "get_delivery_eta":
     case "get_order_status":
       return await toolOrderStatus(ctx, args);
     case "get_order_history":
@@ -1778,6 +1784,7 @@ async function toolCreateOrder(ctx: ToolCtx, args: any) {
     await saveCart(ctx, { checkout_intent_key: null } as any);
     return {
       ok: true,
+      ...(await toolOrderStatus(ctx, { order_id: existingCheckout.order_id })),
       already_created: true,
       order_number: o?.order_number,
       payment_status: o?.payment_status,
@@ -1903,10 +1910,12 @@ async function toolCreateOrder(ctx: ToolCtx, args: any) {
     return { ok: false, reason: "order_create_failed" };
   }
   const order = { id: created.order_id, order_number: created.order_number, total: created.total };
+  const tracking = await toolOrderStatus(ctx, { order_id: order.id });
 
   if (method === "wallet") {
     await clearCartAfterOrder(ctx);
     return {
+      ...tracking,
       ok: true,
       order_number: order.order_number,
       total: pricing.total,
@@ -1954,6 +1963,7 @@ async function toolCreateOrder(ctx: ToolCtx, args: any) {
       .update({ payment_link: j.data.authorization_url }).eq("id", checkout?.id);
     await clearCartAfterOrder(ctx);
     return {
+      ...tracking,
       ok: true,
       order_number: order.order_number,
       total: pricing.total,
@@ -2017,19 +2027,7 @@ async function toolPaymentStatus(ctx: ToolCtx, args: any) {
 }
 
 async function toolOrderStatus(ctx: ToolCtx, args: any) {
-  if (!ctx.userId) return authRequired();
-  let q = ctx.supabase
-    .from("orders")
-    .select("order_number, status, payment_status, total, created_at, delivery_type, confirmation_code, vendor_id")
-    .eq("user_id", ctx.userId)
-    .order("created_at", { ascending: false })
-    .limit(1);
-  if (args.order_number) q = q.eq("order_number", String(args.order_number).replace(/^#/, ""));
-  const { data } = await q;
-  const o = data?.[0];
-  if (!o) return { ok: false, reason: "no_orders" };
-  const { data: v } = await ctx.supabase.from("vendors").select("name").eq("id", o.vendor_id).maybeSingle();
-  return { ok: true, ...o, total: money(o.total), vendor_name: v?.name ?? null };
+  return await customerOrderTracking(ctx.supabase, ctx.userId, args);
 }
 
 async function toolOrderHistory(ctx: ToolCtx, args: any) {
