@@ -1692,6 +1692,30 @@ async function toolCreateOrder(ctx: ToolCtx, args: any) {
   const gate = await outletOrderable(ctx, cart.outlet_id);
   if (!gate.ok) return { ok: false, reason: gate.reason, vendor_name: gate.vendor?.name ?? null };
 
+  // MANDATORY backend checkout gate. No order or payment session may be created
+  // while any configured requirement is unresolved, even if the conversation
+  // skipped the question.
+  const rulesCheck = await validateCartRules(ctx, cart);
+  if (!rulesCheck.ok) {
+    return { ...requirementPayload(rulesCheck), lines: rulesCheck.lines };
+  }
+  // Live option/portion repricing straight from vendor configuration: closes the
+  // gap where a changed portion price was never re-fetched at checkout.
+  const optionDrift: string[] = [];
+  for (const priced of rulesCheck.lines) {
+    const line = cart.items.find((i) => i.product_id === priced.product_id);
+    if (!line || priced.unit_price == null) continue;
+    if (money(priced.unit_price) !== money(line.price)) {
+      optionDrift.push(`${line.name}: ₦${money(line.price)} → ₦${money(priced.unit_price)}`);
+      line.price = money(priced.unit_price);
+    }
+  }
+  if (optionDrift.length) {
+    const saved = await saveCart(ctx, { items: cart.items, delivery_quote: null, quote_expires_at: null });
+    return { ok: false, reason: "prices_changed", changes: optionDrift, cart: await cartView(ctx, saved) };
+  }
+
+
   // Re-validate every line against live availability + price before charging.
   const { data: rows } = await ctx.supabase
     .from("products").select(PRODUCT_FIELDS).in("id", cart.items.map((i) => i.product_id));
