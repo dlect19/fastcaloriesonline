@@ -6487,8 +6487,67 @@ export type Database = {
           },
         ]
       }
+      product_recommended_addons: {
+        Row: {
+          addon_item_id: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          label: string | null
+          product_id: string
+          reason: string | null
+          recommended_product_id: string | null
+          sort_order: number
+        }
+        Insert: {
+          addon_item_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          product_id: string
+          reason?: string | null
+          recommended_product_id?: string | null
+          sort_order?: number
+        }
+        Update: {
+          addon_item_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          product_id?: string
+          reason?: string | null
+          recommended_product_id?: string | null
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_recommended_addons_addon_item_id_fkey"
+            columns: ["addon_item_id"]
+            isOneToOne: false
+            referencedRelation: "addon_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_recommended_addons_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_recommended_addons_recommended_product_id_fkey"
+            columns: ["recommended_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
+          allows_break_pack: boolean | null
           allows_fractional_qty: boolean
           allows_sachet: boolean
           base_portion_size: number | null
@@ -6514,8 +6573,11 @@ export type Database = {
           is_available: boolean | null
           is_hidden: boolean
           low_stock_threshold: number | null
+          max_order_qty: number | null
           meal_type: string
           medicine_classification: string
+          min_order_qty: number
+          min_purchase_age: number | null
           name: string
           nutrient_tags: string[] | null
           nutrition_source: string | null
@@ -6523,22 +6585,33 @@ export type Database = {
           pack_unit_label: string | null
           pharmacist_dosage_instructions: string | null
           portion_unit: string | null
+          preorder_cutoff_time: string | null
           preorder_lead_days: number | null
+          preorder_lead_minutes: number | null
+          preorder_min_qty: number | null
+          preorder_weekdays: number[] | null
+          prep_time_minutes: number | null
           price: number
           protein_grams: number | null
+          qty_step: number
           requires_prescription: boolean | null
           sachet_price: number | null
           sachet_unit_label: string | null
           sachets_per_pack: number | null
+          sale_unit: string | null
+          sale_unit_label: string | null
           serving_size_grams: number | null
           serving_unit: string | null
           stock_quantity: number | null
           target_age_group: string | null
           track_stock: boolean | null
+          units_per_pack: number | null
           updated_at: string
           vendor_id: string
+          whatsapp_orderable: boolean
         }
         Insert: {
+          allows_break_pack?: boolean | null
           allows_fractional_qty?: boolean
           allows_sachet?: boolean
           base_portion_size?: number | null
@@ -6566,8 +6639,11 @@ export type Database = {
           is_available?: boolean | null
           is_hidden?: boolean
           low_stock_threshold?: number | null
+          max_order_qty?: number | null
           meal_type?: string
           medicine_classification?: string
+          min_order_qty?: number
+          min_purchase_age?: number | null
           name: string
           nutrient_tags?: string[] | null
           nutrition_source?: string | null
@@ -6575,22 +6651,33 @@ export type Database = {
           pack_unit_label?: string | null
           pharmacist_dosage_instructions?: string | null
           portion_unit?: string | null
+          preorder_cutoff_time?: string | null
           preorder_lead_days?: number | null
+          preorder_lead_minutes?: number | null
+          preorder_min_qty?: number | null
+          preorder_weekdays?: number[] | null
+          prep_time_minutes?: number | null
           price: number
           protein_grams?: number | null
+          qty_step?: number
           requires_prescription?: boolean | null
           sachet_price?: number | null
           sachet_unit_label?: string | null
           sachets_per_pack?: number | null
+          sale_unit?: string | null
+          sale_unit_label?: string | null
           serving_size_grams?: number | null
           serving_unit?: string | null
           stock_quantity?: number | null
           target_age_group?: string | null
           track_stock?: boolean | null
+          units_per_pack?: number | null
           updated_at?: string
           vendor_id: string
+          whatsapp_orderable?: boolean
         }
         Update: {
+          allows_break_pack?: boolean | null
           allows_fractional_qty?: boolean
           allows_sachet?: boolean
           base_portion_size?: number | null
@@ -6618,8 +6705,11 @@ export type Database = {
           is_available?: boolean | null
           is_hidden?: boolean
           low_stock_threshold?: number | null
+          max_order_qty?: number | null
           meal_type?: string
           medicine_classification?: string
+          min_order_qty?: number
+          min_purchase_age?: number | null
           name?: string
           nutrient_tags?: string[] | null
           nutrition_source?: string | null
@@ -6627,20 +6717,30 @@ export type Database = {
           pack_unit_label?: string | null
           pharmacist_dosage_instructions?: string | null
           portion_unit?: string | null
+          preorder_cutoff_time?: string | null
           preorder_lead_days?: number | null
+          preorder_lead_minutes?: number | null
+          preorder_min_qty?: number | null
+          preorder_weekdays?: number[] | null
+          prep_time_minutes?: number | null
           price?: number
           protein_grams?: number | null
+          qty_step?: number
           requires_prescription?: boolean | null
           sachet_price?: number | null
           sachet_unit_label?: string | null
           sachets_per_pack?: number | null
+          sale_unit?: string | null
+          sale_unit_label?: string | null
           serving_size_grams?: number | null
           serving_unit?: string | null
           stock_quantity?: number | null
           target_age_group?: string | null
           track_stock?: boolean | null
+          units_per_pack?: number | null
           updated_at?: string
           vendor_id?: string
+          whatsapp_orderable?: boolean
         }
         Relationships: [
           {
@@ -10566,6 +10666,10 @@ export type Database = {
         Returns: number
       }
       get_platform_environment: { Args: never; Returns: string }
+      get_product_ordering_rules: {
+        Args: { p_outlet_id?: string; p_product_id: string }
+        Returns: Json
+      }
       get_public_order_tracking: {
         Args: { _order_number: string }
         Returns: {

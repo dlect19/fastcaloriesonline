@@ -20,6 +20,19 @@ import {
   isEffectivelyAvailable,
   resolveDefaultOutletId,
 } from "../_shared/availability.ts";
+import {
+  type CartValidation,
+  getPreorderSlots,
+  type ItemSelection,
+  type ItemValidation,
+  loadOrderingRules,
+  loadOrderingRulesMany,
+  loadPrescriptionStatus,
+  pharmacyRequirements,
+  preorderPlan,
+  validateCartForCheckout,
+  validateCartItem as validateItemRules,
+} from "../_shared/orderingRules.ts";
 
 export const QUOTE_TTL_MINUTES = 15;
 export const CART_TTL_HOURS = 24;
@@ -90,6 +103,14 @@ export interface CartLine {
   calories_known?: boolean;
   addons?: SelectedAddon[];
   portion?: SelectedPortion | null;
+  /** Pharmacy sale unit chosen when the vendor allows breaking a pack. */
+  purchase_unit?: "pack" | "sachet" | null;
+  /** Customer-facing sale unit label from vendor configuration. */
+  sale_unit_label?: string | null;
+  /** ISO fulfilment time for pre-order lines. */
+  fulfilment_time?: string | null;
+  /** Backend-resolved regulated-sale class (never model-decided). */
+  sale_class?: string | null;
 }
 
 export interface WaCart {
@@ -744,6 +765,53 @@ export const TOOL_SPECS = [
       required: ["product_id"],
     },
   },
+  {
+    name: "get_product_ordering_rules",
+    description:
+      "The authoritative ordering rules a vendor configured for one product at one branch: sale unit and pack size, break-pack allowance, min/max/step quantity, regulated-sale classification (OTC / pharmacist review / prescription / controlled / restricted), pre-order mode and lead time, option groups, portions, recommended add-ons and stored calories. Read this before answering any question about how an item is sold. Never infer these facts yourself.",
+    parameters: { type: "object", properties: { product_id: { type: "string" }, outlet_id: { type: "string" } }, required: ["product_id"] },
+  },
+  {
+    name: "validate_cart_item",
+    description:
+      "Ask the backend whether this exact item, quantity, options and (optional) pre-order time may be ordered. Returns machine-readable unresolved requirements (MISSING_REQUIRED_OPTION, PRESCRIPTION_REQUIRED, PREORDER_REQUIRED, INVALID_PURCHASE_INCREMENT, ...) with the real choices to offer. Use it to find out what still needs asking.",
+    parameters: {
+      type: "object",
+      properties: {
+        product_id: { type: "string" }, outlet_id: { type: "string" }, quantity: { type: "number" },
+        portion_id: { type: "string" }, addon_item_ids: { type: "array", items: { type: "string" } },
+        purchase_unit: { type: "string", enum: ["pack", "sachet"] }, fulfilment_time: { type: "string" },
+      },
+      required: ["product_id"],
+    },
+  },
+  {
+    name: "validate_cart_for_checkout",
+    description:
+      "Backend gate for the whole cart. Call before create_order. Returns ok plus every unresolved requirement across all lines, even for questions the conversation skipped.",
+    parameters: { type: "object", properties: {} },
+  },
+  {
+    name: "get_preorder_slots",
+    description: "Earliest valid fulfilment time and bookable slots for a pre-order product, computed from the vendor's configured lead time, cutoff and allowed days.",
+    parameters: { type: "object", properties: { product_id: { type: "string" }, outlet_id: { type: "string" } }, required: ["product_id"] },
+  },
+  {
+    name: "get_recommended_addons",
+    description: "Vendor-configured 'goes well with' suggestions for a product. Purely optional — never required for checkout.",
+    parameters: { type: "object", properties: { product_id: { type: "string" }, outlet_id: { type: "string" } }, required: ["product_id"] },
+  },
+  {
+    name: "get_pharmacy_purchase_requirements",
+    description:
+      "Regulated-sale requirements for a pharmacy item straight from vendor/admin configuration: sale class, whether a prescription or pharmacist review is needed, whether it may be sold on WhatsApp at all, pack size, break-pack allowance, quantity caps and age limit. This is the only source of truth for prescription rules — never decide them yourself.",
+    parameters: { type: "object", properties: { product_id: { type: "string" }, outlet_id: { type: "string" } }, required: ["product_id"] },
+  },
+  {
+    name: "get_prescription_status",
+    description: "Whether the customer already has an accepted prescription on record for a product, and whether a pharmacist review is still pending.",
+    parameters: { type: "object", properties: { product_id: { type: "string" } }, required: ["product_id"] },
+  },
   { name: "get_cart", description: "Read the customer's current cart with server-computed totals, per-line calories and chosen options.", parameters: { type: "object", properties: {} } },
   {
     name: "add_cart_item",
@@ -757,6 +825,8 @@ export const TOOL_SPECS = [
         quantity: { type: "number" },
         portion_id: { type: "string" },
         addon_item_ids: { type: "array", items: { type: "string" } },
+        purchase_unit: { type: "string", enum: ["pack", "sachet"], description: "Only for pharmacy items the vendor allows breaking (pack vs single sachet/strip)." },
+        fulfilment_time: { type: "string", description: "ISO time for a pre-order item, taken from get_preorder_slots." },
         replace_cart: { type: "boolean" },
       },
       required: ["product_id"],
@@ -915,6 +985,20 @@ async function execTool(name: string, args: any, ctx: ToolCtx): Promise<any> {
       return await toolNutrition(ctx, args);
     case "recommend_meal":
       return await toolRecommend(ctx, args);
+    case "get_product_ordering_rules":
+      return await toolOrderingRules(ctx, args);
+    case "validate_cart_item":
+      return await toolValidateItem(ctx, args);
+    case "validate_cart_for_checkout":
+      return await toolValidateCart(ctx);
+    case "get_preorder_slots":
+      return await toolPreorderSlots(ctx, args);
+    case "get_recommended_addons":
+      return await toolRecommendedAddons(ctx, args);
+    case "get_pharmacy_purchase_requirements":
+      return await toolPharmacyRequirements(ctx, args);
+    case "get_prescription_status":
+      return await toolPrescriptionStatus(ctx, args);
     default:
       return { error: "unknown_tool", tool: name };
   }
@@ -1142,6 +1226,164 @@ async function toolProductOptions(ctx: ToolCtx, args: any) {
   };
 }
 
+// ---- shared ordering rules engine (authoritative) --------------------------
+// Everything below delegates to supabase/functions/_shared/orderingRules.ts,
+// which reads public.get_product_ordering_rules. The model never decides pack
+// sizes, prescription rules, quantity limits or pre-order windows.
+
+/** Resolve the branch for a product the same way get_product_details does. */
+async function rulesForArgs(ctx: ToolCtx, args: any) {
+  const details = await toolProductDetails(ctx, args);
+  if (!details.ok) return { error: details as any };
+  const rules = await loadOrderingRules(ctx.supabase, details.product_id!, details.outlet_id!);
+  if (!rules.ok) return { error: { ok: false, reason: rules.reason || "rules_unavailable" } };
+  return { rules, outletId: details.outlet_id as string };
+}
+
+function selectionFromArgs(args: any, outletId: string | null): ItemSelection {
+  return {
+    product_id: String(args.product_id || ""),
+    outlet_id: outletId,
+    quantity: Number(args.quantity) || 1,
+    portion_id: args.portion_id ? String(args.portion_id) : null,
+    addon_item_ids: Array.isArray(args.addon_item_ids) ? args.addon_item_ids.map((x: any) => String(x)) : [],
+    purchase_unit: args.purchase_unit === "sachet" ? "sachet" : args.purchase_unit === "pack" ? "pack" : null,
+    fulfilment_time: args.fulfilment_time ? String(args.fulfilment_time) : null,
+  };
+}
+
+function selectionFromLine(line: CartLine): ItemSelection {
+  return {
+    product_id: line.product_id,
+    outlet_id: line.outlet_id,
+    quantity: line.qty,
+    portion_id: line.portion?.id ?? null,
+    addon_item_ids: (line.addons || []).map((a) => a.item_id),
+    purchase_unit: (line as any).purchase_unit ?? null,
+    fulfilment_time: (line as any).fulfilment_time ?? null,
+  };
+}
+
+/** Machine-readable unresolved requirements, shaped for the agent to ask about. */
+function requirementPayload(v: { ok: boolean; unresolved: any[]; errors: any[] }) {
+  return {
+    ok: false,
+    reason: "requirements_unresolved",
+    unresolved: v.unresolved,
+    requirements: v.errors.map((e: any) => ({
+      code: e.code,
+      message: e.message,
+      product_id: e.product_id ?? null,
+      group_name: e.group_name ?? null,
+      choices: e.choices ?? null,
+      min_selections: e.min_selections ?? null,
+      max_selections: e.max_selections ?? null,
+      min_order_qty: e.min_order_qty ?? null,
+      max_order_qty: e.max_order_qty ?? null,
+      qty_step: e.qty_step ?? null,
+      units_per_pack: e.units_per_pack ?? null,
+      earliest_fulfilment_at: e.earliest_fulfilment_at ?? null,
+    })),
+  };
+}
+
+async function validateSelection(ctx: ToolCtx, selection: ItemSelection, rules: any): Promise<ItemValidation> {
+  const prescriptions = await loadPrescriptionStatus(ctx.supabase, ctx.userId, [selection.product_id]);
+  return validateItemRules(rules, selection, { channel: "whatsapp", prescriptions });
+}
+
+/** Whole-cart backend gate. Used by validate_cart_for_checkout AND create_order. */
+export async function validateCartRules(ctx: ToolCtx, cart: WaCart): Promise<CartValidation> {
+  const ids = cart.items.map((i) => i.product_id);
+  const [rulesMap, prescriptions] = await Promise.all([
+    loadOrderingRulesMany(ctx.supabase, ids, cart.outlet_id),
+    loadPrescriptionStatus(ctx.supabase, ctx.userId, ids),
+  ]);
+  return validateCartForCheckout(
+    cart.items.map((line) => ({ rules: rulesMap[line.product_id], selection: selectionFromLine(line) })),
+    { channel: "whatsapp", prescriptions, cart_outlet_id: cart.outlet_id },
+  );
+}
+
+async function toolOrderingRules(ctx: ToolCtx, args: any) {
+  const r = await rulesForArgs(ctx, args);
+  if ("error" in r) return r.error;
+  return { ...r.rules, preorder: preorderPlan(r.rules) };
+}
+
+async function toolValidateItem(ctx: ToolCtx, args: any) {
+  const r = await rulesForArgs(ctx, args);
+  if ("error" in r) return r.error;
+  const result = await validateSelection(ctx, selectionFromArgs(args, r.outletId), r.rules);
+  if (!result.ok) return { ...requirementPayload(result), line: result.line, recommended_addons: result.recommended_addons };
+  return { ok: true, line: result.line, recommended_addons: result.recommended_addons, notes: result.errors.map((e) => e.code) };
+}
+
+async function toolValidateCart(ctx: ToolCtx) {
+  const cart = await loadCart(ctx);
+  if (!cart.items.length) return { ok: false, reason: "empty_cart" };
+  const v = await validateCartRules(ctx, cart);
+  if (!v.ok) return { ...requirementPayload(v), lines: v.lines };
+  return {
+    ok: true,
+    lines: v.lines,
+    subtotal: v.subtotal,
+    calories_total: v.calories_total,
+    earliest_fulfilment_at: v.earliest_fulfilment_at,
+  };
+}
+
+async function toolPreorderSlots(ctx: ToolCtx, args: any) {
+  const r = await rulesForArgs(ctx, args);
+  if ("error" in r) return r.error;
+  const { plan, slots } = getPreorderSlots(r.rules);
+  return { ok: true, product_id: r.rules.product_id, name: r.rules.name, ...plan, slots };
+}
+
+async function toolRecommendedAddons(ctx: ToolCtx, args: any) {
+  const r = await rulesForArgs(ctx, args);
+  if ("error" in r) return r.error;
+  return {
+    ok: true,
+    product_id: r.rules.product_id,
+    name: r.rules.name,
+    blocking: false,
+    recommended_addons: r.rules.recommended_addons || [],
+  };
+}
+
+async function toolPharmacyRequirements(ctx: ToolCtx, args: any) {
+  const r = await rulesForArgs(ctx, args);
+  if ("error" in r) return r.error;
+  const rx = await loadPrescriptionStatus(ctx.supabase, ctx.userId, [r.rules.product_id]);
+  return {
+    ok: true,
+    product_id: r.rules.product_id,
+    name: r.rules.name,
+    outlet_id: r.outletId,
+    ...pharmacyRequirements(r.rules),
+    prescription_on_record: !!rx[r.rules.product_id]?.satisfied,
+    prescription_status: rx[r.rules.product_id]?.status ?? null,
+  };
+}
+
+async function toolPrescriptionStatus(ctx: ToolCtx, args: any) {
+  if (!ctx.userId) return authRequired();
+  const productId = String(args.product_id || "");
+  const rx = await loadPrescriptionStatus(ctx.supabase, ctx.userId, [productId]);
+  const state = rx[productId];
+  return {
+    ok: true,
+    product_id: productId,
+    satisfied: !!state?.satisfied,
+    status: state?.status ?? "none",
+    pending_review: !!state?.pending_review,
+    how_to_submit: state?.satisfied
+      ? null
+      : "The customer uploads the prescription in the FastCalories app (Pharmacy → prescription upload); the pharmacy then reviews it.",
+  };
+}
+
 // ---- cart ------------------------------------------------------------------
 
 async function cartView(ctx: ToolCtx, cart?: WaCart) {
@@ -1193,6 +1435,25 @@ async function toolAddItem(ctx: ToolCtx, args: any) {
     return { ...sel.error, product_id: details.product_id, name: details.name, outlet_id: outletId };
   }
 
+  // Authoritative backend rules: quantity/pack rules, regulated-sale class,
+  // pre-order windows and channel permission. Configuration wins over the model.
+  const engineRules = await loadOrderingRules(ctx.supabase, details.product_id, outletId);
+  let engineLine: any = null;
+  if (engineRules.ok) {
+    const selection = selectionFromArgs({ ...args, product_id: details.product_id, quantity: qty }, outletId);
+    const verdict = await validateSelection(ctx, selection, engineRules);
+    engineLine = verdict.line;
+    if (!verdict.ok) {
+      return {
+        ...requirementPayload(verdict),
+        product_id: details.product_id,
+        name: details.name,
+        outlet_id: outletId,
+        recommended_addons: verdict.recommended_addons,
+      };
+    }
+  }
+
   const cart = await loadCart(ctx);
   // Single-branch carts (same rule as the app). Switching branch empties the cart,
   // so it only happens once the customer has confirmed it.
@@ -1236,6 +1497,10 @@ async function toolAddItem(ctx: ToolCtx, args: any) {
       vendor_name: details.vendor_name,
       is_pharmacy: details.category === "pharmacy" || !!details.requires_prescription,
       serving_unit: details.serving_unit,
+      purchase_unit: engineLine?.purchase_unit ?? null,
+      sale_unit_label: engineLine?.sale_unit_label ?? null,
+      fulfilment_time: engineLine?.fulfilment_time ?? null,
+      sale_class: engineLine?.medicine_classification ?? null,
     }];
   }
   const saved = await saveCart(ctx, {
@@ -1426,6 +1691,30 @@ async function toolCreateOrder(ctx: ToolCtx, args: any) {
 
   const gate = await outletOrderable(ctx, cart.outlet_id);
   if (!gate.ok) return { ok: false, reason: gate.reason, vendor_name: gate.vendor?.name ?? null };
+
+  // MANDATORY backend checkout gate. No order or payment session may be created
+  // while any configured requirement is unresolved, even if the conversation
+  // skipped the question.
+  const rulesCheck = await validateCartRules(ctx, cart);
+  if (!rulesCheck.ok) {
+    return { ...requirementPayload(rulesCheck), lines: rulesCheck.lines };
+  }
+  // Live option/portion repricing straight from vendor configuration: closes the
+  // gap where a changed portion price was never re-fetched at checkout.
+  const optionDrift: string[] = [];
+  for (const priced of rulesCheck.lines) {
+    const line = cart.items.find((i) => i.product_id === priced.product_id);
+    if (!line || priced.unit_price == null) continue;
+    if (money(priced.unit_price) !== money(line.price)) {
+      optionDrift.push(`${line.name}: ₦${money(line.price)} → ₦${money(priced.unit_price)}`);
+      line.price = money(priced.unit_price);
+    }
+  }
+  if (optionDrift.length) {
+    const saved = await saveCart(ctx, { items: cart.items, delivery_quote: null, quote_expires_at: null });
+    return { ok: false, reason: "prices_changed", changes: optionDrift, cart: await cartView(ctx, saved) };
+  }
+
 
   // Re-validate every line against live availability + price before charging.
   const { data: rows } = await ctx.supabase

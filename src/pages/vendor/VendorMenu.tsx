@@ -32,11 +32,22 @@ import type { Tables, Database } from '@/integrations/supabase/types';
 import { DrugSearchDialog } from '@/components/pharmacy/DrugSearchDialog';
 import { isDivisibleUnit, SELLING_UNIT_OPTIONS } from '@/lib/sellingUnits';
 import { ProductPortionsEditor, type PortionDraft } from '@/components/vendor/ProductPortionsEditor';
+import {
+  ProductOrderingRulesEditor,
+  emptyOrderingRulesDraft,
+  orderingRulesFromProduct,
+  orderingRulesToProductData,
+  type OrderingRulesDraft,
+} from '@/components/vendor/ProductOrderingRulesEditor';
+import { RecommendedAddonsManager } from '@/components/vendor/RecommendedAddonsManager';
 
 
 type Product = Tables<'products'>;
 type Vendor = Tables<'vendors'>;
 type CalorieClass = Database['public']['Enums']['calorie_class'];
+
+/** Regulated-sale classes the backend rules engine understands. */
+type MedicineClassification = 'otc' | 'pharmacist_review' | 'prescription' | 'controlled' | 'restricted';
 
 /** Outcome of a product photo upload — distinguishes "no photo chosen" from "upload failed". */
 type UploadResult =
@@ -154,7 +165,7 @@ export default function VendorMenu() {
     // Pharmacy fields
     drug_database_id: '' as string,
     requires_prescription: false,
-    medicine_classification: 'otc' as 'otc' | 'prescription' | 'controlled',
+    medicine_classification: 'otc' as MedicineClassification,
     pharmacist_dosage_instructions: '',
     default_dosage_frequency: 'twice_daily',
     default_dosage_duration_days: '',
@@ -179,6 +190,8 @@ export default function VendorMenu() {
 
   const [portions, setPortions] = useState<PortionDraft[]>([]);
   const [removedPortionIds, setRemovedPortionIds] = useState<string[]>([]);
+  // Shared ordering rules engine configuration (all channels read these).
+  const [orderingRules, setOrderingRules] = useState<OrderingRulesDraft>(emptyOrderingRulesDraft());
 
   const handlePortionsChange = (next: PortionDraft[]) => {
     const removed = portions.filter(p => p.id && !next.some(n => n.id === p.id)).map(p => p.id!);
@@ -492,18 +505,20 @@ export default function VendorMenu() {
         portion_unit: formData.portion_unit || 'plate',
         allows_fractional_qty: formData.allows_fractional_qty,
         base_portion_size: formData.base_portion_size ? parseFloat(formData.base_portion_size) : 1,
-        fulfillment_type: formData.fulfillment_type,
         preorder_lead_days:
           formData.fulfillment_type === 'preorder' && formData.preorder_lead_days
             ? parseInt(formData.preorder_lead_days, 10)
             : null,
+        // Shared ordering rules (sale unit, quantity, pre-order windows).
+        ...orderingRulesToProductData(orderingRules, vendor.category === 'pharmacy'),
       };
 
 
       // Add pharmacy-specific fields
       if (vendor.category === 'pharmacy') {
         productData.drug_database_id = formData.drug_database_id || null;
-        productData.requires_prescription = formData.medicine_classification !== 'otc';
+        productData.requires_prescription =
+          formData.medicine_classification === 'prescription' || formData.medicine_classification === 'controlled';
         productData.medicine_classification = formData.medicine_classification;
         productData.pharmacist_dosage_instructions = formData.pharmacist_dosage_instructions || null;
         productData.default_dosage_frequency = formData.default_dosage_frequency || null;
@@ -610,6 +625,7 @@ export default function VendorMenu() {
       fulfillment_type: ((product as any).fulfillment_type as 'instant' | 'preorder') || 'instant',
       preorder_lead_days: (product as any).preorder_lead_days?.toString() || '',
     });
+    setOrderingRules(orderingRulesFromProduct(product as any));
     // Load existing portion/size options
     const { data: portionRows } = await supabase
       .from('product_portions')
@@ -858,6 +874,7 @@ export default function VendorMenu() {
     });
     setPortions([]);
     setRemovedPortionIds([]);
+    setOrderingRules(emptyOrderingRulesDraft());
   };
 
 
@@ -1138,23 +1155,33 @@ export default function VendorMenu() {
                         <Label className="text-sm">Medicine Classification</Label>
                         <Select
                           value={formData.medicine_classification}
-                          onValueChange={(v: 'otc' | 'prescription' | 'controlled') =>
-                            setFormData({ ...formData, medicine_classification: v, requires_prescription: v !== 'otc' })
+                          onValueChange={(v: MedicineClassification) =>
+                            setFormData({
+                              ...formData,
+                              medicine_classification: v,
+                              requires_prescription: v === 'prescription' || v === 'controlled',
+                            })
                           }
                         >
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="otc">🟢 OTC — No Prescription Required</SelectItem>
-                            <SelectItem value="prescription">🟡 Prescription Required</SelectItem>
-                            <SelectItem value="controlled">🔴 Controlled Drug — Verification Required</SelectItem>
+                            <SelectItem value="otc">🟢 OTC / general sale — No prescription required</SelectItem>
+                            <SelectItem value="pharmacist_review">🔵 Pharmacist review — a pharmacist checks before dispensing</SelectItem>
+                            <SelectItem value="prescription">🟡 Prescription required</SelectItem>
+                            <SelectItem value="controlled">🔴 Controlled drug — prescription + verification</SelectItem>
+                            <SelectItem value="restricted">⛔ Restricted — not orderable on WhatsApp</SelectItem>
                           </SelectContent>
                         </Select>
                         <p className="text-[11px] text-muted-foreground">
                           {formData.medicine_classification === 'otc'
                             ? 'Customers can buy this immediately.'
-                            : formData.medicine_classification === 'prescription'
-                              ? 'Customers must upload a prescription; pharmacist must approve.'
-                              : 'Prescription + pharmacist approval + enhanced audit trail required.'}
+                            : formData.medicine_classification === 'pharmacist_review'
+                              ? 'Order goes through pharmacist review; no prescription upload required.'
+                              : formData.medicine_classification === 'prescription'
+                                ? 'Customers must upload a prescription; pharmacist must approve before checkout.'
+                                : formData.medicine_classification === 'controlled'
+                                  ? 'Prescription + pharmacist approval + enhanced audit trail required.'
+                                  : 'Blocked from WhatsApp and self-service ordering; in-store/assisted only.'}
                         </p>
                       </div>
 
@@ -1520,7 +1547,10 @@ export default function VendorMenu() {
                       </Label>
                       <Select
                         value={formData.fulfillment_type}
-                        onValueChange={(v) => setFormData({ ...formData, fulfillment_type: v as 'instant' | 'preorder' })}
+                        onValueChange={(v) => {
+                          setFormData({ ...formData, fulfillment_type: v as 'instant' | 'preorder' });
+                          setOrderingRules((r) => ({ ...r, order_mode: v as 'instant' | 'preorder' }));
+                        }}
                       >
                         <SelectTrigger className="h-9">
                           <SelectValue />
@@ -1550,6 +1580,19 @@ export default function VendorMenu() {
                     </div>
 
                   )}
+
+                  {/* Shared ordering rules: every channel (WhatsApp, app, POS) enforces these */}
+                  <ProductOrderingRulesEditor
+                    value={orderingRules}
+                    onChange={setOrderingRules}
+                    isPharmacy={vendor?.category === 'pharmacy'}
+                  />
+
+                  {editingProduct && vendor && (
+                    <RecommendedAddonsManager productId={editingProduct.id} vendorId={vendor.id} />
+                  )}
+
+
 
                   {/* Cuisine Category */}
                   {vendor?.category === 'restaurant' && cuisineCategories.length > 0 && (
