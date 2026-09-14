@@ -38,3 +38,9 @@
 - [x] Phase 8: order status/history/reorder/nutrition/promo/recommend tools (all revalidated server-side)
 - [x] Phase 9: plain-text-first flow, per-send `twilio_api_logs` rows (session_id, order_id, attempt, provider_status_code, sid/status/error) and transient-only retry with backoff; template resubmission remains a Meta-side admin action and never blocks free text
 - [ ] Live conversational acceptance tests A–N: need a real inbound WhatsApp message (Twilio signature verification blocks simulated inbound in production)
+
+## WhatsApp delivery tracking follow-up
+- [ ] Secure read-only tracking links and carryout-aware public page
+- [ ] Live ownership-scoped AI delivery tools and checkout confirmation
+- [ ] Authoritative event-driven, idempotent WhatsApp status notifications
+- [ ] Safe automated tests and deployment verification (no live sends/orders/payments)
