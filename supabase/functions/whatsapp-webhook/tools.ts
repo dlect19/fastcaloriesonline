@@ -1500,7 +1500,7 @@ async function toolAddItem(ctx: ToolCtx, args: any) {
       purchase_unit: engineLine?.purchase_unit ?? null,
       sale_unit_label: engineLine?.sale_unit_label ?? null,
       fulfilment_time: engineLine?.fulfilment_time ?? null,
-      sale_class: engineLine?.sale_class ?? null,
+      sale_class: engineLine?.medicine_classification ?? null,
     }];
   }
   const saved = await saveCart(ctx, {

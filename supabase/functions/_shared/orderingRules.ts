@@ -533,8 +533,9 @@ function priceLine(
 ): PricedLine {
   const pharmacy = pharmacyRequirements(rules);
   const sachet = selection.purchase_unit === "sachet" && rules.allows_break_pack && rules.sachet_price != null;
-  const listPrice = rules.discount_price != null && num(rules.discount_price) > 0 ? num(rules.discount_price) : num(rules.price);
-  const basePrice = sachet ? money(rules.sachet_price) : portion ? money(portion.price) : money(listPrice);
+  // products.price stays the authoritative menu price for ordering channels;
+  // promotional discount_price is applied by the pricing/promo layer, not here.
+  const basePrice = sachet ? money(rules.sachet_price) : portion ? money(portion.price) : money(num(rules.price));
   const baseCalories = rules.calories == null
     ? null
     : Math.round(num(rules.calories) * (portion?.calorie_multiplier ?? 1));
