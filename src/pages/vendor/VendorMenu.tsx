@@ -502,11 +502,12 @@ export default function VendorMenu() {
         portion_unit: formData.portion_unit || 'plate',
         allows_fractional_qty: formData.allows_fractional_qty,
         base_portion_size: formData.base_portion_size ? parseFloat(formData.base_portion_size) : 1,
-        fulfillment_type: formData.fulfillment_type,
         preorder_lead_days:
           formData.fulfillment_type === 'preorder' && formData.preorder_lead_days
             ? parseInt(formData.preorder_lead_days, 10)
             : null,
+        // Shared ordering rules (sale unit, quantity, pre-order windows).
+        ...orderingRulesToProductData(orderingRules, vendor.category === 'pharmacy'),
       };
 
 
