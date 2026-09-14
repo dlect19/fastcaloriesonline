@@ -162,7 +162,7 @@ export default function VendorMenu() {
     // Pharmacy fields
     drug_database_id: '' as string,
     requires_prescription: false,
-    medicine_classification: 'otc' as 'otc' | 'prescription' | 'controlled',
+    medicine_classification: 'otc' as MedicineClassification,
     pharmacist_dosage_instructions: '',
     default_dosage_frequency: 'twice_daily',
     default_dosage_duration_days: '',
@@ -1151,23 +1151,33 @@ export default function VendorMenu() {
                         <Label className="text-sm">Medicine Classification</Label>
                         <Select
                           value={formData.medicine_classification}
-                          onValueChange={(v: 'otc' | 'prescription' | 'controlled') =>
-                            setFormData({ ...formData, medicine_classification: v, requires_prescription: v !== 'otc' })
+                          onValueChange={(v: MedicineClassification) =>
+                            setFormData({
+                              ...formData,
+                              medicine_classification: v,
+                              requires_prescription: v === 'prescription' || v === 'controlled',
+                            })
                           }
                         >
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="otc">🟢 OTC — No Prescription Required</SelectItem>
-                            <SelectItem value="prescription">🟡 Prescription Required</SelectItem>
-                            <SelectItem value="controlled">🔴 Controlled Drug — Verification Required</SelectItem>
+                            <SelectItem value="otc">🟢 OTC / general sale — No prescription required</SelectItem>
+                            <SelectItem value="pharmacist_review">🔵 Pharmacist review — a pharmacist checks before dispensing</SelectItem>
+                            <SelectItem value="prescription">🟡 Prescription required</SelectItem>
+                            <SelectItem value="controlled">🔴 Controlled drug — prescription + verification</SelectItem>
+                            <SelectItem value="restricted">⛔ Restricted — not orderable on WhatsApp</SelectItem>
                           </SelectContent>
                         </Select>
                         <p className="text-[11px] text-muted-foreground">
                           {formData.medicine_classification === 'otc'
                             ? 'Customers can buy this immediately.'
-                            : formData.medicine_classification === 'prescription'
-                              ? 'Customers must upload a prescription; pharmacist must approve.'
-                              : 'Prescription + pharmacist approval + enhanced audit trail required.'}
+                            : formData.medicine_classification === 'pharmacist_review'
+                              ? 'Order goes through pharmacist review; no prescription upload required.'
+                              : formData.medicine_classification === 'prescription'
+                                ? 'Customers must upload a prescription; pharmacist must approve before checkout.'
+                                : formData.medicine_classification === 'controlled'
+                                  ? 'Prescription + pharmacist approval + enhanced audit trail required.'
+                                  : 'Blocked from WhatsApp and self-service ordering; in-store/assisted only.'}
                         </p>
                       </div>
 
