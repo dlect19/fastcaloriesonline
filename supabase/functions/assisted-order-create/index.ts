@@ -279,7 +279,7 @@ serve(async (req) => {
           email: emailToUse,
           amount: Math.round(amount * 100),
           reference: ref,
-          callback_url: `${origin}/track/${order.order_number}`,
+          callback_url: `${origin}/track/${order.tracking_token}`,
           metadata: { order_id: order.id, order_number: order.order_number, environment, assisted: true, top_up: suffix === 'topup' },
         }),
       });
@@ -637,7 +637,7 @@ serve(async (req) => {
       combined_wallet_used: combinedWalletUsed,
       combined_shadow_used: combinedShadowUsed,
       combined_shortfall: combinedShortfall,
-      tracking_url: `${req.headers.get('origin') || ''}/track/${order.order_number}`,
+      tracking_url: `${req.headers.get('origin') || ''}/track/${order.tracking_token}`,
     });
   } catch (e: any) {
     console.error('assisted-order-create error', e);
