@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
@@ -24,12 +24,15 @@ export default function Track() {
   const [info, setInfo] = useState<any>(null);
   const [verifyingPayment, setVerifyingPayment] = useState(false);
   const [live, setLive] = useState(false);
-  const orderIdRef = useRef<string | null>(null);
+
 
   const refetch = async () => {
     if (!orderNumber) return;
-    const { data, error } = await supabase.rpc('get_public_order_tracking', { _order_number: orderNumber });
-    if (!error) setInfo((data || [])[0] || null);
+    const isToken = /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(orderNumber);
+    const { data, error } = isToken
+      ? await supabase.rpc('get_secure_order_tracking', { p_token: orderNumber })
+      : await supabase.rpc('get_public_order_tracking', { _order_number: orderNumber });
+    setInfo(error ? null : isToken ? data : (data || [])[0] || null);
   };
 
   useEffect(() => {
@@ -47,39 +50,14 @@ export default function Track() {
     })();
   }, [orderNumber, paymentQuery]);
 
-  // Realtime: subscribe to order updates so the customer sees status changes instantly.
+  // Poll only the scoped read-only projection; never subscribe to private order/rider rows.
   useEffect(() => {
-    if (!orderNumber) return;
-    let channel: any;
-    let cancelled = false;
-    (async () => {
-      // Resolve the order id from the order_number (orders table is RLS-protected but
-      // realtime CHANGES use a public id filter; we just listen by order_number via a filter
-      // on a SECURITY DEFINER lookup. Simpler: poll the RPC if id is unknown.)
-      const { data } = await supabase
-        .from('orders').select('id').eq('order_number', orderNumber).maybeSingle();
-      if (cancelled) return;
-      orderIdRef.current = data?.id || null;
-      if (!orderIdRef.current) return;
-      channel = supabase
-        .channel(`track-${orderIdRef.current}`)
-        .on('postgres_changes', {
-          event: 'UPDATE', schema: 'public', table: 'orders',
-          filter: `id=eq.${orderIdRef.current}`,
-        }, () => { refetch(); })
-        .subscribe((status) => { if (status === 'SUBSCRIBED') setLive(true); });
-    })();
-
-    // Fallback polling every 20s in case realtime is blocked
     const poll = setInterval(refetch, 20000);
-    return () => {
-      cancelled = true;
-      if (channel) supabase.removeChannel(channel);
-      clearInterval(poll);
-    };
+    return () => clearInterval(poll);
   }, [orderNumber]);
+  const steps = info?.delivery_type === 'delivery' ? STEPS : STEPS.filter(s => !['picked_up', 'on_the_way'].includes(s.key));
 
-  const currentIdx = info ? STEPS.findIndex((s) => s.key === info.status) : -1;
+  const currentIdx = info ? steps.findIndex((s) => s.key === info.status) : -1;
 
   return (
     <div className="min-h-screen bg-background p-4">
@@ -109,8 +87,15 @@ export default function Track() {
                 <div className="font-mono font-bold">{info.order_number}</div>
                 {verifyingPayment && <div className="text-xs text-primary pt-1">Confirming payment…</div>}
                 <div className="text-sm pt-2">From <strong>{info.vendor_name}</strong></div>
-                {info.rider_first_name && info.delivery_type === 'delivery' && (
-                  <div className="text-sm text-muted-foreground">Rider: {info.rider_first_name}</div>
+                {(info.rider?.first_name || info.rider_first_name) && info.delivery_type === 'delivery' && (
+                  <div className="text-sm text-muted-foreground">Rider: {info.rider?.first_name || info.rider_first_name}</div>
+                )}
+                <div className="text-sm">Status: {String(info.status).replace(/_/g, ' ')} · {info.delivery_type}</div>
+                <div className="text-xs text-muted-foreground">Status refreshes every 20 seconds.</div>
+                {info.delivery_type === 'delivery' && info.location && (
+                  <a className="text-sm text-primary underline" target="_blank" rel="noreferrer" href={`https://www.google.com/maps?q=${info.location.latitude},${info.location.longitude}`}>
+                    View latest rider location ({format(new Date(info.location.updated_at), 'p')})
+                  </a>
                 )}
                 {info.estimated_delivery_at && (
                   <div className="text-sm text-muted-foreground">Estimated: {format(new Date(info.estimated_delivery_at), 'p')}</div>
@@ -118,7 +103,7 @@ export default function Track() {
               </div>
 
               <ul className="space-y-3">
-                {STEPS.map((s, idx) => {
+                {steps.map((s, idx) => {
                   const done = idx <= currentIdx;
                   const active = idx === currentIdx;
                   return (
