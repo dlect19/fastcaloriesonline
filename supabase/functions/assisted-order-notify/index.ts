@@ -45,7 +45,7 @@ serve(async (req) => {
 
     const { data: ao, error: aoErr } = await supabase
       .from('assisted_orders')
-      .select('payment_link, payment_status, payment_method, order_id, orders:order_id(id, order_number, user_id, receiver_name, receiver_phone, total, status, confirmation_code)')
+      .select('payment_link, payment_status, payment_method, order_id, orders:order_id(id, tracking_token, order_number, user_id, receiver_name, receiver_phone, total, status, confirmation_code)')
       .eq('order_id', order_id)
       .maybeSingle();
     if (aoErr) throw aoErr;
