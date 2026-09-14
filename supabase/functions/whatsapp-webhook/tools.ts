@@ -20,6 +20,19 @@ import {
   isEffectivelyAvailable,
   resolveDefaultOutletId,
 } from "../_shared/availability.ts";
+import {
+  type CartValidation,
+  getPreorderSlots,
+  type ItemSelection,
+  type ItemValidation,
+  loadOrderingRules,
+  loadOrderingRulesMany,
+  loadPrescriptionStatus,
+  pharmacyRequirements,
+  preorderPlan,
+  validateCartForCheckout,
+  validateCartItem as validateItemRules,
+} from "../_shared/orderingRules.ts";
 
 export const QUOTE_TTL_MINUTES = 15;
 export const CART_TTL_HOURS = 24;
@@ -744,6 +757,53 @@ export const TOOL_SPECS = [
       required: ["product_id"],
     },
   },
+  {
+    name: "get_product_ordering_rules",
+    description:
+      "The authoritative ordering rules a vendor configured for one product at one branch: sale unit and pack size, break-pack allowance, min/max/step quantity, regulated-sale classification (OTC / pharmacist review / prescription / controlled / restricted), pre-order mode and lead time, option groups, portions, recommended add-ons and stored calories. Read this before answering any question about how an item is sold. Never infer these facts yourself.",
+    parameters: { type: "object", properties: { product_id: { type: "string" }, outlet_id: { type: "string" } }, required: ["product_id"] },
+  },
+  {
+    name: "validate_cart_item",
+    description:
+      "Ask the backend whether this exact item, quantity, options and (optional) pre-order time may be ordered. Returns machine-readable unresolved requirements (MISSING_REQUIRED_OPTION, PRESCRIPTION_REQUIRED, PREORDER_REQUIRED, INVALID_PURCHASE_INCREMENT, ...) with the real choices to offer. Use it to find out what still needs asking.",
+    parameters: {
+      type: "object",
+      properties: {
+        product_id: { type: "string" }, outlet_id: { type: "string" }, quantity: { type: "number" },
+        portion_id: { type: "string" }, addon_item_ids: { type: "array", items: { type: "string" } },
+        purchase_unit: { type: "string", enum: ["pack", "sachet"] }, fulfilment_time: { type: "string" },
+      },
+      required: ["product_id"],
+    },
+  },
+  {
+    name: "validate_cart_for_checkout",
+    description:
+      "Backend gate for the whole cart. Call before create_order. Returns ok plus every unresolved requirement across all lines, even for questions the conversation skipped.",
+    parameters: { type: "object", properties: {} },
+  },
+  {
+    name: "get_preorder_slots",
+    description: "Earliest valid fulfilment time and bookable slots for a pre-order product, computed from the vendor's configured lead time, cutoff and allowed days.",
+    parameters: { type: "object", properties: { product_id: { type: "string" }, outlet_id: { type: "string" } }, required: ["product_id"] },
+  },
+  {
+    name: "get_recommended_addons",
+    description: "Vendor-configured 'goes well with' suggestions for a product. Purely optional — never required for checkout.",
+    parameters: { type: "object", properties: { product_id: { type: "string" }, outlet_id: { type: "string" } }, required: ["product_id"] },
+  },
+  {
+    name: "get_pharmacy_purchase_requirements",
+    description:
+      "Regulated-sale requirements for a pharmacy item straight from vendor/admin configuration: sale class, whether a prescription or pharmacist review is needed, whether it may be sold on WhatsApp at all, pack size, break-pack allowance, quantity caps and age limit. This is the only source of truth for prescription rules — never decide them yourself.",
+    parameters: { type: "object", properties: { product_id: { type: "string" }, outlet_id: { type: "string" } }, required: ["product_id"] },
+  },
+  {
+    name: "get_prescription_status",
+    description: "Whether the customer already has an accepted prescription on record for a product, and whether a pharmacist review is still pending.",
+    parameters: { type: "object", properties: { product_id: { type: "string" } }, required: ["product_id"] },
+  },
   { name: "get_cart", description: "Read the customer's current cart with server-computed totals, per-line calories and chosen options.", parameters: { type: "object", properties: {} } },
   {
     name: "add_cart_item",
@@ -757,6 +817,8 @@ export const TOOL_SPECS = [
         quantity: { type: "number" },
         portion_id: { type: "string" },
         addon_item_ids: { type: "array", items: { type: "string" } },
+        purchase_unit: { type: "string", enum: ["pack", "sachet"], description: "Only for pharmacy items the vendor allows breaking (pack vs single sachet/strip)." },
+        fulfilment_time: { type: "string", description: "ISO time for a pre-order item, taken from get_preorder_slots." },
         replace_cart: { type: "boolean" },
       },
       required: ["product_id"],
@@ -915,6 +977,20 @@ async function execTool(name: string, args: any, ctx: ToolCtx): Promise<any> {
       return await toolNutrition(ctx, args);
     case "recommend_meal":
       return await toolRecommend(ctx, args);
+    case "get_product_ordering_rules":
+      return await toolOrderingRules(ctx, args);
+    case "validate_cart_item":
+      return await toolValidateItem(ctx, args);
+    case "validate_cart_for_checkout":
+      return await toolValidateCart(ctx);
+    case "get_preorder_slots":
+      return await toolPreorderSlots(ctx, args);
+    case "get_recommended_addons":
+      return await toolRecommendedAddons(ctx, args);
+    case "get_pharmacy_purchase_requirements":
+      return await toolPharmacyRequirements(ctx, args);
+    case "get_prescription_status":
+      return await toolPrescriptionStatus(ctx, args);
     default:
       return { error: "unknown_tool", tool: name };
   }
