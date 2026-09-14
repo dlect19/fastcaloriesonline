@@ -103,6 +103,14 @@ export interface CartLine {
   calories_known?: boolean;
   addons?: SelectedAddon[];
   portion?: SelectedPortion | null;
+  /** Pharmacy sale unit chosen when the vendor allows breaking a pack. */
+  purchase_unit?: "pack" | "sachet" | null;
+  /** Customer-facing sale unit label from vendor configuration. */
+  sale_unit_label?: string | null;
+  /** ISO fulfilment time for pre-order lines. */
+  fulfilment_time?: string | null;
+  /** Backend-resolved regulated-sale class (never model-decided). */
+  sale_class?: string | null;
 }
 
 export interface WaCart {
@@ -1425,6 +1433,25 @@ async function toolAddItem(ctx: ToolCtx, args: any) {
   const sel = resolveSelection({ price: details.price, calories: details.calories }, mods, args);
   if ("error" in sel) {
     return { ...sel.error, product_id: details.product_id, name: details.name, outlet_id: outletId };
+  }
+
+  // Authoritative backend rules: quantity/pack rules, regulated-sale class,
+  // pre-order windows and channel permission. Configuration wins over the model.
+  const engineRules = await loadOrderingRules(ctx.supabase, details.product_id, outletId);
+  let engineLine: any = null;
+  if (engineRules.ok) {
+    const selection = selectionFromArgs({ ...args, product_id: details.product_id, quantity: qty }, outletId);
+    const verdict = await validateSelection(ctx, selection, engineRules);
+    engineLine = verdict.line;
+    if (!verdict.ok) {
+      return {
+        ...requirementPayload(verdict),
+        product_id: details.product_id,
+        name: details.name,
+        outlet_id: outletId,
+        recommended_addons: verdict.recommended_addons,
+      };
+    }
   }
 
   const cart = await loadCart(ctx);
