@@ -1567,6 +1567,19 @@ export default function VendorMenu() {
 
                   )}
 
+                  {/* Shared ordering rules: every channel (WhatsApp, app, POS) enforces these */}
+                  <ProductOrderingRulesEditor
+                    value={orderingRules}
+                    onChange={setOrderingRules}
+                    isPharmacy={vendor?.category === 'pharmacy'}
+                  />
+
+                  {editingProduct && vendor && (
+                    <RecommendedAddonsManager productId={editingProduct.id} vendorId={vendor.id} />
+                  )}
+
+
+
                   {/* Cuisine Category */}
                   {vendor?.category === 'restaurant' && cuisineCategories.length > 0 && (
                     <div className="space-y-2">
