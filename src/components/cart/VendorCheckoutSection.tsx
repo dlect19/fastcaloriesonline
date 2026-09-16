@@ -761,6 +761,7 @@ export function VendorCheckoutSection({
         customerLat={deliveryLocation?.lat ?? null}
         customerLon={deliveryLocation?.lon ?? null}
         deliveryType={deliveryType}
+        checkoutFingerprint={checkoutFingerprint}
         onClearGroup={clearVendorGroup}
         onFeesCalculated={handleFeesCalculated}
       />
