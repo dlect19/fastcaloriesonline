@@ -47,6 +47,9 @@ interface VendorFees {
   /** Pricing source returned by the server quote (never set by the browser maths). */
   pricingSource: string | null;
   isEstimate: boolean;
+  /** Server-issued quote the order is bound to (delivery only). */
+  quoteId: string | null;
+  quoteExpiresAt: string | null;
 }
 
 type DeliveryType = "delivery" | "self_pickup";
@@ -106,6 +109,8 @@ export function VendorCheckoutSection({
     surgeFee: 0,
     pricingSource: null,
     isEstimate: false,
+    quoteId: null,
+    quoteExpiresAt: null,
   });
   const [feeCalculating, setFeeCalculating] = useState(false);
   const [showFundDialog, setShowFundDialog] = useState(false);
@@ -118,6 +123,10 @@ export function VendorCheckoutSection({
   const [showPhoneVerify, setShowPhoneVerify] = useState(false);
   const [phoneVerificationEnforced, setPhoneVerificationEnforced] = useState(true);
   const autoAppliedRef = useRef(false);
+  // One key per checkout attempt. It survives retries (so a timed-out or
+  // double-tapped attempt resolves to the SAME order) and is only replaced once
+  // an order has actually been placed, so a deliberate reorder is never blocked.
+  const attemptKeyRef = useRef<string | null>(null);
 
   const { calculateServiceFee, loading: serviceFeeLoading } = useServiceFee();
   const riderAvailability = useRiderAvailability();
@@ -151,20 +160,23 @@ export function VendorCheckoutSection({
       dk: number | null,
       sf: number,
       loading: boolean,
-      pricing?: { source: string | null; isEstimate: boolean },
+      pricing?: { source: string | null; isEstimate: boolean; quoteId: string | null; quoteExpiresAt: string | null },
     ) => {
       setFeeCalculating(loading);
       setVendorFees((prev) => {
         const source = pricing?.source ?? null;
         const estimate = !!pricing?.isEstimate;
+        const quoteId = pricing?.quoteId ?? null;
+        const quoteExpiresAt = pricing?.quoteExpiresAt ?? null;
         if (
           prev.deliveryFee === df && prev.packagingFee === pf && prev.distanceKm === dk &&
-          prev.surgeFee === sf && prev.pricingSource === source && prev.isEstimate === estimate
+          prev.surgeFee === sf && prev.pricingSource === source && prev.isEstimate === estimate &&
+          prev.quoteId === quoteId && prev.quoteExpiresAt === quoteExpiresAt
         )
           return prev;
         return {
           deliveryFee: df, packagingFee: pf, distanceKm: dk, surgeFee: sf,
-          pricingSource: source, isEstimate: estimate,
+          pricingSource: source, isEstimate: estimate, quoteId, quoteExpiresAt,
         };
       });
     },
@@ -498,10 +510,30 @@ export function VendorCheckoutSection({
         ? new Date(Date.now() + preorderDays * 24 * 60 * 60 * 1000).toISOString()
         : null;
 
-      const { data: order, error: orderError } = await supabase
+      if (!attemptKeyRef.current) {
+        attemptKeyRef.current =
+          typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? crypto.randomUUID()
+            : `${userId}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      }
+      const attemptKey = attemptKeyRef.current;
+
+      if (deliveryType === "delivery" && !vendorFees.quoteId) {
+        toast({
+          title: "Delivery price expired",
+          description: "We need a fresh delivery price for this address. Please reopen your cart and try again.",
+          variant: "destructive",
+        });
+        onPlacingChange(null);
+        return;
+      }
+
+      const { data: insertedOrder, error: orderError } = await supabase
         .from("orders")
         .insert({
           user_id: userId,
+          checkout_attempt_key: attemptKey,
+          delivery_quote_id: deliveryType === "delivery" ? vendorFees.quoteId : null,
           is_preorder: isPreorder,
           prep_days: isPreorder ? preorderDays : null,
           estimated_ready_at: estimatedReadyAt,
@@ -541,8 +573,27 @@ export function VendorCheckoutSection({
         .select()
         .single();
 
-      if (orderError) throw orderError;
+      // The database refuses a second order for the same attempt (or an
+      // identical repeat within two minutes) and tells us which order already
+      // exists — so a double tap or a retry resumes that one instead.
+      let order = insertedOrder as any;
+      let resumedExistingOrder = false;
+      if (orderError) {
+        const duplicateId = /DUPLICATE_CHECKOUT:([0-9a-fA-F-]{36})/.exec(orderError.message || "")?.[1];
+        if (!duplicateId) throw orderError;
+        const { data: existing } = await supabase
+          .from("orders")
+          .select("*")
+          .eq("id", duplicateId)
+          .eq("user_id", userId)
+          .maybeSingle();
+        if (!existing) throw orderError;
+        order = existing;
+        resumedExistingOrder = true;
+        console.warn(`[checkout] duplicate checkout prevented — resuming order ${existing.order_number}`);
+      }
 
+      if (!resumedExistingOrder) {
       // Create order packages
       const packageInserts = metas.map((meta, idx) => ({
         order_id: order.id,
@@ -708,13 +759,17 @@ export function VendorCheckoutSection({
         }
       }
 
-      // Pay via wallet
+      }
+
+      // Pay via wallet — safe to repeat: the payment function refuses an
+      // order that is already paid and posts the debit idempotently.
       const { data: paymentResult, error: paymentError } = await supabase.functions.invoke("process-wallet-payment", {
         body: { orderIds: [order.id] },
       });
       if (paymentError) throw paymentError;
       if (paymentResult?.error) throw new Error(paymentResult.error);
 
+      attemptKeyRef.current = null;
       await refetchWallet();
       clearVendorGroup(group.vendorId, group.outletId);
 
@@ -743,6 +798,9 @@ export function VendorCheckoutSection({
         clearVendorGroup(group.vendorId, group.outletId);
       } else if (raw.includes("orders_vendor_id_fkey")) {
         friendly = "This vendor is no longer available. Please clear your cart and choose another vendor.";
+      } else if (raw.includes("DELIVERY_QUOTE") || raw.includes("DELIVERY_FEE_MISMATCH")) {
+        friendly =
+          "The delivery price for this address needs refreshing. Please reopen your cart so we can price it again.";
       } else if (raw.toLowerCase().includes("insufficient")) {
         friendly = "Insufficient wallet balance. Please top up and try again.";
       }

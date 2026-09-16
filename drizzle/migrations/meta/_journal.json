@@ -120,6 +120,13 @@
       "when": 1789350750119,
       "tag": "0016_whatsapp_secure_delivery_tracking",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1789580850487,
+      "tag": "0017_checkout_integrity_and_delivery_quotes",
+      "breakpoints": true
     }
   ]
 }

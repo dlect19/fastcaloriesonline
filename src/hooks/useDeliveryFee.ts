@@ -34,11 +34,15 @@ export interface DeliveryQuote {
   isEstimate: boolean;
   outOfRange: boolean;
   maxDistanceKm: number | null;
+  /** Server-issued quote id the order must be bound to. */
+  quoteId: string | null;
+  expiresAt: string | null;
 }
 
 const emptyQuote: DeliveryQuote = {
   fee: 0, baseFee: 0, surgeFee: 0, distanceKm: null,
   source: null, isEstimate: false, outOfRange: false, maxDistanceKm: null,
+  quoteId: null, expiresAt: null,
 };
 
 export function useDeliveryFee({
@@ -109,6 +113,8 @@ export function useDeliveryFee({
           isEstimate: !!data.isEstimate,
           outOfRange: !!data.outOfRange,
           maxDistanceKm: data.maxDistanceKm ?? null,
+          quoteId: data.quoteId ?? null,
+          expiresAt: data.expiresAt ?? null,
         });
         setUnavailableMessage(null);
         setQuoteReady(true);
@@ -135,6 +141,10 @@ export function useDeliveryFee({
     isEstimate: quote.isEstimate,
     isOutOfRange: quote.outOfRange,
     maxDistanceKm: quote.maxDistanceKm,
+    // Quote binding — cleared automatically whenever the address, branch or
+    // fulfilment mode changes, so a carryout detour can never leave a stale fee.
+    quoteId: isCarryout ? null : quote.quoteId,
+    quoteExpiresAt: isCarryout ? null : quote.expiresAt,
     pricingUnavailable: !isCarryout && hasCoordinates && !loading && !quoteReady,
     unavailableMessage,
     quoteReady,

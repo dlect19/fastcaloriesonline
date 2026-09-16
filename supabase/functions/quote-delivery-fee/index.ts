@@ -13,6 +13,9 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+/** How long a quote can be used before checkout must request a fresh one. */
+const QUOTE_TTL_MS = 15 * 60 * 1000;
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
@@ -91,7 +94,50 @@ serve(async (req) => {
       return json(quote, 200);
     }
 
-    return json(quote, 200);
+    // Persist the quote so checkout can be bound to it. The order insert gate
+    // rejects any delivery order whose fee/coordinates/branch don't match a
+    // live, unused quote belonging to the same customer.
+    let quoteId: string | null = null;
+    let expiresAt: string | null = null;
+    try {
+      const authHeader = req.headers.get("Authorization") || "";
+      let userId: string | null = null;
+      if (authHeader.toLowerCase().startsWith("bearer ")) {
+        const { data } = await supabase.auth.getUser(authHeader.slice(7));
+        userId = data?.user?.id ?? null;
+      }
+      expiresAt = new Date(Date.now() + QUOTE_TTL_MS).toISOString();
+      const { data: row, error: quoteErr } = await supabase
+        .from("delivery_quotes")
+        .insert({
+          user_id: userId,
+          vendor_id: resolvedVendorId,
+          outlet_id: outletId ?? null,
+          customer_address_id: body.customerAddressId ?? null,
+          dest_lat: destLat,
+          dest_lng: destLng,
+          delivery_fee: quote.deliveryFee,
+          base_fee: quote.baseFee ?? 0,
+          surge_fee: quote.surgeFee ?? 0,
+          distance_km: quote.distanceKm ?? null,
+          source: quote.source ?? null,
+          is_estimate: !!quote.isEstimate,
+          meta: quote.meta ?? {},
+          expires_at: expiresAt,
+        })
+        .select("id")
+        .single();
+      if (quoteErr) throw quoteErr;
+      quoteId = row?.id ?? null;
+    } catch (persistErr) {
+      console.error("[quote-delivery-fee] could not persist quote", persistErr);
+      return json({
+        ok: false, reason: "quote_not_issued",
+        message: "We couldn't lock in the delivery price just now. Please try again in a moment.",
+      }, 200);
+    }
+
+    return json({ ...quote, quoteId, expiresAt }, 200);
   } catch (err) {
     console.error("[quote-delivery-fee] error", err);
     return json({

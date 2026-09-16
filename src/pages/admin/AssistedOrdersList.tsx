@@ -27,6 +27,7 @@ type Row = {
   orders: {
     id: string;
     order_number: string;
+    tracking_token: string | null;
     status: string;
     total: number;
     subtotal: number;
