@@ -42,6 +42,7 @@ const menuItems: MenuItem[] = [
   { icon: Receipt, label: 'Refund Audit', path: '/admin/refund-audit', requiredPermission: 'process_withdrawals' },
   { icon: History, label: 'Ledger Audit', path: '/admin/ledger-audit', requiredPermission: 'process_withdrawals' },
   { icon: ShieldAlert, label: 'Wallet Integrity', path: '/admin/wallet-integrity', requiredPermission: 'process_withdrawals' },
+  { icon: ShieldAlert, label: 'Checkout Integrity', path: '/admin/checkout-integrity', requiredPermission: 'view_reports' },
   { icon: Receipt, label: 'Reconciliation', path: '/admin/reconciliation', requiredPermission: 'view_reports' },
   { icon: Gavel, label: 'Disputes', path: '/admin/disputes', requiredPermission: 'process_withdrawals' },
   { icon: Activity, label: 'Nutrition', path: '/admin/nutrition', requiredPermission: 'view_reports' },
