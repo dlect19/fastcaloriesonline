@@ -20,6 +20,7 @@ import { useSpinWheel } from "@/hooks/useSpinWheel";
 import { usePlatformPromos } from "@/hooks/usePlatformPromos";
 import { useFreeMealPromos } from "@/hooks/useFreeMealPromos";
 import { supabase } from "@/integrations/supabase/client";
+import { buildCheckoutFingerprint } from "@/lib/checkoutIntegrity";
 import { useServiceFee } from "@/hooks/useServiceFee";
 import { useRiderAvailability } from "@/hooks/useRiderAvailability";
 import { useGeolocation } from "@/hooks/useGeolocation";
