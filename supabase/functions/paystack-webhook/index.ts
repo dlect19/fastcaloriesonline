@@ -182,7 +182,7 @@ async function handleChargeSuccess(supabase: SupabaseClient, data: any, environm
   // Get order details
   const { data: orderData, error: orderError } = await supabase
     .from("orders")
-    .select("id, subtotal, delivery_fee, rider_id, vendor_id, environment, status")
+    .select("id, order_number, user_id, total, subtotal, delivery_fee, rider_id, vendor_id, outlet_id, environment, status, payment_status, payment_reference, duplicate_of_order_id, currency")
     .eq("id", orderId)
     .single();
 
@@ -191,9 +191,37 @@ async function handleChargeSuccess(supabase: SupabaseClient, data: any, environm
     return;
   }
 
-  // Skip orders that admin or the customer cancelled — payment link is dead.
-  if (orderData.status === 'cancelled') {
-    console.log(`Order ${orderId} is cancelled; ignoring late Paystack callback.`);
+  const logIntegrity = async (eventType: string, detail: Record<string, unknown>) => {
+    try {
+      await supabase.rpc("log_checkout_integrity_event", {
+        p_event_type: eventType,
+        p_user_id: orderData.user_id,
+        p_vendor_id: orderData.vendor_id,
+        p_outlet_id: orderData.outlet_id,
+        p_order_id: orderData.id,
+        p_detail: { reference, amount, ...detail },
+      });
+    } catch (e) {
+      console.error("[paystack] could not log integrity event", e);
+    }
+  };
+
+  // Idempotency: a duplicate webhook for an order already paid with the same
+  // reference must do nothing at all (no second posting, no status churn).
+  if (orderData.payment_status === "paid") {
+    console.log(`Order ${orderId} already paid (ref ${orderData.payment_reference}); duplicate webhook ignored.`);
+    return;
+  }
+
+  // Skip orders that admin or the customer cancelled, and any order that was
+  // superseded as a duplicate — the payment link is dead. Record it so finance
+  // can reconcile/refund deliberately; never fulfil it silently.
+  if (orderData.status === "cancelled" || orderData.duplicate_of_order_id) {
+    console.log(`Order ${orderId} is cancelled/superseded; recording late Paystack callback without fulfilling.`);
+    await logIntegrity("late_payment_on_dead_order", {
+      order_status: orderData.status,
+      duplicate_of_order_id: orderData.duplicate_of_order_id,
+    });
     await supabase.from("whatsapp_checkouts")
       .update({ status: "cancelled", updated_at: new Date().toISOString() })
       .eq("order_id", orderId).neq("status", "paid");
@@ -218,6 +246,31 @@ async function handleChargeSuccess(supabase: SupabaseClient, data: any, environm
     return;
   }
 
+  // Currency must be Naira — everything on the platform is priced in ₦.
+  const paidCurrency = (data.currency as string | undefined) || "NGN";
+  if (paidCurrency !== "NGN") {
+    console.error(`Currency mismatch for order ${orderId}: ${paidCurrency}`);
+    await logIntegrity("payment_currency_mismatch", { currency: paidCurrency });
+    return;
+  }
+
+  // Amount must match the server-authoritative order total (₦1 tolerance for
+  // kobo rounding). An under-paid or re-priced charge never marks an order paid.
+  const expectedTotal = Number(orderData.total) || 0;
+  if (Math.abs(amount - expectedTotal) > 1) {
+    console.error(`Amount mismatch for order ${orderId}: paid=${amount} expected=${expectedTotal}`);
+    await logIntegrity("payment_amount_mismatch", { expected_total: expectedTotal });
+    return;
+  }
+
+  // Customer binding: when Paystack metadata carries a user id it must be the
+  // order's own customer.
+  if (metadata?.user_id && metadata.user_id !== orderData.user_id) {
+    console.error(`Customer mismatch for order ${orderId}`);
+    await logIntegrity("payment_customer_mismatch", { metadata_user_id: metadata.user_id });
+    return;
+  }
+
   // Get vendor details
   const { data: vendorData, error: vendorError } = await supabase
     .from("vendors")
@@ -233,7 +286,8 @@ async function handleChargeSuccess(supabase: SupabaseClient, data: any, environm
   // Update order payment status - this triggers the 'credit_vendor_on_payment'
   // database trigger which handles ALL wallet crediting (vendor, platform, rider).
   // Do NOT manually update wallets here to avoid double-crediting.
-  await supabase
+  // Guarded on payment_status so two concurrent webhooks cannot both post.
+  const { data: paidRows } = await supabase
     .from("orders")
     .update({
       payment_status: "paid",
@@ -241,7 +295,14 @@ async function handleChargeSuccess(supabase: SupabaseClient, data: any, environm
       payment_reference: reference,
       environment: environment,
     })
-    .eq("id", orderId);
+    .eq("id", orderId)
+    .neq("payment_status", "paid")
+    .select("id");
+
+  if (!paidRows || paidRows.length === 0) {
+    console.log(`Order ${orderId} was paid concurrently; skipping the rest of this webhook.`);
+    return;
+  }
 
   // If this is an assisted order, auto-flip its meta to "received" so admin
   // staff sees Confirmed and the order is released to the vendor.
