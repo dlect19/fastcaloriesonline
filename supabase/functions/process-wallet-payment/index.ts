@@ -127,10 +127,10 @@ serve(async (req: Request) => {
     }
 
     const result = (payResult ?? {}) as {
-      paid?: Array<{ order_id: string; order_number: string; reference: string; amount: number }>;
+      orders?: Array<{ order_id: string; order_number: string; reference: string; amount: number }>;
       new_balance?: number;
     };
-    const results = result.paid ?? [];
+    const results = result.orders ?? [];
 
     for (const order of orders) {
       // Log promo usage if discount was applied
