@@ -439,7 +439,16 @@ export default function VendorOrders() {
           .eq('outlet_id', selectedOutletId)
           .order('created_at', { ascending: false });
 
-        const visibleOrders = (ordersData || []).filter((order) => !(order.channel === 'assisted' && order.payment_status !== 'paid'));
+        // Unpaid orders are never workable: assisted orders wait for payment, and
+        // app/web/WhatsApp orders are wallet/card only — an unpaid one is an
+        // abandoned or duplicated checkout and must not reach the kitchen.
+        const visibleOrders = (ordersData || []).filter((order) => {
+          if (order.payment_status === 'paid') return true;
+          const channel = order.channel || 'online';
+          if (channel === 'pos') return true;
+          if ((order as any).payment_method === 'cash') return true;
+          return false;
+        });
 
         if (visibleOrders.length > 0) {
           // Fetch all order items for these orders

@@ -25,7 +25,7 @@ interface VendorGroupCardProps {
     distanceKm: number | null,
     surgeFee: number,
     feeLoading: boolean,
-    pricing?: { source: string | null; isEstimate: boolean },
+    pricing?: { source: string | null; isEstimate: boolean; quoteId: string | null; quoteExpiresAt: string | null },
   ) => void;
 }
 
@@ -46,7 +46,7 @@ export function VendorGroupCard({
   const isCarryout = deliveryType === 'self_pickup';
   const {
     fee: calculatedDeliveryFee, distanceKm, surgeFee, loading: feeLoading,
-    pricingSource, isEstimate, quoteReady, unavailableMessage,
+    pricingSource, isEstimate, quoteReady, unavailableMessage, quoteId, quoteExpiresAt,
   } = useDeliveryFee({
     vendorLat: isCarryout ? null : vendorLocation.latitude,
     vendorLon: isCarryout ? null : vendorLocation.longitude,
@@ -91,9 +91,14 @@ export function VendorGroupCard({
       distanceKm,
       deliveryType === 'self_pickup' ? 0 : (surgeFee || 0),
       isFeeLoading,
-      { source: isCarryout ? null : pricingSource, isEstimate: !!isEstimate },
+      {
+        source: isCarryout ? null : pricingSource,
+        isEstimate: !!isEstimate,
+        quoteId: isCarryout ? null : quoteId,
+        quoteExpiresAt: isCarryout ? null : quoteExpiresAt,
+      },
     );
-  }, [group.vendorId, deliveryFee, extraPackageFee, packagingFee, distanceKm, surgeFee, deliveryType, isFeeLoading, isCarryout, pricingSource, isEstimate, onFeesCalculated]);
+  }, [group.vendorId, deliveryFee, extraPackageFee, packagingFee, distanceKm, surgeFee, deliveryType, isFeeLoading, isCarryout, pricingSource, isEstimate, quoteId, quoteExpiresAt, onFeesCalculated]);
 
   const hasMultiplePackages = group.packageCount > 1;
 

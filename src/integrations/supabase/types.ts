@@ -1686,6 +1686,54 @@ export type Database = {
           },
         ]
       }
+      checkout_integrity_events: {
+        Row: {
+          checkout_attempt_key: string | null
+          created_at: string
+          delivery_quote_id: string | null
+          detail: string | null
+          event_type: string
+          existing_order_id: string | null
+          expected_fee: number | null
+          id: string
+          order_id: string | null
+          outlet_id: string | null
+          submitted_fee: number | null
+          user_id: string | null
+          vendor_id: string | null
+        }
+        Insert: {
+          checkout_attempt_key?: string | null
+          created_at?: string
+          delivery_quote_id?: string | null
+          detail?: string | null
+          event_type: string
+          existing_order_id?: string | null
+          expected_fee?: number | null
+          id?: string
+          order_id?: string | null
+          outlet_id?: string | null
+          submitted_fee?: number | null
+          user_id?: string | null
+          vendor_id?: string | null
+        }
+        Update: {
+          checkout_attempt_key?: string | null
+          created_at?: string
+          delivery_quote_id?: string | null
+          detail?: string | null
+          event_type?: string
+          existing_order_id?: string | null
+          expected_fee?: number | null
+          id?: string
+          order_id?: string | null
+          outlet_id?: string | null
+          submitted_fee?: number | null
+          user_id?: string | null
+          vendor_id?: string | null
+        }
+        Relationships: []
+      }
       combo_addon_groups: {
         Row: {
           addon_group_id: string
@@ -2174,6 +2222,66 @@ export type Database = {
           vendor_id?: string | null
           vendor_latitude?: number
           vendor_longitude?: number
+        }
+        Relationships: []
+      }
+      delivery_quotes: {
+        Row: {
+          base_fee: number
+          consumed_order_id: string | null
+          created_at: string
+          customer_address_id: string | null
+          delivery_fee: number
+          dest_lat: number
+          dest_lng: number
+          distance_km: number | null
+          expires_at: string
+          id: string
+          is_estimate: boolean
+          meta: Json
+          outlet_id: string | null
+          source: string | null
+          surge_fee: number
+          user_id: string | null
+          vendor_id: string | null
+        }
+        Insert: {
+          base_fee?: number
+          consumed_order_id?: string | null
+          created_at?: string
+          customer_address_id?: string | null
+          delivery_fee: number
+          dest_lat: number
+          dest_lng: number
+          distance_km?: number | null
+          expires_at: string
+          id?: string
+          is_estimate?: boolean
+          meta?: Json
+          outlet_id?: string | null
+          source?: string | null
+          surge_fee?: number
+          user_id?: string | null
+          vendor_id?: string | null
+        }
+        Update: {
+          base_fee?: number
+          consumed_order_id?: string | null
+          created_at?: string
+          customer_address_id?: string | null
+          delivery_fee?: number
+          dest_lat?: number
+          dest_lng?: number
+          distance_km?: number | null
+          expires_at?: string
+          id?: string
+          is_estimate?: boolean
+          meta?: Json
+          outlet_id?: string | null
+          source?: string | null
+          surge_fee?: number
+          user_id?: string | null
+          vendor_id?: string | null
         }
         Relationships: []
       }
@@ -5095,6 +5203,7 @@ export type Database = {
           cancellation_reason: string | null
           cancelled_at: string | null
           channel: string
+          checkout_attempt_key: string | null
           communication_notes: string | null
           confirmation_code: string | null
           created_at: string
@@ -5108,8 +5217,10 @@ export type Database = {
           delivery_longitude: number | null
           delivery_pricing_meta: Json | null
           delivery_pricing_source: string | null
+          delivery_quote_id: string | null
           delivery_type: string | null
           discount: number | null
+          duplicate_of_order_id: string | null
           environment: string | null
           estimated_delivery_at: string | null
           estimated_ready_at: string | null
@@ -5117,6 +5228,7 @@ export type Database = {
           free_meal_promo_id: string | null
           free_meal_value: number | null
           id: string
+          integrity_note: string | null
           is_free_meal: boolean | null
           is_preorder: boolean
           menu_subtotal: number | null
@@ -5160,6 +5272,7 @@ export type Database = {
           cancellation_reason?: string | null
           cancelled_at?: string | null
           channel?: string
+          checkout_attempt_key?: string | null
           communication_notes?: string | null
           confirmation_code?: string | null
           created_at?: string
@@ -5173,8 +5286,10 @@ export type Database = {
           delivery_longitude?: number | null
           delivery_pricing_meta?: Json | null
           delivery_pricing_source?: string | null
+          delivery_quote_id?: string | null
           delivery_type?: string | null
           discount?: number | null
+          duplicate_of_order_id?: string | null
           environment?: string | null
           estimated_delivery_at?: string | null
           estimated_ready_at?: string | null
@@ -5182,6 +5297,7 @@ export type Database = {
           free_meal_promo_id?: string | null
           free_meal_value?: number | null
           id?: string
+          integrity_note?: string | null
           is_free_meal?: boolean | null
           is_preorder?: boolean
           menu_subtotal?: number | null
@@ -5225,6 +5341,7 @@ export type Database = {
           cancellation_reason?: string | null
           cancelled_at?: string | null
           channel?: string
+          checkout_attempt_key?: string | null
           communication_notes?: string | null
           confirmation_code?: string | null
           created_at?: string
@@ -5238,8 +5355,10 @@ export type Database = {
           delivery_longitude?: number | null
           delivery_pricing_meta?: Json | null
           delivery_pricing_source?: string | null
+          delivery_quote_id?: string | null
           delivery_type?: string | null
           discount?: number | null
+          duplicate_of_order_id?: string | null
           environment?: string | null
           estimated_delivery_at?: string | null
           estimated_ready_at?: string | null
@@ -5247,6 +5366,7 @@ export type Database = {
           free_meal_promo_id?: string | null
           free_meal_value?: number | null
           id?: string
+          integrity_note?: string | null
           is_free_meal?: boolean | null
           is_preorder?: boolean
           menu_subtotal?: number | null
@@ -10568,6 +10688,7 @@ export type Database = {
           cancellation_reason: string | null
           cancelled_at: string | null
           channel: string
+          checkout_attempt_key: string | null
           communication_notes: string | null
           confirmation_code: string | null
           created_at: string
@@ -10581,8 +10702,10 @@ export type Database = {
           delivery_longitude: number | null
           delivery_pricing_meta: Json | null
           delivery_pricing_source: string | null
+          delivery_quote_id: string | null
           delivery_type: string | null
           discount: number | null
+          duplicate_of_order_id: string | null
           environment: string | null
           estimated_delivery_at: string | null
           estimated_ready_at: string | null
@@ -10590,6 +10713,7 @@ export type Database = {
           free_meal_promo_id: string | null
           free_meal_value: number | null
           id: string
+          integrity_note: string | null
           is_free_meal: boolean | null
           is_preorder: boolean
           menu_subtotal: number | null
@@ -10937,6 +11061,22 @@ export type Database = {
           _entity_type: string
         }
         Returns: string
+      }
+      log_checkout_integrity_event: {
+        Args: {
+          p_attempt_key?: string
+          p_detail?: string
+          p_event_type: string
+          p_existing_order_id?: string
+          p_expected_fee?: number
+          p_order_id?: string
+          p_outlet_id?: string
+          p_quote_id?: string
+          p_submitted_fee?: number
+          p_user_id?: string
+          p_vendor_id?: string
+        }
+        Returns: undefined
       }
       log_settings_change: {
         Args: { _key: string; _new_value: string; _old_value: string }

@@ -94,6 +94,7 @@ import AdminChargebacks from "./pages/admin/AdminChargebacks";
 import AdminRefundAudit from "./pages/admin/AdminRefundAudit";
 import AdminLedgerAudit from "./pages/admin/AdminLedgerAudit";
 import AdminWalletIntegrity from "./pages/admin/AdminWalletIntegrity";
+import AdminCheckoutIntegrity from "./pages/admin/AdminCheckoutIntegrity";
 import AdminReconciliation from "./pages/admin/AdminReconciliation";
 import AdminDisputes from "./pages/admin/AdminDisputes";
 import AdminDeliveryCompanies from "./pages/admin/AdminDeliveryCompanies";
@@ -337,6 +338,7 @@ const App = () => {
                 <Route path="/admin/refund-audit" element={<AdminRefundAudit />} />
                 <Route path="/admin/ledger-audit" element={<AdminLedgerAudit />} />
                 <Route path="/admin/wallet-integrity" element={<AdminWalletIntegrity />} />
+                <Route path="/admin/checkout-integrity" element={<AdminCheckoutIntegrity />} />
                 <Route path="/admin/reconciliation" element={<AdminReconciliation />} />
                 <Route path="/admin/disputes" element={<AdminDisputes />} />
                 <Route path="/admin/delivery-companies" element={<AdminDeliveryCompanies />} />

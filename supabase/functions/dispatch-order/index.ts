@@ -364,7 +364,8 @@ Deno.serve(async (req) => {
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .select(`
-        id, vendor_id, status, rider_id, delivery_type, delivery_fee,
+        id, order_number, vendor_id, status, rider_id, delivery_type, delivery_fee,
+        payment_status, payment_method, channel,
         delivery_address_text, environment, outlet_id,
         vendors (id, name, address, latitude, longitude),
         addresses (latitude, longitude)
@@ -377,6 +378,21 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ error: 'Order not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // An unpaid online/WhatsApp order is an abandoned or duplicated checkout —
+    // it must never be dispatched to a rider (there is no cash-on-delivery here).
+    const dispatchChannel = (order as any).channel || 'online';
+    if (
+      order.payment_status !== 'paid' &&
+      (dispatchChannel === 'online' || dispatchChannel === 'whatsapp') &&
+      (order as any).payment_method !== 'cash'
+    ) {
+      console.error(`Refusing dispatch for unpaid order ${(order as any).order_number}`);
+      return new Response(
+        JSON.stringify({ error: 'This order has not been paid for, so it cannot be sent to a rider.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
