@@ -528,69 +528,95 @@ export function VendorCheckoutSection({
         return;
       }
 
-      const { data: insertedOrder, error: orderError } = await supabase
-        .from("orders")
-        .insert({
-          user_id: userId,
-          checkout_attempt_key: attemptKey,
-          delivery_quote_id: deliveryType === "delivery" ? vendorFees.quoteId : null,
-          is_preorder: isPreorder,
-          prep_days: isPreorder ? preorderDays : null,
-          estimated_ready_at: estimatedReadyAt,
+      // The order, every line price, the fees and the total are all computed by
+      // the server (create_customer_order). Nothing here is trusted as money.
+      const rpcItems = normalizedGroupItems.map((item) => ({
+        product_id: item.productId || null,
+        quantity: item.quantity,
+        purchase_unit: (item as any).purchaseUnit === "sachet" ? "sachet" : "pack",
+        portion_id: item.portionId || null,
+        portion_label: item.portionLabel || null,
+        portion_size: item.portionSize ?? null,
+        portion_unit: item.portionUnit || null,
+        product_name: item.productName,
+        calories: item.calories * item.quantity,
+        special_instructions: item.addonsDescription || null,
+        package_index: item.packageIndex ?? 0,
+        is_free_meal: !!item.isFreeMeal,
+        free_qty: item.isFreeMeal ? item._adminFreeQty ?? item.quantity : null,
+        addons: (item.addons || []).map((addon) => ({
+          addon_item_id: (addon as any).addonItemId || null,
+          group_name: addon.groupName,
+          item_name: addon.itemName,
+          quantity: addon.quantity || 1,
+          image_url: addon.imageUrl || null,
+        })),
+      }));
 
-          promo_code: appliedPromoCode || (promoType === "spin" ? `SPIN-${selectedSpinDiscountId}` : null),
-          discount: promoDiscount,
+      const checkoutFingerprint = buildCheckoutFingerprint({
+        userId,
+        vendorId: group.vendorId,
+        outletId: resolvedOutletId,
+        deliveryType,
+        deliveryLat: deliveryType === "delivery" ? deliveryLocation?.lat ?? null : null,
+        deliveryLng: deliveryType === "delivery" ? deliveryLocation?.lon ?? null : null,
+        promoCode: appliedPromoCode || (promoType === "spin" ? `SPIN-${selectedSpinDiscountId}` : null),
+        items: normalizedGroupItems.map((item) => ({
+          productId: item.productId,
+          quantity: item.quantity,
+          purchaseUnit: (item as any).purchaseUnit === "sachet" ? "sachet" : "pack",
+          portionId: item.portionId || null,
+          addonItemIds: (item.addons || []).map((a) => `${a.groupName}:${a.itemName}`),
+        })),
+      });
+
+      const { data: rpcResult, error: rpcError } = await supabase.rpc("create_customer_order", {
+        p_payload: {
           vendor_id: group.vendorId,
-          order_number: "",
-          menu_subtotal: actualMenuSubtotal,
-          subtotal: group.subtotal + vendorFees.packagingFee - promoDiscount,
+          outlet_id: resolvedOutletId,
+          delivery_type: deliveryType,
+          delivery_quote_id: deliveryType === "delivery" ? vendorFees.quoteId : null,
+          checkout_attempt_key: attemptKey,
+          checkout_fingerprint: checkoutFingerprint,
+          expected_total: groupTotal,
           packaging_fee: vendorFees.packagingFee,
-          delivery_fee: deliveryFee,
-          service_fee: serviceFee,
-          total: groupTotal,
-          total_calories: group.totalCalories,
-          delivery_address_id: null,
+          extra_package_fee: extraPackageFee,
+          package_count: packageCount,
+          discount: promoDiscount,
+          promo_code: appliedPromoCode || (promoType === "spin" ? `SPIN-${selectedSpinDiscountId}` : null),
+          free_meal_promo_id: freeMealPromoId,
           delivery_address_text:
             deliveryType === "delivery" ? deliveryLocation?.label || "GPS Location" : `Carryout at ${group.vendorName}`,
           delivery_instructions: deliveryInstructions,
-          delivery_type: deliveryType,
-          // Trusted pricing inputs/result — the payment function re-runs the
-          // server pricing engine against these before any money moves.
           delivery_latitude: deliveryType === "delivery" ? deliveryLocation?.lat ?? null : null,
           delivery_longitude: deliveryType === "delivery" ? deliveryLocation?.lon ?? null : null,
-          delivery_distance_km: deliveryType === "delivery" ? vendorFees.distanceKm : null,
-          delivery_pricing_source: deliveryType === "delivery" ? vendorFees.pricingSource : "carryout",
-          status: "pending",
-          payment_status: "pending",
-          payment_method: "wallet",
-          outlet_id: resolvedOutletId,
-          package_count: packageCount,
-          extra_package_fee: extraPackageFee,
-          is_free_meal: hasFreeMealItems,
-          free_meal_value: freeMealValue,
-          free_meal_promo_id: freeMealPromoId,
-        } as any)
-        .select()
-        .single();
+          is_preorder: isPreorder,
+          prep_days: isPreorder ? preorderDays : null,
+          estimated_ready_at: estimatedReadyAt,
+          packages: metas.map((meta, idx) => ({
+            recipient_name: meta.recipientName || `Package ${idx + 1}`,
+            note: meta.note || null,
+            sort_order: idx,
+          })),
+          items: rpcItems,
+        } as any,
+      });
 
-      // The database refuses a second order for the same attempt (or an
-      // identical repeat within two minutes) and tells us which order already
-      // exists — so a double tap or a retry resumes that one instead.
-      let order = insertedOrder as any;
-      let resumedExistingOrder = false;
-      if (orderError) {
-        const duplicateId = /DUPLICATE_CHECKOUT:([0-9a-fA-F-]{36})/.exec(orderError.message || "")?.[1];
-        if (!duplicateId) throw orderError;
-        const { data: existing } = await supabase
-          .from("orders")
-          .select("*")
-          .eq("id", duplicateId)
-          .eq("user_id", userId)
-          .maybeSingle();
-        if (!existing) throw orderError;
-        order = existing;
-        resumedExistingOrder = true;
-        console.warn(`[checkout] duplicate checkout prevented — resuming order ${existing.order_number}`);
+      if (rpcError) throw rpcError;
+      const summary = rpcResult as any;
+      if (!summary?.order_id) throw new Error("Order could not be created. Please try again.");
+
+      // A double tap, a retry after a timeout or a page refresh all resolve to
+      // the same canonical order — the server returns it instead of a new one.
+      const resumedExistingOrder = !!summary.resumed;
+      const { data: orderRow } = await supabase
+        .from("orders")
+        .select("*")
+        .eq("id", summary.order_id)
+        .maybeSingle();
+      const order = (orderRow || { id: summary.order_id, order_number: summary.order_number }) as any;
+      if (resumedExistingOrder) {
+        console.warn(`[checkout] duplicate checkout prevented — resuming order ${order.order_number}`);
       }
 
       if (!resumedExistingOrder) {
