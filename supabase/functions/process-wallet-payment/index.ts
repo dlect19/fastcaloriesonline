@@ -187,7 +187,7 @@ serve(async (req: Request) => {
         new_balance: runningBalance,
         orders: results,
         // Legacy compat for single-order callers
-        order_number: results[0]?.orderNumber,
+        order_number: results[0]?.order_number,
       }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
