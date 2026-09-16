@@ -66,14 +66,9 @@ serve(async (req: Request) => {
       );
     }
 
-    // Validate all orders are unpaid
-    const alreadyPaid = orders.filter(o => o.payment_status === "paid");
-    if (alreadyPaid.length > 0) {
-      return new Response(
-        JSON.stringify({ error: `Order(s) already paid: ${alreadyPaid.map(o => o.order_number).join(", ")}` }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
-    }
+    // Already-paid orders are NOT an error: a retry of a successful attempt must
+    // return the same result without charging again. pay_orders_with_wallet
+    // skips them and the deterministic reference blocks any second debit.
 
     // SERVER-AUTHORITATIVE PRICING GATE — recompute the delivery fee for every
     // order from trusted data before a single naira moves. A crafted client
