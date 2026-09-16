@@ -66,14 +66,9 @@ serve(async (req: Request) => {
       );
     }
 
-    // Validate all orders are unpaid
-    const alreadyPaid = orders.filter(o => o.payment_status === "paid");
-    if (alreadyPaid.length > 0) {
-      return new Response(
-        JSON.stringify({ error: `Order(s) already paid: ${alreadyPaid.map(o => o.order_number).join(", ")}` }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
-    }
+    // Already-paid orders are NOT an error: a retry of a successful attempt must
+    // return the same result without charging again. pay_orders_with_wallet
+    // skips them and the deterministic reference blocks any second debit.
 
     // SERVER-AUTHORITATIVE PRICING GATE — recompute the delivery fee for every
     // order from trusted data before a single naira moves. A crafted client
@@ -91,28 +86,6 @@ serve(async (req: Request) => {
       }
     }
 
-    // Get customer wallet
-    const { data: customerWallet, error: walletError } = await supabaseAdmin
-      .from("wallets")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("wallet_type", "customer")
-      .single();
-
-    if (walletError || !customerWallet) {
-      return new Response(
-        JSON.stringify({ error: "Wallet not found" }),
-        { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
-    }
-
-    if (customerWallet.is_disabled) {
-      return new Response(
-        JSON.stringify({ error: "Your wallet has been disabled. Please contact support." }),
-        { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
-    }
-
     // Get platform environment
     const { data: envSetting } = await supabaseAdmin
       .from("platform_settings")
@@ -121,90 +94,50 @@ serve(async (req: Request) => {
       .single();
 
     const environment = envSetting?.value || "development";
-    const isTestMode = environment === "development";
 
-    const currentBalance = isTestMode 
-      ? Number(customerWallet.test_balance) || 0
-      : Number(customerWallet.balance) || 0;
+    // ONE transaction: lock the orders, verify the wallet, post the debit and
+    // mark the orders paid — or nothing at all. Retrying returns the same
+    // result without a second debit (deterministic WP-<order_id> reference).
+    const batchRef = `WP-BATCH-${Date.now()}`;
+    const { data: payResult, error: payError } = await supabaseAdmin.rpc("pay_orders_with_wallet", {
+      p_order_ids: orders.map((o) => o.id),
+      p_reference: batchRef,
+      p_environment: environment,
+    });
 
-    // Calculate grand total across all orders
-    const grandTotal = orders.reduce((sum, o) => sum + Number(o.total), 0);
-
-    if (currentBalance < grandTotal) {
+    if (payError) {
+      const msg = payError.message || "";
+      if (msg.includes("INSUFFICIENT_BALANCE")) {
+        return new Response(
+          JSON.stringify({ error: "Insufficient wallet balance" }),
+          { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+      if (msg.includes("WALLET_DISABLED")) {
+        return new Response(
+          JSON.stringify({ error: "Your wallet has been disabled. Please contact support." }),
+          { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+      console.error("[wallet-payment] atomic payment failed:", msg);
       return new Response(
-        JSON.stringify({ 
-          error: "Insufficient wallet balance",
-          balance: currentBalance,
-          required: grandTotal,
-        }),
+        JSON.stringify({ error: "We couldn't complete the payment. Nothing was charged — please try again." }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    // Generate batch reference
-    const batchRef = `WP-BATCH-${Date.now()}`;
-    let runningBalance = currentBalance;
-    const results: Array<{ orderId: string; orderNumber: string; reference: string; amount: number }> = [];
+    const result = (payResult ?? {}) as {
+      orders?: Array<{ order_id: string; order_number: string; reference: string; amount: number }>;
+      new_balance?: number;
+    };
+    const results = result.orders ?? [];
 
-    // Process each order
     for (const order of orders) {
-      const orderTotal = Number(order.total);
-      const reference = orders.length === 1
-        ? `WP-${order.id.slice(0, 8)}-${Date.now()}`
-        : `${batchRef}-${order.id.slice(0, 8)}`;
-
-      // SAFETY: Update order FIRST — if this fails, wallet is untouched
-      const { error: orderUpdateError } = await supabaseAdmin
-        .from("orders")
-        .update({
-          payment_status: "paid",
-          status: "confirmed",
-          payment_method: "wallet",
-          payment_reference: reference,
-          environment,
-        })
-        .eq("id", order.id);
-
-      if (orderUpdateError) {
-        console.error(`Order update failed for ${order.order_number}:`, orderUpdateError.message);
-        // Skip this order entirely — do NOT debit the wallet
-        continue;
-      }
-
-      // Post the wallet debit through the single safe ledger entrypoint.
-      // post_wallet_entry is atomic + idempotent (by wallet_id + reference) and
-      // updates the balance by delta, so no absolute-balance write is needed.
-      const { error: postError } = await supabaseAdmin.rpc("post_wallet_entry", {
-        p_wallet_id: customerWallet.id,
-        p_wallet_type: "customer",
-        p_transaction_type: "debit",
-        p_category: "wallet_payment",
-        p_amount: orderTotal,
-        p_reference: reference,
-        p_environment: environment,
-        p_order_id: order.id,
-        p_notes: `Payment for order #${order.order_number}${orders.length > 1 ? ` (batch: ${batchRef})` : ''}`,
-        p_metadata: { source: "process-wallet-payment", batch: batchRef },
-      });
-
-      if (postError) {
-        console.error(`Wallet posting failed for ${order.order_number}:`, postError.message);
-        // Revert the order back to unpaid so the customer is never charged silently
-        await supabaseAdmin
-          .from("orders")
-          .update({ payment_status: "pending", status: "pending", payment_reference: null })
-          .eq("id", order.id);
-        continue;
-      }
-
-      runningBalance -= orderTotal;
-
-
       // Log promo usage if discount was applied
       if (Number(order.discount) > 0) {
         const menuSubtotal = Number(order.menu_subtotal) || (Number(order.subtotal) + Number(order.discount));
         const discountPercentage = (Number(order.discount) / menuSubtotal) * 100;
-        
+
         await supabaseAdmin.from("promo_usage_log").insert({
           order_id: order.id,
           user_id: user.id,
@@ -230,17 +163,11 @@ serve(async (req: Request) => {
       } catch (refErr) {
         console.error('Referral bonus trigger failed (non-blocking):', refErr);
       }
-
-      results.push({ orderId: order.id, orderNumber: order.order_number, reference, amount: orderTotal });
     }
 
-    // If no orders were successfully processed, return error
-    if (results.length === 0) {
-      return new Response(
-        JSON.stringify({ error: "All order updates failed — wallet was NOT debited. Please try again." }),
-        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
-    }
+    const runningBalance = Number(result.new_balance ?? 0);
+    const grandTotal = orders.reduce((sum, o) => sum + Number(o.total), 0);
+
 
     // NOTE: balances are already updated atomically by post_wallet_entry above.
     // Absolute-balance writes were removed to eliminate race conditions and drift.
@@ -255,7 +182,7 @@ serve(async (req: Request) => {
         new_balance: runningBalance,
         orders: results,
         // Legacy compat for single-order callers
-        order_number: results[0]?.orderNumber,
+        order_number: results[0]?.order_number,
       }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );

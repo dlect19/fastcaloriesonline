@@ -156,11 +156,15 @@ describe('unpaid orders cannot be fulfilled', () => {
     expect(canFulfil(unpaid, 'cancelled')).toBe(true);
   });
 
-  it('allows fulfilment once paid, and for POS and cash channels', () => {
+  it('allows fulfilment once paid, and for POS and assisted channels', () => {
     expect(canFulfil({ ...unpaid, paymentStatus: 'paid' }, 'delivered', true)).toBe(true);
     expect(canFulfil({ channel: 'pos', paymentStatus: 'pending' }, 'delivered', true)).toBe(true);
     expect(canFulfil({ channel: 'assisted', paymentStatus: 'pending' }, 'preparing')).toBe(true);
-    expect(canFulfil({ channel: 'online', paymentStatus: 'pending', paymentMethod: 'cash' }, 'delivered', true)).toBe(true);
+  });
+
+  it('no longer lets an online order escape by claiming cash', () => {
+    expect(canFulfil({ channel: 'online', paymentStatus: 'pending', paymentMethod: 'cash' }, 'delivered', true)).toBe(false);
+    expect(canFulfil({ channel: 'whatsapp', paymentStatus: 'pending', paymentMethod: 'cash' }, 'preparing')).toBe(false);
   });
 });
 

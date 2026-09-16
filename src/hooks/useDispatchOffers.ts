@@ -52,9 +52,32 @@ export function useDispatchOffers() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      
-      // Type assertion since we know the structure matches
-      setOffers((data as unknown as DispatchOffer[]) || []);
+
+      const rows = (data as unknown as DispatchOffer[]) || [];
+
+      // Defence in depth: never show a rider a job for an unpaid app/web order.
+      // The database and dispatch function both block it too — this stops it
+      // ever appearing on screen.
+      let visible = rows;
+      if (rows.length > 0) {
+        const { data: requests } = await supabase
+          .from('dispatch_requests')
+          .select('id, orders(payment_status, channel)')
+          .in('id', rows.map((o) => o.dispatch_request_id));
+
+        const blocked = new Set(
+          (requests || [])
+            .filter((r: any) => {
+              const channel = r.orders?.channel || 'online';
+              if (channel !== 'online' && channel !== 'whatsapp') return false;
+              return r.orders?.payment_status !== 'paid';
+            })
+            .map((r: any) => r.id),
+        );
+        visible = rows.filter((o) => !blocked.has(o.dispatch_request_id));
+      }
+
+      setOffers(visible);
     } catch (error) {
       console.error('Error fetching dispatch offers:', error);
     } finally {

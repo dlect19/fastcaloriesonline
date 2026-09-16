@@ -182,12 +182,82 @@ export const FULFILMENT_STATUSES = [
  */
 export function canFulfil(order: FulfilmentCheck, nextStatus?: string, assigningRider = false): boolean {
   const channel = order.channel || 'online';
+  // POS and assisted channels are server-authorised cash/manual models.
+  // `payment_method = 'cash'` is NOT an exemption on online/WhatsApp orders —
+  // it used to be a client-writable bypass of this very guard.
   if (channel !== 'online' && channel !== 'whatsapp') return true;
-  if ((order.paymentMethod || 'wallet') === 'cash') return true;
   if (order.paymentStatus === 'paid') return true;
   if (assigningRider) return false;
   if (nextStatus && FULFILMENT_STATUSES.includes(nextStatus)) return false;
   return true;
+}
+
+/** Fields on an order that only the platform may write. */
+export const PROTECTED_ORDER_FIELDS = [
+  'payment_status', 'payment_reference', 'payment_method', 'total', 'subtotal', 'menu_subtotal',
+  'delivery_fee', 'service_fee', 'packaging_fee', 'extra_package_fee', 'discount', 'promo_code',
+  'user_id', 'vendor_id', 'outlet_id', 'channel', 'checkout_attempt_key', 'checkout_fingerprint',
+  'delivery_quote_id', 'duplicate_of_order_id', 'integrity_note', 'is_free_meal', 'free_meal_value',
+  'free_meal_promo_id', 'environment', 'delivery_type', 'delivery_latitude', 'delivery_longitude',
+  'delivery_distance_km', 'delivery_pricing_source',
+] as const;
+
+/** Mirrors `orders_protect_fields`: is this client update touching a protected field? */
+export function touchesProtectedField(patch: Record<string, unknown>): boolean {
+  return Object.keys(patch).some((k) => (PROTECTED_ORDER_FIELDS as readonly string[]).includes(k));
+}
+
+export interface FingerprintItem {
+  productId?: string | null;
+  comboId?: string | null;
+  quantity: number;
+  purchaseUnit?: string | null;
+  portionId?: string | null;
+  addonItemIds?: string[];
+}
+
+export interface FingerprintInput {
+  userId: string;
+  vendorId: string;
+  outletId: string | null;
+  deliveryType: FulfilmentType;
+  deliveryLat: number | null;
+  deliveryLng: number | null;
+  promoCode: string | null;
+  items: FingerprintItem[];
+}
+
+/**
+ * Deterministic fingerprint of one checkout context. The same cart, branch,
+ * fulfilment, address and promo always produce the same string, so a retry maps
+ * to the same order; any material change produces a different one, so a
+ * legitimate new order can be created.
+ */
+export function buildCheckoutFingerprint(input: FingerprintInput): string {
+  const round = (n: number | null) => (n === null ? '' : n.toFixed(4));
+  const lines = input.items
+    .map((i) =>
+      [
+        i.comboId || i.productId || '',
+        i.quantity,
+        i.purchaseUnit || 'pack',
+        i.portionId || '',
+        [...(i.addonItemIds || [])].sort().join('+'),
+      ].join(':'),
+    )
+    .sort()
+    .join('|');
+
+  return [
+    input.userId,
+    input.vendorId,
+    input.outletId || '',
+    input.deliveryType,
+    round(input.deliveryLat),
+    round(input.deliveryLng),
+    input.promoCode || '',
+    lines,
+  ].join('~');
 }
 
 /** Deterministic settlement references — repeating a completion cannot mint money. */

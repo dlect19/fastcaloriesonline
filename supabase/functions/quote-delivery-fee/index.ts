@@ -123,6 +123,8 @@ serve(async (req) => {
           source: quote.source ?? null,
           is_estimate: !!quote.isEstimate,
           meta: quote.meta ?? {},
+          delivery_type: "delivery",
+          checkout_fingerprint: body.checkoutFingerprint ?? null,
           expires_at: expiresAt,
         })
         .select("id")

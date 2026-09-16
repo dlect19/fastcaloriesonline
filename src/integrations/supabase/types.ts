@@ -2228,10 +2228,12 @@ export type Database = {
       delivery_quotes: {
         Row: {
           base_fee: number
+          checkout_fingerprint: string | null
           consumed_order_id: string | null
           created_at: string
           customer_address_id: string | null
           delivery_fee: number
+          delivery_type: string | null
           dest_lat: number
           dest_lng: number
           distance_km: number | null
@@ -2247,10 +2249,12 @@ export type Database = {
         }
         Insert: {
           base_fee?: number
+          checkout_fingerprint?: string | null
           consumed_order_id?: string | null
           created_at?: string
           customer_address_id?: string | null
           delivery_fee: number
+          delivery_type?: string | null
           dest_lat: number
           dest_lng: number
           distance_km?: number | null
@@ -2266,10 +2270,12 @@ export type Database = {
         }
         Update: {
           base_fee?: number
+          checkout_fingerprint?: string | null
           consumed_order_id?: string | null
           created_at?: string
           customer_address_id?: string | null
           delivery_fee?: number
+          delivery_type?: string | null
           dest_lat?: number
           dest_lng?: number
           distance_km?: number | null
@@ -5204,6 +5210,7 @@ export type Database = {
           cancelled_at: string | null
           channel: string
           checkout_attempt_key: string | null
+          checkout_fingerprint: string | null
           communication_notes: string | null
           confirmation_code: string | null
           created_at: string
@@ -5273,6 +5280,7 @@ export type Database = {
           cancelled_at?: string | null
           channel?: string
           checkout_attempt_key?: string | null
+          checkout_fingerprint?: string | null
           communication_notes?: string | null
           confirmation_code?: string | null
           created_at?: string
@@ -5342,6 +5350,7 @@ export type Database = {
           cancelled_at?: string | null
           channel?: string
           checkout_attempt_key?: string | null
+          checkout_fingerprint?: string | null
           communication_notes?: string | null
           confirmation_code?: string | null
           created_at?: string
@@ -10689,6 +10698,7 @@ export type Database = {
           cancelled_at: string | null
           channel: string
           checkout_attempt_key: string | null
+          checkout_fingerprint: string | null
           communication_notes: string | null
           confirmation_code: string | null
           created_at: string
@@ -10778,6 +10788,10 @@ export type Database = {
         Args: { p_order_id: string; p_vendor_id: string; p_voucher_id: string }
         Returns: undefined
       }
+      compute_service_fee: {
+        Args: { p_amount: number; p_category: string; p_delivery_type: string }
+        Returns: number
+      }
       consume_admin_step_up: {
         Args: {
           p_action: string
@@ -10787,6 +10801,7 @@ export type Database = {
         }
         Returns: string
       }
+      create_customer_order: { Args: { p_payload: Json }; Returns: Json }
       credit_vendor_wallet_for_voucher: {
         Args: { _order_id: string }
         Returns: undefined
@@ -11046,6 +11061,7 @@ export type Database = {
         Args: { _company_id: string }
         Returns: boolean
       }
+      is_privileged_order_context: { Args: never; Returns: boolean }
       is_protected_super_admin: { Args: { _user_id: string }; Returns: boolean }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
       is_user_verified: { Args: { _user_id: string }; Returns: boolean }
@@ -11095,6 +11111,14 @@ export type Database = {
         Args: { p_order_id: string; p_reference: string }
         Returns: Json
       }
+      max_allowed_order_discount: {
+        Args: {
+          p_menu_subtotal: number
+          p_promo_code: string
+          p_user_id: string
+        }
+        Returns: number
+      }
       owns_delivery_company: {
         Args: { _company_id: string; _user_id: string }
         Returns: boolean
@@ -11106,6 +11130,14 @@ export type Database = {
       owns_vendor: {
         Args: { _user_id: string; _vendor_id: string }
         Returns: boolean
+      }
+      pay_orders_with_wallet: {
+        Args: {
+          p_environment?: string
+          p_order_ids: string[]
+          p_reference: string
+        }
+        Returns: Json
       }
       platform_accounting_summary: {
         Args: { p_environment?: string }
@@ -11150,6 +11182,10 @@ export type Database = {
           p_wallet_type: string
         }
         Returns: string
+      }
+      price_checkout_line: {
+        Args: { p_item: Json; p_outlet_id: string; p_vendor_id: string }
+        Returns: Json
       }
       product_effective_available: {
         Args: { _outlet_id?: string; _product_id: string }
@@ -11242,6 +11278,10 @@ export type Database = {
       reserve_voucher_for_delivery: {
         Args: { p_order_id: string; p_voucher_id: string }
         Returns: Json
+      }
+      resolve_addon_item_id: {
+        Args: { p_addon: Json; p_product_id: string }
+        Returns: string
       }
       resolve_commission_rate: {
         Args: { p_entity_id: string; p_entity_type: string }

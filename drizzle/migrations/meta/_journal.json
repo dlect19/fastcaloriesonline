@@ -127,6 +127,41 @@
       "when": 1789580850487,
       "tag": "0017_checkout_integrity_and_delivery_quotes",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1789582757383,
+      "tag": "0018_order_field_security_and_server_checkout",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1789582877218,
+      "tag": "0019_server_authoritative_checkout_rpcs",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1789582957078,
+      "tag": "0020_fix_checkout_pricing_loop",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1789583138777,
+      "tag": "0021_addon_resolution_for_checkout",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1789583220750,
+      "tag": "0022_checkout_order_addon_names",
+      "breakpoints": true
     }
   ]
 }

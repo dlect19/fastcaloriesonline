@@ -23,6 +23,8 @@ interface UseDeliveryFeeOptions {
   customerAddressId?: string | null;
   /** Pass 'self_pickup' for carryout — no quote is requested and the fee is 0. */
   deliveryType?: 'delivery' | 'self_pickup';
+  /** Binds the issued quote to this exact cart/checkout context. */
+  checkoutFingerprint?: string | null;
 }
 
 export interface DeliveryQuote {
@@ -48,6 +50,7 @@ const emptyQuote: DeliveryQuote = {
 export function useDeliveryFee({
   vendorLat, vendorLon, customerLat, customerLon,
   vendorId, outletId, customerAddressId, deliveryType = 'delivery',
+  checkoutFingerprint = null,
 }: UseDeliveryFeeOptions) {
   const [quote, setQuote] = useState<DeliveryQuote>(emptyQuote);
   const [loading, setLoading] = useState(false);
@@ -91,6 +94,7 @@ export function useDeliveryFee({
           destLng: customerLon,
           customerAddressId: customerAddressId ?? null,
           deliveryType: 'delivery',
+          checkoutFingerprint: checkoutFingerprint ?? null,
         },
       })
       .then(({ data, error }) => {
@@ -130,7 +134,7 @@ export function useDeliveryFee({
       .finally(() => {
         if (myRequest === requestId.current) setLoading(false);
       });
-  }, [isCarryout, hasCoordinates, vendorId, outletId, customerLat, customerLon, customerAddressId]);
+  }, [isCarryout, hasCoordinates, vendorId, outletId, customerLat, customerLon, customerAddressId, checkoutFingerprint]);
 
   return {
     fee: quote.fee,

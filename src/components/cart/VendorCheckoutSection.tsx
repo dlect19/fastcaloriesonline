@@ -20,6 +20,7 @@ import { useSpinWheel } from "@/hooks/useSpinWheel";
 import { usePlatformPromos } from "@/hooks/usePlatformPromos";
 import { useFreeMealPromos } from "@/hooks/useFreeMealPromos";
 import { supabase } from "@/integrations/supabase/client";
+import { buildCheckoutFingerprint } from "@/lib/checkoutIntegrity";
 import { useServiceFee } from "@/hooks/useServiceFee";
 import { useRiderAvailability } from "@/hooks/useRiderAvailability";
 import { useGeolocation } from "@/hooks/useGeolocation";
@@ -139,6 +140,37 @@ export function VendorCheckoutSection({
   const total = group.subtotal + vendorFees.packagingFee + deliveryFee + serviceFee - promoDiscount;
   const insufficientBalance = walletBalance < total;
   const shortfall = total - walletBalance;
+
+  // One deterministic fingerprint for this checkout context. The delivery quote
+  // is issued against it and the server order is created with it, so a retry
+  // resolves to the same order while any real change (cart, branch, address,
+  // fulfilment, promo) starts a fresh, legitimate checkout.
+  const checkoutFingerprint = useMemo(
+    () =>
+      buildCheckoutFingerprint({
+        userId,
+        vendorId: group.vendorId,
+        outletId: group.outletId ?? null,
+        deliveryType,
+        deliveryLat: deliveryType === "delivery" ? deliveryLocation?.lat ?? null : null,
+        deliveryLng: deliveryType === "delivery" ? deliveryLocation?.lon ?? null : null,
+        promoCode: appliedPromoCode || (selectedDiscountType === "spin" ? `SPIN-${selectedSpinDiscountId}` : null),
+        items: group.items.map((item) => ({
+          productId: item.productId,
+          quantity: item.quantity,
+          purchaseUnit: (item as any).purchaseUnit === "sachet" ? "sachet" : "pack",
+          portionId: item.portionId || null,
+          addonItemIds: (item.addons || []).map((a) => `${a.groupName}:${a.itemName}`),
+        })),
+      }),
+    [
+      userId, group.vendorId, group.outletId, group.items, deliveryType,
+      deliveryLocation?.lat, deliveryLocation?.lon, appliedPromoCode,
+      selectedDiscountType, selectedSpinDiscountId,
+    ],
+  );
+
+
 
   const isPlacing = placingOrderForVendor === group.vendorId;
   const isOtherPlacing = placingOrderForVendor !== null && placingOrderForVendor !== group.vendorId;
@@ -528,180 +560,90 @@ export function VendorCheckoutSection({
         return;
       }
 
-      const { data: insertedOrder, error: orderError } = await supabase
-        .from("orders")
-        .insert({
-          user_id: userId,
-          checkout_attempt_key: attemptKey,
-          delivery_quote_id: deliveryType === "delivery" ? vendorFees.quoteId : null,
-          is_preorder: isPreorder,
-          prep_days: isPreorder ? preorderDays : null,
-          estimated_ready_at: estimatedReadyAt,
+      // The order, every line price, the fees and the total are all computed by
+      // the server (create_customer_order). Nothing here is trusted as money.
+      const rpcItems = normalizedGroupItems.map((item) => ({
+        product_id: item.productId || null,
+        quantity: item.quantity,
+        purchase_unit: (item as any).purchaseUnit === "sachet" ? "sachet" : "pack",
+        portion_id: item.portionId || null,
+        portion_label: item.portionLabel || null,
+        portion_size: item.portionSize ?? null,
+        portion_unit: item.portionUnit || null,
+        product_name: item.productName,
+        calories: item.calories * item.quantity,
+        special_instructions: item.addonsDescription || null,
+        package_index: item.packageIndex ?? 0,
+        is_free_meal: !!item.isFreeMeal,
+        free_qty: item.isFreeMeal ? item._adminFreeQty ?? item.quantity : null,
+        addons: (item.addons || []).map((addon) => ({
+          addon_item_id: (addon as any).addonItemId || null,
+          group_name: addon.groupName,
+          item_name: addon.itemName,
+          quantity: addon.quantity || 1,
+          image_url: addon.imageUrl || null,
+        })),
+      }));
 
-          promo_code: appliedPromoCode || (promoType === "spin" ? `SPIN-${selectedSpinDiscountId}` : null),
-          discount: promoDiscount,
+      // checkoutFingerprint is the memo above — the very value the delivery
+      // quote was issued against.
+
+
+
+      const { data: rpcResult, error: rpcError } = await supabase.rpc("create_customer_order", {
+        p_payload: {
           vendor_id: group.vendorId,
-          order_number: "",
-          menu_subtotal: actualMenuSubtotal,
-          subtotal: group.subtotal + vendorFees.packagingFee - promoDiscount,
+          outlet_id: resolvedOutletId,
+          delivery_type: deliveryType,
+          delivery_quote_id: deliveryType === "delivery" ? vendorFees.quoteId : null,
+          checkout_attempt_key: attemptKey,
+          checkout_fingerprint: checkoutFingerprint,
+          expected_total: groupTotal,
           packaging_fee: vendorFees.packagingFee,
-          delivery_fee: deliveryFee,
-          service_fee: serviceFee,
-          total: groupTotal,
-          total_calories: group.totalCalories,
-          delivery_address_id: null,
+          extra_package_fee: extraPackageFee,
+          package_count: packageCount,
+          discount: promoDiscount,
+          promo_code: appliedPromoCode || (promoType === "spin" ? `SPIN-${selectedSpinDiscountId}` : null),
+          free_meal_promo_id: freeMealPromoId,
           delivery_address_text:
             deliveryType === "delivery" ? deliveryLocation?.label || "GPS Location" : `Carryout at ${group.vendorName}`,
           delivery_instructions: deliveryInstructions,
-          delivery_type: deliveryType,
-          // Trusted pricing inputs/result — the payment function re-runs the
-          // server pricing engine against these before any money moves.
           delivery_latitude: deliveryType === "delivery" ? deliveryLocation?.lat ?? null : null,
           delivery_longitude: deliveryType === "delivery" ? deliveryLocation?.lon ?? null : null,
-          delivery_distance_km: deliveryType === "delivery" ? vendorFees.distanceKm : null,
-          delivery_pricing_source: deliveryType === "delivery" ? vendorFees.pricingSource : "carryout",
-          status: "pending",
-          payment_status: "pending",
-          payment_method: "wallet",
-          outlet_id: resolvedOutletId,
-          package_count: packageCount,
-          extra_package_fee: extraPackageFee,
-          is_free_meal: hasFreeMealItems,
-          free_meal_value: freeMealValue,
-          free_meal_promo_id: freeMealPromoId,
-        } as any)
-        .select()
-        .single();
+          is_preorder: isPreorder,
+          prep_days: isPreorder ? preorderDays : null,
+          estimated_ready_at: estimatedReadyAt,
+          packages: metas.map((meta, idx) => ({
+            recipient_name: meta.recipientName || `Package ${idx + 1}`,
+            note: meta.note || null,
+            sort_order: idx,
+          })),
+          items: rpcItems,
+        } as any,
+      });
 
-      // The database refuses a second order for the same attempt (or an
-      // identical repeat within two minutes) and tells us which order already
-      // exists — so a double tap or a retry resumes that one instead.
-      let order = insertedOrder as any;
-      let resumedExistingOrder = false;
-      if (orderError) {
-        const duplicateId = /DUPLICATE_CHECKOUT:([0-9a-fA-F-]{36})/.exec(orderError.message || "")?.[1];
-        if (!duplicateId) throw orderError;
-        const { data: existing } = await supabase
-          .from("orders")
-          .select("*")
-          .eq("id", duplicateId)
-          .eq("user_id", userId)
-          .maybeSingle();
-        if (!existing) throw orderError;
-        order = existing;
-        resumedExistingOrder = true;
-        console.warn(`[checkout] duplicate checkout prevented — resuming order ${existing.order_number}`);
+      if (rpcError) throw rpcError;
+      const summary = rpcResult as any;
+      if (!summary?.order_id) throw new Error("Order could not be created. Please try again.");
+
+      // A double tap, a retry after a timeout or a page refresh all resolve to
+      // the same canonical order — the server returns it instead of a new one.
+      const resumedExistingOrder = !!summary.resumed;
+      const { data: orderRow } = await supabase
+        .from("orders")
+        .select("*")
+        .eq("id", summary.order_id)
+        .maybeSingle();
+      const order = (orderRow || { id: summary.order_id, order_number: summary.order_number }) as any;
+      if (resumedExistingOrder) {
+        console.warn(`[checkout] duplicate checkout prevented — resuming order ${order.order_number}`);
       }
 
       if (!resumedExistingOrder) {
-      // Create order packages
-      const packageInserts = metas.map((meta, idx) => ({
-        order_id: order.id,
-        recipient_name: meta.recipientName || `Package ${idx + 1}`,
-        note: meta.note || null,
-        sort_order: idx,
-      }));
+      // Packages, order items and add-on lines are all written by
+      // create_customer_order using authoritative menu prices.
 
-      const { data: createdPackages, error: pkgError } = await supabase
-        .from("order_packages")
-        .insert(packageInserts)
-        .select();
 
-      if (pkgError) throw pkgError;
-
-      // Look up sachets_per_pack so the stock-decrement trigger deducts the right number of sachet-units
-      const packLookupIds = Array.from(
-        new Set(
-          normalizedGroupItems
-            .filter((it) => (it as any).purchaseUnit !== "sachet" && it.productId && !it.addonsDescription)
-            .map((it) => it.productId!),
-        ),
-      );
-      const packMultiplierMap: Record<string, number> = {};
-      if (packLookupIds.length > 0) {
-        const { data: prodRows } = await supabase
-          .from("products")
-          .select("id, sachets_per_pack, allows_sachet")
-          .in("id", packLookupIds);
-        (prodRows || []).forEach((r: any) => {
-          if (r.allows_sachet && Number(r.sachets_per_pack) > 0) {
-            packMultiplierMap[r.id] = Number(r.sachets_per_pack);
-          }
-        });
-      }
-
-      // Create order items with package_id linking
-      const orderItems = normalizedGroupItems.map((item) => {
-        const pkg = createdPackages?.find((p) => p.sort_order === item.packageIndex);
-        const actualUnitPrice = item.isFreeMeal ? getResolvedOriginalPrice(item) : item.price;
-        const actualTotalPrice = item.isFreeMeal
-          ? getResolvedOriginalPrice(item) * item.quantity
-          : item.price * item.quantity;
-        const purchaseUnit = (item as any).purchaseUnit === "sachet" ? "sachet" : "pack";
-        const unitMultiplier =
-          purchaseUnit === "sachet" ? 1 : (item.productId && packMultiplierMap[item.productId]) || 1;
-        return {
-          order_id: order.id,
-          package_id: pkg?.id || null,
-          product_id: item.addonsDescription ? null : item.productId,
-          product_name: item.productName,
-          quantity: item.quantity,
-          unit_price: actualUnitPrice,
-          total_price: actualTotalPrice,
-          original_unit_price: item.isFreeMeal ? getResolvedOriginalPrice(item) : null,
-          is_free_meal_item: item.isFreeMeal || false,
-          free_qty: item.isFreeMeal ? (item._adminFreeQty ?? item.quantity) : null,
-          calories: item.calories * item.quantity,
-          special_instructions: item.addonsDescription || null,
-          purchase_unit: purchaseUnit,
-          unit_multiplier: unitMultiplier,
-          portion_label: item.portionLabel || null,
-
-          portion_size: item.portionSize ?? null,
-          portion_unit: item.portionUnit || null,
-        };
-
-      });
-
-      const { data: insertedItems, error: itemsError } = await supabase
-        .from("order_items")
-        .insert(orderItems as any)
-        .select();
-      if (itemsError) throw itemsError;
-
-      // Save add-on details
-      if (insertedItems) {
-        const addonRecords: Array<{
-          order_item_id: string;
-          addon_group_name: string;
-          addon_item_name: string;
-          additional_price: number;
-          calories: number;
-          image_url: string | null;
-        }> = [];
-
-        group.items.forEach((cartItem, index) => {
-          if (cartItem.addons && cartItem.addons.length > 0) {
-            const orderItem = insertedItems[index];
-            if (orderItem) {
-              cartItem.addons.forEach((addon) => {
-                addonRecords.push({
-                  order_item_id: orderItem.id,
-                  addon_group_name: addon.groupName,
-                  addon_item_name: addon.itemName,
-                  additional_price: addon.price,
-                  calories: addon.calories,
-                  image_url: addon.imageUrl || null,
-                });
-              });
-            }
-          }
-        });
-
-        if (addonRecords.length > 0) {
-          await supabase.from("order_item_addons").insert(addonRecords);
-        }
-      }
 
       // Create prescription orders for pharmacy items
       if (isPharmacy) {
@@ -819,6 +761,7 @@ export function VendorCheckoutSection({
         customerLat={deliveryLocation?.lat ?? null}
         customerLon={deliveryLocation?.lon ?? null}
         deliveryType={deliveryType}
+        checkoutFingerprint={checkoutFingerprint}
         onClearGroup={clearVendorGroup}
         onFeesCalculated={handleFeesCalculated}
       />

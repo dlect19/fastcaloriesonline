@@ -17,6 +17,8 @@ interface VendorGroupCardProps {
   customerLat: number | null;
   customerLon: number | null;
   deliveryType: 'delivery' | 'self_pickup';
+  /** Binds the server delivery quote to this exact cart/checkout context. */
+  checkoutFingerprint?: string | null;
   onClearGroup: (vendorId: string, outletId?: string) => void;
   onFeesCalculated: (
     vendorId: string,
@@ -35,6 +37,7 @@ export function VendorGroupCard({
   customerLat,
   customerLon,
   deliveryType,
+  checkoutFingerprint = null,
   onClearGroup,
   onFeesCalculated,
 }: VendorGroupCardProps) {
@@ -55,6 +58,7 @@ export function VendorGroupCard({
     vendorId: group.vendorId,
     outletId: group.outletId ?? null,
     deliveryType,
+    checkoutFingerprint,
   });
 
   const deliveryFee = deliveryType === 'self_pickup' ? 0 : calculatedDeliveryFee;
