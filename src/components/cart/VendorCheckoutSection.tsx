@@ -585,22 +585,10 @@ export function VendorCheckoutSection({
         })),
       }));
 
-      const checkoutFingerprint = buildCheckoutFingerprint({
-        userId,
-        vendorId: group.vendorId,
-        outletId: resolvedOutletId,
-        deliveryType,
-        deliveryLat: deliveryType === "delivery" ? deliveryLocation?.lat ?? null : null,
-        deliveryLng: deliveryType === "delivery" ? deliveryLocation?.lon ?? null : null,
-        promoCode: appliedPromoCode || (promoType === "spin" ? `SPIN-${selectedSpinDiscountId}` : null),
-        items: normalizedGroupItems.map((item) => ({
-          productId: item.productId,
-          quantity: item.quantity,
-          purchaseUnit: (item as any).purchaseUnit === "sachet" ? "sachet" : "pack",
-          portionId: item.portionId || null,
-          addonItemIds: (item.addons || []).map((a) => `${a.groupName}:${a.itemName}`),
-        })),
-      });
+      // checkoutFingerprint is the memo above — the very value the delivery
+      // quote was issued against.
+
+
 
       const { data: rpcResult, error: rpcError } = await supabase.rpc("create_customer_order", {
         p_payload: {
