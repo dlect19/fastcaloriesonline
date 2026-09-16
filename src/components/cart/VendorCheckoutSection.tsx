@@ -141,6 +141,37 @@ export function VendorCheckoutSection({
   const insufficientBalance = walletBalance < total;
   const shortfall = total - walletBalance;
 
+  // One deterministic fingerprint for this checkout context. The delivery quote
+  // is issued against it and the server order is created with it, so a retry
+  // resolves to the same order while any real change (cart, branch, address,
+  // fulfilment, promo) starts a fresh, legitimate checkout.
+  const checkoutFingerprint = useMemo(
+    () =>
+      buildCheckoutFingerprint({
+        userId,
+        vendorId: group.vendorId,
+        outletId: group.outletId ?? null,
+        deliveryType,
+        deliveryLat: deliveryType === "delivery" ? deliveryLocation?.lat ?? null : null,
+        deliveryLng: deliveryType === "delivery" ? deliveryLocation?.lon ?? null : null,
+        promoCode: appliedPromoCode || (selectedDiscountType === "spin" ? `SPIN-${selectedSpinDiscountId}` : null),
+        items: group.items.map((item) => ({
+          productId: item.productId,
+          quantity: item.quantity,
+          purchaseUnit: (item as any).purchaseUnit === "sachet" ? "sachet" : "pack",
+          portionId: item.portionId || null,
+          addonItemIds: (item.addons || []).map((a) => `${a.groupName}:${a.itemName}`),
+        })),
+      }),
+    [
+      userId, group.vendorId, group.outletId, group.items, deliveryType,
+      deliveryLocation?.lat, deliveryLocation?.lon, appliedPromoCode,
+      selectedDiscountType, selectedSpinDiscountId,
+    ],
+  );
+
+
+
   const isPlacing = placingOrderForVendor === group.vendorId;
   const isOtherPlacing = placingOrderForVendor !== null && placingOrderForVendor !== group.vendorId;
 
