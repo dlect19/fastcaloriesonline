@@ -499,26 +499,51 @@ Deno.serve(async (req) => {
     const settingsMap: Record<string, string> = {};
     allSettings?.forEach((s: any) => { settingsMap[s.key] = s.value; });
 
+    const configuredRadiusKm = parseFloat(settingsMap.dispatch_initial_radius_km || '5');
     const dispatchSettings = {
       acceptanceTimeoutSeconds: parseInt(settingsMap.dispatch_acceptance_timeout_seconds || '60'),
-      initialRadiusKm: parseFloat(settingsMap.dispatch_initial_radius_km || '5'),
+      initialRadiusKm:
+        typeof requestedRadiusKm === 'number' && Number.isFinite(requestedRadiusKm) && requestedRadiusKm > 0
+          ? requestedRadiusKm
+          : configuredRadiusKm,
       maxRetries: parseInt(settingsMap.dispatch_max_retries || '3'),
     };
 
     const payoutSettings = getPayoutSettings(settingsMap);
 
-    // Calculate delivery distance using Google Maps for accuracy
+    // Authoritative destination: the order's own inline coordinates first, then
+    // the linked saved address. Never 0,0 and never invented.
     const address = order.addresses as any;
-    const customerLat = address?.latitude || null;
-    const customerLon = address?.longitude || null;
+    const destination = resolveDestination({
+      orderLatitude: (order as any).delivery_latitude,
+      orderLongitude: (order as any).delivery_longitude,
+      addressLatitude: address?.latitude,
+      addressLongitude: address?.longitude,
+    });
+
+    if (!destination.ok) {
+      console.error(
+        `MISSING_DESTINATION_COORDINATES for order ${(order as any).order_number} — refusing dispatch`,
+      );
+      return new Response(
+        JSON.stringify({
+          error: 'MISSING_DESTINATION_COORDINATES',
+          message: 'This order has no usable delivery location, so it cannot be sent to a rider.',
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const customerLat = destination.latitude as number;
+    const customerLon = destination.longitude as number;
+    console.log(`Destination source: ${destination.source} (${customerLat}, ${customerLon})`);
+
     let deliveryDistanceKm = 0;
     let estimatedDeliveryMinutes = 0;
-    if (customerLat && customerLon) {
-      const gmResult = await getGoogleMapsDistance(pickupLat, pickupLng, customerLat, customerLon);
-      deliveryDistanceKm = gmResult.distanceKm;
-      estimatedDeliveryMinutes = gmResult.durationMinutes;
-      console.log(`Delivery distance (${gmResult.source}): ${deliveryDistanceKm} km, ETA: ${estimatedDeliveryMinutes} min`);
-    }
+    const gmResult = await getGoogleMapsDistance(pickupLat, pickupLng, customerLat, customerLon);
+    deliveryDistanceKm = gmResult.distanceKm;
+    estimatedDeliveryMinutes = gmResult.durationMinutes;
+    console.log(`Delivery distance (${gmResult.source}): ${deliveryDistanceKm} km, ETA: ${estimatedDeliveryMinutes} min`);
 
     // Get max concurrent orders setting
     const maxConcurrentOrders = parseInt(settingsMap.rider_max_concurrent_orders || '1');
