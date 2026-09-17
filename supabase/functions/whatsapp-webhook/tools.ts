@@ -1,3 +1,7 @@
+// Env read via globalThis so this module also typechecks outside Deno.
+const envGet = (k: string): string | undefined =>
+  (globalThis as any).Deno?.env?.get(k);
+
 import { customerOrderTracking } from "../_shared/orderTracking.ts";
 // ============================================================================
 // FastCalories WhatsApp agent tools.
@@ -224,8 +228,8 @@ function quoteIsFresh(cart: WaCart): boolean {
 // ------------------------------------------------------- location resolution
 
 async function geocodeText(query: string) {
-  const lk = Deno.env.get("LOVABLE_API_KEY");
-  const gk = Deno.env.get("GOOGLE_MAPS_API_KEY") || Deno.env.get("GOOGLE_MAPS_KEY");
+  const lk = envGet("LOVABLE_API_KEY");
+  const gk = envGet("GOOGLE_MAPS_API_KEY") || envGet("GOOGLE_MAPS_KEY");
   if (!lk || !gk || !query) return null;
   try {
     const r = await fetch(
@@ -1684,8 +1688,8 @@ async function toolWallet(ctx: ToolCtx) {
 
 async function paystackKey(ctx: ToolCtx) {
   return ctx.environment === "production"
-    ? Deno.env.get("PAYSTACK_LIVE_SECRET_KEY") || Deno.env.get("PAYSTACK_SECRET_KEY")
-    : Deno.env.get("PAYSTACK_TEST_SECRET_KEY") || Deno.env.get("PAYSTACK_SECRET_KEY");
+    ? envGet("PAYSTACK_LIVE_SECRET_KEY") || envGet("PAYSTACK_SECRET_KEY")
+    : envGet("PAYSTACK_TEST_SECRET_KEY") || envGet("PAYSTACK_SECRET_KEY");
 }
 
 async function toolCreateOrder(ctx: ToolCtx, args: any) {

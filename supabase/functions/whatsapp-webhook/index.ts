@@ -9,13 +9,13 @@ import { chatCompletionWithFallback } from "../_shared/ai-call.ts";
 import {
   fetchOutletOverrides,
   isEffectivelyAvailable,
-  resolveDefaultOutletId,
 } from "../_shared/availability.ts";
 import { runAgentTurn } from "./agent.ts";
 import { applySharedLocation, CartLine, loadCart, saveCart, ToolCtx } from "./tools.ts";
 import { isAgentEligible, isExplicitMenuRequest } from "./routing.ts";
 import { blockLegacyOrderPath } from "./legacyGuard.ts";
 import { detectImageAttachment, recordUnverifiedPaymentProof } from "./paymentProof.ts";
+import { boundOutletFrom, OutletChoice, resolveBoundOutlet } from "./outletBinding.ts";
 
 
 const corsHeaders = {
@@ -935,10 +935,53 @@ serve(async (req) => {
     // message. Gemini classifies intent; everything else is resolved against
     // real menu rows. Any failure returns null so the numbered flow continues.
     // ============================================================
-    const loadVendorMenu = async (vendorId: string, vendorName: string) => {
+    // Resolve the branch the customer explicitly bound. Returns null and sends
+    // the branch-choice prompt when nothing safe is bound — never a default.
+    const bindMenuOutlet = async (
+      vendorId: string,
+      vendorName: string,
+    ): Promise<{ outletId: string } | { prompt: Response }> => {
+      const bound = boundOutletFrom(nextContext, nextCart, vendorId);
+      const res = await resolveBoundOutlet(supabase, { vendorId, vendorName, boundOutletId: bound });
+      if (res.ok) {
+        nextContext.vendor_id = vendorId;
+        nextContext.outlet_id = res.outletId;
+        nextContext.selected_outlet_id = res.outletId;
+        nextContext.outlet_name = res.outletName;
+        // Bind the SAME vendor + branch on the durable cart that checkout reads.
+        try {
+          await saveCart(
+            { supabase, phone, userId: session.customer_user_id, sessionId: session.id, environment: platformEnvironment } as ToolCtx,
+            { vendor_id: vendorId, outlet_id: res.outletId },
+          );
+        } catch (e) {
+          console.error("[wa] outlet bind to cart failed", e instanceof Error ? e.message : String(e));
+        }
+        return { outletId: res.outletId };
+      }
+      console.warn(JSON.stringify({
+        event: "wa_outlet_choice_required", reason: res.reason,
+        vendor_id: vendorId, choices: res.choices.length,
+      }));
+      const choices: OutletChoice[] = res.choices.slice(0, 10);
+      await persistSession(supabase, session.id, choices.length ? "choosing_outlet" : "menu", {
+        ...nextContext,
+        vendor_id: vendorId,
+        vendor_name: vendorName,
+        outlet_id: undefined,
+        selected_outlet_id: undefined,
+        outlet_choices: choices,
+      }, nextCart);
+      return { prompt: await replyText(res.prompt) };
+    };
+
+    const loadVendorMenu = async (vendorId: string, vendorName: string, outletId: string) => {
       const { data: vendorRow } = await supabase.from("vendors").select("category, name").eq("id", vendorId).maybeSingle();
-      const items = await fetchMenuItems(supabase, vendorId);
+      const items = await fetchMenuItems(supabase, vendorId, outletId);
       nextContext.vendor_id = vendorId;
+      nextContext.outlet_id = outletId;
+      nextContext.selected_outlet_id = outletId;
+      nextContext.items_outlet_id = outletId;
       nextContext.vendor_name = vendorName || vendorRow?.name || "";
       nextContext.vendor_category = vendorRow?.category || "restaurant";
       nextContext.items = items.map((m: any) => ({
@@ -1260,7 +1303,9 @@ serve(async (req) => {
             if (!pick) {
               return await answerInPlace(`🤔 I only listed ${list.length} option${list.length > 1 ? "s" : ""}. Which number did you mean?`);
             }
-            const menuItems = await loadVendorMenu(pick.id, pick.name);
+            const pickBind = await bindMenuOutlet(pick.id, pick.name);
+            if ("prompt" in pickBind) return pickBind.prompt;
+            const menuItems = await loadVendorMenu(pick.id, pick.name, pickBind.outletId);
             writeMemory({ last_selected_vendor_id: pick.id });
             const pending = nextContext.nl_pending_items || [];
             nextContext.nl_pending_items = undefined;
@@ -1367,7 +1412,9 @@ serve(async (req) => {
           if (wanted && !nextContext.vendor_id && listed?.length) {
             const found: string[] = [];
             for (const v of listed.slice(0, 6)) {
-              const items = await fetchMenuItems(supabase, v.id);
+              // Discovery across vendors: names and prices only. No branch is
+              // bound yet, so this never claims a item is available.
+              const items = await fetchMenuNames(supabase, v.id);
               const hit = items.filter((m: any) => scoreMatch(wanted, m.name) > 0.4).slice(0, 2);
               if (hit.length) {
                 found.push(`• *${v.name}* — ${hit.map((h: any) => `${h.name} (₦${Number(h.price).toLocaleString()})`).join(", ")}`);
@@ -1383,9 +1430,14 @@ serve(async (req) => {
             return await answerInPlace(`😕 None of the vendors I listed have *${wanted}* on their menu right now. Want me to search other vendors near you?`);
           }
           if (nextContext.vendor_id) {
-            const items = Array.isArray(nextContext.items) && nextContext.items.length
+            const menuBind = await bindMenuOutlet(nextContext.vendor_id, nextContext.vendor_name || "");
+            if ("prompt" in menuBind) return menuBind.prompt;
+            // Cached rows are reused only when they were built for THIS branch.
+            const cachedOk = Array.isArray(nextContext.items) && nextContext.items.length &&
+              nextContext.items_outlet_id === menuBind.outletId;
+            const items = cachedOk
               ? nextContext.items
-              : await loadVendorMenu(nextContext.vendor_id, nextContext.vendor_name || "");
+              : await loadVendorMenu(nextContext.vendor_id, nextContext.vendor_name || "", menuBind.outletId);
             if (items.length) {
               await persistSession(supabase, session.id, "browsing_menu", nextContext, nextCart);
               return await replyText(renderVendorMenuText(items, nextContext.vendor_name || "Menu"));
@@ -1504,7 +1556,9 @@ serve(async (req) => {
         // add_to_cart — needs a vendor context
         let menuItems: any[] = Array.isArray(nextContext.items) ? nextContext.items : [];
         if (nextContext.vendor_id && !menuItems.length) {
-          menuItems = await loadVendorMenu(nextContext.vendor_id, nextContext.vendor_name || "");
+          const addBind = await bindMenuOutlet(nextContext.vendor_id, nextContext.vendor_name || "");
+          if ("prompt" in addBind) return addBind.prompt;
+          menuItems = await loadVendorMenu(nextContext.vendor_id, nextContext.vendor_name || "", addBind.outletId);
         }
         if (menuItems.length) {
           if (inCheckout) {
@@ -1580,13 +1634,54 @@ serve(async (req) => {
     }
 
 
+    // Branch choice — the customer picks a real eligible branch. Nothing is
+    // defaulted: an unrecognised reply re-asks instead of choosing for them.
+    if (session.state === "choosing_outlet") {
+      const choices: OutletChoice[] = Array.isArray(nextContext.outlet_choices) ? nextContext.outlet_choices : [];
+      const pendingVendorId: string | null = nextContext.vendor_id || null;
+      if (lower === "menu" || lower === "0" || tap === "BTN_MAIN_MENU") {
+        await persistSession(supabase, session.id, "menu", { ...nextContext, outlet_choices: undefined }, nextCart);
+        return await sendToUser("wa_main_menu", {}, MENU_OPTIONS);
+      }
+      const pickIdx = parseInt(lower, 10) - 1;
+      const picked = Number.isFinite(pickIdx) ? choices[pickIdx] : undefined;
+      if (!picked || !pendingVendorId) {
+        const nlBranch = await tryNaturalLanguage();
+        if (nlBranch) return nlBranch;
+        return await replyText(
+          choices.length
+            ? `Please reply with a branch number:\n\n${choices.map((c, i) => `${i + 1}️⃣ ${c.name}`).join("\n")}\n\nOr reply *menu* to go back.`
+            : "Reply *menu* to see places near you.",
+        );
+      }
+      // Re-validate the chosen branch at the moment of choice — the same gate
+      // checkout uses. A branch that just closed sends them back to the list.
+      nextContext.outlet_id = picked.outlet_id;
+      nextContext.selected_outlet_id = picked.outlet_id;
+      nextContext.outlet_choices = undefined;
+      const pickedBind = await bindMenuOutlet(pendingVendorId, nextContext.vendor_name || "");
+      if ("prompt" in pickedBind) return pickedBind.prompt;
+      const branchMenu = await loadVendorMenu(pendingVendorId, nextContext.vendor_name || "", pickedBind.outletId);
+      if (!branchMenu.length) {
+        await persistSession(supabase, session.id, "menu", nextContext, nextCart);
+        return await sendToUser("wa_main_menu", {}, `${picked.name} has no items right now.\n\n${MENU_OPTIONS}`);
+      }
+      await persistSession(supabase, session.id, "browsing_menu", nextContext, nextCart);
+      return await replyText(
+        `🏪 *${nextContext.vendor_name || "Menu"}* — ${picked.name}\n\n` +
+        renderVendorMenuText(branchMenu, nextContext.vendor_name || "Menu"),
+      );
+    }
+
     // Vendor choice after a natural-language product search
     if (session.state === "nl_choose_vendor") {
       const opts: any[] = nextContext.nl_vendor_options || [];
       const idx = parseInt(lower, 10) - 1;
       if (Number.isFinite(idx) && opts[idx]) {
         const chosen = opts[idx];
-        const menuItems = await loadVendorMenu(chosen.id, chosen.name);
+        const chosenBind = await bindMenuOutlet(chosen.id, chosen.name);
+        if ("prompt" in chosenBind) return chosenBind.prompt;
+        const menuItems = await loadVendorMenu(chosen.id, chosen.name, chosenBind.outletId);
         const pending = nextContext.nl_pending_items || [];
         nextContext.nl_pending_items = undefined;
         nextContext.nl_vendor_options = undefined;
@@ -1729,8 +1824,13 @@ serve(async (req) => {
       // Look up vendor category (pharmacy gets special handling)
       const { data: vendorRow } = await supabase.from("vendors").select("category").eq("id", vendorId).maybeSingle();
       const vendorCategory = vendorRow?.category || "restaurant";
-      const items = await fetchMenuItems(supabase, vendorId);
+      const listBind = await bindMenuOutlet(vendorId, vendor?.name || "");
+      if ("prompt" in listBind) return listBind.prompt;
+      const items = await fetchMenuItems(supabase, vendorId, listBind.outletId);
       nextContext.vendor_id = vendorId;
+      nextContext.outlet_id = listBind.outletId;
+      nextContext.selected_outlet_id = listBind.outletId;
+      nextContext.items_outlet_id = listBind.outletId;
       nextContext.vendor_name = vendor?.name || "";
       nextContext.vendor_category = vendorCategory;
       nextContext.items = items.map((m: any) => ({
@@ -2383,7 +2483,22 @@ async function fetchVendors(supabase: any, userId: string | null, overrideLat: n
   return withStraightLine(withNamesOnly(rows), lat, lon);
 }
 
-async function fetchMenuItems(supabase: any, vendorId: string) {
+/** Names + prices only. Used for cross-vendor discovery, where no branch is
+ *  bound yet, so NO availability is claimed and nothing here is orderable. */
+async function fetchMenuNames(supabase: any, vendorId: string) {
+  const { data } = await supabase
+    .from("products")
+    .select("id, name, price")
+    .eq("vendor_id", vendorId)
+    .eq("is_hidden", false)
+    .order("name", { ascending: true })
+    .limit(50);
+  return data || [];
+}
+
+// The branch is a REQUIRED argument: the menu is always rendered for the branch
+// the customer explicitly chose, never for a vendor's default/main branch.
+async function fetchMenuItems(supabase: any, vendorId: string, outletId: string) {
   // WhatsApp shows the FULL menu — including items currently unavailable — but
   // `is_available` here is the SHARED effective rule (branch override, global
   // flag, hidden, tracked stock), so unavailable items are labelled and
@@ -2397,7 +2512,6 @@ async function fetchMenuItems(supabase: any, vendorId: string) {
   const raw = data || [];
   if (!raw.length) return [];
 
-  const outletId = await resolveDefaultOutletId(supabase, vendorId);
   const overrides = await fetchOutletOverrides(supabase, outletId, raw.map((p: any) => p.id));
   const products = raw.map((p: any) => ({
     ...p,

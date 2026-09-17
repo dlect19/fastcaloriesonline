@@ -65,4 +65,4 @@
 - [x] E — no outlet guessing: checkout requires an explicit branch; reorder now asks the customer to choose from real eligible branches (default-outlet fallback removed)
 - [x] F (verified) — only `whatsapp_create_order_atomic` creates WhatsApp orders; webhook writes no order/item/wallet row; checkout intent key + idempotency key already durable (tests assert this)
 - [x] A — voice gating live (migration 0028): master switch, size/duration caps, per-phone minute/hour/day limits, global daily ceiling + concurrency, Twilio-host-only media with no blind redirects, one reservation per MessageSid, redacted usage audit with 30-day retention
-- [ ] Remaining: legacy numbered-menu list still renders availability using a vendor's default branch (display only, no payment path)
+- [x] Legacy numbered-menu list now renders availability for the branch the customer explicitly picked (outletBinding.ts, `choosing_outlet` state); no default/main/first branch is ever substituted
