@@ -692,6 +692,9 @@ Deno.serve(async (req) => {
         dispatchRequestId: dispatchRequest.id,
         eligibleRiderCount: eligibleRiders.length,
         expiresAt: expiresAt.toISOString(),
+        destinationSource: destination.source,
+        deliveryDistanceKm,
+        supersededRequestIds,
         payoutBreakdown: payout,
         message: eligibleRiders.length === 0
           ? 'No riders available, dispatch created for retry'
