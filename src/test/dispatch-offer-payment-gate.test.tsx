@@ -1,6 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useDispatchOffers } from '@/hooks/useDispatchOffers';
+import { resetRiderOfferStore } from '@/hooks/riderOfferStore';
 
 /**
  * Discovery is now server-authoritative: the rider app calls
