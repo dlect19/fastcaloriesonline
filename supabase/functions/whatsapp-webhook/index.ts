@@ -1302,7 +1302,9 @@ serve(async (req) => {
             if (!pick) {
               return await answerInPlace(`🤔 I only listed ${list.length} option${list.length > 1 ? "s" : ""}. Which number did you mean?`);
             }
-            const menuItems = await loadVendorMenu(pick.id, pick.name);
+            const pickBind = await bindMenuOutlet(pick.id, pick.name);
+            if ("prompt" in pickBind) return pickBind.prompt;
+            const menuItems = await loadVendorMenu(pick.id, pick.name, pickBind.outletId);
             writeMemory({ last_selected_vendor_id: pick.id });
             const pending = nextContext.nl_pending_items || [];
             nextContext.nl_pending_items = undefined;
@@ -1409,7 +1411,9 @@ serve(async (req) => {
           if (wanted && !nextContext.vendor_id && listed?.length) {
             const found: string[] = [];
             for (const v of listed.slice(0, 6)) {
-              const items = await fetchMenuItems(supabase, v.id);
+              // Discovery across vendors: names and prices only. No branch is
+              // bound yet, so this never claims a item is available.
+              const items = await fetchMenuNames(supabase, v.id);
               const hit = items.filter((m: any) => scoreMatch(wanted, m.name) > 0.4).slice(0, 2);
               if (hit.length) {
                 found.push(`• *${v.name}* — ${hit.map((h: any) => `${h.name} (₦${Number(h.price).toLocaleString()})`).join(", ")}`);
