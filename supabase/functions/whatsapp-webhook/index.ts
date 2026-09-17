@@ -2797,199 +2797,32 @@ async function buildOrderSummary(supabase: any, cart: any[], session?: any) {
 }
 
 
+// RETIRED. The legacy WhatsApp order path (direct `orders` insert with
+// payment_status 'paid', wallet debit afterwards) is gone. Any surviving caller
+// lands here, is recorded as LEGACY_PATH_BLOCKED, and writes nothing.
 async function confirmWhatsAppOrder(
   supabase: any,
   session: any,
   cart: any[],
   replyText: (t: string) => Promise<Response>,
-  sendToUser: (k: string, v: Record<string, string>, fb: string) => Promise<Response>,
+  _sendToUser: (k: string, v: Record<string, string>, fb: string) => Promise<Response>,
+  callSite = "confirming_order",
 ) {
-  if (!cart.length) return await replyText("Your cart is empty. Reply *menu* to browse vendors.");
-  if (!session.customer_user_id) return await replyText("⚠️ Please reply *menu* and follow the setup first.");
-
-  const { data: envSetting } = await supabase.from("platform_settings").select("value").eq("key", "platform_environment").maybeSingle();
-  const environment = envSetting?.value || "development";
-  const isTestMode = environment === "development";
-  const summary = await buildOrderSummary(supabase, cart, session);
-  if (summary.pricing_unavailable) {
-    return await replyText("⚠️ We couldn't work out the delivery price for your address right now. Please try *checkout* again in a moment.");
-  }
-  const { data: wallet } = await supabase.from("wallets").select("*").eq("user_id", session.customer_user_id).eq("wallet_type", "customer").maybeSingle();
-  if (!wallet || wallet.is_disabled) return await replyText("⚠️ Wallet unavailable. Please contact support.");
-  const balance = Number(isTestMode ? wallet.test_balance : wallet.balance) || 0;
-  if (balance < summary.total) return await doCheckout(supabase, session, cart, session.phone, "", "", {}, sendToUser, replyText);
-
-  const vendorId = cart[0]?.vendor_id;
-  const paymentRef = `WA-${Date.now()}`;
-
-  // Resolve outlet so the order shows up in the vendor portal (scoped by selected outlet)
-  let outletId: string | null = cart[0]?.outlet_id ?? null;
-  if (!outletId && vendorId) {
-    const { data: outlets } = await supabase
-      .from("vendor_outlets")
-      .select("id, is_default, is_active")
-      .eq("vendor_id", vendorId)
-      .eq("is_active", true);
-    const def = outlets?.find((o: any) => o.is_default) || outlets?.[0];
-    outletId = def?.id ?? null;
-  }
-
-  // 6-digit confirmation code customer must give to the rider on hand-off
-  const confirmationCode = String(Math.floor(100000 + Math.random() * 900000));
-
-  const isPharmacyOrder = cart.some((c: any) => c.is_pharmacy);
-  const rx = session.context?.pharmacy_rx || null;
-  // Pharmacist always reviews pharmacy orders after payment:
-  //  - Doctor's Rx → pharmacist verifies the photo (approve or suggest alternative).
-  //  - No prescription → pharmacist reviews described symptoms and either approves
-  //    with usage instructions or cancels the item with a suggested drug + note.
-  const requiresApproval = isPharmacyOrder;
-  const orderStatus = requiresApproval ? "pending" : "confirmed";
-
-  const { data: order, error: orderErr } = await supabase.from("orders").insert({
-    user_id: session.customer_user_id,
-    vendor_id: vendorId,
-    outlet_id: outletId,
-    status: orderStatus,
-    subtotal: summary.subtotal,
-    menu_subtotal: summary.subtotal,
-    delivery_fee: summary.delivery_fee,
-    delivery_latitude: Number.isFinite(Number(session.context?.lat)) ? Number(session.context?.lat) : null,
-    delivery_longitude: Number.isFinite(Number(session.context?.lon)) ? Number(session.context?.lon) : null,
-    delivery_distance_km: summary.delivery_pricing?.distanceKm ?? null,
-    delivery_pricing_source: summary.delivery_pricing?.source ?? null,
-    delivery_pricing_meta: summary.delivery_pricing?.meta ?? null,
-    service_fee: summary.service_fee,
-    total: summary.total,
-    total_calories: summary.total_calories,
-    delivery_type: "delivery",
-    delivery_address_text: session.context?.delivery_address_text || session.context?.location_label || "WhatsApp order",
-    payment_method: "wallet",
-    payment_status: "paid",
-    payment_reference: paymentRef,
-    environment,
-    channel: "whatsapp",
-    confirmation_code: confirmationCode,
-    delivery_instructions: session.context?.customer_order_note ? `Customer Note: ${session.context.customer_order_note}` : null,
-  }).select("id, order_number, confirmation_code").single();
-
-  if (orderErr || !order) {
-    console.error("WhatsApp order insert failed", orderErr);
-    return await replyText("⚠️ Could not create your order. Your wallet was not debited. Please try *checkout* again.");
-  }
-
-  const items = cart.map((c) => ({
-    order_id: order.id,
-    product_id: c.id,
-    product_name: c.name,
-    quantity: c.qty,
-    unit_price: Number(c.price) || 0,
-    total_price: (Number(c.price) || 0) * Number(c.qty),
-    calories: c.calories ?? 0,
-  }));
-  // Auto takeaway pack (matches customer-app behaviour) — added as its own line item
-  if (summary.pack && summary.pack_fee > 0) {
-    items.push({
-      order_id: order.id,
-      product_id: null,
-      product_name: `📦 Takeaway pack — ${summary.pack.name}`,
-      quantity: 1,
-      unit_price: summary.pack_fee,
-      total_price: summary.pack_fee,
-      calories: 0,
-    } as any);
-  }
-  const { data: insertedItems } = await supabase.from("order_items").insert(items).select("id, product_id");
-
-  // Persist selected add-ons per line item into order_item_addons (denormalized).
-  if (insertedItems?.length) {
-    const addonRows: any[] = [];
-    cart.forEach((c: any) => {
-      if (!c.addons?.length) return;
-      // Match inserted row to cart line by product_id. When multiple lines share
-      // the same product, associate to the first still-unclaimed row.
-      const claimed = new Set<string>();
-      const row = insertedItems.find((r: any) => r.product_id === c.id && !claimed.has(r.id));
-      if (!row) return;
-      claimed.add(row.id);
-      c.addons.forEach((a: any) => {
-        addonRows.push({
-          order_item_id: row.id,
-          addon_group_name: a.group_name,
-          addon_item_name: a.item_name,
-          additional_price: Number(a.price) || 0,
-          calories: Number(a.calories) || 0,
-        });
-      });
-    });
-    if (addonRows.length) await supabase.from("order_item_addons").insert(addonRows);
-  }
-
-
-
-  // === Pharmacy: insert prescription_orders + prescriptions row ===
-  if (isPharmacyOrder) {
-    try {
-      const rxRows = cart.filter((c: any) => c.is_pharmacy && c.id).map((c: any) => ({
-        order_id: order.id,
-        product_id: c.id,
-        user_id: session.customer_user_id,
-        vendor_id: vendorId,
-        is_prescription: rx?.type === "doctor",
-        prescription_type: rx?.type || "pharmacist",
-        prescription_image_url: rx?.image_url || null,
-        doctor_instructions: rx?.doctor_instructions || "",
-        // The customer's free-text description from WhatsApp is their symptoms
-        // (the pharmacist will fill pharmacist_dosage_instructions on approval).
-        symptoms: rx?.type === "pharmacist" ? (rx?.pharmacist_instructions || rx?.instructions || null) : null,
-        pharmacist_instructions: "",
-        dosage_frequency: "as_directed",
-        dosage_duration_days: 7,
-        quantity_per_dose: 1,
-        total_quantity: c.qty,
-        requires_approval: requiresApproval,
-        approval_status: requiresApproval ? "pending" : "approved",
-      }));
-      if (rxRows.length) await supabase.from("prescription_orders").insert(rxRows);
-
-      if (rx?.image_url) {
-        await supabase.from("prescriptions").insert({
-          user_id: session.customer_user_id,
-          order_id: order.id,
-          image_url: rx.image_url,
-          status: "pending",
-          notes: "Submitted via WhatsApp",
-        });
-      }
-    } catch (e) {
-      console.error("WhatsApp pharmacy Rx insert failed", e);
-    }
-  }
-
-  // Debit through the single safe ledger entry point (atomic + idempotent)
-  const { error: debitErr } = await supabase.rpc("post_wallet_entry", {
-    p_wallet_id: wallet.id,
-    p_wallet_type: "customer",
-    p_transaction_type: "debit",
-    p_category: "wallet_payment",
-    p_amount: summary.total,
-    p_reference: `WA-${order.order_number}`,
-    p_environment: environment,
-    p_order_id: order.id,
-    p_notes: `WhatsApp order #${order.order_number}`,
-    p_metadata: { source: "whatsapp-webhook", order_number: order.order_number },
+  const text = await blockLegacyOrderPath(supabase, {
+    callSite,
+    sessionId: session?.id ?? null,
+    userId: session?.customer_user_id ?? null,
+    vendorId: Array.isArray(cart) ? cart[0]?.vendor_id ?? null : null,
+    outletId: Array.isArray(cart) ? cart[0]?.outlet_id ?? null : null,
+    cartLines: Array.isArray(cart) ? cart.length : 0,
   });
-  if (debitErr) console.error("[whatsapp] post_wallet_entry failed:", debitErr.message);
-  const newBalance = balance - summary.total;
-
-
-  await persistSession(supabase, session.id, "menu", { last_order_id: order.id, last_order_number: order.order_number }, []);
-  const pharmaNote = isPharmacyOrder
-    ? (requiresApproval
-        ? `\n\n💊 *Pharmacy review pending.* Your prescription was sent to the pharmacist. They'll approve before dispatch — you'll get an update here.`
-        : `\n\n💊 The pharmacist has your instructions and is preparing your order.`)
-    : "";
-  return await sendToUser("wa_main_menu", {}, `✅ Order ${requiresApproval ? "submitted" : "confirmed"}!\n\n*${order.order_number}*\nTotal: ₦${summary.total.toLocaleString()}\nWallet balance: ₦${newBalance.toLocaleString()}\n\n🔐 *Delivery code: ${confirmationCode}*\nGive this code to the rider when your order arrives.${pharmaNote}\n\n${MENU_OPTIONS}`);
+  // Keep the cart and hand the next message to the agent's atomic checkout.
+  try {
+    await persistSession(supabase, session.id, "cart", session.context || {}, cart);
+  } catch (e) {
+    console.error("[wa-legacy] session persist failed", e instanceof Error ? e.message : String(e));
+  }
+  return await replyText(text);
 }
 
 async function doCheckout(
