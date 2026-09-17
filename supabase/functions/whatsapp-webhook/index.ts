@@ -2383,7 +2383,22 @@ async function fetchVendors(supabase: any, userId: string | null, overrideLat: n
   return withStraightLine(withNamesOnly(rows), lat, lon);
 }
 
-async function fetchMenuItems(supabase: any, vendorId: string) {
+/** Names + prices only. Used for cross-vendor discovery, where no branch is
+ *  bound yet, so NO availability is claimed and nothing here is orderable. */
+async function fetchMenuNames(supabase: any, vendorId: string) {
+  const { data } = await supabase
+    .from("products")
+    .select("id, name, price")
+    .eq("vendor_id", vendorId)
+    .eq("is_hidden", false)
+    .order("name", { ascending: true })
+    .limit(50);
+  return data || [];
+}
+
+// The branch is a REQUIRED argument: the menu is always rendered for the branch
+// the customer explicitly chose, never for a vendor's default/main branch.
+async function fetchMenuItems(supabase: any, vendorId: string, outletId: string) {
   // WhatsApp shows the FULL menu — including items currently unavailable — but
   // `is_available` here is the SHARED effective rule (branch override, global
   // flag, hidden, tracked stock), so unavailable items are labelled and
@@ -2397,7 +2412,6 @@ async function fetchMenuItems(supabase: any, vendorId: string) {
   const raw = data || [];
   if (!raw.length) return [];
 
-  const outletId = await resolveDefaultOutletId(supabase, vendorId);
   const overrides = await fetchOutletOverrides(supabase, outletId, raw.map((p: any) => p.id));
   const products = raw.map((p: any) => ({
     ...p,
