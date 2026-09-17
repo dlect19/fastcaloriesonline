@@ -2,7 +2,9 @@
 
 ## Production checkout second hardening patch
 - [x] Reject unsafe numeric add-on pricing inputs; isolated PostgreSQL pricing regression tests (17)
-- [ ] Atomic customer checkout, durable replay semantics, persistent rejection diagnostics
+- [x] Server same-key replay and post-savepoint diagnostics; new-key similarity warning only
+- [ ] Atomic customer checkout; durable client key lifecycle across reloads
+- [ ] Multi-session PostgreSQL concurrency and full POS/assisted regression coverage
 - [ ] Server-verified cart quote binding and concurrency-safe consumption
 - [ ] Authoritative packaging, promotions, options and pharmacy validation
 - [ ] Fail-closed rider discovery and safe older-client compatibility

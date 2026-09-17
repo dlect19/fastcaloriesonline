@@ -10802,6 +10802,7 @@ export type Database = {
         Returns: string
       }
       create_customer_order: { Args: { p_payload: Json }; Returns: Json }
+      create_customer_order_worker: { Args: { p_payload: Json }; Returns: Json }
       credit_vendor_wallet_for_voucher: {
         Args: { _order_id: string }
         Returns: undefined

@@ -15,6 +15,7 @@ interface EventRow {
   user_id: string | null;
   vendor_id: string | null;
   outlet_id: string | null;
+  order_id: string | null;
   existing_order_id: string | null;
   checkout_attempt_key: string | null;
   delivery_quote_id: string | null;
@@ -25,6 +26,12 @@ interface EventRow {
 }
 
 const LABELS: Record<string, { label: string; tone: string }> = {
+  checkout_replay: { label: 'Existing checkout resumed', tone: 'bg-muted text-foreground' },
+  suspicious_near_duplicate: { label: 'Similar checkout allowed', tone: 'bg-muted text-foreground' },
+  delivery_quote_stale: { label: 'Quote expired', tone: 'bg-muted text-foreground' },
+  delivery_quote_mismatch: { label: 'Quote context mismatch', tone: 'bg-muted text-foreground' },
+  delivery_quote_consumed: { label: 'Quote already used', tone: 'bg-muted text-foreground' },
+  pricing_changed: { label: 'Price changed', tone: 'bg-muted text-foreground' },
   duplicate_attempt_key: { label: 'Repeated checkout blocked', tone: 'bg-amber-500/10 text-amber-700' },
   short_window_duplicate: { label: 'Identical repeat blocked', tone: 'bg-amber-500/10 text-amber-700' },
   delivery_quote_missing: { label: 'No delivery price', tone: 'bg-red-500/10 text-red-700' },
@@ -53,7 +60,7 @@ export default function AdminCheckoutIntegrity() {
     load();
   }, []);
 
-  const duplicates = rows.filter((r) => r.event_type.includes('duplicate'));
+  const duplicates = rows.filter((r) => r.event_type.includes('duplicate') || r.event_type === 'checkout_replay');
   const quoteIssues = rows.filter((r) => r.event_type.startsWith('delivery'));
 
   return (
@@ -65,8 +72,7 @@ export default function AdminCheckoutIntegrity() {
               <ShieldAlert className="w-6 h-6 text-primary" /> Checkout integrity
             </h1>
             <p className="text-sm text-muted-foreground">
-              Repeated checkouts that were stopped before becoming a second order, and delivery prices that were
-              refused because they were missing, expired or did not match the address.
+              Checkout replays, similarity warnings, and rejected pricing checks.
             </p>
           </div>
           <Button variant="outline" size="sm" onClick={load} className="gap-2">
@@ -78,12 +84,12 @@ export default function AdminCheckoutIntegrity() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
-                <Copy className="w-4 h-4" /> Repeated checkouts stopped
+                <Copy className="w-4 h-4" /> Replays and similarity warnings
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-3xl font-bold">{duplicates.length}</p>
-              <p className="text-xs text-muted-foreground">Each one would previously have become a second order.</p>
+              <p className="text-xs text-muted-foreground">Most recent 200 recorded events.</p>
             </CardContent>
           </Card>
           <Card>
@@ -119,7 +125,7 @@ export default function AdminCheckoutIntegrity() {
                     <TableRow>
                       <TableHead>When</TableHead>
                       <TableHead>What happened</TableHead>
-                      <TableHead>Existing order</TableHead>
+                      <TableHead>Order / customer / attempt</TableHead>
                       <TableHead className="text-right">Submitted</TableHead>
                       <TableHead className="text-right">Expected</TableHead>
                       <TableHead>Detail</TableHead>
@@ -139,7 +145,7 @@ export default function AdminCheckoutIntegrity() {
                             </Badge>
                           </TableCell>
                           <TableCell className="font-mono text-xs">
-                            {r.existing_order_id ? r.existing_order_id.slice(0, 8) : '—'}
+                            <div className="max-w-64 break-all">Order: {r.order_id || r.existing_order_id || '—'}<br />Customer: {r.user_id || '—'}<br />Attempt: {r.checkout_attempt_key || '—'}<br />Quote: {r.delivery_quote_id || '—'}<br />Branch: {r.outlet_id || '—'}</div>
                           </TableCell>
                           <TableCell className="text-right text-xs">
                             {r.submitted_fee === null ? '—' : `₦${Number(r.submitted_fee).toLocaleString()}`}
