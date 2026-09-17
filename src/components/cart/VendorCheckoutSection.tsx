@@ -624,6 +624,7 @@ export function VendorCheckoutSection({
 
       if (rpcError) throw rpcError;
       const summary = rpcResult as any;
+      if (summary?.ok === false) throw new Error(summary.error || "CHECKOUT_REJECTED");
       if (!summary?.order_id) throw new Error("Order could not be created. Please try again.");
 
       // A double tap, a retry after a timeout or a page refresh all resolve to

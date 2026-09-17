@@ -21,7 +21,7 @@ await db.exec(`CREATE FUNCTION create_customer_order_worker(p jsonb) RETURNS jso
 INSERT INTO orders(user_id,vendor_id,checkout_attempt_key,checkout_fingerprint,delivery_type) VALUES(auth.uid(),(p->>'vendor_id')::uuid,p->>'checkout_attempt_key',p->>'checkout_fingerprint',p->>'delivery_type') RETURNING id INTO i;
 IF p->>'fixture_failure'='pricing' THEN RAISE EXCEPTION 'PRICING_CHANGED: fixture'; END IF;
 RETURN jsonb_build_object('order_id',i); END $$;`);
-const sql=readFileSync('scripts/sql/checkout-intent-phase.sql','utf8');
+const sql=readFileSync('drizzle/migrations/0025_durable_checkout_replay_diagnostics.sql','utf8');
 await db.exec(sql.slice(sql.indexOf('CREATE OR REPLACE FUNCTION public.create_customer_order(p_payload')));
 },30000);
 afterAll(()=>db.close());
