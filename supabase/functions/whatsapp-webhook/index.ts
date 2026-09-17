@@ -1784,8 +1784,13 @@ serve(async (req) => {
       // Look up vendor category (pharmacy gets special handling)
       const { data: vendorRow } = await supabase.from("vendors").select("category").eq("id", vendorId).maybeSingle();
       const vendorCategory = vendorRow?.category || "restaurant";
-      const items = await fetchMenuItems(supabase, vendorId);
+      const listBind = await bindMenuOutlet(vendorId, vendor?.name || "");
+      if ("prompt" in listBind) return listBind.prompt;
+      const items = await fetchMenuItems(supabase, vendorId, listBind.outletId);
       nextContext.vendor_id = vendorId;
+      nextContext.outlet_id = listBind.outletId;
+      nextContext.selected_outlet_id = listBind.outletId;
+      nextContext.items_outlet_id = listBind.outletId;
       nextContext.vendor_name = vendor?.name || "";
       nextContext.vendor_category = vendorCategory;
       nextContext.items = items.map((m: any) => ({
