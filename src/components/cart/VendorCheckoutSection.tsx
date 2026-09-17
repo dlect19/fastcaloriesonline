@@ -20,6 +20,7 @@ import { useSpinWheel } from "@/hooks/useSpinWheel";
 import { usePlatformPromos } from "@/hooks/usePlatformPromos";
 import { useFreeMealPromos } from "@/hooks/useFreeMealPromos";
 import { supabase } from "@/integrations/supabase/client";
+import { checkoutAttempt, retireCheckoutAttempt } from "@/lib/checkoutAttempt";
 import { buildCheckoutFingerprint } from "@/lib/checkoutIntegrity";
 import { useServiceFee } from "@/hooks/useServiceFee";
 import { useRiderAvailability } from "@/hooks/useRiderAvailability";
@@ -127,7 +128,7 @@ export function VendorCheckoutSection({
   // One key per checkout attempt. It survives retries (so a timed-out or
   // double-tapped attempt resolves to the SAME order) and is only replaced once
   // an order has actually been placed, so a deliberate reorder is never blocked.
-  const attemptKeyRef = useRef<string | null>(null);
+
 
   const { calculateServiceFee, loading: serviceFeeLoading } = useServiceFee();
   const riderAvailability = useRiderAvailability();
@@ -542,13 +543,15 @@ export function VendorCheckoutSection({
         ? new Date(Date.now() + preorderDays * 24 * 60 * 60 * 1000).toISOString()
         : null;
 
-      if (!attemptKeyRef.current) {
-        attemptKeyRef.current =
-          typeof crypto !== "undefined" && "randomUUID" in crypto
-            ? crypto.randomUUID()
-            : `${userId}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      }
-      const attemptKey = attemptKeyRef.current;
+      const attempt = await checkoutAttempt(localStorage, userId, {
+        vendor: group.vendorId, outlet: resolvedOutletId, items: normalizedGroupItems,
+        address: deliveryType === "delivery" ? deliveryLocation : null,
+        fulfilment: deliveryType, promo: appliedPromoCode, promoType,
+        spin: selectedSpinDiscountId, discount: promoDiscount, freeMealPromoId,
+        packaging: vendorFees.packagingFee, extraPackageFee, packageCount,
+        packages: metas, paymentMethod: "wallet",
+      });
+      const attemptKey = attempt.key;
 
       if (deliveryType === "delivery" && !vendorFees.quoteId) {
         toast({
@@ -590,7 +593,7 @@ export function VendorCheckoutSection({
 
 
 
-      const { data: rpcResult, error: rpcError } = await supabase.rpc("create_customer_order", {
+      const { data: rpcResult, error: rpcError } = await supabase.rpc("checkout_customer_wallet", {
         p_payload: {
           vendor_id: group.vendorId,
           outlet_id: resolvedOutletId,
@@ -625,6 +628,7 @@ export function VendorCheckoutSection({
       if (rpcError) throw rpcError;
       const summary = rpcResult as any;
       if (summary?.ok === false) throw new Error(summary.error || "CHECKOUT_REJECTED");
+      if (summary?.payment_status !== "paid") throw new Error("WALLET_CHECKOUT_REJECTED");
       if (!summary?.order_id) throw new Error("Order could not be created. Please try again.");
 
       // A double tap, a retry after a timeout or a page refresh all resolve to
@@ -704,17 +708,9 @@ export function VendorCheckoutSection({
 
       }
 
-      // Pay via wallet — safe to repeat: the payment function refuses an
-      // order that is already paid and posts the debit idempotently.
-      const { data: paymentResult, error: paymentError } = await supabase.functions.invoke("process-wallet-payment", {
-        body: { orderIds: [order.id] },
-      });
-      if (paymentError) throw paymentError;
-      if (paymentResult?.error) throw new Error(paymentResult.error);
-
-      attemptKeyRef.current = null;
-      await refetchWallet();
       clearVendorGroup(group.vendorId, group.outletId);
+      retireCheckoutAttempt(localStorage, attempt.slot, attempt.key);
+      await refetchWallet().catch(() => undefined);
 
       toast({
         title: "Order Placed!",

@@ -26,7 +26,7 @@ CREATE FUNCTION pay_orders_with_wallet(ids uuid[],ref text,env text) RETURNS jso
  IF current_setting('test.fail',true)='yes' THEN RAISE EXCEPTION 'injected posting failure'; END IF;
  UPDATE orders SET payment_status='paid' WHERE id=ids[1]; RETURN '{"success":true}'::jsonb; END $$;
 `);
-await db.exec(readFileSync('scripts/sql/atomic-wallet-checkout.sql','utf8'));
+await db.exec(readFileSync('drizzle/migrations/0026_atomic_customer_wallet_checkout.sql','utf8'));
 },30000);
 afterAll(()=>db.close());
 async function call(k:string){return (await db.query<{r:any}>('SELECT checkout_customer_wallet($1::jsonb) r',[JSON.stringify({checkout_attempt_key:k})])).rows[0].r;}
