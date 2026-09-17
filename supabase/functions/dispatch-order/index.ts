@@ -591,6 +591,10 @@ Deno.serve(async (req) => {
         expires_at: expiresAt.toISOString(),
         max_retries: dispatchSettings.maxRetries,
         environment: order.environment || 'production',
+        destination_source: destination.source,
+        delivery_distance_km: deliveryDistanceKm,
+        retry_round: typeof retryRound === 'number' && retryRound > 0 ? retryRound : 0,
+        retry_count: typeof retryRound === 'number' && retryRound > 0 ? retryRound : 0,
         status: eligibleRiders.length === 0 ? 'no_riders' : 'pending',
       })
       .select()
@@ -599,6 +603,14 @@ Deno.serve(async (req) => {
     if (dispatchError) {
       console.error('Error creating dispatch request:', dispatchError);
       throw dispatchError;
+    }
+
+    // Link the retired attempts to the new round for audit.
+    if (supersededRequestIds.length > 0) {
+      await supabase
+        .from('dispatch_requests')
+        .update({ superseded_by_request_id: dispatchRequest.id })
+        .in('id', supersededRequestIds);
     }
 
     // Create offers with full payout breakdown
