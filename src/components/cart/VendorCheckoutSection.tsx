@@ -593,8 +593,22 @@ export function VendorCheckoutSection({
 
 
 
-      const { data: rpcResult, error: rpcError } = await supabase.rpc("checkout_customer_wallet", {
-        p_payload: {
+      // The server decides which checkout path this customer may use.
+      const rollout = await getServerCheckoutRollout({ paymentMethod: "wallet", channel: "online" });
+      if (rollout.route === "blocked") {
+        await recordCheckoutRoute(rollout, { paymentMethod: "wallet", attemptKey, failureCode: "BLOCKED" });
+        toast({
+          title: "Update needed",
+          description:
+            "This version of the app can no longer place orders safely. Please update the app, or contact support — your cart is saved.",
+          variant: "destructive",
+        });
+        onPlacingChange(null);
+        return;
+      }
+      const useServerCheckout = rollout.route === "server";
+
+      const checkoutPayload = {
           vendor_id: group.vendorId,
           outlet_id: resolvedOutletId,
           delivery_type: deliveryType,
