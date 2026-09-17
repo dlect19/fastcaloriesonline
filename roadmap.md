@@ -4,6 +4,7 @@
 - [x] Reject unsafe numeric add-on pricing inputs; isolated PostgreSQL pricing regression tests (17)
 - [x] Server same-key replay and post-savepoint diagnostics; new-key similarity warning only
 - [x] Atomic wallet RPC deployed and current wallet checkout wired; local persisted attempt identifiers
+- [x] Admin-controlled canary rollout gate for server checkout (disabled, 0% exposure) with audited settings, decision logging and 23 database tests
 - [ ] Full production-equivalent accounting integration coverage and cross-tab intent locking
 - [ ] Multi-session PostgreSQL concurrency and full POS/assisted regression coverage
 - [ ] Server-verified cart quote binding and concurrency-safe consumption
