@@ -131,6 +131,48 @@ export default function AdminCheckoutIntegrity() {
         </div>
 
         <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Orders placed by outdated apps (last 7 days)</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Paid app or web orders that carry no checkout attempt reference — these were created by an older,
+              cached version of the app rather than the hardened checkout.
+            </p>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <Skeleton className="h-10 w-full" />
+            ) : legacyOrders.length === 0 ? (
+              <p className="text-sm text-muted-foreground">None — every recent paid order used the hardened checkout.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>When</TableHead>
+                      <TableHead>Order</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                      <TableHead>Payment reference</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {legacyOrders.map((o) => (
+                      <TableRow key={o.id}>
+                        <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                          {format(new Date(o.created_at), 'dd MMM HH:mm')}
+                        </TableCell>
+                        <TableCell className="text-xs font-medium">{o.order_number}</TableCell>
+                        <TableCell className="text-right text-xs">₦{Number(o.total).toLocaleString()}</TableCell>
+                        <TableCell className="font-mono text-xs break-all">{o.payment_reference || '—'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
           <CardHeader>
             <CardTitle className="text-base">Recent events</CardTitle>
           </CardHeader>
