@@ -1,5 +1,13 @@
 # Second checkout hardening patch — partial
 
+## September 17 follow-up: numeric pricing validation only
+
+Applied `0024_validate_checkout_line_numeric_inputs.sql`: adds `validate_checkout_line_inputs(jsonb)` and invokes it from live `price_checkout_line(uuid,uuid,jsonb)`. Negative add-on quantities previously entered SUM(additional_price * quantity), allowing a reduced computed price. Rejects negative/zero/fractional/string/null add-on quantities, nonnumeric/nonpositive product quantities, malformed add-on arrays and unidentifiable entries. Name-based cached add-ons and omitted add-on quantity (default 1) remain supported. No historical row writes, repair, messages, configuration changes, or edge deployment.
+
+Added `src/test/checkout-pricing-database.test.ts`, executing actual migrations 0021 and 0024 in in-memory PostgreSQL using test-only `@electric-sql/pglite`. Fixture tables and availability stub isolate pricing; this is NOT full checkout/concurrency/ledger integration coverage. Updated `src/test/setup.ts` to support Node tests. All 100 tests passed (17 new database tests). App build/typechecking remains platform-managed; no manual build/typecheck performed. No changed edge functions require Deno checking.
+
+Read-only production verification confirmed the new pricing guard installed, quote row lock preserved, and `enforce_server_checkout=false`. Damilare rows and statistics were not written or recalculated; no new financial reconciliation was performed in this slice. Existing pricing still has option linkage/required-option, packaging, promotional and pharmacy gaps. No atomic checkout rollout occurred. This is a dependency-level safety patch, not completion of the requested phase.
+
 Applied migration: `0023_lock_online_delivery_quote_consumption.sql` adds a row lock to the online integrity guard's unconsumed quote lookup. Live definition verified. No financial rows or Damilare statistics changed.
 
 Changed `src/hooks/useDispatchOffers.ts`: missing/failed linked-order lookups fail closed; realtime inserts/updates re-run payment-filtered discovery rather than directly displaying offers. POS/assisted exceptions preserved.

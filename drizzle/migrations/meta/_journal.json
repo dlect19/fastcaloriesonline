@@ -169,6 +169,13 @@
       "when": 1789630401729,
       "tag": "0023_lock_online_delivery_quote_consumption",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1789630706992,
+      "tag": "0024_validate_checkout_line_numeric_inputs",
+      "breakpoints": true
     }
   ]
 }
