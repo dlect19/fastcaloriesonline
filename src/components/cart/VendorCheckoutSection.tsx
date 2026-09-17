@@ -636,11 +636,46 @@ export function VendorCheckoutSection({
             sort_order: idx,
           })),
           items: rpcItems,
-        } as any,
-      });
+      };
 
-      if (rpcError) throw rpcError;
-      const summary = rpcResult as any;
+      let summary: any;
+      try {
+        if (useServerCheckout) {
+          // One transaction: order, items and the wallet debit commit together.
+          const { data, error } = await supabase.rpc("checkout_customer_wallet", {
+            p_payload: checkoutPayload as any,
+          });
+          if (error) throw error;
+          summary = data as any;
+        } else {
+          // Compatibility route: the server still owns every price; payment is a
+          // second authorised server step.
+          const { data, error } = await supabase.rpc("create_customer_order", {
+            p_payload: checkoutPayload as any,
+          });
+          if (error) throw error;
+          summary = data as any;
+          if (summary?.ok !== false && summary?.order_id && summary?.payment_status !== "paid") {
+            const { data: payData, error: payError } = await supabase.functions.invoke("process-wallet-payment", {
+              body: { orderIds: [summary.order_id] },
+            });
+            if (payError) throw payError;
+            if ((payData as any)?.error) throw new Error(String((payData as any).error));
+            summary = { ...summary, payment_status: "paid" };
+          }
+        }
+      } catch (routeError: any) {
+        // Never fall back to another checkout path once one has begun — that is
+        // how duplicate orders are minted. Keep the cart and let them retry.
+        await recordCheckoutRoute(rollout, {
+          paymentMethod: "wallet",
+          attemptKey,
+          failureCode: String(routeError?.message || "CHECKOUT_FAILED").slice(0, 120),
+        });
+        throw routeError;
+      }
+
+      await recordCheckoutRoute(rollout, { paymentMethod: "wallet", attemptKey });
       if (summary?.ok === false) throw new Error(summary.error || "CHECKOUT_REJECTED");
       if (summary?.payment_status !== "paid") throw new Error("WALLET_CHECKOUT_REJECTED");
       if (!summary?.order_id) throw new Error("Order could not be created. Please try again.");
