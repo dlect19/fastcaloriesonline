@@ -9,13 +9,13 @@ import { chatCompletionWithFallback } from "../_shared/ai-call.ts";
 import {
   fetchOutletOverrides,
   isEffectivelyAvailable,
-  resolveDefaultOutletId,
 } from "../_shared/availability.ts";
 import { runAgentTurn } from "./agent.ts";
 import { applySharedLocation, CartLine, loadCart, saveCart, ToolCtx } from "./tools.ts";
 import { isAgentEligible, isExplicitMenuRequest } from "./routing.ts";
 import { blockLegacyOrderPath } from "./legacyGuard.ts";
 import { detectImageAttachment, recordUnverifiedPaymentProof } from "./paymentProof.ts";
+import { boundOutletFrom, OutletChoice, resolveBoundOutlet } from "./outletBinding.ts";
 
 
 const corsHeaders = {
