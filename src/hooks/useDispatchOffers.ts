@@ -60,25 +60,27 @@ export function useDispatchOffers() {
       // ever appearing on screen.
       let visible = rows;
       if (rows.length > 0) {
-        const { data: requests } = await supabase
+        const { data: requests, error: requestsError } = await supabase
           .from('dispatch_requests')
           .select('id, orders(payment_status, channel)')
           .in('id', rows.map((o) => o.dispatch_request_id));
 
-        const blocked = new Set(
+        if (requestsError) throw requestsError;
+        const allowed = new Set(
           (requests || [])
             .filter((r: any) => {
-              const channel = r.orders?.channel || 'online';
-              if (channel !== 'online' && channel !== 'whatsapp') return false;
-              return r.orders?.payment_status !== 'paid';
+              if (!r.orders) return false;
+              const channel = r.orders.channel || 'online';
+              return r.orders.payment_status === 'paid' || channel === 'pos' || channel === 'assisted';
             })
             .map((r: any) => r.id),
         );
-        visible = rows.filter((o) => !blocked.has(o.dispatch_request_id));
+        visible = rows.filter((o) => allowed.has(o.dispatch_request_id));
       }
 
       setOffers(visible);
     } catch (error) {
+      setOffers([]);
       console.error('Error fetching dispatch offers:', error);
     } finally {
       setLoading(false);
@@ -200,34 +202,10 @@ export function useDispatchOffers() {
         (payload) => {
           console.log('Dispatch offer change:', payload);
           
-          if (payload.eventType === 'INSERT') {
-            const newOffer = payload.new as unknown as DispatchOffer;
-            if (newOffer.status === 'pending' && new Date(newOffer.expires_at) > new Date()) {
-              setOffers(prev => [newOffer, ...prev.filter(o => o.id !== newOffer.id)]);
-              
-              // Play notification sound for new offer
-              try {
-                const audio = new Audio('/sounds/new-order.mp3');
-                audio.volume = 0.5;
-                audio.play().catch(() => {});
-              } catch (e) {
-                console.log('Could not play notification sound');
-              }
-
-              toast({
-                title: '🚗 New Delivery Request!',
-                description: `${newOffer.vendor_name} - ₦${newOffer.rider_share?.toLocaleString()} delivery fee`,
-              });
-            }
-          } else if (payload.eventType === 'UPDATE') {
-            const updatedOffer = payload.new as unknown as DispatchOffer;
-            if (updatedOffer.status !== 'pending') {
-              // Remove non-pending offers
-              setOffers(prev => prev.filter(o => o.id !== updatedOffer.id));
-            } else {
-              // Update the offer in place
-              setOffers(prev => prev.map(o => o.id === updatedOffer.id ? updatedOffer : o));
-            }
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            // Realtime payloads are not payment proof. Re-run the same
+            // fail-closed discovery before displaying or sounding an offer.
+            void fetchOffers();
           } else if (payload.eventType === 'DELETE') {
             const deletedId = (payload.old as any).id;
             setOffers(prev => prev.filter(o => o.id !== deletedId));
