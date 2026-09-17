@@ -85,10 +85,15 @@ async function renderOffers() {
 
 describe('rider offer payment discovery', () => {
   beforeEach(() => {
+    resetRiderOfferStore();
     mock.user = { id: 'rider' };
     mock.payload = payload();
     mock.error = null;
     mock.listener = null;
+  });
+
+  afterEach(() => {
+    resetRiderOfferStore();
   });
 
   it.each([
