@@ -1,4 +1,4 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useDispatchOffers } from '@/hooks/useDispatchOffers';
 
@@ -41,20 +41,23 @@ describe('rider offer payment discovery', () => {
   ])('filters %s / %s', async (channel, payment_status, count) => {
     mock.requests = [{ id: 'request', orders: { channel, payment_status } }];
     const { result, unmount } = renderHook(() => useDispatchOffers());
-    await waitFor(() => expect(result.current.loading).toBe(false));
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
+    expect(result.current.loading).toBe(false);
     expect(result.current.offers).toHaveLength(count as number);
     unmount();
   });
   it('hides missing or unreadable linked orders', async () => {
     mock.error = { message: 'lookup denied' };
     const { result, unmount } = renderHook(() => useDispatchOffers());
-    await waitFor(() => expect(result.current.loading).toBe(false));
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
+    expect(result.current.loading).toBe(false);
     expect(result.current.offers).toEqual([]);
     unmount();
   });
   it('does not trust realtime insert payloads as payment proof', async () => {
     const { result, unmount } = renderHook(() => useDispatchOffers());
-    await waitFor(() => expect(result.current.loading).toBe(false));
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
+    expect(result.current.loading).toBe(false);
     await act(async () => mock.listener?.({ eventType: 'INSERT', new: { id: 'unpaid', status: 'pending', expires_at: '2099-01-01' } }));
     expect(result.current.offers).toEqual([]);
     unmount();
