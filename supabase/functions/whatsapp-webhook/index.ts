@@ -1429,9 +1429,14 @@ serve(async (req) => {
             return await answerInPlace(`😕 None of the vendors I listed have *${wanted}* on their menu right now. Want me to search other vendors near you?`);
           }
           if (nextContext.vendor_id) {
-            const items = Array.isArray(nextContext.items) && nextContext.items.length
+            const menuBind = await bindMenuOutlet(nextContext.vendor_id, nextContext.vendor_name || "");
+            if ("prompt" in menuBind) return menuBind.prompt;
+            // Cached rows are reused only when they were built for THIS branch.
+            const cachedOk = Array.isArray(nextContext.items) && nextContext.items.length &&
+              nextContext.items_outlet_id === menuBind.outletId;
+            const items = cachedOk
               ? nextContext.items
-              : await loadVendorMenu(nextContext.vendor_id, nextContext.vendor_name || "");
+              : await loadVendorMenu(nextContext.vendor_id, nextContext.vendor_name || "", menuBind.outletId);
             if (items.length) {
               await persistSession(supabase, session.id, "browsing_menu", nextContext, nextCart);
               return await replyText(renderVendorMenuText(items, nextContext.vendor_name || "Menu"));
