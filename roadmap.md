@@ -57,3 +57,11 @@
 - [ ] Live ownership-scoped AI delivery tools and checkout confirmation
 - [ ] Authoritative event-driven, idempotent WhatsApp status notifications
 - [ ] Safe automated tests and deployment verification (no live sends/orders/payments)
+
+## WhatsApp production safety phase (resumed 17 Sep 2026)
+- [x] D — legacy `confirmWhatsAppOrder` paid-order path removed; fail-closed tombstone logs LEGACY_PATH_BLOCKED and writes nothing (both call sites labelled)
+- [x] B — inbound images/PDFs treated as unverified hints: recorded, never marked paid, never fed to the agent (prescription flow untouched)
+- [x] C (verified, no change needed) — Paystack webhook already enforces HMAC, NGN, exact amount, customer binding, environment, dead-order late payment, duplicate guard
+- [ ] E — outlet must never be guessed at WhatsApp checkout (revalidate ownership/approval/force-closed/schedule/availability)
+- [ ] F — inventory and deny every non-atomic WhatsApp write path; durable WhatsApp checkout attempt key
+- [ ] A — voice cost gating, media host allowlist, per-user/phone/global rate limits, MessageSid-idempotent usage reservation, redacted usage/cost audit
