@@ -11350,6 +11350,10 @@ export type Database = {
               error: true
             } & "Could not choose the best candidate function between: public.urlencode(string => bytea), public.urlencode(string => varchar). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
           }
+      validate_checkout_line_inputs: {
+        Args: { p_item: Json }
+        Returns: undefined
+      }
       vendor_settlement_release_at:
         | { Args: { p_earned_at?: string }; Returns: string }
         | {
