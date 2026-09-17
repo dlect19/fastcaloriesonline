@@ -132,6 +132,44 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Re-verify the order itself at the moment of acceptance: paid (or an
+    // authorised POS/assisted/cash order), still a live delivery, unassigned.
+    const { data: acceptOrder } = await supabase
+      .from('orders')
+      .select('id, order_number, status, rider_id, delivery_type, payment_status, payment_method, channel, duplicate_of_order_id')
+      .eq('id', dispatchRequest.order_id)
+      .single();
+
+    const acceptChannel = (acceptOrder as any)?.channel || 'online';
+    const acceptPaid =
+      acceptOrder?.payment_status === 'paid' ||
+      acceptChannel === 'pos' ||
+      acceptChannel === 'assisted' ||
+      (acceptOrder as any)?.payment_method === 'cash';
+
+    if (
+      !acceptOrder ||
+      !acceptPaid ||
+      acceptOrder.payment_status === 'refunded' ||
+      acceptOrder.status === 'cancelled' ||
+      acceptOrder.status === 'delivered' ||
+      acceptOrder.delivery_type === 'self_pickup' ||
+      (acceptOrder as any).duplicate_of_order_id ||
+      (acceptOrder.rider_id && acceptOrder.rider_id !== user.id)
+    ) {
+      await supabase
+        .from('dispatch_offers')
+        .update({ status: 'superseded', responded_at: new Date().toISOString() })
+        .eq('id', offerId);
+
+      return new Response(
+        JSON.stringify({ error: 'This delivery is no longer available.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+
+
     // ATOMIC ACCEPTANCE
     const { data: updatedDispatch, error: dispatchUpdateError } = await supabase
       .from('dispatch_requests')
