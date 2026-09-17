@@ -21,6 +21,7 @@ import { usePlatformPromos } from "@/hooks/usePlatformPromos";
 import { useFreeMealPromos } from "@/hooks/useFreeMealPromos";
 import { supabase } from "@/integrations/supabase/client";
 import { checkoutAttempt, retireCheckoutAttempt } from "@/lib/checkoutAttempt";
+import { getServerCheckoutRollout, recordCheckoutRoute } from "@/lib/serverCheckoutRollout";
 import { buildCheckoutFingerprint } from "@/lib/checkoutIntegrity";
 import { useServiceFee } from "@/hooks/useServiceFee";
 import { useRiderAvailability } from "@/hooks/useRiderAvailability";
