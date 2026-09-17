@@ -1,3 +1,7 @@
+// Env read via globalThis so this module also typechecks outside Deno.
+const envGet = (k: string): string | undefined =>
+  (globalThis as any).Deno?.env?.get(k);
+
 // Shared AI chat completion helper with Lovable AI → Gemini fallback.
 // Falls back to the user's own Gemini key (GEMINI_API_KEY) when Lovable AI
 // returns 402 (credits exhausted) or 429 (rate limited).
@@ -86,8 +90,8 @@ export async function chatCompletionWithFallback(
   body: ChatCompletionBody,
   opts?: { signal?: AbortSignal },
 ): Promise<ChatCompletionResult> {
-  const lovableKey = Deno.env.get("LOVABLE_API_KEY");
-  const geminiKey = Deno.env.get("GEMINI_API_KEY");
+  const lovableKey = envGet("LOVABLE_API_KEY");
+  const geminiKey = envGet("GEMINI_API_KEY");
 
   // Primary attempt: Lovable AI
   if (lovableKey) {
@@ -260,8 +264,8 @@ export async function imageGenerationWithFallback(
   model: string,
   parts: ImageContentPart[],
 ): Promise<ImageGenerationResult> {
-  const lovableKey = Deno.env.get("LOVABLE_API_KEY");
-  const geminiKey = Deno.env.get("GEMINI_API_KEY");
+  const lovableKey = envGet("LOVABLE_API_KEY");
+  const geminiKey = envGet("GEMINI_API_KEY");
 
   if (lovableKey) {
     try {

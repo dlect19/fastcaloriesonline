@@ -1,3 +1,7 @@
+// Env read via globalThis so this module also typechecks outside Deno.
+const envGet = (k: string): string | undefined =>
+  (globalThis as any).Deno?.env?.get(k);
+
 // WhatsApp voice-note support with server-authoritative cost gating.
 //
 // Every expensive step is bounded and reserved BEFORE it runs:
@@ -160,9 +164,9 @@ export async function transcribeVoiceNoteGated(
     }
   };
 
-  const sid = Deno.env.get("TWILIO_ACCOUNT_SID");
-  const token = Deno.env.get("TWILIO_AUTH_TOKEN");
-  const hasAi = !!(Deno.env.get("LOVABLE_API_KEY") || Deno.env.get("GEMINI_API_KEY"));
+  const sid = envGet("TWILIO_ACCOUNT_SID");
+  const token = envGet("TWILIO_AUTH_TOKEN");
+  const hasAi = !!(envGet("LOVABLE_API_KEY") || envGet("GEMINI_API_KEY"));
   if (!sid || !token || !hasAi) {
     console.error("[wa-voice] missing credentials");
     await finalize("failed", "CREDENTIALS_MISSING");
