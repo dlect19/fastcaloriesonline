@@ -981,6 +981,7 @@ serve(async (req) => {
       nextContext.vendor_id = vendorId;
       nextContext.outlet_id = outletId;
       nextContext.selected_outlet_id = outletId;
+      nextContext.items_outlet_id = outletId;
       nextContext.vendor_name = vendorName || vendorRow?.name || "";
       nextContext.vendor_category = vendorRow?.category || "restaurant";
       nextContext.items = items.map((m: any) => ({
