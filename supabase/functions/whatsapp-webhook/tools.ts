@@ -19,7 +19,6 @@ import { customerOrderTracking } from "../_shared/orderTracking.ts";
 import {
   fetchOutletOverrides,
   isEffectivelyAvailable,
-  resolveDefaultOutletId,
 } from "../_shared/availability.ts";
 import {
   type CartValidation,
@@ -2065,8 +2064,31 @@ async function toolReorder(ctx: ToolCtx, args: any) {
   const order = orders?.[0];
   if (!order) return { ok: false, reason: "no_orders" };
 
-  const outletId = order.outlet_id || (await resolveDefaultOutletId(ctx.supabase, order.vendor_id));
-  if (!outletId) return { ok: false, reason: "no_branch" };
+  // A branch is never guessed for something the customer can pay for. When the
+  // old order has no branch, the customer picks from the real eligible ones.
+  const outletId: string | null = order.outlet_id || null;
+  if (!outletId) {
+    const { data: candidates } = await ctx.supabase
+      .from("vendor_outlets")
+      .select("id, outlet_name")
+      .eq("vendor_id", order.vendor_id)
+      .eq("is_active", true)
+      .eq("is_approved", true);
+    const eligible: { outlet_id: string; name: string }[] = [];
+    for (const c of candidates || []) {
+      const g = await outletOrderable(ctx, c.id);
+      if (g.ok) eligible.push({ outlet_id: c.id, name: c.outlet_name || "Branch" });
+    }
+    return {
+      ok: false,
+      reason: "choose_branch",
+      order_number: order.order_number,
+      branches: eligible,
+      detail: eligible.length
+        ? "That earlier order has no branch on it. Ask the customer which branch to order from."
+        : "No branch of this store can take orders right now.",
+    };
+  }
   const gate = await outletOrderable(ctx, outletId);
   if (!gate.ok) return { ok: false, reason: gate.reason, vendor_name: gate.vendor?.name ?? null };
 

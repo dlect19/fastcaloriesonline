@@ -62,6 +62,7 @@
 - [x] D — legacy `confirmWhatsAppOrder` paid-order path removed; fail-closed tombstone logs LEGACY_PATH_BLOCKED and writes nothing (both call sites labelled)
 - [x] B — inbound images/PDFs treated as unverified hints: recorded, never marked paid, never fed to the agent (prescription flow untouched)
 - [x] C (verified, no change needed) — Paystack webhook already enforces HMAC, NGN, exact amount, customer binding, environment, dead-order late payment, duplicate guard
-- [ ] E — outlet must never be guessed at WhatsApp checkout (revalidate ownership/approval/force-closed/schedule/availability)
-- [ ] F — inventory and deny every non-atomic WhatsApp write path; durable WhatsApp checkout attempt key
-- [ ] A — voice cost gating, media host allowlist, per-user/phone/global rate limits, MessageSid-idempotent usage reservation, redacted usage/cost audit
+- [x] E — no outlet guessing: checkout requires an explicit branch; reorder now asks the customer to choose from real eligible branches (default-outlet fallback removed)
+- [x] F (verified) — only `whatsapp_create_order_atomic` creates WhatsApp orders; webhook writes no order/item/wallet row; checkout intent key + idempotency key already durable (tests assert this)
+- [x] A — voice gating live (migration 0028): master switch, size/duration caps, per-phone minute/hour/day limits, global daily ceiling + concurrency, Twilio-host-only media with no blind redirects, one reservation per MessageSid, redacted usage audit with 30-day retention
+- [ ] Remaining: legacy numbered-menu list still renders availability using a vendor's default branch (display only, no payment path)

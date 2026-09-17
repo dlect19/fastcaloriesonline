@@ -4,7 +4,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getWhatsAppFromNumber } from "../_shared/whatsapp.ts";
 import { parseIntent, smallTalkReply, matchProduct, scoreMatch } from "./nlu.ts";
-import { detectVoiceNote, transcribeVoiceNote, VOICE_FAIL_TEXT } from "./voice.ts";
+import { detectVoiceNote, transcribeVoiceNoteGated } from "./voice.ts";
 import { chatCompletionWithFallback } from "../_shared/ai-call.ts";
 import {
   fetchOutletOverrides,
@@ -286,14 +286,22 @@ serve(async (req) => {
     const messageSid = params["MessageSid"];
     if (!phone) return emptyTwiml();
 
-    // ---- Voice notes: transcribe with Gemini, then continue as normal text ----
+    // ---- Voice notes: gated (switch, limits, size, host, one per MessageSid),
+    // ---- transcribed, then continued as normal text. ----
     const voice = detectVoiceNote(params);
     if (voice) {
-      const transcript = await transcribeVoiceNote(voice.url, voice.contentType);
-      if (!transcript) {
-        return twiml(VOICE_FAIL_TEXT);
+      const gated = await transcribeVoiceNoteGated(supabase, {
+        url: voice.url,
+        contentType: voice.contentType,
+        messageSid: messageSid ?? null,
+        phone,
+      });
+      if (!gated.transcript) {
+        // A replayed provider delivery is answered once, not twice.
+        if (gated.code === "REPLAY" || !gated.message) return emptyTwiml();
+        return twiml(gated.message);
       }
-      body = transcript;
+      body = gated.transcript;
       // Treat this turn as a plain text message from here on.
       params["NumMedia"] = "0";
     }

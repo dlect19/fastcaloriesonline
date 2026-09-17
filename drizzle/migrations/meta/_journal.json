@@ -197,6 +197,13 @@
       "when": 1789631999612,
       "tag": "0027_server_checkout_canary_rollout",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1789641332055,
+      "tag": "0028_whatsapp_voice_cost_gating",
+      "breakpoints": true
     }
   ]
 }
