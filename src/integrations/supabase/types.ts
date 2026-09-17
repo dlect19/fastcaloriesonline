@@ -7695,6 +7695,51 @@ export type Database = {
         }
         Relationships: []
       }
+      server_checkout_rollout_decisions: {
+        Row: {
+          channel: string | null
+          checkout_attempt_key: string | null
+          client_version: string | null
+          cohort: number | null
+          created_at: string
+          eligible: boolean
+          failure_code: string | null
+          id: string
+          payment_method: string | null
+          reason: string
+          route: string | null
+          user_id: string | null
+        }
+        Insert: {
+          channel?: string | null
+          checkout_attempt_key?: string | null
+          client_version?: string | null
+          cohort?: number | null
+          created_at?: string
+          eligible: boolean
+          failure_code?: string | null
+          id?: string
+          payment_method?: string | null
+          reason: string
+          route?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          channel?: string | null
+          checkout_attempt_key?: string | null
+          client_version?: string | null
+          cohort?: number | null
+          created_at?: string
+          eligible?: boolean
+          failure_code?: string | null
+          id?: string
+          payment_method?: string | null
+          reason?: string
+          route?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       shadow_customer_credits: {
         Row: {
           amount: number
@@ -10607,6 +10652,7 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_disable_server_checkout_canary: { Args: never; Returns: Json }
       admin_financial_reconciliation: {
         Args: { p_from?: string; p_to?: string }
         Returns: Json
@@ -10676,6 +10722,10 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
           _target_user_id: string
         }
+        Returns: Json
+      }
+      admin_update_server_checkout_rollout: {
+        Args: { p_settings: Json }
         Returns: Json
       }
       apply_vendor_commission_promos: { Args: never; Returns: undefined }
@@ -10881,6 +10931,14 @@ export type Database = {
       get_rider_delivery_count: { Args: { _rider_id: string }; Returns: number }
       get_rider_profile_id: { Args: { _user_id: string }; Returns: string }
       get_secure_order_tracking: { Args: { p_token: string }; Returns: Json }
+      get_server_checkout_rollout: {
+        Args: {
+          p_channel?: string
+          p_client_version?: string
+          p_payment_method?: string
+        }
+        Returns: Json
+      }
       get_vendor_pending_settlement: {
         Args: { p_environment?: string; p_wallet_id: string }
         Returns: {
@@ -11093,6 +11151,20 @@ export type Database = {
           p_submitted_fee?: number
           p_user_id?: string
           p_vendor_id?: string
+        }
+        Returns: undefined
+      }
+      log_server_checkout_decision: {
+        Args: {
+          p_attempt_key?: string
+          p_channel?: string
+          p_client_version?: string
+          p_cohort?: number
+          p_eligible: boolean
+          p_failure_code?: string
+          p_payment_method?: string
+          p_reason: string
+          p_route: string
         }
         Returns: undefined
       }
@@ -11312,6 +11384,10 @@ export type Database = {
       }
       schedule_open_now: {
         Args: { _outlet_id?: string; _vendor_id: string }
+        Returns: boolean
+      }
+      server_checkout_version_at_least: {
+        Args: { p_minimum: string; p_version: string }
         Returns: boolean
       }
       sync_pos_offline_sale: {
