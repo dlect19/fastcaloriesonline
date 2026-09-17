@@ -42,18 +42,40 @@ const LABELS: Record<string, { label: string; tone: string }> = {
   delivery_fee_mismatch: { label: 'Delivery fee mismatch', tone: 'bg-red-500/10 text-red-700' },
 };
 
+interface LegacyOrderRow {
+  id: string;
+  order_number: string;
+  created_at: string;
+  total: number;
+  payment_reference: string | null;
+}
+
 export default function AdminCheckoutIntegrity() {
   const [rows, setRows] = useState<EventRow[]>([]);
+  const [legacyOrders, setLegacyOrders] = useState<LegacyOrderRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from('checkout_integrity_events')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(200);
-    setRows((data || []) as EventRow[]);
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const [events, legacy] = await Promise.all([
+      supabase
+        .from('checkout_integrity_events')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(200),
+      supabase
+        .from('orders')
+        .select('id, order_number, created_at, total, payment_reference')
+        .eq('channel', 'online')
+        .eq('payment_status', 'paid')
+        .is('checkout_attempt_key', null)
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(50),
+    ]);
+    setRows((events.data || []) as EventRow[]);
+    setLegacyOrders((legacy.data || []) as LegacyOrderRow[]);
     setLoading(false);
   };
 
@@ -107,6 +129,48 @@ export default function AdminCheckoutIntegrity() {
             </CardContent>
           </Card>
         </div>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Orders placed by outdated apps (last 7 days)</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Paid app or web orders that carry no checkout attempt reference — these were created by an older,
+              cached version of the app rather than the hardened checkout.
+            </p>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <Skeleton className="h-10 w-full" />
+            ) : legacyOrders.length === 0 ? (
+              <p className="text-sm text-muted-foreground">None — every recent paid order used the hardened checkout.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>When</TableHead>
+                      <TableHead>Order</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                      <TableHead>Payment reference</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {legacyOrders.map((o) => (
+                      <TableRow key={o.id}>
+                        <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                          {format(new Date(o.created_at), 'dd MMM HH:mm')}
+                        </TableCell>
+                        <TableCell className="text-xs font-medium">{o.order_number}</TableCell>
+                        <TableCell className="text-right text-xs">₦{Number(o.total).toLocaleString()}</TableCell>
+                        <TableCell className="font-mono text-xs break-all">{o.payment_reference || '—'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>
