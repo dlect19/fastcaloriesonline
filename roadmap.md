@@ -1,5 +1,13 @@
 # Roadmap
 
+## Production checkout second hardening patch
+- [ ] Atomic customer checkout, durable replay semantics, persistent rejection diagnostics
+- [ ] Server-verified cart quote binding and concurrency-safe consumption
+- [ ] Authoritative packaging, promotions, options and pharmacy validation
+- [ ] Fail-closed rider discovery and safe older-client compatibility
+- [ ] Isolated database integration tests and read-only production verification
+- Damilare records and stats must not be modified; WhatsApp-specific work is pended.
+
 ## Admin unattended WhatsApp alerts + vendor opt-in prompt
 - [x] pg_cron job for check-unattended-orders on current project (idempotent, no service-role secret)
 - [x] admin_unattended_order template in whatsapp-provision-templates; check-unattended-orders uses template, stamps only on success
