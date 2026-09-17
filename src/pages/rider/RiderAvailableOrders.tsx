@@ -24,15 +24,20 @@ export default function RiderAvailableOrders() {
   const [affiliatedVendorName, setAffiliatedVendorName] = useState<string | null>(null);
 
   // Use dispatch offers hook for new dispatch system
-  const { 
-    offers, 
-    loading: offersLoading, 
-    accepting, 
-    declining, 
-    acceptOffer, 
+  const {
+    offers,
+    loading: offersLoading,
+    accepting,
+    declining,
+    acceptOffer,
     declineOffer,
     refetch: refetchOffers,
-    pendingCount 
+    pendingCount,
+    ok: lookupOk,
+    error: lookupError,
+    reason: lookupReason,
+    activeOrderCount,
+    maxConcurrentOrders,
   } = useDispatchOffers();
 
   // Use rider restrictions hook
@@ -239,6 +244,40 @@ export default function RiderAvailableOrders() {
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
+      ) : !lookupOk ? (
+        <Card className="border-destructive/40">
+          <CardContent className="p-6 md:p-8 text-center">
+            <Bell className="w-12 h-12 mx-auto text-destructive mb-4" />
+            <p className="font-medium mb-2">We couldn't check for delivery requests</p>
+            <p className="text-muted-foreground text-sm mb-4">
+              {lookupError || 'Something went wrong on our side. This is not the same as having no requests.'}
+            </p>
+            <Button onClick={handleRefresh} disabled={refreshing}>
+              Try again
+            </Button>
+          </CardContent>
+        </Card>
+      ) : lookupReason === 'RIDER_AT_CAPACITY' ? (
+        <Card>
+          <CardContent className="p-6 md:p-8 text-center">
+            <Package className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+            <p className="font-medium mb-2">Finish your current delivery first</p>
+            <p className="text-muted-foreground text-sm">
+              You have {activeOrderCount ?? 0} active delivery
+              {(activeOrderCount ?? 0) === 1 ? '' : 'ies'} and the limit is {maxConcurrentOrders ?? 1}.
+            </p>
+          </CardContent>
+        </Card>
+      ) : lookupReason === 'RIDER_NOT_APPROVED' ? (
+        <Card>
+          <CardContent className="p-6 md:p-8 text-center">
+            <Lock className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+            <p className="font-medium mb-2">Your rider account isn't fully verified yet</p>
+            <p className="text-muted-foreground text-sm">
+              Delivery requests appear once your email and ID checks are approved.
+            </p>
+          </CardContent>
+        </Card>
       ) : offers.length === 0 ? (
         <Card>
           <CardContent className="p-6 md:p-8 text-center">

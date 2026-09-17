@@ -8,6 +8,7 @@ import { playGlobalNotificationSound } from '@/lib/globalAudio';
 import { useRiderNativeService } from '@/hooks/useRiderNativeService';
 import { useRiderLocation } from '@/hooks/useRiderLocation';
 import { useEnsureLocationPermissions } from '@/hooks/useEnsureLocationPermissions';
+import { useDispatchOffers } from '@/hooks/useDispatchOffers';
 
 
 interface RiderLayoutProps {
@@ -22,6 +23,8 @@ export function RiderLayout({ children, isOnline, onToggleOnline, canViewEarning
   const [riderId, setRiderId] = useState<string | null>(null);
   const [pendingOfferCount, setPendingOfferCount] = useState(0);
   const repeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const notifiedOfferIdsRef = useRef<Set<string>>(new Set());
+  const { offers } = useDispatchOffers();
   const { ensureLocationPermissions, stopLocationService } = useEnsureLocationPermissions();
 
   // Fetch rider user id on mount for auto location tracking
@@ -60,25 +63,11 @@ export function RiderLayout({ children, isOnline, onToggleOnline, canViewEarning
     onToggleOffline: handleToggleOffline,
   });
 
-  // Fetch pending dispatch offers count for the current rider
-  const fetchPendingOffers = useCallback(async () => {
-    if (!riderId || !isOnline) {
-      setPendingOfferCount(0);
-      return;
-    }
-    const { count } = await supabase
-      .from('dispatch_offers')
-      .select('id', { count: 'exact', head: true })
-      .eq('rider_user_id', riderId)
-      .eq('status', 'pending')
-      .gt('expires_at', new Date().toISOString());
-    setPendingOfferCount(count || 0);
-  }, [riderId, isOnline]);
-
-  // Check pending offers on mount and when online status changes
+  // Notification eligibility comes from the same secure lookup the requests
+  // page and badges use — a realtime row is never treated as proof.
   useEffect(() => {
-    fetchPendingOffers();
-  }, [fetchPendingOffers]);
+    setPendingOfferCount(isOnline ? offers.length : 0);
+  }, [offers.length, isOnline]);
 
   // Repeating notification sound when there are pending offers (works on ALL rider pages)
   useEffect(() => {
@@ -104,49 +93,25 @@ export function RiderLayout({ children, isOnline, onToggleOnline, canViewEarning
     };
   }, [pendingOfferCount, isOnline]);
 
-  // Global dispatch offer sound listener - active on ALL rider pages
+  // Native heads-up notification, once per verified offer (no duplicates).
   useEffect(() => {
-    const channel = supabase
-      .channel('rider-layout-dispatch-sound')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'dispatch_offers' },
-        async (payload) => {
-          // Only play sound if this offer is for the current rider
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user && payload.new && (payload.new as any).rider_user_id === user.id) {
-            playGlobalNotificationSound();
-            // Refresh pending count so repeating sound kicks in
-            fetchPendingOffers();
-            // Also trigger native heads-up notification on Android
-            const offer = payload.new as any;
-            showOfferNotification({
-              id: offer.id,
-              vendor_name: offer.vendor_name,
-              rider_share: offer.rider_share || 0,
-              distance_km: offer.distance_km || 0,
-              delivery_fee: offer.delivery_fee || 0,
-            });
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'dispatch_offers' },
-        async (payload) => {
-          // When offers are accepted/declined/expired, refresh count to stop sound
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user && payload.new && (payload.new as any).rider_user_id === user.id) {
-            fetchPendingOffers();
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [showOfferNotification, fetchPendingOffers]);
+    if (!isOnline) return;
+    for (const offer of offers) {
+      if (notifiedOfferIdsRef.current.has(offer.id)) continue;
+      notifiedOfferIdsRef.current.add(offer.id);
+      showOfferNotification({
+        id: offer.id,
+        vendor_name: offer.vendor_name,
+        rider_share: offer.rider_share || 0,
+        distance_km: offer.distance_km || 0,
+        delivery_fee: offer.delivery_fee || 0,
+      });
+    }
+    const live = new Set(offers.map((o) => o.id));
+    for (const id of Array.from(notifiedOfferIdsRef.current)) {
+      if (!live.has(id)) notifiedOfferIdsRef.current.delete(id);
+    }
+  }, [offers, isOnline, showOfferNotification]);
 
   if (isMobile) {
     return (
