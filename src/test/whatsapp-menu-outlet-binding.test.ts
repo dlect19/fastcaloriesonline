@@ -7,12 +7,20 @@ import {
   renderOutletChoice,
   resolveBoundOutlet,
 } from '../../supabase/functions/whatsapp-webhook/outletBinding';
+import type { OutletBinding } from '../../supabase/functions/whatsapp-webhook/outletBinding';
 import { isEffectivelyAvailable } from '../../supabase/functions/_shared/availability';
 
 const WEBHOOK = readFileSync('supabase/functions/whatsapp-webhook/index.ts', 'utf8');
 const ROUTING = readFileSync('supabase/functions/whatsapp-webhook/routing.ts', 'utf8');
 
 type Row = Record<string, any>;
+type Refusal = Extract<OutletBinding, { ok: false }>;
+
+/** Assert a refusal so its reason, branch choices and prompt can be inspected. */
+function refusal(res: OutletBinding): Refusal {
+  if (res.ok) throw new Error('expected the customer to be asked to choose a branch');
+  return res;
+}
 
 /**
  * Read-only Supabase stub. It answers the exact queries the binding code makes
@@ -71,10 +79,10 @@ describe('numbered menu binds the branch the customer chose', () => {
     const supabase = db({ outlets: [OPEN_A, OPEN_B], vendors: [VENDOR] });
     const res = await resolveBoundOutlet(supabase, { vendorId: 'v1', vendorName: 'Mama Put', boundOutletId: null });
     expect(res.ok).toBe(false);
-    if (res.ok) throw new Error('expected refusal');
-    expect(res.reason).toBe(BINDING_REASONS.NONE_BOUND);
-    expect(res.choices.map((c) => c.outlet_id).sort()).toEqual(['o-lekki', 'o-main']);
-    expect(res.prompt).toContain('which branch');
+    const bad = refusal(res);
+    expect(bad.reason).toBe(BINDING_REASONS.NONE_BOUND);
+    expect(bad.choices.map((c) => c.outlet_id).sort()).toEqual(['o-lekki', 'o-main']);
+    expect(bad.prompt).toContain('which branch');
   });
 
   it('asks the customer to choose when only one branch exists', async () => {
@@ -88,16 +96,16 @@ describe('numbered menu binds the branch the customer chose', () => {
     const supabase = db({ outlets: [OPEN_A, other], vendors: [VENDOR] });
     const res = await resolveBoundOutlet(supabase, { vendorId: 'v1', boundOutletId: 'o-other' });
     expect(res.ok).toBe(false);
-    if (res.ok) throw new Error('expected refusal');
-    expect(res.reason).toBe(BINDING_REASONS.WRONG_VENDOR);
+    const bad = refusal(res);
+    expect(bad.reason).toBe(BINDING_REASONS.WRONG_VENDOR);
   });
 
   it('rejects a stale branch id left in an old session', async () => {
     const supabase = db({ outlets: [OPEN_A], vendors: [VENDOR] });
     const res = await resolveBoundOutlet(supabase, { vendorId: 'v1', boundOutletId: 'deleted-outlet' });
     expect(res.ok).toBe(false);
-    if (res.ok) throw new Error('expected refusal');
-    expect(res.reason).toBe(BINDING_REASONS.STALE);
+    const bad = refusal(res);
+    expect(bad.reason).toBe(BINDING_REASONS.STALE);
   });
 
   it('rejects closed, force-closed and off-schedule branches', async () => {
@@ -112,8 +120,8 @@ describe('numbered menu binds the branch the customer chose', () => {
     for (const id of ['o-closed', 'o-forced', 'o-sched']) {
       const res = await resolveBoundOutlet(supabase, { vendorId: 'v1', boundOutletId: id });
       expect(res.ok).toBe(false);
-      if (res.ok) throw new Error('expected refusal');
-      expect(res.reason).toBe(BINDING_REASONS.NOT_ORDERABLE);
+      const bad = refusal(res);
+      expect(bad.reason).toBe(BINDING_REASONS.NOT_ORDERABLE);
     }
     // Only branches checkout would accept are ever offered.
     const choices = await eligibleOutlets(supabase, 'v1');
@@ -124,9 +132,9 @@ describe('numbered menu binds the branch the customer chose', () => {
     const supabase = db({ outlets: [{ ...OPEN_A, is_open: false }], vendors: [VENDOR] });
     const res = await resolveBoundOutlet(supabase, { vendorId: 'v1', vendorName: 'Mama Put', boundOutletId: null });
     expect(res.ok).toBe(false);
-    if (res.ok) throw new Error('expected refusal');
-    expect(res.choices).toHaveLength(0);
-    expect(res.prompt).toContain("can't take orders");
+    const bad = refusal(res);
+    expect(bad.choices).toHaveLength(0);
+    expect(bad.prompt).toContain("can't take orders");
   });
 
   it('renders a numbered branch list', () => {
