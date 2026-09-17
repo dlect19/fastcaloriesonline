@@ -220,7 +220,8 @@ Deno.serve(async (req) => {
         status: 'assigned',
         updated_at: new Date().toISOString(),
       })
-      .eq('id', dispatchRequest.order_id);
+      .eq('id', dispatchRequest.order_id)
+      .is('rider_id', null);
 
     // Get the order environment
     const { data: orderData } = await supabase
