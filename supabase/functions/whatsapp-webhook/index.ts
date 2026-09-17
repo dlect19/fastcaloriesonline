@@ -1276,7 +1276,7 @@ serve(async (req) => {
 
         // 💳 Payment intents always hand off to the EXISTING deterministic functions.
         if (nl.intent === "confirm_order") {
-          if (inCheckout) return await confirmWhatsAppOrder(supabase, { ...session, context: nextContext }, nextCart, replyText, sendToUser);
+          if (inCheckout) return await confirmWhatsAppOrder(supabase, { ...session, context: nextContext }, nextCart, replyText, sendToUser, "nlu:confirm_order");
           if (!nextCart.length) return await answerInPlace("🛒 Your cart is empty — tell me what you'd like to order." + HELP_HINT);
           await persistSession(supabase, session.id, session.state, nextContext, nextCart);
           return await doCheckout(supabase, { ...session, context: nextContext }, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
@@ -1930,7 +1930,7 @@ serve(async (req) => {
         return await replyText(`💰 Top up *₦${amount.toLocaleString()}* to cover your order:\n${funding.link}\n\nOnce your payment goes through, reply *checkout* — we'll auto-confirm your top-up and place the order. No reference needed.\n\nReply *menu* to cancel.`);
       }
       if (tap === "BTN_CONFIRM" || lower === "yes" || lower === "confirm") {
-        return await confirmWhatsAppOrder(supabase, session, nextCart, replyText, sendToUser);
+        return await confirmWhatsAppOrder(supabase, session, nextCart, replyText, sendToUser, "state:confirming_order");
       }
       if (tap === "BTN_CANCEL" || lower === "cancel" || lower === "menu" || tap === "BTN_MAIN_MENU") {
         await persistSession(supabase, session.id, "menu", nextContext, nextCart);
