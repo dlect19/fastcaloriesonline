@@ -14,6 +14,7 @@ import {
 import { runAgentTurn } from "./agent.ts";
 import { applySharedLocation, CartLine, loadCart, saveCart, ToolCtx } from "./tools.ts";
 import { isAgentEligible, isExplicitMenuRequest } from "./routing.ts";
+import { blockLegacyOrderPath } from "./legacyGuard.ts";
 
 
 const corsHeaders = {
