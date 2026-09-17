@@ -406,6 +406,24 @@ serve(async (req) => {
     const isGreeting = !tap && !hasLocationParams && !hasMediaParams &&
       (lower === "menu" || lower === "hi" || lower === "hello" || lower === "start" || lower === "");
 
+    // A picture is never proof of payment. Prescription photos have their own
+    // state; every other image is recorded as an unverified hint and stops here,
+    // so its contents can never reach a tool call or a payment field.
+    if (hasMediaParams && session.state !== "pharmacy_rx_awaiting_image") {
+      const attachment = detectImageAttachment(params);
+      if (attachment) {
+        const proofText = await recordUnverifiedPaymentProof(supabase, {
+          sessionId: session.id,
+          userId: session.customer_user_id,
+          phone,
+          contentType: attachment.contentType,
+          count: attachment.count,
+          state: session.state,
+        });
+        return await replyText(proofText);
+      }
+    }
+
     // Routing decision comes first: a plain-language message (or a location pin)
     // belongs to the Gemini agent, whether or not the number has an account yet.
     const agentEligible = isAgentEligible({
