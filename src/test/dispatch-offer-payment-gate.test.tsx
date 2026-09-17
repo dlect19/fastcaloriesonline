@@ -3,11 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useDispatchOffers } from '@/hooks/useDispatchOffers';
 
 const mock = vi.hoisted(() => ({
+  user: { id: 'rider' },
   requests: [] as unknown[],
   error: null as unknown,
   listener: null as null | ((payload: unknown) => void),
 }));
-vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'rider' } }) }));
+vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: mock.user }) }));
 vi.mock('@/hooks/use-toast', () => ({ toast: vi.fn() }));
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
