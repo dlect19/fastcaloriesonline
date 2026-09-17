@@ -10040,6 +10040,60 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_ai_rate_cards: {
+        Row: {
+          audio_usd_per_minute: number | null
+          audio_usd_per_mtok: number | null
+          cached_input_usd_per_mtok: number | null
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          id: string
+          input_usd_per_mtok: number | null
+          is_confirmed: boolean
+          model_id: string
+          notes: string | null
+          output_usd_per_mtok: number | null
+          provider: string
+          rate_source: string
+          thinking_usd_per_mtok: number | null
+        }
+        Insert: {
+          audio_usd_per_minute?: number | null
+          audio_usd_per_mtok?: number | null
+          cached_input_usd_per_mtok?: number | null
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          id?: string
+          input_usd_per_mtok?: number | null
+          is_confirmed?: boolean
+          model_id: string
+          notes?: string | null
+          output_usd_per_mtok?: number | null
+          provider?: string
+          rate_source?: string
+          thinking_usd_per_mtok?: number | null
+        }
+        Update: {
+          audio_usd_per_minute?: number | null
+          audio_usd_per_mtok?: number | null
+          cached_input_usd_per_mtok?: number | null
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          id?: string
+          input_usd_per_mtok?: number | null
+          is_confirmed?: boolean
+          model_id?: string
+          notes?: string | null
+          output_usd_per_mtok?: number | null
+          provider?: string
+          rate_source?: string
+          thinking_usd_per_mtok?: number | null
+        }
+        Relationships: []
+      }
       whatsapp_carts: {
         Row: {
           checkout_intent_key: string | null
@@ -10168,6 +10222,99 @@ export type Database = {
           session_id?: string | null
           status?: string
           updated_at?: string
+          vendor_id?: string | null
+        }
+        Relationships: []
+      }
+      whatsapp_cost_quotes: {
+        Row: {
+          allowance_ngn_kobo: number
+          billing_mode: string
+          breakdown: Json
+          checkout_attempt_key: string
+          checkout_fingerprint: string
+          config_snapshot: Json
+          consumed_at: string | null
+          consumed_order_id: string | null
+          created_at: string
+          customer_fee_ngn_kobo: number
+          customer_user_id: string | null
+          environment: string
+          expires_at: string
+          fulfilment_type: string | null
+          fx_rate_ngn: number | null
+          id: string
+          markup_ngn_kobo: number
+          outlet_id: string | null
+          payment_method: string | null
+          phone_hash: string | null
+          rate_version: string | null
+          raw_cost_ngn_kobo: number
+          reserve_ngn_kobo: number
+          session_id: string | null
+          status: string
+          subsidy_ngn_kobo: number
+          usage_event_ids: string[]
+          vendor_id: string | null
+        }
+        Insert: {
+          allowance_ngn_kobo?: number
+          billing_mode?: string
+          breakdown?: Json
+          checkout_attempt_key: string
+          checkout_fingerprint: string
+          config_snapshot?: Json
+          consumed_at?: string | null
+          consumed_order_id?: string | null
+          created_at?: string
+          customer_fee_ngn_kobo?: number
+          customer_user_id?: string | null
+          environment?: string
+          expires_at: string
+          fulfilment_type?: string | null
+          fx_rate_ngn?: number | null
+          id?: string
+          markup_ngn_kobo?: number
+          outlet_id?: string | null
+          payment_method?: string | null
+          phone_hash?: string | null
+          rate_version?: string | null
+          raw_cost_ngn_kobo?: number
+          reserve_ngn_kobo?: number
+          session_id?: string | null
+          status?: string
+          subsidy_ngn_kobo?: number
+          usage_event_ids?: string[]
+          vendor_id?: string | null
+        }
+        Update: {
+          allowance_ngn_kobo?: number
+          billing_mode?: string
+          breakdown?: Json
+          checkout_attempt_key?: string
+          checkout_fingerprint?: string
+          config_snapshot?: Json
+          consumed_at?: string | null
+          consumed_order_id?: string | null
+          created_at?: string
+          customer_fee_ngn_kobo?: number
+          customer_user_id?: string | null
+          environment?: string
+          expires_at?: string
+          fulfilment_type?: string | null
+          fx_rate_ngn?: number | null
+          id?: string
+          markup_ngn_kobo?: number
+          outlet_id?: string | null
+          payment_method?: string | null
+          phone_hash?: string | null
+          rate_version?: string | null
+          raw_cost_ngn_kobo?: number
+          reserve_ngn_kobo?: number
+          session_id?: string | null
+          status?: string
+          subsidy_ngn_kobo?: number
+          usage_event_ids?: string[]
           vendor_id?: string | null
         }
         Relationships: []
@@ -10380,6 +10527,138 @@ export type Database = {
           id?: string
           template_key?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      whatsapp_usage_events: {
+        Row: {
+          ai_run_id: string | null
+          billed_ngn_kobo: number
+          billing_status: string
+          cached_input_tokens: number | null
+          cart_id: string | null
+          checkout_attempt_key: string | null
+          config_version: string | null
+          cost_ngn_kobo: number
+          cost_status: string
+          cost_usd_micros: number
+          country_code: string | null
+          created_at: string
+          customer_user_id: string | null
+          direction: string | null
+          environment: string
+          event_kind: string
+          finalized_at: string | null
+          fx_captured_at: string | null
+          fx_rate_ngn: number | null
+          fx_source: string | null
+          id: string
+          input_tokens: number | null
+          markup_ngn_kobo: number
+          message_category: string | null
+          message_sid: string | null
+          model_id: string | null
+          notes: string | null
+          order_id: string | null
+          output_tokens: number | null
+          phone_hash: string | null
+          provider: string | null
+          provider_event_id: string
+          quantity: number
+          quote_id: string | null
+          rate_snapshot: Json
+          session_id: string | null
+          subsidy_ngn_kobo: number
+          thinking_tokens: number | null
+          transcription_seconds: number | null
+          unit_label: string | null
+          window_state: string
+        }
+        Insert: {
+          ai_run_id?: string | null
+          billed_ngn_kobo?: number
+          billing_status?: string
+          cached_input_tokens?: number | null
+          cart_id?: string | null
+          checkout_attempt_key?: string | null
+          config_version?: string | null
+          cost_ngn_kobo?: number
+          cost_status?: string
+          cost_usd_micros?: number
+          country_code?: string | null
+          created_at?: string
+          customer_user_id?: string | null
+          direction?: string | null
+          environment?: string
+          event_kind: string
+          finalized_at?: string | null
+          fx_captured_at?: string | null
+          fx_rate_ngn?: number | null
+          fx_source?: string | null
+          id?: string
+          input_tokens?: number | null
+          markup_ngn_kobo?: number
+          message_category?: string | null
+          message_sid?: string | null
+          model_id?: string | null
+          notes?: string | null
+          order_id?: string | null
+          output_tokens?: number | null
+          phone_hash?: string | null
+          provider?: string | null
+          provider_event_id: string
+          quantity?: number
+          quote_id?: string | null
+          rate_snapshot?: Json
+          session_id?: string | null
+          subsidy_ngn_kobo?: number
+          thinking_tokens?: number | null
+          transcription_seconds?: number | null
+          unit_label?: string | null
+          window_state?: string
+        }
+        Update: {
+          ai_run_id?: string | null
+          billed_ngn_kobo?: number
+          billing_status?: string
+          cached_input_tokens?: number | null
+          cart_id?: string | null
+          checkout_attempt_key?: string | null
+          config_version?: string | null
+          cost_ngn_kobo?: number
+          cost_status?: string
+          cost_usd_micros?: number
+          country_code?: string | null
+          created_at?: string
+          customer_user_id?: string | null
+          direction?: string | null
+          environment?: string
+          event_kind?: string
+          finalized_at?: string | null
+          fx_captured_at?: string | null
+          fx_rate_ngn?: number | null
+          fx_source?: string | null
+          id?: string
+          input_tokens?: number | null
+          markup_ngn_kobo?: number
+          message_category?: string | null
+          message_sid?: string | null
+          model_id?: string | null
+          notes?: string | null
+          order_id?: string | null
+          output_tokens?: number | null
+          phone_hash?: string | null
+          provider?: string | null
+          provider_event_id?: string
+          quantity?: number
+          quote_id?: string | null
+          rate_snapshot?: Json
+          session_id?: string | null
+          subsidy_ngn_kobo?: number
+          thinking_tokens?: number | null
+          transcription_seconds?: number | null
+          unit_label?: string | null
+          window_state?: string
         }
         Relationships: []
       }
@@ -11484,6 +11763,14 @@ export type Database = {
         Args: { p_order_number?: string; p_user_id: string }
         Returns: Json
       }
+      whatsapp_consume_cost_quote: {
+        Args: {
+          p_expected_fee_ngn_kobo?: number
+          p_order_id: string
+          p_quote_id: string
+        }
+        Returns: Json
+      }
       whatsapp_create_order_atomic: {
         Args: {
           p_checkout_id: string
@@ -11494,6 +11781,18 @@ export type Database = {
         }
         Returns: Json
       }
+      whatsapp_finalize_usage: {
+        Args: {
+          p_cost_ngn_kobo: number
+          p_cost_status?: string
+          p_cost_usd_micros: number
+          p_notes?: string
+          p_provider_event_id: string
+        }
+        Returns: Json
+      }
+      whatsapp_freeze_cost_quote: { Args: { p_payload: Json }; Returns: Json }
+      whatsapp_record_usage: { Args: { p_event: Json }; Returns: Json }
       whatsapp_voice_finalize: {
         Args: {
           p_bytes?: number

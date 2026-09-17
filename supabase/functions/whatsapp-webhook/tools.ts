@@ -3,6 +3,15 @@ const envGet = (k: string): string | undefined =>
   (globalThis as any).Deno?.env?.get(k);
 
 import { customerOrderTracking } from "../_shared/orderTracking.ts";
+import { WHATSAPP_AGENT_MODEL } from "./models.ts";
+import {
+  consumeWhatsAppAiFeeQuote,
+  freezeWhatsAppAiFeeQuote,
+  hashPhone,
+  loadCostContext,
+  previewWhatsAppAiFee,
+  sha256Hex,
+} from "../_shared/whatsappCostLedger.ts";
 // ============================================================================
 // FastCalories WhatsApp agent tools.
 //
@@ -574,6 +583,32 @@ async function quoteDelivery(ctx: ToolCtx, cart: WaCart) {
   }
 }
 
+// ------------------------------------------------------- WhatsApp AI cost fee
+/** Cost context for this conversation, loaded once per tool invocation chain. */
+async function costContextFor(ctx: ToolCtx) {
+  const anyCtx = ctx as unknown as { __waCost?: any };
+  if (!anyCtx.__waCost) {
+    anyCtx.__waCost = {
+      ctx: await loadCostContext(ctx.supabase, WHATSAPP_AGENT_MODEL, ctx.environment),
+      phoneHash: await hashPhone(ctx.phone),
+    };
+  }
+  return anyCtx.__waCost as { ctx: any; phoneHash: string };
+}
+
+/** Read-only preview, so the fee shown before confirmation is the fee charged. */
+async function whatsappAiFeePreview(ctx: ToolCtx) {
+  try {
+    const c = await costContextFor(ctx);
+    return await previewWhatsAppAiFee(ctx.supabase, c.ctx, {
+      sessionId: ctx.sessionId,
+      phoneHash: c.phoneHash,
+    });
+  } catch (_e) {
+    return { customerFeeNgn: 0, billingMode: "shadow" as const };
+  }
+}
+
 /** Full server-authoritative money picture for the current cart. */
 export async function priceCart(ctx: ToolCtx, cartIn?: WaCart) {
   const cart = cartIn || (await loadCart(ctx));
@@ -616,7 +651,14 @@ export async function priceCart(ctx: ToolCtx, cartIn?: WaCart) {
   const packaging = await computePackaging(ctx, cart);
   const packaging_fee = packaging.fee;
 
-  const total = Math.max(0, subtotal + packaging_fee + delivery_fee + service_fee - discount);
+  // WhatsApp AI service component. In shadow mode (the default) this is ₦0, so
+  // customer totals are unchanged; it is shown transparently as its own line so
+  // there is never a surprise fee added after confirmation.
+  const aiFee = await whatsappAiFeePreview(ctx);
+  const whatsapp_ai_fee = aiFee.customerFeeNgn;
+  const service_fee_total = service_fee + whatsapp_ai_fee;
+
+  const total = Math.max(0, subtotal + packaging_fee + delivery_fee + service_fee_total - discount);
   const knownCalorieLines = cart.items.filter((c) => c.calories_known !== false && Number(c.calories) > 0);
   const total_calories = knownCalorieLines.reduce((s, c) => s + Number(c.calories) * Number(c.qty), 0);
   const calories_missing_for = cart.items
@@ -626,7 +668,11 @@ export async function priceCart(ctx: ToolCtx, cartIn?: WaCart) {
     subtotal,
     packaging_fee,
     packaging_name: packaging.pack?.name ?? null,
-    service_fee,
+    // Named breakdown: platform service fee + WhatsApp AI component = total.
+    platform_service_fee: service_fee,
+    whatsapp_ai_fee,
+    whatsapp_ai_fee_mode: aiFee.billingMode,
+    service_fee: service_fee_total,
     service_fee_pct: pct,
     delivery_fee,
     discount,
@@ -1798,6 +1844,45 @@ async function toolCreateOrder(ctx: ToolCtx, args: any) {
   }
 
 
+  // ---- Freeze the WhatsApp AI service component BEFORE payment ----
+  // The quote is bound to this checkout attempt AND to a fingerprint of the
+  // cart/outlet/fulfilment/payment method, so a material change forces a fresh
+  // quote and a retry of the same attempt reuses the identical fee. In shadow
+  // mode the frozen customer fee is ₦0 and totals are untouched.
+  const costCtxWrap = await costContextFor(ctx);
+  const feeFingerprint = await sha256Hex([
+    cart.vendor_id ?? "",
+    cart.outlet_id ?? "",
+    cart.fulfilment_type ?? "",
+    method,
+    String(pricing.subtotal),
+    String(pricing.delivery_fee),
+    String(pricing.packaging_fee),
+    String(pricing.discount),
+    cart.items.map((i) => `${i.product_id}x${i.qty}`).join(","),
+  ].join("|"));
+  const frozenAiFee = await freezeWhatsAppAiFeeQuote(ctx.supabase, costCtxWrap.ctx, {
+    checkoutAttemptKey: idempotencyKey,
+    checkoutFingerprint: feeFingerprint,
+    phoneHash: costCtxWrap.phoneHash,
+    customerUserId: ctx.userId,
+    sessionId: ctx.sessionId,
+    vendorId: cart.vendor_id,
+    outletId: cart.outlet_id,
+    fulfilmentType: cart.fulfilment_type,
+    paymentMethod: method,
+  });
+  // priceCart already showed a preview of this component; align the frozen
+  // figure with it so the customer is never charged more than they confirmed.
+  const previewedAiFee = Number((pricing as any).whatsapp_ai_fee || 0);
+  const frozenFeeNgn = frozenAiFee ? frozenAiFee.customerFeeNgn : previewedAiFee;
+  const aiFeeDelta = frozenFeeNgn - previewedAiFee;
+  if (aiFeeDelta !== 0) {
+    (pricing as any).whatsapp_ai_fee = frozenFeeNgn;
+    (pricing as any).service_fee = pricing.service_fee + aiFeeDelta;
+    (pricing as any).total = Math.max(0, pricing.total + aiFeeDelta);
+  }
+
   const wallet: any = await toolWallet(ctx);
   if (method === "wallet") {
     if (!wallet.ok || wallet.disabled) return { ok: false, reason: "wallet_unavailable" };
@@ -1913,6 +1998,16 @@ async function toolCreateOrder(ctx: ToolCtx, args: any) {
     return { ok: false, reason: "order_create_failed" };
   }
   const order = { id: created.order_id, order_number: created.order_number, total: created.total };
+
+  // Consume the frozen fee quote exactly once and bind it to this order. A
+  // replay of the same order id is a no-op; a different order cannot reuse it.
+  if (frozenAiFee) {
+    await consumeWhatsAppAiFeeQuote(ctx.supabase, {
+      quoteId: frozenAiFee.id,
+      orderId: created.order_id,
+      expectedFeeKobo: frozenAiFee.customerFeeKobo,
+    });
+  }
   const tracking = await toolOrderStatus(ctx, { order_id: order.id });
 
   if (method === "wallet") {

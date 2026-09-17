@@ -4,6 +4,11 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { logTwilioCall } from "../_shared/twilioCost.ts";
 import { normalizeE164Phone, sendTwilioMessage } from "../_shared/twilioMessaging.ts";
+import {
+  hashPhone,
+  loadCostContext,
+  recordOutboundMessage,
+} from "../_shared/whatsappCostLedger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -45,6 +50,23 @@ serve(async (req) => {
     }
 
     const send = await sendTwilioMessage(admin, { channel: "whatsapp", to: phone, body });
+
+    // Cost ledger: one row per send attempt, keyed on the Twilio SID (or a
+    // stable local id when Twilio returned none), so retries never double-count.
+    const { data: envRow } = await admin.from("platform_settings")
+      .select("value").eq("key", "platform_environment").maybeSingle();
+    const costCtx = await loadCostContext(admin, "twilio/whatsapp-message", envRow?.value || "development");
+    const phoneHash = await hashPhone(phone);
+    await recordOutboundMessage(admin, costCtx, {
+      providerEventId: send.sid ? `wa-out:sid:${send.sid}` : `wa-out:send:${initiatedBy}:${Date.now()}`,
+      messageSid: send.sid ?? null,
+      category: "service",
+      windowState: "in_window",
+      failed: !send.ok,
+      phoneHash,
+      customerUserId: resolvedUserId,
+      orderId: orderId ?? null,
+    });
 
     if (!send.ok) {
       await logTwilioCall(admin, {

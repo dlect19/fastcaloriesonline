@@ -7,7 +7,9 @@ import { runTool, TOOL_SPECS, ToolCtx } from "./tools.ts";
 
 // Exact id from the gateway model listing. gemini-2.5-flash is still served but
 // flagged deprecated, so the agent runs on the current Flash generation.
-const GEMINI_MODEL = "google/gemini-3.8-flash";
+import { WHATSAPP_AGENT_MODEL } from "./models.ts";
+const GEMINI_MODEL = WHATSAPP_AGENT_MODEL;
+export { WHATSAPP_AGENT_MODEL };
 
 export interface AgentTurnInput {
   ctx: ToolCtx;
@@ -15,7 +17,21 @@ export interface AgentTurnInput {
   history: { role: "user" | "assistant"; content: string }[];
   stateHint: Record<string, unknown>;
 }
-export interface AgentTurnResult { reply: string; toolsUsed: string[]; }
+/** Token usage as REPORTED by the provider. Never estimated, never invented. */
+export interface AgentTokenUsage {
+  inputTokens: number | null;
+  outputTokens: number | null;
+  thinkingTokens: number | null;
+  cachedInputTokens: number | null;
+}
+export interface AgentTurnResult {
+  reply: string;
+  toolsUsed: string[];
+  /** Gateway-minted run id, used as the idempotency key for cost accounting. */
+  runId: string | null;
+  modelId: string;
+  usage: AgentTokenUsage | null;
+}
 
 const SYSTEM_PROMPT = `You are the Fast Calories ordering assistant on WhatsApp (Nigeria, prices in Naira ₦).
 You help customers find real food, pharmacy and grocery items nearby, build a cart, choose delivery or carryout (pickup), and pay.
@@ -94,7 +110,12 @@ function safeHint(hint: Record<string, unknown>): Record<string, unknown> {
 export async function runAgentTurn(input: AgentTurnInput): Promise<AgentTurnResult> {
   const key = Deno.env.get("LOVABLE_API_KEY");
   const toolsUsed: string[] = [];
-  if (!key) return { reply: "WhatsApp AI is unavailable: the service key is missing. Please contact support.", toolsUsed };
+  if (!key) {
+    return {
+      reply: "WhatsApp AI is unavailable: the service key is missing. Please contact support.",
+      toolsUsed, runId: null, modelId: GEMINI_MODEL, usage: null,
+    };
+  }
   let runId: string | null = null;
   const provider = createOpenAICompatible({
     name: "lovable",
@@ -135,9 +156,26 @@ export async function runAgentTurn(input: AgentTurnInput): Promise<AgentTurnResu
       tools, stopWhen: stepCountIs(50), maxRetries: 0,
     });
     const text = await result.text;
+    // Usage is read from the provider response only. If the gateway reports
+    // nothing, usage stays null and the cost is recorded as unknown, not zero.
+    let usage: AgentTokenUsage | null = null;
+    try {
+      const raw: any = (await (result as any).totalUsage) ?? (await (result as any).usage);
+      if (raw) {
+        usage = {
+          inputTokens: raw.inputTokens ?? raw.promptTokens ?? null,
+          outputTokens: raw.outputTokens ?? raw.completionTokens ?? null,
+          thinkingTokens: raw.reasoningTokens ?? raw.thinkingTokens ?? null,
+          cachedInputTokens: raw.cachedInputTokens ?? null,
+        };
+      }
+    } catch { /* usage is optional; never fabricate token counts */ }
     console.log(JSON.stringify({ event: "wa_agent_complete", session_id: input.ctx.sessionId,
-      model: GEMINI_MODEL, run_id: runId, tools: toolsUsed }));
-    return { reply: text.trim().slice(0, 4000) || "I couldn't complete that request. Your cart is unchanged; please try again.", toolsUsed };
+      model: GEMINI_MODEL, run_id: runId, tools: toolsUsed, usage }));
+    return {
+      reply: text.trim().slice(0, 4000) || "I couldn't complete that request. Your cart is unchanged; please try again.",
+      toolsUsed, runId, modelId: GEMINI_MODEL, usage,
+    };
   } catch (error) {
     const failure = error as { statusCode?: number; message?: string; responseBody?: string };
     let message = failure.message || "The AI service could not complete this request.";
@@ -147,6 +185,9 @@ export async function runAgentTurn(input: AgentTurnInput): Promise<AgentTurnResu
     } catch { /* Keep the provider's explicit message. */ }
     console.error(JSON.stringify({ event: "wa_agent_error", session_id: input.ctx.sessionId,
       model: GEMINI_MODEL, run_id: runId, status: failure.statusCode }));
-    return { reply: `WhatsApp AI error${failure.statusCode ? ` (${failure.statusCode})` : ""}: ${message.slice(0, 700)}`, toolsUsed };
+    return {
+      reply: `WhatsApp AI error${failure.statusCode ? ` (${failure.statusCode})` : ""}: ${message.slice(0, 700)}`,
+      toolsUsed, runId, modelId: GEMINI_MODEL, usage: null,
+    };
   }
 }

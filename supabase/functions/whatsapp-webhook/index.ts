@@ -10,7 +10,15 @@ import {
   fetchOutletOverrides,
   isEffectivelyAvailable,
 } from "../_shared/availability.ts";
-import { runAgentTurn } from "./agent.ts";
+import { runAgentTurn, WHATSAPP_AGENT_MODEL } from "./agent.ts";
+import {
+  hashPhone,
+  loadCostContext,
+  recordAiRun,
+  recordInboundMessage,
+  recordOutboundMessage,
+  recordTranscription,
+} from "../_shared/whatsappCostLedger.ts";
 import { applySharedLocation, CartLine, loadCart, saveCart, ToolCtx } from "./tools.ts";
 import { isAgentEligible, isExplicitMenuRequest } from "./routing.ts";
 import { blockLegacyOrderPath } from "./legacyGuard.ts";
@@ -289,6 +297,10 @@ serve(async (req) => {
     // ---- Voice notes: gated (switch, limits, size, host, one per MessageSid),
     // ---- transcribed, then continued as normal text. ----
     const voice = detectVoiceNote(params);
+    let voiceUsage: {
+      modelId: string;
+      usage: { inputTokens: number | null; outputTokens: number | null } | null;
+    } | null = null;
     if (voice) {
       const gated = await transcribeVoiceNoteGated(supabase, {
         url: voice.url,
@@ -302,6 +314,7 @@ serve(async (req) => {
         return twiml(gated.message);
       }
       body = gated.transcript;
+      voiceUsage = { modelId: gated.modelId || "unknown", usage: gated.usage ?? null };
       // Treat this turn as a plain text message from here on.
       params["NumMedia"] = "0";
     }
@@ -365,6 +378,43 @@ serve(async (req) => {
       twilio_sid: messageSid ?? null,
     });
 
+    // ---- Cost accounting (shadow mode by default: recorded, never charged) ----
+    // Every record here is idempotent by provider id, so a Twilio retry or a
+    // replayed webhook can never double-count cost or customer billing.
+    const costCtx = await loadCostContext(supabase, WHATSAPP_AGENT_MODEL, platformEnvironment);
+    const phoneHash = await hashPhone(phone);
+    const costLink = {
+      phoneHash,
+      customerUserId: session.customer_user_id ?? null,
+      sessionId: session.id as string,
+    };
+    const inboundMediaCount = parseInt(params["NumMedia"] || "0", 10) > 0;
+    await recordInboundMessage(supabase, costCtx, {
+      ...costLink,
+      messageSid: messageSid ?? `local-${session.id}-${Date.now()}`,
+      kind: voice ? "audio" : inboundMediaCount ? "image" : "text",
+    });
+    if (voice && voiceUsage) {
+      await recordTranscription(supabase, costCtx, {
+        ...costLink,
+        messageSid: messageSid ?? `local-${session.id}-${Date.now()}`,
+        modelId: voiceUsage.modelId,
+        usage: voiceUsage.usage,
+      });
+    }
+    // Outbound sends are numbered per inbound message so the ids stay stable
+    // across retries of the same webhook delivery.
+    let outboundSeq = 0;
+    const recordOutbound = async (category: "service" | "utility") => {
+      outboundSeq += 1;
+      await recordOutboundMessage(supabase, costCtx, {
+        ...costLink,
+        providerEventId: `wa-out:${messageSid ?? session.id}:${outboundSeq}`,
+        category,
+        windowState: "in_window",
+      });
+    };
+
     // ============================================================
     // Outbound dispatcher — try interactive template, fall back to text
     // ============================================================
@@ -380,6 +430,7 @@ serve(async (req) => {
             session_id: session.id, phone, direction: "out",
             body: `[template:${templateKey}] ${fallbackText.slice(0, 200)}`,
           });
+          await recordOutbound("utility");
           return emptyTwiml();
         }
       }
@@ -387,6 +438,7 @@ serve(async (req) => {
       await supabase.from("whatsapp_messages").insert({
         session_id: session.id, phone, direction: "out", body: fallbackText,
       });
+      await recordOutbound("service");
       return twiml(fallbackText);
     };
 
@@ -395,6 +447,7 @@ serve(async (req) => {
       await supabase.from("whatsapp_messages").insert({
         session_id: session.id, phone, direction: "out", body: text,
       });
+      await recordOutbound("service");
       return twiml(text);
     };
 
@@ -658,6 +711,16 @@ serve(async (req) => {
             cart_line_count: cartForHint.items.length,
             selected_outlet_id: cartForHint.outlet_id,
           },
+        });
+
+        // One AI run = one ledger row, keyed on the gateway run id (falling back
+        // to the inbound MessageSid) so a retry never charges twice.
+        await recordAiRun(supabase, costCtx, {
+          ...costLink,
+          runId: result?.runId ?? null,
+          fallbackId: `msg:${messageSid ?? session.id}`,
+          modelId: result?.modelId ?? WHATSAPP_AGENT_MODEL,
+          usage: result?.usage ?? null,
         });
 
         if (result?.reply) {

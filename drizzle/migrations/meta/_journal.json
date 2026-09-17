@@ -204,6 +204,13 @@
       "when": 1789641332055,
       "tag": "0028_whatsapp_voice_cost_gating",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1789643183592,
+      "tag": "0029_whatsapp_ai_cost_accounting",
+      "breakpoints": true
     }
   ]
 }
