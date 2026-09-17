@@ -42,18 +42,40 @@ const LABELS: Record<string, { label: string; tone: string }> = {
   delivery_fee_mismatch: { label: 'Delivery fee mismatch', tone: 'bg-red-500/10 text-red-700' },
 };
 
+interface LegacyOrderRow {
+  id: string;
+  order_number: string;
+  created_at: string;
+  total: number;
+  payment_reference: string | null;
+}
+
 export default function AdminCheckoutIntegrity() {
   const [rows, setRows] = useState<EventRow[]>([]);
+  const [legacyOrders, setLegacyOrders] = useState<LegacyOrderRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from('checkout_integrity_events')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(200);
-    setRows((data || []) as EventRow[]);
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const [events, legacy] = await Promise.all([
+      supabase
+        .from('checkout_integrity_events')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(200),
+      supabase
+        .from('orders')
+        .select('id, order_number, created_at, total, payment_reference')
+        .eq('channel', 'online')
+        .eq('payment_status', 'paid')
+        .is('checkout_attempt_key', null)
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(50),
+    ]);
+    setRows((events.data || []) as EventRow[]);
+    setLegacyOrders((legacy.data || []) as LegacyOrderRow[]);
     setLoading(false);
   };
 
