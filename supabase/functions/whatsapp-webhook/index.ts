@@ -935,10 +935,52 @@ serve(async (req) => {
     // message. Gemini classifies intent; everything else is resolved against
     // real menu rows. Any failure returns null so the numbered flow continues.
     // ============================================================
-    const loadVendorMenu = async (vendorId: string, vendorName: string) => {
+    // Resolve the branch the customer explicitly bound. Returns null and sends
+    // the branch-choice prompt when nothing safe is bound — never a default.
+    const bindMenuOutlet = async (
+      vendorId: string,
+      vendorName: string,
+    ): Promise<{ outletId: string } | { prompt: Response }> => {
+      const bound = boundOutletFrom(nextContext, nextCart, vendorId);
+      const res = await resolveBoundOutlet(supabase, { vendorId, vendorName, boundOutletId: bound });
+      if (res.ok) {
+        nextContext.vendor_id = vendorId;
+        nextContext.outlet_id = res.outletId;
+        nextContext.selected_outlet_id = res.outletId;
+        nextContext.outlet_name = res.outletName;
+        // Bind the SAME vendor + branch on the durable cart that checkout reads.
+        try {
+          await saveCart(
+            { supabase, phone, userId: session.customer_user_id, sessionId: session.id, environment: platformEnvironment } as ToolCtx,
+            { vendor_id: vendorId, outlet_id: res.outletId },
+          );
+        } catch (e) {
+          console.error("[wa] outlet bind to cart failed", e instanceof Error ? e.message : String(e));
+        }
+        return { outletId: res.outletId };
+      }
+      console.warn(JSON.stringify({
+        event: "wa_outlet_choice_required", reason: res.reason,
+        vendor_id: vendorId, choices: res.choices.length,
+      }));
+      const choices: OutletChoice[] = res.choices.slice(0, 10);
+      await persistSession(supabase, session.id, choices.length ? "choosing_outlet" : "menu", {
+        ...nextContext,
+        vendor_id: vendorId,
+        vendor_name: vendorName,
+        outlet_id: undefined,
+        selected_outlet_id: undefined,
+        outlet_choices: choices,
+      }, nextCart);
+      return { prompt: await replyText(res.prompt) };
+    };
+
+    const loadVendorMenu = async (vendorId: string, vendorName: string, outletId: string) => {
       const { data: vendorRow } = await supabase.from("vendors").select("category, name").eq("id", vendorId).maybeSingle();
-      const items = await fetchMenuItems(supabase, vendorId);
+      const items = await fetchMenuItems(supabase, vendorId, outletId);
       nextContext.vendor_id = vendorId;
+      nextContext.outlet_id = outletId;
+      nextContext.selected_outlet_id = outletId;
       nextContext.vendor_name = vendorName || vendorRow?.name || "";
       nextContext.vendor_category = vendorRow?.category || "restaurant";
       nextContext.items = items.map((m: any) => ({
