@@ -1555,7 +1555,9 @@ serve(async (req) => {
         // add_to_cart — needs a vendor context
         let menuItems: any[] = Array.isArray(nextContext.items) ? nextContext.items : [];
         if (nextContext.vendor_id && !menuItems.length) {
-          menuItems = await loadVendorMenu(nextContext.vendor_id, nextContext.vendor_name || "");
+          const addBind = await bindMenuOutlet(nextContext.vendor_id, nextContext.vendor_name || "");
+          if ("prompt" in addBind) return addBind.prompt;
+          menuItems = await loadVendorMenu(nextContext.vendor_id, nextContext.vendor_name || "", addBind.outletId);
         }
         if (menuItems.length) {
           if (inCheckout) {
