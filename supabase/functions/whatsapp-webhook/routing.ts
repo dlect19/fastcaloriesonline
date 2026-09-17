@@ -4,6 +4,9 @@
 /** States that still need the deterministic legacy state machine. */
 export const LEGACY_STATES = new Set([
   "selecting_addons",
+  // Branch choice is a numbered pick that must never be re-interpreted, so the
+  // customer's answer binds exactly the branch they picked.
+  "choosing_outlet",
   "pharmacy_rx_choice",
   "pharmacy_rx_awaiting_image",
   "pharmacy_rx_awaiting_instructions",
