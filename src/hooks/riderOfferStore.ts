@@ -109,8 +109,22 @@ function onVisibility() {
   if (document.visibilityState === 'visible') void fetchRiderOffers();
 }
 
+/** Reset the store completely (used by tests and on sign-out). */
+export function resetRiderOfferStore() {
+  teardown();
+  currentUserId = null;
+  inFlight = null;
+  state = { ...EMPTY_DISCOVERY, loading: true, fetchedAtMs: Date.now() };
+  emit();
+}
+
 /** Bind the store to a signed-in rider. Safe to call repeatedly. */
 export function bindRiderOfferStore(userId: string | null) {
+  if (userId && userId === currentUserId) {
+    // Already bound to this rider — a newly mounted consumer just refreshes.
+    void fetchRiderOffers();
+    return;
+  }
   if (userId === currentUserId) return;
   teardown();
   currentUserId = userId;
