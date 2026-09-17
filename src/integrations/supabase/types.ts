@@ -10383,6 +10383,48 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_voice_usage: {
+        Row: {
+          bytes: number | null
+          created_at: string
+          duration_seconds: number | null
+          finalized_at: string | null
+          id: string
+          message_sid: string
+          model: string | null
+          outcome: string | null
+          phone: string
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          bytes?: number | null
+          created_at?: string
+          duration_seconds?: number | null
+          finalized_at?: string | null
+          id?: string
+          message_sid: string
+          model?: string | null
+          outcome?: string | null
+          phone: string
+          status?: string
+          user_id?: string | null
+        }
+        Update: {
+          bytes?: number | null
+          created_at?: string
+          duration_seconds?: number | null
+          finalized_at?: string | null
+          id?: string
+          message_sid?: string
+          model?: string | null
+          outcome?: string | null
+          phone?: string
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       withdrawal_otps: {
         Row: {
           amount: number
@@ -11450,6 +11492,21 @@ export type Database = {
           p_order: Json
           p_wallet_debit?: boolean
         }
+        Returns: Json
+      }
+      whatsapp_voice_finalize: {
+        Args: {
+          p_bytes?: number
+          p_duration_seconds?: number
+          p_message_sid: string
+          p_model?: string
+          p_outcome?: string
+          p_status: string
+        }
+        Returns: undefined
+      }
+      whatsapp_voice_reserve: {
+        Args: { p_message_sid: string; p_phone: string; p_user_id?: string }
         Returns: Json
       }
     }
