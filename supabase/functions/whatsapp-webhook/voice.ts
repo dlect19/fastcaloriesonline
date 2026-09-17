@@ -16,7 +16,8 @@ const envGet = (k: string): string | undefined =>
 import { chatCompletionWithFallback } from "../_shared/ai-call.ts";
 
 const AUDIO_MIME_PREFIX = "audio/";
-const TRANSCRIBE_MODEL = "google/gemini-3.5-flash";
+import { WHATSAPP_TRANSCRIBE_MODEL } from "./models.ts";
+const TRANSCRIBE_MODEL = WHATSAPP_TRANSCRIBE_MODEL;
 
 /** Audio types WhatsApp/Twilio actually deliver. Anything else is refused. */
 const ALLOWED_AUDIO = [
@@ -87,6 +88,13 @@ export interface VoiceGateResult {
   message: string | null;
   /** Machine-readable outcome for logs. */
   code: string;
+  /** Model used, for cost attribution. */
+  modelId?: string;
+  /** Token usage exactly as the provider reported it (absent when it didn't). */
+  usage?: {
+    inputTokens: number | null;
+    outputTokens: number | null;
+  } | null;
 }
 
 const OVER_LIMIT_TEXT =
@@ -260,7 +268,19 @@ export async function transcribeVoiceNoteGated(
         return { transcript: null, message: VOICE_FAIL_TEXT, code: "NO_SPEECH" };
       }
       await finalize("done", "TRANSCRIBED", bytes.length);
-      return { transcript: text.slice(0, 400), message: null, code: "TRANSCRIBED" };
+      const reported: any = r.data?.usage ?? null;
+      return {
+        transcript: text.slice(0, 400),
+        message: null,
+        code: "TRANSCRIBED",
+        modelId: TRANSCRIBE_MODEL,
+        usage: reported
+          ? {
+            inputTokens: reported.prompt_tokens ?? reported.input_tokens ?? null,
+            outputTokens: reported.completion_tokens ?? reported.output_tokens ?? null,
+          }
+          : null,
+      };
     }
   } catch (e) {
     console.error("[wa-voice] transcription failed", e instanceof Error ? e.message : String(e));

@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getTwilioMessageStatus } from "../_shared/twilioMessaging.ts";
+import { finalizeTwilioCost, loadCostContext } from "../_shared/whatsappCostLedger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -42,9 +43,14 @@ serve(async (req) => {
       .limit(100);
     if (error) throw error;
 
+    const { data: envRow } = await admin.from("platform_settings")
+      .select("value").eq("key", "platform_environment").maybeSingle();
+    const costCtx = await loadCostContext(admin, "twilio/whatsapp-message", envRow?.value || "development");
+
     let checked = 0;
     let updated = 0;
     let failed = 0;
+    let reconciled = 0;
 
     for (const row of rows || []) {
       checked++;
@@ -61,9 +67,23 @@ serve(async (req) => {
 
       updated++;
       if (!status.ok) failed++;
+
+      // Provider reconciliation: replace our configured estimate with the price
+      // Twilio actually charged. Idempotent, and it only ever changes internal
+      // cost/profit — never a completed customer order total.
+      const raw = status.raw as { price?: string | number | null } | null;
+      const price = raw?.price == null ? null : Number(raw.price);
+      if (price != null && Number.isFinite(price)) {
+        const done = await finalizeTwilioCost(admin, costCtx, {
+          providerEventId: `wa-out:sid:${row.twilio_sid}`,
+          priceUsd: price,
+          failed: !status.ok,
+        });
+        if (done) reconciled++;
+      }
     }
 
-    return json({ ok: true, checked, updated, failed });
+    return json({ ok: true, checked, updated, failed, reconciled });
   } catch (e) {
     console.error("refresh-twilio-statuses error:", e);
     return json({ error: (e as Error).message }, 500);
