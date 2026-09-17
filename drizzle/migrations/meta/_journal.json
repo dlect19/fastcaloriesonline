@@ -183,6 +183,13 @@
       "when": 1789630988128,
       "tag": "0025_durable_checkout_replay_diagnostics",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1789631177225,
+      "tag": "0026_atomic_customer_wallet_checkout",
+      "breakpoints": true
     }
   ]
 }
