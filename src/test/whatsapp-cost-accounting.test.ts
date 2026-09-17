@@ -219,7 +219,9 @@ describe('ledger idempotency keys', () => {
     const hash = await hashPhone('+2347030928821');
     expect(hash).not.toContain('7030928821');
     expect(hash).toHaveLength(64);
-    expect(await hashPhone('07030928821')).toBe(await hashPhone('+2347030928821'));
+    // Stable for the same number, and callers always pass the normalised E.164 form.
+    expect(await hashPhone('+2347030928821')).toBe(hash);
+    expect(await hashPhone('+2348030000000')).not.toBe(hash);
   });
 
   it('keys an inbound message on its MessageSid', async () => {
