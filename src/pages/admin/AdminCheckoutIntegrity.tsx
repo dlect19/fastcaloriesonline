@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
+import { ServerCheckoutRolloutPanel } from '@/components/admin/ServerCheckoutRolloutPanel';
 import { ShieldAlert, Copy, MapPinOff, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -79,6 +80,8 @@ export default function AdminCheckoutIntegrity() {
             <RefreshCw className="w-4 h-4" /> Refresh
           </Button>
         </div>
+
+        <ServerCheckoutRolloutPanel />
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Card>
