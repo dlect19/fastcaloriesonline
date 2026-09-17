@@ -1634,6 +1634,45 @@ serve(async (req) => {
     }
 
 
+    // Branch choice — the customer picks a real eligible branch. Nothing is
+    // defaulted: an unrecognised reply re-asks instead of choosing for them.
+    if (session.state === "choosing_outlet") {
+      const choices: OutletChoice[] = Array.isArray(nextContext.outlet_choices) ? nextContext.outlet_choices : [];
+      const pendingVendorId: string | null = nextContext.vendor_id || null;
+      if (lower === "menu" || lower === "0" || tap === "BTN_MAIN_MENU") {
+        await persistSession(supabase, session.id, "menu", { ...nextContext, outlet_choices: undefined }, nextCart);
+        return await sendToUser("wa_main_menu", {}, MENU_OPTIONS);
+      }
+      const pickIdx = parseInt(lower, 10) - 1;
+      const picked = Number.isFinite(pickIdx) ? choices[pickIdx] : undefined;
+      if (!picked || !pendingVendorId) {
+        const nlBranch = await tryNaturalLanguage();
+        if (nlBranch) return nlBranch;
+        return await replyText(
+          choices.length
+            ? `Please reply with a branch number:\n\n${choices.map((c, i) => `${i + 1}️⃣ ${c.name}`).join("\n")}\n\nOr reply *menu* to go back.`
+            : "Reply *menu* to see places near you.",
+        );
+      }
+      // Re-validate the chosen branch at the moment of choice — the same gate
+      // checkout uses. A branch that just closed sends them back to the list.
+      nextContext.outlet_id = picked.outlet_id;
+      nextContext.selected_outlet_id = picked.outlet_id;
+      nextContext.outlet_choices = undefined;
+      const pickedBind = await bindMenuOutlet(pendingVendorId, nextContext.vendor_name || "");
+      if ("prompt" in pickedBind) return pickedBind.prompt;
+      const branchMenu = await loadVendorMenu(pendingVendorId, nextContext.vendor_name || "", pickedBind.outletId);
+      if (!branchMenu.length) {
+        await persistSession(supabase, session.id, "menu", nextContext, nextCart);
+        return await sendToUser("wa_main_menu", {}, `${picked.name} has no items right now.\n\n${MENU_OPTIONS}`);
+      }
+      await persistSession(supabase, session.id, "browsing_menu", nextContext, nextCart);
+      return await replyText(
+        `🏪 *${nextContext.vendor_name || "Menu"}* — ${picked.name}\n\n` +
+        renderVendorMenuText(branchMenu, nextContext.vendor_name || "Menu"),
+      );
+    }
+
     // Vendor choice after a natural-language product search
     if (session.state === "nl_choose_vendor") {
       const opts: any[] = nextContext.nl_vendor_options || [];
