@@ -19,7 +19,6 @@ import { customerOrderTracking } from "../_shared/orderTracking.ts";
 import {
   fetchOutletOverrides,
   isEffectivelyAvailable,
-  resolveDefaultOutletId,
 } from "../_shared/availability.ts";
 import {
   type CartValidation,
