@@ -1,6 +1,7 @@
 # Roadmap
 
 ## Production checkout second hardening patch
+- [x] Reject unsafe numeric add-on pricing inputs; isolated PostgreSQL pricing regression tests (17)
 - [ ] Atomic customer checkout, durable replay semantics, persistent rejection diagnostics
 - [ ] Server-verified cart quote binding and concurrency-safe consumption
 - [ ] Authoritative packaging, promotions, options and pharmacy validation
