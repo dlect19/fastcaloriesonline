@@ -19,7 +19,7 @@ type Refusal = Extract<OutletBinding, { ok: false }>;
 /** Assert a refusal so its reason, branch choices and prompt can be inspected. */
 function refusal(res: OutletBinding): Refusal {
   if (res.ok) throw new Error('expected the customer to be asked to choose a branch');
-  return res;
+  return res as Refusal;
 }
 
 /**
