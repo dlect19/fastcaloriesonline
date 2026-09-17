@@ -109,7 +109,7 @@ Deno.serve(async (req) => {
       .from('orders')
       .select('id', { count: 'exact', head: true })
       .eq('rider_id', user.id)
-      .in('status', ['assigned', 'picked_up', 'preparing', 'confirmed', 'searching_for_rider']);
+      .in('status', RIDER_ACTIVE_ORDER_STATUSES as unknown as string[]);
 
     if ((activeOrderCount || 0) >= maxConcurrent) {
       return new Response(
