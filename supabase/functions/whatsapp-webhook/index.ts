@@ -1639,7 +1639,9 @@ serve(async (req) => {
       const idx = parseInt(lower, 10) - 1;
       if (Number.isFinite(idx) && opts[idx]) {
         const chosen = opts[idx];
-        const menuItems = await loadVendorMenu(chosen.id, chosen.name);
+        const chosenBind = await bindMenuOutlet(chosen.id, chosen.name);
+        if ("prompt" in chosenBind) return chosenBind.prompt;
+        const menuItems = await loadVendorMenu(chosen.id, chosen.name, chosenBind.outletId);
         const pending = nextContext.nl_pending_items || [];
         nextContext.nl_pending_items = undefined;
         nextContext.nl_vendor_options = undefined;
