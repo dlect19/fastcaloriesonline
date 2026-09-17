@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { RIDER_ACTIVE_ORDER_STATUSES } from '../_shared/riderCapacity.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -108,7 +109,7 @@ Deno.serve(async (req) => {
       .from('orders')
       .select('id', { count: 'exact', head: true })
       .eq('rider_id', user.id)
-      .in('status', ['assigned', 'picked_up', 'preparing', 'confirmed', 'searching_for_rider']);
+      .in('status', RIDER_ACTIVE_ORDER_STATUSES as unknown as string[]);
 
     if ((activeOrderCount || 0) >= maxConcurrent) {
       return new Response(
@@ -130,6 +131,44 @@ Deno.serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Re-verify the order itself at the moment of acceptance: paid (or an
+    // authorised POS/assisted/cash order), still a live delivery, unassigned.
+    const { data: acceptOrder } = await supabase
+      .from('orders')
+      .select('id, order_number, status, rider_id, delivery_type, payment_status, payment_method, channel, duplicate_of_order_id')
+      .eq('id', dispatchRequest.order_id)
+      .single();
+
+    const acceptChannel = (acceptOrder as any)?.channel || 'online';
+    const acceptPaid =
+      acceptOrder?.payment_status === 'paid' ||
+      acceptChannel === 'pos' ||
+      acceptChannel === 'assisted' ||
+      (acceptOrder as any)?.payment_method === 'cash';
+
+    if (
+      !acceptOrder ||
+      !acceptPaid ||
+      acceptOrder.payment_status === 'refunded' ||
+      acceptOrder.status === 'cancelled' ||
+      acceptOrder.status === 'delivered' ||
+      acceptOrder.delivery_type === 'self_pickup' ||
+      (acceptOrder as any).duplicate_of_order_id ||
+      (acceptOrder.rider_id && acceptOrder.rider_id !== user.id)
+    ) {
+      await supabase
+        .from('dispatch_offers')
+        .update({ status: 'superseded', responded_at: new Date().toISOString() })
+        .eq('id', offerId);
+
+      return new Response(
+        JSON.stringify({ error: 'This delivery is no longer available.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+
 
     // ATOMIC ACCEPTANCE
     const { data: updatedDispatch, error: dispatchUpdateError } = await supabase
@@ -181,7 +220,8 @@ Deno.serve(async (req) => {
         status: 'assigned',
         updated_at: new Date().toISOString(),
       })
-      .eq('id', dispatchRequest.order_id);
+      .eq('id', dispatchRequest.order_id)
+      .is('rider_id', null);
 
     // Get the order environment
     const { data: orderData } = await supabase

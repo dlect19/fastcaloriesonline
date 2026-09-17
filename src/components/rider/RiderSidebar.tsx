@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useDispatchOffers } from '@/hooks/useDispatchOffers';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Home, Package, DollarSign, ArrowUpRight, Settings, LogOut, Power, MessageSquare, Download, ExternalLink } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
@@ -19,42 +20,8 @@ export function RiderSidebar({ isOnline = false, onToggleOnline, canViewEarnings
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [availableCount, setAvailableCount] = useState(0);
-
-  // Fetch and subscribe to pending dispatch offers count
-  useEffect(() => {
-    let channel: ReturnType<typeof supabase.channel> | null = null;
-
-    const setup = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const fetchCount = async () => {
-        const { count, error } = await supabase
-          .from('dispatch_offers')
-          .select('*', { count: 'exact', head: true })
-          .eq('rider_user_id', user.id)
-          .eq('status', 'pending')
-          .gt('expires_at', new Date().toISOString());
-        if (!error && count !== null) setAvailableCount(count);
-      };
-
-      fetchCount();
-
-      channel = supabase
-        .channel('rider-sidebar-offers')
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'dispatch_offers',
-          filter: `rider_user_id=eq.${user.id}`,
-        }, () => fetchCount())
-        .subscribe();
-    };
-
-    setup();
-    return () => { if (channel) supabase.removeChannel(channel); };
-  }, []);
+  // Same secure lookup and same result as the requests page — identical counts.
+  const { pendingCount: availableCount } = useDispatchOffers();
 
   // Build menu items based on permissions
   const menuItems = [

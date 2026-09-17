@@ -1,5 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getGoogleMapsDistance, haversineDistance } from '../_shared/google-maps.ts';
+import { resolveDestination } from '../_shared/dispatchDestination.ts';
+import { countRiderActiveOrders } from '../_shared/riderCapacity.ts';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -8,6 +10,10 @@ const corsHeaders = {
 interface DispatchOrderRequest {
   orderId: string;
   publicOnly?: boolean;
+  /** Optional widened radius for a retry round. */
+  radiusKm?: number;
+  /** Retry round number recorded on the new dispatch request. */
+  retryRound?: number;
 }
 
 interface EligibleRider {
@@ -226,18 +232,10 @@ async function getVehicleTypeConfigs(supabase: any): Promise<Record<string, Vehi
   return configs;
 }
 
+// Capacity uses the one authoritative active-status set (assigned, picked_up,
+// on_the_way) shared with the database and the rider app.
 async function getRiderActiveOrderCount(supabase: any, riderUserId: string): Promise<number> {
-  const { count, error } = await supabase
-    .from('orders')
-    .select('id', { count: 'exact', head: true })
-    .eq('rider_id', riderUserId)
-    .in('status', ['assigned', 'picked_up', 'preparing', 'confirmed', 'searching_for_rider']);
-
-  if (error) {
-    console.error('Error counting rider active orders:', error);
-    return 0;
-  }
-  return count || 0;
+  return await countRiderActiveOrders(supabase, riderUserId);
 }
 
 async function findEligibleRiders(
@@ -349,7 +347,8 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { orderId, publicOnly }: DispatchOrderRequest = await req.json();
+    const { orderId, publicOnly, radiusKm: requestedRadiusKm, retryRound }: DispatchOrderRequest =
+      await req.json();
 
     if (!orderId) {
       return new Response(
@@ -366,7 +365,9 @@ Deno.serve(async (req) => {
       .select(`
         id, order_number, vendor_id, status, rider_id, delivery_type, delivery_fee,
         payment_status, payment_method, channel,
-        delivery_address_text, environment, outlet_id,
+        delivery_address_text, delivery_address_id,
+        delivery_latitude, delivery_longitude, delivery_distance_km,
+        environment, outlet_id,
         vendors (id, name, address, latitude, longitude),
         addresses (latitude, longitude)
       `)
@@ -410,18 +411,44 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Clean up old dispatch requests
+    if (order.status === 'cancelled' || order.status === 'delivered') {
+      return new Response(
+        JSON.stringify({ error: `Order is ${order.status}, it cannot be dispatched.` }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (order.payment_status === 'refunded') {
+      return new Response(
+        JSON.stringify({ error: 'This order was refunded, so it cannot be sent to a rider.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Retire previous dispatch attempts WITHOUT destroying audit history:
+    // pending offers/requests are marked expired/superseded, never deleted.
     const { data: existingDispatches } = await supabase
       .from('dispatch_requests')
       .select('id, status')
       .eq('order_id', orderId);
 
-    if (existingDispatches && existingDispatches.length > 0) {
-      for (const existingDispatch of existingDispatches) {
-        await supabase.from('dispatch_offers').delete().eq('dispatch_request_id', existingDispatch.id);
-        await supabase.from('dispatch_requests').delete().eq('id', existingDispatch.id);
-      }
-      console.log(`Deleted ${existingDispatches.length} old dispatch request(s)`);
+    const supersededRequestIds: string[] = [];
+    for (const existingDispatch of existingDispatches || []) {
+      if (existingDispatch.status === 'accepted') continue;
+      await supabase
+        .from('dispatch_offers')
+        .update({ status: 'superseded', responded_at: new Date().toISOString() })
+        .eq('dispatch_request_id', existingDispatch.id)
+        .in('status', ['pending']);
+      await supabase
+        .from('dispatch_requests')
+        .update({ status: 'superseded' })
+        .eq('id', existingDispatch.id)
+        .neq('status', 'accepted');
+      supersededRequestIds.push(existingDispatch.id);
+    }
+    if (supersededRequestIds.length > 0) {
+      console.log(`Superseded ${supersededRequestIds.length} previous dispatch request(s)`);
     }
 
     const vendor = order.vendors as any;
@@ -472,26 +499,51 @@ Deno.serve(async (req) => {
     const settingsMap: Record<string, string> = {};
     allSettings?.forEach((s: any) => { settingsMap[s.key] = s.value; });
 
+    const configuredRadiusKm = parseFloat(settingsMap.dispatch_initial_radius_km || '5');
     const dispatchSettings = {
       acceptanceTimeoutSeconds: parseInt(settingsMap.dispatch_acceptance_timeout_seconds || '60'),
-      initialRadiusKm: parseFloat(settingsMap.dispatch_initial_radius_km || '5'),
+      initialRadiusKm:
+        typeof requestedRadiusKm === 'number' && Number.isFinite(requestedRadiusKm) && requestedRadiusKm > 0
+          ? requestedRadiusKm
+          : configuredRadiusKm,
       maxRetries: parseInt(settingsMap.dispatch_max_retries || '3'),
     };
 
     const payoutSettings = getPayoutSettings(settingsMap);
 
-    // Calculate delivery distance using Google Maps for accuracy
+    // Authoritative destination: the order's own inline coordinates first, then
+    // the linked saved address. Never 0,0 and never invented.
     const address = order.addresses as any;
-    const customerLat = address?.latitude || null;
-    const customerLon = address?.longitude || null;
+    const destination = resolveDestination({
+      orderLatitude: (order as any).delivery_latitude,
+      orderLongitude: (order as any).delivery_longitude,
+      addressLatitude: address?.latitude,
+      addressLongitude: address?.longitude,
+    });
+
+    if (!destination.ok) {
+      console.error(
+        `MISSING_DESTINATION_COORDINATES for order ${(order as any).order_number} — refusing dispatch`,
+      );
+      return new Response(
+        JSON.stringify({
+          error: 'MISSING_DESTINATION_COORDINATES',
+          message: 'This order has no usable delivery location, so it cannot be sent to a rider.',
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const customerLat = destination.latitude as number;
+    const customerLon = destination.longitude as number;
+    console.log(`Destination source: ${destination.source} (${customerLat}, ${customerLon})`);
+
     let deliveryDistanceKm = 0;
     let estimatedDeliveryMinutes = 0;
-    if (customerLat && customerLon) {
-      const gmResult = await getGoogleMapsDistance(pickupLat, pickupLng, customerLat, customerLon);
-      deliveryDistanceKm = gmResult.distanceKm;
-      estimatedDeliveryMinutes = gmResult.durationMinutes;
-      console.log(`Delivery distance (${gmResult.source}): ${deliveryDistanceKm} km, ETA: ${estimatedDeliveryMinutes} min`);
-    }
+    const gmResult = await getGoogleMapsDistance(pickupLat, pickupLng, customerLat, customerLon);
+    deliveryDistanceKm = gmResult.distanceKm;
+    estimatedDeliveryMinutes = gmResult.durationMinutes;
+    console.log(`Delivery distance (${gmResult.source}): ${deliveryDistanceKm} km, ETA: ${estimatedDeliveryMinutes} min`);
 
     // Get max concurrent orders setting
     const maxConcurrentOrders = parseInt(settingsMap.rider_max_concurrent_orders || '1');
@@ -539,6 +591,10 @@ Deno.serve(async (req) => {
         expires_at: expiresAt.toISOString(),
         max_retries: dispatchSettings.maxRetries,
         environment: order.environment || 'production',
+        destination_source: destination.source,
+        delivery_distance_km: deliveryDistanceKm,
+        retry_round: typeof retryRound === 'number' && retryRound > 0 ? retryRound : 0,
+        retry_count: typeof retryRound === 'number' && retryRound > 0 ? retryRound : 0,
         status: eligibleRiders.length === 0 ? 'no_riders' : 'pending',
       })
       .select()
@@ -547,6 +603,14 @@ Deno.serve(async (req) => {
     if (dispatchError) {
       console.error('Error creating dispatch request:', dispatchError);
       throw dispatchError;
+    }
+
+    // Link the retired attempts to the new round for audit.
+    if (supersededRequestIds.length > 0) {
+      await supabase
+        .from('dispatch_requests')
+        .update({ superseded_by_request_id: dispatchRequest.id })
+        .in('id', supersededRequestIds);
     }
 
     // Create offers with full payout breakdown
@@ -628,6 +692,9 @@ Deno.serve(async (req) => {
         dispatchRequestId: dispatchRequest.id,
         eligibleRiderCount: eligibleRiders.length,
         expiresAt: expiresAt.toISOString(),
+        destinationSource: destination.source,
+        deliveryDistanceKm,
+        supersededRequestIds,
         payoutBreakdown: payout,
         message: eligibleRiders.length === 0
           ? 'No riders available, dispatch created for retry'

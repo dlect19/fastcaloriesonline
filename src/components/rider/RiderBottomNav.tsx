@@ -1,9 +1,8 @@
-import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Home, Package, DollarSign, Settings, Power, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
-import { supabase } from '@/integrations/supabase/client';
+import { useDispatchOffers } from '@/hooks/useDispatchOffers';
 import fastCaloriesFooterLogo from '@/assets/fast-calories-footer-logo.png';
 
 interface RiderBottomNavProps {
@@ -15,41 +14,8 @@ interface RiderBottomNavProps {
 export function RiderBottomNav({ isOnline = false, onToggleOnline, canViewEarnings = true }: RiderBottomNavProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const [availableCount, setAvailableCount] = useState(0);
-
-  useEffect(() => {
-    let channel: ReturnType<typeof supabase.channel> | null = null;
-
-    const setup = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const fetchCount = async () => {
-        const { count, error } = await supabase
-          .from('dispatch_offers')
-          .select('*', { count: 'exact', head: true })
-          .eq('rider_user_id', user.id)
-          .eq('status', 'pending')
-          .gt('expires_at', new Date().toISOString());
-        if (!error && count !== null) setAvailableCount(count);
-      };
-
-      fetchCount();
-
-      channel = supabase
-        .channel('rider-bottomnav-offers')
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'dispatch_offers',
-          filter: `rider_user_id=eq.${user.id}`,
-        }, () => fetchCount())
-        .subscribe();
-    };
-
-    setup();
-    return () => { if (channel) supabase.removeChannel(channel); };
-  }, []);
+  // Same secure lookup and same result as the requests page — identical counts.
+  const { pendingCount: availableCount } = useDispatchOffers();
 
   // Build nav items based on permissions
   const navItems = [

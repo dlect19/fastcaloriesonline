@@ -2405,7 +2405,9 @@ export type Database = {
           created_at: string | null
           customer_latitude: number | null
           customer_longitude: number | null
+          delivery_distance_km: number | null
           delivery_fee: number
+          destination_source: string | null
           environment: string | null
           expires_at: string
           id: string
@@ -2414,8 +2416,10 @@ export type Database = {
           outlet_id: string | null
           priority_tier: string | null
           retry_count: number | null
+          retry_round: number | null
           search_radius_km: number | null
           status: string | null
+          superseded_by_request_id: string | null
           vendor_id: string
           vendor_latitude: number
           vendor_longitude: number
@@ -2427,7 +2431,9 @@ export type Database = {
           created_at?: string | null
           customer_latitude?: number | null
           customer_longitude?: number | null
+          delivery_distance_km?: number | null
           delivery_fee?: number
+          destination_source?: string | null
           environment?: string | null
           expires_at: string
           id?: string
@@ -2436,8 +2442,10 @@ export type Database = {
           outlet_id?: string | null
           priority_tier?: string | null
           retry_count?: number | null
+          retry_round?: number | null
           search_radius_km?: number | null
           status?: string | null
+          superseded_by_request_id?: string | null
           vendor_id: string
           vendor_latitude: number
           vendor_longitude: number
@@ -2449,7 +2457,9 @@ export type Database = {
           created_at?: string | null
           customer_latitude?: number | null
           customer_longitude?: number | null
+          delivery_distance_km?: number | null
           delivery_fee?: number
+          destination_source?: string | null
           environment?: string | null
           expires_at?: string
           id?: string
@@ -2458,8 +2468,10 @@ export type Database = {
           outlet_id?: string | null
           priority_tier?: string | null
           retry_count?: number | null
+          retry_round?: number | null
           search_radius_km?: number | null
           status?: string | null
+          superseded_by_request_id?: string | null
           vendor_id?: string
           vendor_latitude?: number
           vendor_longitude?: number
@@ -11191,6 +11203,7 @@ export type Database = {
           wallets_checked: number
         }[]
       }
+      dispatch_sweep_expiry: { Args: { p_limit?: number }; Returns: Json }
       ensure_event_organizer_wallet: {
         Args: { _organizer_id: string }
         Returns: string
@@ -11227,6 +11240,7 @@ export type Database = {
         Args: { _company_id: string; _user_id: string }
         Returns: Database["public"]["Enums"]["delivery_company_staff_role"]
       }
+      get_my_rider_offers: { Args: never; Returns: Json }
       get_payout_period_hours: {
         Args: { p_wallet_type: string }
         Returns: number
@@ -11694,6 +11708,14 @@ export type Database = {
       restore_free_meal_on_cancel: {
         Args: { p_order_id: string }
         Returns: boolean
+      }
+      rider_active_order_count: {
+        Args: { _rider_user_id: string }
+        Returns: number
+      }
+      rider_active_order_statuses: {
+        Args: never
+        Returns: Database["public"]["Enums"]["order_status"][]
       }
       rider_belongs_to_company: {
         Args: { _rider_user_id: string }
