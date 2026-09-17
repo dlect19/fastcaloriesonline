@@ -21,6 +21,7 @@ import { usePlatformPromos } from "@/hooks/usePlatformPromos";
 import { useFreeMealPromos } from "@/hooks/useFreeMealPromos";
 import { supabase } from "@/integrations/supabase/client";
 import { checkoutAttempt, retireCheckoutAttempt } from "@/lib/checkoutAttempt";
+import { getServerCheckoutRollout, recordCheckoutRoute } from "@/lib/serverCheckoutRollout";
 import { buildCheckoutFingerprint } from "@/lib/checkoutIntegrity";
 import { useServiceFee } from "@/hooks/useServiceFee";
 import { useRiderAvailability } from "@/hooks/useRiderAvailability";
@@ -593,8 +594,22 @@ export function VendorCheckoutSection({
 
 
 
-      const { data: rpcResult, error: rpcError } = await supabase.rpc("checkout_customer_wallet", {
-        p_payload: {
+      // The server decides which checkout path this customer may use.
+      const rollout = await getServerCheckoutRollout({ paymentMethod: "wallet", channel: "online" });
+      if (rollout.route === "blocked") {
+        await recordCheckoutRoute(rollout, { paymentMethod: "wallet", attemptKey, failureCode: "BLOCKED" });
+        toast({
+          title: "Update needed",
+          description:
+            "This version of the app can no longer place orders safely. Please update the app, or contact support — your cart is saved.",
+          variant: "destructive",
+        });
+        onPlacingChange(null);
+        return;
+      }
+      const useServerCheckout = rollout.route === "server";
+
+      const checkoutPayload = {
           vendor_id: group.vendorId,
           outlet_id: resolvedOutletId,
           delivery_type: deliveryType,
@@ -622,11 +637,46 @@ export function VendorCheckoutSection({
             sort_order: idx,
           })),
           items: rpcItems,
-        } as any,
-      });
+      };
 
-      if (rpcError) throw rpcError;
-      const summary = rpcResult as any;
+      let summary: any;
+      try {
+        if (useServerCheckout) {
+          // One transaction: order, items and the wallet debit commit together.
+          const { data, error } = await supabase.rpc("checkout_customer_wallet", {
+            p_payload: checkoutPayload as any,
+          });
+          if (error) throw error;
+          summary = data as any;
+        } else {
+          // Compatibility route: the server still owns every price; payment is a
+          // second authorised server step.
+          const { data, error } = await supabase.rpc("create_customer_order", {
+            p_payload: checkoutPayload as any,
+          });
+          if (error) throw error;
+          summary = data as any;
+          if (summary?.ok !== false && summary?.order_id && summary?.payment_status !== "paid") {
+            const { data: payData, error: payError } = await supabase.functions.invoke("process-wallet-payment", {
+              body: { orderIds: [summary.order_id] },
+            });
+            if (payError) throw payError;
+            if ((payData as any)?.error) throw new Error(String((payData as any).error));
+            summary = { ...summary, payment_status: "paid" };
+          }
+        }
+      } catch (routeError: any) {
+        // Never fall back to another checkout path once one has begun — that is
+        // how duplicate orders are minted. Keep the cart and let them retry.
+        await recordCheckoutRoute(rollout, {
+          paymentMethod: "wallet",
+          attemptKey,
+          failureCode: String(routeError?.message || "CHECKOUT_FAILED").slice(0, 120),
+        });
+        throw routeError;
+      }
+
+      await recordCheckoutRoute(rollout, { paymentMethod: "wallet", attemptKey });
       if (summary?.ok === false) throw new Error(summary.error || "CHECKOUT_REJECTED");
       if (summary?.payment_status !== "paid") throw new Error("WALLET_CHECKOUT_REJECTED");
       if (!summary?.order_id) throw new Error("Order could not be created. Please try again.");
