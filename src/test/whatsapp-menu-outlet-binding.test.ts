@@ -71,7 +71,7 @@ describe('numbered menu binds the branch the customer chose', () => {
     const supabase = db({ outlets: [OPEN_A, OPEN_B], vendors: [VENDOR] });
     const res = await resolveBoundOutlet(supabase, { vendorId: 'v1', vendorName: 'Mama Put', boundOutletId: null });
     expect(res.ok).toBe(false);
-    if (res.ok) return;
+    if (res.ok) throw new Error('expected refusal');
     expect(res.reason).toBe(BINDING_REASONS.NONE_BOUND);
     expect(res.choices.map((c) => c.outlet_id).sort()).toEqual(['o-lekki', 'o-main']);
     expect(res.prompt).toContain('which branch');
@@ -88,14 +88,16 @@ describe('numbered menu binds the branch the customer chose', () => {
     const supabase = db({ outlets: [OPEN_A, other], vendors: [VENDOR] });
     const res = await resolveBoundOutlet(supabase, { vendorId: 'v1', boundOutletId: 'o-other' });
     expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.reason).toBe(BINDING_REASONS.WRONG_VENDOR);
+    if (res.ok) throw new Error('expected refusal');
+    expect(res.reason).toBe(BINDING_REASONS.WRONG_VENDOR);
   });
 
   it('rejects a stale branch id left in an old session', async () => {
     const supabase = db({ outlets: [OPEN_A], vendors: [VENDOR] });
     const res = await resolveBoundOutlet(supabase, { vendorId: 'v1', boundOutletId: 'deleted-outlet' });
     expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.reason).toBe(BINDING_REASONS.STALE);
+    if (res.ok) throw new Error('expected refusal');
+    expect(res.reason).toBe(BINDING_REASONS.STALE);
   });
 
   it('rejects closed, force-closed and off-schedule branches', async () => {
@@ -110,7 +112,8 @@ describe('numbered menu binds the branch the customer chose', () => {
     for (const id of ['o-closed', 'o-forced', 'o-sched']) {
       const res = await resolveBoundOutlet(supabase, { vendorId: 'v1', boundOutletId: id });
       expect(res.ok).toBe(false);
-      if (!res.ok) expect(res.reason).toBe(BINDING_REASONS.NOT_ORDERABLE);
+      if (res.ok) throw new Error('expected refusal');
+      expect(res.reason).toBe(BINDING_REASONS.NOT_ORDERABLE);
     }
     // Only branches checkout would accept are ever offered.
     const choices = await eligibleOutlets(supabase, 'v1');
@@ -121,10 +124,9 @@ describe('numbered menu binds the branch the customer chose', () => {
     const supabase = db({ outlets: [{ ...OPEN_A, is_open: false }], vendors: [VENDOR] });
     const res = await resolveBoundOutlet(supabase, { vendorId: 'v1', vendorName: 'Mama Put', boundOutletId: null });
     expect(res.ok).toBe(false);
-    if (!res.ok) {
-      expect(res.choices).toHaveLength(0);
-      expect(res.prompt).toContain("can't take orders");
-    }
+    if (res.ok) throw new Error('expected refusal');
+    expect(res.choices).toHaveLength(0);
+    expect(res.prompt).toContain("can't take orders");
   });
 
   it('renders a numbered branch list', () => {
