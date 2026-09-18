@@ -54,7 +54,7 @@ interface AllowRow {
 
 export default function AdminWhatsAppLaunch() {
   const { toast } = useToast();
-  const { logActivity } = useAdminActivityLogger();
+  const logActivity = useAdminActivityLogger();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -146,12 +146,7 @@ export default function AdminWhatsAppLaunch() {
       toast({ title: 'Save failed', description: error.message, variant: 'destructive' });
       return;
     }
-    await logActivity({
-      action: 'whatsapp_launch_settings_updated',
-      entityType: 'platform_setting',
-      entityId: 'whatsapp_launch',
-      details: { state, launch_at: launchLocal ? watLocalToISO(launchLocal) : null, testers_bypass_pause: bypassPause },
-    });
+    await logActivity('whatsapp_launch_settings_updated', 'platform_setting', 'whatsapp_launch', { state, launch_at: launchLocal ? watLocalToISO(launchLocal) : null, testers_bypass_pause: bypassPause });
     toast({ title: 'Launch controls saved', description: `State: ${STATE_LABELS[state]}` });
     load();
   };
@@ -204,12 +199,7 @@ export default function AdminWhatsAppLaunch() {
       toast({ title: 'Could not add tester', description: error.message, variant: 'destructive' });
       return;
     }
-    await logActivity({
-      action: 'whatsapp_launch_tester_added',
-      entityType: 'whatsapp_launch_allowlist',
-      entityId: p.user_id,
-      details: { phone: phoneKey(p.phone) },
-    });
+    await logActivity('whatsapp_launch_tester_added', 'whatsapp_launch_allowlist', p.user_id, { phone: phoneKey(p.phone) });
     toast({ title: 'Tester added' });
     setResults([]);
     setSearch('');
@@ -225,11 +215,7 @@ export default function AdminWhatsAppLaunch() {
       toast({ title: 'Update failed', description: error.message, variant: 'destructive' });
       return;
     }
-    await logActivity({
-      action: enabled ? 'whatsapp_launch_tester_enabled' : 'whatsapp_launch_tester_disabled',
-      entityType: 'whatsapp_launch_allowlist',
-      entityId: row.user_id,
-    });
+    await logActivity(enabled ? 'whatsapp_launch_tester_enabled' : 'whatsapp_launch_tester_disabled', 'whatsapp_launch_allowlist', row.user_id);
     load();
   };
 
@@ -239,11 +225,7 @@ export default function AdminWhatsAppLaunch() {
       toast({ title: 'Remove failed', description: error.message, variant: 'destructive' });
       return;
     }
-    await logActivity({
-      action: 'whatsapp_launch_tester_removed',
-      entityType: 'whatsapp_launch_allowlist',
-      entityId: row.user_id,
-    });
+    await logActivity('whatsapp_launch_tester_removed', 'whatsapp_launch_allowlist', row.user_id);
     toast({ title: 'Tester removed' });
     load();
   };
