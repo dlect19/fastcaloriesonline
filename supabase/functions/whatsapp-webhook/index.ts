@@ -3095,7 +3095,7 @@ async function doCheckout(
   const { data: envSetting } = await supabase.from("platform_settings").select("value").eq("key", "platform_environment").maybeSingle();
   const isTestMode = (envSetting?.value || "development") === "development";
   const { data: wallet } = await supabase
-    .from("wallets").select("balance, test_balance").eq("user_id", session.customer_user_id).eq("wallet_type", "customer").maybeSingle();
+    .from("wallets").select("balance, test_balance, is_disabled").eq("user_id", session.customer_user_id).eq("wallet_type", "customer").maybeSingle();
   const bal = Number((isTestMode ? wallet?.test_balance : wallet?.balance) || 0);
   const summary = await buildOrderSummary(supabase, cart, session);
   if (summary.pricing_unavailable) {
