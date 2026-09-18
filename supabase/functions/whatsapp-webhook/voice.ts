@@ -279,7 +279,7 @@ export async function transcribeVoiceNoteGated(
     const serverType = response.headers.get("content-type") || "";
     if (isDisallowedMediaContentType(serverType)) {
       await response.body?.cancel().catch(() => {});
-      logRefusal("body", "CONTENT_TYPE_REJECTED", fetched.finalHost, messageSid);
+      logRefusal("body", "CONTENT_TYPE_REJECTED", fetched.finalHost || null, messageSid);
       await finalize("refused", "CONTENT_TYPE_REJECTED");
       return { transcript: null, message: UNSUPPORTED_TEXT, code: "CONTENT_TYPE_REJECTED" };
     }
@@ -297,7 +297,7 @@ export async function transcribeVoiceNoteGated(
       return { transcript: null, message: TOO_LONG_TEXT, code: "TOO_LARGE" };
     }
     if (!looksLikeMediaBytes(bytes)) {
-      logRefusal("body", "NOT_MEDIA_BODY", fetched.finalHost, messageSid);
+      logRefusal("body", "NOT_MEDIA_BODY", fetched.finalHost || null, messageSid);
       await finalize("refused", "NOT_MEDIA_BODY", bytes.length);
       return { transcript: null, message: UNSUPPORTED_TEXT, code: "NOT_MEDIA_BODY" };
     }
