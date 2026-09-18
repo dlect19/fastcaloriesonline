@@ -1,49 +1,35 @@
-# WhatsApp voice notes: diagnosis of the two failed clips (read-only)
+# Voice notes: why they still fail, and the one-line correction
 
-## What happened
+Read-only diagnosis of the two newest failed voice notes from the customer ending 7744. Nothing was edited, deployed, resent or downloaded.
 
-Two voice notes from the same customer (number ending 7744) failed within 32 seconds of each other, just after midnight UTC on 18 Sep 2026. Both got the "I couldn't open that audio file" reply. They were two genuinely separate attempts, not one message counted twice.
+## What the evidence shows
 
-The audio was never even downloaded. Our own safety rule blocked it: WhatsApp/Twilio hands us a link that immediately forwards to a second download address, and our list of approved addresses does not include the one Twilio forwarded to. So we refused the file before any transcription happened.
+Two fresh attempts, both refused before any download:
 
-Nothing was charged. No transcription ran, no AI cost was recorded, and both attempts were properly closed out as failed, so nothing is stuck or double-counted.
+| Message ID | Time (UTC, 18 Sep) | Outcome |
+|---|---|---|
+| MM3caa2ea9e40592e549f5677b1cf2dd07 | 01:01:17 | refused at redirect |
+| MM7bd7c0f57ee0107a599eb160d21d3e5b | 01:02:47 | refused at redirect |
 
-## Evidence
+1. **Stage and reason:** refused at the redirect check, reason code `REDIRECT_HOST_NOT_ALLOWED`. Recorded outcome on both voice-usage rows: `REDIRECT_REJECTED`.
+2. **Hostnames (from the new logs, hostname only):** initial host is Twilio's authenticated media API host and passed the initial check; the redirect points at `mms.twiliocdn.com`. No path, query or signature was logged.
+3. **Redirect handling:** exactly one hop attempted, HTTPS, port 443, no credentials forwarded. The condition that failed is the redirect host allowlist — the approved patterns cover `media*.twiliocdn.com`, `mcs*.twilio.com`, `media*.twilio.com`, `mcs*.twiliocdn.com`, `api.twilio.com` and Twilio's signed S3 bucket patterns. `mms.twiliocdn.com` matches none of them, so the signed-storage branch was never reached.
+4. **Target type:** a Twilio-owned CDN media host (`mms.twiliocdn.com`) — not `mcs.*.twilio.com`, not `media.twiliocdn.com`, not S3 (virtual-hosted or path-style), not CloudFront, not third-party.
+5. **DNS / IP / private-network checks:** did not cause the rejection. The host is a normal public DNS name, not an IP literal, loopback, private range or metadata endpoint.
+6. **Download:** never happened. So MIME type, content length, empty body, HTML/XML error body, duration, codec and transcription are all irrelevant here — none of them ran.
+7. **Reservation and cost:** each attempt reserved once and was finalized once as `failed` within roughly half a second, with no bytes and no duration. Zero cost events exist for either message ID — the customer was not charged and no AI or transcription cost was recorded. Independent reservation per message ID also confirms the second attempt was not suppressed as a duplicate.
+8. **Deployment freshness:** confirmed current. These log lines carry the normalized `host` field and the `wa_voice_media_refused` event name, which only exist in the code deployed a few minutes earlier. The earlier 00:44 failures show the same reason but predate the new logging. So the new deployment served these requests — this is a genuinely narrow allowlist, not a stale instance.
 
-| Attempt | Time (UTC) | Message ID | Outcome | Size | Cost |
-| --- | --- | --- | --- | --- | --- |
-| 1 | 00:44:00 | MM5b7f58… | REDIRECT_REJECTED / failed | not recorded (never downloaded) | none |
-| 2 | 00:44:32 | MMde659b… | REDIRECT_REJECTED / failed | not recorded (never downloaded) | none |
+## The smallest safe correction (not performed)
 
-- Function logs show `[wa-voice] refused redirect target` at both timestamps, immediately after an authenticated inbound webhook (`sig= yes`), so the request was genuine and signature verification passed.
-- Voice notes are switched on and no limit was hit: enabled = true, 5 MB cap, 120 s cap, 3/min, 20/hour, 60/day per number, 10 concurrent, 2000/day platform. Neither attempt was refused for limits.
-- Both message IDs are distinct, so same-ID replay protection did not suppress the second try — each was independently reserved and independently failed.
-- No rows exist for either message ID in the AI cost ledger: the customer was not costed and no order fee was affected.
-- The separate prescription-image path in the same function follows redirects normally and works, which is consistent with Twilio media links legitimately redirecting to a different download host.
+Add Twilio's MMS media CDN host family to the **redirect** allowlist only:
 
-## Root cause (ranked)
+- `mms.twiliocdn.com` and region-aware forms (`mms.<region>.twiliocdn.com`), matched exactly like the existing `media*.twiliocdn.com` pattern.
 
-1. **Most likely (matches the recorded outcome exactly):** the redirect target host allowlist is too narrow. Voice download only permits `api.twilio.com` and `media.twiliocdn.com`; Twilio's media endpoint answers with a 30x to its media storage host (historically an S3-backed or `mcs.*.twilio.com` address), which is refused. This is a configuration/assumption bug on our side, not a customer or codec problem.
-2. Less likely: the redirect points at a valid Twilio host but with a form the matcher mishandles (case, port, or a region subdomain). Same fix covers it.
-3. Ruled out by evidence: limits, disabled switch, unsupported codec, corrupt audio, transcription/gateway failure, duplicate-suppression — all of those produce different recorded outcomes, and none appear.
+Nothing else changes: the initial URL stays restricted to the authenticated Twilio API/media origins, one hop only, HTTPS only, no credentials forwarded on the hop, all SSRF and private-network blocks intact, and every size, MIME, body-sanity, duration and 5 MB check unchanged. Signature verification, rate limits and cost gates are untouched.
 
-The one thing the logs deliberately do not record is the actual redirect hostname (it was omitted to avoid logging signed URLs). That is the single missing piece, so the fix starts by capturing it safely.
+Tests to add alongside it: redirect to `mms.twiliocdn.com` accepted and reaching transcription; regional `mms.us1.twiliocdn.com` accepted; a lookalike such as `mms.twiliocdn.com.evil.tld` refused; `mms` host over plain HTTP refused; `mms` host as an initial URL still refused.
 
-## Smallest safe fix (not applied in this turn)
+## Evidence gaps
 
-1. Log the refused redirect's hostname only — never the path, query or signature — so the exact target is known from the next occurrence.
-2. Widen the redirect allowlist to Twilio's documented media download hosts (including regional `mcs.*.twilio.com` and Twilio's media storage host), while keeping:
-   - the initial request restricted to Twilio API/CDN hosts,
-   - HTTPS only, one redirect hop only, no credentials sent to the redirect target,
-   - the existing size cap, timeout, MIME allowlist and per-message reservation.
-3. Alternative if the redirect target turns out to be a generic storage host we do not want to allowlist broadly: fetch the media through the Twilio media metadata endpoint and use the connector gateway instead of following the raw redirect.
-4. Add tests: a Twilio media redirect to the real download host is accepted; an unrelated host is still refused; credentials are not forwarded on the redirect; a refused redirect still finalises the reservation.
-
-No production data, reservations, orders, payments or messages are touched by this diagnosis, and the customer can already work around it by typing their order.
-
-## Answers to the specific questions
-
-- **Affected stage:** media fetch, at the redirect check — before decoding and before any AI call.
-- **Charged/costed:** no. Zero cost rows, no order fee, no wallet movement.
-- **Reservations:** both released correctly (status `failed`, finalised within a second).
-- **Other customers:** these are the only two such failures in the voice usage records, so no wider impact is visible.
+None material. Path, query and signature are deliberately not logged and were not needed. The only thing not observable from logs is Twilio's exact HTTP status code on the redirect (301 vs 302 vs 307) — it is not recorded, and it does not affect the diagnosis, since all of 301/302/303/307/308 are accepted and the refusal happened on the host check.
