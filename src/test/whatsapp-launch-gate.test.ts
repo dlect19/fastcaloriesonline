@@ -171,16 +171,16 @@ describe('multilingual pre-launch reply', () => {
 
 describe('gate placement in the webhook', () => {
   const gateIdx = WEBHOOK.indexOf('Launch gate');
+  const block = WEBHOOK.slice(gateIdx, WEBHOOK.indexOf('Voice notes: gated', gateIdx));
   it('runs after signature verification and before any costly work', () => {
     expect(gateIdx).toBeGreaterThan(0);
     expect(gateIdx).toBeGreaterThan(WEBHOOK.indexOf('verifyTwilioSignature(req, params'));
-    expect(gateIdx).toBeLessThan(WEBHOOK.indexOf('transcribeVoiceNoteGated'));
+    expect(gateIdx).toBeLessThan(WEBHOOK.indexOf('transcribeVoiceNoteGated(supabase'));
     expect(gateIdx).toBeLessThan(WEBHOOK.indexOf('runAgentTurn('));
     expect(gateIdx).toBeLessThan(WEBHOOK.indexOf('recordInboundMessage(supabase'));
   });
 
   it('deduplicates the launch reply by MessageSid and never transcribes media', () => {
-    const block = WEBHOOK.slice(gateIdx, gateIdx + 3400);
     expect(block).toContain('eq("twilio_sid", messageSid)');
     expect(block).toContain('detectVoiceNote(params) ? ""');
     expect(block).toContain('renderLaunchMessage');
