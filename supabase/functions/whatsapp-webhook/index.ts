@@ -3133,10 +3133,10 @@ async function runWhatsAppPayment(
     return await replyText("⚠️ We couldn't confirm your cart just now. Please reply *checkout* to try again.");
   }
 
-  const res: any = await runTool(toolCtx, "create_order", {
+  const res: any = await runTool("create_order", {
     payment_method: method === "wallet" ? "wallet" : "card",
     note: ctx.customer_order_note || undefined,
-  });
+  }, toolCtx);
 
   if (res?.ok && method === "wallet") {
     await persistSession(supabase, session.id, "menu", {}, []);
