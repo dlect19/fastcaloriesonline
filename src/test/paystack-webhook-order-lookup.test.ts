@@ -32,11 +32,11 @@ it('keeps amount, customer, environment and idempotency protections', () => {
 });
 
 it('keeps signature verification mandatory before any order handling', () => {
-  const sigIdx = src.indexOf('verifyPaystackSignature');
+  const sigIdx = src.indexOf('await verifySignature(payload, signature, paystackSecretKey)');
   const lookupIdx = src.indexOf('Order lookup error');
   expect(sigIdx).toBeGreaterThan(-1);
   expect(sigIdx).toBeLessThan(lookupIdx);
-  expect(src).toContain('Invalid signature');
+  expect(src).toContain('Invalid webhook signature');
 });
 
 it('classifies a database lookup error separately from a missing order', () => {
