@@ -1419,7 +1419,21 @@ serve(async (req) => {
 
         // 💳 Payment intents always hand off to the EXISTING deterministic functions.
         if (nl.intent === "confirm_order") {
-          if (inCheckout) return await confirmWhatsAppOrder(supabase, { ...session, context: nextContext }, nextCart, replyText, sendToUser, "nlu:confirm_order");
+          if (inCheckout) {
+            // Payment always runs through the atomic route, and only when the
+            // server-read balance covered the server total for this summary.
+            const nlChoice = computePaymentChoice({
+              total: Number(nextContext?.pending_total || cartTotal(nextCart) || 0),
+              balance: Number(nextContext?.pending_balance || 0),
+            });
+            if (nlChoice.walletEnabled) {
+              return await runWhatsAppPayment(
+                supabase, { ...session, context: nextContext }, nextCart, phone,
+                platformEnvironment, "wallet", replyText,
+              );
+            }
+            return await replyText(renderPaymentPrompt(nlChoice, nextContext?.topup_link ?? null));
+          }
           if (!nextCart.length) return await answerInPlace("🛒 Your cart is empty — tell me what you'd like to order." + HELP_HINT);
           await persistSession(supabase, session.id, session.state, nextContext, nextCart);
           return await doCheckout(supabase, { ...session, context: nextContext }, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
