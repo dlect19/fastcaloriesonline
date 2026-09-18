@@ -192,14 +192,16 @@ async function handleChargeSuccess(supabase: SupabaseClient, data: any, environm
     // A genuine database/lookup failure (e.g. bad column) must not be
     // misreported as a missing order — log a safe internal error only.
     console.error("Order lookup error:", orderId, orderError.code || "unknown");
-    await supabase.rpc("log_checkout_integrity_event", {
-      p_event_type: "payment_order_lookup_error",
-      p_user_id: null,
-      p_vendor_id: null,
-      p_outlet_id: null,
-      p_order_id: null,
-      p_detail: { reference, amount, code: orderError.code || "unknown" },
-    }).catch(() => undefined);
+    try {
+      await supabase.rpc("log_checkout_integrity_event", {
+        p_event_type: "payment_order_lookup_error",
+        p_user_id: null,
+        p_vendor_id: null,
+        p_outlet_id: null,
+        p_order_id: null,
+        p_detail: { reference, amount, code: orderError.code || "unknown" },
+      });
+    } catch { /* logging must never block webhook handling */ }
     return;
   }
 
