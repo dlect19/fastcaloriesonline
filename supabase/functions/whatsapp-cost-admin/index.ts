@@ -83,16 +83,28 @@ Deno.serve(async (req) => {
           .select("id, event_kind, direction, message_category, window_state, model_id, provider, cost_status, billing_status, cost_usd_micros, cost_ngn_kobo, billed_ngn_kobo, subsidy_ngn_kobo, markup_ngn_kobo, input_tokens, output_tokens, thinking_tokens, cached_input_tokens, transcription_seconds, order_id, session_id, environment, created_at, finalized_at")
           .gte("created_at", since).order("created_at", { ascending: false }).limit(5000),
         svc.from("whatsapp_cost_quotes")
-          .select("id, status, billing_mode, customer_fee_ngn_kobo, raw_cost_ngn_kobo, subsidy_ngn_kobo, consumed_order_id, created_at")
+          .select("id, status, billing_mode, customer_fee_ngn_kobo, raw_cost_ngn_kobo, subsidy_ngn_kobo, markup_ngn_kobo, breakdown, fulfilment_type, consumed_order_id, created_at")
           .gte("created_at", since).order("created_at", { ascending: false }).limit(2000),
-        svc.from("platform_settings").select("key, value").in("key", WHATSAPP_COST_SETTING_KEYS),
+        svc.from("platform_settings").select("key, value").in("key", ALL_SETTING_KEYS),
         svc.from("whatsapp_ai_rate_cards").select("*").order("effective_from", { ascending: false }).limit(50),
       ]);
+
+      const statusCfg = parseStatusAllowanceConfig(settings as any);
+      const costCfg = parseCostConfig(settings as any);
 
       return jsonResponse({
         ok: true,
         range_days: days,
-        config: parseCostConfig(settings as any),
+        config: costCfg,
+        status_config: statusCfg,
+        status_allowance_examples: {
+          delivery: computeStatusAllowance({
+            fulfilmentType: "delivery", cfg: statusCfg, fxUsdNgn: costCfg.fxUsdNgn, fxBufferPct: costCfg.fxBufferPct,
+          }),
+          pickup: computeStatusAllowance({
+            fulfilmentType: "pickup", cfg: statusCfg, fxUsdNgn: costCfg.fxUsdNgn, fxBufferPct: costCfg.fxBufferPct,
+          }),
+        },
         settings: settings ?? [],
         rate_cards: cards ?? [],
         events: events ?? [],
