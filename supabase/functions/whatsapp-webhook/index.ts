@@ -2115,20 +2115,7 @@ serve(async (req) => {
         const note = body.replace(/^note[:\s]+/i, "").trim();
         if (!note) return await replyText("Please type your note after `note:` e.g. *note: do not microwave*.\n\nReply *menu* to cancel.");
         await persistSession(supabase, session.id, "confirming_order", { ...nextContext, customer_order_note: note }, nextCart);
-        return await replyText(`📝 Note saved: ${note}\n\nReply *yes* to confirm & pay, or *menu* to cancel.`);
-      }
-      if (tap === "BTN_WALLET" || lower === "3" || lower === "fund" || lower === "top up" || lower === "topup") {
-        const pendingTotal = Number(nextContext?.pending_total || cartTotal(nextCart) || 0);
-        const shortfall = Number(nextContext?.pending_shortfall ?? pendingTotal) || 0;
-        // Top up exactly the shortfall (with Paystack ₦100 minimum), not the whole order total.
-        const amount = Math.max(100, Math.ceil(shortfall || pendingTotal));
-        const funding = await createWalletFundingLink(supabase, session.customer_user_id!, amount, phone);
-        await persistSession(supabase, session.id, "confirming_order", { ...nextContext, pending_funding_reference: funding?.reference }, nextCart);
-        if (!funding) return await replyText("⚠️ Couldn't create payment link right now. Please try again.");
-        return await replyText(`💰 Top up *₦${amount.toLocaleString()}* to cover your order:\n${funding.link}\n\nOnce your payment goes through, reply *checkout* — we'll auto-confirm your top-up and place the order. No reference needed.\n\nReply *menu* to cancel.`);
-      }
-      if (tap === "BTN_CONFIRM" || lower === "yes" || lower === "confirm") {
-        return await confirmWhatsAppOrder(supabase, session, nextCart, replyText, sendToUser, "state:confirming_order");
+        return await replyText(`📝 Note saved: ${note}\n\nReply *checkout* to see your payment options again.`);
       }
       if (tap === "BTN_CANCEL" || lower === "cancel" || lower === "menu" || tap === "BTN_MAIN_MENU") {
         await persistSession(supabase, session.id, "menu", nextContext, nextCart);
@@ -2137,13 +2124,54 @@ serve(async (req) => {
       if (lower === "checkout") {
         return await doCheckout(supabase, session, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
       }
+
+      // ---- Payment selection ------------------------------------------------
+      // The offered options come from the SERVER total + SERVER balance stored
+      // when the summary was rendered. Wallet is never selectable while short,
+      // and the atomic checkout revalidates the balance regardless.
+      const payChoice = computePaymentChoice({
+        total: Number(nextContext?.pending_total || cartTotal(nextCart) || 0),
+        balance: Number(nextContext?.pending_balance || 0),
+        walletDisabled: nextContext?.pending_wallet_enabled === false &&
+          Number(nextContext?.pending_shortfall || 0) === 0,
+      });
+      const selection = tap === "BTN_CONFIRM"
+        ? (payChoice.walletEnabled ? "wallet" : "topup")
+        : (tap === "BTN_WALLET" ? "topup" : parsePaymentSelection(body, payChoice));
+
+      if (selection === "wallet") {
+        return await runWhatsAppPayment(supabase, session, nextCart, phone, platformEnvironment, "wallet", replyText);
+      }
+      if (selection === "paystack") {
+        return await runWhatsAppPayment(supabase, session, nextCart, phone, platformEnvironment, "paystack", replyText);
+      }
+      if (selection === "topup") {
+        const amount = topUpAmount(payChoice);
+        const cached = { link: nextContext?.topup_link, amount: nextContext?.topup_link_amount };
+        if (shouldReuseTopUpLink(cached, amount)) {
+          return await replyText(`💰 Top up ${formatNaira(amount)} to cover your order:\n${nextContext.topup_link}\n\nOnce your payment goes through, reply *checkout* — we re-check your wallet automatically.\n\nReply *menu* to cancel.`);
+        }
+        const funding = await createWalletFundingLink(supabase, session.customer_user_id!, amount, phone);
+        await persistSession(supabase, session.id, "confirming_order", {
+          ...nextContext,
+          pending_funding_reference: funding?.reference,
+          topup_link: funding?.link ?? null,
+          topup_link_amount: funding ? amount : null,
+        }, nextCart);
+        if (!funding) return await replyText("⚠️ Couldn't create payment link right now. Please try again.");
+        return await replyText(`💰 Top up ${formatNaira(amount)} to cover your order:\n${funding.link}\n\nOnce your payment goes through, reply *checkout* — we re-check your wallet automatically.\n\nReply *menu* to cancel.`);
+      }
+      if (lower === "yes" || lower === "confirm") {
+        // Ambiguous confirmation with no selectable wallet option.
+        return await replyText(renderPaymentPrompt(payChoice, nextContext?.topup_link ?? null));
+      }
       // Deterministic checkout actions above are untouched. Anything else that looks
       // like a sentence goes through the Conversation Controller so contextual
-      // questions ("what is my total?", "remove the Coke", "go ahead and pay")
-      // work without leaving the checkout context.
+      // questions ("what is my total?", "remove the Coke") work without leaving
+      // the checkout context.
       const nlCheckout = await runConversationController();
       if (nlCheckout) return nlCheckout;
-      return await replyText("Reply *3* to top up, *checkout* to recheck your wallet, *yes* to confirm & pay, or *menu* to cancel this order.");
+      return await replyText(renderPaymentPrompt(payChoice, nextContext?.topup_link ?? null));
     }
 
     if (session.state === "ai_suggest") {
