@@ -123,6 +123,22 @@ export default function AdminWhatsAppCosts() {
 
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [rangeDays]);
 
+  // Order-status notifications are absorbed (paid for upfront at checkout), so
+  // they are reported separately from conversation/AI cost — never double counted.
+  const statusStats = useMemo(() => {
+    const statusEvents = events.filter(e =>
+      e.event_kind === 'outbound_status' || e.event_kind === 'outbound_status_failed');
+    const revenueKobo = quotes.reduce((s, q) => {
+      const snap: any = (q as any).breakdown?.status_messages;
+      return s + Number(snap?.amount_included_in_service_fee_kobo || 0);
+    }, 0);
+    return {
+      messages: statusEvents.length,
+      costKobo: statusEvents.reduce((s, e) => s + Number(e.cost_ngn_kobo || 0), 0),
+      revenueKobo,
+    };
+  }, [events, quotes]);
+
   const stats = useMemo(() => {
     const inbound = events.filter(e => e.direction === 'in').length;
     const outbound = events.filter(e => e.direction === 'out' && e.event_kind !== 'outbound_failed').length;
