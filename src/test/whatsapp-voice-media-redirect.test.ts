@@ -34,6 +34,31 @@ describe('redirect target policy', () => {
     expect(checkRedirectTarget('https://media.dublin.twiliocdn.com/x', TWILIO_MEDIA).ok).toBe(true);
   });
 
+  it('accepts the Twilio MMS media CDN as a redirect target only', () => {
+    const exact = checkRedirectTarget('https://mms.twiliocdn.com/ME1', TWILIO_MEDIA);
+    expect(exact.ok).toBe(true);
+    expect(exact.host).toBe('mms.twiliocdn.com');
+    expect(checkRedirectTarget('https://mms.us1.twiliocdn.com/ME1', TWILIO_MEDIA).ok).toBe(true);
+    expect(checkRedirectTarget('https://mms.dublin.twiliocdn.com/ME1', TWILIO_MEDIA).ok).toBe(true);
+    // lookalikes and malformed labels stay refused
+    for (const bad of [
+      'https://mms.twiliocdn.com.evil.tld/ME1',
+      'https://evilmms.twiliocdn.com/ME1',
+      'https://mms.twiliocdn.evil.com/ME1',
+      'https://mms..twiliocdn.com/ME1',
+      'https://mms.twiliocdn.com.br/ME1',
+    ]) {
+      expect(checkRedirectTarget(bad, TWILIO_MEDIA).ok, bad).toBe(false);
+    }
+    expect(checkRedirectTarget('http://mms.twiliocdn.com/ME1', TWILIO_MEDIA).reason).toBe('NOT_HTTPS');
+    expect(checkRedirectTarget('https://mms.twiliocdn.com:8443/ME1', TWILIO_MEDIA).reason).toBe('UNSAFE_PORT');
+    // must never be accepted as the initial MediaUrl
+    expect(checkInitialMediaUrl('https://mms.twiliocdn.com/ME1').reason).toBe('HOST_NOT_ALLOWED');
+    expect(checkInitialMediaUrl('https://mms.us1.twiliocdn.com/ME1').reason).toBe('HOST_NOT_ALLOWED');
+  });
+
+
+
   it('accepts the signed Twilio S3-backed media store, path and virtual hosted', () => {
     expect(checkRedirectTarget(
       `https://s3-external-1.amazonaws.com/com.twilio.prod.twilio-messaging-media/ME1?${SIGNED}`,
