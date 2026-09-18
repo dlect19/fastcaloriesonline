@@ -9,6 +9,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { logTwilioCall } from "../_shared/twilioCost.ts";
 import { sendTwilioMessage } from "../_shared/twilioMessaging.ts";
+import { evaluateVendorNotification } from "../_shared/vendorNotifyGate.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -171,12 +173,14 @@ serve(async (req) => {
         });
         if (ok) {
           sent++;
-          await admin.from("orders")
-            .update({ vendor_wa_new_order_alerted_at: new Date().toISOString() })
-            .eq("id", o.id);
         } else {
+          // Nothing was delivered, so release the claim for the next run.
+          await admin.from("orders")
+            .update({ vendor_wa_new_order_alerted_at: null })
+            .eq("id", o.id);
           failed++;
         }
+
       }
       return json({ mode, sent, failed });
     }
