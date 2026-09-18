@@ -285,7 +285,7 @@ describe('voice gate over a mocked Twilio media network', () => {
   });
 
   it('processes two different MessageSids independently', async () => {
-    fetchMock.mockResolvedValue(audioResponse());
+    fetchMock.mockImplementation(async () => audioResponse());
     const a = await mod.transcribeVoiceNoteGated(voiceStub().client, { ...base, messageSid: 'MM_k1' });
     const b = await mod.transcribeVoiceNoteGated(voiceStub().client, { ...base, messageSid: 'MM_k2' });
     expect([a.code, b.code]).toEqual(['TRANSCRIBED', 'TRANSCRIBED']);
