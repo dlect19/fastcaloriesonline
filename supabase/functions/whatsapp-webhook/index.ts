@@ -19,11 +19,19 @@ import {
   recordOutboundMessage,
   recordTranscription,
 } from "../_shared/whatsappCostLedger.ts";
-import { applySharedLocation, CartLine, loadCart, saveCart, ToolCtx } from "./tools.ts";
+import { applySharedLocation, CartLine, loadCart, runTool, saveCart, ToolCtx } from "./tools.ts";
 import { isAgentEligible, isExplicitMenuRequest } from "./routing.ts";
 import { blockLegacyOrderPath } from "./legacyGuard.ts";
 import { detectImageAttachment, recordUnverifiedPaymentProof } from "./paymentProof.ts";
 import { boundOutletFrom, OutletChoice, resolveBoundOutlet } from "./outletBinding.ts";
+import {
+  computePaymentChoice,
+  formatNaira,
+  parsePaymentSelection,
+  renderPaymentPrompt,
+  shouldReuseTopUpLink,
+  topUpAmount,
+} from "./paymentChoice.ts";
 
 
 const corsHeaders = {
