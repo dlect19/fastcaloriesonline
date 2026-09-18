@@ -27,6 +27,8 @@ const REDIRECT_HOST_PATTERNS: RegExp[] = [
   /^media(\.[a-z0-9-]+)*\.twilio\.com$/,
   /^media(\.[a-z0-9-]+)*\.twiliocdn\.com$/,
   /^mcs(\.[a-z0-9-]+)*\.twiliocdn\.com$/,
+  // Twilio MMS media CDN: mms.twiliocdn.com and regional mms.<region>.twiliocdn.com
+  /^mms(\.[a-z0-9-]+)*\.twiliocdn\.com$/,
 ];
 
 /**

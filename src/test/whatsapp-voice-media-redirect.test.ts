@@ -34,6 +34,31 @@ describe('redirect target policy', () => {
     expect(checkRedirectTarget('https://media.dublin.twiliocdn.com/x', TWILIO_MEDIA).ok).toBe(true);
   });
 
+  it('accepts the Twilio MMS media CDN as a redirect target only', () => {
+    const exact = checkRedirectTarget('https://mms.twiliocdn.com/ME1', TWILIO_MEDIA);
+    expect(exact.ok).toBe(true);
+    expect(exact.host).toBe('mms.twiliocdn.com');
+    expect(checkRedirectTarget('https://mms.us1.twiliocdn.com/ME1', TWILIO_MEDIA).ok).toBe(true);
+    expect(checkRedirectTarget('https://mms.dublin.twiliocdn.com/ME1', TWILIO_MEDIA).ok).toBe(true);
+    // lookalikes and malformed labels stay refused
+    for (const bad of [
+      'https://mms.twiliocdn.com.evil.tld/ME1',
+      'https://evilmms.twiliocdn.com/ME1',
+      'https://mms.twiliocdn.evil.com/ME1',
+      'https://mms..twiliocdn.com/ME1',
+      'https://mms.twiliocdn.com.br/ME1',
+    ]) {
+      expect(checkRedirectTarget(bad, TWILIO_MEDIA).ok, bad).toBe(false);
+    }
+    expect(checkRedirectTarget('http://mms.twiliocdn.com/ME1', TWILIO_MEDIA).reason).toBe('NOT_HTTPS');
+    expect(checkRedirectTarget('https://mms.twiliocdn.com:8443/ME1', TWILIO_MEDIA).reason).toBe('UNSAFE_PORT');
+    // must never be accepted as the initial MediaUrl
+    expect(checkInitialMediaUrl('https://mms.twiliocdn.com/ME1').reason).toBe('HOST_NOT_ALLOWED');
+    expect(checkInitialMediaUrl('https://mms.us1.twiliocdn.com/ME1').reason).toBe('HOST_NOT_ALLOWED');
+  });
+
+
+
   it('accepts the signed Twilio S3-backed media store, path and virtual hosted', () => {
     expect(checkRedirectTarget(
       `https://s3-external-1.amazonaws.com/com.twilio.prod.twilio-messaging-media/ME1?${SIGNED}`,
@@ -211,6 +236,30 @@ describe('voice gate over a mocked Twilio media network', () => {
     const r = await mod.transcribeVoiceNoteGated(voiceStub().client, { ...base, messageSid: 'MM_b' });
     expect(r.code).toBe('TRANSCRIBED');
   });
+
+  it('follows one hop to the Twilio MMS CDN, transcribes, and forwards no credentials', async () => {
+    fetchMock.mockResolvedValueOnce(redirectTo('https://mms.twiliocdn.com/ME1'))
+      .mockResolvedValueOnce(audioResponse());
+    const r = await mod.transcribeVoiceNoteGated(voiceStub().client, { ...base, messageSid: 'MM_mms' });
+    expect(r.code).toBe('TRANSCRIBED');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const second = fetchMock.mock.calls[1][1] as RequestInit;
+    const headers = new Headers((second?.headers ?? {}) as HeadersInit);
+    expect(headers.get('authorization')).toBeNull();
+    expect(headers.get('cookie')).toBeNull();
+  });
+
+  it('refuses a second hop from the MMS CDN', async () => {
+    fetchMock.mockResolvedValueOnce(redirectTo('https://mms.twiliocdn.com/ME1'))
+      .mockResolvedValueOnce(redirectTo('https://mms.us1.twiliocdn.com/ME2'));
+    const s = voiceStub();
+    const r = await mod.transcribeVoiceNoteGated(s.client, { ...base, messageSid: 'MM_mms2' });
+    expect(r.code).not.toBe('TRANSCRIBED');
+    expect(aiMock).not.toHaveBeenCalled();
+    expect(s.calls[1].args.p_outcome).toBe('REDIRECT_REJECTED');
+  });
+
+
 
   it('never forwards Twilio credentials to the redirected host', async () => {
     fetchMock.mockResolvedValueOnce(redirectTo('https://mcs.us1.twilio.com/Content/ME1'))
