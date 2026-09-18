@@ -673,6 +673,8 @@ export async function priceCart(ctx: ToolCtx, cartIn?: WaCart) {
     platform_service_fee: service_fee,
     whatsapp_ai_fee,
     whatsapp_ai_fee_mode: aiFee.billingMode,
+    // Upfront allowance for the order-status updates this order will receive.
+    whatsapp_status_fee: Number((aiFee as any).statusAllowanceNgn || 0),
     service_fee: service_fee_total,
     service_fee_pct: pct,
     delivery_fee,
