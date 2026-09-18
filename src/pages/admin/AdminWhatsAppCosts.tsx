@@ -150,8 +150,13 @@ export default function AdminWhatsAppCosts() {
       margin: collectedKobo > 0 ? (profitKobo / collectedKobo) * 100 : 0,
       orders: new Set(events.filter(e => e.order_id).map(e => e.order_id)).size,
       conversations: new Set(events.filter(e => e.session_id).map(e => e.session_id)).size,
+      // Order-status notifications: revenue collected upfront vs actual provider cost.
+      statusMessages: statusStats.messages,
+      statusCostKobo: statusStats.costKobo,
+      statusRevenueKobo: statusStats.revenueKobo,
+      statusVarianceKobo: statusStats.revenueKobo - statusStats.costKobo,
     };
-  }, [events, quotes]);
+  }, [events, quotes, statusStats]);
 
   const topConversations = useMemo(() => {
     const by = new Map<string, { cost: number; events: number }>();
