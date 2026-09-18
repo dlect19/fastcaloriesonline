@@ -69,3 +69,4 @@
 - [x] 69. Secure rider offer discovery RPC (get_my_rider_offers), unified client discovery, destination coordinate precedence, durable dispatch expiry/retry sweep (cron every minute), one authoritative rider capacity status set.
 - [x] Voice-note media fetch hardened (mediaFetch.ts): one validated redirect hop to Twilio-owned media hosts / signed Twilio S3 store only, no credential forwarding, SSRF blocks, streaming byte cap, body sanity check, redacted host-only refusal logs — fixes the REDIRECT_REJECTED failures of 18 Sep 2026
 
+- [x] Voice-note redirect allowlist extended to Twilio MMS media CDN (mms.twiliocdn.com + regional mms.<region>.twiliocdn.com) as a redirect target only — fixes REDIRECT_HOST_NOT_ALLOWED failures of 18 Sep 2026 01:01/01:02
