@@ -4,6 +4,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { isVendorActionable } from '../../../supabase/functions/_shared/vendorNotifyGate';
+
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -676,7 +678,17 @@ export default function AdminOrders() {
                             <span className="text-xs text-muted-foreground">—</span>
                           )}
                         </td>
-                         <td className="py-3 px-4">{getStatusBadge(order.status)}</td>
+                         <td className="py-3 px-4">
+                           <div className="flex flex-col gap-1 items-start">
+                             {getStatusBadge(order.status)}
+                             {!isVendorActionable(order) && (
+                               <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-700 dark:text-amber-400">
+                                 ⏳ Awaiting payment / vendor not notified
+                               </Badge>
+                             )}
+                           </div>
+                         </td>
+
                          <td className="py-3 px-4">
                            {order.rider_name ? (
                              <div className="flex items-center gap-1.5">
