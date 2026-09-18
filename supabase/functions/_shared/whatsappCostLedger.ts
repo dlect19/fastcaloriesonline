@@ -204,6 +204,13 @@ export async function recordOutboundMessage(
     category?: MetaCategory;
     windowState?: WindowState;
     failed?: boolean;
+    /**
+     * Order-status lifecycle notification. Its cost is already covered by the
+     * upfront allowance charged at checkout, so it is recorded as `absorbed`:
+     * tracked for margin reporting, never pooled into a future customer quote.
+     */
+    statusMessage?: boolean;
+    notes?: string | null;
   } & UsageLink,
 ): Promise<string | null> {
   if (!args.providerEventId) return null;
@@ -214,11 +221,15 @@ export async function recordOutboundMessage(
   });
   return await recordUsage(supabase, ctx, {
     provider_event_id: args.providerEventId,
-    event_kind: args.failed
-      ? "outbound_failed"
-      : args.category && args.category !== "service"
-        ? "outbound_template"
-        : "outbound_freeform",
+    event_kind: args.statusMessage
+      ? (args.failed ? "outbound_status_failed" : "outbound_status")
+      : args.failed
+        ? "outbound_failed"
+        : args.category && args.category !== "service"
+          ? "outbound_template"
+          : "outbound_freeform",
+    billing_status: args.statusMessage ? "absorbed" : "unbilled",
+    notes: args.notes ?? null,
     direction: "out",
     message_sid: args.messageSid ?? null,
     message_category: args.category ?? "service",
