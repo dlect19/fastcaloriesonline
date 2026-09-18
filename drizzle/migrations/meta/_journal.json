@@ -218,6 +218,13 @@
       "when": 1789665206808,
       "tag": "0030_secure_rider_offer_discovery",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1789698069154,
+      "tag": "0031_create_paystack_webhook_events_audit",
+      "breakpoints": true
     }
   ]
 }

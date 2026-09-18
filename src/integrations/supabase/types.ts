@@ -5996,6 +5996,95 @@ export type Database = {
           },
         ]
       }
+      paystack_webhook_events: {
+        Row: {
+          attempt_count: number
+          created_at: string
+          currency: string | null
+          dedupe_key: string
+          environment: string
+          event_type: string
+          expected_amount: number | null
+          funding_user_id: string | null
+          id: string
+          last_attempt_at: string
+          order_id: string | null
+          order_number: string | null
+          paystack_event_id: string | null
+          processed_at: string | null
+          processing_state: string
+          purpose: string
+          reason_code: string | null
+          received_amount: number | null
+          received_at: string
+          reference_full: string | null
+          reference_masked: string | null
+          signature_valid: boolean
+          updated_at: string
+          wallet_transaction_id: string | null
+        }
+        Insert: {
+          attempt_count?: number
+          created_at?: string
+          currency?: string | null
+          dedupe_key: string
+          environment?: string
+          event_type: string
+          expected_amount?: number | null
+          funding_user_id?: string | null
+          id?: string
+          last_attempt_at?: string
+          order_id?: string | null
+          order_number?: string | null
+          paystack_event_id?: string | null
+          processed_at?: string | null
+          processing_state?: string
+          purpose?: string
+          reason_code?: string | null
+          received_amount?: number | null
+          received_at?: string
+          reference_full?: string | null
+          reference_masked?: string | null
+          signature_valid?: boolean
+          updated_at?: string
+          wallet_transaction_id?: string | null
+        }
+        Update: {
+          attempt_count?: number
+          created_at?: string
+          currency?: string | null
+          dedupe_key?: string
+          environment?: string
+          event_type?: string
+          expected_amount?: number | null
+          funding_user_id?: string | null
+          id?: string
+          last_attempt_at?: string
+          order_id?: string | null
+          order_number?: string | null
+          paystack_event_id?: string | null
+          processed_at?: string | null
+          processing_state?: string
+          purpose?: string
+          reason_code?: string | null
+          received_amount?: number | null
+          received_at?: string
+          reference_full?: string | null
+          reference_masked?: string | null
+          signature_valid?: boolean
+          updated_at?: string
+          wallet_transaction_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "paystack_webhook_events_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       phone_verification_otps: {
         Row: {
           attempts: number
