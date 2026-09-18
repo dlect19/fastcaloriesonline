@@ -655,7 +655,7 @@ export async function priceCart(ctx: ToolCtx, cartIn?: WaCart) {
   // WhatsApp AI service component. In shadow mode (the default) this is ₦0, so
   // customer totals are unchanged; it is shown transparently as its own line so
   // there is never a surprise fee added after confirmation.
-  const aiFee = await whatsappAiFeePreview(ctx);
+  const aiFee = await whatsappAiFeePreview(ctx, cart.fulfilment_type);
   const whatsapp_ai_fee = aiFee.customerFeeNgn;
   const service_fee_total = service_fee + whatsapp_ai_fee;
 
