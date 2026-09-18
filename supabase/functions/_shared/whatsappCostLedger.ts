@@ -496,7 +496,7 @@ export async function freezeWhatsAppAiFeeQuote(
         billing_mode: billingMode(ctx.cfg),
         fx_rate_ngn: ctx.cfg.fxUsdNgn,
         rate_version: `${ctx.cfg.configVersion}|${ctx.card?.model_id ?? "no-card"}|${ctx.card?.effective_from ?? ""}|status:${ctx.statusCfg?.settingsVersion ?? "v1"}`,
-        config_snapshot: { ...ctx.cfg, status_allowance: ctx.statusCfg } as unknown as Record<string, unknown>,
+        config_snapshot: { ...ctx.cfg, status_allowance: ctx.statusCfg ?? STATUS_ALLOWANCE_DEFAULTS } as unknown as Record<string, unknown>,
         breakdown,
         expires_at: new Date(Date.now() + ctx.cfg.quoteTtlSeconds * 1000).toISOString(),
         environment: ctx.environment,
