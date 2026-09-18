@@ -362,6 +362,32 @@ export default function AdminWhatsAppCosts() {
             </div>
 
             <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Order status notifications</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <p className="text-xs text-muted-foreground">Messages sent</p>
+                  <p className="text-xl font-bold">{stats.statusMessages}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Charged upfront</p>
+                  <p className="text-xl font-bold">{naira(stats.statusRevenueKobo)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Actual provider cost</p>
+                  <p className="text-xl font-bold">{naira(stats.statusCostKobo)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Variance</p>
+                  <p className={`text-xl font-bold ${stats.statusVarianceKobo < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {naira(stats.statusVarianceKobo)}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
               <CardHeader className="pb-2"><CardTitle className="text-sm">Most expensive conversations</CardTitle></CardHeader>
               <CardContent>
                 {topConversations.length === 0 ? (
