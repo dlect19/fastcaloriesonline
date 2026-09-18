@@ -458,6 +458,46 @@ export default function AdminWhatsAppCosts() {
             </Card>
 
             <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Order status updates (upfront allowance)</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-xs text-muted-foreground">
+                  Estimated cost of the order-status messages a customer will receive, added to the
+                  WhatsApp communications part of the service fee at checkout. Nothing is charged after checkout.
+                </p>
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm">Include status-message allowance</Label>
+                  <Switch
+                    checked={(draft.whatsapp_status_allowance_enabled ?? 'true') === 'true'}
+                    onCheckedChange={v => setDraft(d => ({ ...d, whatsapp_status_allowance_enabled: v ? 'true' : 'false' }))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Billing mode</Label>
+                  <Select
+                    value={draft.whatsapp_status_billing_mode ?? 'shadow'}
+                    onValueChange={v => setDraft(d => ({ ...d, whatsapp_status_billing_mode: v }))}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="shadow">Shadow (record only, ₦0 to customer)</SelectItem>
+                      <SelectItem value="enforced">Enforced (include in service fee)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {numberField('whatsapp_status_unit_cost_ngn', 'Unit cost ₦ / message', 'Leave 0 to use USD rate')}
+                  {numberField('whatsapp_status_unit_cost_usd', 'Unit cost USD / message')}
+                  {numberField('whatsapp_status_expected_count_delivery', 'Expected messages (delivery)')}
+                  {numberField('whatsapp_status_expected_count_pickup', 'Expected messages (carryout)')}
+                  {numberField('whatsapp_status_markup_pct', 'Markup %')}
+                  {numberField('whatsapp_status_fixed_markup_ngn', 'Fixed markup ₦')}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
               <CardHeader className="pb-2"><CardTitle className="text-sm">Provider rates (USD per message)</CardTitle></CardHeader>
               <CardContent className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 {numberField('whatsapp_cost_twilio_inbound_usd', 'Twilio inbound')}
