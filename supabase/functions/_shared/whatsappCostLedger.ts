@@ -25,13 +25,33 @@ import {
   parseCostConfig,
   WHATSAPP_COST_SETTING_KEYS,
 } from "./whatsappCostMath.ts";
+import {
+  computeStatusAllowance,
+  parseStatusAllowanceConfig,
+  STATUS_ALLOWANCE_DEFAULTS,
+  STATUS_ALLOWANCE_SETTING_KEYS,
+  type StatusAllowanceConfig,
+  type StatusAllowanceEstimate,
+} from "./whatsappStatusAllowance.ts";
 
-export type { WhatsAppCostConfig, FeeQuoteResult };
+export type { WhatsAppCostConfig, FeeQuoteResult, StatusAllowanceConfig, StatusAllowanceEstimate };
 
 export interface CostContext {
   cfg: WhatsAppCostConfig;
   card: RateCard | null;
   environment: string;
+  /** Upfront outbound status-message allowance settings. */
+  statusCfg: StatusAllowanceConfig;
+}
+
+/** Deterministic status-message allowance for one order/fulfilment type. */
+export function statusAllowanceFor(ctx: CostContext, fulfilmentType?: string | null): StatusAllowanceEstimate {
+  return computeStatusAllowance({
+    fulfilmentType,
+    cfg: ctx.statusCfg ?? STATUS_ALLOWANCE_DEFAULTS,
+    fxUsdNgn: ctx.cfg.fxUsdNgn,
+    fxBufferPct: ctx.cfg.fxBufferPct,
+  });
 }
 
 export async function sha256Hex(value: string): Promise<string> {
