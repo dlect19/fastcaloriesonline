@@ -3037,6 +3037,113 @@ async function confirmWhatsAppOrder(
   return await replyText(text);
 }
 
+/**
+ * The ONLY payment route reachable from the deterministic checkout screen.
+ * Wallet debits and order creation both happen inside
+ * `whatsapp_create_order_atomic` via the agent's create_order tool, keyed on the
+ * checkout intent, so a retry never debits twice or creates a second order.
+ * Paystack links are initialised server-side against the created order.
+ */
+async function runWhatsAppPayment(
+  supabase: any,
+  session: any,
+  cart: any[],
+  phone: string,
+  platformEnvironment: string,
+  method: "wallet" | "paystack",
+  replyText: (t: string) => Promise<Response>,
+): Promise<Response> {
+  const ctx = session.context || {};
+  const toolCtx = {
+    supabase, phone, userId: session.customer_user_id,
+    sessionId: session.id, environment: platformEnvironment,
+  } as ToolCtx;
+
+  // Bind the same items / branch / destination the summary priced.
+  try {
+    await loadCart(toolCtx);
+    const items: CartLine[] = (cart || [])
+      .filter((c: any) => (c?.product_id || c?.id) && c?.vendor_id)
+      .map((c: any) => ({
+        product_id: c.product_id || c.id,
+        name: c.name,
+        price: Number(c.price) || 0,
+        qty: Number(c.qty) || 1,
+        calories: Number(c.calories) || 0,
+        vendor_id: c.vendor_id,
+        outlet_id: c.outlet_id ?? null,
+        is_pharmacy: !!c.is_pharmacy,
+        serving_unit: c.serving_unit ?? null,
+      }));
+    const patch: Record<string, unknown> = {
+      items,
+      vendor_id: items[0]?.vendor_id ?? null,
+      outlet_id: items[0]?.outlet_id ?? null,
+    };
+    if (Number.isFinite(Number(ctx.lat)) && Number.isFinite(Number(ctx.lon))) {
+      patch.delivery_latitude = Number(ctx.lat);
+      patch.delivery_longitude = Number(ctx.lon);
+      patch.delivery_address_text = ctx.location_label ?? null;
+    }
+    await saveCart(toolCtx, patch as any);
+  } catch (e) {
+    console.error("[wa-pay] cart sync failed", e instanceof Error ? e.message : String(e));
+    return await replyText("⚠️ We couldn't confirm your cart just now. Please reply *checkout* to try again.");
+  }
+
+  const res: any = await runTool(toolCtx, "create_order", {
+    payment_method: method === "wallet" ? "wallet" : "card",
+    note: ctx.customer_order_note || undefined,
+  });
+
+  if (res?.ok && method === "wallet") {
+    await persistSession(supabase, session.id, "menu", {}, []);
+    return await replyText(
+      `✅ *Order placed & paid from your wallet*\n\n` +
+      `Order: *${res.order_number}*\nTotal: ${formatNaira(res.total)}\n` +
+      (res.confirmation_code ? `Confirmation code: *${res.confirmation_code}*\n` : "") +
+      (res.tracking_url ? `\nTrack it here:\n${res.tracking_url}\n` : "") +
+      `\nReply *menu* any time.`,
+    );
+  }
+  if (res?.ok && res?.payment_link) {
+    await persistSession(supabase, session.id, "menu", {}, []);
+    return await replyText(
+      `🧾 *Order ${res.order_number} created*\n\nTotal: ${formatNaira(res.total)}\n\n` +
+      `Pay securely with Paystack:\n${res.payment_link}\n\n` +
+      `We confirm your payment directly with Paystack — a screenshot can't confirm it. ` +
+      `Your order is placed as soon as the payment clears.`,
+    );
+  }
+
+  if (res?.reason === "insufficient_wallet") {
+    const bal = Number(res.balance ?? ctx.pending_balance ?? 0);
+    const total = Number(res.total ?? ctx.pending_total ?? 0);
+    const choice = computePaymentChoice({ total, balance: bal });
+    await persistSession(supabase, session.id, "confirming_order", {
+      ...ctx, pending_total: total, pending_balance: bal,
+      pending_shortfall: choice.shortfall, pending_wallet_enabled: false,
+      topup_link: null, topup_link_amount: null,
+    }, cart);
+    return await replyText(renderPaymentPrompt(choice, null));
+  }
+
+  console.error(JSON.stringify({ event: "wa_payment_failed", method, reason: res?.reason ?? "unknown" }));
+  const friendly: Record<string, string> = {
+    wallet_unavailable: "Your wallet isn't available for payment right now.",
+    payment_provider_unavailable: "Card payment is temporarily unavailable.",
+    payment_link_failed: "We couldn't create your payment link just now.",
+    empty_cart: "Your cart is empty.",
+    no_branch: "Please choose the branch you're ordering from first.",
+  };
+  return await replyText(
+    `⚠️ ${friendly[res?.reason as string] || "We couldn't complete that payment."}\n\n` +
+    `Nothing has been charged. Reply *checkout* to try again, or *menu* to start over.`,
+  );
+}
+
+
+
 async function doCheckout(
   supabase: any, session: any, cart: any[], phone: string,
   fromNumber: string, fromRaw: string,
