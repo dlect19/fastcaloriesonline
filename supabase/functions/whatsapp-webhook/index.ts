@@ -32,6 +32,15 @@ import {
   shouldReuseTopUpLink,
   topUpAmount,
 } from "./paymentChoice.ts";
+import {
+  detectLanguage,
+  evaluateLaunchGate,
+  isTesterAllowed,
+  loadAllowlistRow,
+  loadLaunchSettings,
+  renderLaunchMessage,
+} from "./launchGate.ts";
+
 
 
 const corsHeaders = {
@@ -301,6 +310,67 @@ serve(async (req) => {
     let body = (params["Body"] || "").trim();
     const messageSid = params["MessageSid"];
     if (!phone) return emptyTwiml();
+
+    // ---- Launch gate ----------------------------------------------------
+    // Runs after signature verification and phone normalisation, but before
+    // Gemini, voice download/transcription, menu/cart/order work or any
+    // payment link: pre-launch traffic must never cost or side-effect.
+    {
+      const launchSettings = await loadLaunchSettings(supabase);
+      const variants = phoneVariants(phone);
+      const { data: gateProfiles } = await supabase
+        .from("profiles")
+        .select("user_id, phone, phone_verified")
+        .in("phone", variants)
+        .limit(1);
+      const gateProfile = gateProfiles?.[0] ?? null;
+      const allowRow = await loadAllowlistRow(supabase, gateProfile?.user_id ?? null);
+      const tester = isTesterAllowed({
+        row: allowRow,
+        inboundPhone: phone,
+        resolvedUserId: gateProfile?.user_id ?? null,
+        profilePhone: gateProfile?.phone ?? null,
+        profilePhoneVerified: gateProfile?.phone_verified ?? undefined,
+      });
+      const decision = evaluateLaunchGate(launchSettings, { now: new Date(), isTester: tester.allowed });
+
+      if (!decision.allow) {
+        // A Twilio retry of the same delivery must not send the reply twice.
+        if (messageSid) {
+          const { data: seen } = await supabase
+            .from("whatsapp_messages").select("id").eq("twilio_sid", messageSid).maybeSingle();
+          if (seen) return emptyTwiml();
+        }
+        const { data: gateSession } = await supabase
+          .from("whatsapp_sessions").select("id, language").eq("phone", phone).maybeSingle();
+        // Media (voice notes, payment proofs) is never downloaded, transcribed
+        // or treated as payment evidence before launch.
+        const preLaunchText = detectVoiceNote(params) ? "" : (params["Body"] || "");
+        const lang = detectLanguage(preLaunchText, gateSession?.language ?? null);
+        if (gateSession?.id && lang !== "en" && gateSession.language !== lang) {
+          await supabase.from("whatsapp_sessions").update({ language: lang }).eq("id", gateSession.id);
+        }
+        console.log("[whatsapp-webhook] launch gate blocked", {
+          reason: decision.reason,
+          testerReason: tester.reason,
+          state: launchSettings.state,
+          lang,
+          messageSid: messageSid ?? null,
+        });
+        if (messageSid) {
+          await supabase.from("whatsapp_messages").insert({
+            session_id: gateSession?.id ?? null,
+            phone,
+            direction: "in",
+            body: `[pre-launch:${decision.reason}]`,
+            twilio_sid: messageSid,
+          });
+        }
+        return twiml(renderLaunchMessage(launchSettings, lang));
+      }
+    }
+
+
 
     // ---- Voice notes: gated (switch, limits, size, host, one per MessageSid),
     // ---- transcribed, then continued as normal text. ----

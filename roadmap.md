@@ -85,3 +85,10 @@
 - `paystack-webhook`: records received→verified→processed/rejected/failed/duplicate; invalid signatures logged with minimal safe metadata only.
 - Admin UI `/admin/paystack-audit`: Order Payments + Webhook Events tabs, filters, badges, read-only drawer. Wallet Funding page unchanged.
 - Open: Paystack resend for reference ...943826 (order FC-260918-4895) still pending on the user's side.
+
+## WhatsApp launch controls + unpaid-order vendor safety (done)
+- Migration 0032: `whatsapp_launch_allowlist` (admin-only RLS, one row per account), `whatsapp_sessions.language`.
+- `whatsapp-webhook/launchGate.ts`: states pre_launch/scheduled/live/paused, UTC schedule auto-opens, tester allowlist bound to verified phone + account, keyword language detection (en/yo/ig/ha), template link sanitisation.
+- Gate runs after Twilio signature + phone normalisation, before voice download, Gemini, cart/order/payment work; MessageSid-deduped reply.
+- `_shared/vendorNotifyGate.ts` shared by `vendor-order-alerts` and the admin orders view; alerts claim the order before sending (no duplicate vendor alert).
+- Admin: /admin/whatsapp-launch (state, schedule, templates, allowlist, audit logging). Production state: pre-launch, 0 testers.
