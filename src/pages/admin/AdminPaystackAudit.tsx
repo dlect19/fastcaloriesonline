@@ -253,7 +253,7 @@ export default function AdminPaystackAudit() {
               </Select>
             </div>
             <div className="md:col-span-4">
-              <DateRangeFilter value={dateRange} onChange={setDateRange} />
+              <DateRangeFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
             </div>
           </CardContent>
         </Card>
@@ -306,7 +306,7 @@ export default function AdminPaystackAudit() {
                     })}
                   </TableBody>
                 </Table>
-                <PaginationControls page={orderPage} totalPages={orderPages} onPageChange={setOrderPage} />
+                <PaginationControls currentPage={orderPage} totalPages={orderPages} onPageChange={setOrderPage} totalItems={filteredOrders.length} itemsPerPage={10} />
               </CardContent>
             </Card>
           </TabsContent>
@@ -356,7 +356,7 @@ export default function AdminPaystackAudit() {
                     ))}
                   </TableBody>
                 </Table>
-                <PaginationControls page={eventPage} totalPages={eventPages} onPageChange={setEventPage} />
+                <PaginationControls currentPage={eventPage} totalPages={eventPages} onPageChange={setEventPage} totalItems={filteredEvents.length} itemsPerPage={10} />
               </CardContent>
             </Card>
           </TabsContent>
