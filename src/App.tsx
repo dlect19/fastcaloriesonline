@@ -91,6 +91,7 @@ import AdminWhatsApp from "./pages/admin/AdminWhatsApp";
 import AdminPhoneVerification from "./pages/admin/AdminPhoneVerification";
 import AdminCustomerWallets from "./pages/admin/AdminCustomerWallets";
 import AdminWalletFunding from "./pages/admin/AdminWalletFunding";
+import AdminPaystackAudit from "./pages/admin/AdminPaystackAudit";
 import AdminChargebacks from "./pages/admin/AdminChargebacks";
 import AdminRefundAudit from "./pages/admin/AdminRefundAudit";
 import AdminLedgerAudit from "./pages/admin/AdminLedgerAudit";
@@ -336,6 +337,7 @@ const App = () => {
                 <Route path="/admin/phone-verification" element={<AdminPhoneVerification />} />
                 <Route path="/admin/customer-wallets" element={<AdminCustomerWallets />} />
                 <Route path="/admin/wallet-funding" element={<AdminWalletFunding />} />
+                <Route path="/admin/paystack-audit" element={<AdminPaystackAudit />} />
                 <Route path="/admin/chargebacks" element={<AdminChargebacks />} />
                 <Route path="/admin/refund-audit" element={<AdminRefundAudit />} />
                 <Route path="/admin/ledger-audit" element={<AdminLedgerAudit />} />

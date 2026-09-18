@@ -38,6 +38,7 @@ const menuItems: MenuItem[] = [
   { icon: PauseCircle, label: 'On-Hold Payments', path: '/admin/on-hold-payments', requiredPermission: 'process_withdrawals' },
   { icon: Wallet, label: 'Customer Wallets', path: '/admin/customer-wallets', requiredPermission: 'manage_users' },
   { icon: ArrowDownLeft, label: 'Wallet Funding', path: '/admin/wallet-funding', requiredPermission: 'manage_users' },
+  { icon: Receipt, label: 'Paystack Audit', path: '/admin/paystack-audit', requiredPermission: 'manage_users' },
   { icon: ShieldAlert, label: 'Chargebacks', path: '/admin/chargebacks', requiredPermission: 'process_withdrawals' },
   { icon: Receipt, label: 'Refund Audit', path: '/admin/refund-audit', requiredPermission: 'process_withdrawals' },
   { icon: History, label: 'Ledger Audit', path: '/admin/ledger-audit', requiredPermission: 'process_withdrawals' },

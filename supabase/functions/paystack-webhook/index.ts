@@ -2,6 +2,11 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { crypto } from "https://deno.land/std@0.190.0/crypto/mod.ts";
 import { getWhatsAppFromNumber } from "../_shared/whatsapp.ts";
+import {
+  classifyPaystackPurpose,
+  recordWebhookAttempt,
+  updateWebhookAudit,
+} from "../_shared/paystackAudit.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -73,6 +78,9 @@ const handler = async (req: Request): Promise<Response> => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  let auditKey: string | null = null;
+  // deno-lint-ignore no-explicit-any
+  let auditDb: any = null;
   try {
     const payload = await req.text();
     const signature = req.headers.get("x-paystack-signature");
@@ -80,6 +88,7 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       auth: { autoRefreshToken: false, persistSession: false }
     });
+    auditDb = supabaseAdmin;
 
     // Get the correct secret key for signature verification
     const paystackSecretKey = await getPaystackSecretKey(supabaseAdmin);
@@ -88,6 +97,16 @@ const handler = async (req: Request): Promise<Response> => {
     // Verify webhook signature
     if (!signature || !(await verifySignature(payload, signature, paystackSecretKey))) {
       console.error("Invalid webhook signature");
+      // Audit only safe minimal metadata — nothing inside an unsigned payload
+      // is trusted, and the raw signature is never stored.
+      await recordWebhookAttempt(supabaseAdmin, {
+        eventType: "unknown",
+        environment: platformEnvironment,
+        purpose: "unknown",
+        signatureValid: false,
+        processingState: "rejected",
+        reasonCode: "invalid_signature",
+      });
       return new Response(
         JSON.stringify({ error: "Invalid signature" }),
         { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
@@ -97,9 +116,28 @@ const handler = async (req: Request): Promise<Response> => {
     const event = JSON.parse(payload);
     console.log(`Paystack webhook event: ${event.event} (environment: ${platformEnvironment})`);
 
+    const purpose = classifyPaystackPurpose({
+      eventType: event.event,
+      metadata: event.data?.metadata ?? null,
+      channel: event.data?.channel ?? null,
+      reference: event.data?.reference ?? null,
+    });
+    auditKey = await recordWebhookAttempt(supabaseAdmin, {
+      eventType: String(event.event || "unknown"),
+      paystackEventId: event.id ?? event.data?.id ?? null,
+      reference: event.data?.reference ?? null,
+      purpose,
+      environment: platformEnvironment,
+      signatureValid: true,
+      receivedAmount: typeof event.data?.amount === "number" ? event.data.amount / 100 : null,
+      currency: event.data?.currency ?? null,
+      processingState: "verified",
+      reasonCode: null,
+    });
+
     switch (event.event) {
       case "charge.success":
-        await handleChargeSuccess(supabaseAdmin, event.data, platformEnvironment);
+        await handleChargeSuccess(supabaseAdmin, event.data, platformEnvironment, auditKey);
         break;
       case "transfer.success":
         await handleTransferSuccess(supabaseAdmin, event.data, platformEnvironment);
@@ -117,6 +155,10 @@ const handler = async (req: Request): Promise<Response> => {
         console.log("Unhandled event type:", event.event);
     }
 
+    if (event.event !== "charge.success") {
+      await updateWebhookAudit(supabaseAdmin, auditKey, { processingState: "processed", purpose });
+    }
+
     return new Response(
       JSON.stringify({ received: true }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
@@ -124,6 +166,9 @@ const handler = async (req: Request): Promise<Response> => {
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error("Webhook error:", errorMessage);
+    if (auditDb) {
+      await updateWebhookAudit(auditDb, auditKey, { processingState: "failed", reasonCode: "handler_error" });
+    }
     return new Response(
       JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
@@ -132,7 +177,7 @@ const handler = async (req: Request): Promise<Response> => {
 };
 
 // deno-lint-ignore no-explicit-any
-async function handleChargeSuccess(supabase: SupabaseClient, data: any, environment: string) {
+async function handleChargeSuccess(supabase: SupabaseClient, data: any, environment: string, auditKey: string | null = null) {
   const reference = data.reference as string;
   const amount = (data.amount as number) / 100; // Paystack sends amount in kobo
   const metadata = data.metadata;
@@ -144,36 +189,50 @@ async function handleChargeSuccess(supabase: SupabaseClient, data: any, environm
   // Check if this is a DVA (dedicated_nuban) funding
   if (channel === "dedicated_nuban") {
     await handleDVAFunding(supabase, data, environment, isTestMode);
+    await updateWebhookAudit(supabase, auditKey, {
+      processingState: "processed", purpose: "wallet_funding",
+      fundingUserId: (metadata?.user_id as string) || null,
+    });
     return;
   }
 
   // Check if this is a wallet funding transaction
   if (metadata?.type === "wallet_funding") {
     await handleWalletFunding(supabase, data, environment, isTestMode);
+    await updateWebhookAudit(supabase, auditKey, {
+      processingState: "processed", purpose: "wallet_funding",
+      fundingUserId: (metadata?.user_id as string) || null,
+    });
     return;
   }
 
   // Check if this is an ad wallet funding transaction
   if (metadata?.type === "ad_wallet_funding") {
     await handleAdWalletFunding(supabase, data, environment);
+    await updateWebhookAudit(supabase, auditKey, { processingState: "processed", purpose: "wallet_funding" });
     return;
   }
 
   // Check if this is an event ticket purchase
   if (metadata?.type === "event_purchase") {
     await handleEventPurchase(supabase, data, environment);
+    await updateWebhookAudit(supabase, auditKey, { processingState: "processed", purpose: "unknown" });
     return;
   }
 
   // Check if this is a public voucher purchase (guest storefront)
   if (metadata?.type === "voucher_purchase") {
     await handleVoucherGuestPurchase(supabase, data, environment);
+    await updateWebhookAudit(supabase, auditKey, { processingState: "processed", purpose: "unknown" });
     return;
   }
 
 
   if (!metadata?.order_id) {
     console.log("No order_id in metadata, skipping");
+    await updateWebhookAudit(supabase, auditKey, {
+      processingState: "rejected", reasonCode: "no_order_reference", purpose: "unknown",
+    });
     return;
   }
 
@@ -202,13 +261,33 @@ async function handleChargeSuccess(supabase: SupabaseClient, data: any, environm
         p_detail: { reference, amount, code: orderError.code || "unknown" },
       });
     } catch { /* logging must never block webhook handling */ }
+    await updateWebhookAudit(supabase, auditKey, {
+      processingState: "failed", reasonCode: "order_lookup_error", purpose: "order_payment",
+    });
     return;
   }
 
   if (!orderData) {
     console.error("Order not found:", orderId);
+    await updateWebhookAudit(supabase, auditKey, {
+      processingState: "rejected", reasonCode: "order_not_found", purpose: "order_payment",
+    });
     return;
   }
+
+  const auditOrder = async (
+    state: "processed" | "rejected" | "duplicate" | "failed",
+    reasonCode: string | null,
+  ) => {
+    await updateWebhookAudit(supabase, auditKey, {
+      processingState: state,
+      reasonCode,
+      purpose: "order_payment",
+      orderId: orderData.id,
+      orderNumber: orderData.order_number,
+      expectedAmount: Number(orderData.total) || null,
+    });
+  };
 
   const logIntegrity = async (eventType: string, detail: Record<string, unknown>) => {
     try {
@@ -229,6 +308,7 @@ async function handleChargeSuccess(supabase: SupabaseClient, data: any, environm
   // reference must do nothing at all (no second posting, no status churn).
   if (orderData.payment_status === "paid") {
     console.log(`Order ${orderId} already paid (ref ${orderData.payment_reference}); duplicate webhook ignored.`);
+    await auditOrder("duplicate", "already_paid");
     return;
   }
 
@@ -244,6 +324,7 @@ async function handleChargeSuccess(supabase: SupabaseClient, data: any, environm
     await supabase.from("whatsapp_checkouts")
       .update({ status: "cancelled", updated_at: new Date().toISOString() })
       .eq("order_id", orderId).neq("status", "paid");
+    await auditOrder("rejected", "order_cancelled_or_superseded");
     return;
   }
 
@@ -255,6 +336,7 @@ async function handleChargeSuccess(supabase: SupabaseClient, data: any, environm
       .eq("payment_reference", reference).maybeSingle();
     if (waCheckout?.status === "cancelled") {
       console.log(`WhatsApp checkout ${reference} was cancelled; ignoring Paystack callback.`);
+      await auditOrder("rejected", "checkout_cancelled");
       return;
     }
   }
@@ -262,6 +344,7 @@ async function handleChargeSuccess(supabase: SupabaseClient, data: any, environm
   // Verify order environment matches current platform environment
   if (orderData.environment && orderData.environment !== environment) {
     console.error(`Environment mismatch: order=${orderData.environment}, platform=${environment}`);
+    await auditOrder("rejected", "environment_mismatch");
     return;
   }
 
@@ -270,6 +353,7 @@ async function handleChargeSuccess(supabase: SupabaseClient, data: any, environm
   if (paidCurrency !== "NGN") {
     console.error(`Currency mismatch for order ${orderId}: ${paidCurrency}`);
     await logIntegrity("payment_currency_mismatch", { currency: paidCurrency });
+    await auditOrder("rejected", "currency_mismatch");
     return;
   }
 
@@ -279,6 +363,7 @@ async function handleChargeSuccess(supabase: SupabaseClient, data: any, environm
   if (Math.abs(amount - expectedTotal) > 1) {
     console.error(`Amount mismatch for order ${orderId}: paid=${amount} expected=${expectedTotal}`);
     await logIntegrity("payment_amount_mismatch", { expected_total: expectedTotal });
+    await auditOrder("rejected", "amount_mismatch");
     return;
   }
 
@@ -287,6 +372,7 @@ async function handleChargeSuccess(supabase: SupabaseClient, data: any, environm
   if (metadata?.user_id && metadata.user_id !== orderData.user_id) {
     console.error(`Customer mismatch for order ${orderId}`);
     await logIntegrity("payment_customer_mismatch", { metadata_user_id: metadata.user_id });
+    await auditOrder("rejected", "customer_mismatch");
     return;
   }
 
@@ -299,6 +385,7 @@ async function handleChargeSuccess(supabase: SupabaseClient, data: any, environm
 
   if (vendorError || !vendorData) {
     console.error("Vendor not found for order:", orderId);
+    await auditOrder("failed", "vendor_not_found");
     return;
   }
 
@@ -320,6 +407,7 @@ async function handleChargeSuccess(supabase: SupabaseClient, data: any, environm
 
   if (!paidRows || paidRows.length === 0) {
     console.log(`Order ${orderId} was paid concurrently; skipping the rest of this webhook.`);
+    await auditOrder("duplicate", "paid_concurrently");
     return;
   }
 
@@ -391,6 +479,7 @@ async function handleChargeSuccess(supabase: SupabaseClient, data: any, environm
     }
   }
 
+  await auditOrder("processed", null);
   console.log(`Charge processed for order ${orderId} - wallet splits handled by DB trigger`);
 }
 
