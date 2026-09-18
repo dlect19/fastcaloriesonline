@@ -180,7 +180,7 @@ describe('gate placement in the webhook', () => {
   });
 
   it('deduplicates the launch reply by MessageSid and never transcribes media', () => {
-    const block = WEBHOOK.slice(gateIdx, gateIdx + 2600);
+    const block = WEBHOOK.slice(gateIdx, gateIdx + 3400);
     expect(block).toContain('eq("twilio_sid", messageSid)');
     expect(block).toContain('detectVoiceNote(params) ? ""');
     expect(block).toContain('renderLaunchMessage');
