@@ -66,6 +66,8 @@ const menuItems: MenuItem[] = [
   { icon: HelpCircle, label: 'FAQ', path: '/admin/faq', requiredPermission: 'platform_settings' },
   { icon: MessageSquare, label: 'Support', path: '/admin/support', requiredPermission: 'handle_support' },
   { icon: MessageCircle, label: 'WhatsApp', path: '/admin/whatsapp', requiredPermission: 'platform_settings' },
+  { icon: Megaphone, label: 'WhatsApp Launch', path: '/admin/whatsapp-launch', requiredPermission: 'platform_settings' },
+
   { icon: DollarSign, label: 'Twilio Costs', path: '/admin/twilio-costs', requiredPermission: 'view_reports' },
   { icon: DollarSign, label: 'WhatsApp AI Costs', path: '/admin/whatsapp-costs', requiredPermission: 'view_reports' },
   { icon: ShieldAlert, label: 'Phone Verification', path: '/admin/phone-verification', requiredPermission: 'platform_settings' },

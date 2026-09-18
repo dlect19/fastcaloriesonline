@@ -88,6 +88,8 @@ import AdminNutrition from "./pages/admin/AdminNutrition";
 import AdminPayouts from "./pages/admin/AdminPayouts";
 import AdminOnHoldPayments from "./pages/admin/AdminOnHoldPayments";
 import AdminWhatsApp from "./pages/admin/AdminWhatsApp";
+import AdminWhatsAppLaunch from "./pages/admin/AdminWhatsAppLaunch";
+
 import AdminPhoneVerification from "./pages/admin/AdminPhoneVerification";
 import AdminCustomerWallets from "./pages/admin/AdminCustomerWallets";
 import AdminWalletFunding from "./pages/admin/AdminWalletFunding";
@@ -334,6 +336,8 @@ const App = () => {
                 <Route path="/admin/payouts" element={<AdminPayouts />} />
                 <Route path="/admin/on-hold-payments" element={<AdminOnHoldPayments />} />
                 <Route path="/admin/whatsapp" element={<AdminWhatsApp />} />
+                <Route path="/admin/whatsapp-launch" element={<AdminWhatsAppLaunch />} />
+
                 <Route path="/admin/phone-verification" element={<AdminPhoneVerification />} />
                 <Route path="/admin/customer-wallets" element={<AdminCustomerWallets />} />
                 <Route path="/admin/wallet-funding" element={<AdminWalletFunding />} />
