@@ -73,6 +73,9 @@ const handler = async (req: Request): Promise<Response> => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  let auditKey: string | null = null;
+  // deno-lint-ignore no-explicit-any
+  let auditDb: any = null;
   try {
     const payload = await req.text();
     const signature = req.headers.get("x-paystack-signature");
@@ -80,6 +83,7 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       auth: { autoRefreshToken: false, persistSession: false }
     });
+    auditDb = supabaseAdmin;
 
     // Get the correct secret key for signature verification
     const paystackSecretKey = await getPaystackSecretKey(supabaseAdmin);
@@ -88,6 +92,16 @@ const handler = async (req: Request): Promise<Response> => {
     // Verify webhook signature
     if (!signature || !(await verifySignature(payload, signature, paystackSecretKey))) {
       console.error("Invalid webhook signature");
+      // Audit only safe minimal metadata — nothing inside an unsigned payload
+      // is trusted, and the raw signature is never stored.
+      await recordWebhookAttempt(supabaseAdmin, {
+        eventType: "unknown",
+        environment: platformEnvironment,
+        purpose: "unknown",
+        signatureValid: false,
+        processingState: "rejected",
+        reasonCode: "invalid_signature",
+      });
       return new Response(
         JSON.stringify({ error: "Invalid signature" }),
         { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
@@ -97,9 +111,28 @@ const handler = async (req: Request): Promise<Response> => {
     const event = JSON.parse(payload);
     console.log(`Paystack webhook event: ${event.event} (environment: ${platformEnvironment})`);
 
+    const purpose = classifyPaystackPurpose({
+      eventType: event.event,
+      metadata: event.data?.metadata ?? null,
+      channel: event.data?.channel ?? null,
+      reference: event.data?.reference ?? null,
+    });
+    auditKey = await recordWebhookAttempt(supabaseAdmin, {
+      eventType: String(event.event || "unknown"),
+      paystackEventId: event.id ?? event.data?.id ?? null,
+      reference: event.data?.reference ?? null,
+      purpose,
+      environment: platformEnvironment,
+      signatureValid: true,
+      receivedAmount: typeof event.data?.amount === "number" ? event.data.amount / 100 : null,
+      currency: event.data?.currency ?? null,
+      processingState: "verified",
+      reasonCode: null,
+    });
+
     switch (event.event) {
       case "charge.success":
-        await handleChargeSuccess(supabaseAdmin, event.data, platformEnvironment);
+        await handleChargeSuccess(supabaseAdmin, event.data, platformEnvironment, auditKey);
         break;
       case "transfer.success":
         await handleTransferSuccess(supabaseAdmin, event.data, platformEnvironment);
@@ -117,6 +150,10 @@ const handler = async (req: Request): Promise<Response> => {
         console.log("Unhandled event type:", event.event);
     }
 
+    if (event.event !== "charge.success") {
+      await updateWebhookAudit(supabaseAdmin, auditKey, { processingState: "processed", purpose });
+    }
+
     return new Response(
       JSON.stringify({ received: true }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
@@ -124,6 +161,9 @@ const handler = async (req: Request): Promise<Response> => {
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error("Webhook error:", errorMessage);
+    if (auditDb) {
+      await updateWebhookAudit(auditDb, auditKey, { processingState: "failed", reasonCode: "handler_error" });
+    }
     return new Response(
       JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
