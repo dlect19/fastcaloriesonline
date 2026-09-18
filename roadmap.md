@@ -78,3 +78,10 @@
 - Upfront status-message allowance frozen into the WhatsApp communications part of the service fee (shadow by default, ₦0 to customers).
 - Delivery vs carryout expected counts; carryout excludes rider states; admin-configurable settings + margin reporting.
 - Assigned rider name/verified phone included in the WhatsApp assignment update; support fallback when unverified.
+
+## Paystack audit area (done)
+- Migration 0031: append-only `paystack_webhook_events` (sanitized, admin-read-only RLS, immutable identity columns, no deletes).
+- `supabase/functions/_shared/paystackAudit.ts`: purpose classification, masking, dedupe keys, attempt/lifecycle writers (failure-tolerant).
+- `paystack-webhook`: records received→verified→processed/rejected/failed/duplicate; invalid signatures logged with minimal safe metadata only.
+- Admin UI `/admin/paystack-audit`: Order Payments + Webhook Events tabs, filters, badges, read-only drawer. Wallet Funding page unchanged.
+- Open: Paystack resend for reference ...943826 (order FC-260918-4895) still pending on the user's side.
