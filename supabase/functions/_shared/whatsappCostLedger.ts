@@ -95,13 +95,30 @@ export async function loadRateCard(supabase: any, modelId: string): Promise<Rate
   }
 }
 
+/** Admin-configured status-message allowance settings. */
+export async function loadStatusAllowanceConfig(supabase: any): Promise<StatusAllowanceConfig> {
+  try {
+    const { data } = await supabase
+      .from("platform_settings")
+      .select("key, value")
+      .in("key", STATUS_ALLOWANCE_SETTING_KEYS);
+    return parseStatusAllowanceConfig(data as { key: string; value: string | null }[]);
+  } catch (_e) {
+    return parseStatusAllowanceConfig(null);
+  }
+}
+
 export async function loadCostContext(
   supabase: any,
   modelId: string,
   environment = "development",
 ): Promise<CostContext> {
-  const [cfg, card] = await Promise.all([loadCostConfig(supabase), loadRateCard(supabase, modelId)]);
-  return { cfg, card, environment };
+  const [cfg, card, statusCfg] = await Promise.all([
+    loadCostConfig(supabase),
+    loadRateCard(supabase, modelId),
+    loadStatusAllowanceConfig(supabase),
+  ]);
+  return { cfg, card, environment, statusCfg };
 }
 
 export interface UsageLink {
