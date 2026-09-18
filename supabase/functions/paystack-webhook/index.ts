@@ -180,13 +180,30 @@ async function handleChargeSuccess(supabase: SupabaseClient, data: any, environm
   const orderId = metadata.order_id as string;
 
   // Get order details
+  // Note: orders has no currency column — FastCalories prices are always NGN,
+  // enforced against the Paystack charge currency below.
   const { data: orderData, error: orderError } = await supabase
     .from("orders")
-    .select("id, order_number, user_id, total, subtotal, delivery_fee, rider_id, vendor_id, outlet_id, environment, status, payment_status, payment_reference, duplicate_of_order_id, currency")
+    .select("id, order_number, user_id, total, subtotal, delivery_fee, rider_id, vendor_id, outlet_id, environment, status, payment_status, payment_reference, duplicate_of_order_id")
     .eq("id", orderId)
-    .single();
+    .maybeSingle();
 
-  if (orderError || !orderData) {
+  if (orderError) {
+    // A genuine database/lookup failure (e.g. bad column) must not be
+    // misreported as a missing order — log a safe internal error only.
+    console.error("Order lookup error:", orderId, orderError.code || "unknown");
+    await supabase.rpc("log_checkout_integrity_event", {
+      p_event_type: "payment_order_lookup_error",
+      p_user_id: null,
+      p_vendor_id: null,
+      p_outlet_id: null,
+      p_order_id: null,
+      p_detail: { reference, amount, code: orderError.code || "unknown" },
+    }).catch(() => undefined);
+    return;
+  }
+
+  if (!orderData) {
     console.error("Order not found:", orderId);
     return;
   }
