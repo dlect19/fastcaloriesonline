@@ -10470,6 +10470,42 @@ export type Database = {
           },
         ]
       }
+      whatsapp_launch_allowlist: {
+        Row: {
+          added_by: string | null
+          created_at: string
+          enabled: boolean
+          id: string
+          normalized_phone: string
+          notes: string | null
+          phone_verified: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          added_by?: string | null
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          normalized_phone: string
+          notes?: string | null
+          phone_verified?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          added_by?: string | null
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          normalized_phone?: string
+          notes?: string | null
+          phone_verified?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       whatsapp_messages: {
         Row: {
           body: string | null
@@ -10564,6 +10600,7 @@ export type Database = {
           customer_user_id: string | null
           expires_at: string
           id: string
+          language: string | null
           last_message_at: string
           phone: string
           state: string
@@ -10576,6 +10613,7 @@ export type Database = {
           customer_user_id?: string | null
           expires_at?: string
           id?: string
+          language?: string | null
           last_message_at?: string
           phone: string
           state?: string
@@ -10588,6 +10626,7 @@ export type Database = {
           customer_user_id?: string | null
           expires_at?: string
           id?: string
+          language?: string | null
           last_message_at?: string
           phone?: string
           state?: string
