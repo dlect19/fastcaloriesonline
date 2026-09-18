@@ -124,13 +124,19 @@ function logRefusal(stage: string, reason: string, host: string | null, messageS
  * origin, then at most one manually-validated redirect hop with NO credentials
  * forwarded to the redirected host.
  */
+interface MediaFetchResult {
+  ok: boolean;
+  response?: Response;
+  finalHost?: string;
+  reason?: string;
+}
+
 async function fetchTwilioMedia(
   url: string,
   auth: string,
   messageSid: string | null,
-): Promise<
-  { ok: true; response: Response; finalHost: string } | { ok: false; reason: string; status?: number }
-> {
+): Promise<MediaFetchResult> {
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), MEDIA_TIMEOUT_MS);
   let first: Response;
