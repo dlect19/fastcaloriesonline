@@ -74,7 +74,7 @@ describe('only the atomic server route can create or pay an order', () => {
 
   it('runs every payment through runTool create_order', () => {
     expect(WEBHOOK).toContain('runWhatsAppPayment');
-    expect(WEBHOOK).toContain('runTool(toolCtx, "create_order"');
+    expect(WEBHOOK).toContain('runTool("create_order"');
   });
 
   it('keeps the legacy confirm path unreachable', () => {
