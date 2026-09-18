@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { evaluatePaystackVerification } from "../_shared/paystackVerification.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -50,27 +51,38 @@ serve(async (req: Request) => {
       ? Deno.env.get("PAYSTACK_LIVE_SECRET_KEY") || Deno.env.get("PAYSTACK_SECRET_KEY")!
       : Deno.env.get("PAYSTACK_TEST_SECRET_KEY") || Deno.env.get("PAYSTACK_SECRET_KEY")!;
 
-    const verifyRes = await fetch(`https://api.paystack.co/transaction/verify/${reference}`, {
+    const verifyRes = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
       headers: { Authorization: `Bearer ${paystackSecretKey}` },
     });
     const verifyData = await verifyRes.json();
 
-    if (!verifyData?.status || verifyData.data?.status !== "success") {
-      return new Response(JSON.stringify({ success: false, status: verifyData?.data?.status || "unknown" }), {
-        status: 200, headers: { "Content-Type": "application/json", ...corsHeaders },
-      });
+    const outcome = evaluatePaystackVerification(verifyData, {
+      reference,
+      currency: "NGN",
+      type: "wallet_funding",
+      source: "whatsapp",
+    });
+
+    if (!outcome.ok) {
+      const hardReject = outcome.reason === "wrong_purpose"
+        || outcome.reason === "wrong_customer"
+        || outcome.reason === "reference_mismatch"
+        || outcome.reason === "wrong_currency";
+      console.error("[verify-whatsapp-funding] rejected", outcome.reason, outcome.providerStatus);
+      return new Response(
+        JSON.stringify(
+          hardReject
+            ? { error: "verification rejected", reason: outcome.reason }
+            : { success: false, status: outcome.providerStatus || "unknown" },
+        ),
+        { status: hardReject ? 400 : 200, headers: { "Content-Type": "application/json", ...corsHeaders } },
+      );
     }
 
     const payment = verifyData.data;
     const meta = payment.metadata || {};
-    if (meta.type !== "wallet_funding" || meta.source !== "whatsapp" || !meta.user_id) {
-      return new Response(JSON.stringify({ error: "not a whatsapp wallet funding" }), {
-        status: 400, headers: { "Content-Type": "application/json", ...corsHeaders },
-      });
-    }
-
-    const userId = meta.user_id as string;
-    const amount = (payment.amount as number) / 100;
+    const userId = outcome.userId as string;
+    const amount = outcome.amountNaira as number;
 
     // Get / create customer wallet
     let { data: wallet } = await supabase

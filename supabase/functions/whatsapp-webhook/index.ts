@@ -19,11 +19,19 @@ import {
   recordOutboundMessage,
   recordTranscription,
 } from "../_shared/whatsappCostLedger.ts";
-import { applySharedLocation, CartLine, loadCart, saveCart, ToolCtx } from "./tools.ts";
+import { applySharedLocation, CartLine, loadCart, runTool, saveCart, ToolCtx } from "./tools.ts";
 import { isAgentEligible, isExplicitMenuRequest } from "./routing.ts";
 import { blockLegacyOrderPath } from "./legacyGuard.ts";
 import { detectImageAttachment, recordUnverifiedPaymentProof } from "./paymentProof.ts";
 import { boundOutletFrom, OutletChoice, resolveBoundOutlet } from "./outletBinding.ts";
+import {
+  computePaymentChoice,
+  formatNaira,
+  parsePaymentSelection,
+  renderPaymentPrompt,
+  shouldReuseTopUpLink,
+  topUpAmount,
+} from "./paymentChoice.ts";
 
 
 const corsHeaders = {
@@ -1411,7 +1419,21 @@ serve(async (req) => {
 
         // 💳 Payment intents always hand off to the EXISTING deterministic functions.
         if (nl.intent === "confirm_order") {
-          if (inCheckout) return await confirmWhatsAppOrder(supabase, { ...session, context: nextContext }, nextCart, replyText, sendToUser, "nlu:confirm_order");
+          if (inCheckout) {
+            // Payment always runs through the atomic route, and only when the
+            // server-read balance covered the server total for this summary.
+            const nlChoice = computePaymentChoice({
+              total: Number(nextContext?.pending_total || cartTotal(nextCart) || 0),
+              balance: Number(nextContext?.pending_balance || 0),
+            });
+            if (nlChoice.walletEnabled) {
+              return await runWhatsAppPayment(
+                supabase, { ...session, context: nextContext }, nextCart, phone,
+                platformEnvironment, "wallet", replyText,
+              );
+            }
+            return await replyText(renderPaymentPrompt(nlChoice, nextContext?.topup_link ?? null));
+          }
           if (!nextCart.length) return await answerInPlace("🛒 Your cart is empty — tell me what you'd like to order." + HELP_HINT);
           await persistSession(supabase, session.id, session.state, nextContext, nextCart);
           return await doCheckout(supabase, { ...session, context: nextContext }, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
@@ -2107,20 +2129,7 @@ serve(async (req) => {
         const note = body.replace(/^note[:\s]+/i, "").trim();
         if (!note) return await replyText("Please type your note after `note:` e.g. *note: do not microwave*.\n\nReply *menu* to cancel.");
         await persistSession(supabase, session.id, "confirming_order", { ...nextContext, customer_order_note: note }, nextCart);
-        return await replyText(`📝 Note saved: ${note}\n\nReply *yes* to confirm & pay, or *menu* to cancel.`);
-      }
-      if (tap === "BTN_WALLET" || lower === "3" || lower === "fund" || lower === "top up" || lower === "topup") {
-        const pendingTotal = Number(nextContext?.pending_total || cartTotal(nextCart) || 0);
-        const shortfall = Number(nextContext?.pending_shortfall ?? pendingTotal) || 0;
-        // Top up exactly the shortfall (with Paystack ₦100 minimum), not the whole order total.
-        const amount = Math.max(100, Math.ceil(shortfall || pendingTotal));
-        const funding = await createWalletFundingLink(supabase, session.customer_user_id!, amount, phone);
-        await persistSession(supabase, session.id, "confirming_order", { ...nextContext, pending_funding_reference: funding?.reference }, nextCart);
-        if (!funding) return await replyText("⚠️ Couldn't create payment link right now. Please try again.");
-        return await replyText(`💰 Top up *₦${amount.toLocaleString()}* to cover your order:\n${funding.link}\n\nOnce your payment goes through, reply *checkout* — we'll auto-confirm your top-up and place the order. No reference needed.\n\nReply *menu* to cancel.`);
-      }
-      if (tap === "BTN_CONFIRM" || lower === "yes" || lower === "confirm") {
-        return await confirmWhatsAppOrder(supabase, session, nextCart, replyText, sendToUser, "state:confirming_order");
+        return await replyText(`📝 Note saved: ${note}\n\nReply *checkout* to see your payment options again.`);
       }
       if (tap === "BTN_CANCEL" || lower === "cancel" || lower === "menu" || tap === "BTN_MAIN_MENU") {
         await persistSession(supabase, session.id, "menu", nextContext, nextCart);
@@ -2129,13 +2138,54 @@ serve(async (req) => {
       if (lower === "checkout") {
         return await doCheckout(supabase, session, nextCart, phone, fromNumber, fromRaw, templates, sendToUser, replyText);
       }
+
+      // ---- Payment selection ------------------------------------------------
+      // The offered options come from the SERVER total + SERVER balance stored
+      // when the summary was rendered. Wallet is never selectable while short,
+      // and the atomic checkout revalidates the balance regardless.
+      const payChoice = computePaymentChoice({
+        total: Number(nextContext?.pending_total || cartTotal(nextCart) || 0),
+        balance: Number(nextContext?.pending_balance || 0),
+        walletDisabled: nextContext?.pending_wallet_enabled === false &&
+          Number(nextContext?.pending_shortfall || 0) === 0,
+      });
+      const selection = tap === "BTN_CONFIRM"
+        ? (payChoice.walletEnabled ? "wallet" : "topup")
+        : (tap === "BTN_WALLET" ? "topup" : parsePaymentSelection(body, payChoice));
+
+      if (selection === "wallet") {
+        return await runWhatsAppPayment(supabase, session, nextCart, phone, platformEnvironment, "wallet", replyText);
+      }
+      if (selection === "paystack") {
+        return await runWhatsAppPayment(supabase, session, nextCart, phone, platformEnvironment, "paystack", replyText);
+      }
+      if (selection === "topup") {
+        const amount = topUpAmount(payChoice);
+        const cached = { link: nextContext?.topup_link, amount: nextContext?.topup_link_amount };
+        if (shouldReuseTopUpLink(cached, amount)) {
+          return await replyText(`💰 Top up ${formatNaira(amount)} to cover your order:\n${nextContext.topup_link}\n\nOnce your payment goes through, reply *checkout* — we re-check your wallet automatically.\n\nReply *menu* to cancel.`);
+        }
+        const funding = await createWalletFundingLink(supabase, session.customer_user_id!, amount, phone);
+        await persistSession(supabase, session.id, "confirming_order", {
+          ...nextContext,
+          pending_funding_reference: funding?.reference,
+          topup_link: funding?.link ?? null,
+          topup_link_amount: funding ? amount : null,
+        }, nextCart);
+        if (!funding) return await replyText("⚠️ Couldn't create payment link right now. Please try again.");
+        return await replyText(`💰 Top up ${formatNaira(amount)} to cover your order:\n${funding.link}\n\nOnce your payment goes through, reply *checkout* — we re-check your wallet automatically.\n\nReply *menu* to cancel.`);
+      }
+      if (lower === "yes" || lower === "confirm") {
+        // Ambiguous confirmation with no selectable wallet option.
+        return await replyText(renderPaymentPrompt(payChoice, nextContext?.topup_link ?? null));
+      }
       // Deterministic checkout actions above are untouched. Anything else that looks
       // like a sentence goes through the Conversation Controller so contextual
-      // questions ("what is my total?", "remove the Coke", "go ahead and pay")
-      // work without leaving the checkout context.
+      // questions ("what is my total?", "remove the Coke") work without leaving
+      // the checkout context.
       const nlCheckout = await runConversationController();
       if (nlCheckout) return nlCheckout;
-      return await replyText("Reply *3* to top up, *checkout* to recheck your wallet, *yes* to confirm & pay, or *menu* to cancel this order.");
+      return await replyText(renderPaymentPrompt(payChoice, nextContext?.topup_link ?? null));
     }
 
     if (session.state === "ai_suggest") {
@@ -3029,6 +3079,113 @@ async function confirmWhatsAppOrder(
   return await replyText(text);
 }
 
+/**
+ * The ONLY payment route reachable from the deterministic checkout screen.
+ * Wallet debits and order creation both happen inside
+ * `whatsapp_create_order_atomic` via the agent's create_order tool, keyed on the
+ * checkout intent, so a retry never debits twice or creates a second order.
+ * Paystack links are initialised server-side against the created order.
+ */
+async function runWhatsAppPayment(
+  supabase: any,
+  session: any,
+  cart: any[],
+  phone: string,
+  platformEnvironment: string,
+  method: "wallet" | "paystack",
+  replyText: (t: string) => Promise<Response>,
+): Promise<Response> {
+  const ctx = session.context || {};
+  const toolCtx = {
+    supabase, phone, userId: session.customer_user_id,
+    sessionId: session.id, environment: platformEnvironment,
+  } as ToolCtx;
+
+  // Bind the same items / branch / destination the summary priced.
+  try {
+    await loadCart(toolCtx);
+    const items: CartLine[] = (cart || [])
+      .filter((c: any) => (c?.product_id || c?.id) && c?.vendor_id)
+      .map((c: any) => ({
+        product_id: c.product_id || c.id,
+        name: c.name,
+        price: Number(c.price) || 0,
+        qty: Number(c.qty) || 1,
+        calories: Number(c.calories) || 0,
+        vendor_id: c.vendor_id,
+        outlet_id: c.outlet_id ?? null,
+        is_pharmacy: !!c.is_pharmacy,
+        serving_unit: c.serving_unit ?? null,
+      }));
+    const patch: Record<string, unknown> = {
+      items,
+      vendor_id: items[0]?.vendor_id ?? null,
+      outlet_id: items[0]?.outlet_id ?? null,
+    };
+    if (Number.isFinite(Number(ctx.lat)) && Number.isFinite(Number(ctx.lon))) {
+      patch.delivery_latitude = Number(ctx.lat);
+      patch.delivery_longitude = Number(ctx.lon);
+      patch.delivery_address_text = ctx.location_label ?? null;
+    }
+    await saveCart(toolCtx, patch as any);
+  } catch (e) {
+    console.error("[wa-pay] cart sync failed", e instanceof Error ? e.message : String(e));
+    return await replyText("⚠️ We couldn't confirm your cart just now. Please reply *checkout* to try again.");
+  }
+
+  const res: any = await runTool("create_order", {
+    payment_method: method === "wallet" ? "wallet" : "card",
+    note: ctx.customer_order_note || undefined,
+  }, toolCtx);
+
+  if (res?.ok && method === "wallet") {
+    await persistSession(supabase, session.id, "menu", {}, []);
+    return await replyText(
+      `✅ *Order placed & paid from your wallet*\n\n` +
+      `Order: *${res.order_number}*\nTotal: ${formatNaira(res.total)}\n` +
+      (res.confirmation_code ? `Confirmation code: *${res.confirmation_code}*\n` : "") +
+      (res.tracking_url ? `\nTrack it here:\n${res.tracking_url}\n` : "") +
+      `\nReply *menu* any time.`,
+    );
+  }
+  if (res?.ok && res?.payment_link) {
+    await persistSession(supabase, session.id, "menu", {}, []);
+    return await replyText(
+      `🧾 *Order ${res.order_number} created*\n\nTotal: ${formatNaira(res.total)}\n\n` +
+      `Pay securely with Paystack:\n${res.payment_link}\n\n` +
+      `We confirm your payment directly with Paystack — a screenshot can't confirm it. ` +
+      `Your order is placed as soon as the payment clears.`,
+    );
+  }
+
+  if (res?.reason === "insufficient_wallet") {
+    const bal = Number(res.balance ?? ctx.pending_balance ?? 0);
+    const total = Number(res.total ?? ctx.pending_total ?? 0);
+    const choice = computePaymentChoice({ total, balance: bal });
+    await persistSession(supabase, session.id, "confirming_order", {
+      ...ctx, pending_total: total, pending_balance: bal,
+      pending_shortfall: choice.shortfall, pending_wallet_enabled: false,
+      topup_link: null, topup_link_amount: null,
+    }, cart);
+    return await replyText(renderPaymentPrompt(choice, null));
+  }
+
+  console.error(JSON.stringify({ event: "wa_payment_failed", method, reason: res?.reason ?? "unknown" }));
+  const friendly: Record<string, string> = {
+    wallet_unavailable: "Your wallet isn't available for payment right now.",
+    payment_provider_unavailable: "Card payment is temporarily unavailable.",
+    payment_link_failed: "We couldn't create your payment link just now.",
+    empty_cart: "Your cart is empty.",
+    no_branch: "Please choose the branch you're ordering from first.",
+  };
+  return await replyText(
+    `⚠️ ${friendly[res?.reason as string] || "We couldn't complete that payment."}\n\n` +
+    `Nothing has been charged. Reply *checkout* to try again, or *menu* to start over.`,
+  );
+}
+
+
+
 async function doCheckout(
   supabase: any, session: any, cart: any[], phone: string,
   fromNumber: string, fromRaw: string,
@@ -3087,7 +3244,7 @@ async function doCheckout(
   const { data: envSetting } = await supabase.from("platform_settings").select("value").eq("key", "platform_environment").maybeSingle();
   const isTestMode = (envSetting?.value || "development") === "development";
   const { data: wallet } = await supabase
-    .from("wallets").select("balance, test_balance").eq("user_id", session.customer_user_id).eq("wallet_type", "customer").maybeSingle();
+    .from("wallets").select("balance, test_balance, is_disabled").eq("user_id", session.customer_user_id).eq("wallet_type", "customer").maybeSingle();
   const bal = Number((isTestMode ? wallet?.test_balance : wallet?.balance) || 0);
   const summary = await buildOrderSummary(supabase, cart, session);
   if (summary.pricing_unavailable) {
@@ -3098,8 +3255,31 @@ async function doCheckout(
   const deliveryFee = summary.delivery_fee;
   const total = summary.total;
 
-  const insufficient = bal < total;
-  const shortfall = Math.max(0, total - bal);
+  // Payment presentation is derived from the SERVER total and the SERVER
+  // balance only. The displayed balance is informational — the atomic checkout
+  // re-reads and re-validates it inside the transaction.
+  const choice = computePaymentChoice({ total, balance: bal, walletDisabled: !!wallet?.is_disabled });
+
+  // Insufficient balance -> one server-initialised Paystack top-up link.
+  // A cached link for the same amount is reused so a webhook retry (or a
+  // repeated tap) never mints a second link.
+  let topUpLink: string | null = null;
+  let topUpReference: string | null = ctx.pending_funding_reference ?? null;
+  let topUpValue = topUpAmount(choice);
+  if (!choice.walletEnabled) {
+    const cached = { link: ctx.topup_link, amount: ctx.topup_link_amount };
+    if (shouldReuseTopUpLink(cached, topUpValue)) {
+      topUpLink = String(ctx.topup_link);
+    } else {
+      const funding = await createWalletFundingLink(supabase, session.customer_user_id!, topUpValue, phone);
+      if (funding) {
+        topUpLink = funding.link;
+        topUpReference = funding.reference;
+      }
+    }
+  } else {
+    topUpValue = 0;
+  }
 
   const text =
     `🧾 *Order Summary*\n\n` +
@@ -3108,17 +3288,22 @@ async function doCheckout(
     (summary.pack_fee > 0 ? `\n📦 Takeaway pack (${summary.pack.name}): ₦${summary.pack_fee.toLocaleString()}` : "") +
     `\nService fee (8%): ₦${serviceFee.toLocaleString()}` +
     `\nDelivery: ₦${deliveryFee.toLocaleString()}` +
-    `\n*Total: ₦${total.toLocaleString()}*` +
-    `\n\n💼 Wallet balance: ₦${bal.toLocaleString()}` +
     (ctx.customer_order_note ? `\n📝 Note: ${ctx.customer_order_note}` : "") +
-    (insufficient
-      ? `\n\n❌ *Insufficient funds*\nYou need ₦${shortfall.toLocaleString()} more to place this order.\n\nReply *3* to top up your wallet, or *menu* to cancel.`
-      : `\n\nReply *yes* to confirm & pay, reply *note: your instruction* before confirming, or *menu* to cancel.`);
+    `\n\n${renderPaymentPrompt(choice, topUpLink)}`;
 
-  await persistSession(supabase, session.id, "confirming_order", { ...(session.context || {}), pending_total: total, pending_shortfall: shortfall }, cart);
+  await persistSession(supabase, session.id, "confirming_order", {
+    ...(session.context || {}),
+    pending_total: total,
+    pending_shortfall: choice.shortfall,
+    pending_wallet_enabled: choice.walletEnabled,
+    pending_balance: choice.balance,
+    topup_link: topUpLink,
+    topup_link_amount: topUpLink ? topUpValue : null,
+    pending_funding_reference: topUpReference ?? undefined,
+  }, cart);
 
-  // Send plain text so the full breakdown (including service fee) and insufficient-funds warning are visible.
-  // The Twilio template only supports 3 variables and cannot show the service fee or balance check.
+  // Send plain text so the full breakdown (including service fee) and the
+  // payment options are visible. The Twilio template only supports 3 variables.
   return await replyText(text);
 }
 
