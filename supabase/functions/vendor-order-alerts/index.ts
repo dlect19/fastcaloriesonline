@@ -113,7 +113,7 @@ serve(async (req) => {
       const since = new Date(Date.now() - 2 * 60 * 60_000).toISOString();
       const { data: orders } = await admin
         .from("orders")
-        .select("id, order_number, outlet_id, total, delivery_type, channel, created_at")
+        .select("id, order_number, outlet_id, total, delivery_type, channel, created_at, status, payment_status, payment_method, vendor_wa_new_order_alerted_at")
         .eq("payment_status", "paid")
         .is("vendor_wa_new_order_alerted_at", null)
         .gte("created_at", since)
@@ -122,6 +122,14 @@ serve(async (req) => {
         .limit(25);
 
       for (const o of orders || []) {
+        // Belt-and-braces: the same rule the vendor queue uses. An unpaid or
+        // cancelled order can never reach a vendor from here.
+        const gate = evaluateVendorNotification(o as any);
+        if (!gate.notify) {
+          console.log("vendor alert skipped", o.order_number, gate.reason);
+          continue;
+        }
+
         const r = recipients.get(o.outlet_id);
         if (!r || !r.alert_new_order) {
           await admin.from("orders")
@@ -129,6 +137,17 @@ serve(async (req) => {
             .eq("id", o.id);
           continue;
         }
+
+        // Claim the order before sending so concurrent runs, Paystack webhook
+        // retries and duplicate events can never send two alerts.
+        const { data: claimed } = await admin.from("orders")
+          .update({ vendor_wa_new_order_alerted_at: new Date().toISOString() })
+          .eq("id", o.id)
+          .is("vendor_wa_new_order_alerted_at", null)
+          .select("id");
+        if (!claimed || claimed.length === 0) continue;
+
+
 
         const { count: itemCount } = await admin
           .from("order_items")
