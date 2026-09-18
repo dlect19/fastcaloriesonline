@@ -397,21 +397,30 @@ export interface FeePreview extends FeeQuoteResult {
   customerFeeNgn: number;
   unknownCostEvents: number;
   usageEventIds: string[];
+  /** Upfront outbound status-message allowance (its own shadow/enforced mode). */
+  statusAllowance: StatusAllowanceEstimate;
+  statusAllowanceNgn: number;
 }
 
 /** Read-only preview used when displaying a cart total before confirmation. */
 export async function previewWhatsAppAiFee(
   supabase: any,
   ctx: CostContext,
-  args: { sessionId?: string | null; phoneHash?: string | null },
+  args: { sessionId?: string | null; phoneHash?: string | null; fulfilmentType?: string | null },
 ): Promise<FeePreview> {
   const usage = await sumUnallocatedUsage(supabase, ctx, args);
   const fee = computeCustomerFee({ rawCostKobo: usage.costKobo, reserveKobo: reserveKobo(ctx), cfg: ctx.cfg });
+  // Distinct component: conversation cost (AI, inbound, voice) and the
+  // status-notification allowance are added once each, never double counted.
+  const status = statusAllowanceFor(ctx, args.fulfilmentType);
+  const totalKobo = fee.customerFeeKobo + status.amountIncludedKobo;
   return {
     ...fee,
-    customerFeeNgn: Math.round(fee.customerFeeKobo) / 100,
+    customerFeeNgn: Math.round(totalKobo) / 100,
     unknownCostEvents: usage.unknownCount,
     usageEventIds: usage.ids,
+    statusAllowance: status,
+    statusAllowanceNgn: Math.round(status.amountIncludedKobo) / 100,
   };
 }
 
