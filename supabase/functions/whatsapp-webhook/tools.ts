@@ -597,15 +597,16 @@ async function costContextFor(ctx: ToolCtx) {
 }
 
 /** Read-only preview, so the fee shown before confirmation is the fee charged. */
-async function whatsappAiFeePreview(ctx: ToolCtx) {
+async function whatsappAiFeePreview(ctx: ToolCtx, fulfilmentType?: string | null) {
   try {
     const c = await costContextFor(ctx);
     return await previewWhatsAppAiFee(ctx.supabase, c.ctx, {
       sessionId: ctx.sessionId,
       phoneHash: c.phoneHash,
+      fulfilmentType,
     });
   } catch (_e) {
-    return { customerFeeNgn: 0, billingMode: "shadow" as const };
+    return { customerFeeNgn: 0, billingMode: "shadow" as const, statusAllowanceNgn: 0 };
   }
 }
 
