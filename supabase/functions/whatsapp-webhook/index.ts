@@ -3106,8 +3106,31 @@ async function doCheckout(
   const deliveryFee = summary.delivery_fee;
   const total = summary.total;
 
-  const insufficient = bal < total;
-  const shortfall = Math.max(0, total - bal);
+  // Payment presentation is derived from the SERVER total and the SERVER
+  // balance only. The displayed balance is informational — the atomic checkout
+  // re-reads and re-validates it inside the transaction.
+  const choice = computePaymentChoice({ total, balance: bal, walletDisabled: !!wallet?.is_disabled });
+
+  // Insufficient balance -> one server-initialised Paystack top-up link.
+  // A cached link for the same amount is reused so a webhook retry (or a
+  // repeated tap) never mints a second link.
+  let topUpLink: string | null = null;
+  let topUpReference: string | null = ctx.pending_funding_reference ?? null;
+  let topUpValue = topUpAmount(choice);
+  if (!choice.walletEnabled) {
+    const cached = { link: ctx.topup_link, amount: ctx.topup_link_amount };
+    if (shouldReuseTopUpLink(cached, topUpValue)) {
+      topUpLink = String(ctx.topup_link);
+    } else {
+      const funding = await createWalletFundingLink(supabase, session.customer_user_id!, topUpValue, phone);
+      if (funding) {
+        topUpLink = funding.link;
+        topUpReference = funding.reference;
+      }
+    }
+  } else {
+    topUpValue = 0;
+  }
 
   const text =
     `🧾 *Order Summary*\n\n` +
@@ -3116,17 +3139,22 @@ async function doCheckout(
     (summary.pack_fee > 0 ? `\n📦 Takeaway pack (${summary.pack.name}): ₦${summary.pack_fee.toLocaleString()}` : "") +
     `\nService fee (8%): ₦${serviceFee.toLocaleString()}` +
     `\nDelivery: ₦${deliveryFee.toLocaleString()}` +
-    `\n*Total: ₦${total.toLocaleString()}*` +
-    `\n\n💼 Wallet balance: ₦${bal.toLocaleString()}` +
     (ctx.customer_order_note ? `\n📝 Note: ${ctx.customer_order_note}` : "") +
-    (insufficient
-      ? `\n\n❌ *Insufficient funds*\nYou need ₦${shortfall.toLocaleString()} more to place this order.\n\nReply *3* to top up your wallet, or *menu* to cancel.`
-      : `\n\nReply *yes* to confirm & pay, reply *note: your instruction* before confirming, or *menu* to cancel.`);
+    `\n\n${renderPaymentPrompt(choice, topUpLink)}`;
 
-  await persistSession(supabase, session.id, "confirming_order", { ...(session.context || {}), pending_total: total, pending_shortfall: shortfall }, cart);
+  await persistSession(supabase, session.id, "confirming_order", {
+    ...(session.context || {}),
+    pending_total: total,
+    pending_shortfall: choice.shortfall,
+    pending_wallet_enabled: choice.walletEnabled,
+    pending_balance: choice.balance,
+    topup_link: topUpLink,
+    topup_link_amount: topUpLink ? topUpValue : null,
+    pending_funding_reference: topUpReference ?? undefined,
+  }, cart);
 
-  // Send plain text so the full breakdown (including service fee) and insufficient-funds warning are visible.
-  // The Twilio template only supports 3 variables and cannot show the service fee or balance check.
+  // Send plain text so the full breakdown (including service fee) and the
+  // payment options are visible. The Twilio template only supports 3 variables.
   return await replyText(text);
 }
 
