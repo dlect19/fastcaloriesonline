@@ -44,13 +44,12 @@ describe('legacy WhatsApp order path is unreachable', () => {
     expect(WEBHOOK).not.toContain('post_wallet_entry');
   });
 
-  it('routes every legacy confirm call through the guard', () => {
+  it('has no live call site left: only the guarded tombstone definition', () => {
     const calls = WEBHOOK.match(/confirmWhatsAppOrder\(/g) || [];
-    // two call sites + the tombstone definition
-    expect(calls.length).toBe(3);
+    expect(calls.length).toBe(1);
     expect(WEBHOOK).toContain('blockLegacyOrderPath');
-    expect(WEBHOOK).toContain('"nlu:confirm_order"');
-    expect(WEBHOOK).toContain('"state:confirming_order"');
+    // Payment now runs only through the atomic route.
+    expect(WEBHOOK).toContain('runWhatsAppPayment');
   });
 
   it('the tombstone writes no order, item or money row and audits the block', async () => {
