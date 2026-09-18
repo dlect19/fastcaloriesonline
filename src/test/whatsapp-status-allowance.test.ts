@@ -93,8 +93,14 @@ describe('status message allowance', () => {
   });
 
   it('reports variance between the upfront estimate and actual cost', () => {
-    expect(statusCostVariance(5000, 3800)).toBe(1200);
-    expect(statusCostVariance(3000, 3800)).toBe(-800);
+    const profit = statusCostVariance({
+      estimatedRevenueKobo: 5000, estimatedProviderCostKobo: 4000, actualProviderCostKobo: 3800,
+    });
+    expect(profit.profitKobo).toBe(1200);
+    const loss = statusCostVariance({
+      estimatedRevenueKobo: 3000, estimatedProviderCostKobo: 4000, actualProviderCostKobo: 3800,
+    });
+    expect(loss.profitKobo).toBe(-800);
   });
 
   it('parses admin settings and keeps defaults for missing keys', () => {
