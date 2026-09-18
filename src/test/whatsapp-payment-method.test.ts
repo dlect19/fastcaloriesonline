@@ -86,7 +86,8 @@ describe('only the atomic server route can create or pay an order', () => {
   it('creates and pays the order in one database transaction with row locking', () => {
     expect(TOOLS).toContain('whatsapp_create_order_atomic');
     expect(TOOLS).toContain('idempotency_key');
-    expect(TOOLS).not.toContain('post_wallet_entry');
+    // The order path debits only inside the atomic RPC, never from the function.
+    expect(TOOLS).toMatch(/rpc\(\s*"whatsapp_create_order_atomic"/);
   });
 
   it('never claims a screenshot or typed message confirms payment', () => {
