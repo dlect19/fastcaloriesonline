@@ -41,7 +41,7 @@ export interface CostContext {
   card: RateCard | null;
   environment: string;
   /** Upfront outbound status-message allowance settings. */
-  statusCfg: StatusAllowanceConfig;
+  statusCfg?: StatusAllowanceConfig;
 }
 
 /** Deterministic status-message allowance for one order/fulfilment type. */
