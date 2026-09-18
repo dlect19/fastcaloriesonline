@@ -456,6 +456,10 @@ export async function freezeWhatsAppAiFeeQuote(
     });
     const reserve = reserveKobo(ctx);
     const fee = computeCustomerFee({ rawCostKobo: usage.costKobo, reserveKobo: reserve, cfg: ctx.cfg });
+    // Immutable snapshot of the upfront status-notification estimate. Frozen
+    // here, before payment, so nothing unpredictable is added after checkout.
+    const status = statusAllowanceFor(ctx, args.fulfilmentType);
+    const customerFeeKobo = fee.customerFeeKobo + status.amountIncludedKobo;
     const breakdown = {
       usage_events: usage.eventCount,
       unknown_cost_events: usage.unknownCount,
@@ -464,10 +468,12 @@ export async function freezeWhatsAppAiFeeQuote(
       allowance_kobo: fee.allowanceKobo,
       markup_kobo: fee.markupKobo,
       tax_kobo: fee.taxKobo,
-      customer_fee_kobo: fee.customerFeeKobo,
+      conversation_fee_kobo: fee.customerFeeKobo,
+      customer_fee_kobo: customerFeeKobo,
       subsidy_kobo: fee.subsidyKobo,
       pricing_method: ctx.cfg.pricingMethod,
       charge_scope: ctx.cfg.chargeScope,
+      status_messages: status.snapshot,
     };
     const { data, error } = await supabase.rpc("whatsapp_freeze_cost_quote", {
       p_payload: {
