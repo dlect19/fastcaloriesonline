@@ -67,3 +67,5 @@
 - [x] A — voice gating live (migration 0028): master switch, size/duration caps, per-phone minute/hour/day limits, global daily ceiling + concurrency, Twilio-host-only media with no blind redirects, one reservation per MessageSid, redacted usage audit with 30-day retention
 - [x] Legacy numbered-menu list now renders availability for the branch the customer explicitly picked (outletBinding.ts, `choosing_outlet` state); no default/main/first branch is ever substituted
 - [x] 69. Secure rider offer discovery RPC (get_my_rider_offers), unified client discovery, destination coordinate precedence, durable dispatch expiry/retry sweep (cron every minute), one authoritative rider capacity status set.
+- [x] Voice-note media fetch hardened (mediaFetch.ts): one validated redirect hop to Twilio-owned media hosts / signed Twilio S3 store only, no credential forwarding, SSRF blocks, streaming byte cap, body sanity check, redacted host-only refusal logs — fixes the REDIRECT_REJECTED failures of 18 Sep 2026
+
