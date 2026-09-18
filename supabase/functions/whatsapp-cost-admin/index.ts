@@ -17,17 +17,29 @@ import {
   simulateCost,
   WHATSAPP_COST_SETTING_KEYS,
 } from "../_shared/whatsappCostMath.ts";
+import {
+  computeStatusAllowance,
+  parseStatusAllowanceConfig,
+  STATUS_ALLOWANCE_SETTING_KEYS,
+} from "../_shared/whatsappStatusAllowance.ts";
 
-const NUMERIC_KEYS = new Set(WHATSAPP_COST_SETTING_KEYS.filter((k) =>
+const ALL_SETTING_KEYS = [...WHATSAPP_COST_SETTING_KEYS, ...STATUS_ALLOWANCE_SETTING_KEYS];
+
+const NUMERIC_KEYS = new Set(ALL_SETTING_KEYS.filter((k) =>
   !k.endsWith("_enabled") &&
   !["whatsapp_cost_charge_scope", "whatsapp_cost_pricing_method", "whatsapp_cost_fx_source",
-    "whatsapp_cost_meta_country", "whatsapp_cost_config_version", "whatsapp_cost_absorb_guest_browsing"]
+    "whatsapp_cost_meta_country", "whatsapp_cost_config_version", "whatsapp_cost_absorb_guest_browsing",
+    "whatsapp_status_billing_mode", "whatsapp_status_settings_version"]
     .includes(k)
 ));
 
 function validateSetting(key: string, value: unknown): string {
-  if (!WHATSAPP_COST_SETTING_KEYS.includes(key)) throw new HttpError(`Unsupported setting: ${key}`, 400);
+  if (!ALL_SETTING_KEYS.includes(key)) throw new HttpError(`Unsupported setting: ${key}`, 400);
   const raw = String(value ?? "").trim();
+  if (key === "whatsapp_status_billing_mode") {
+    if (!["shadow", "enforced"].includes(raw)) throw new HttpError("Invalid status billing mode", 400);
+    return raw;
+  }
   if (key.endsWith("_enabled") || key === "whatsapp_cost_absorb_guest_browsing") {
     if (!["true", "false"].includes(raw)) throw new HttpError(`${key} must be true or false`, 400);
     return raw;
@@ -71,16 +83,28 @@ Deno.serve(async (req) => {
           .select("id, event_kind, direction, message_category, window_state, model_id, provider, cost_status, billing_status, cost_usd_micros, cost_ngn_kobo, billed_ngn_kobo, subsidy_ngn_kobo, markup_ngn_kobo, input_tokens, output_tokens, thinking_tokens, cached_input_tokens, transcription_seconds, order_id, session_id, environment, created_at, finalized_at")
           .gte("created_at", since).order("created_at", { ascending: false }).limit(5000),
         svc.from("whatsapp_cost_quotes")
-          .select("id, status, billing_mode, customer_fee_ngn_kobo, raw_cost_ngn_kobo, subsidy_ngn_kobo, consumed_order_id, created_at")
+          .select("id, status, billing_mode, customer_fee_ngn_kobo, raw_cost_ngn_kobo, subsidy_ngn_kobo, markup_ngn_kobo, breakdown, fulfilment_type, consumed_order_id, created_at")
           .gte("created_at", since).order("created_at", { ascending: false }).limit(2000),
-        svc.from("platform_settings").select("key, value").in("key", WHATSAPP_COST_SETTING_KEYS),
+        svc.from("platform_settings").select("key, value").in("key", ALL_SETTING_KEYS),
         svc.from("whatsapp_ai_rate_cards").select("*").order("effective_from", { ascending: false }).limit(50),
       ]);
+
+      const statusCfg = parseStatusAllowanceConfig(settings as any);
+      const costCfg = parseCostConfig(settings as any);
 
       return jsonResponse({
         ok: true,
         range_days: days,
-        config: parseCostConfig(settings as any),
+        config: costCfg,
+        status_config: statusCfg,
+        status_allowance_examples: {
+          delivery: computeStatusAllowance({
+            fulfilmentType: "delivery", cfg: statusCfg, fxUsdNgn: costCfg.fxUsdNgn, fxBufferPct: costCfg.fxBufferPct,
+          }),
+          pickup: computeStatusAllowance({
+            fulfilmentType: "pickup", cfg: statusCfg, fxUsdNgn: costCfg.fxUsdNgn, fxBufferPct: costCfg.fxBufferPct,
+          }),
+        },
         settings: settings ?? [],
         rate_cards: cards ?? [],
         events: events ?? [],

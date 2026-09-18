@@ -25,13 +25,33 @@ import {
   parseCostConfig,
   WHATSAPP_COST_SETTING_KEYS,
 } from "./whatsappCostMath.ts";
+import {
+  computeStatusAllowance,
+  parseStatusAllowanceConfig,
+  STATUS_ALLOWANCE_DEFAULTS,
+  STATUS_ALLOWANCE_SETTING_KEYS,
+  type StatusAllowanceConfig,
+  type StatusAllowanceEstimate,
+} from "./whatsappStatusAllowance.ts";
 
-export type { WhatsAppCostConfig, FeeQuoteResult };
+export type { WhatsAppCostConfig, FeeQuoteResult, StatusAllowanceConfig, StatusAllowanceEstimate };
 
 export interface CostContext {
   cfg: WhatsAppCostConfig;
   card: RateCard | null;
   environment: string;
+  /** Upfront outbound status-message allowance settings. */
+  statusCfg?: StatusAllowanceConfig;
+}
+
+/** Deterministic status-message allowance for one order/fulfilment type. */
+export function statusAllowanceFor(ctx: CostContext, fulfilmentType?: string | null): StatusAllowanceEstimate {
+  return computeStatusAllowance({
+    fulfilmentType,
+    cfg: ctx.statusCfg ?? STATUS_ALLOWANCE_DEFAULTS,
+    fxUsdNgn: ctx.cfg.fxUsdNgn,
+    fxBufferPct: ctx.cfg.fxBufferPct,
+  });
 }
 
 export async function sha256Hex(value: string): Promise<string> {
@@ -75,13 +95,30 @@ export async function loadRateCard(supabase: any, modelId: string): Promise<Rate
   }
 }
 
+/** Admin-configured status-message allowance settings. */
+export async function loadStatusAllowanceConfig(supabase: any): Promise<StatusAllowanceConfig> {
+  try {
+    const { data } = await supabase
+      .from("platform_settings")
+      .select("key, value")
+      .in("key", STATUS_ALLOWANCE_SETTING_KEYS);
+    return parseStatusAllowanceConfig(data as { key: string; value: string | null }[]);
+  } catch (_e) {
+    return parseStatusAllowanceConfig(null);
+  }
+}
+
 export async function loadCostContext(
   supabase: any,
   modelId: string,
   environment = "development",
 ): Promise<CostContext> {
-  const [cfg, card] = await Promise.all([loadCostConfig(supabase), loadRateCard(supabase, modelId)]);
-  return { cfg, card, environment };
+  const [cfg, card, statusCfg] = await Promise.all([
+    loadCostConfig(supabase),
+    loadRateCard(supabase, modelId),
+    loadStatusAllowanceConfig(supabase),
+  ]);
+  return { cfg, card, environment, statusCfg };
 }
 
 export interface UsageLink {
@@ -167,6 +204,13 @@ export async function recordOutboundMessage(
     category?: MetaCategory;
     windowState?: WindowState;
     failed?: boolean;
+    /**
+     * Order-status lifecycle notification. Its cost is already covered by the
+     * upfront allowance charged at checkout, so it is recorded as `absorbed`:
+     * tracked for margin reporting, never pooled into a future customer quote.
+     */
+    statusMessage?: boolean;
+    notes?: string | null;
   } & UsageLink,
 ): Promise<string | null> {
   if (!args.providerEventId) return null;
@@ -177,11 +221,15 @@ export async function recordOutboundMessage(
   });
   return await recordUsage(supabase, ctx, {
     provider_event_id: args.providerEventId,
-    event_kind: args.failed
-      ? "outbound_failed"
-      : args.category && args.category !== "service"
-        ? "outbound_template"
-        : "outbound_freeform",
+    event_kind: args.statusMessage
+      ? (args.failed ? "outbound_status_failed" : "outbound_status")
+      : args.failed
+        ? "outbound_failed"
+        : args.category && args.category !== "service"
+          ? "outbound_template"
+          : "outbound_freeform",
+    billing_status: args.statusMessage ? "absorbed" : "unbilled",
+    notes: args.notes ?? null,
     direction: "out",
     message_sid: args.messageSid ?? null,
     message_category: args.category ?? "service",
@@ -349,21 +397,30 @@ export interface FeePreview extends FeeQuoteResult {
   customerFeeNgn: number;
   unknownCostEvents: number;
   usageEventIds: string[];
+  /** Upfront outbound status-message allowance (its own shadow/enforced mode). */
+  statusAllowance: StatusAllowanceEstimate;
+  statusAllowanceNgn: number;
 }
 
 /** Read-only preview used when displaying a cart total before confirmation. */
 export async function previewWhatsAppAiFee(
   supabase: any,
   ctx: CostContext,
-  args: { sessionId?: string | null; phoneHash?: string | null },
+  args: { sessionId?: string | null; phoneHash?: string | null; fulfilmentType?: string | null },
 ): Promise<FeePreview> {
   const usage = await sumUnallocatedUsage(supabase, ctx, args);
   const fee = computeCustomerFee({ rawCostKobo: usage.costKobo, reserveKobo: reserveKobo(ctx), cfg: ctx.cfg });
+  // Distinct component: conversation cost (AI, inbound, voice) and the
+  // status-notification allowance are added once each, never double counted.
+  const status = statusAllowanceFor(ctx, args.fulfilmentType);
+  const totalKobo = fee.customerFeeKobo + status.amountIncludedKobo;
   return {
     ...fee,
-    customerFeeNgn: Math.round(fee.customerFeeKobo) / 100,
+    customerFeeNgn: Math.round(totalKobo) / 100,
     unknownCostEvents: usage.unknownCount,
     usageEventIds: usage.ids,
+    statusAllowance: status,
+    statusAllowanceNgn: Math.round(status.amountIncludedKobo) / 100,
   };
 }
 
@@ -399,6 +456,10 @@ export async function freezeWhatsAppAiFeeQuote(
     });
     const reserve = reserveKobo(ctx);
     const fee = computeCustomerFee({ rawCostKobo: usage.costKobo, reserveKobo: reserve, cfg: ctx.cfg });
+    // Immutable snapshot of the upfront status-notification estimate. Frozen
+    // here, before payment, so nothing unpredictable is added after checkout.
+    const status = statusAllowanceFor(ctx, args.fulfilmentType);
+    const customerFeeKobo = fee.customerFeeKobo + status.amountIncludedKobo;
     const breakdown = {
       usage_events: usage.eventCount,
       unknown_cost_events: usage.unknownCount,
@@ -407,10 +468,12 @@ export async function freezeWhatsAppAiFeeQuote(
       allowance_kobo: fee.allowanceKobo,
       markup_kobo: fee.markupKobo,
       tax_kobo: fee.taxKobo,
-      customer_fee_kobo: fee.customerFeeKobo,
+      conversation_fee_kobo: fee.customerFeeKobo,
+      customer_fee_kobo: customerFeeKobo,
       subsidy_kobo: fee.subsidyKobo,
       pricing_method: ctx.cfg.pricingMethod,
       charge_scope: ctx.cfg.chargeScope,
+      status_messages: status.snapshot,
     };
     const { data, error } = await supabase.rpc("whatsapp_freeze_cost_quote", {
       p_payload: {
@@ -426,14 +489,14 @@ export async function freezeWhatsAppAiFeeQuote(
         usage_event_ids: usage.ids,
         raw_cost_ngn_kobo: fee.rawCostKobo,
         reserve_ngn_kobo: fee.reserveKobo,
-        markup_ngn_kobo: fee.markupKobo,
+        markup_ngn_kobo: fee.markupKobo + status.markupKobo,
         allowance_ngn_kobo: fee.allowanceKobo,
         subsidy_ngn_kobo: fee.subsidyKobo,
-        customer_fee_ngn_kobo: fee.customerFeeKobo,
+        customer_fee_ngn_kobo: customerFeeKobo,
         billing_mode: billingMode(ctx.cfg),
         fx_rate_ngn: ctx.cfg.fxUsdNgn,
-        rate_version: `${ctx.cfg.configVersion}|${ctx.card?.model_id ?? "no-card"}|${ctx.card?.effective_from ?? ""}`,
-        config_snapshot: ctx.cfg as unknown as Record<string, unknown>,
+        rate_version: `${ctx.cfg.configVersion}|${ctx.card?.model_id ?? "no-card"}|${ctx.card?.effective_from ?? ""}|status:${ctx.statusCfg?.settingsVersion ?? "v1"}`,
+        config_snapshot: { ...ctx.cfg, status_allowance: ctx.statusCfg ?? STATUS_ALLOWANCE_DEFAULTS } as unknown as Record<string, unknown>,
         breakdown,
         expires_at: new Date(Date.now() + ctx.cfg.quoteTtlSeconds * 1000).toISOString(),
         environment: ctx.environment,

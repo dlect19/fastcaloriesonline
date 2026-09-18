@@ -123,6 +123,22 @@ export default function AdminWhatsAppCosts() {
 
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [rangeDays]);
 
+  // Order-status notifications are absorbed (paid for upfront at checkout), so
+  // they are reported separately from conversation/AI cost — never double counted.
+  const statusStats = useMemo(() => {
+    const statusEvents = events.filter(e =>
+      e.event_kind === 'outbound_status' || e.event_kind === 'outbound_status_failed');
+    const revenueKobo = quotes.reduce((s, q) => {
+      const snap: any = (q as any).breakdown?.status_messages;
+      return s + Number(snap?.amount_included_in_service_fee_kobo || 0);
+    }, 0);
+    return {
+      messages: statusEvents.length,
+      costKobo: statusEvents.reduce((s, e) => s + Number(e.cost_ngn_kobo || 0), 0),
+      revenueKobo,
+    };
+  }, [events, quotes]);
+
   const stats = useMemo(() => {
     const inbound = events.filter(e => e.direction === 'in').length;
     const outbound = events.filter(e => e.direction === 'out' && e.event_kind !== 'outbound_failed').length;
@@ -150,8 +166,13 @@ export default function AdminWhatsAppCosts() {
       margin: collectedKobo > 0 ? (profitKobo / collectedKobo) * 100 : 0,
       orders: new Set(events.filter(e => e.order_id).map(e => e.order_id)).size,
       conversations: new Set(events.filter(e => e.session_id).map(e => e.session_id)).size,
+      // Order-status notifications: revenue collected upfront vs actual provider cost.
+      statusMessages: statusStats.messages,
+      statusCostKobo: statusStats.costKobo,
+      statusRevenueKobo: statusStats.revenueKobo,
+      statusVarianceKobo: statusStats.revenueKobo - statusStats.costKobo,
     };
-  }, [events, quotes]);
+  }, [events, quotes, statusStats]);
 
   const topConversations = useMemo(() => {
     const by = new Map<string, { cost: number; events: number }>();
@@ -341,6 +362,32 @@ export default function AdminWhatsAppCosts() {
             </div>
 
             <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Order status notifications</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <p className="text-xs text-muted-foreground">Messages sent</p>
+                  <p className="text-xl font-bold">{stats.statusMessages}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Charged upfront</p>
+                  <p className="text-xl font-bold">{naira(stats.statusRevenueKobo)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Actual provider cost</p>
+                  <p className="text-xl font-bold">{naira(stats.statusCostKobo)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Variance</p>
+                  <p className={`text-xl font-bold ${stats.statusVarianceKobo < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {naira(stats.statusVarianceKobo)}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
               <CardHeader className="pb-2"><CardTitle className="text-sm">Most expensive conversations</CardTitle></CardHeader>
               <CardContent>
                 {topConversations.length === 0 ? (
@@ -453,6 +500,46 @@ export default function AdminWhatsAppCosts() {
                       <SelectItem value="fixed_markup">Fixed markup</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Order status updates (upfront allowance)</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-xs text-muted-foreground">
+                  Estimated cost of the order-status messages a customer will receive, added to the
+                  WhatsApp communications part of the service fee at checkout. Nothing is charged after checkout.
+                </p>
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm">Include status-message allowance</Label>
+                  <Switch
+                    checked={(draft.whatsapp_status_allowance_enabled ?? 'true') === 'true'}
+                    onCheckedChange={v => setDraft(d => ({ ...d, whatsapp_status_allowance_enabled: v ? 'true' : 'false' }))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Billing mode</Label>
+                  <Select
+                    value={draft.whatsapp_status_billing_mode ?? 'shadow'}
+                    onValueChange={v => setDraft(d => ({ ...d, whatsapp_status_billing_mode: v }))}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="shadow">Shadow (record only, ₦0 to customer)</SelectItem>
+                      <SelectItem value="enforced">Enforced (include in service fee)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {numberField('whatsapp_status_unit_cost_ngn', 'Unit cost ₦ / message', 'Leave 0 to use USD rate')}
+                  {numberField('whatsapp_status_unit_cost_usd', 'Unit cost USD / message')}
+                  {numberField('whatsapp_status_expected_count_delivery', 'Expected messages (delivery)')}
+                  {numberField('whatsapp_status_expected_count_pickup', 'Expected messages (carryout)')}
+                  {numberField('whatsapp_status_markup_pct', 'Markup %')}
+                  {numberField('whatsapp_status_fixed_markup_ngn', 'Fixed markup ₦')}
                 </div>
               </CardContent>
             </Card>

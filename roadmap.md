@@ -73,3 +73,8 @@
 
 - [x] 70. WhatsApp payment-method screen: server-read wallet balance + shortfall shown, wallet option only when the balance covers the authoritative total, single server-generated Paystack link (paymentChoice.ts, runWhatsAppPayment in index.ts); legacy confirm path now has zero call sites; strict Paystack verification (reference/currency/amount/customer/status) extracted to _shared/paystackVerification.ts and enforced in verify-whatsapp-funding.
 - [x] 71. Paystack webhook order-confirmation fix: removed nonexistent orders.currency from the lookup (42703 was misreported as "Order not found", blocking genuine payment FC-260918-4895); DB lookup errors now classified separately from missing orders; all signature/NGN/amount/customer/environment/idempotency protections preserved. Regression tests: src/test/paystack-webhook-order-lookup.test.ts (8 tests). Deployed paystack-webhook only.
+
+## WhatsApp order-status costing + rider contact (done)
+- Upfront status-message allowance frozen into the WhatsApp communications part of the service fee (shadow by default, ₦0 to customers).
+- Delivery vs carryout expected counts; carryout excludes rider states; admin-configurable settings + margin reporting.
+- Assigned rider name/verified phone included in the WhatsApp assignment update; support fallback when unverified.
