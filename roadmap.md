@@ -70,3 +70,5 @@
 - [x] Voice-note media fetch hardened (mediaFetch.ts): one validated redirect hop to Twilio-owned media hosts / signed Twilio S3 store only, no credential forwarding, SSRF blocks, streaming byte cap, body sanity check, redacted host-only refusal logs — fixes the REDIRECT_REJECTED failures of 18 Sep 2026
 
 - [x] Voice-note redirect allowlist extended to Twilio MMS media CDN (mms.twiliocdn.com + regional mms.<region>.twiliocdn.com) as a redirect target only — fixes REDIRECT_HOST_NOT_ALLOWED failures of 18 Sep 2026 01:01/01:02
+
+- [x] 70. WhatsApp payment-method screen: server-read wallet balance + shortfall shown, wallet option only when the balance covers the authoritative total, single server-generated Paystack link (paymentChoice.ts, runWhatsAppPayment in index.ts); legacy confirm path now has zero call sites; strict Paystack verification (reference/currency/amount/customer/status) extracted to _shared/paystackVerification.ts and enforced in verify-whatsapp-funding.
