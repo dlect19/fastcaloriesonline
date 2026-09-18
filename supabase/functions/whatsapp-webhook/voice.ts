@@ -8,12 +8,24 @@ const envGet = (k: string): string | undefined =>
 //  * a master switch and all limits live in platform_settings (admin-editable),
 //  * one reservation per provider MessageSid, so a Twilio retry never
 //    transcribes (or bills) the same clip twice,
-//  * media is fetched only from Twilio's own hosts, with no redirect following,
-//    a hard byte cap and a request timeout,
+//  * media is fetched only from Twilio's own origins, following at most ONE
+//    redirect and only to a Twilio-owned media store (see mediaFetch.ts) with
+//    the Twilio credentials deliberately NOT forwarded,
+//  * a streaming byte cap, a request timeout and a body sanity check,
 //  * only allowlisted audio MIME types are accepted,
 //  * usage is recorded redacted (size and outcome, never the audio itself).
 
 import { chatCompletionWithFallback } from "../_shared/ai-call.ts";
+import {
+  checkInitialMediaUrl,
+  checkRedirectTarget,
+  isDisallowedMediaContentType,
+  isRedirectStatus,
+  looksLikeMediaBytes,
+  readCapped,
+} from "./mediaFetch.ts";
+
+export { isAllowedMediaUrl } from "./mediaFetch.ts";
 
 const AUDIO_MIME_PREFIX = "audio/";
 import { WHATSAPP_TRANSCRIBE_MODEL } from "./models.ts";
@@ -25,22 +37,9 @@ const ALLOWED_AUDIO = [
   "audio/m4a", "audio/x-m4a", "audio/aac", "audio/amr", "audio/wav", "audio/x-wav",
 ];
 
-/** Only Twilio's own media hosts may be fetched. No arbitrary URLs, ever. */
-const ALLOWED_MEDIA_HOSTS = ["api.twilio.com", "media.twiliocdn.com"];
-
 const MEDIA_TIMEOUT_MS = 20_000;
 const AI_TIMEOUT_MS = 45_000;
 const MIN_AUDIO_BYTES = 1024;
-
-export function isAllowedMediaUrl(url: string): boolean {
-  try {
-    const u = new URL(url);
-    if (u.protocol !== "https:") return false;
-    return ALLOWED_MEDIA_HOSTS.some((h) => u.hostname === h || u.hostname.endsWith(`.${h}`));
-  } catch {
-    return false;
-  }
-}
 
 export function isAllowedAudioType(contentType: string): boolean {
   const ct = (contentType || "").toLowerCase().split(";")[0].trim();
@@ -109,6 +108,78 @@ const UNSUPPORTED_TEXT =
 export const VOICE_FAIL_TEXT =
   "🎙️ I couldn't quite hear that voice note. Please record it again in a quieter spot, or just type your message — e.g. *I want 2 jollof rice*. Reply *menu* anytime for the full menu.";
 
+/** Redacted refusal log: hostname + reason + MessageSid correlation only. */
+function logRefusal(stage: string, reason: string, host: string | null, messageSid: string | null) {
+  console.error(JSON.stringify({
+    event: "wa_voice_media_refused",
+    stage,
+    reason,
+    host: host || "unknown",
+    message_sid: messageSid || null,
+  }));
+}
+
+/**
+ * Fetch inbound media from Twilio: authenticated first request to the Twilio
+ * origin, then at most one manually-validated redirect hop with NO credentials
+ * forwarded to the redirected host.
+ */
+async function fetchTwilioMedia(
+  url: string,
+  auth: string,
+  messageSid: string | null,
+): Promise<
+  { ok: true; response: Response; finalHost: string } | { ok: false; reason: string; status?: number }
+> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), MEDIA_TIMEOUT_MS);
+  let first: Response;
+  try {
+    first = await fetch(url, {
+      headers: { Authorization: auth },
+      // Never follow automatically: a redirect could point anywhere, and fetch
+      // would re-send the Authorization header.
+      redirect: "manual",
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (!isRedirectStatus(first.status)) {
+    return { ok: true, response: first, finalHost: new URL(url).hostname.toLowerCase() };
+  }
+
+  await first.body?.cancel().catch(() => {});
+  const location = first.headers.get("location") || "";
+  const verdict = checkRedirectTarget(location, url);
+  if (!verdict.ok) {
+    logRefusal("redirect", verdict.reason, verdict.host, messageSid);
+    return { ok: false, reason: "REDIRECT_REJECTED" };
+  }
+
+  const followController = new AbortController();
+  const followTimer = setTimeout(() => followController.abort(), MEDIA_TIMEOUT_MS);
+  let second: Response;
+  try {
+    second = await fetch(new URL(location, url).toString(), {
+      // Deliberately no Authorization / cookies: the signed URL carries its own
+      // short-lived credentials and the target host must never see Twilio's.
+      redirect: "manual",
+      signal: followController.signal,
+    });
+  } finally {
+    clearTimeout(followTimer);
+  }
+
+  if (isRedirectStatus(second.status)) {
+    await second.body?.cancel().catch(() => {});
+    logRefusal("redirect", "SECOND_REDIRECT", verdict.host, messageSid);
+    return { ok: false, reason: "REDIRECT_REJECTED" };
+  }
+  return { ok: true, response: second, finalHost: verdict.host || "unknown" };
+}
+
 /**
  * Gate + transcribe. Reserves usage first (idempotent by MessageSid), enforces
  * host/MIME/size limits, then transcribes. A replayed provider delivery returns
@@ -126,8 +197,9 @@ export async function transcribeVoiceNoteGated(
 ): Promise<VoiceGateResult> {
   const { url, contentType, messageSid, phone, userId } = args;
 
-  if (!isAllowedMediaUrl(url)) {
-    console.error("[wa-voice] refused media host");
+  const initial = checkInitialMediaUrl(url);
+  if (!initial.ok) {
+    logRefusal("initial", initial.reason, initial.host, messageSid);
     return { transcript: null, message: UNSUPPORTED_TEXT, code: "MEDIA_HOST_REJECTED" };
   }
   if (!isAllowedAudioType(contentType)) {
@@ -156,7 +228,7 @@ export async function transcribeVoiceNoteGated(
     return { transcript: null, message: OVER_LIMIT_TEXT, code: reason };
   }
 
-  const maxBytes = Number(gate.max_bytes) || 5 * 1024 * 1024;
+  const maxBytes = Math.min(Number(gate.max_bytes) || 5 * 1024 * 1024, 5 * 1024 * 1024);
   const finalize = async (status: string, code: string, bytes?: number) => {
     try {
       await supabase.rpc("whatsapp_voice_finalize", {
@@ -182,106 +254,99 @@ export async function transcribeVoiceNoteGated(
   }
 
   try {
-    const mediaController = new AbortController();
-    const mediaTimer = setTimeout(() => mediaController.abort(), MEDIA_TIMEOUT_MS);
-    const res = await fetch(url, {
-      headers: { Authorization: "Basic " + btoa(`${sid}:${token}`) },
-      // Never follow a redirect: a redirect could point anywhere.
-      redirect: "manual",
-      signal: mediaController.signal,
-    }).finally(() => clearTimeout(mediaTimer));
-
-    if (res.status >= 300 && res.status < 400) {
-      const next = res.headers.get("location") || "";
-      if (!isAllowedMediaUrl(next)) {
-        console.error("[wa-voice] refused redirect target");
-        await finalize("failed", "REDIRECT_REJECTED");
-        return { transcript: null, message: UNSUPPORTED_TEXT, code: "REDIRECT_REJECTED" };
-      }
-      const followController = new AbortController();
-      const followTimer = setTimeout(() => followController.abort(), MEDIA_TIMEOUT_MS);
-      const res2 = await fetch(next, {
-        headers: { Authorization: "Basic " + btoa(`${sid}:${token}`) },
-        redirect: "manual",
-        signal: followController.signal,
-      }).finally(() => clearTimeout(followTimer));
-      return await handleBody(res2);
+    const fetched = await fetchTwilioMedia(url, "Basic " + btoa(`${sid}:${token}`), messageSid);
+    if (!fetched.ok) {
+      await finalize("failed", fetched.reason);
+      return { transcript: null, message: UNSUPPORTED_TEXT, code: fetched.reason };
     }
-    return await handleBody(res);
+    const response = fetched.response;
 
-    async function handleBody(response: Response): Promise<VoiceGateResult> {
-      if (!response.ok) {
-        await response.body?.cancel();
-        console.error("[wa-voice] media fetch failed", response.status);
-        await finalize("failed", `MEDIA_${response.status}`);
-        return { transcript: null, message: VOICE_FAIL_TEXT, code: "MEDIA_FETCH_FAILED" };
-      }
-      const declared = Number(response.headers.get("content-length") || 0);
-      if (declared && declared > maxBytes) {
-        await response.body?.cancel();
-        await finalize("refused", "TOO_LARGE", declared);
-        return { transcript: null, message: TOO_LONG_TEXT, code: "TOO_LARGE" };
-      }
-      const bytes = new Uint8Array(await response.arrayBuffer());
-      if (bytes.length < MIN_AUDIO_BYTES) {
-        await finalize("refused", "TOO_SHORT", bytes.length);
-        return { transcript: null, message: VOICE_FAIL_TEXT, code: "TOO_SHORT" };
-      }
-      if (bytes.length > maxBytes) {
-        await finalize("refused", "TOO_LARGE", bytes.length);
-        return { transcript: null, message: TOO_LONG_TEXT, code: "TOO_LARGE" };
-      }
-
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
-      const r = await chatCompletionWithFallback({
-        model: TRANSCRIBE_MODEL,
-        messages: [
-          {
-            role: "system",
-            content:
-              "You transcribe short WhatsApp voice notes from Nigerian customers ordering food, medicine or groceries. " +
-              "Return ONLY the transcription text, no quotes, no commentary, no translation of proper names. " +
-              "If there is no intelligible speech, return exactly: NO_SPEECH",
-          },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: "Transcribe this voice note." },
-              {
-                type: "input_audio",
-                input_audio: { data: toBase64(bytes), format: audioFormat(contentType) },
-              },
-            ],
-          },
-        ],
-      }, { signal: controller.signal }).finally(() => clearTimeout(timer));
-
-      if (!r.ok) {
-        console.error("[wa-voice] AI error", r.status, (r.errorText || "").slice(0, 200));
-        await finalize("failed", `AI_${r.status}`, bytes.length);
-        return { transcript: null, message: VOICE_FAIL_TEXT, code: "AI_FAILED" };
-      }
-      const text = String(r.data?.choices?.[0]?.message?.content || "").trim();
-      if (!text || /^no_speech$/i.test(text) || text.length < 2) {
-        await finalize("done", "NO_SPEECH", bytes.length);
-        return { transcript: null, message: VOICE_FAIL_TEXT, code: "NO_SPEECH" };
-      }
-      await finalize("done", "TRANSCRIBED", bytes.length);
-      const reported: any = r.data?.usage ?? null;
-      return {
-        transcript: text.slice(0, 400),
-        message: null,
-        code: "TRANSCRIBED",
-        modelId: TRANSCRIBE_MODEL,
-        usage: reported
-          ? {
-            inputTokens: reported.prompt_tokens ?? reported.input_tokens ?? null,
-            outputTokens: reported.completion_tokens ?? reported.output_tokens ?? null,
-          }
-          : null,
-      };
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => {});
+      console.error("[wa-voice] media fetch failed", response.status);
+      await finalize("failed", `MEDIA_${response.status}`);
+      return { transcript: null, message: VOICE_FAIL_TEXT, code: "MEDIA_FETCH_FAILED" };
     }
+
+    const serverType = response.headers.get("content-type") || "";
+    if (isDisallowedMediaContentType(serverType)) {
+      await response.body?.cancel().catch(() => {});
+      logRefusal("body", "CONTENT_TYPE_REJECTED", fetched.finalHost, messageSid);
+      await finalize("refused", "CONTENT_TYPE_REJECTED");
+      return { transcript: null, message: UNSUPPORTED_TEXT, code: "CONTENT_TYPE_REJECTED" };
+    }
+
+    const declared = Number(response.headers.get("content-length") || 0);
+    if (declared && declared > maxBytes) {
+      await response.body?.cancel().catch(() => {});
+      await finalize("refused", "TOO_LARGE", declared);
+      return { transcript: null, message: TOO_LONG_TEXT, code: "TOO_LARGE" };
+    }
+
+    const bytes = await readCapped(response, maxBytes);
+    if (bytes === null) {
+      await finalize("refused", "TOO_LARGE");
+      return { transcript: null, message: TOO_LONG_TEXT, code: "TOO_LARGE" };
+    }
+    if (!looksLikeMediaBytes(bytes)) {
+      logRefusal("body", "NOT_MEDIA_BODY", fetched.finalHost, messageSid);
+      await finalize("refused", "NOT_MEDIA_BODY", bytes.length);
+      return { transcript: null, message: UNSUPPORTED_TEXT, code: "NOT_MEDIA_BODY" };
+    }
+    if (bytes.length < MIN_AUDIO_BYTES) {
+      await finalize("refused", "TOO_SHORT", bytes.length);
+      return { transcript: null, message: VOICE_FAIL_TEXT, code: "TOO_SHORT" };
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
+    const r = await chatCompletionWithFallback({
+      model: TRANSCRIBE_MODEL,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You transcribe short WhatsApp voice notes from Nigerian customers ordering food, medicine or groceries. " +
+            "Return ONLY the transcription text, no quotes, no commentary, no translation of proper names. " +
+            "If there is no intelligible speech, return exactly: NO_SPEECH",
+        },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Transcribe this voice note." },
+            {
+              type: "input_audio",
+              input_audio: { data: toBase64(bytes), format: audioFormat(contentType) },
+            },
+          ],
+        },
+      ],
+    }, { signal: controller.signal }).finally(() => clearTimeout(timer));
+
+    if (!r.ok) {
+      console.error("[wa-voice] AI error", r.status, (r.errorText || "").slice(0, 200));
+      await finalize("failed", `AI_${r.status}`, bytes.length);
+      return { transcript: null, message: VOICE_FAIL_TEXT, code: "AI_FAILED" };
+    }
+    const text = String(r.data?.choices?.[0]?.message?.content || "").trim();
+    if (!text || /^no_speech$/i.test(text) || text.length < 2) {
+      await finalize("done", "NO_SPEECH", bytes.length);
+      return { transcript: null, message: VOICE_FAIL_TEXT, code: "NO_SPEECH" };
+    }
+    await finalize("done", "TRANSCRIBED", bytes.length);
+    const reported: any = r.data?.usage ?? null;
+    return {
+      transcript: text.slice(0, 400),
+      message: null,
+      code: "TRANSCRIBED",
+      modelId: TRANSCRIBE_MODEL,
+      usage: reported
+        ? {
+          inputTokens: reported.prompt_tokens ?? reported.input_tokens ?? null,
+          outputTokens: reported.completion_tokens ?? reported.output_tokens ?? null,
+        }
+        : null,
+    };
   } catch (e) {
     console.error("[wa-voice] transcription failed", e instanceof Error ? e.message : String(e));
     await finalize("failed", "EXCEPTION");
