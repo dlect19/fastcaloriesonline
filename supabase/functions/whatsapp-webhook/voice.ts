@@ -261,11 +261,13 @@ export async function transcribeVoiceNoteGated(
 
   try {
     const fetched = await fetchTwilioMedia(url, "Basic " + btoa(`${sid}:${token}`), messageSid);
-    if (!fetched.ok) {
-      await finalize("failed", fetched.reason);
-      return { transcript: null, message: UNSUPPORTED_TEXT, code: fetched.reason };
+    if (!fetched.ok || !fetched.response) {
+      const reason = fetched.reason || "MEDIA_FETCH_FAILED";
+      await finalize("failed", reason);
+      return { transcript: null, message: UNSUPPORTED_TEXT, code: reason };
     }
     const response = fetched.response;
+
 
     if (!response.ok) {
       await response.body?.cancel().catch(() => {});
