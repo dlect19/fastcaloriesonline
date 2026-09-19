@@ -15,6 +15,7 @@ export default function VendorRiderJoin() {
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
   const [inviteValid, setInviteValid] = useState(false);
+  const [needsAuth, setNeedsAuth] = useState(false);
   const [alreadyJoined, setAlreadyJoined] = useState(false);
   const [vendor, setVendor] = useState<{ id: string; name: string; logo_url: string | null } | null>(null);
   const [invite, setInvite] = useState<{ id: string; vendor_id: string } | null>(null);
@@ -24,23 +25,32 @@ export default function VendorRiderJoin() {
       navigate('/rider/auth');
       return;
     }
+    if (authLoading) return;
+    // Invite details are only resolvable for a signed-in account: the invite table
+    // is no longer publicly readable, and riders must sign in to join anyway.
+    if (!user) {
+      setNeedsAuth(true);
+      setLoading(false);
+      return;
+    }
+    setNeedsAuth(false);
     validateInvite();
-  }, [code]);
+  }, [code, user, authLoading]);
 
   const validateInvite = async () => {
     try {
-      // Check if invite code exists and is valid
-      const { data: inviteData, error: inviteError } = await supabase
-        .from('vendor_rider_invites')
-        .select('id, vendor_id, is_used, expires_at')
-        .eq('invite_code', code)
-        .maybeSingle();
+      // Resolve the invite by its code through the secure server function.
+      const { data: inviteRows, error: inviteError } = await supabase
+        .rpc('lookup_vendor_rider_invite', { p_code: code as string });
+
+      const inviteData = (inviteRows || [])[0];
 
       if (inviteError || !inviteData) {
         setInviteValid(false);
         setLoading(false);
         return;
       }
+
 
       // Check if expired
       if (inviteData.expires_at && new Date(inviteData.expires_at) < new Date()) {
