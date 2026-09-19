@@ -165,14 +165,8 @@ export default function VendorRiderJoin() {
 
       if (linkError) throw linkError;
 
-      // Mark invite as used
-      await supabase
-        .from('vendor_rider_invites')
-        .update({
-          is_used: true,
-          used_by: riderProfile.id,
-        })
-        .eq('id', invite.id);
+      // Mark invite as used through the secure server function (rider derived from session)
+      await supabase.rpc('claim_vendor_rider_invite', { p_code: code as string });
 
       toast({
         title: 'Successfully joined!',
