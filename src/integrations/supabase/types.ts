@@ -11278,6 +11278,10 @@ export type Database = {
         }
       }
       bytea_to_text: { Args: { data: string }; Returns: string }
+      can_access_order_evidence: {
+        Args: { _order_id: string; _user_id: string }
+        Returns: boolean
+      }
       can_manage_assisted_orders: {
         Args: { _user_id: string }
         Returns: boolean
@@ -11642,6 +11646,16 @@ export type Database = {
           phone: string
           user_id: string
           wallet_balance: number
+        }[]
+      }
+      lookup_vendor_rider_invite: {
+        Args: { p_code: string }
+        Returns: {
+          expires_at: string
+          id: string
+          is_used: boolean
+          outlet_id: string
+          vendor_id: string
         }[]
       }
       mark_event_order_paid: {
