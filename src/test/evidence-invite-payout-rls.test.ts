@@ -83,7 +83,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON dispute_images, order_proof_photos, ride
   vendor_rider_invites, wallet_repair_audit_2026_08 TO anon, authenticated, service_role;
 GRANT USAGE ON SCHEMA public, auth TO anon, authenticated, service_role;
 `);
-  const sql = readFileSync('drizzle/migrations/0033_tighten_evidence_invite_payout_rls.sql', 'utf8');
+  const sql = ['drizzle/migrations/0033_tighten_evidence_invite_payout_rls.sql', 'drizzle/migrations/0034_secure_rider_invite_claim.sql'].map((f) => readFileSync(f, 'utf8')).join('
+');
   await db.exec(sql.replace(/public\./g, '').replace(/::app_role/g, ''));
 }, 60000);
 
