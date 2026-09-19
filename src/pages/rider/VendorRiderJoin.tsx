@@ -203,6 +203,25 @@ export default function VendorRiderJoin() {
     );
   }
 
+  if (needsAuth) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="max-w-md w-full border-0 shadow-soft">
+          <CardContent className="py-12 text-center">
+            <Bike className="w-16 h-16 text-primary mx-auto mb-4" />
+            <h2 className="text-xl font-bold mb-2">Sign in to view this invite</h2>
+            <p className="text-muted-foreground mb-6">
+              Sign in or create your rider account to see who invited you and join their delivery team.
+            </p>
+            <Button onClick={() => navigate(`/rider/auth?redirect=/rider/join/${code}`)} size="lg">
+              Sign Up / Sign In
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (!inviteValid) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
