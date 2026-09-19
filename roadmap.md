@@ -92,3 +92,5 @@
 - Gate runs after Twilio signature + phone normalisation, before voice download, Gemini, cart/order/payment work; MessageSid-deduped reply.
 - `_shared/vendorNotifyGate.ts` shared by `vendor-order-alerts` and the admin orders view; alerts claim the order before sending (no duplicate vendor alert).
 - Admin: /admin/whatsapp-launch (state, schedule, templates, allowlist, audit logging). Production state: pre-launch, 0 testers.
+
+- [x] App cart add-on pricing fix: useCart.calculateItemSubtotal now scales add-ons per unit (matches server); CartItemCard shows true line subtotal; 5 regression tests; published.
