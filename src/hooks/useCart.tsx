@@ -104,9 +104,9 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 
 const CART_STORAGE_KEY = 'fast-calories-cart';
 
-function calculateItemSubtotal(item: CartItem): number {
+export function calculateItemSubtotal(item: CartItem): number {
   let menuTotal: number;
-  
+
   if (item.isFreeMeal && item._adminFreeQty && item.quantity > item._adminFreeQty) {
     // Free qty at ₦0, extras at original price
     const extraQty = item.quantity - item._adminFreeQty;
@@ -114,11 +114,14 @@ function calculateItemSubtotal(item: CartItem): number {
   } else {
     menuTotal = item.price * item.quantity;
   }
-  
-  const addonTotal = (item.addons || []).reduce((aSum, addon) => {
+
+  // Server-authoritative pricing charges selected add-ons PER UNIT of the
+  // menu item, so the per-unit add-on total must scale with item quantity.
+  // (addon.quantity is the per-unit selection of that add-on, e.g. per-piece.)
+  const perUnitAddonTotal = (item.addons || []).reduce((aSum, addon) => {
     return aSum + addon.price * (addon.quantity || 1);
   }, 0);
-  return menuTotal + addonTotal;
+  return menuTotal + perUnitAddonTotal * item.quantity;
 }
 
 function calculateItemCalories(item: CartItem): number {
