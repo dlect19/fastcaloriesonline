@@ -167,33 +167,35 @@ it('invite lookup by exact code works for a signed-in rider only', async () => {
     .toMatch(/permission denied/i);
 });
 
-it('rider can claim only a valid invite, only as themselves', async () => {
-  // wrong owner: cannot point the invite at another rider profile
-  const spoof = await asUser(RIDER, `UPDATE vendor_rider_invites SET is_used=true, used_by='${ORDER}' WHERE id='${INVITE}'`);
-  expect(spoof.error).toMatch(/row-level security|violates/i);
-
-  // expired invite cannot be claimed
-  const expired = await asUser(
-    RIDER,
-    `UPDATE vendor_rider_invites SET is_used=true, used_by='${RIDER_PROFILE}' WHERE invite_code='OLDCODE' RETURNING id`,
-  );
-  expect(expired.rows).toHaveLength(0);
-
-  // a non-rider signed-in user cannot claim it
-  const outsider = await asUser(
-    OTHER,
-    `UPDATE vendor_rider_invites SET is_used=true, used_by='${RIDER_PROFILE}' WHERE id='${INVITE}' RETURNING id`,
-  );
-  expect(outsider.rows).toHaveLength(0);
-
-  // the invited rider succeeds
-  const claim = await asUser(
+it('a rider claims an invite only through the server function, only once', async () => {
+  // direct updates can never succeed: the row is not readable before claiming
+  const direct = await asUser(
     RIDER,
     `UPDATE vendor_rider_invites SET is_used=true, used_by='${RIDER_PROFILE}' WHERE id='${INVITE}' RETURNING id`,
   );
+  expect(direct.rows).toHaveLength(0);
+
+  // a signed-in non-rider gets nothing back and changes nothing
+  expect((await asUser(OTHER, "SELECT claim_vendor_rider_invite('GOODCODE') AS id")).rows[0].id).toBeNull();
+  // expired and unknown codes cannot be claimed
+  expect((await asUser(RIDER, "SELECT claim_vendor_rider_invite('OLDCODE') AS id")).rows[0].id).toBeNull();
+  expect((await asUser(RIDER, "SELECT claim_vendor_rider_invite('NOPE') AS id")).rows[0].id).toBeNull();
+  // signed out has no execute privilege
+  expect((await asUser(null, "SELECT claim_vendor_rider_invite('GOODCODE') AS id")).error)
+    .toMatch(/permission denied/i);
+
+  // the invited rider succeeds, and the invite is recorded against their own profile
+  const claim = await asUser(RIDER, "SELECT claim_vendor_rider_invite('GOODCODE') AS id");
   expect(claim.error).toBeNull();
-  expect(claim.rows).toHaveLength(1);
+  expect(claim.rows[0].id).toBe(INVITE);
+  const stored = await db.query<{ used_by: string; is_used: boolean }>(
+    `SELECT used_by, is_used FROM vendor_rider_invites WHERE id='${INVITE}'`,
+  );
+  expect(stored.rows[0]).toMatchObject({ used_by: RIDER_PROFILE, is_used: true });
 
-  // and can then see the invite they redeemed
+  // replaying the claim is a no-op
+  expect((await asUser(RIDER, "SELECT claim_vendor_rider_invite('GOODCODE') AS id")).rows[0].id).toBeNull();
+
+  // and the rider can now see the invite they redeemed
   expect((await asUser(RIDER, 'SELECT id FROM vendor_rider_invites')).rows).toHaveLength(1);
 });
