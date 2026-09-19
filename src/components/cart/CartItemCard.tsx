@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useCart, CartItem } from '@/hooks/useCart';
+import { useCart, CartItem, calculateItemSubtotal } from '@/hooks/useCart';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Minus, Plus, Trash2, Flame, Settings2, Pencil, Gift } from 'lucide-react';
@@ -123,7 +123,7 @@ export function CartItemCard({ item }: CartItemCardProps) {
                 </div>
               ) : (
                 <p className="font-bold text-foreground">
-                  ₦{(item.price * item.quantity).toLocaleString()}
+                  ₦{calculateItemSubtotal(item).toLocaleString()}
                   {hasAddons && (
                     <span className="text-xs font-normal text-muted-foreground ml-1">
                       (incl. add-ons)
