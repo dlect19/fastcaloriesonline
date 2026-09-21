@@ -100,3 +100,9 @@
 - `_shared/ai-call.ts`: audio requests now fall back to native Gemini generateContent with `inline_data` (real MIME type); responses normalised to the OpenAI shape incl. token usage. Audio bytes/keys never logged.
 - `whatsapp-webhook/voice.ts`: inaudible wording only for NO_SPEECH/TOO_SHORT; provider/media failures use VOICE_SERVICE_DOWN_TEXT.
 - 11 new tests (`src/test/whatsapp-voice-native-audio-fallback.test.ts`); suite 404. Webhook deployed. No migration or config change.
+
+## WhatsApp assistant provider fallback (done)
+- `whatsapp-webhook/agent.ts`: retryable gateway failures (402/403/408/429/5xx, status-less network/stream faults) now retry the same turn on native Gemini with the project key; deliberate aborts and 4xx do not. Fails closed when the primary already executed a tool, so committed mutations can't duplicate.
+- Raw provider/SDK text ("WhatsApp AI error: no output generated…") replaced with AGENT_UNAVAILABLE_TEXT in en/yo/ig/ha; technical detail (status, error name, short message, run id) stays in sanitized server logs only.
+- One shared runTurn keeps system prompt, 16-message history window, tool defs, step limit, run id and usage accounting identical on both providers. No new order/payment path.
+- 16 new tests (`src/test/whatsapp-agent-provider-fallback.test.ts`); suite 420. Webhook deployed. Requires GEMINI_API_KEY (already configured) — no migration.
