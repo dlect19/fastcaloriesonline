@@ -105,8 +105,13 @@ const DISABLED_TEXT =
 const UNSUPPORTED_TEXT =
   "🎙️ I couldn't open that audio file. Please record it again with WhatsApp's microphone, or type your message.";
 
+/** Only for clips we genuinely could not hear (silence / far too short). */
 export const VOICE_FAIL_TEXT =
   "🎙️ I couldn't quite hear that voice note. Please record it again in a quieter spot, or just type your message — e.g. *I want 2 jollof rice*. Reply *menu* anytime for the full menu.";
+
+/** Honest wording when OUR listening service failed — not the customer's fault. */
+export const VOICE_SERVICE_DOWN_TEXT =
+  "🎙️ I can't listen to voice notes right now. Please type your order and I'll continue from there.";
 
 /** Redacted refusal log: hostname + reason + MessageSid correlation only. */
 function logRefusal(stage: string, reason: string, host: string | null, messageSid: string | null) {
