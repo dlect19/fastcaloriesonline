@@ -1,43 +1,71 @@
-# Voice note worked — the chat assistant is what failed
+# WhatsApp post-order fee breakdown ("what did I pay for?")
 
-## What the logs and records actually show
+## What happens today
 
-The new voice fix is working. Two voice notes from the same customer were transcribed successfully after the deploy:
+When an order is placed the WhatsApp cart is cleared (`clearCartAfterOrder`), and the assistant has no tool that can read money details back out of a placed order — so it truthfully says it has no record. This is a missing tool, not missing data.
 
-- 14:37:19 UTC, 42,260 bytes, outcome TRANSCRIBED, model google/gemini-3.5-flash
-- 14:38:24 UTC, 36,049 bytes, outcome TRANSCRIBED, model google/gemini-3.5-flash
+The order itself is stored permanently and immutably:
 
-Both went through the new native Google audio path (`[ai-call] Calling native Gemini fallback (inline audio)...` at 14:37:20 and 14:38:24). No AI_400, no media failure, no empty audio. The earlier 14:19/14:20 AI_400 rows are the pre-fix failures.
+- `orders`: `menu_subtotal`, `packaging_fee`, `delivery_fee`, `service_fee`, `discount`, `promo_code`, `subtotal`, `total`, `total_calories`, `delivery_type`, `delivery_distance_km`, `delivery_pricing_source`, `delivery_pricing_meta`, `payment_method`, `payment_status`, `payment_reference`, `confirmation_code`, `created_at`, `channel`.
+- `order_items`: product name, quantity, `unit_price`, `total_price`, portion, calories, plus refund/substitution fields.
+- `order_item_addons`: add-on group/item name, `additional_price`, calories.
+- `whatsapp_checkouts.pricing_snapshot` / `cart_snapshot`: the exact confirmed quote for WhatsApp orders, including the service-fee split.
 
-The message the customer saw — "WhatsApp AI error: no output generated check the stream for error" — came from the **ordering assistant**, not the voice step. After the voice note was turned into text, the assistant call failed:
+Two real gaps:
 
-- Lovable AI gateway returned **403 Forbidden — credit_limit_reached, "Workspace credit limit reached"** (logged 14:37:20 and 14:38:24, model google/gemini-3.8-flash, run ids 01a0c466-74bd-738d-a6c1-ce03b81b0bf3 and 01a0c467-779a-7c05-99b3-37a405c4d963).
-- The AI toolkit turned that into its internal message "No output generated. Check the stream for errors.", and `supabase/functions/whatsapp-webhook/agent.ts` line 189 pastes any failure message straight into the customer reply.
+1. `orders.service_fee` is one combined number. The split (platform service fee vs WhatsApp communications/AI fee vs status-message allowance) exists only in `whatsapp_checkouts.pricing_snapshot` and `whatsapp_cost_quotes`, not on the order.
+2. There is no tax or tip column anywhere, and payment-processor charges are absorbed — so a receipt must not invent those lines.
 
-No streaming/parsing bug, no consumed-response bug, no uncaught crash. Nothing sensitive was logged: logs contain only session id, model, run id and byte counts — no audio, base64, media links, keys or message text.
+## What to build
 
-Two real problems remain, both in the assistant path:
+### 1. Immutable fee breakdown on the order (additive migration)
 
-1. Customers are shown raw internal developer text on any AI failure.
-2. Unlike the voice/transcription path, the assistant has **no Google fallback**, so while the workspace AI credit limit is reached every typed and spoken order request fails.
+Add `orders.fee_breakdown jsonb` (nullable, no default change to existing rows). At WhatsApp checkout, write the already-frozen components into it: menu subtotal, packaging, delivery, platform service fee, WhatsApp communications fee, status-message allowance, discount, promo code, total, payment method. Nothing is recomputed later — the receipt reads only stored values.
 
-## Proposed changes
+No backfill of past orders. For orders created before this change, the receipt resolves the split from `whatsapp_checkouts.pricing_snapshot` when one exists for that order id; otherwise it reports the combined service fee as a single "Service & fees" line and says the finer split was not recorded for that order. No estimated or reconstructed figures.
 
-### 1. Honest customer wording (small, safe)
-In `supabase/functions/whatsapp-webhook/agent.ts`, stop echoing the provider/toolkit message to the customer. Reply instead with a short truthful line, e.g. "I'm having trouble reaching my assistant right now. Please send that again in a moment." Keep the full technical detail (status, message, run id) in the server logs for diagnosis. Payment, cart and order behaviour unchanged — a failed assistant turn already changes nothing.
+### 2. `get_my_order_receipt` assistant tool
 
-### 2. Fallback to Google for the assistant, matching the voice path
-Give the assistant the same provider fallback the shared AI helper already has: when the Lovable gateway answers 402/403/429, retry the same request against Google with the project's own key, preserving tools, the system prompt, history limits, token-usage accounting and run-id logging. This is what keeps WhatsApp ordering alive while the workspace credit limit is reached.
+- Scoped strictly to `ctx.userId` (the verified WhatsApp-linked customer). No phone-only lookup, no admin scope, unauthenticated calls return the existing auth-required result.
+- Accepts `order_number` (leading `#` stripped) or `order_id`; with neither, it uses that customer's most recent order and states which order number it is answering about, so "latest" is never ambiguous.
+- Works for completed, cancelled and historical orders, and for app/web orders too (same ownership rule).
+- Returns: order number, date, branch name, fulfilment type, per-line items (name, portion, qty, unit price, line total, add-ons with prices), discount/promo, delivery fee with distance when present, service/fee lines from the stored breakdown, total, payment method, payment status, and refunded/substituted markers where the row says so.
+- Wallet top-ups are never included — only rows in `orders`. Paid-by-wallet is reported as a payment method, not as a top-up.
+- Money formatted through the existing `money()` helper; naira, integer kobo-safe rounding identical to checkout.
 
-If you'd rather not touch the assistant's model plumbing today, step 1 alone is a one-line-scope change and I can ship it on its own — but WhatsApp ordering stays broken until the workspace AI credit limit is raised.
+### 3. Automatic receipt message
 
-## Not part of this plan
-- No change to the workspace credit limit (that is a settings decision for you).
-- No change to voice handling, payments, checkout, outlet rules or security controls.
+After a successful wallet order (already paid) and after verified Paystack confirmation, send the same breakdown once, from the stored order, using the existing idempotent notification claim so a retry or replayed webhook cannot send it twice. On-demand requests go through the tool.
 
-## Technical notes
-- Failure surface: `supabase/functions/whatsapp-webhook/agent.ts` lines 179-192 (`catch` builds `WhatsApp AI error...` from `failure.message` / `responseBody`). `statusCode` is undefined here because the toolkit wraps the 403, which is why the customer text carried no code.
-- Assistant model: `google/gemini-3.8-flash` via `createOpenAICompatible` at lines 120-133, `streamText` with `maxRetries: 0` at line 151.
-- Reusable fallback logic already exists in `supabase/functions/_shared/ai-call.ts` (`callGemini`, `callGeminiNativeChat`, `hasAudioPart`); the assistant uses the AI SDK instead, so the fallback needs an equivalent provider switch rather than a copy.
-- Tests to add: gateway 403/429 produces the customer-safe text and never the toolkit wording; the fallback provider is used on 402/403/429 with tools intact; a successful first call never triggers the fallback; no secrets or audio in logs.
-- Verification: full test suite, typecheck, Deno checks, then deploy `whatsapp-webhook` only.
+### 4. Retention / audit
+
+No new retention surface: the receipt is a read of existing rows. Admin already sees full financials via `order_financials` and the checkout-integrity pages; the tool adds no admin-visible writes beyond existing tool-call logging (which records no customer text).
+
+## Risks handled
+
+- **No recalculation with current prices** — receipts read snapshots only; `reorder` remains the only path that re-prices.
+- **Cross-customer exposure** — ownership filter on `user_id` plus existing RLS; an order number belonging to someone else returns "not found".
+- **Ambiguous latest order** — the reply always names the order number.
+- **Rounding/currency** — no arithmetic beyond summing stored line values for display; the stored total is authoritative and shown as stored.
+- **Communications/status fees** — shown only when recorded for that order; billing stays in shadow mode, so these currently read ₦0 and must not be presented as charged.
+
+## Untouched
+
+Atomic checkout, `enforce_server_checkout`, outlet binding (no guessing), strict Paystack verification, payment-proof non-authority, launch/canary gate, cost gating, wallet ledger.
+
+## Files and tables
+
+- `supabase/functions/whatsapp-webhook/tools.ts` — new tool definition + handler, breakdown written at checkout, receipt sent after wallet order.
+- `supabase/functions/whatsapp-webhook/index.ts` (or the existing payment-confirmation path) — receipt after verified payment.
+- New migration adding `orders.fee_breakdown jsonb`.
+- Reads: `orders`, `order_items`, `order_item_addons`, `whatsapp_checkouts`, `vendors`/`vendor_outlets` for the branch name.
+
+## Tests (mock-only, no live calls)
+
+- Owner gets an itemized receipt whose lines and total match the stored order exactly.
+- Another customer's order number returns not-found; unauthenticated returns auth-required.
+- Historical order with no `fee_breakdown` falls back to `pricing_snapshot`; with neither, one combined fee line and an honest "not recorded" note.
+- No order number given → latest order, order number stated.
+- Receipt figures never change when product prices change afterwards.
+- Wallet top-up rows never appear in a receipt.
+- Automatic receipt sends exactly once on replay of the same order/webhook.
