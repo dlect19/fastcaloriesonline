@@ -107,12 +107,52 @@ function safeHint(hint: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(hint || {}).filter(([k]) => HINT_KEYS.has(k)));
 }
 
+/** Gateway id -> native Gemini id used when the gateway is unavailable. */
+const GEMINI_FALLBACK_MODEL_MAP: Record<string, string> = {
+  "google/gemini-3.8-flash": "gemini-2.5-flash",
+  "google/gemini-3.5-flash": "gemini-2.5-flash",
+};
+
+/**
+ * Customer-safe wording for ANY provider/SDK failure. Provider messages, SDK
+ * internals ("no output generated"), status codes and stack traces are never
+ * shown to customers — they stay in the sanitized server log only.
+ */
+export const AGENT_UNAVAILABLE_TEXT: Record<LaunchLang, string> = {
+  en: "⚠️ I can't reach my assistant right now. Please send that again in a moment — your cart is unchanged.",
+  yo: "⚠️ Mi ò lè dé ọ̀dọ̀ olùrànlọ́wọ́ mi nísinsìnyí. Jọ̀wọ́ fi ránṣẹ́ lẹ́ẹ̀kan sí i láìpẹ́ — ẹrù ọjà rẹ kò yí padà.",
+  ig: "⚠️ Enweghị m ike iru onye enyemaka m ugbu a. Biko zipụ ya ọzọ n'oge na-adịghị anya — ihe ị zụrụ anọgideghị agbanwe.",
+  ha: "⚠️ Ba zan iya samun mataimakina a yanzu ba. Da fatan za a sake aikawa nan ba da jimawa ba — kayanka bai canja ba.",
+};
+
+/**
+ * True for provider failures worth retrying on the backup provider:
+ * credit/limit (402/403), rate limit (429), timeout (408), 5xx, and
+ * status-less network/stream faults. Deliberate aborts are never retried.
+ */
+export function isRetryableProviderFailure(error: unknown): boolean {
+  const e = (error ?? {}) as { statusCode?: number; status?: number; name?: string; message?: string };
+  const status = typeof e.statusCode === "number" ? e.statusCode : e.status;
+  if (typeof status === "number") {
+    return status === 402 || status === 403 || status === 408 || status === 429 || status >= 500;
+  }
+  const name = String(e.name || "");
+  if (name === "AbortError") return false;
+  const msg = String(e.message || "").toLowerCase();
+  if (msg.includes("abort")) return false;
+  return /fetch failed|network|econn|socket|timeout|terminated|stream|no output generated/.test(msg) ||
+    name === "TypeError" || name === "AI_APICallError" || name === "AI_NoOutputGeneratedError";
+}
+
 export async function runAgentTurn(input: AgentTurnInput): Promise<AgentTurnResult> {
   const key = Deno.env.get("LOVABLE_API_KEY");
   const toolsUsed: string[] = [];
+  const lang = detectLanguage(input.message, (input.stateHint as any)?.language as string | undefined);
   if (!key) {
+    console.error(JSON.stringify({ event: "wa_agent_error", session_id: input.ctx.sessionId,
+      model: GEMINI_MODEL, reason: "missing_service_key" }));
     return {
-      reply: "WhatsApp AI is unavailable: the service key is missing. Please contact support.",
+      reply: AGENT_UNAVAILABLE_TEXT[lang],
       toolsUsed, runId: null, modelId: GEMINI_MODEL, usage: null,
     };
   }
@@ -147,16 +187,19 @@ export async function runAgentTurn(input: AgentTurnInput): Promise<AgentTurnResu
       return result;
     },
   })]));
-  try {
+
+  // One streamed turn. Identical prompt, history window, tools and step limit on
+  // both providers — only the transport differs.
+  const runTurn = async (model: any): Promise<{ text: string; usage: AgentTokenUsage | null }> => {
     const result = streamText({
-      model: provider(GEMINI_MODEL),
+      model,
       system: SYSTEM_PROMPT,
       messages: [...input.history.slice(-16),
         { role: "system" as const, content: `Session facts (non-personal): ${JSON.stringify(safeHint(input.stateHint))}` }, { role: "user" as const, content: input.message.slice(0, 2000) }],
       tools, stopWhen: stepCountIs(50), maxRetries: 0,
     });
     const text = await result.text;
-    // Usage is read from the provider response only. If the gateway reports
+    // Usage is read from the provider response only. If the provider reports
     // nothing, usage stays null and the cost is recorded as unknown, not zero.
     let usage: AgentTokenUsage | null = null;
     try {
@@ -170,23 +213,56 @@ export async function runAgentTurn(input: AgentTurnInput): Promise<AgentTurnResu
         };
       }
     } catch { /* usage is optional; never fabricate token counts */ }
+    return { text, usage };
+  };
+
+  const finish = (text: string, usage: AgentTokenUsage | null, provider: "lovable" | "gemini"): AgentTurnResult => {
     console.log(JSON.stringify({ event: "wa_agent_complete", session_id: input.ctx.sessionId,
-      model: GEMINI_MODEL, run_id: runId, tools: toolsUsed, usage }));
+      model: GEMINI_MODEL, provider, run_id: runId, tools: toolsUsed, usage }));
     return {
       reply: text.trim().slice(0, 4000) || "I couldn't complete that request. Your cart is unchanged; please try again.",
       toolsUsed, runId, modelId: GEMINI_MODEL, usage,
     };
+  };
+
+  try {
+    const { text, usage } = await runTurn(provider(GEMINI_MODEL));
+    return finish(text, usage, "lovable");
   } catch (error) {
-    const failure = error as { statusCode?: number; message?: string; responseBody?: string };
-    let message = failure.message || "The AI service could not complete this request.";
-    try {
-      const body = JSON.parse(failure.responseBody || "{}");
-      message = body.message || body.error?.message || message;
-    } catch { /* Keep the provider's explicit message. */ }
+    const failure = error as { statusCode?: number; status?: number; message?: string; name?: string };
+    const status = typeof failure.statusCode === "number" ? failure.statusCode : failure.status ?? null;
+    // Sanitized only: status, error name and a short message. Never the prompt,
+    // customer text, phone number, tool arguments or any key.
     console.error(JSON.stringify({ event: "wa_agent_error", session_id: input.ctx.sessionId,
-      model: GEMINI_MODEL, run_id: runId, status: failure.statusCode }));
+      model: GEMINI_MODEL, provider: "lovable", run_id: runId, status,
+      error_name: failure.name ?? null, error: String(failure.message || "").slice(0, 200) }));
+
+    const geminiKey = Deno.env.get("GEMINI_API_KEY");
+    // Fail closed when the primary already executed a tool: those mutations are
+    // committed, so a second run could duplicate them.
+    const canFallback = toolsUsed.length === 0 && isRetryableProviderFailure(error) && !!geminiKey;
+    if (canFallback) {
+      const fallbackModel = GEMINI_FALLBACK_MODEL_MAP[GEMINI_MODEL] || "gemini-2.5-flash";
+      const backup = createOpenAICompatible({
+        name: "gemini",
+        baseURL: "https://generativelanguage.googleapis.com/v1beta/openai",
+        headers: { Authorization: `Bearer ${geminiKey}` },
+      });
+      try {
+        console.log(JSON.stringify({ event: "wa_agent_fallback", session_id: input.ctx.sessionId,
+          model: GEMINI_MODEL, fallback_model: fallbackModel, run_id: runId }));
+        const { text, usage } = await runTurn(backup(fallbackModel));
+        return finish(text, usage, "gemini");
+      } catch (fallbackError) {
+        const fe = fallbackError as { statusCode?: number; status?: number; message?: string; name?: string };
+        console.error(JSON.stringify({ event: "wa_agent_error", session_id: input.ctx.sessionId,
+          model: GEMINI_MODEL, provider: "gemini", run_id: runId,
+          status: typeof fe.statusCode === "number" ? fe.statusCode : fe.status ?? null,
+          error_name: fe.name ?? null, error: String(fe.message || "").slice(0, 200) }));
+      }
+    }
     return {
-      reply: `WhatsApp AI error${failure.statusCode ? ` (${failure.statusCode})` : ""}: ${message.slice(0, 700)}`,
+      reply: AGENT_UNAVAILABLE_TEXT[lang],
       toolsUsed, runId, modelId: GEMINI_MODEL, usage: null,
     };
   }
