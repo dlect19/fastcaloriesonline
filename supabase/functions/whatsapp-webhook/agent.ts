@@ -4,6 +4,7 @@
 import { streamText, tool, jsonSchema, stepCountIs } from "npm:ai@6.0.282";
 import { createOpenAICompatible } from "npm:@ai-sdk/openai-compatible@2.0.75";
 import { runTool, TOOL_SPECS, ToolCtx } from "./tools.ts";
+import { detectLanguage, LaunchLang } from "./launchGate.ts";
 
 // Exact id from the gateway model listing. gemini-2.5-flash is still served but
 // flagged deprecated, so the agent runs on the current Flash generation.
