@@ -94,3 +94,9 @@
 - Admin: /admin/whatsapp-launch (state, schedule, templates, allowlist, audit logging). Production state: pre-launch, 0 testers.
 
 - [x] App cart add-on pricing fix: useCart.calculateItemSubtotal now scales add-ons per unit (matches server); CartItemCard shows true line subtotal; 5 regression tests; published.
+
+## WhatsApp voice notes: native audio fallback (done)
+- Cause of the 21 Sep 14:19/14:20 failures: Lovable AI gateway returned 403 credit_limit_reached, and the Gemini fallback used the OpenAI-compatibility audio interface, which rejects ogg ("Valid formats are: [wav, mp3]").
+- `_shared/ai-call.ts`: audio requests now fall back to native Gemini generateContent with `inline_data` (real MIME type); responses normalised to the OpenAI shape incl. token usage. Audio bytes/keys never logged.
+- `whatsapp-webhook/voice.ts`: inaudible wording only for NO_SPEECH/TOO_SHORT; provider/media failures use VOICE_SERVICE_DOWN_TEXT.
+- 11 new tests (`src/test/whatsapp-voice-native-audio-fallback.test.ts`); suite 404. Webhook deployed. No migration or config change.
