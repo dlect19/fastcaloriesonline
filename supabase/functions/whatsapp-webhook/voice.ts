@@ -278,7 +278,7 @@ export async function transcribeVoiceNoteGated(
       await response.body?.cancel().catch(() => {});
       console.error("[wa-voice] media fetch failed", response.status);
       await finalize("failed", `MEDIA_${response.status}`);
-      return { transcript: null, message: VOICE_FAIL_TEXT, code: "MEDIA_FETCH_FAILED" };
+      return { transcript: null, message: VOICE_SERVICE_DOWN_TEXT, code: "MEDIA_FETCH_FAILED" };
     }
 
     const serverType = response.headers.get("content-type") || "";
@@ -329,7 +329,13 @@ export async function transcribeVoiceNoteGated(
             { type: "text", text: "Transcribe this voice note." },
             {
               type: "input_audio",
-              input_audio: { data: toBase64(bytes), format: audioFormat(contentType) },
+              input_audio: {
+                data: toBase64(bytes),
+                format: audioFormat(contentType),
+                // Real MIME type so the native provider path can attach the
+                // clip as inline data (ogg/opus included).
+                mime_type: (contentType || "audio/ogg").toLowerCase().split(";")[0].trim(),
+              },
             },
           ],
         },
@@ -339,7 +345,7 @@ export async function transcribeVoiceNoteGated(
     if (!r.ok) {
       console.error("[wa-voice] AI error", r.status, (r.errorText || "").slice(0, 200));
       await finalize("failed", `AI_${r.status}`, bytes.length);
-      return { transcript: null, message: VOICE_FAIL_TEXT, code: "AI_FAILED" };
+      return { transcript: null, message: VOICE_SERVICE_DOWN_TEXT, code: "AI_FAILED" };
     }
     const text = String(r.data?.choices?.[0]?.message?.content || "").trim();
     if (!text || /^no_speech$/i.test(text) || text.length < 2) {
@@ -363,6 +369,6 @@ export async function transcribeVoiceNoteGated(
   } catch (e) {
     console.error("[wa-voice] transcription failed", e instanceof Error ? e.message : String(e));
     await finalize("failed", "EXCEPTION");
-    return { transcript: null, message: VOICE_FAIL_TEXT, code: "EXCEPTION" };
+    return { transcript: null, message: VOICE_SERVICE_DOWN_TEXT, code: "EXCEPTION" };
   }
 }
