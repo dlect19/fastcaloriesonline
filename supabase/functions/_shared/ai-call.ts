@@ -269,6 +269,13 @@ export async function chatCompletionWithFallback(
     };
   }
 
+  // Audio requests must go to the native endpoint: the OpenAI-compatibility
+  // layer rejects ogg/opus, which is exactly what WhatsApp sends.
+  if (hasAudioPart(body.messages)) {
+    console.log("[ai-call] Calling native Gemini fallback (inline audio)...");
+    return await callGeminiNativeChat(body, geminiKey, opts?.signal);
+  }
+
   console.log("[ai-call] Calling Gemini fallback...");
 
   try {
