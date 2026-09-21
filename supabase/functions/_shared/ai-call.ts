@@ -82,6 +82,142 @@ async function callGemini(
   );
 }
 
+/* ------------------------------------------------------------------ *
+ * Audio-aware native Gemini fallback
+ *
+ * Gemini's OpenAI-compatibility layer only accepts wav/mp3 for
+ * `input_audio`, while WhatsApp always delivers ogg/opus. So whenever a
+ * request carries audio we call Gemini's native generateContent endpoint and
+ * attach the clip as inline_data with its real MIME type.
+ * Audio bytes are never logged.
+ * ------------------------------------------------------------------ */
+
+/** MIME type for an OpenAI-style `input_audio` part. */
+export function audioMimeForPart(part: any): string {
+  const explicit = String(part?.input_audio?.mime_type || part?.mime_type || "")
+    .toLowerCase().split(";")[0].trim();
+  if (explicit.startsWith("audio/")) return explicit;
+  const fmt = String(part?.input_audio?.format || "").toLowerCase();
+  if (fmt === "mp3" || fmt === "mpeg") return "audio/mpeg";
+  if (fmt === "wav") return "audio/wav";
+  if (fmt === "mp4" || fmt === "m4a" || fmt === "aac") return "audio/mp4";
+  if (fmt === "amr") return "audio/amr";
+  return "audio/ogg";
+}
+
+/** True when any message carries an audio attachment. */
+export function hasAudioPart(messages: ChatMessage[]): boolean {
+  return messages.some((m) =>
+    Array.isArray(m.content) &&
+    m.content.some((p: any) => p?.type === "input_audio" && p?.input_audio?.data)
+  );
+}
+
+function toGeminiContents(messages: ChatMessage[]) {
+  const contents: any[] = [];
+  const systemParts: any[] = [];
+  for (const m of messages) {
+    const parts: any[] = [];
+    if (typeof m.content === "string") {
+      if (m.content) parts.push({ text: m.content });
+    } else if (Array.isArray(m.content)) {
+      for (const p of m.content as any[]) {
+        if (p?.type === "text" && p.text) parts.push({ text: p.text });
+        else if (p?.type === "input_audio" && p?.input_audio?.data) {
+          parts.push({
+            inline_data: { mime_type: audioMimeForPart(p), data: p.input_audio.data },
+          });
+        } else if (p?.type === "image_url" && p?.image_url?.url?.startsWith("data:")) {
+          const mm = String(p.image_url.url).match(/^data:([^;]+);base64,(.*)$/);
+          if (mm) parts.push({ inline_data: { mime_type: mm[1], data: mm[2] } });
+        }
+      }
+    }
+    if (!parts.length) continue;
+    if (m.role === "system") systemParts.push(...parts);
+    else contents.push({ role: m.role === "assistant" ? "model" : "user", parts });
+  }
+  return {
+    contents,
+    systemInstruction: systemParts.length ? { parts: systemParts } : undefined,
+  };
+}
+
+/**
+ * Native Gemini call, normalized into the same OpenAI-shaped result the
+ * rest of the codebase consumes. Never logs or returns audio bytes.
+ */
+async function callGeminiNativeChat(
+  body: ChatCompletionBody,
+  apiKey: string,
+  signal?: AbortSignal,
+): Promise<ChatCompletionResult> {
+  const geminiModel = MODEL_MAP_TO_GEMINI[body.model] || "gemini-2.5-flash";
+  const { contents, systemInstruction } = toGeminiContents(body.messages);
+  const payload: Record<string, unknown> = { contents };
+  if (systemInstruction) payload.systemInstruction = systemInstruction;
+  if (typeof body.temperature === "number") {
+    payload.generationConfig = { temperature: body.temperature };
+  }
+
+  let resp: Response;
+  try {
+    resp = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+        signal,
+        body: JSON.stringify(payload),
+      },
+    );
+  } catch (e) {
+    return {
+      ok: false,
+      status: 503,
+      errorText: e instanceof Error ? e.message : String(e),
+      provider: "gemini",
+    };
+  }
+
+  if (!resp.ok) {
+    // Provider error text only — never the request body (it holds audio).
+    return {
+      ok: false,
+      status: resp.status,
+      errorText: (await resp.text()).slice(0, 300),
+      provider: "gemini",
+    };
+  }
+
+  let data: any;
+  try {
+    data = await resp.json();
+  } catch {
+    return { ok: false, status: 502, errorText: "Malformed provider response.", provider: "gemini" };
+  }
+
+  const parts = data?.candidates?.[0]?.content?.parts;
+  const text = Array.isArray(parts)
+    ? parts.map((p: any) => (typeof p?.text === "string" ? p.text : "")).join("").trim()
+    : "";
+  const usage = data?.usageMetadata || {};
+  // An empty answer is a valid "nothing intelligible" result, not a failure.
+  return {
+    ok: true,
+    status: 200,
+    provider: "gemini",
+    data: {
+      choices: [{ message: { role: "assistant", content: text }, finish_reason: "stop" }],
+      usage: {
+        prompt_tokens: usage.promptTokenCount ?? null,
+        completion_tokens: usage.candidatesTokenCount ?? null,
+        total_tokens: usage.totalTokenCount ?? null,
+      },
+    },
+  };
+}
+
 /**
  * Try Lovable AI first; on 402/429 (or missing key) fall back to direct
  * Google Gemini using the user-supplied GEMINI_API_KEY secret.
