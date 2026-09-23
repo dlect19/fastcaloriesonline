@@ -106,3 +106,9 @@
 - Raw provider/SDK text ("WhatsApp AI error: no output generated…") replaced with AGENT_UNAVAILABLE_TEXT in en/yo/ig/ha; technical detail (status, error name, short message, run id) stays in sanitized server logs only.
 - One shared runTurn keeps system prompt, 16-message history window, tool defs, step limit, run id and usage accounting identical on both providers. No new order/payment path.
 - 16 new tests (`src/test/whatsapp-agent-provider-fallback.test.ts`); suite 420. Webhook deployed. Requires GEMINI_API_KEY (already configured) — no migration.
+
+## Rider search repeat-dispatch fix (2026-09-23) — done
+- Root cause: leftover `dispatch_requests_order_id_key UNIQUE(order_id)` made every second rider search fail with 23505 → 500 in vendor and admin UIs.
+- Migration 0035: dropped that constraint, added partial unique index `dispatch_requests_one_live_per_order` (pending/accepted only) + `(order_id, created_at DESC)` index. History preserved.
+- `dispatch-order` now returns an "already running" 200 for a live-round conflict instead of a 500; other 23505s still fail.
+- Tests: src/test/dispatch-round-uniqueness.test.ts (8). Suite 428 passing; typecheck/Deno/build clean; function deployed.
