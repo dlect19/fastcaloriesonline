@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getGoogleMapsDistance, haversineDistance } from '../_shared/google-maps.ts';
 import { resolveDestination } from '../_shared/dispatchDestination.ts';
 import { countRiderActiveOrders } from '../_shared/riderCapacity.ts';
+import { isLiveRoundConflict } from '../_shared/dispatchConflict.ts';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
