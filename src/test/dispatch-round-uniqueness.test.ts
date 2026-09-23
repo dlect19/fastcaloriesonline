@@ -24,13 +24,16 @@ CREATE TABLE dispatch_requests(
 ALTER TABLE dispatch_requests ADD CONSTRAINT dispatch_requests_order_id_key UNIQUE (order_id);
 `);
   // Apply the real migration text (constraint drop + partial unique index).
-  const sql = readFileSync('drizzle/migrations/0035_allow_dispatch_rounds_per_order.sql', 'utf8')
+  const raw = readFileSync('drizzle/migrations/0035_allow_dispatch_rounds_per_order.sql', 'utf8')
     .split('\n')
     .filter((l) => !l.trim().startsWith('--'))
     .join('\n')
-    .replace(/public\./g, '')
-    .replace(/COMMENT ON INDEX[\s\S]*?;/g, '');
-  await db.exec(sql);
+    .replace(/public\./g, '');
+  const statements = raw
+    .split(';')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0 && !/^COMMENT ON/i.test(s));
+  for (const statement of statements) await db.exec(`${statement};`);
 }, 30000);
 
 afterAll(() => db.close());
