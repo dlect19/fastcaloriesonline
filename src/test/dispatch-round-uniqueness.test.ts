@@ -29,10 +29,12 @@ ALTER TABLE dispatch_requests ADD CONSTRAINT dispatch_requests_order_id_key UNIQ
     .filter((l) => !l.trim().startsWith('--'))
     .join('\n')
     .replace(/public\./g, '');
-  const statements = raw
+  // Documentation-only COMMENT statements are dropped; pglite has no pg_description need here.
+  const ddl = raw.split(/COMMENT ON/i)[0];
+  const statements = ddl
     .split(';')
     .map((s) => s.trim())
-    .filter((s) => s.length > 0 && !/^COMMENT ON/i.test(s));
+    .filter((s) => s.length > 0);
   for (const statement of statements) await db.exec(`${statement};`);
 }, 30000);
 
