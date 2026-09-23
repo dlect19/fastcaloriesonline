@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getGoogleMapsDistance, haversineDistance } from '../_shared/google-maps.ts';
 import { resolveDestination } from '../_shared/dispatchDestination.ts';
 import { countRiderActiveOrders } from '../_shared/riderCapacity.ts';
+import { isLiveRoundConflict } from '../_shared/dispatchConflict.ts';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -601,6 +602,33 @@ Deno.serve(async (req) => {
       .single();
 
     if (dispatchError) {
+      // Two people (or a retry sweep and a person) pressed search at the same
+      // moment: the partial unique index keeps exactly one live round. Report
+      // the live round instead of a 500. Any other unique violation still fails.
+      if (isLiveRoundConflict(dispatchError)) {
+        const { data: liveRequest } = await supabase
+          .from('dispatch_requests')
+          .select('id, status, expires_at, search_radius_km, retry_round, created_at')
+          .eq('order_id', orderId)
+          .in('status', ['pending', 'accepted'])
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        console.log(`Live dispatch round already exists for order ${orderId} — returning it`);
+        return new Response(
+          JSON.stringify({
+            success: true,
+            alreadyRunning: true,
+            message: 'A rider search is already running for this order.',
+            dispatchRequestId: liveRequest?.id ?? null,
+            status: liveRequest?.status ?? 'pending',
+            expiresAt: liveRequest?.expires_at ?? null,
+            searchRadiusKm: liveRequest?.search_radius_km ?? null,
+            retryRound: liveRequest?.retry_round ?? null,
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
       console.error('Error creating dispatch request:', dispatchError);
       throw dispatchError;
     }

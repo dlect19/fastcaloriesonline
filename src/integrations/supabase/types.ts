@@ -2494,7 +2494,7 @@ export type Database = {
           {
             foreignKeyName: "dispatch_requests_order_id_fkey"
             columns: ["order_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "orders"
             referencedColumns: ["id"]
           },
