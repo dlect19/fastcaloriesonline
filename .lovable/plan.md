@@ -1,71 +1,46 @@
-# WhatsApp post-order fee breakdown ("what did I pay for?")
+# Rider search fails for vendor and admin — diagnosis and narrow fix
 
-## What happens today
+## Root cause (confirmed)
 
-When an order is placed the WhatsApp cart is cleared (`clearCartAfterOrder`), and the assistant has no tool that can read money details back out of a placed order — so it truthfully says it has no record. This is a missing tool, not missing data.
+The `dispatch_requests` table still carries a leftover constraint `UNIQUE (order_id)`, while the current dispatch code is written to create **one row per dispatch round** and retire the previous ones (`status = 'superseded'`, linked through `superseded_by_request_id`). So the very first search for an order succeeds; every later search on the same order fails on insert.
 
-The order itself is stored permanently and immutably:
+Evidence:
 
-- `orders`: `menu_subtotal`, `packaging_fee`, `delivery_fee`, `service_fee`, `discount`, `promo_code`, `subtotal`, `total`, `total_calories`, `delivery_type`, `delivery_distance_km`, `delivery_pricing_source`, `delivery_pricing_meta`, `payment_method`, `payment_status`, `payment_reference`, `confirmation_code`, `created_at`, `channel`.
-- `order_items`: product name, quantity, `unit_price`, `total_price`, portion, calories, plus refund/substitution fields.
-- `order_item_addons`: add-on group/item name, `additional_price`, calories.
-- `whatsapp_checkouts.pricing_snapshot` / `cart_snapshot`: the exact confirmed quote for WhatsApp orders, including the service-fee split.
+- `pg_constraint`: `dispatch_requests_order_id_key UNIQUE (order_id)`.
+- Edge logs for `dispatch-order`, repeatedly at 11:31:16, 11:38:05, 11:39:45 UTC today: `Error creating dispatch request: { code: "23505", details: "Key (order_id)=(2fc9ed13-…) already exists.", message: 'duplicate key value violates unique constraint "dispatch_requests_order_id_key"' }` followed by `Error in dispatch-order` — the function rethrows, returning 500, which the UI shows as "edge function error".
+- Each failing run logs `Superseded 1 previous dispatch request(s)` immediately before, i.e. the code intends multiple rows.
+- Everything before the insert worked: authorization passed, outlet pickup data resolved, destination `order_inline`, distance 1.0 km via Google Maps, `Found 5 eligible riders`, payout computed. So this is not auth, RLS, CORS, secrets, location, radius, or eligibility.
+- `dispatch_requests` holds exactly one row per order across all history — the constraint has been silently capping it.
+- Affected order: FC-260923-3568, paid, delivery, `searching_for_rider`, no rider, outlet and destination present; its single dispatch row expired at 11:40 and can no longer be replaced.
 
-Two real gaps:
+## Why both roles fail
 
-1. `orders.service_fee` is one combined number. The split (platform service fee vs WhatsApp communications/AI fee vs status-message allowance) exists only in `whatsapp_checkouts.pricing_snapshot` and `whatsapp_cost_quotes`, not on the order.
-2. There is no tax or tip column anywhere, and payment-processor charges are absorbed — so a receipt must not invent those lines.
+Vendor (`src/components/vendor/DispatchStatus.tsx`, `src/components/vendor/ManualRiderAssignment.tsx`) and admin (`src/components/admin/AdminOrderTrackingDialog.tsx`) all invoke the same `dispatch-order` function. The failure is inside that function's insert, after the role check, so both paths fail identically. The minute-by-minute retry sweep re-dispatching expired rounds hits the same wall.
 
-## What to build
+Scope: every order that needs a second dispatch attempt — expired round, no riders first time, rider reassignment, retry sweep. First-ever dispatch of a fresh order still works.
 
-### 1. Immutable fee breakdown on the order (additive migration)
+## Narrow fix
 
-Add `orders.fee_breakdown jsonb` (nullable, no default change to existing rows). At WhatsApp checkout, write the already-frozen components into it: menu subtotal, packaging, delivery, platform service fee, WhatsApp communications fee, status-message allowance, discount, promo code, total, payment method. Nothing is recomputed later — the receipt reads only stored values.
+Additive migration `0035_allow_dispatch_rounds_per_order.sql`:
 
-No backfill of past orders. For orders created before this change, the receipt resolves the split from `whatsapp_checkouts.pricing_snapshot` when one exists for that order id; otherwise it reports the combined service fee as a single "Service & fees" line and says the finer split was not recorded for that order. No estimated or reconstructed figures.
+1. Drop `dispatch_requests_order_id_key` (the constraint only, no data touched).
+2. Replace it with a partial unique index that keeps the real invariant — at most one live round per order:
+   `CREATE UNIQUE INDEX dispatch_requests_one_live_per_order ON public.dispatch_requests (order_id) WHERE status IN ('pending','accepted');`
+   This preserves idempotency (a second concurrent dispatch of the same order still collides) while allowing the superseded/expired/no_riders audit history the code already writes.
+3. Index `(order_id, created_at DESC)` for the newest-round lookups, if not already present.
 
-### 2. `get_my_order_receipt` assistant tool
+In `supabase/functions/dispatch-order/index.ts`: keep the existing supersede step ordered before the insert (it already is), and map a `23505` on the new partial index to a clear 409 response ("a rider search is already running for this order") instead of a 500, so a double click is reported honestly rather than as a server error.
 
-- Scoped strictly to `ctx.userId` (the verified WhatsApp-linked customer). No phone-only lookup, no admin scope, unauthenticated calls return the existing auth-required result.
-- Accepts `order_number` (leading `#` stripped) or `order_id`; with neither, it uses that customer's most recent order and states which order number it is answering about, so "latest" is never ambiguous.
-- Works for completed, cancelled and historical orders, and for app/web orders too (same ownership rule).
-- Returns: order number, date, branch name, fulfilment type, per-line items (name, portion, qty, unit price, line total, add-ons with prices), discount/promo, delivery fee with distance when present, service/fee lines from the stored breakdown, total, payment method, payment status, and refunded/substituted markers where the row says so.
-- Wallet top-ups are never included — only rows in `orders`. Paid-by-wallet is reported as a payment method, not as a top-up.
-- Money formatted through the existing `money()` helper; naira, integer kobo-safe rounding identical to checkout.
+Unchanged: role authorization, rider availability/verification filters, concurrency caps, distance and payout logic, destination resolution and failure handling, offer creation, retry sweep behaviour, and the exclusion of historical orders (no backfill, no re-dispatch of any past order).
 
-### 3. Automatic receipt message
+## Restarting the stuck order
 
-After a successful wallet order (already paid) and after verified Paystack confirmation, send the same breakdown once, from the stored order, using the existing idempotent notification claim so a retry or replayed webhook cannot send it twice. On-demand requests go through the tool.
+FC-260923-3568 is still paid and unassigned. After the migration, a normal vendor or admin "search for rider" on that order will work through the ordinary path. No manual assignment, no direct row edit, and no action on any other order.
 
-### 4. Retention / audit
+## Tests
 
-No new retention surface: the receipt is a read of existing rows. Admin already sees full financials via `order_financials` and the checkout-integrity pages; the tool adds no admin-visible writes beyond existing tool-call logging (which records no customer text).
-
-## Risks handled
-
-- **No recalculation with current prices** — receipts read snapshots only; `reorder` remains the only path that re-prices.
-- **Cross-customer exposure** — ownership filter on `user_id` plus existing RLS; an order number belonging to someone else returns "not found".
-- **Ambiguous latest order** — the reply always names the order number.
-- **Rounding/currency** — no arithmetic beyond summing stored line values for display; the stored total is authoritative and shown as stored.
-- **Communications/status fees** — shown only when recorded for that order; billing stays in shadow mode, so these currently read ₦0 and must not be presented as charged.
-
-## Untouched
-
-Atomic checkout, `enforce_server_checkout`, outlet binding (no guessing), strict Paystack verification, payment-proof non-authority, launch/canary gate, cost gating, wallet ledger.
-
-## Files and tables
-
-- `supabase/functions/whatsapp-webhook/tools.ts` — new tool definition + handler, breakdown written at checkout, receipt sent after wallet order.
-- `supabase/functions/whatsapp-webhook/index.ts` (or the existing payment-confirmation path) — receipt after verified payment.
-- New migration adding `orders.fee_breakdown jsonb`.
-- Reads: `orders`, `order_items`, `order_item_addons`, `whatsapp_checkouts`, `vendors`/`vendor_outlets` for the branch name.
-
-## Tests (mock-only, no live calls)
-
-- Owner gets an itemized receipt whose lines and total match the stored order exactly.
-- Another customer's order number returns not-found; unauthenticated returns auth-required.
-- Historical order with no `fee_breakdown` falls back to `pricing_snapshot`; with neither, one combined fee line and an honest "not recorded" note.
-- No order number given → latest order, order number stated.
-- Receipt figures never change when product prices change afterwards.
-- Wallet top-up rows never appear in a receipt.
-- Automatic receipt sends exactly once on replay of the same order/webhook.
+- Second dispatch round on the same order succeeds and marks the previous round superseded (currently fails with 23505).
+- Two simultaneous dispatches of one order produce exactly one live round; the loser gets the 409 path, not a 500.
+- An order with an accepted round cannot get a second live round.
+- Expired/no_riders/superseded rows coexist for one order (audit history preserved).
+- Role checks, availability filters and concurrency caps still refuse unauthorized callers and over-loaded riders.
