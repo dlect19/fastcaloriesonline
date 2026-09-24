@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { playGlobalNotificationSound } from '@/lib/globalAudio';
+import { useFreshActionable } from '@/hooks/useFreshActionable';
 
 const ORIGINAL_TITLE = typeof document !== 'undefined' ? document.title : '';
 
@@ -35,11 +36,18 @@ function showBrowserNotification(count: number) {
   }
 }
 
+function isActionableAdminOrder(o: any) {
+  if (!o || o.channel === 'pos') return false;
+  if (!['pending', 'confirmed'].includes(o.status)) return false;
+  return o.payment_status === 'paid' || o.payment_method === 'cash';
+}
+
 export function AdminNotificationBell() {
-  const [newOrderCount, setNewOrderCount] = useState(0);
-  const lastCountRef = useRef(0);
+  const [actionableIds, setActionableIds] = useState<string[] | null>(null);
   const soundIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const navigate = useNavigate();
+  const { freshCount, acknowledge } = useFreshActionable('admin-bell', 'admin', actionableIds);
+  const newOrderCount = freshCount;
 
   // Request browser notification permission once on mount
   useEffect(() => {
@@ -49,17 +57,22 @@ export function AdminNotificationBell() {
     }
   }, []);
 
-  // Repeating sound alert when there are pending orders.
-  // Note: setInterval is throttled in background tabs (min ~1s), but audio
-  // playback itself continues normally. We use a longer 10s interval and
-  // ALSO trigger an immediate play on Realtime INSERTs (handled below).
+  // Sound only for orders that became actionable after this device was
+  // already listening. Existing orders on open form a silent baseline.
+  const prevFreshRef = useRef(0);
   useEffect(() => {
-    if (newOrderCount > 0) {
+    if (freshCount > prevFreshRef.current) {
       playGlobalNotificationSound();
-      flashTitle(newOrderCount);
-      soundIntervalRef.current = setInterval(() => {
-        playGlobalNotificationSound();
-      }, 10000);
+      showBrowserNotification(freshCount);
+    }
+    prevFreshRef.current = freshCount;
+    if (freshCount > 0) {
+      flashTitle(freshCount);
+      if (!soundIntervalRef.current) {
+        soundIntervalRef.current = setInterval(() => {
+          playGlobalNotificationSound();
+        }, 10000);
+      }
     } else {
       flashTitle(0);
       if (soundIntervalRef.current) {
@@ -67,33 +80,22 @@ export function AdminNotificationBell() {
         soundIntervalRef.current = null;
       }
     }
-    return () => {
-      if (soundIntervalRef.current) {
-        clearInterval(soundIntervalRef.current);
-        soundIntervalRef.current = null;
-      }
-    };
-  }, [newOrderCount]);
+  }, [freshCount]);
+
+  useEffect(() => () => {
+    if (soundIntervalRef.current) clearInterval(soundIntervalRef.current);
+  }, []);
 
   const fetchPendingOrders = useCallback(async () => {
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-    const { count } = await supabase
+    const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { data, error } = await supabase
       .from('orders')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'pending')
-      .gte('created_at', fiveMinutesAgo);
-
-    const newCount = count || 0;
-    const prev = lastCountRef.current;
-    lastCountRef.current = newCount;
-    setNewOrderCount(newCount);
-
-    // If new order(s) arrived while tab was inactive, force an immediate
-    // sound + browser notification (Realtime fires reliably in background).
-    if (newCount > prev) {
-      playGlobalNotificationSound();
-      showBrowserNotification(newCount);
-    }
+      .select('id, status, channel, payment_status, payment_method')
+      .in('status', ['pending', 'confirmed'])
+      .gte('created_at', since)
+      .limit(200);
+    if (error) return;
+    setActionableIds((data || []).filter(isActionableAdminOrder).map((o: any) => o.id));
   }, []);
 
   useEffect(() => {
@@ -101,31 +103,16 @@ export function AdminNotificationBell() {
 
     const channel = supabase
       .channel('admin-new-orders-bell')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
-        // Ignore POS (in-store) sales — they don't need an admin alert sound
-        const row: any = payload.new;
-        if (row?.channel === 'pos') return;
-        // Realtime continues working in background tabs — fire sound + system notification immediately
-        playGlobalNotificationSound();
-        // Fire a system notification so the OS alerts even if tab audio is throttled
-        showBrowserNotification((lastCountRef.current || 0) + 1);
-        fetchPendingOrders();
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
         const row: any = payload.new;
         if (row?.channel === 'pos') return;
         fetchPendingOrders();
       })
       .subscribe();
 
-    // Poll every 30s as backup (still runs in background, just throttled)
     const interval = setInterval(fetchPendingOrders, 30000);
-
-    // When tab becomes visible again, refresh count immediately
     const onVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        fetchPendingOrders();
-      }
+      if (document.visibilityState === 'visible') fetchPendingOrders();
     };
     document.addEventListener('visibilitychange', onVisibility);
 
@@ -139,8 +126,7 @@ export function AdminNotificationBell() {
   return (
     <button
       onClick={() => {
-        setNewOrderCount(0);
-        lastCountRef.current = 0;
+        acknowledge();
         flashTitle(0);
         navigate('/admin/orders');
       }}
