@@ -1,46 +1,45 @@
-# Rider search fails for vendor and admin — diagnosis and narrow fix
+# Random order sound on iPhone — audit findings and fix plan
 
-## Root cause (confirmed)
+Read-only audit. Nothing was changed, no notifications sent.
 
-The `dispatch_requests` table still carries a leftover constraint `UNIQUE (order_id)`, while the current dispatch code is written to create **one row per dispatch round** and retire the previous ones (`status = 'superseded'`, linked through `superseded_by_request_id`). So the very first search for an order succeeds; every later search on the same order fails on insert.
+## Root causes (ranked by likelihood on iPhone)
 
-Evidence:
+1. **Every tap can play the order sound (all roles, iPhone only).**
+   `src/lib/globalAudio.ts` `unlockAudio()` runs on every `click / touchstart / pointerdown / keydown` anywhere in the app. It "unlocks" audio by calling `play()` on `new-order.mp3` with `volume = 0`, then pausing. On iOS Safari and WKWebView, `HTMLAudioElement.volume` is read-only (always 1), so the real order sound starts audibly on taps until the pause lands. Because it re-runs on every gesture, the user hears fragments of the order sound "randomly" while using the app. This matches iPhone-only, PWA + native, no-order-expected reports. `useRepeatingNotificationSound.unlock()` has the same pattern at full volume.
 
-- `pg_constraint`: `dispatch_requests_order_id_key UNIQUE (order_id)`.
-- Edge logs for `dispatch-order`, repeatedly at 11:31:16, 11:38:05, 11:39:45 UTC today: `Error creating dispatch request: { code: "23505", details: "Key (order_id)=(2fc9ed13-…) already exists.", message: 'duplicate key value violates unique constraint "dispatch_requests_order_id_key"' }` followed by `Error in dispatch-order` — the function rethrows, returning 500, which the UI shows as "edge function error".
-- Each failing run logs `Superseded 1 previous dispatch request(s)` immediately before, i.e. the code intends multiple rows.
-- Everything before the insert worked: authorization passed, outlet pickup data resolved, destination `order_inline`, distance 1.0 km via Google Maps, `Found 5 eligible riders`, payout computed. So this is not auth, RLS, CORS, secrets, location, radius, or eligibility.
-- `dispatch_requests` holds exactly one row per order across all history — the constraint has been silently capping it.
-- Affected order: FC-260923-3568, paid, delivery, `searching_for_rider`, no rider, outlet and destination present; its single dispatch row expired at 11:40 and can no longer be replaced.
+2. **Any push becomes an order sound (PWA).**
+   `public/sw-push.js` posts `PLAY_NOTIFICATION_SOUND` to every open window for every non-CALL push (chat, status updates, promos, broadcasts), and `src/App.tsx` (module-level listener) plays `new-order.mp3` for it. Combined with `renotify: true` and `requireInteraction: true`, a generic push produces both an OS alert and the order sound.
 
-## Why both roles fail
+3. **Vendor sounds on unpaid/non-actionable orders.**
+   `src/pages/vendor/VendorDashboard.tsx` plays on every `orders` INSERT for the vendor with no check on payment status, status, channel (POS) or outlet. Pending/unpaid orders (which later expire) and POS sales therefore ring. `VendorOrders.tsx` filters by outlet but also rings on raw INSERT before payment is verified.
 
-Vendor (`src/components/vendor/DispatchStatus.tsx`, `src/components/vendor/ManualRiderAssignment.tsx`) and admin (`src/components/admin/AdminOrderTrackingDialog.tsx`) all invoke the same `dispatch-order` function. The failure is inside that function's insert, after the role check, so both paths fail identically. The minute-by-minute retry sweep re-dispatching expired rounds hits the same wall.
+4. **Rider sounds on offers not meant for them.**
+   `src/components/rider/RiderFloatingWidget.tsx` subscribes to all `dispatch_offers` INSERTs (no rider filter) and plays on each; it is mounted separately on RiderDashboard, RiderOrders and RiderSettings, alongside `RiderLayout`'s own repeating sound. The verified-offer path (`useDispatchOffers`) is the only trustworthy source.
 
-Scope: every order that needs a second dispatch attempt — expired round, no riders first time, rider reassignment, retry sweep. First-ever dispatch of a fresh order still works.
+5. **Admin bell** plays on every non-POS INSERT, including unpaid orders (admins only; lower impact).
 
-## Narrow fix
+## Things checked and ruled out / minor
 
-Additive migration `0035_allow_dispatch_rounds_per_order.sql`:
+- Initial load/reconnect: realtime handlers only fire on live INSERT/UPDATE, so old orders are not replayed as new. Repeating sounds (`startRepeating` in VendorOrders/RiderOrders) do restart on page load when pending items exist — intended, but not dedup'd by ID.
+- Native iOS: `useCapacitorPush` foreground listener only logs; VendorLayout only rings for `type=CALL` matching outlet. Native pushes do not route through `PLAY_NOTIFICATION_SOUND`.
+- Push subscriptions (production, counts only): 55 rows, 44 users, 54 FCM + 1 web push, 2 iPhone rows; 6 users hold more than one FCM row. Multiple devices per user are plausible; duplicates could cause a doubled OS alert but not the in-app random sound. No per-send notification log table exists to correlate events.
 
-1. Drop `dispatch_requests_order_id_key` (the constraint only, no data touched).
-2. Replace it with a partial unique index that keeps the real invariant — at most one live round per order:
-   `CREATE UNIQUE INDEX dispatch_requests_one_live_per_order ON public.dispatch_requests (order_id) WHERE status IN ('pending','accepted');`
-   This preserves idempotency (a second concurrent dispatch of the same order still collides) while allowing the superseded/expired/no_riders audit history the code already writes.
-3. Index `(order_id, created_at DESC)` for the newest-round lookups, if not already present.
+## Affected audience
 
-In `supabase/functions/dispatch-order/index.ts`: keep the existing supersede step ordered before the insert (it already is), and map a `23505` on the new partial index to a clear 409 response ("a rider search is already running for this order") instead of a 500, so a double click is reported honestly rather than as a server error.
+- All iPhone users with the app open (customer, vendor, rider, admin) — cause 1.
+- PWA users receiving any push — cause 2.
+- Vendors — cause 3. Riders — cause 4. Admins — cause 5.
 
-Unchanged: role authorization, rider availability/verification filters, concurrency caps, distance and payout logic, destination resolution and failure handling, offer creation, retry sweep behaviour, and the exclusion of historical orders (no backfill, no re-dispatch of any past order).
+## Minimal fix (not implemented)
 
-## Restarting the stuck order
+1. `globalAudio.ts`: unlock only once, using the Web Audio context resume plus a silent generated buffer — never play `new-order.mp3` to unlock. Same for `useRepeatingNotificationSound.unlock()` (only on explicit "Enable sound" tap, and it may play once there intentionally).
+2. `sw-push.js` + `App.tsx`: only post a sound message when `data.type` is an explicit order event (`NEW_ORDER` / `CALL`) and include `event_id`/`order_id`; drop the generic `PLAY_NOTIFICATION_SOUND` fallback. Keep the OS notification; use `tag` = event ID and `renotify` only for CALL.
+3. Single sound gate `playOrderSoundOnce(eventKey)` in `globalAudio.ts`: dedupes by order/offer ID (in-memory + short localStorage TTL, shared across tabs/components). All callers route through it.
+4. Vendor: ring only when an order becomes actionable — paid (or verified cash/carryout rule) and confirmed, channel not POS, matching selected outlet. Remove the separate ring in VendorDashboard (or route via the gate).
+5. Rider: remove the unfiltered `dispatch_offers` sound in RiderFloatingWidget; `RiderLayout` + `useDispatchOffers` stay the sole source.
+6. Admin bell: ignore unpaid INSERTs; ring on transition to paid, deduped by order ID.
+7. Optional: prune stale duplicate FCM rows on token refresh (per user + device), separate follow-up.
 
-FC-260923-3568 is still paid and unassigned. After the migration, a normal vendor or admin "search for rider" on that order will work through the ordinary path. No manual assignment, no direct row edit, and no action on any other order.
+## Tests (mock-only)
 
-## Tests
-
-- Second dispatch round on the same order succeeds and marks the previous round superseded (currently fails with 23505).
-- Two simultaneous dispatches of one order produce exactly one live round; the loser gets the 409 path, not a 500.
-- An order with an accepted round cannot get a second live round.
-- Expired/no_riders/superseded rows coexist for one order (audit history preserved).
-- Role checks, availability filters and concurrency caps still refuse unauthorized callers and over-loaded riders.
+Tap events never play the order file; generic push posts no sound; same order ID rings once across two listeners; unpaid INSERT silent, paid transition rings once; POS silent; other-outlet silent; rider offer for another rider silent.
