@@ -103,7 +103,8 @@ export default function VoucherStorefront() {
       });
       if (error) throw error;
       if (!res?.authorization_url) throw new Error('No payment URL returned');
-      window.location.href = res.authorization_url.replace('__REF__', res.reference);
+      const { openPaymentUrl } = await import('@/lib/openPaymentUrl');
+      await openPaymentUrl(res.authorization_url.replace('__REF__', res.reference));
     } catch (e: any) {
       toast.error(e.message || 'Could not start payment');
     } finally {

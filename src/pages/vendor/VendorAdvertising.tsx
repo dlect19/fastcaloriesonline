@@ -601,7 +601,7 @@ export default function VendorAdvertising() {
               <Input type="number" value={fundAmount} onChange={e => setFundAmount(e.target.value)} placeholder="5000" min={fundMode === 'direct' ? 1000 : 100} />
             </div>
             {fundMode === 'direct' && (
-              <p className="text-xs text-muted-foreground">Minimum ₦1,000. You'll be redirected to Paystack to complete payment.</p>
+              <p className="text-xs text-muted-foreground">Minimum ₦1,000. Payment is completed securely through Paystack.</p>
             )}
             <Button
               className="w-full"

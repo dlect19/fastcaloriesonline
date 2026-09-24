@@ -35,6 +35,7 @@
     "@capacitor/cli": "^8.0.2",
     "@capacitor/core": "^8.0.2",
     "@capacitor/geolocation": "^8.1.0",
+    "@capacitor/inappbrowser": "^4.0.3",
     "@capacitor/ios": "^8.0.2",
     "@capacitor/local-notifications": "^8.2.0",
     "@capacitor/push-notifications": "^8.0.1",
